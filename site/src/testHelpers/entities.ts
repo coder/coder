@@ -3393,6 +3393,11 @@ export const MockPermissions: Permissions = {
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
 	createChat: true,
+	viewAnyChatModelConfig: true,
+	createAnyChatModelConfig: true,
+	editAnyChatModelConfig: true,
+	deleteAnyChatModelConfig: true,
+	shareAnyChatModelConfig: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3434,6 +3439,11 @@ export const MockNoPermissions: Permissions = {
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
 	createChat: false,
+	viewAnyChatModelConfig: false,
+	createAnyChatModelConfig: false,
+	editAnyChatModelConfig: false,
+	deleteAnyChatModelConfig: false,
+	shareAnyChatModelConfig: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -3456,6 +3466,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
+	viewChatModelConfigs: true,
+	createChatModelConfigs: true,
+	editChatModelConfigs: true,
+	deleteChatModelConfigs: true,
+	shareChatModelConfigs: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3478,6 +3493,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
+	viewChatModelConfigs: false,
+	createChatModelConfigs: false,
+	editChatModelConfigs: false,
+	deleteChatModelConfigs: false,
+	shareChatModelConfigs: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
@@ -5591,10 +5611,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	providers: ["anthropic", "openai"],
 	models: ["claude-opus-4-6", "gpt-5.4"],
-	client: "Mux",
+	client: "Xum",
 	metadata: {
 		request_user_agent:
-			"mux/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
+			"xum/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
 	},
 	started_at: "2026-03-09T09:28:15.03152Z",
 	ended_at: "2026-03-09T10:28:17.294897Z",

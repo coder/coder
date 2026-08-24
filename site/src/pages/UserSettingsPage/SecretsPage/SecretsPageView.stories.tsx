@@ -762,9 +762,11 @@ export const ImportSecretsParseError: Story = {
 			new File(["GOOD=1\nbad line"], "secrets.env"),
 		);
 
-		await expect(
-			await dialog.findByText("Failed to parse secrets file."),
-		).toBeVisible();
+		// findByText retries only DOM presence, so a one-shot toBeVisible can
+		// catch the dialog mid fade-in at opacity 0. Retry visibility itself.
+		await waitFor(() =>
+			expect(dialog.getByText("Failed to parse secrets file.")).toBeVisible(),
+		);
 		expect(dialog.getByText("Line 2 must contain KEY=VALUE.")).toBeVisible();
 		expect(dialog.queryByText("Response data")).not.toBeInTheDocument();
 		expect(dialog.queryByText("Stack Trace")).not.toBeInTheDocument();
@@ -785,9 +787,11 @@ export const ImportSecretsFileReadError: Story = {
 			new File(["A=1"], "secrets.env"),
 		);
 
-		await expect(
-			await dialog.findByText("Failed to read the selected file."),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				dialog.getByText("Failed to read the selected file."),
+			).toBeVisible(),
+		);
 	},
 };
 
@@ -838,11 +842,13 @@ export const ImportSecretsRemoveAndRetry: Story = {
 			new File(["not a secret"], "bad.txt"),
 		);
 
-		await expect(
-			await dialog.findByText(
-				"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
-			),
-		).toBeVisible();
+		await waitFor(() =>
+			expect(
+				dialog.getByText(
+					"Unsupported file type. Import a .env, .json, .yaml, or .yml file.",
+				),
+			).toBeVisible(),
+		);
 		await user.click(dialog.getByRole("button", { name: "Remove file" }));
 		expect(
 			dialog.queryByText(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -84,12 +85,10 @@ func (s *failNextGetChatSystemPromptConfigStore) GetChatSystemPromptConfig(ctx c
 	return s.Store.GetChatSystemPromptConfig(ctx)
 }
 
-// TestChatInstructionSettingsOldCaptureBestEffort proves the Old capture is
-// best effort: a failed Old read costs nothing (nothing was written yet), so
-// the handler runs the direct write path and emits no audit entry. There is
-// no post-write read to fail, so no diff can ever be fabricated from a zero
-// value.
-func TestChatInstructionSettingsOldCaptureBestEffort(t *testing.T) {
+// TestChatInstructionSettingsOldCaptureFailsClosed proves a failed baseline
+// read rejects the mutation and records the failed attempt without fabricating
+// a diff from a zero value.
+func TestChatInstructionSettingsOldCaptureFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -111,21 +110,23 @@ func TestChatInstructionSettingsOldCaptureBestEffort(t *testing.T) {
 	// Discard the login entry emitted by user creation.
 	backend.reset()
 
-	// The Old capture fails before anything is written: the transaction
-	// is abandoned at no cost, the handler runs the direct write path,
-	// and no audit entry is emitted (there is no baseline to diff
-	// against, so any row would be a guess).
 	store.fail.Store(true)
 	err := client.UpdateChatSystemPrompt(ctx, codersdk.UpdateChatSystemPromptRequest{
-		SystemPrompt:               "Changed prompt.",
+		SystemPrompt:               "Must not be stored.",
 		IncludeDefaultSystemPrompt: ptr.Ref(true),
 	})
-	require.NoError(t, err)
-	require.Empty(t, backend.entries())
+	sdkErr := new(codersdk.Error)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode())
+
+	entries := backend.entries()
+	require.Len(t, entries, 1)
+	require.EqualValues(t, http.StatusInternalServerError, entries[0].StatusCode)
+	require.JSONEq(t, "{}", string(entries[0].Diff))
 
 	resp, err := client.GetChatSystemPrompt(ctx)
 	require.NoError(t, err)
-	require.Equal(t, "Changed prompt.", resp.SystemPrompt)
+	require.Empty(t, resp.SystemPrompt)
 	require.True(t, resp.IncludeDefaultSystemPrompt)
 }
 

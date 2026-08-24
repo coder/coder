@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import type { ChatModelConfig } from "#/api/typesGenerated";
+import type { ChatModel } from "#/api/typesGenerated";
+import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
+} from "#/testHelpers/entities";
 import ModelsPageView from "./ModelsPageView";
+import { OrganizationModelsContext } from "./organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockBedrockProviderState,
@@ -19,9 +24,24 @@ import {
 const meta: Meta<typeof ModelsPageView> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelsPageView",
 	component: ModelsPageView,
+	decorators: [
+		(Story) => (
+			<OrganizationModelsContext.Provider
+				value={{
+					organization: MockDefaultOrganization,
+					organizations: [MockDefaultOrganization],
+					permissions: MockOrganizationPermissions,
+					requestedOrganizationDenied: false,
+				}}
+			>
+				<Story />
+			</OrganizationModelsContext.Provider>
+		),
+	],
 	args: {
 		isLoading: false,
-		error: null,
+		loadError: null,
+		refetchError: null,
 		models: [mockGPT5, mockClaude, mockDisabledModel, mockBedrockClaude],
 		providerStates: [
 			MockOpenAIProviderState,
@@ -33,6 +53,7 @@ const meta: Meta<typeof ModelsPageView> = {
 			["prov-anthropic", "anthropic"],
 			["prov-bedrock", "bedrock"],
 		]),
+		canCreateModel: true,
 	},
 	parameters: {
 		// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
@@ -83,6 +104,28 @@ export const Default: Story = {
 		const menu = await within(document.body).findByRole("menu");
 		await within(menu).findByRole("menuitem", { name: "Anthropic" });
 		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const CreateOnlyUserCanAdd: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		const menu = await within(document.body).findByRole("menu");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "OpenAI" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ReadOnlyUserCannotAdd: Story = {
+	args: { canCreateModel: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("GPT-5")).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -154,7 +197,7 @@ export const DisabledProviderModelsStillListed: Story = {
 // models entirely, so the row reaches "Unset" via a map-miss and the
 // `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
 // here: the model appears in `models` but is not present in any
-// providerState.modelConfigs, so a `?? true` regression would flip this
+// providerState.models, so a `?? true` regression would flip this
 // story to "Enabled" and be caught.
 export const OrphanedModelShowsUnset: Story = {
 	args: {
@@ -192,12 +235,32 @@ export const Empty: Story = {
 
 export const LoadError: Story = {
 	args: {
-		error: new Error("Failed to load models"),
+		loadError: new Error("Failed to load models"),
 		models: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Failed to load models")).toBeVisible();
+		await expect(
+			canvas.queryByText("No models configured"),
+		).not.toBeInTheDocument();
 	},
 };
 
-const manyModels: ChatModelConfig[] = Array.from({ length: 23 }, (_, i) => ({
+export const RefetchError: Story = {
+	args: {
+		refetchError: new Error("Failed to refresh models"),
+		models: [mockGPT5, mockClaude],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Failed to refresh models")).toBeVisible();
+		await expect(canvas.getByText("GPT-5")).toBeVisible();
+		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeVisible();
+	},
+};
+
+const manyModels: ChatModel[] = Array.from({ length: 23 }, (_, i) => ({
 	...mockClaude,
 	id: `model-${i}`,
 	model: `model-${i}`,

@@ -1010,7 +1010,7 @@ type mcpServerConfigDeleteRaceStore struct {
 func (s *mcpServerConfigDeleteRaceStore) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
 	config, err := s.Store.GetMCPServerConfigByID(ctx, id)
 	if err == nil && s.armed.CompareAndSwap(true, false) {
-		if err := s.Store.DeleteMCPServerConfigByID(ctx, id); err != nil {
+		if err := s.DeleteMCPServerConfigByID(ctx, id); err != nil {
 			return database.MCPServerConfig{}, err
 		}
 	}
@@ -3249,7 +3249,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	// Create the chat model config required for creating a chat.
-	_ = createChatModelConfigForMCP(t, expClient)
+	_ = createChatModelForMCP(t, expClient)
 
 	// Create enabled MCP server configs.
 	mcpConfigA := createMCPServerConfig(t, client, firstUser.OrganizationID, "chat-mcp-server-a", true)
@@ -3284,9 +3284,9 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.Contains(t, fetched.MCPServerIDs, mcpConfigB.ID)
 }
 
-func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+func createChatModelForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModel {
 	t.Helper()
-	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
+	return coderdtest.CreateOpenAICompatChatModel(t, client, "")
 }
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {

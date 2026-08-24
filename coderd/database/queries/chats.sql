@@ -2272,7 +2272,7 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
     c.mode, c.archived, c.last_model_config_id, c.client_type,
@@ -2306,9 +2306,8 @@ WHERE cm.created_at > @created_after
 GROUP BY cm.chat_id;
 
 -- name: GetChatModelConfigsForTelemetry :many
--- Returns all model configurations for telemetry snapshot collection.
 -- deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false;

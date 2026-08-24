@@ -17,7 +17,11 @@ import type {
 	SelectedBaseMeta,
 	TemplateBuilderWizardState,
 } from "./wizardState";
-import { toCreateTemplateRequest, toSelectedBaseMeta } from "./wizardState";
+import {
+	type CustomizationsFormValues,
+	toCreateTemplateRequest,
+	toSelectedBaseMeta,
+} from "./wizardState";
 
 const TemplateBuilderPage: FC = () => {
 	const navigate = useNavigate();
@@ -109,8 +113,11 @@ const TemplateBuilderPage: FC = () => {
 		return <Navigate to="/templates/new" replace />;
 	}
 
-	const handleCreate = (state: TemplateBuilderWizardState) => {
-		const req = toCreateTemplateRequest(state);
+	const handleCreate = (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => {
+		const req = toCreateTemplateRequest(state, customizations);
 		const durationSeconds = (Date.now() - state.enteredAt) / 1000;
 
 		createMutation.mutate(req, {

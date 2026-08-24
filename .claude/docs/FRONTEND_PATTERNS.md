@@ -70,15 +70,15 @@ export const SelectModel: Story = {
 **Incorrect:**
 
 ```tsx
-const config = data as unknown as ChatModelConfig;
+const config = data as unknown as ChatModel;
 ```
 
 **Correct:**
 
 ```tsx
-import type { ChatModelConfig } from "api/typesGenerated";
+import type { ChatModel } from "api/typesGenerated";
 
-const config: ChatModelConfig = parseConfig(data);
+const config: ChatModel = parseConfig(data);
 ```
 
 ## FE3: Reuse before building, and keep PRs single-purpose
@@ -167,17 +167,17 @@ with `useState` + `useEffect`.
 
 ```tsx
 parameters: {
-  queries: [{ key: ["chat-model-configs"], data: [MockChatModelConfig] }],
+  queries: [{ key: ["chat-models"], data: [MockChatModel] }],
 },
 ```
 
 **Correct (imported constant):**
 
 ```tsx
-import { chatModelConfigsKey } from "api/queries/chats";
+import { chatModelsKey } from "api/queries/chats";
 
 parameters: {
-  queries: [{ key: chatModelConfigsKey, data: [MockChatModelConfig] }],
+  queries: [{ key: chatModelsKey, data: [MockChatModel] }],
 },
 ```
 
@@ -203,7 +203,7 @@ Decide where logic goes before reaching for `useEffect`:
 ## FE9: Fixtures and mocks follow repo conventions
 
 - Represent entities with shared `Mock*` constants in `site/src/testHelpers/`
-  (for example `MockChatModelConfig` in `testHelpers/chatModels.ts`). When a
+  (for example `MockChatModel` in `testHelpers/chatModels.ts`). When a
   story needs a variant, spread the base fixture into a named local constant.
 - Compose story query wiring (`{ key, data }`) inline per story so each story
   is readable on its own. Share the entity fixture, not a pre-wired query

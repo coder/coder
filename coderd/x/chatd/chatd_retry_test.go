@@ -104,10 +104,11 @@ func TestActiveServer_RetryStreamSilenceTimeoutAndClassification(t *testing.T) {
 		})
 		user, org, _ := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:     "gpt-4o",
-			Enabled:   true,
-			CreatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
-			UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+			Model:          "gpt-4o",
+			Enabled:        true,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			OrganizationID: org.ID,
 		})
 		factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {

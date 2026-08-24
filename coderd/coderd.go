@@ -988,8 +988,8 @@ func New(options *Options) *API {
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
-		api.Options.NetworkTelemetryBatchFrequency,
-		api.Options.NetworkTelemetryBatchMaxSize,
+		api.NetworkTelemetryBatchFrequency,
+		api.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
 	if options.CoordinatorResumeTokenProvider == nil {
@@ -998,10 +998,10 @@ func New(options *Options) *API {
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   api.Logger.Named("tailnetclient"),
 		CoordPtr:                 &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapUpdateFrequency:   api.DERPMapUpdateFrequency,
 		DERPMapFn:                api.DERPMap,
 		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		ResumeTokenProvider:      api.CoordinatorResumeTokenProvider,
 		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
 	if err != nil {
@@ -1408,6 +1408,69 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		// Organization-scoped ChatModel management and runtime discovery.
+		// Keep the previous default-organization collection routes until the
+		// frontend uses the organization-scoped routes.
+		r.Route("/chats/model-configs", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+						chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+						next.ServeHTTP(rw, req)
+					})
+				},
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
+			r.Post("/", api.createChatModelConfig)
+		})
+		r.With(
+			apiKeyMiddleware,
+			func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+					next.ServeHTTP(rw, req)
+				})
+			},
+			httpmw.ExtractOrganizationParam(options.Database),
+		).Get("/chats/models", api.listChatModelConfigsByOrganization)
+
+		r.Route("/organizations/{organization}/chats/model-overrides", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationChatModelOverrides)
+			r.Put("/{context}", api.putOrganizationChatModelOverride)
+		})
+		r.Route("/organizations/{organization}/members/{user}/chats/model-overrides", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+				httpmw.ExtractOrganizationMemberParam(options.Database),
+			)
+			r.Get("/", api.getUserChatPersonalModelOverrides)
+			r.Put("/{context}", api.putUserChatPersonalModelOverride)
+		})
+		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Post("/", api.createChatModelConfig)
+			r.Route("/{model}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOrganizationParam(options.Database),
+					httpmw.ExtractChatModelConfigParam(options.Database),
+				)
+				r.Get("/", api.getChatModelConfig)
+				r.Patch("/", api.updateChatModelConfig)
+				r.Delete("/", api.deleteChatModelConfig)
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.chatModelConfigACLHandler)
+					r.Patch("/", api.updateChatModelConfigACL)
+				})
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1415,7 +1478,6 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
@@ -1428,12 +1490,8 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/model-override/{context}", api.getChatModelOverride)
-				r.Put("/model-override/{context}", api.putChatModelOverride)
 				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
-				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
-				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
@@ -1469,15 +1527,6 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {
@@ -1578,6 +1627,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -2742,10 +2792,10 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
 	if fn != nil {
-		return (*fn)(api.Options.BaseDERPMap)
+		return (*fn)(api.BaseDERPMap)
 	}
 
-	return api.Options.BaseDERPMap
+	return api.BaseDERPMap
 }
 
 // nolint:revive

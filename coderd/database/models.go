@@ -529,6 +529,12 @@ const (
 	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -809,7 +815,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeMcpServerConfigRead,
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
-		ApiKeyScopeMcpServerConfigShare:
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare:
 		return true
 	}
 	return false
@@ -1059,6 +1071,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
 		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
 	}
 }
 
@@ -3613,6 +3631,8 @@ const (
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3689,7 +3709,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
-		ResourceTypeMCPServerConfig:
+		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3735,6 +3757,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 
@@ -5240,6 +5264,17 @@ type ChatModelConfig struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
+	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
+}
+
+type ChatOrganizationModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatQueuedMessage struct {
@@ -5319,6 +5354,16 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUserModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	Mode            string         `db:"mode" json:"mode"`
+	ModelConfigID   uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ConnectionLog struct {
