@@ -67,6 +67,8 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default"
 					viewportClassName="max-h-64"
+					viewportTabIndex={0}
+					viewportAriaLabel="Advisor response"
 					scrollBarClassName="w-1.5"
 				>
 					<div className="space-y-2 px-3 py-2">

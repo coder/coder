@@ -247,7 +247,7 @@ func (c *agentConn) ReconnectingPTY(ctx context.Context, id uuid.UUID, height, w
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
+	conn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentReconnectingPTYPort))
 	if err != nil {
 		return nil, err
 	}
@@ -334,8 +334,8 @@ func (c *agentConn) Speedtest(ctx context.Context, direction speedtest.Direction
 		return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 	}
 
-	c.Conn.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
-	speedConn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
+	c.SendConnectedTelemetry(c.agentAddress(), tailnet.TelemetryApplicationSpeedtest)
+	speedConn, err := c.DialContextTCP(ctx, netip.AddrPortFrom(c.agentAddress(), AgentSpeedtestPort))
 	if err != nil {
 		return nil, xerrors.Errorf("dial speedtest: %w", err)
 	}
@@ -364,9 +364,9 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 
 	switch network {
 	case "tcp":
-		return c.Conn.DialContextTCP(ctx, ipp)
+		return c.DialContextTCP(ctx, ipp)
 	case "udp":
-		return c.Conn.DialContextUDP(ctx, ipp)
+		return c.DialContextUDP(ctx, ipp)
 	default:
 		return nil, xerrors.Errorf("unknown network %q", network)
 	}
@@ -943,6 +943,7 @@ type ProcessOutputResponse struct {
 	Truncated *ProcessTruncation `json:"truncated,omitempty"`
 	Running   bool               `json:"running"`
 	ExitCode  *int               `json:"exit_code,omitempty"`
+	Command   string             `json:"command,omitempty"`
 }
 
 // ProcessOutputOptions configures blocking behavior for
@@ -1509,7 +1510,7 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 				}
 
 				// Always dial the pinned agent address, never the request host.
-				conn, err := c.Conn.DialContextTCP(ctx, agentAddr)
+				conn, err := c.DialContextTCP(ctx, agentAddr)
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}

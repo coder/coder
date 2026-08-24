@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/internal/googleopenai"
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 )
 
 func TestShouldPatchOpenAICompatRequest(t *testing.T) {

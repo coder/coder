@@ -1149,22 +1149,38 @@ title: Schemas
   "model": "string",
   "output_price": 0,
   "provider": "string",
+  "source": "default",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `created_at`        | string  | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
-| `updated_at`        | string  | false    |              |             |
+| Name                | Type                                                       | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------|----------|--------------|-------------|
+| `cache_read_price`  | integer                                                    | false    |              |             |
+| `cache_write_price` | integer                                                    | false    |              |             |
+| `created_at`        | string                                                     | false    |              |             |
+| `input_price`       | integer                                                    | false    |              |             |
+| `model`             | string                                                     | false    |              |             |
+| `output_price`      | integer                                                    | false    |              |             |
+| `provider`          | string                                                     | false    |              |             |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
+| `updated_at`        | string                                                     | false    |              |             |
+
+## codersdk.AIModelPriceSource
+
+```json
+"default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `custom`, `default` |
 
 ## codersdk.AIModelPriceUpsert
 
@@ -5401,6 +5417,38 @@ This is required on creation to enable a user-flow of validating a template work
 | `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
 | `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
 | `token_name` | string                                                              | false    |              |                                 |
+
+## codersdk.CreateTrialLicenseRequest
+
+```json
+{
+  "attribution_id": "6f882a62-1d45-46e1-b5f4-0abfea127010",
+  "company_name": "Acme Corp",
+  "country": "United States",
+  "developers": "string",
+  "email": "jane.doe@example.com",
+  "first_name": "Jane",
+  "job_title": "Engineering Manager",
+  "last_name": "Doe",
+  "phone_number": "+14155552671",
+  "source": "aibridge_session_threads"
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description                                                                                                                                |
+|------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `attribution_id` | string                                                       | false    |              | Attribution ID is the ID of the cta_click funnel event that led here, so that a signup can be joined back to the paywall that produced it. |
+| `company_name`   | string                                                       | true     |              |                                                                                                                                            |
+| `country`        | string                                                       | true     |              |                                                                                                                                            |
+| `developers`     | string                                                       | true     |              |                                                                                                                                            |
+| `email`          | string                                                       | true     |              |                                                                                                                                            |
+| `first_name`     | string                                                       | true     |              |                                                                                                                                            |
+| `job_title`      | string                                                       | true     |              |                                                                                                                                            |
+| `last_name`      | string                                                       | true     |              |                                                                                                                                            |
+| `phone_number`   | string                                                       | true     |              |                                                                                                                                            |
+| `source`         | [codersdk.PremiumFunnelSource](#codersdkpremiumfunnelsource) | false    |              | Source is the premium paywall the request came from, for telemetry. It is not forwarded to the licensor. Omit it to report "direct".       |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -10597,6 +10645,52 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                    | Type    | Required | Restrictions | Description |
 |-------------------------|---------|----------|--------------|-------------|
 | `reconciliation_paused` | boolean | false    |              |             |
+
+## codersdk.PremiumFunnelEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "source": "aibridge_session_threads",
+  "variant": "premium"
+}
+```
+
+### Properties
+
+| Name      | Type                                                           | Required | Restrictions | Description                                                                                       |
+|-----------|----------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `id`      | string                                                         | true     |              | ID identifies this click, and doubles as the attribution token that a later trial signup reports. |
+| `source`  | [codersdk.PremiumFunnelSource](#codersdkpremiumfunnelsource)   | true     |              |                                                                                                   |
+| `variant` | [codersdk.PremiumFunnelVariant](#codersdkpremiumfunnelvariant) | true     |              |                                                                                                   |
+
+## codersdk.PremiumFunnelSource
+
+```json
+"aibridge_session_threads"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_keys`, `ai_governance`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `external_auth`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
+
+## codersdk.PremiumFunnelVariant
+
+```json
+"premium"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `ai_governance`, `premium`, `small` |
 
 ## codersdk.Preset
 

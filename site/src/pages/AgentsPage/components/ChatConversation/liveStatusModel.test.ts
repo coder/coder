@@ -132,18 +132,42 @@ describe("deriveLiveStatus", () => {
 		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
 	});
 
-	it("tracks accumulated output on failed streams", () => {
+	it("suppresses accumulated output after a terminal stream error", () => {
 		expect(
 			derive({
 				streamState: buildStreamState({
 					blocks: [{ type: "response", text: "Partial response" }],
 				}),
 				streamError: buildStreamError(),
+				chatStatus: "error",
+			}),
+		).toEqual(failedStatus);
+	});
+
+	it("keeps accumulated output when a non-terminal error leaves the stream live", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				streamError: buildStreamError(),
+				chatStatus: "running",
 			}),
 		).toEqual({
 			...failedStatus,
 			hasAccumulatedOutput: true,
 		});
+	});
+
+	it("does not stream stale output while a retry is in flight after an error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				chatStatus: "error",
+			}),
+		).toEqual({ phase: "idle", hasAccumulatedOutput: false });
 	});
 
 	it("passes provider detail through failed status", () => {
@@ -170,6 +194,21 @@ describe("deriveLiveStatus", () => {
 		).toEqual({
 			...reconnectingStatus,
 			hasAccumulatedOutput: true,
+		});
+	});
+
+	it("suppresses accumulated output while reconnecting after a terminal error", () => {
+		expect(
+			derive({
+				streamState: buildStreamState({
+					blocks: [{ type: "response", text: "Partial response" }],
+				}),
+				reconnectState: buildReconnectState(),
+				chatStatus: "error",
+			}),
+		).toEqual({
+			...reconnectingStatus,
+			hasAccumulatedOutput: false,
 		});
 	});
 

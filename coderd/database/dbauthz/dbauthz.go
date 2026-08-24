@@ -725,6 +725,7 @@ var (
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
 					rbac.ResourceAIProvider.Type:           {policy.ActionRead},                      // Required to load the provider snapshot (and per-provider keys) at startup.
 					rbac.ResourceGroup.Type:                {policy.ActionRead},                      // Required to read the effective group.
+					rbac.ResourceOrganization.Type:         {policy.ActionRead},                      // Required to name the organization in budget notification links.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -2282,8 +2283,7 @@ func (q *querier) DeleteExpiredAPIKeys(ctx context.Context, arg database.DeleteE
 
 func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.DeleteExternalAuthLinkParams) error {
 	return fetchAndExec(q.log, q.auth, policy.ActionUpdatePersonal, func(ctx context.Context, arg database.DeleteExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-		//nolint:gosimple
-		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams(arg))
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
@@ -8851,11 +8851,11 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
-func (q *querier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
+func (q *querier) UpsertAIModelPrices(ctx context.Context, arg database.UpsertAIModelPricesParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice); err != nil {
 		return err
 	}
-	return q.db.UpsertAIModelPrices(ctx, seed)
+	return q.db.UpsertAIModelPrices(ctx, arg)
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
@@ -9027,7 +9027,7 @@ func (q *querier) UpsertChatTitleGenerationModelOverride(ctx context.Context, va
 	return q.db.UpsertChatTitleGenerationModelOverride(ctx, value)
 }
 
-//nolint:revive // Parameter name matches the generated querier interface.
+//nolint:revive,staticcheck // Parameter name matches the generated querier interface.
 func (q *querier) UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

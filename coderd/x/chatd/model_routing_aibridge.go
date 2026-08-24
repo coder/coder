@@ -165,11 +165,7 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
-	callConfig, err := parseModelConfigOptions(req.ConfigOptions)
-	if err != nil {
-		return chatprovider.Model{}, err
-	}
-	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, callConfig)
+	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -177,7 +173,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		callConfig.OpenAIConfig,
+		req.CallConfig.OpenAIConfig,
 	)
 }
 
