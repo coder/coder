@@ -383,12 +383,12 @@ func deriveTaskCurrentState(
 			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
 		case taskAgentLifecycle != nil:
-			switch {
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
 				message = "Agent is connecting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+			case codersdk.WorkspaceAgentLifecycleStarting:
 				message = "Agent is starting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+			case codersdk.WorkspaceAgentLifecycleReady:
 				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
 					message = "App is initializing"
 				} else {
@@ -487,7 +487,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	}
 
 	// Gather associated data and convert to API workspaces.
-	data, err := api.workspaceData(ctx, workspaces)
+	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
 	if err != nil {
 		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
@@ -547,7 +547,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -572,7 +572,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {

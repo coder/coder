@@ -51,6 +51,9 @@ var (
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
 	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
+	// ErrNoModelOutput is returned when a stream ends without visible content or
+	// tool calls and its finish reason indicates an incomplete response.
+	ErrNoModelOutput = xerrors.New("model stream finished without output")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -215,8 +218,9 @@ type GenerateAssistantOptions struct {
 	Clock                quartz.Clock
 
 	ContextLimitFallback int64
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	// CallTemplate is copied before GenerateAssistant attaches the prompt and
+	// tools.
+	CallTemplate fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	// OnModelStreamStart runs immediately before the provider stream is
@@ -311,9 +315,9 @@ type GenerateCompactionOptions struct {
 	ResolvedModel    string
 	ModelConfigID    uuid.UUID
 
-	// ProviderOptions carry summary-model call options such as an
-	// override's reasoning effort.
-	ProviderOptions fantasy.ProviderOptions
+	// SummaryCall is copied before GenerateCompaction attaches the summary
+	// prompt.
+	SummaryCall fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 
@@ -405,17 +409,9 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 	opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 
-	call := fantasy.Call{
-		Prompt:           prepared,
-		Tools:            buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools),
-		MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
-		Temperature:      opts.ModelConfig.Temperature,
-		TopP:             opts.ModelConfig.TopP,
-		TopK:             opts.ModelConfig.TopK,
-		PresencePenalty:  opts.ModelConfig.PresencePenalty,
-		FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-		ProviderOptions:  opts.ProviderOptions,
-	}
+	call := opts.CallTemplate
+	call.Prompt = prepared
+	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
 	if opts.OnModelStreamStart != nil {
@@ -469,6 +465,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
+	// Treat discarded responses as retryable so an empty turn is not persisted.
+	if silentNoOutputFinish(result.finishReason) && !hasUserVisibleContent(result.content) && len(result.toolCalls) == 0 {
+		noOutputErr := noModelOutputError(errorProvider, result.finishReason)
+		opts.Metrics.RecordStreamRetry(provider, modelName, chaterror.Classify(noOutputErr))
+		return AssistantOutcome{}, noOutputErr
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -503,18 +505,46 @@ func wrapProviderStreamError(provider string, err error) error {
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
 }
 
-// hasUserVisibleContent reports whether any content part carries output the
-// user can see. Reasoning parts do not count: they stream transiently and are
-// not a substitute for a response.
+// hasUserVisibleContent ignores reasoning and blank text because neither can
+// complete a user-facing response.
 func hasUserVisibleContent(content []fantasy.Content) bool {
 	for _, part := range content {
-		switch part.(type) {
+		switch value := part.(type) {
 		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		case fantasy.TextContent:
+			if strings.TrimSpace(value.Text) != "" {
+				return true
+			}
+		case *fantasy.TextContent:
+			if value != nil && strings.TrimSpace(value.Text) != "" {
+				return true
+			}
 		default:
 			return true
 		}
 	}
 	return false
+}
+
+func silentNoOutputFinish(reason fantasy.FinishReason) bool {
+	switch reason {
+	case fantasy.FinishReasonUnknown, fantasy.FinishReasonError,
+		fantasy.FinishReasonOther, fantasy.FinishReasonToolCalls:
+		return true
+	default:
+		return false
+	}
+}
+
+func noModelOutputError(provider string, reason fantasy.FinishReason) error {
+	classified := chaterror.ClassifiedError{
+		Message:   "The model ended its response without producing any output.",
+		Detail:    "finish reason: " + string(reason),
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  provider,
+		Retryable: true,
+	}
+	return chaterror.WithClassification(ErrNoModelOutput, classified)
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
@@ -1628,9 +1658,16 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			continue
 		}
 
+		// Substitute an empty object for nil properties so that a tool
+		// with no parameters never serializes "properties" to null,
+		// which OpenAI rejects.
+		properties := info.Parameters
+		if properties == nil {
+			properties = map[string]any{}
+		}
 		inputSchema := map[string]any{
 			"type":       "object",
-			"properties": info.Parameters,
+			"properties": properties,
 		}
 		// Only include "required" when non-empty so that a nil slice
 		// never serializes to null, which OpenAI rejects.

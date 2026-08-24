@@ -75,13 +75,11 @@ func TestValidateAIModelPrices(t *testing.T) {
 			},
 		},
 		{
-			// The price book is re-applied on every restart, so this price
-			// would not survive one.
+			// A model the price book covers is accepted, and stored as a
+			// custom price alongside the book's.
 			name: "ModelInPriceBook",
 			body: `{"prices":[{"provider":"anthropic","model":"claude-opus-5",` + allPrices + `}]}`,
-			want: []codersdk.ValidationError{
-				{Field: "prices[0]", Detail: "anthropic/claude-opus-5 is priced by Coder's default price book. Overriding a default price is not supported."},
-			},
+			want: nil,
 		},
 		{
 			name: "NegativePrice",

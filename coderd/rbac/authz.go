@@ -478,7 +478,7 @@ func (a RegoAuthorizer) authorize(ctx context.Context, subject Subject, action p
 	// The caller should use either 1 or the other (or none).
 	// Using "AnyOrgOwner" and an OrgID is a contradiction.
 	// An empty uuid or a nil uuid means "no org owner".
-	if object.AnyOrgOwner && !(object.OrgID == "" || object.OrgID == "00000000-0000-0000-0000-000000000000") {
+	if object.AnyOrgOwner && object.OrgID != "" && object.OrgID != "00000000-0000-0000-0000-000000000000" {
 		return xerrors.Errorf("object cannot have 'any_org' and an 'org_id' specified, values are mutually exclusive")
 	}
 
@@ -742,6 +742,14 @@ func ConfigChats() regosql.ConvertConfig {
 func ConfigWorkspaces() regosql.ConvertConfig {
 	return regosql.ConvertConfig{
 		VariableConverter: regosql.WorkspaceConverter(),
+	}
+}
+
+// ConfigChatModelConfigs uses a resource converter so SQL filters qualify
+// chat model config columns consistently with GetChatModelConfigs.
+func ConfigChatModelConfigs() regosql.ConvertConfig {
+	return regosql.ConvertConfig{
+		VariableConverter: regosql.ChatModelConfigConverter(),
 	}
 }
 

@@ -159,6 +159,10 @@ export const useResourceTypeFilterMenu = ({
 			label = "Chat Instruction Settings";
 		}
 
+		if (type === "chat_operational_settings") {
+			label = "Chat Operational Settings";
+		}
+
 		return {
 			value: type,
 			label,

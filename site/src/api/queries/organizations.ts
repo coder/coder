@@ -330,13 +330,15 @@ export const permittedOrganizations = (check: AuthorizationCheck) => {
  *
  * If organizations are undefined, return a disabled query.
  */
+const organizationsPermissionsKey = ["organizations"] as const;
+
 export const organizationsPermissions = (
 	organizationIds: string[] | undefined,
 ) => {
 	return {
 		enabled: Boolean(organizationIds),
 		queryKey: [
-			"organizations",
+			...organizationsPermissionsKey,
 			[...(organizationIds ?? []).sort()],
 			"permissions",
 		],

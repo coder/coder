@@ -86,6 +86,17 @@ const docTemplate = `{
                         "description": "Only return prices for this model",
                         "name": "model",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "default",
+                            "custom",
+                            "all"
+                        ],
+                        "type": "string",
+                        "description": "Only return prices from this source, or all to return every price a model holds",
+                        "name": "source",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -469,32 +480,6 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
-            }
-        },
-        "/api/experimental/chats/models": {
-            "get": {
-                "description": "Experimental: this endpoint is subject to change.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List chat models",
-                "operationId": "list-chat-models",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ChatModelsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
             }
         },
         "/api/experimental/chats/watch": {
@@ -1374,6 +1359,418 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List organization chat model overrides",
+                "operationId": "list-organization-chat-model-overrides",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/model-overrides/{context}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization chat model override",
+                "operationId": "update-organization-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "general",
+                            "explore",
+                            "title_generation",
+                            "compaction",
+                            "advisor"
+                        ],
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List AI models and provider descriptors in an organization",
+                "operationId": "list-ai-models-by-organization",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationChatModelsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create an AI model in an organization",
+                "operationId": "create-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models/{model}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get an AI model",
+                "operationId": "get-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete an AI model",
+                "operationId": "delete-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update an AI model",
+                "operationId": "update-ai-model",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Model updates",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModel"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/models/{model}/acl": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get an AI model ACL",
+                "operationId": "get-ai-model-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatModelACL"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update an AI model ACL",
+                "operationId": "update-ai-model-acl",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Sparse model ACL update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateChatModelACLRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/mcp-servers": {
             "get": {
                 "produces": [
@@ -1727,6 +2124,112 @@ const docTemplate = `{
                 "responses": {
                     "307": {
                         "description": "Temporary Redirect"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get organization member chat model overrides",
+                "operationId": "get-organization-member-chat-model-overrides",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User name, ID, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserChatPersonalModelOverridesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides/{context}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update organization member chat model override",
+                "operationId": "update-organization-member-chat-model-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User name, ID, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "root",
+                            "general",
+                            "explore"
+                        ],
+                        "type": "string",
+                        "description": "Override context",
+                        "name": "context",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Personal model override",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserChatPersonalModelOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -3378,6 +3881,39 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/deployment/premium-funnel-events": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Report a premium paywall click",
+                "operationId": "report-a-premium-paywall-click",
+                "parameters": [
+                    {
+                        "description": "Premium funnel event",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelEventRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/deployment/ssh": {
             "get": {
                 "produces": [
@@ -4538,6 +5074,45 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/licenses/trial": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Request a trial license",
+                "operationId": "request-a-trial-license",
+                "parameters": [
+                    {
+                        "description": "Trial license request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateTrialLicenseRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.License"
                         }
                     }
                 },
@@ -16191,11 +16766,25 @@ const docTemplate = `{
                 "provider": {
                     "type": "string"
                 },
+                "source": {
+                    "$ref": "#/definitions/codersdk.AIModelPriceSource"
+                },
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.AIModelPriceSource": {
+            "type": "string",
+            "enum": [
+                "default",
+                "custom"
+            ],
+            "x-enum-varnames": [
+                "AIModelPriceSourceDefault",
+                "AIModelPriceSourceCustom"
+            ]
         },
         "codersdk.AIModelPriceUpsert": {
             "type": "object",
@@ -16254,6 +16843,14 @@ const docTemplate = `{
                 },
                 "settings": {
                     "$ref": "#/definitions/codersdk.AIProviderSettings"
+                },
+                "status": {
+                    "description": "Status carries runtime routing status; nil when empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderStatus"
+                        }
+                    ]
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.AIProviderType"
@@ -16320,6 +16917,17 @@ const docTemplate = `{
         },
         "codersdk.AIProviderSettings": {
             "type": "object"
+        },
+        "codersdk.AIProviderStatus": {
+            "type": "object",
+            "properties": {
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.AIProviderType": {
             "type": "string",
@@ -16497,6 +17105,12 @@ const docTemplate = `{
                 "chat:read",
                 "chat:share",
                 "chat:update",
+                "chat_model_config:*",
+                "chat_model_config:create",
+                "chat_model_config:delete",
+                "chat_model_config:read",
+                "chat_model_config:share",
+                "chat_model_config:update",
                 "coder:all",
                 "coder:apikeys.manage_self",
                 "coder:application_connect",
@@ -16743,6 +17357,12 @@ const docTemplate = `{
                 "APIKeyScopeChatRead",
                 "APIKeyScopeChatShare",
                 "APIKeyScopeChatUpdate",
+                "APIKeyScopeChatModelConfigAll",
+                "APIKeyScopeChatModelConfigCreate",
+                "APIKeyScopeChatModelConfigDelete",
+                "APIKeyScopeChatModelConfigRead",
+                "APIKeyScopeChatModelConfigShare",
+                "APIKeyScopeChatModelConfigUpdate",
                 "APIKeyScopeCoderAll",
                 "APIKeyScopeCoderApikeysManageSelf",
                 "APIKeyScopeCoderApplicationConnect",
@@ -18521,37 +19141,471 @@ const docTemplate = `{
         "codersdk.ChatModel": {
             "type": "object",
             "properties": {
+                "ai_provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "display_name": {
                     "type": "string"
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "is_default": {
+                    "type": "boolean"
                 },
                 "model": {
                     "type": "string"
                 },
-                "provider": {
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "reasoning_efforts": {
+                    "description": "ReasoningEfforts lists selectable reasoning effort values through\nthe model's configured maximum.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ChatModelACL": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatRole"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatModelAnthropicProviderOptions": {
+            "type": "object",
+            "properties": {
+                "allowed_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "blocked_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "context_1m_enabled": {
+                    "type": "boolean"
+                },
+                "disable_parallel_tool_use": {
+                    "type": "boolean"
+                },
+                "send_reasoning": {
+                    "type": "boolean"
+                },
+                "thinking": {
+                    "$ref": "#/definitions/codersdk.ChatModelAnthropicThinkingOptions"
+                },
+                "thinking_display": {
+                    "type": "string"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelAnthropicThinkingOptions": {
+            "type": "object",
+            "properties": {
+                "budget_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatModelCallConfig": {
+            "type": "object",
+            "properties": {
+                "frequency_penalty": {
+                    "type": "number"
+                },
+                "max_output_tokens": {
+                    "type": "integer"
+                },
+                "openai_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenAIConfig"
+                },
+                "presence_penalty": {
+                    "type": "number"
+                },
+                "provider_options": {
+                    "$ref": "#/definitions/codersdk.ChatModelProviderOptions"
+                },
+                "reasoning_effort": {
+                    "$ref": "#/definitions/codersdk.ChatModelReasoningEffortConfig"
+                },
+                "temperature": {
+                    "type": "number"
+                },
+                "top_k": {
+                    "type": "integer"
+                },
+                "top_p": {
+                    "type": "number"
+                }
+            }
+        },
+        "codersdk.ChatModelGoogleProviderOptions": {
+            "type": "object",
+            "properties": {
+                "cached_content": {
+                    "type": "string"
+                },
+                "safety_settings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelGoogleSafetySetting"
+                    }
+                },
+                "thinking_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelGoogleThinkingConfig"
+                },
+                "threshold": {
+                    "type": "string"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelGoogleSafetySetting": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "threshold": {
                     "type": "string"
                 }
             }
         },
-        "codersdk.ChatModelProvider": {
+        "codersdk.ChatModelGoogleThinkingConfig": {
             "type": "object",
             "properties": {
+                "include_thoughts": {
+                    "type": "boolean"
+                },
+                "thinking_budget": {
+                    "type": "integer"
+                },
+                "thinking_level": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenAICompatProviderOptions": {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenAIConfig": {
+            "type": "object",
+            "properties": {
+                "use_responses_api": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenAIProviderOptions": {
+            "type": "object",
+            "properties": {
+                "allowed_domains": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "instructions": {
+                    "type": "string"
+                },
+                "log_probs": {
+                    "type": "boolean"
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "max_completion_tokens": {
+                    "type": "integer"
+                },
+                "max_tool_calls": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "prediction": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "prompt_cache_key": {
+                    "type": "string"
+                },
+                "reasoning_summary": {
+                    "type": "string"
+                },
+                "safety_identifier": {
+                    "type": "string"
+                },
+                "search_context_size": {
+                    "type": "string"
+                },
+                "service_tier": {
+                    "type": "string"
+                },
+                "store": {
+                    "type": "boolean"
+                },
+                "strict_json_schema": {
+                    "type": "boolean"
+                },
+                "structured_outputs": {
+                    "type": "boolean"
+                },
+                "text_verbosity": {
+                    "type": "string"
+                },
+                "top_log_probs": {
+                    "type": "integer"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "web_search_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenRouterProvider": {
+            "type": "object",
+            "properties": {
+                "allow_fallbacks": {
+                    "type": "boolean"
+                },
+                "data_collection": {
+                    "type": "string"
+                },
+                "ignore": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "only": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "order": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "quantizations": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "require_parameters": {
+                    "type": "boolean"
+                },
+                "sort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOpenRouterProviderOptions": {
+            "type": "object",
+            "properties": {
+                "extra_body": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "include_usage": {
+                    "type": "boolean"
+                },
+                "log_probs": {
+                    "type": "boolean"
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "provider": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenRouterProvider"
+                },
+                "reasoning": {
+                    "$ref": "#/definitions/codersdk.ChatModelReasoningOptions"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOverrideContext": {
+            "type": "string",
+            "enum": [
+                "general",
+                "explore",
+                "title_generation",
+                "compaction",
+                "advisor"
+            ],
+            "x-enum-varnames": [
+                "ChatModelOverrideContextGeneral",
+                "ChatModelOverrideContextExplore",
+                "ChatModelOverrideContextTitleGeneration",
+                "ChatModelOverrideContextCompaction",
+                "ChatModelOverrideContextAdvisor"
+            ]
+        },
+        "codersdk.ChatModelOverrideResponse": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideContext"
+                },
+                "model_config_id": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelOverridesResponse": {
+            "type": "object",
+            "properties": {
+                "overrides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatModelProviderDescriptor": {
+            "type": "object",
+            "properties": {
+                "allow_user_api_key": {
+                    "type": "boolean"
+                },
                 "available": {
                     "type": "boolean"
                 },
-                "models": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatModel"
-                    }
+                "display_name": {
+                    "type": "string"
                 },
-                "provider": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "has_api_key": {
+                    "type": "boolean"
+                },
+                "has_effective_api_key": {
+                    "type": "boolean"
+                },
+                "has_user_api_key": {
+                    "type": "boolean"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "type": {
                     "type": "string"
                 },
                 "unavailable_reason": {
                     "$ref": "#/definitions/codersdk.ChatModelProviderUnavailableReason"
+                }
+            }
+        },
+        "codersdk.ChatModelProviderOptions": {
+            "type": "object",
+            "properties": {
+                "anthropic": {
+                    "$ref": "#/definitions/codersdk.ChatModelAnthropicProviderOptions"
+                },
+                "google": {
+                    "$ref": "#/definitions/codersdk.ChatModelGoogleProviderOptions"
+                },
+                "openai": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenAIProviderOptions"
+                },
+                "openaicompat": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenAICompatProviderOptions"
+                },
+                "openrouter": {
+                    "$ref": "#/definitions/codersdk.ChatModelOpenRouterProviderOptions"
+                },
+                "vercel": {
+                    "$ref": "#/definitions/codersdk.ChatModelVercelProviderOptions"
                 }
             }
         },
@@ -18568,23 +19622,138 @@ const docTemplate = `{
                 "ChatModelProviderUnavailableReasonUserAPIKeyRequired"
             ]
         },
-        "codersdk.ChatModelsResponse": {
+        "codersdk.ChatModelReasoningEffortConfig": {
             "type": "object",
             "properties": {
-                "providers": {
+                "default": {
+                    "type": "string"
+                },
+                "max": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatModelReasoningOptions": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "exclude": {
+                    "type": "boolean"
+                },
+                "max_tokens": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ChatModelVercelGatewayProviderOptions": {
+            "type": "object",
+            "properties": {
+                "models": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.ChatModelProvider"
+                        "type": "string"
                     }
                 },
-                "unsupported_providers": {
-                    "description": "UnsupportedProviders lists configured providers the Agents harness\ncannot use, so the UI can explain the empty state.",
+                "order": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                        "type": "string"
                     }
                 }
             }
+        },
+        "codersdk.ChatModelVercelProviderOptions": {
+            "type": "object",
+            "properties": {
+                "extra_body": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "logit_bias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "logprobs": {
+                    "type": "boolean"
+                },
+                "parallel_tool_calls": {
+                    "type": "boolean"
+                },
+                "providerOptions": {
+                    "$ref": "#/definitions/codersdk.ChatModelVercelGatewayProviderOptions"
+                },
+                "reasoning": {
+                    "$ref": "#/definitions/codersdk.ChatModelReasoningOptions"
+                },
+                "top_logprobs": {
+                    "type": "integer"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPersonalModelOverride": {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideContext"
+                },
+                "is_set": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideMode"
+                },
+                "model_config_id": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPersonalModelOverrideContext": {
+            "type": "string",
+            "enum": [
+                "root",
+                "general",
+                "explore"
+            ],
+            "x-enum-varnames": [
+                "ChatPersonalModelOverrideContextRoot",
+                "ChatPersonalModelOverrideContextGeneral",
+                "ChatPersonalModelOverrideContextExplore"
+            ]
+        },
+        "codersdk.ChatPersonalModelOverrideDeploymentDefaults": {
+            "type": "object",
+            "properties": {
+                "explore": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                },
+                "general": {
+                    "$ref": "#/definitions/codersdk.ChatModelOverrideResponse"
+                }
+            }
+        },
+        "codersdk.ChatPersonalModelOverrideMode": {
+            "type": "string",
+            "enum": [
+                "deployment_default",
+                "chat_default",
+                "model"
+            ],
+            "x-enum-varnames": [
+                "ChatPersonalModelOverrideModeDeploymentDefault",
+                "ChatPersonalModelOverrideModeChatDefault",
+                "ChatPersonalModelOverrideModeModel"
+            ]
         },
         "codersdk.ChatPlanMode": {
             "type": "string",
@@ -19233,6 +20402,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateChatModelRequest": {
+            "type": "object",
+            "properties": {
+                "ai_provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                }
+            }
+        },
         "codersdk.CreateChatRequest": {
             "type": "object",
             "properties": {
@@ -19814,6 +21013,77 @@ const docTemplate = `{
                 },
                 "token_name": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateTrialLicenseRequest": {
+            "type": "object",
+            "required": [
+                "company_name",
+                "country",
+                "developers",
+                "email",
+                "first_name",
+                "job_title",
+                "last_name",
+                "phone_number"
+            ],
+            "properties": {
+                "attribution_id": {
+                    "description": "AttributionID is the ID of the cta_click funnel event that led here, so\nthat a signup can be joined back to the paywall that produced it.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "company_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Acme Corp"
+                },
+                "country": {
+                    "type": "string",
+                    "example": "United States"
+                },
+                "developers": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string",
+                    "format": "email",
+                    "maxLength": 254,
+                    "example": "jane.doe@example.com"
+                },
+                "first_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Jane"
+                },
+                "job_title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "example": "Engineering Manager"
+                },
+                "last_name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "example": "Doe"
+                },
+                "phone_number": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 7,
+                    "example": "+14155552671"
+                },
+                "source": {
+                    "description": "Source is the premium paywall the request came from, for telemetry. It\nis not forwarded to the licensor. Omit it to report \"direct\".",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                        }
+                    ]
                 }
             }
         },
@@ -20733,6 +22003,14 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the replacement turn runs. When nil the current selection\nis preserved.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "model_config_id": {
@@ -23066,6 +24344,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationChatModelsResponse": {
+            "type": "object",
+            "properties": {
+                "models": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModel"
+                    }
+                },
+                "providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatModelProviderDescriptor"
+                    }
+                },
+                "unsupported_providers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUnsupportedProvider"
+                    }
+                }
+            }
+        },
         "codersdk.OrganizationGroupAISpend": {
             "type": "object",
             "properties": {
@@ -23627,6 +24928,87 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "codersdk.PremiumFunnelEventRequest": {
+            "type": "object",
+            "required": [
+                "id",
+                "source",
+                "variant"
+            ],
+            "properties": {
+                "id": {
+                    "description": "ID identifies this click, and doubles as the attribution token that a\nlater trial signup reports.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "source": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelSource"
+                },
+                "variant": {
+                    "$ref": "#/definitions/codersdk.PremiumFunnelVariant"
+                }
+            }
+        },
+        "codersdk.PremiumFunnelSource": {
+            "type": "string",
+            "enum": [
+                "aibridge_session_threads",
+                "aibridge_sessions",
+                "ai_gateway_keys",
+                "ai_governance",
+                "appearance",
+                "audit_log",
+                "browser_only",
+                "connection_log",
+                "custom_roles",
+                "external_auth",
+                "groups",
+                "idp_org_sync",
+                "idp_sync",
+                "multiple_organizations",
+                "observability",
+                "provisioner_keys",
+                "provisioners",
+                "template_permissions",
+                "workspace_proxies",
+                "direct"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelSourceAIBridgeSessionThreads",
+                "PremiumFunnelSourceAIBridgeSessions",
+                "PremiumFunnelSourceAIGatewayKeys",
+                "PremiumFunnelSourceAIGovernance",
+                "PremiumFunnelSourceAppearance",
+                "PremiumFunnelSourceAuditLog",
+                "PremiumFunnelSourceBrowserOnly",
+                "PremiumFunnelSourceConnectionLog",
+                "PremiumFunnelSourceCustomRoles",
+                "PremiumFunnelSourceExternalAuth",
+                "PremiumFunnelSourceGroups",
+                "PremiumFunnelSourceIdpOrgSync",
+                "PremiumFunnelSourceIdpSync",
+                "PremiumFunnelSourceMultipleOrganizations",
+                "PremiumFunnelSourceObservability",
+                "PremiumFunnelSourceProvisionerKeys",
+                "PremiumFunnelSourceProvisioners",
+                "PremiumFunnelSourceTemplatePermissions",
+                "PremiumFunnelSourceWorkspaceProxies",
+                "PremiumFunnelSourceDirect"
+            ]
+        },
+        "codersdk.PremiumFunnelVariant": {
+            "type": "string",
+            "enum": [
+                "premium",
+                "small",
+                "ai_governance"
+            ],
+            "x-enum-varnames": [
+                "PremiumFunnelVariantPremium",
+                "PremiumFunnelVariantSmall",
+                "PremiumFunnelVariantAIGovernance"
+            ]
         },
         "codersdk.Preset": {
             "type": "object",
@@ -24383,6 +25765,7 @@ const docTemplate = `{
                 "boundary_log",
                 "boundary_usage",
                 "chat",
+                "chat_model_config",
                 "connection_log",
                 "crypto_key",
                 "debug_info",
@@ -24437,6 +25820,7 @@ const docTemplate = `{
                 "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
+                "ResourceChatModelConfig",
                 "ResourceConnectionLog",
                 "ResourceCryptoKey",
                 "ResourceDebugInfo",
@@ -24695,9 +26079,11 @@ const docTemplate = `{
                 "user_ai_budget_override",
                 "chat",
                 "mcp_server_config",
+                "chat_model_config",
                 "user_secret",
                 "user_skill",
-                "chat_instruction_settings"
+                "chat_instruction_settings",
+                "chat_operational_settings"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -24735,9 +26121,11 @@ const docTemplate = `{
                 "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeMCPServerConfig",
+                "ResourceTypeChatModelConfig",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill",
-                "ResourceTypeChatInstructionSettings"
+                "ResourceTypeChatInstructionSettings",
+                "ResourceTypeChatOperationalSettings"
             ]
         },
         "codersdk.Response": {
@@ -26387,6 +27775,64 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateChatModelACLRequest": {
+            "type": "object",
+            "properties": {
+                "group_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatRole"
+                    }
+                },
+                "user_roles": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.ChatRole"
+                    }
+                }
+            }
+        },
+        "codersdk.UpdateChatModelOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "model_config_id": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateChatModelRequest": {
+            "type": "object",
+            "properties": {
+                "ai_provider_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "compression_threshold": {
+                    "type": "integer"
+                },
+                "context_limit": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config": {
+                    "$ref": "#/definitions/codersdk.ChatModelCallConfig"
+                }
+            }
+        },
         "codersdk.UpdateChatRequest": {
             "type": "object",
             "properties": {
@@ -26767,6 +28213,20 @@ const docTemplate = `{
                     ]
                 },
                 "theme_preference": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UpdateUserChatPersonalModelOverrideRequest": {
+            "type": "object",
+            "properties": {
+                "mode": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideMode"
+                },
+                "model_config_id": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
                     "type": "string"
                 }
             }
@@ -27321,6 +28781,26 @@ const docTemplate = `{
                 "theme_preference": {
                     "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserChatPersonalModelOverridesResponse": {
+            "type": "object",
+            "properties": {
+                "deployment_defaults": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverrideDeploymentDefaults"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "explore": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
+                },
+                "general": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
+                },
+                "root": {
+                    "$ref": "#/definitions/codersdk.ChatPersonalModelOverride"
                 }
             }
         },

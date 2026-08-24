@@ -113,7 +113,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 			Action:         database.AuditActionDelete,
 		})
 	)
-	aReq.Old = member.OrganizationMember.Auditable(member.Username)
+	aReq.Old = member.Auditable(member.Username)
 	defer commitAudit()
 
 	// Note: we disallow adding OIDC users if organization sync is enabled.
@@ -421,7 +421,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 			Action:         database.AuditActionWrite,
 		})
 	)
-	aReq.Old = member.OrganizationMember.Auditable(member.Username)
+	aReq.Old = member.Auditable(member.Username)
 	defer commitAudit()
 
 	// Check if changing roles is allowed
@@ -429,7 +429,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if apiKey.UserID == member.OrganizationMember.UserID {
+	if apiKey.UserID == member.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot change your own organization roles.",
 			Detail:  "Another user with the appropriate permissions must change your roles.",

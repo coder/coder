@@ -78,8 +78,8 @@ var AllChatAttachmentMediaTypes = []ChatAttachmentMediaType{
 
 // CompactionThresholdKey returns the user-config key for a specific
 // model configuration's compaction threshold.
-func CompactionThresholdKey(modelConfigID uuid.UUID) string {
-	return ChatCompactionThresholdKeyPrefix + modelConfigID.String()
+func CompactionThresholdKey(modelID uuid.UUID) string {
+	return ChatCompactionThresholdKeyPrefix + modelID.String()
 }
 
 // ChatStatus represents the status of a chat.
@@ -645,6 +645,10 @@ type EditChatMessageRequest struct {
 	// When nil the original message's model is preserved.
 	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// MCPServerIDs, when set, replaces the chat's MCP server selection
+	// before the replacement turn runs. When nil the current selection
+	// is preserved.
+	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -722,30 +726,6 @@ const (
 	ChatModelProviderUnavailableReasonUserAPIKeyRequired ChatModelProviderUnavailableReason = "user_api_key_required"
 )
 
-// ChatModel represents a model in the chat model catalog.
-type ChatModel struct {
-	ID          string `json:"id"`
-	Provider    string `json:"provider"`
-	Model       string `json:"model"`
-	DisplayName string `json:"display_name"`
-}
-
-// ChatModelProvider represents provider availability and model results.
-type ChatModelProvider struct {
-	Provider          string                             `json:"provider"`
-	Available         bool                               `json:"available"`
-	UnavailableReason ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
-	Models            []ChatModel                        `json:"models"`
-}
-
-// ChatModelsResponse is the catalog returned from chat model discovery.
-type ChatModelsResponse struct {
-	Providers []ChatModelProvider `json:"providers"`
-	// UnsupportedProviders lists configured providers the Agents harness
-	// cannot use, so the UI can explain the empty state.
-	UnsupportedProviders []ChatUnsupportedProvider `json:"unsupported_providers"`
-}
-
 // ChatUnsupportedProvider is a configured provider the Agents harness cannot
 // use.
 type ChatUnsupportedProvider struct {
@@ -781,8 +761,8 @@ type UpdateChatPlanModeInstructionsRequest struct {
 	PlanModeInstructions string `json:"plan_mode_instructions"`
 }
 
-// ChatModelOverrideContext identifies which chat model override context a
-// deployment override applies to.
+// ChatModelOverrideContext identifies which chat model override context an
+// organization override applies to.
 type ChatModelOverrideContext string
 
 const (
@@ -790,6 +770,7 @@ const (
 	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
 	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
 	ChatModelOverrideContextCompaction      ChatModelOverrideContext = "compaction"
+	ChatModelOverrideContextAdvisor         ChatModelOverrideContext = "advisor"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -798,7 +779,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
-		ChatModelOverrideContextCompaction:
+		ChatModelOverrideContextCompaction,
+		ChatModelOverrideContextAdvisor:
 		return true
 	default:
 		return false
@@ -812,16 +794,20 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
 		ChatModelOverrideContextCompaction,
+		ChatModelOverrideContextAdvisor,
 	}
 }
 
-// ChatModelOverrideResponse is the response body for the chat model override
-// configuration endpoint.
+// ChatModelOverrideResponse is the response body for one chat model override.
 type ChatModelOverrideResponse struct {
 	Context         ChatModelOverrideContext `json:"context"`
 	ModelConfigID   string                   `json:"model_config_id"`
 	ReasoningEffort *string                  `json:"reasoning_effort,omitempty"`
-	IsMalformed     bool                     `json:"is_malformed"`
+}
+
+// ChatModelOverridesResponse is the response body for organization chat model overrides.
+type ChatModelOverridesResponse struct {
+	Overrides []ChatModelOverrideResponse `json:"overrides"`
 }
 
 // UpdateChatModelOverrideRequest is the request body for updating the chat
@@ -858,7 +844,6 @@ type ChatPersonalModelOverride struct {
 	ModelConfigID   string                           `json:"model_config_id"`
 	ReasoningEffort *string                          `json:"reasoning_effort,omitempty"`
 	IsSet           bool                             `json:"is_set"`
-	IsMalformed     bool                             `json:"is_malformed"`
 }
 
 // ChatPersonalModelOverrideDeploymentDefaults describes the deployment-level
@@ -938,21 +923,17 @@ type AdvisorConfig struct {
 	// MaxOutputTokens caps the advisor model response tokens. 0 means
 	// use the runtime default.
 	MaxOutputTokens int64 `json:"max_output_tokens"`
-	// ModelConfigID selects a specific chat model config to power the
-	// advisor. uuid.Nil means reuse the outer chat model. The runtime
-	// must fall back to the outer chat model when this ID cannot be
-	// resolved (e.g. the referenced model config was soft-deleted or
-	// its provider was disabled after the admin saved this config).
-	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
-	// ReasoningEffort overrides the selected advisor model's configured default.
-	// It requires a non-zero ModelConfigID.
-	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
 }
 
-// UpdateAdvisorConfigRequest is the request body for updating advisor
-// runtime configuration. It is a type alias for AdvisorConfig because
-// the request and response shapes are currently identical.
-type UpdateAdvisorConfigRequest = AdvisorConfig
+// UpdateAdvisorConfigRequest is the request body for updating advisor runtime configuration.
+type UpdateAdvisorConfigRequest struct {
+	MaxUsesPerRun   int   `json:"max_uses_per_run"`
+	MaxOutputTokens int64 `json:"max_output_tokens"`
+	// Deprecated: moved to the organization model override endpoint.
+	DeprecatedModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
+	// Deprecated: moved to the organization model override endpoint.
+	DeprecatedReasoningEffort *string `json:"reasoning_effort,omitempty"`
+}
 
 // ChatComputerUseProvider identifies the provider that backs computer use for
 // the virtual desktop.
@@ -1315,9 +1296,10 @@ type CreateUserChatProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
 }
 
-// ChatModelConfig is an admin-managed model configuration.
-type ChatModelConfig struct {
+// ChatModel is an org-scoped model configuration.
+type ChatModel struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
+	OrganizationID       uuid.UUID            `json:"organization_id" format:"uuid"`
 	AIProviderID         uuid.UUID            `json:"ai_provider_id" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
@@ -1331,6 +1313,21 @@ type ChatModelConfig struct {
 	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
 	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+// ChatModelACL is the access control list for an organization-scoped chat
+// model. Each principal is mapped to its effective model role.
+type ChatModelACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles"`
+	GroupRoles map[string]ChatRole `json:"group_roles"`
+}
+
+// UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
+// listed principals change. ChatRoleDeleted removes an entry, while an omitted
+// map or principal is unchanged.
+type UpdateChatModelACLRequest struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
 }
 
 // ChatModelProviderOptions contains typed provider-specific options.
@@ -1391,8 +1388,9 @@ type ChatModelAnthropicProviderOptions struct {
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
 type ChatModelGoogleThinkingConfig struct {
-	ThinkingBudget  *int64 `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking"`
-	IncludeThoughts *bool  `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
+	ThinkingBudget  *int64  `json:"thinking_budget,omitempty" description:"Maximum number of tokens the model may use for thinking (cannot be used with thinking_level)" conflicts_with:"thinking_config.thinking_level"`
+	ThinkingLevel   *string `json:"thinking_level,omitempty" description:"Thinking level for Gemini 3+ models, used when the user has not selected a reasoning effort (cannot be used with thinking_budget)" enum:"minimal,low,medium,high" conflicts_with:"thinking_config.thinking_budget"`
+	IncludeThoughts *bool   `json:"include_thoughts,omitempty" description:"Whether to include thinking content in the response"`
 }
 
 // ChatModelGoogleSafetySetting configures Google safety filtering.
@@ -1546,8 +1544,13 @@ func (c *ChatModelCallConfig) UnmarshalStrict(data []byte) error {
 	return nil
 }
 
-// CreateChatModelConfigRequest creates a chat model config.
-type CreateChatModelConfigRequest struct {
+// CreateChatModelRequest is the request body for an organization-scoped
+// ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
+// Enabled defaults to true. IsDefault defaults to false when the organization
+// already has a default model. The first model created in an organization is
+// automatically promoted to default. CompressionThreshold defaults to 70. An
+// omitted ModelConfig uses the provider defaults.
+type CreateChatModelRequest struct {
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -1558,8 +1561,10 @@ type CreateChatModelConfigRequest struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 }
 
-// UpdateChatModelConfigRequest updates a chat model config.
-type UpdateChatModelConfigRequest struct {
+// UpdateChatModelRequest updates a ChatModel. Empty Model and DisplayName
+// values preserve the stored values. Nil pointer fields preserve their stored
+// values. This request cannot clear DisplayName.
+type UpdateChatModelRequest struct {
 	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
@@ -1981,7 +1986,7 @@ type ListChatsOptions struct {
 func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptions) ([]Chat, error) {
 	var reqOpts []RequestOption
 	if opts != nil {
-		reqOpts = append(reqOpts, opts.Pagination.asRequestOption())
+		reqOpts = append(reqOpts, opts.asRequestOption())
 		query := opts.Query
 		if opts.Source != "" {
 			if query != "" {
@@ -2016,21 +2021,6 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	}
 	var chats []Chat
 	return chats, ReadBodyAsJSON(res, &chats)
-}
-
-// ListChatModels returns the available chat model catalog.
-func (c *ExperimentalClient) ListChatModels(ctx context.Context) (ChatModelsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
-	if err != nil {
-		return ChatModelsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModelsResponse{}, ReadBodyAsError(res)
-	}
-
-	var catalog ChatModelsResponse
-	return catalog, ReadBodyAsJSON(res, &catalog)
 }
 
 // ListChatProviders returns admin-managed chat provider configs.
@@ -2177,54 +2167,88 @@ func (c *ExperimentalClient) DeleteUserChatProviderKey(ctx context.Context, prov
 	return nil
 }
 
-// ListChatModelConfigs returns admin-managed chat model configs.
-func (c *ExperimentalClient) ListChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
+// ChatModels returns the chat model configs the caller can read in one
+// organization, plus the redacted provider descriptors the authoring page
+// needs, for org-scoped management and picker surfaces.
+func (c *ExperimentalClient) ChatModels(ctx context.Context, organizationID uuid.UUID) (OrganizationChatModelsResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", organizationID), nil)
 	if err != nil {
-		return nil, err
+		return OrganizationChatModelsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return OrganizationChatModelsResponse{}, ReadBodyAsError(res)
 	}
 
-	var configs []ChatModelConfig
-	return configs, ReadBodyAsJSON(res, &configs)
+	var resp OrganizationChatModelsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// CreateChatModelConfig creates an admin-managed chat model config.
-func (c *ExperimentalClient) CreateChatModelConfig(ctx context.Context, req CreateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", req)
+// ChatModel fetches one chat model config by ID in an organization.
+func (c *ExperimentalClient) ChatModel(ctx context.Context, organizationID, modelConfigID uuid.UUID) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelConfigID), nil)
 	if err != nil {
-		return ChatModelConfig{}, err
+		return ChatModel{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModel{}, ReadBodyAsError(res)
+	}
+
+	var config ChatModel
+	return config, ReadBodyAsJSON(res, &config)
+}
+
+// CreateChatModel creates a chat model config in the given organization.
+func (c *ExperimentalClient) CreateChatModel(ctx context.Context, organizationID uuid.UUID, req CreateChatModelRequest) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/chats/models", organizationID), req)
+	if err != nil {
+		return ChatModel{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusCreated {
-		return ChatModelConfig{}, ReadBodyAsError(res)
+		return ChatModel{}, ReadBodyAsError(res)
 	}
 
-	var config ChatModelConfig
-	return config, ReadBodyAsJSON(res, &config)
+	var model ChatModel
+	return model, ReadBodyAsJSON(res, &model)
 }
 
-// UpdateChatModelConfig updates an admin-managed chat model config.
-func (c *ExperimentalClient) UpdateChatModelConfig(ctx context.Context, modelConfigID uuid.UUID, req UpdateChatModelConfigRequest) (ChatModelConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), req)
+// UpdateChatModel updates a ChatModel in an organization.
+func (c *ExperimentalClient) UpdateChatModel(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelRequest) (ChatModel, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelID), req)
 	if err != nil {
-		return ChatModelConfig{}, err
+		return ChatModel{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return ChatModelConfig{}, ReadBodyAsError(res)
+		return ChatModel{}, ReadBodyAsError(res)
 	}
 
-	var config ChatModelConfig
-	return config, ReadBodyAsJSON(res, &config)
+	var model ChatModel
+	return model, ReadBodyAsJSON(res, &model)
 }
 
-// DeleteChatModelConfig deletes an admin-managed chat model config.
-func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/model-configs/%s", modelConfigID), nil)
+// ChatModelACL returns the access control list for a chat model in an
+// organization.
+func (c *ExperimentalClient) ChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID) (ChatModelACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s/acl", organizationID, modelID), nil)
+	if err != nil {
+		return ChatModelACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelACL{}, ReadBodyAsError(res)
+	}
+
+	var modelACL ChatModelACL
+	return modelACL, ReadBodyAsJSON(res, &modelACL)
+}
+
+// UpdateChatModelACL applies a sparse access control list update to a chat
+// model in an organization.
+func (c *ExperimentalClient) UpdateChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s/acl", organizationID, modelID), req)
 	if err != nil {
 		return err
 	}
@@ -2233,6 +2257,47 @@ func (c *ExperimentalClient) DeleteChatModelConfig(ctx context.Context, modelCon
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// DeleteChatModel deletes a ChatModel in an organization.
+func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, organizationID, modelID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/%s", organizationID, modelID), nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+// ChatModelProviderDescriptor is the redacted view of an AI provider carried
+// on the org model collection response. It carries only the capability
+// metadata the Models UI needs; key material, base URLs, and headers are
+// never exposed. The fields mirror what /api/experimental/chats/models
+// already discloses to any authenticated caller.
+type ChatModelProviderDescriptor struct {
+	ID                 uuid.UUID                          `json:"id" format:"uuid"`
+	Type               string                             `json:"type"`
+	DisplayName        string                             `json:"display_name"`
+	Icon               string                             `json:"icon"`
+	Enabled            bool                               `json:"enabled"`
+	HasAPIKey          bool                               `json:"has_api_key"`
+	HasUserAPIKey      bool                               `json:"has_user_api_key"`
+	HasEffectiveAPIKey bool                               `json:"has_effective_api_key"`
+	AllowUserAPIKey    bool                               `json:"allow_user_api_key"`
+	Available          bool                               `json:"available"`
+	UnavailableReason  ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
+}
+
+// OrganizationChatModelsResponse is the org chat model config collection:
+// the caller-readable configs plus the redacted provider descriptors the
+// authoring page needs.
+type OrganizationChatModelsResponse struct {
+	Models               []ChatModel                   `json:"models"`
+	Providers            []ChatModelProviderDescriptor `json:"providers"`
+	UnsupportedProviders []ChatUnsupportedProvider     `json:"unsupported_providers"`
 }
 
 // GetChatCost returns the AI Gateway cost for the whole chat tree that
@@ -2304,14 +2369,29 @@ func (c *ExperimentalClient) UpdateChatPlanModeInstructions(ctx context.Context,
 	return nil
 }
 
-// GetChatModelOverride returns the deployment-wide chat model override for
-// the requested context.
-func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override ChatModelOverrideContext) (ChatModelOverrideResponse, error) {
+// OrganizationChatModelOverrides returns the configured chat model overrides for an organization.
+func (c *ExperimentalClient) OrganizationChatModelOverrides(ctx context.Context, organizationID uuid.UUID) (ChatModelOverridesResponse, error) {
+	path := fmt.Sprintf("/api/experimental/organizations/%s/chats/model-overrides", organizationID)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return ChatModelOverridesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatModelOverridesResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatModelOverridesResponse
+	return resp, ReadBodyAsJSON(res, &resp)
+}
+
+// UpdateOrganizationChatModelOverride updates or clears a chat model override for an organization.
+func (c *ExperimentalClient) UpdateOrganizationChatModelOverride(ctx context.Context, organizationID uuid.UUID, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) (ChatModelOverrideResponse, error) {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
+		"/api/experimental/organizations/%s/chats/model-overrides/%s",
+		organizationID,
 		url.PathEscape(string(override)),
 	)
-	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	res, err := c.Request(ctx, http.MethodPut, path, req)
 	if err != nil {
 		return ChatModelOverrideResponse{}, err
 	}
@@ -2321,24 +2401,6 @@ func (c *ExperimentalClient) GetChatModelOverride(ctx context.Context, override 
 	}
 	var resp ChatModelOverrideResponse
 	return resp, ReadBodyAsJSON(res, &resp)
-}
-
-// UpdateChatModelOverride updates the deployment-wide chat model override for
-// the requested context.
-func (c *ExperimentalClient) UpdateChatModelOverride(ctx context.Context, override ChatModelOverrideContext, req UpdateChatModelOverrideRequest) error {
-	path := fmt.Sprintf(
-		"/api/experimental/chats/config/model-override/%s",
-		url.PathEscape(string(override)),
-	)
-	res, err := c.Request(ctx, http.MethodPut, path, req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
 }
 
 // GetChatPersonalModelOverridesAdminSettings returns the deployment-wide
@@ -2370,10 +2432,14 @@ func (c *ExperimentalClient) UpdateChatPersonalModelOverridesAdminSettings(ctx c
 	return nil
 }
 
-// GetUserChatPersonalModelOverrides fetches the user's personal model
-// override settings.
-func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Context) (UserChatPersonalModelOverridesResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/config/user-personal-model-overrides", nil)
+// UserChatPersonalModelOverrides returns a user's personal model overrides in an organization.
+func (c *ExperimentalClient) UserChatPersonalModelOverrides(ctx context.Context, organizationID uuid.UUID, user string) (UserChatPersonalModelOverridesResponse, error) {
+	path := fmt.Sprintf(
+		"/api/experimental/organizations/%s/members/%s/chats/model-overrides",
+		organizationID,
+		url.PathEscape(user),
+	)
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return UserChatPersonalModelOverridesResponse{}, err
 	}
@@ -2385,11 +2451,12 @@ func (c *ExperimentalClient) GetUserChatPersonalModelOverrides(ctx context.Conte
 	return resp, ReadBodyAsJSON(res, &resp)
 }
 
-// UpdateUserChatPersonalModelOverride updates the user's personal model
-// override for the requested context.
-func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
+// UpdateUserChatPersonalModelOverride updates a user's personal model override in an organization.
+func (c *ExperimentalClient) UpdateUserChatPersonalModelOverride(ctx context.Context, organizationID uuid.UUID, user string, override ChatPersonalModelOverrideContext, req UpdateUserChatPersonalModelOverrideRequest) error {
 	path := fmt.Sprintf(
-		"/api/experimental/chats/config/user-personal-model-overrides/%s",
+		"/api/experimental/organizations/%s/members/%s/chats/model-overrides/%s",
+		organizationID,
+		url.PathEscape(user),
 		url.PathEscape(string(override)),
 	)
 	res, err := c.Request(ctx, http.MethodPut, path, req)
@@ -2612,8 +2679,8 @@ func (c *ExperimentalClient) GetUserChatCompactionThresholds(ctx context.Context
 
 // UpdateUserChatCompactionThreshold updates the user's per-model chat
 // compaction threshold.
-func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
-	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), req)
+func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID, req UpdateUserChatCompactionThresholdRequest) (UserChatCompactionThreshold, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelID), req)
 	if err != nil {
 		return UserChatCompactionThreshold{}, err
 	}
@@ -2627,8 +2694,8 @@ func (c *ExperimentalClient) UpdateUserChatCompactionThreshold(ctx context.Conte
 
 // DeleteUserChatCompactionThreshold deletes the user's per-model chat
 // compaction threshold override.
-func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelConfigID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelConfigID), nil)
+func (c *ExperimentalClient) DeleteUserChatCompactionThreshold(ctx context.Context, modelID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/chats/config/user-compaction-thresholds/%s", modelID), nil)
 	if err != nil {
 		return err
 	}

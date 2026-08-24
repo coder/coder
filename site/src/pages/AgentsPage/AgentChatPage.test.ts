@@ -18,6 +18,7 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
@@ -31,6 +32,7 @@ import {
 	settlePromotedQueueHead,
 	submitEdit,
 	useConversationEditingState,
+	useRightPanelNarrowSuppression,
 	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
@@ -1403,5 +1405,54 @@ describe("isChatAgentBindingUnresolved", () => {
 		expect(isChatAgentBindingUnresolved(undefined, "stale-agent-id")).toBe(
 			false,
 		);
+	});
+});
+
+describe("useRightPanelNarrowSuppression", () => {
+	const belowLgQuery = "(max-width: 1023px)";
+
+	const setupBelowLg = (initialBelowLg: boolean) => {
+		const media = setupMatchMedia({ [belowLgQuery]: initialBelowLg });
+		return {
+			setBelowLg: (value: boolean) => media.setMatches(belowLgQuery, value),
+		};
+	};
+
+	it("suppresses the panel when mounted below the lg breakpoint", () => {
+		setupBelowLg(true);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+		expect(result.current.suppressed).toBe(true);
+	});
+
+	it("does not suppress the panel when mounted at or above lg", () => {
+		setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+		expect(result.current.suppressed).toBe(false);
+	});
+
+	it("suppresses on narrowing and clears on widening", () => {
+		const media = setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
+
+		act(() => media.setBelowLg(false));
+		expect(result.current.suppressed).toBe(false);
+	});
+
+	it("stays cleared after an explicit clearSuppression until the next narrowing", () => {
+		const media = setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
+
+		act(() => result.current.clearSuppression());
+		expect(result.current.suppressed).toBe(false);
+
+		act(() => media.setBelowLg(false));
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
 	});
 });

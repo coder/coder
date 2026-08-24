@@ -372,7 +372,7 @@ func (p *tallymanPublisher) getBestLicenseJWT(ctx context.Context) (string, erro
 
 		// Otherwise, if it's issued more recently, it's the best license.
 		// IssuedAt is verified to be non-nil in license.ParseClaims.
-		if bestLicense.Claims == nil || claims.IssuedAt.Time.After(bestLicense.Claims.IssuedAt.Time) {
+		if bestLicense.Claims == nil || claims.IssuedAt.After(bestLicense.Claims.IssuedAt.Time) {
 			bestLicense = licenseJWTWithClaims{
 				Claims: claims,
 				Raw:    dbLicense.JWT,

@@ -4,7 +4,6 @@ import {
 	Badges,
 	DisabledBadge,
 	EnabledBadge,
-	PremiumBadge,
 } from "#/components/Badges/Badges";
 import {
 	SettingsHeader,
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywallSmall } from "#/modules/paywall/PremiumPaywallSmall";
 import {
 	deploymentGroupHasParent,
 	useDeploymentOptions,
@@ -61,7 +61,10 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					}
 				>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
-						Browser-Only Connections
+						Browser-Only Connections{" "}
+						<Badges>
+							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
+						</Badges>
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other
@@ -71,8 +74,20 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 				<Badges>
 					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-					<PremiumBadge />
 				</Badges>
+				{!featureBrowserOnlyEnabled ? (
+					<PremiumPaywallSmall
+						source="browser_only"
+						message="Browser-Only Connections"
+						description="Block all workspace access via SSH, port forward, and other non-browser connections."
+						features={[
+							"Restrict access to web-based connections",
+							"Block SSH and port-forward entirely",
+							"Enforce browser-only compliance policies",
+						]}
+						canViewPremium
+					/>
+				) : null}
 			</div>
 
 			{tlsOptions.length > 0 && (

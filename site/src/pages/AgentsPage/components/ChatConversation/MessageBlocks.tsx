@@ -187,6 +187,7 @@ const ReadFileTimelineBlock = memo<{
 });
 
 export type BlockListProps = {
+	organizationId?: string;
 	blocks: readonly RenderBlock[];
 	tools: readonly MergedTool[];
 	keyPrefix: string;
@@ -212,6 +213,7 @@ export type BlockListProps = {
 // consumers stay in sync. PascalCase so the React Compiler auto-memoizes every
 // element inside.
 export const BlockList: FC<BlockListProps> = ({
+	organizationId,
 	blocks,
 	tools,
 	keyPrefix,
@@ -331,6 +333,7 @@ export const BlockList: FC<BlockListProps> = ({
 							// Streaming placeholder for not-yet-resolved tool.
 							return (
 								<Tool
+									organizationId={organizationId}
 									key={block.id}
 									name="Tool"
 									status="running"
@@ -349,6 +352,7 @@ export const BlockList: FC<BlockListProps> = ({
 						}
 						return (
 							<Tool
+								organizationId={organizationId}
 								key={tool.id}
 								name={tool.name}
 								args={tool.args}
@@ -410,6 +414,7 @@ export const BlockList: FC<BlockListProps> = ({
 			})}
 			{remainingTools.map((tool) => (
 				<Tool
+					organizationId={organizationId}
 					key={tool.id}
 					name={tool.name}
 					args={tool.args}

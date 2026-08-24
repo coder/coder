@@ -55,8 +55,7 @@ type generationPrepared struct {
 	ResolvedProvider string
 
 	ModelConfigID        uuid.UUID
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
 
 	DynamicToolNames   map[string]bool
@@ -733,8 +732,7 @@ func (s *taskStarter) generateAssistant(
 		ActiveTools:          prepared.ActiveTools,
 		ProviderTools:        prepared.ProviderTools,
 		ContextLimitFallback: prepared.ContextLimitFallback,
-		ModelConfig:          prepared.ModelConfig,
-		ProviderOptions:      prepared.ProviderOptions,
+		CallTemplate:         prepared.CallTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
@@ -960,7 +958,15 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	if override := prepared.Compaction.Override; override != nil {
-		overrideModel, err := s.server.buildCompactionOverrideModel(ctx, prepared.Chat, override.Config, prepared.ModelBuildOptions)
+		// A usable override that fails to build is a hard generation failure.
+		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
+			purpose:          "compaction",
+			chat:             prepared.Chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     prepared.ModelBuildOptions,
+		})
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
@@ -971,15 +977,15 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
-		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
-		compactionOpts.ProviderOptions = overrideModel.providerOptions
+		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
+		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
 			prepared.Compaction.ChatModelConfig,
-			overrideModel.modelConfig,
+			overrideModel.dbConfig,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)

@@ -164,10 +164,7 @@ func InnerTextFromMarkdown(markdown string) (out string, err error) {
 	// after the start tag. Skip just that token (not a running depth) so a stray
 	// </script> or unterminated tag can't swallow the rest of the document.
 	skipNextText := false
-	for {
-		if z.Next() == xhtml.ErrorToken {
-			break // includes io.EOF
-		}
+	for z.Next() != xhtml.ErrorToken {
 		switch tok := z.Token(); tok.Type {
 		case xhtml.StartTagToken:
 			skipNextText = tok.Data == "script" || tok.Data == "style"
