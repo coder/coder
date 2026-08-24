@@ -1,11 +1,17 @@
 # MCP Servers
 
-Administrators can register external MCP servers that provide additional tools
-for agent chat sessions. Configured servers are injected into or offered to
-users during chat depending on the availability policy.
+Organization admins can register external MCP servers that provide additional
+tools for agent chat sessions. Each organization has its own set of MCP
+servers, and chats only offer servers from the chat's organization. Configured
+servers are injected into or offered to users during chat depending on the
+availability policy.
 
 This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
-(`/ai/settings/mcp-servers`).
+(`/ai/settings/mcp-servers`). In multi-organization deployments, use the
+organization picker to choose which organization's servers to manage. The
+server list shows the picker when you can access more than one organization's
+servers. The add and update views always show the target organization, as a
+read-only field when only one organization is available.
 
 ## Add an MCP server
 
@@ -41,11 +47,11 @@ This is an admin-only feature accessible at **AI Settings** > **Coder Agents** >
 
 #### Availability policies
 
-| Policy        | Behavior                                               |
-|---------------|--------------------------------------------------------|
-| `force_on`    | Always injected into every chat. Users cannot opt out. |
-| `default_on`  | Pre-selected in new chats. Users can opt out.          |
-| `default_off` | Available in the server list but users must opt in.    |
+| Policy        | Behavior                                                                          |
+|---------------|-----------------------------------------------------------------------------------|
+| `force_on`    | Injected into every chat whose owner has ACL access to the server. No opting out. |
+| `default_on`  | Pre-selected in new chats. Users can opt out.                                     |
+| `default_off` | Available in the server list but users must opt in.                               |
 
 ## Authentication
 
@@ -75,10 +81,14 @@ each user independently completes the authorization flow.
 
 Optional fields:
 
-| Field                  | Description                     |
-|------------------------|---------------------------------|
-| `oauth2_client_secret` | OAuth2 client secret.           |
-| `oauth2_scopes`        | Space-separated list of scopes. |
+| Field                   | Description                               |
+|-------------------------|-------------------------------------------|
+| `oauth2_client_secret`  | OAuth2 client secret.                     |
+| `oauth2_scopes`         | Space-separated list of scopes.           |
+| `oauth2_revocation_url` | Token revocation endpoint URL (RFC 7009). |
+
+The revocation endpoint must use HTTPS.
+Loopback URLs may use HTTP for local development and tests.
 
 **Auto-discovery** — leave `oauth2_client_id`, `oauth2_auth_url`, and
 `oauth2_token_url` empty. The server attempts discovery in this order:
@@ -87,9 +97,17 @@ Optional fields:
 1. RFC 8414 — Authorization Server Metadata
 1. RFC 7591 — Dynamic Client Registration
 
+Auto-discovery also records the provider's `revocation_endpoint` from the
+RFC 8414 metadata when advertised. An explicit `oauth2_revocation_url` in
+the request takes precedence over the discovered value.
+
 Users connect through a popup that redirects through the OAuth2 provider.
 Tokens are stored per-user and refreshed automatically. Users can disconnect
-via the UI or API to remove stored tokens.
+via the UI or API to remove stored tokens. When a revocation endpoint is
+configured, disconnecting also asks the provider to revoke the token
+(RFC 7009). Provider revocation is best-effort: the stored token is always
+deleted from Coder, and the disconnect response reports whether provider
+revocation succeeded via `token_revoked` and `token_revocation_error`.
 
 ### API key
 
@@ -153,11 +171,36 @@ wins.
 
 ## Permissions
 
-| Action                        | Required role             |
-|-------------------------------|---------------------------|
-| Create, update, or delete     | Admin (deployment config) |
-| View enabled servers          | Any authenticated user    |
-| OAuth2 connect and disconnect | Any authenticated user    |
+| Action                    | Required role              |
+|---------------------------|----------------------------|
+| Create, update, or delete | Organization admin         |
+| View enabled servers      | Member granted through ACL |
+| OAuth2 connect            | Member granted through ACL |
+| OAuth2 disconnect         | Token owner                |
+| Manage ACLs               | Organization admin         |
 
-Non-admin users only see enabled servers. Sensitive fields such as API keys
-and client secrets are redacted in API responses.
+Disconnect only needs a valid session: users removed from the ACL or the
+organization can still delete their stored token and revoke the provider
+grant.
+
+Members only see enabled servers in their own organizations. Sensitive fields
+such as API keys and client secrets are redacted in API responses.
+
+The **MCP servers** settings page is part of deployment settings, so opening it in the dashboard also requires permission to edit deployment configuration.
+Organization admins without that permission can manage servers through the API.
+Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
+
+### Access control
+
+Each server has a group and user ACL that controls which members can see and
+use it. New servers grant read access to the organization's **Everyone** group,
+so all members have access by default. Admins can remove the Everyone entry and
+grant specific groups or users instead through the API
+(`GET`/`PATCH /api/experimental/organizations/{organization}/mcp-servers/{id}/acl`); there is no ACL editor
+in the settings page. ACL management is available in all editions and does not
+require an enterprise entitlement. ACL changes are recorded in the audit log.
+
+Revoking access stops a member from newly selecting the server in any chat,
+but chats that already have the server selected keep using it, the same way
+existing workspaces keep running after template access is revoked. To cut
+off existing chats as well, disable or delete the server.

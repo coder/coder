@@ -32,6 +32,7 @@ type Conn interface {
 	Ping(ctx context.Context, agentID uuid.UUID) (time.Duration, bool, *ipnstate.PingResult, error)
 	Node() *tailnet.Node
 	DERPMap() *tailcfg.DERPMap
+	Rebind()
 	Close() error
 }
 

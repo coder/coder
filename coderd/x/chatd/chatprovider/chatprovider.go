@@ -122,12 +122,11 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// AcceptsFilePartMediaType reports whether provider accepts mediaType
-// as a file content part rather than silently dropping it. modelID
-// distinguishes API paths within a provider (e.g. OpenAI Responses vs
-// Chat Completions). Unknown providers return false so callers convert
-// text-family content to text and guarantee the model still sees it.
-func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
+// AcceptsFilePartMediaType reports whether m's provider accepts mediaType as a
+// file content part rather than silently dropping it. Callers replace rejected
+// parts with text, so a false negative costs fidelity while a false positive
+// loses the attachment entirely. Unknown providers therefore return false.
+func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed
@@ -140,7 +139,7 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
 	isPDF := baseType == "application/pdf"
 
-	switch NormalizeProvider(provider) {
+	switch NormalizeProvider(m.Provider()) {
 	case fantasygoogle.Name:
 		// Google passes any file part through unfiltered.
 		return true
@@ -149,11 +148,8 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 		// file-part acceptance, including text/* as native documents.
 		return isImage || isText || isPDF
 	case fantasyopenai.Name, fantasyazure.Name:
-		// chatd configures both with WithUseResponsesAPI, but only
-		// Responses-capable models actually use it. Non-Responses models
-		// fall through to the Chat Completions path, which accepts
-		// text/* and audio as native file parts (same as openaicompat).
-		if fantasyopenai.IsResponsesModel(modelID) {
+		// Chat Completions accepts text and audio as native file parts.
+		if m.transport.UsesResponses() {
 			return isImage || isPDF
 		}
 		return isImage || isText || isAudio || isPDF
@@ -687,21 +683,6 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
-// isGatewayProvider reports whether the provider routes requests to
-// multiple upstream model providers using a "<provider>/<model>" model
-// identifier, where the slash is part of the upstream model ID rather
-// than a hint.
-func isGatewayProvider(provider string) bool {
-	switch provider {
-	case fantasyvercel.Name,
-		fantasyopenrouter.Name,
-		fantasyopenaicompat.Name:
-		return true
-	default:
-		return false
-	}
-}
-
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
@@ -732,21 +713,14 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return "", "", xerrors.New("model is required")
 	}
 
-	// Gateway providers (vercel, openrouter, openai-compat) treat the
-	// "<provider>/<model>" slash as part of the upstream model ID, so
-	// parseCanonicalModelRef would incorrectly strip the prefix and
-	// route to the embedded provider name instead. Honor an explicit
-	// gateway hint before attempting canonical-ref parsing.
-	if normalized := NormalizeProvider(providerHint); normalized != "" && isGatewayProvider(normalized) {
-		return normalized, modelName, nil
+	// A valid provider hint is authoritative, so preserve the model ID
+	// instead of interpreting its namespace as a different provider.
+	if provider := NormalizeProvider(providerHint); provider != "" {
+		return provider, modelName, nil
 	}
 
 	if provider, modelID, ok := parseCanonicalModelRef(modelName); ok {
 		return provider, modelID, nil
-	}
-
-	if provider := NormalizeProvider(providerHint); provider != "" {
-		return provider, modelName, nil
 	}
 
 	normalized := strings.ToLower(modelName)
@@ -836,6 +810,27 @@ func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingD
 	return &valueCopy
 }
 
+// GoogleThinkingLevelFromChat normalizes chat-config thinking level values
+// for Google and returns the canonical provider level value.
+func GoogleThinkingLevelFromChat(value *string) *fantasygoogle.ThinkingLevel {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	return chatutil.NormalizedEnumValue(
+		normalized,
+		fantasygoogle.ThinkingLevelMinimal,
+		fantasygoogle.ThinkingLevelLow,
+		fantasygoogle.ThinkingLevelMedium,
+		fantasygoogle.ThinkingLevelHigh,
+	)
+}
+
 // Header constants sent on upstream LLM API requests so that
 // intermediaries (e.g. aibridged) can correlate traffic back to
 // Coder entities.
@@ -874,12 +869,48 @@ func CoderHeaders(chat database.Chat) map[string]string {
 	return h
 }
 
+// AnthropicBetaContext1M is the beta token for Anthropic's 1M context window.
+const AnthropicBetaContext1M = "context-1m-2025-08-07"
+
+// HeaderAnthropicBeta names Anthropic's beta feature header.
+const HeaderAnthropicBeta = "Anthropic-Beta"
+
+// BetaHeadersFromCallConfig returns beta feature headers for Anthropic and
+// Bedrock calls.
+func BetaHeadersFromCallConfig(providerName string, config *codersdk.ChatModelCallConfig) map[string]string {
+	if config == nil || config.ProviderOptions == nil || config.ProviderOptions.Anthropic == nil {
+		return nil
+	}
+	enabled := config.ProviderOptions.Anthropic.Context1MEnabled
+	if enabled == nil || !*enabled {
+		return nil
+	}
+	switch NormalizeProvider(providerName) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return map[string]string{HeaderAnthropicBeta: AnthropicBetaContext1M}
+	default:
+		return nil
+	}
+}
+
+// openAIResponsesAPIOverride returns the configured OpenAI Responses API
+// override, or nil when the model config leaves the choice to the provider
+// SDK's known-model list. It stays unexported so the decision is reachable
+// only from client construction.
+func openAIResponsesAPIOverride(config *codersdk.ChatModelOpenAIConfig) *bool {
+	if config == nil {
+		return nil
+	}
+	return config.UseResponsesAPI
+}
+
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
 // language model client using the provided provider credentials. The
 // userAgent is sent as the User-Agent header on every outgoing LLM
 // API request. extraHeaders, when non-nil, are sent as additional
 // HTTP headers on every request. httpClient, when non-nil, is used for
-// all provider HTTP requests.
+// all provider HTTP requests. openAIConfig carries the model's OpenAI client
+// settings, including the transport override applied here.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -887,16 +918,17 @@ func ModelFromConfig(
 	userAgent string,
 	extraHeaders map[string]string,
 	httpClient *http.Client,
-) (fantasy.LanguageModel, error) {
+	openAIConfig *codersdk.ChatModelOpenAIConfig,
+) (Model, error) {
 	provider, modelID, err := ResolveModelWithProviderHint(modelName, providerHint)
 	if err != nil {
-		return nil, err
+		return Model{}, err
 	}
 
 	apiKey := providerKeys.APIKey(provider)
 	if apiKey == "" &&
-		!(ProviderAllowsAmbientCredentials(provider) && providerKeys.HasProvider(provider)) {
-		return nil, missingProviderAPIKeyError(provider)
+		(!ProviderAllowsAmbientCredentials(provider) || !providerKeys.HasProvider(provider)) {
+		return Model{}, missingProviderAPIKeyError(provider)
 	}
 	baseURL := providerKeys.BaseURL(provider)
 
@@ -919,7 +951,7 @@ func ModelFromConfig(
 		providerClient, err = fantasyanthropic.New(options...)
 	case fantasyazure.Name:
 		if baseURL == "" {
-			return nil, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
+			return Model{}, xerrors.New("AZURE_OPENAI_BASE_URL is not set")
 		}
 		azureOpts := []fantasyazure.Option{
 			fantasyazure.WithAPIKey(apiKey),
@@ -975,6 +1007,12 @@ func ModelFromConfig(
 			fantasyopenai.WithUseResponsesAPI(),
 			fantasyopenai.WithUserAgent(userAgent),
 		}
+		if override := openAIResponsesAPIOverride(openAIConfig); override != nil {
+			forced := *override
+			options = append(options, fantasyopenai.WithResponsesAPIFunc(func(string) bool {
+				return forced
+			}))
+		}
 		if len(extraHeaders) > 0 {
 			options = append(options, fantasyopenai.WithHeaders(extraHeaders))
 		}
@@ -1029,17 +1067,17 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyvercel.New(options...)
 	default:
-		return nil, xerrors.Errorf("unsupported model provider %q", provider)
+		return Model{}, xerrors.Errorf("unsupported model provider %q", provider)
 	}
 	if err != nil {
-		return nil, providerCreationError(provider, err)
+		return Model{}, providerCreationError(provider, err)
 	}
 
 	model, err := providerClient.LanguageModel(context.Background(), modelID)
 	if err != nil {
-		return nil, xerrors.Errorf("load %s model: %w", provider, err)
+		return Model{}, xerrors.Errorf("load %s model: %w", provider, err)
 	}
-	return model, nil
+	return NewModel(model, openAIConfig), nil
 }
 
 func providerCreationError(provider string, err error) error {
@@ -1070,10 +1108,23 @@ func missingProviderAPIKeyError(provider string) error {
 	}
 }
 
-// ProviderOptionsFromChatModelConfig converts chat model provider options to
-// fantasy provider options used for inference calls.
-func ProviderOptionsFromChatModelConfig(
-	model fantasy.LanguageModel,
+// ProviderOptionsForCall builds the provider options for one inference call.
+// Config conversion and reasoning effort both create OpenAI option structs, so
+// owning them together is what keeps their type aligned with the model's
+// transport. requestedEffort is the caller's per-turn choice, which the
+// config's bounds clamp.
+func ProviderOptionsForCall(
+	model Model,
+	config codersdk.ChatModelCallConfig,
+	requestedEffort *string,
+) fantasy.ProviderOptions {
+	options := providerOptionsFromChatModelConfig(model, config.ProviderOptions)
+	effort := ResolveReasoningEffort(requestedEffort, config.ReasoningEffort)
+	return applyReasoningEffort(model, options, effort)
+}
+
+func providerOptionsFromChatModelConfig(
+	model Model,
 	options *codersdk.ChatModelProviderOptions,
 ) fantasy.ProviderOptions {
 	if options == nil {
@@ -1084,7 +1135,7 @@ func ProviderOptionsFromChatModelConfig(
 
 	if options.OpenAI != nil {
 		result[fantasyopenai.Name] = chatopenai.ProviderOptionsFromChatConfig(
-			model,
+			model.transport,
 			options.OpenAI,
 		)
 	}
@@ -1094,7 +1145,12 @@ func ProviderOptionsFromChatModelConfig(
 		)
 	}
 	if options.Google != nil {
+		var modelID string
+		if model.Valid() {
+			modelID = model.ModelID()
+		}
 		result[fantasygoogle.Name] = googleProviderOptionsFromChatConfig(
+			modelID,
 			options.Google,
 		)
 	}
@@ -1112,6 +1168,18 @@ func ProviderOptionsFromChatModelConfig(
 		result[fantasyvercel.Name] = vercelProviderOptionsFromChatConfig(
 			options.Vercel,
 		)
+	}
+
+	// Google models backed by an AI Provider route through the
+	// OpenAI-compatible client, which ignores the fantasygoogle options key,
+	// so a pinned thinking configuration must also travel as the compat
+	// request's extra_body for the transport patch to honor it.
+	if options.Google != nil && options.Google.ThinkingConfig != nil &&
+		model.Valid() && NormalizeProvider(model.Provider()) == fantasyopenaicompat.Name {
+		if extraBody := googleCompatExtraBodyFromThinkingConfig(model.ModelID(), options.Google.ThinkingConfig); extraBody != nil {
+			compatOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](result, fantasyopenaicompat.Name)
+			compatOptions.ExtraBody = extraBody
+		}
 	}
 
 	if len(result) == 0 {
@@ -1137,6 +1205,7 @@ func anthropicProviderOptionsFromChatConfig(
 }
 
 func googleProviderOptionsFromChatConfig(
+	modelID string,
 	options *codersdk.ChatModelGoogleProviderOptions,
 ) *fantasygoogle.ProviderOptions {
 	result := &fantasygoogle.ProviderOptions{
@@ -1147,6 +1216,18 @@ func googleProviderOptionsFromChatConfig(
 		result.ThinkingConfig = &fantasygoogle.ThinkingConfig{
 			ThinkingBudget:  options.ThinkingConfig.ThinkingBudget,
 			IncludeThoughts: options.ThinkingConfig.IncludeThoughts,
+		}
+		// Each Gemini model accepts a different thinking_level subset and
+		// pre-Gemini-3 models reject the field entirely, so clamp a pinned
+		// level into the model's supported set and drop it for models
+		// without support. Gating here rather than at config save time
+		// also covers updates that switch a config's model without
+		// resubmitting options.
+		if pinned := GoogleThinkingLevelFromChat(options.ThinkingConfig.ThinkingLevel); pinned != nil {
+			if supported := googleSupportedThinkingLevels(modelID); len(supported) > 0 {
+				level := clampGoogleThinkingLevel(*pinned, supported)
+				result.ThinkingConfig.ThinkingLevel = &level
+			}
 		}
 	}
 	if options.SafetySettings != nil {

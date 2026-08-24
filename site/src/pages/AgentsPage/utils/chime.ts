@@ -110,15 +110,8 @@ function playChime(chatID: string): void {
 
 /**
  * Check whether a chat status transition should trigger a chime
- * and play it if so. The chime fires on these transitions:
- *
- *   running → waiting   (normal completion via per-chat WS)
- *   running → pending   (normal completion via per-chat WS)
- *   pending → waiting   (watchChats WS skipped "running")
- *
- * Note that "pending" appears as both a source and a target:
- * it is an active state when the agent is queued, and a resting
- * state after the agent finishes. The chime is suppressed when
+ * and play it if so. The chime fires on the running → waiting
+ * transition (normal completion). The chime is suppressed when
  * the chat is currently visible to the user.
  */
 export function maybePlayChime(
@@ -131,18 +124,13 @@ export function maybePlayChime(
 		return;
 	}
 
-	// Terminal states that indicate the agent finished.
-	const isTerminal = nextStatus === "waiting" || nextStatus === "pending";
-	if (!isTerminal) {
+	// Terminal state that indicates the agent finished.
+	if (nextStatus !== "waiting") {
 		return;
 	}
 
-	// Only chime when transitioning from a non-terminal state.
-	// "running" is the expected previous state, but "pending" can
-	// appear when the watchChats WebSocket skips the intermediate
-	// "running" status (it only publishes the final state change).
-	const wasActive = prevStatus === "running" || prevStatus === "pending";
-	if (!wasActive) {
+	// Only chime when transitioning from the active state.
+	if (prevStatus !== "running") {
 		return;
 	}
 

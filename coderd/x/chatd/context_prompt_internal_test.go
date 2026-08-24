@@ -399,10 +399,11 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 		AgentID:           uuid.NullUUID{UUID: agent.ID, Valid: true},
 		Status:            database.ChatStatusWaiting,
 	})
-	require.NoError(t, db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+	_, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
 		AgentID:       agent.ID,
 		AggregateHash: hash,
-	}))
+	})
+	require.NoError(t, err)
 	rows, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Len(t, rows, 2, "the pin holds the agent's instruction file and skill")
@@ -732,6 +733,31 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 		require.Len(t, infos, 1)
 		require.Equal(t, "playwright", infos[0].ServerName)
 		require.Equal(t, "playwright__navigate", infos[0].Name)
+	})
+
+	t.Run("EmptyPropertiesYieldsEmptySchema", func(t *testing.T) {
+		t.Parallel()
+
+		// An MCP tool reporting {"type": "object", "properties": {}} must
+		// produce a non-nil empty Schema. A nil Schema serializes to JSON
+		// null downstream, which OpenAI rejects.
+		schema := mustStruct(t, map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		})
+		resources := []database.ChatContextResource{
+			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+				ServerName: "github",
+				Tools: []*agentproto.MCPTool{
+					{Name: "document_graphql_schema", Description: "Run a GraphQL query", InputSchema: schema},
+				},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+		}
+
+		infos := workspaceMCPToolInfosFromResources(resources)
+		require.Len(t, infos, 1)
+		require.NotNil(t, infos[0].Schema, "Schema must not be nil for an empty properties object")
+		require.Empty(t, infos[0].Schema)
 	})
 
 	t.Run("NoMCPServersYieldsNil", func(t *testing.T) {

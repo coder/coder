@@ -2,13 +2,19 @@ package dbgen
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"maps"
+	"math/big"
 	"net"
 	"strings"
 	"testing"
@@ -87,6 +93,7 @@ func Chat(t testing.TB, db database.Store, seed database.Chat) database.Chat {
 	}
 
 	chat, err := db.InsertChat(genCtx, database.InsertChatParams{
+		ID:                uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
 		OrganizationID:    takeFirst(seed.OrganizationID, uuid.New()),
 		OwnerID:           takeFirst(seed.OwnerID, uuid.New()),
 		WorkspaceID:       seed.WorkspaceID,
@@ -116,20 +123,10 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		content = string(seed.Content.RawMessage)
 	}
 	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
-	apiKeyID := seed.APIKeyID.String
-	// Mint a real API key for user turns so the api_key_id foreign key is
-	// satisfied. Without a creator we leave it empty, which the insert query
-	// stores as NULL.
-	if role == database.ChatMessageRoleUser && apiKeyID == "" &&
-		seed.CreatedBy.Valid && seed.CreatedBy.UUID != uuid.Nil {
-		key, _ := APIKey(t, db, database.APIKey{UserID: seed.CreatedBy.UUID})
-		apiKeyID = key.ID
-	}
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
 		ReasoningEffort:     []string{string(seed.ReasoningEffort.ChatReasoningEffort)},
 		Role:                []database.ChatMessageRole{role},
@@ -144,12 +141,11 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		CacheReadTokens:     []int64{seed.CacheReadTokens.Int64},
 		ContextLimit:        []int64{seed.ContextLimit.Int64},
 		Compressed:          []bool{seed.Compressed},
-		TotalCostMicros:     []int64{seed.TotalCostMicros.Int64},
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)
-	return msgs[0]
+	return database.ChatMessage(msgs[0])
 }
 
 const (
@@ -332,6 +328,15 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// New configs belong to the default organization, matching the
+	// org-less shape they had before configs became org-scoped.
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -342,7 +347,20 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		updatedBy = createdBy
 	}
 
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,
@@ -355,6 +373,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		OAuth2ClientSecretKeyID: seed.OAuth2ClientSecretKeyID,
 		OAuth2AuthURL:           seed.OAuth2AuthURL,
 		OAuth2TokenURL:          seed.OAuth2TokenURL,
+		OAuth2RevocationURL:     seed.OAuth2RevocationURL,
 		OAuth2Scopes:            seed.OAuth2Scopes,
 		APIKeyHeader:            seed.APIKeyHeader,
 		APIKeyValue:             seed.APIKeyValue,
@@ -368,6 +387,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
+		GroupACL:                groupACL,
+		UserACL:                 userACL,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})
@@ -558,6 +579,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		MaxPortSharingLevel:          takeFirst(seed.MaxPortSharingLevel, database.AppSharingLevelOwner),
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
+		AgentsAllowed:                seed.AgentsAllowed,
 	})
 	require.NoError(t, err, "insert template")
 
@@ -781,7 +803,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -1152,7 +1174,7 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
-	//nolint:gosimple
+	//nolint:staticcheck
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,
@@ -1735,7 +1757,7 @@ func OAuth2ProviderApp(t testing.TB, db database.Store, seed database.OAuth2Prov
 		Icon:                    takeFirst(seed.Icon, ""),
 		CallbackURL:             takeFirst(seed.CallbackURL, "http://localhost"),
 		RedirectUris:            takeFirstSlice(seed.RedirectUris, []string{}),
-		ClientType:              takeFirst(seed.ClientType, sql.NullString{String: "confidential", Valid: true}),
+		ClientType:              takeFirst(seed.ClientType, "confidential"),
 		DynamicallyRegistered:   takeFirst(seed.DynamicallyRegistered, sql.NullBool{Bool: false, Valid: true}),
 		ClientIDIssuedAt:        takeFirst(seed.ClientIDIssuedAt, sql.NullTime{}),
 		ClientSecretExpiresAt:   takeFirst(seed.ClientSecretExpiresAt, sql.NullTime{}),
@@ -1786,22 +1808,29 @@ func OAuth2ProviderAppCode(t testing.TB, db database.Store, seed database.OAuth2
 		CodeChallengeMethod: seed.CodeChallengeMethod,
 		StateHash:           seed.StateHash,
 		RedirectUri:         seed.RedirectUri,
+		Scope:               takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app code")
 	return code
 }
 
 func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth2ProviderAppToken) database.OAuth2ProviderAppToken {
+	require.NotEqual(t, uuid.Nil, seed.AppID, "An app id is required to use 'dbgen.OAuth2ProviderAppToken', use 'dbgen.OAuth2ProviderApp'.")
 	token, err := db.InsertOAuth2ProviderAppToken(genCtx, database.InsertOAuth2ProviderAppTokenParams{
 		ID:          takeFirst(seed.ID, uuid.New()),
 		CreatedAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		ExpiresAt:   takeFirst(seed.CreatedAt, dbtime.Now()),
 		HashPrefix:  takeFirstSlice(seed.HashPrefix, []byte("prefix")),
 		RefreshHash: takeFirstSlice(seed.RefreshHash, []byte("hashed-secret")),
-		AppSecretID: takeFirst(seed.AppSecretID, uuid.New()),
+		AppID:       seed.AppID,
+		// Public (secretless) clients reference no secret, so a zero-value
+		// NullUUID is passed through as NULL rather than defaulted. takeFirst
+		// cannot express that, since NULL is its "unset" sentinel.
+		AppSecretID: seed.AppSecretID,
 		APIKeyID:    takeFirst(seed.APIKeyID, uuid.New().String()),
 		UserID:      takeFirst(seed.UserID, uuid.New()),
 		Audience:    seed.Audience,
+		Scope:       takeFirst(seed.Scope, string(database.ApiKeyScopeCoderAll)),
 	})
 	require.NoError(t, err, "insert oauth2 app token")
 	return token
@@ -1965,6 +1994,7 @@ func UserSecret(t testing.TB, db database.Store, seed database.UserSecret, mutat
 		ValueKeyID:  seed.ValueKeyID,
 		EnvName:     takeFirst(seed.EnvName, "SECRET_ENV_NAME"),
 		FilePath:    takeFirst(seed.FilePath, "~/secret/file/path"),
+		Enabled:     takeFirst(seed.Enabled, true),
 	}
 	for _, mut := range mutators {
 		mut(&params)
@@ -2223,8 +2253,47 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureNATSCA:
+		return generateCACryptoKeySecret()
 	}
 	return "", xerrors.Errorf("unknown feature: %s", feature)
+}
+
+// generateCACryptoKeySecret generates a self-signed CA certificate and private
+// key as a PEM bundle, matching the secret format that coderd/cryptokeys
+// produces for the nats_ca feature. It intentionally duplicates
+// cryptokeys.generateCASecret rather than calling it: coderd/cryptokeys's
+// internal tests import dbgen, so importing cryptokeys here would create a
+// test-build import cycle.
+func generateCACryptoKeySecret() (string, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return "", xerrors.Errorf("generate key: %w", err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "dbgen-ca"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		MaxPathLenZero:        true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		return "", xerrors.Errorf("create certificate: %w", err)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return "", xerrors.Errorf("marshal private key: %w", err)
+	}
+	var secret []byte
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
+	secret = append(secret, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})...)
+	return string(secret), nil
 }
 
 func generateCryptoKey(length int) (string, error) {

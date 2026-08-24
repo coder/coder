@@ -11,7 +11,15 @@ Digits are more accessible for the international and non-native-English audience
 
 If a sentence would start with a digit, restructure the sentence so a word comes first.
 Do not spell out the number to avoid the leading digit.
-That reintroduces the rule the digits-everywhere policy is meant to remove.
+Spelling out the number reintroduces the rule the digits-everywhere policy is meant to remove.
+
+The rule covers counts, quantities, measurements, and values: the numbers a reader scans for.
+These uses stay spelled out:
+
+- Numbers that describe language itself, like word counts in a grammar discussion ("a contraction joins exactly two words") and numbers mentioned as words ("spell out first through ninth").
+- `One` when it works as `a single` or as a pronoun ("one topic per paragraph," "one of the two forms").
+
+Rewriting those as digits changes the register of the sentence without making it easier to scan.
 
 **Do**:
 
@@ -39,13 +47,13 @@ Restructure to put a word first ("The workspace has 5 connected users.").
 
 Insert a non-breaking space between a number and its unit so the pair never breaks across a line.
 The Markdown source uses `&nbsp;` (HTML entity) or the Unicode character `U+00A0` (the literal non-breaking space).
-The visible result is the same as a regular space, but the line breaker treats the number and unit as one token.
+The visible result is the same as a regular space, but the line breaker treats the number and unit as a single token.
 
 **Do**:
 
 In the Markdown source (what you type):
 
-```markdown
+```md
 The default timeout is 30&nbsp;seconds.
 Connection latency under 150&nbsp;ms shows green.
 ```
@@ -56,15 +64,15 @@ In the rendered output (what the reader reads):
 > Connection latency under 150&nbsp;ms shows green.
 
 The rendered output looks identical to text written with a regular space.
-The difference shows up only at the end of a line: the browser will never split `30` and `seconds` across two lines.
-To see the rule in action, shrink the browser window until the sentence wraps.
+The difference shows up only at the end of a line: the browser never splits `30` and `seconds` across 2 lines.
+To check the behavior, shrink the browser window until the sentence wraps.
 The number and the unit move to the next line together rather than separating.
 
 **Don't**:
 
 In the Markdown source:
 
-```markdown
+```md
 The default timeout is 30 seconds.
 Connection latency under 150ms shows green.
 ```
@@ -122,7 +130,7 @@ The 12-hour rule is for prose only.
 
 Spell out ordinals `first` through `ninth`.
 Use digits with a suffix for `10th` and higher.
-This is the one place the digits-everywhere rule yields, because ordinals spelled out read more naturally in prose at low counts.
+Ordinals are the one place the digits-everywhere rule makes an exception, because spelled-out ordinals read more naturally in prose at low counts.
 
 **Do**:
 
@@ -136,9 +144,10 @@ This is the one place the digits-everywhere rule yields, because ordinals spelle
 >
 > The tenth workspace in the list is the oldest.
 
-*Enforced by `Google.Ordinal` (planned).*
+*Enforced by a planned scoped fork of `Google.Ordinal`.
+The stock rule spells out all ordinals, so it cannot enforce this policy as written.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Capitalization and punctuation](./capitalization-and-punctuation.md)

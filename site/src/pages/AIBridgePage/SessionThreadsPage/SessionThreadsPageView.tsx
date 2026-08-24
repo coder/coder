@@ -6,13 +6,13 @@ import type {
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
@@ -62,7 +62,12 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 	onBackClicked,
 }) => {
 	if (!isAISessionsEntitled) {
-		return <PaywallAIGovernance />;
+		return (
+			<PremiumPaywallAIGovernance
+				variant="sessions"
+				source="aibridge_session_threads"
+			/>
+		);
 	}
 
 	if (!isAISessionsEnabled) {
@@ -74,6 +79,10 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		(acc, thread) => acc + (thread.agentic_actions?.length ?? 0),
 		0,
 	);
+
+	// The API returns only the single most contacted host, alongside the total
+	// distinct domain count that drives the "+N more" overflow.
+	const topDomain = session?.network_top_domains?.[0];
 
 	return (
 		<>
@@ -115,6 +124,13 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}
+							networkCalls={session.network_calls}
+							networkDomains={
+								topDomain && {
+									topDomain,
+									totalCount: session.network_domain_count ?? 1,
+								}
+							}
 						/>
 					)}
 				</aside>
@@ -123,6 +139,8 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 						<SessionTimeline
 							initiator={session.initiator}
 							threads={threads}
+							networkCallSummary={session.network_calls}
+							networkCalls={session.network_call_logs ?? []}
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}

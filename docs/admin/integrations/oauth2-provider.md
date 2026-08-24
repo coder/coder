@@ -22,13 +22,13 @@ Coder can act as an OAuth2 authorization server, allowing third-party applicatio
 
 Add the `oauth2` experiment flag to your Coder server:
 
-```bash
+```sh
 coder server --experiments oauth2
 ```
 
 Or set the environment variable:
 
-```env
+```dotenv
 CODER_EXPERIMENTS=oauth2
 ```
 
@@ -36,8 +36,8 @@ CODER_EXPERIMENTS=oauth2
 
 ### Method 1: Web UI
 
-1. Navigate to **Deployment Settings** → **OAuth2 Applications**
-2. Click **Create Application**
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**: Your application name
    - **Callback URL**: `https://yourapp.example.com/callback` (web) or `myapp://callback` (native/desktop)
@@ -47,7 +47,7 @@ CODER_EXPERIMENTS=oauth2
 
 Create an application using the Coder API:
 
-```bash
+```sh
 curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
@@ -61,11 +61,54 @@ curl -X POST \
 
 Generate a client secret:
 
-```bash
+```sh
 curl -X POST \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
+
+## Dynamic Client Registration
+
+Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.
+
+Change the setting in the web UI:
+
+1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+2. Select the **Settings** tab.
+3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
+
+Enabling asks you to confirm first.
+Disabling does not.
+The tab is linkable directly at `https://$CODER_ACCESS_URL/deployment/oauth2-provider/apps?tab=settings`.
+
+Viewing the tab requires permission to view deployment configuration, and changing the setting requires permission to edit it.
+Without edit permission the button is present but inactive, and the page says why.
+
+Check or change the setting with the CLI:
+
+```sh
+coder oauth2-provider dcr enable
+coder oauth2-provider dcr disable
+```
+
+Or with the management API:
+
+```sh
+curl -X PUT \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dynamic_client_registration_enabled": true}' \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+```sh
+curl -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/settings"
+```
+
+Disabling only blocks *new* self-registrations. Applications that already
+registered while it was enabled keep authorizing and exchanging tokens
+normally; disabling does not revoke or otherwise affect them.
 
 ## Integration Patterns
 
@@ -75,10 +118,32 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 - `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
+- `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+> [!NOTE]
+> Registration accepts `none` today, but the token endpoint does not yet
+> honor it: an `authorization_code` exchange still requires
+> `client_secret`, so a public client cannot obtain a token yet. Discovery
+> omits `none` from `token_endpoint_auth_methods_supported` for the same
+> reason, so a conforming client is not told to attempt an exchange that
+> would be rejected.
 
-If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+
+Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
+
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
+
+> [!IMPORTANT]
+> A public client may use `http://` only with a loopback host
+> (`localhost`, `127.0.0.1`, `[::1]`). An `http://` redirect URI to any
+> other host is rejected, so use `https://` instead. A confidential
+> client has the same restriction but also accepts `.localhost`
+> subdomains over `http://`.
+>
+> Which schemes a redirect URI may use is a separate restriction that
+> also differs by client type. See
+> [Callback URL schemes](#callback-url-schemes).
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
@@ -86,7 +151,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
 1. **Authorization Request**: Redirect users to Coder's authorization endpoint:
 
-   ```url
+   ```txt
    https://coder.example.com/oauth2/authorize?
      client_id=your-client-id&
      response_type=code&
@@ -98,7 +163,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
    **Option A: HTTP Basic authentication (`client_secret_basic`, recommended)**
 
-   ```bash
+   ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
@@ -110,7 +175,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
    **Option B: Form parameters (`client_secret_post`)**
 
-   ```bash
+   ```sh
    curl -X POST \
      -H "Content-Type: application/x-www-form-urlencoded" \
      -d "grant_type=authorization_code" \
@@ -123,7 +188,7 @@ If client authentication fails, the token endpoint returns **HTTP 401** with an 
 
 3. **API Access**: Use the access token to call Coder's API:
 
-   ```bash
+   ```sh
    curl -H "Authorization: Bearer $ACCESS_TOKEN" \
      "$CODER_URL/api/v2/users/me"
    ```
@@ -139,16 +204,23 @@ PKCE is **required** for all OAuth2 authorization code flows. Coder enforces
 PKCE in compliance with the OAuth 2.1 specification. Both public and
 confidential clients must include PKCE parameters:
 
+> [!NOTE]
+> `code_verifier` and `code_challenge` must each be 43-128 characters from
+> the unreserved character set `[A-Za-z0-9-._~]` (RFC 7636 §4.1). A value
+> outside these bounds is rejected with an `invalid_request` error, at the
+> token endpoint for `code_verifier` and at the authorization endpoint for
+> `code_challenge`.
+
 1. Generate a code verifier and challenge:
 
-   ```bash
-   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d "=+/" | cut -c1-128)
-   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=+/" | cut -c1-43)
+   ```sh
+   CODE_VERIFIER=$(openssl rand -base64 96 | tr -d '\n' | tr '+/' '-_' | tr -d '=')
+   CODE_CHALLENGE=$(echo -n $CODE_VERIFIER | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
    ```
 
 2. Include PKCE parameters in the authorization request:
 
-   ```url
+   ```txt
    https://coder.example.com/oauth2/authorize?
      client_id=your-client-id&
      response_type=code&
@@ -159,7 +231,7 @@ confidential clients must include PKCE parameters:
 
 3. Include the code verifier in the token exchange (see [Client Authentication Methods](#client-authentication-methods)):
 
-   ```bash
+   ```sh
    curl -X POST \
      -u "$CLIENT_ID:$CLIENT_SECRET" \
      -H "Content-Type: application/x-www-form-urlencoded" \
@@ -187,7 +259,7 @@ Refresh an expired access token.
 
 **Option A: HTTP Basic authentication (`client_secret_basic`)**
 
-```bash
+```sh
 curl -X POST \
   -u "$CLIENT_ID:$CLIENT_SECRET" \
   -H "Content-Type: application/x-www-form-urlencoded" \
@@ -198,7 +270,7 @@ curl -X POST \
 
 **Option B: Form parameters (`client_secret_post`)**
 
-```bash
+```sh
 curl -X POST \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "grant_type=refresh_token" \
@@ -212,17 +284,38 @@ curl -X POST \
 
 Revoke all tokens for an application:
 
-```bash
+```sh
 curl -X DELETE \
   -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
   "$CODER_URL/oauth2/tokens?client_id=$CLIENT_ID"
 ```
 
+This ends existing sessions but leaves the application registered, so it can authorize again.
+
+### Delete an Application
+
+Deleting an application is a separate operation from revoking its tokens.
+It removes the registration itself, so the client cannot authorize again without being registered anew.
+
+In the web UI, navigate to **Deployment Settings** > **OAuth2 Applications**, select the application on the **Applications** tab, then select **Delete**.
+This requires permission to delete OAuth2 applications.
+
+Or with the management API:
+
+```sh
+curl -X DELETE \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID"
+```
+
+This is also how you remove clients that registered themselves while dynamic client registration was enabled.
+Turning the setting off stops new registrations; it does not remove the ones already there.
+
 ## Testing and Development
 
 Coder provides comprehensive test scripts for OAuth2 development:
 
-```bash
+```sh
 # Navigate to the OAuth2 test scripts
 cd scripts/oauth2/
 
@@ -262,11 +355,26 @@ application's callback URL to a valid scheme (see
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
 
+### "public clients may not use the mailto/tel/sms scheme"
+
+This error appears during client registration when a public client
+(`token_endpoint_auth_method: none`) registers a redirect URI using the
+`mailto:`, `tel:`, or `sms:` scheme. These schemes hand off to a mail
+client, dialer, or SMS app instead of returning control to the
+application that started the flow, so a public client registered with
+one of them could never complete authorization. Register a redirect URI
+the client can actually receive control on instead, such as a custom
+scheme (`myapp://callback`) or a loopback HTTP address.
+
 ## Callback URL schemes
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
 
+The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect. No other URN is accepted.
+
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
+
+Public clients (`token_endpoint_auth_method: none`) additionally cannot register `mailto:`, `tel:`, or `sms:` redirect URIs, since those schemes hand off to another app rather than returning an authorization code to the client. Confidential clients are not subject to this restriction.
 
 ## Security Considerations
 
@@ -275,7 +383,8 @@ The following schemes are blocked for security reasons: `javascript:`, `data:`, 
   (public and confidential)
 - **Validate redirect URLs**: Only register trusted redirect URIs. Dangerous
   schemes (`javascript:`, `data:`, `file:`, `ftp:`) are blocked by the server,
-  but custom URI schemes for native apps (`myapp://`) are permitted
+  custom URI schemes for native apps (`myapp://`) are permitted, and public
+  clients additionally cannot use `mailto:`, `tel:`, or `sms:`
 - **Rotate secrets**: Periodically rotate client secrets using the management API
 
 ## Limitations

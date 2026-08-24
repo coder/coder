@@ -1,18 +1,38 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatQueuedMessage } from "#/api/typesGenerated";
-import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { createDeferred } from "#/testHelpers/deferred";
-import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
+import type {
+	ChatMessage,
+	ChatQueuedMessage,
+	Workspace,
+	WorkspaceApp,
+} from "#/api/typesGenerated";
 import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import {
+	MockUserOwner,
+	MockWorkspace,
+	MockWorkspaceAgent,
+	MockWorkspaceApp,
+} from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
+import {
+	buildInactiveChatQueueReconciliation,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
+	isChatAgentBindingUnresolved,
+	isWatchedWorkspaceViewUnchanged,
+	reconcilePromotedQueueHead,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
-	submitEditAndScroll,
+	settlePromotedQueueHead,
+	submitEdit,
 	useConversationEditingState,
+	useRightPanelNarrowSuppression,
 	waitForPendingChatSettingsSyncs,
 } from "./AgentChatPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
@@ -192,7 +212,7 @@ describe("restoreOptimisticRequestSnapshot", () => {
 
 		store.batch(() => {
 			store.setQueuedMessages([]);
-			store.setChatStatus("pending");
+			store.setChatStatus("waiting");
 			store.clearStreamState();
 			store.clearStreamError();
 		});
@@ -231,7 +251,7 @@ describe("runPromoteQueuedMessage", () => {
 
 		const promote = vi.fn(async (_id: number) => undefined);
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await runPromoteQueuedMessage({
 			id: b.id,
@@ -239,7 +259,7 @@ describe("runPromoteQueuedMessage", () => {
 			promoteQueuedMessage: promote,
 			agentId: "chat-1",
 			clearChatErrorReason,
-			handleUsageLimitError,
+			onError,
 		});
 
 		expect(promote).toHaveBeenCalledWith(b.id);
@@ -247,7 +267,7 @@ describe("runPromoteQueuedMessage", () => {
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-		expect(snapshot.chatStatus).toBe("pending");
+		expect(snapshot.chatStatus).toBe("running");
 	});
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
@@ -262,7 +282,7 @@ describe("runPromoteQueuedMessage", () => {
 			throw apiError;
 		});
 		const clearChatErrorReason = vi.fn();
-		const handleUsageLimitError = vi.fn();
+		const onError = vi.fn();
 
 		await expect(
 			runPromoteQueuedMessage({
@@ -271,16 +291,288 @@ describe("runPromoteQueuedMessage", () => {
 				promoteQueuedMessage: promote,
 				agentId: "chat-1",
 				clearChatErrorReason,
-				handleUsageLimitError,
+				onError,
 			}),
 		).rejects.toBe(apiError);
 
-		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+		expect(onError).toHaveBeenCalledWith(apiError);
 
 		const snapshot = store.getSnapshot();
 		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
 		expect(snapshot.chatStatus).toBe("waiting");
 		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
+describe("reconcilePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = { ...MockChatMessage, id: 10, role: "user" };
+	const toolMessage: ChatMessage = { ...MockChatMessage, id: 9, role: "tool" };
+
+	it("suppresses the captured head and appends the queued tail", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const tail = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([a, b]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage, userMessage],
+			a.id,
+			tail,
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, tail.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(reconciled?.map((m) => m.id)).toEqual([b.id, tail.id]);
+	});
+
+	it("does not suppress the rotated head when a queue_update already applied", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([b, c]);
+
+		reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([b.id, c.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+		expect(snapshot.suppressedQueuedMessageIDs.has(c.id)).toBe(false);
+
+		store.applyAuthoritativeQueuedMessages([a, b, c]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			b.id,
+			c.id,
+		]);
+		store.applyAuthoritativeQueuedMessages([b, c]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("keeps the response tail when a stale snapshot arrived mid-request", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		// A pre-send snapshot lands while the POST is in flight; it cannot
+		// mention the tail the send just created.
+		store.setQueuedMessages([a]);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("drops the response tail once the server reported and removed it", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const c = buildQueuedMessage(3, "C");
+		store.applyAuthoritativeQueuedMessages([a, c]);
+		store.applyAuthoritativeQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(store, [userMessage], a.id, c);
+
+		expect(next).toEqual([]);
+	});
+
+	it("omits the response tail when a newer queue update was observed", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		store.setQueuedMessages([a]);
+
+		const next = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next).toEqual([]);
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
+	});
+
+	it("does nothing when no user row was inserted", () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		store.setQueuedMessages([a]);
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[toolMessage],
+			a.id,
+			buildQueuedMessage(2, "B"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
+	});
+
+	it("does nothing when no head was captured before the send", () => {
+		const store = createChatStore();
+
+		const reconciled = reconcilePromotedQueueHead(
+			store,
+			[userMessage],
+			undefined,
+			buildQueuedMessage(1, "A"),
+		);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages).toEqual([]);
+		expect(snapshot.suppressedQueuedMessageIDs.size).toBe(0);
+		expect(reconciled).toBeUndefined();
+	});
+});
+
+describe("buildInactiveChatQueueReconciliation", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const userMessage: ChatMessage = {
+		...MockChatMessage,
+		id: 42,
+		role: "user",
+	};
+
+	it("keeps a message queued while the send was in flight", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+
+		const next = buildInactiveChatQueueReconciliation(
+			[a, b, c],
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id, c.id]);
+	});
+
+	it("falls back to the pre-send queue when nothing is cached", () => {
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+
+		const next = buildInactiveChatQueueReconciliation(
+			undefined,
+			[a, b],
+			[userMessage],
+			a.id,
+			undefined,
+		);
+
+		expect(next?.map((m) => m.id)).toEqual([b.id]);
+	});
+});
+
+describe("settlePromotedQueueHead", () => {
+	const buildQueuedMessage = (id: number, text: string): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		content: [{ type: "text", text }],
+	});
+	const chatID = "chat-abc-123";
+
+	it("restores a head the server still has queued", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({ messages: [], has_more: false, queued_messages: [a, b] }),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([
+			a.id,
+			b.id,
+		]);
+	});
+
+	it("leaves the queue alone when the fetch fails", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(store, chatID, a.id, () =>
+			Promise.reject(new Error("offline")),
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages.map((m) => m.id)).toEqual([b.id]);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
+	});
+
+	it("returns the filtered queue the store applied", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		// An overlapping explicit promotion suppresses C, which the server has
+		// not deleted yet, so the caller must not cache it back.
+		store.suppressQueuedMessageID(c.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => ({
+				messages: [],
+				has_more: false,
+				queued_messages: [a, b, c],
+			}),
+		);
+
+		expect(settled?.map((m) => m.id)).toEqual([a.id, b.id]);
+	});
+
+	it("discards a response that resolves after navigating to another chat", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setActiveChatID(chatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+
+		const settled = await settlePromotedQueueHead(
+			store,
+			chatID,
+			a.id,
+			async () => {
+				store.setActiveChatID("chat-other");
+				store.setQueuedMessages([]);
+				return { messages: [], has_more: false, queued_messages: [a, b] };
+			},
+		);
+
+		expect(settled).toBeUndefined();
+		expect(store.getSnapshot().queuedMessages).toEqual([]);
 	});
 });
 
@@ -295,7 +587,6 @@ describe("useConversationEditingState", () => {
 
 	const renderEditing = (...args: [] | [string | undefined]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
-		const onDeleteQueuedMessage = vi.fn().mockResolvedValue(undefined);
 		const chatInputRef = createRef<ChatMessageInputRef>();
 		const inputValueRef = { current: "" };
 		// createRef returns { current: null }, but we need it initialized
@@ -308,7 +599,6 @@ describe("useConversationEditingState", () => {
 			useConversationEditingState({
 				chatID: resolvedChatID,
 				onSend,
-				onDeleteQueuedMessage,
 				chatInputRef,
 				inputValueRef,
 			}),
@@ -398,40 +688,6 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("loads queue edit text into the composer and restores the prior draft on cancel without refocusing", () => {
-		const { result, unmount } = renderEditing();
-
-		// Simulate the user typing a draft via handleContentChange.
-		act(() => {
-			result.current.handleContentChange(
-				"work in progress",
-				"work in progress",
-				false,
-			);
-		});
-
-		const remountKeyBefore = result.current.remountKey;
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-
-		expect(result.current.editingQueuedMessageID).toBe(9);
-		expect(result.current.editorInitialValue).toBe("queued message");
-		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
-
-		const remountKeyAfterEdit = result.current.remountKey;
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
-		expect(result.current.editingQueuedMessageID).toBeNull();
-		expect(result.current.editorInitialValue).toBe("work in progress");
-		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
-		unmount();
-	});
-
 	it("does not force focus when replacing input values on mobile", () => {
 		setMobileViewport(true);
 		const { result, unmount } = renderEditing();
@@ -451,16 +707,6 @@ describe("useConversationEditingState", () => {
 			result.current.handleCancelHistoryEdit();
 		});
 		expect(mockInput.focus).not.toHaveBeenCalled();
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
 	});
 
@@ -478,22 +724,6 @@ describe("useConversationEditingState", () => {
 
 		// The hook reads the persisted draft from localStorage when
 		// inputValueRef hasn't been updated by handleContentChange yet.
-		expect(result.current.editorInitialValue).toBe("persisted draft");
-		unmount();
-	});
-
-	it("falls back to the persisted draft when queue edit starts before hydration", () => {
-		localStorage.setItem(expectedKey, "persisted draft");
-		const { result, unmount } = renderEditing();
-
-		act(() => {
-			result.current.handleStartQueueEdit(9, "queued message", []);
-		});
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
 		expect(result.current.editorInitialValue).toBe("persisted draft");
 		unmount();
 	});
@@ -891,43 +1121,6 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("preserves serialized editor state across queue edit then cancel", () => {
-		const editorState = JSON.stringify({
-			root: {
-				children: [
-					{
-						children: [{ text: "queued draft", type: "text" }],
-						type: "paragraph",
-					},
-				],
-				type: "root",
-			},
-		});
-		localStorage.setItem(expectedKey, editorState);
-
-		const { result, unmount } = renderEditing();
-
-		act(() => {
-			result.current.handleContentChange("queued draft", editorState, false);
-		});
-
-		act(() => {
-			result.current.handleStartQueueEdit(99, "queued msg", []);
-		});
-
-		expect(result.current.editingQueuedMessageID).toBe(99);
-		expect(result.current.initialEditorState).toBeUndefined();
-
-		act(() => {
-			result.current.handleCancelQueueEdit();
-		});
-
-		expect(result.current.editingQueuedMessageID).toBeNull();
-		expect(result.current.initialEditorState).toBe(editorState);
-		expect(result.current.editorInitialValue).toBe("queued draft");
-		unmount();
-	});
-
 	it("returns undefined initialEditorState after edit then cancel with plain-text draft", () => {
 		localStorage.setItem(expectedKey, "plain text draft");
 
@@ -957,62 +1150,39 @@ describe("useConversationEditingState", () => {
 	});
 });
 
-describe("submitEditAndScroll", () => {
+describe("submitEdit", () => {
 	const dummyArgs = {
 		messageId: 42,
 		req: { content: [{ type: "text" as const, text: "edited" }] },
 	};
 
-	it("calls scrollToBottom after editMessage resolves", async () => {
-		const callOrder: string[] = [];
-		const editMessage = vi.fn(async () => {
-			callOrder.push("editMessage");
-		});
-		const scrollToBottom = vi.fn(() => {
-			callOrder.push("scrollToBottom");
-		});
+	it("awaits editMessage", async () => {
+		const editMessage = vi.fn().mockResolvedValue(undefined);
 
-		await submitEditAndScroll({
+		await submitEdit({
 			editMessage,
 			editArgs: dummyArgs,
-			scrollToBottom,
 			onError: vi.fn(),
 		});
 
-		expect(callOrder).toEqual(["editMessage", "scrollToBottom"]);
+		expect(editMessage).toHaveBeenCalledWith(dummyArgs);
 	});
 
-	it("does not call scrollToBottom when editMessage throws", async () => {
-		const scrollToBottom = vi.fn();
+	it("reports and rethrows an editMessage failure", async () => {
 		const onError = vi.fn();
 		const editMessage = vi.fn().mockRejectedValue(new Error("boom"));
 
 		await expect(
-			submitEditAndScroll({
+			submitEdit({
 				editMessage,
 				editArgs: dummyArgs,
-				scrollToBottom,
 				onError,
 			}),
 		).rejects.toThrow("boom");
 
-		expect(scrollToBottom).not.toHaveBeenCalled();
 		expect(onError).toHaveBeenCalledWith(
 			expect.objectContaining({ message: "boom" }),
 		);
-	});
-
-	it("tolerates null scrollToBottom", async () => {
-		const editMessage = vi.fn().mockResolvedValue(undefined);
-
-		await submitEditAndScroll({
-			editMessage,
-			editArgs: dummyArgs,
-			scrollToBottom: null,
-			onError: vi.fn(),
-		});
-
-		expect(editMessage).toHaveBeenCalled();
 	});
 });
 
@@ -1113,5 +1283,176 @@ describe("sidebar tab persistence", () => {
 			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
 			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
 		});
+	});
+});
+
+describe("isWatchedWorkspaceViewUnchanged", () => {
+	const cloneWithApps = (apps: WorkspaceApp[]): Workspace => ({
+		...MockWorkspace,
+		latest_build: {
+			...MockWorkspace.latest_build,
+			resources: MockWorkspace.latest_build.resources.map((resource) => ({
+				...resource,
+				agents: resource.agents?.map((agent) =>
+					agent.id === MockWorkspaceAgent.id ? { ...agent, apps } : agent,
+				),
+			})),
+		},
+	});
+
+	it("is true for a fresh payload with only unwatched changes", () => {
+		const next: Workspace = {
+			...MockWorkspace,
+			last_used_at: "2024-01-01T00:00:00Z",
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(true);
+	});
+
+	it("is false when a bound-agent app changes health", () => {
+		const next = cloneWithApps([{ ...MockWorkspaceApp, health: "healthy" }]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
+	it("is false when the bound agent gains an app", () => {
+		const next = cloneWithApps([
+			MockWorkspaceApp,
+			{ ...MockWorkspaceApp, id: "second-app", slug: "second-app" },
+		]);
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+
+	it("is false when the latest build changes", () => {
+		const next: Workspace = {
+			...MockWorkspace,
+			latest_build: { ...MockWorkspace.latest_build, id: "new-build-id" },
+		};
+
+		expect(
+			isWatchedWorkspaceViewUnchanged(
+				MockWorkspace,
+				next,
+				MockWorkspaceAgent.id,
+			),
+		).toBe(false);
+	});
+});
+
+describe("isChatAgentBindingUnresolved", () => {
+	it("is true when the bound agent is missing from the running build", () => {
+		expect(isChatAgentBindingUnresolved(MockWorkspace, "stale-agent-id")).toBe(
+			true,
+		);
+	});
+
+	it("is true when the chat has no binding yet", () => {
+		expect(isChatAgentBindingUnresolved(MockWorkspace, undefined)).toBe(true);
+	});
+
+	it("is false when the bound agent resolves", () => {
+		expect(
+			isChatAgentBindingUnresolved(MockWorkspace, MockWorkspaceAgent.id),
+		).toBe(false);
+	});
+
+	it("is false when the workspace is not running", () => {
+		const stopped: Workspace = {
+			...MockWorkspace,
+			latest_build: { ...MockWorkspace.latest_build, status: "stopped" },
+		};
+
+		expect(isChatAgentBindingUnresolved(stopped, "stale-agent-id")).toBe(false);
+	});
+
+	it("is false when the running build has no agents", () => {
+		const noAgents: Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: MockWorkspace.latest_build.resources.map((resource) => ({
+					...resource,
+					agents: [],
+				})),
+			},
+		};
+
+		expect(isChatAgentBindingUnresolved(noAgents, "stale-agent-id")).toBe(
+			false,
+		);
+	});
+
+	it("is false while the workspace is loading", () => {
+		expect(isChatAgentBindingUnresolved(undefined, "stale-agent-id")).toBe(
+			false,
+		);
+	});
+});
+
+describe("useRightPanelNarrowSuppression", () => {
+	const belowLgQuery = "(max-width: 1023px)";
+
+	const setupBelowLg = (initialBelowLg: boolean) => {
+		const media = setupMatchMedia({ [belowLgQuery]: initialBelowLg });
+		return {
+			setBelowLg: (value: boolean) => media.setMatches(belowLgQuery, value),
+		};
+	};
+
+	it("suppresses the panel when mounted below the lg breakpoint", () => {
+		setupBelowLg(true);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+		expect(result.current.suppressed).toBe(true);
+	});
+
+	it("does not suppress the panel when mounted at or above lg", () => {
+		setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+		expect(result.current.suppressed).toBe(false);
+	});
+
+	it("suppresses on narrowing and clears on widening", () => {
+		const media = setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
+
+		act(() => media.setBelowLg(false));
+		expect(result.current.suppressed).toBe(false);
+	});
+
+	it("stays cleared after an explicit clearSuppression until the next narrowing", () => {
+		const media = setupBelowLg(false);
+		const { result } = renderHook(() => useRightPanelNarrowSuppression());
+
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
+
+		act(() => result.current.clearSuppression());
+		expect(result.current.suppressed).toBe(false);
+
+		act(() => media.setBelowLg(false));
+		act(() => media.setBelowLg(true));
+		expect(result.current.suppressed).toBe(true);
 	});
 });

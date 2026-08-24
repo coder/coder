@@ -55,40 +55,44 @@ export const WebhookNotConfigured: Story = {
 	},
 };
 
-export const Toggle: Story = {
+export const ChangeMethod: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "updateNotificationTemplateMethod").mockResolvedValue();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
-		const li = option.closest("li");
-		if (!li) {
-			throw new Error("Could not find li");
+		const row = option.closest("[data-testid='notification-template-row']");
+		if (!(row instanceof HTMLElement)) {
+			throw new Error("Could not find notification template row");
 		}
-		const toggleButton = within(li).getByRole("button", {
-			name: "Webhook",
-		});
-		await user.click(toggleButton);
+		await user.click(
+			within(row).getByRole("combobox", { name: /Notification method/ }),
+		);
+		await user.click(
+			await within(document.body).findByRole("option", { name: "Webhook" }),
+		);
 		await within(document.body).findByText("Notification method updated.");
 	},
 };
 
-export const ToggleError: Story = {
+export const ChangeMethodError: Story = {
 	play: async ({ canvasElement }) => {
 		spyOn(API, "updateNotificationTemplateMethod").mockRejectedValue({});
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const tmpl = MockSystemNotificationTemplates[4];
 		const option = await canvas.findByText(tmpl.name);
-		const li = option.closest("li");
-		if (!li) {
-			throw new Error("Could not find li");
+		const row = option.closest("[data-testid='notification-template-row']");
+		if (!(row instanceof HTMLElement)) {
+			throw new Error("Could not find notification template row");
 		}
-		const toggleButton = within(li).getByRole("button", {
-			name: "Webhook",
-		});
-		await user.click(toggleButton);
+		await user.click(
+			within(row).getByRole("combobox", { name: /Notification method/ }),
+		);
+		await user.click(
+			await within(document.body).findByRole("option", { name: "Webhook" }),
+		);
 		await within(document.body).findByText(
 			"Failed to update notification method.",
 		);

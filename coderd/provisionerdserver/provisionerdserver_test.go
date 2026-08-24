@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
@@ -287,6 +288,77 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
+// TestAcquireJob_ProvisionerKeyDeleted verifies that acquiring a job fails and
+// the session is canceled once the provisioner key the daemon authenticated
+// with is deleted.
+func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		acquire func(context.Context, proto.DRPCProvisionerDaemonServer) error
+	}{
+		{name: "Deprecated", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			_, err := srv.AcquireJob(ctx, nil)
+			return err
+		}},
+		{name: "WithCancel", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			fs := newFakeStream(ctx)
+			errCh := make(chan error, 1)
+			go func() { errCh <- srv.AcquireJobWithCancel(fs) }()
+			// Cancel so the present-key acquire returns an empty job promptly; on
+			// the deleted-key path the key check returns before this is read.
+			fs.cancel()
+			return <-errCh
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// setup ties the daemon to a deletable key with this ID; sessionCancel
+			// records the teardown. A short poll keeps the present-key acquire from
+			// blocking.
+			keyID := uuid.New()
+			sessionCanceled := make(chan struct{})
+			srv, srvDB, _, _ := setup(t, false, &overrides{
+				keyID:                      keyID,
+				acquireJobLongPollDuration: testutil.IntervalFast,
+				sessionCancel:              sync.OnceFunc(func() { close(sessionCanceled) }),
+			})
+
+			// While the key exists, acquiring returns without error.
+			require.NoError(t, tc.acquire(ctx, srv))
+
+			// Once the key is deleted, acquiring must fail and the session must be
+			// canceled rather than left polling a deleted key.
+			err := srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+			require.NoError(t, err)
+
+			err = tc.acquire(ctx, srv)
+			require.ErrorIs(t, err, provisionerdserver.ErrProvisionerKeyDeleted)
+			testutil.TryReceive(ctx, t, sessionCanceled)
+		})
+	}
+}
+
+// TestAcquireJob_ReservedProvisionerKey verifies that daemons using a reserved
+// provisioner key, which cannot be deleted, are not blocked by the key check.
+func TestAcquireJob_ReservedProvisionerKey(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	//nolint:dogsled
+	srv, _, _, _ := setup(t, false, &overrides{
+		keyID:                      codersdk.ProvisionerKeyUUIDPSK,
+		acquireJobLongPollDuration: testutil.IntervalFast,
+	})
+	job, err := srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, &proto.AcquiredJob{}, job)
+}
+
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
@@ -313,6 +385,36 @@ func TestHeartbeat(t *testing.T) {
 		testutil.TryReceive(ctx, t, heartbeatChan)
 	}
 	// goleak.VerifyTestMain ensures that the heartbeat goroutine does not leak
+}
+
+// TestHeartbeat_ProvisionerKeyDeleted verifies that the heartbeat loop cancels
+// the session once the daemon's deletable key no longer exists.
+func TestHeartbeat_ProvisionerKeyDeleted(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	keyID := uuid.New()
+	sessionCanceled := make(chan struct{})
+	//nolint:dogsled
+	_, db, _, _ := setup(t, false, &overrides{
+		keyID:             keyID,
+		heartbeatInterval: testutil.IntervalFast,
+		sessionCancel:     sync.OnceFunc(func() { close(sessionCanceled) }),
+	})
+
+	// While the key exists, heartbeats must not cancel the session.
+	select {
+	case <-sessionCanceled:
+		t.Fatal("session canceled while key exists")
+	default:
+	}
+
+	err := db.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+	require.NoError(t, err)
+
+	// A subsequent heartbeat tick must observe the deletion and cancel the
+	// session.
+	testutil.TryReceive(ctx, t, sessionCanceled)
 }
 
 func TestAcquireJob(t *testing.T) {
@@ -381,6 +483,7 @@ func TestAcquireJob(t *testing.T) {
 					externalAuthConfigs: []*externalauth.Config{{
 						ID:                       gitAuthProvider.Id,
 						InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+						RefreshGroup:             new(singleflight.Group),
 					}},
 				})
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -419,7 +522,7 @@ func TestAcquireJob(t *testing.T) {
 					OAuthExpiry:      dbtime.Now().Add(time.Hour),
 					OAuthAccessToken: "access-token",
 				})
-				dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+				ealink := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					ProviderID: gitAuthProvider.Id,
 					UserID:     user.ID,
 				})
@@ -665,7 +768,7 @@ func TestAcquireJob(t *testing.T) {
 						},
 						ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 							Id:          gitAuthProvider.Id,
-							AccessToken: "access_token",
+							AccessToken: ealink.OAuthAccessToken,
 						}},
 						Metadata: wantedMetadata,
 					},
@@ -3505,7 +3608,8 @@ func TestCompleteJob(t *testing.T) {
 					},
 					isTask:           true,
 					expectTaskStatus: database.TaskStatusPaused,
-					expectAppID:      uuid.NullUUID{UUID: sidebarAppID, Valid: true},
+					// Stop builds don't create agents or apps.
+					expectAppID:      uuid.NullUUID{},
 					expectHasAiTask:  true,
 					expectUsageEvent: false,
 				},
@@ -5176,6 +5280,8 @@ type overrides struct {
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 	provisionerdLogger          *slog.Logger
+	keyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -5257,6 +5363,19 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		provisionerdLogger = *ov.provisionerdLogger
 	}
 
+	keyID := codersdk.ProvisionerKeyUUIDBuiltIn
+	if ov.keyID != uuid.Nil {
+		keyID = ov.keyID
+		// The daemon's key_id is a foreign key to provisioner_keys, so a
+		// non-reserved key must exist before the daemon is created.
+		if !codersdk.IsReservedProvisionerKey(keyID) {
+			dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
+				ID:             keyID,
+				OrganizationID: defOrg.ID,
+			})
+		}
+	}
+
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
 		CreatedAt:      dbtime.Now(),
@@ -5266,7 +5385,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
+		KeyID:          keyID,
 	})
 	require.NoError(t, err)
 
@@ -5292,7 +5411,13 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		provisionerdserver.Tags(daemon.Tags),
 		serverDB,
 		ps,
-		provisionerdserver.NewAcquirer(ov.ctx, logger.Named("acquirer"), db, ps),
+		provisionerdserver.NewAcquirer(
+			ov.ctx,
+			logger.Named("acquirer"),
+			db,
+			ps,
+			provisionerdserver.WithClock(clock),
+		),
 		telemetry.NewNoop(),
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&atomic.Pointer[proto.QuotaCommitter]{},
@@ -5308,6 +5433,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
+			KeyID:                 keyID,
+			SessionCancel:         ov.sessionCancel,
 		},
 		notifEnq,
 		&op,
@@ -5358,7 +5485,7 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.canceled || s.closed) {
+	for !s.canceled && !s.closed {
 		s.c.Wait()
 	}
 	if s.canceled {
@@ -5401,7 +5528,7 @@ func (s *fakeStream) Close() error {
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.sendCalled || s.closed) {
+	for !s.sendCalled && !s.closed {
 		s.c.Wait()
 	}
 	if s.sendCalled {

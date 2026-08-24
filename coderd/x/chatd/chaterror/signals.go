@@ -73,7 +73,7 @@ var (
 	}
 	// Hard usage exhaustion codes that fire at any HTTP status,
 	// including 429.
-	usageLimitAnyStatusPatterns = []string{"insufficient_quota"}
+	usageLimitAnyStatusPatterns = []string{"insufficient_quota", "ai budget of"}
 	configPatterns              = []string{
 		"invalid model",
 		"model not found",
@@ -84,6 +84,7 @@ var (
 		"maximum context length",
 		"malformed config",
 		"malformed configuration",
+		"resolve aws credentials",
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}

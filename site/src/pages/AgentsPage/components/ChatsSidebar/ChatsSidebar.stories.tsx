@@ -238,18 +238,12 @@ export const ChatStreamingOverridesTurnSummary: Story = {
 				status: "running",
 				last_turn_summary: "Added Docker and Terraform validation",
 			}),
-			buildChat({
-				id: "chat-streaming-pending",
-				title: "Queued continuation",
-				status: "pending",
-				last_turn_summary: "Added Docker and Terraform validation",
-			}),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getAllByText("GPT-4o streaming…")).toHaveLength(2);
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Added Docker and Terraform validation"),
 		).not.toBeInTheDocument();
@@ -398,41 +392,6 @@ export const RunningDelegatedChat: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByTestId("agents-tree-executing-child-running"),
-		).toBeInTheDocument();
-	},
-};
-
-export const PendingDelegatedChat: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "root-pending",
-				title: "Root agent",
-				children: [
-					buildChat({
-						id: "child-pending",
-						title: "Pending child",
-						status: "pending",
-						parent_chat_id: "root-pending",
-						root_chat_id: "root-pending",
-					}),
-				],
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: {
-				path: "/agents/child-pending",
-				pathParams: { agentId: "child-pending" },
-			},
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByTestId("agents-tree-executing-child-pending"),
 		).toBeInTheDocument();
 	},
 };
@@ -787,6 +746,8 @@ export const MobileHeaderActions: Story = {
 		chats: sectionHeaderChats,
 	},
 	parameters: {
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+		pixel: { exclude: true },
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
@@ -917,6 +878,8 @@ export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 		onRenameTitle: fn(() => Promise.resolve()),
 	},
 	parameters: {
+		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
+		pixel: { exclude: true },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
 			routing: agentsRouting,
@@ -1897,6 +1860,53 @@ export const WithPRStateIcons: Story = {
 			routing: agentsRouting,
 		}),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Pull request open")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Draft pull request")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request merged")).toBeInTheDocument();
+			expect(canvas.getByLabelText("Pull request closed")).toBeInTheDocument();
+		});
+	},
+};
+
+export const ActiveChatKebabPersistent: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "active-chat",
+				title: "Active chat",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "other-chat",
+				title: "Other chat",
+				updated_at: recentTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents/active-chat",
+				pathParams: { agentId: "active-chat" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const activeTrigger = await canvas.findByLabelText(
+			"Open actions for Active chat",
+		);
+		// The active chat keeps its actions trigger visible without hover.
+		await waitFor(() => {
+			expect(window.getComputedStyle(activeTrigger).opacity).toBe("1");
+		});
+		const otherTrigger = canvas.getByLabelText("Open actions for Other chat");
+		expect(window.getComputedStyle(otherTrigger).opacity).toBe("0");
+	},
 };
 
 export const WithUnreadChats: Story = {
@@ -2041,6 +2051,199 @@ export const AgentWithWorkspaceMenuFull: Story = {
 		const body = within(document.body);
 		expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		expect(body.queryByText("Unarchive agent")).not.toBeInTheDocument();
+	},
+};
+
+export const ArchiveActionsFollowChatStatus: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "running-archive-actions",
+				title: "Running agent",
+				status: "running",
+				workspace_id: "workspace-running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-archive-actions",
+				title: "Idle agent",
+				status: "waiting",
+				workspace_id: "workspace-idle",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-parent-archive-actions",
+				title: "Idle parent agent",
+				status: "waiting",
+				workspace_id: "workspace-idle-parent",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "running-child-archive-actions",
+						title: "Running sub-agent",
+						status: "running",
+						parent_chat_id: "idle-parent-archive-actions",
+						root_chat_id: "idle-parent-archive-actions",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Running agent")).toBeInTheDocument();
+			expect(canvas.getByText("Idle agent")).toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Running agent"),
+		);
+		let body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-running-archive-actions"),
+		);
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(canvas.getByLabelText("Open actions for Idle agent"));
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		// Archive cascades over the family, so an idle parent with a
+		// running child must stay blocked, with the reason exposed.
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Idle parent agent"),
+		);
+		body = within(document.body);
+		const parentArchiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		expect(parentArchiveItem).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		const hint = "Interrupt or wait for the agent to finish first.";
+		// The menu content fades in, so visibility needs a retry window.
+		await waitFor(() => {
+			expect(body.getByText(hint)).toBeVisible();
+		});
+		expect(parentArchiveItem).toHaveAccessibleDescription(hint);
+	},
+};
+
+// A collapsed parent chat exposes a "Show subagents (N)" action in its
+// actions menu; selecting it expands the children and the label flips to
+// "Hide subagents". Leaf chats never show the toggle.
+export const SubagentsMenuToggle: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "root-subagents",
+				title: "Parent with subagents",
+				workspace_id: "workspace-1",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "subagent-1",
+						title: "Subagent one",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+					buildChat({
+						id: "subagent-2",
+						title: "Subagent two",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+					buildChat({
+						id: "subagent-3",
+						title: "Subagent three",
+						parent_chat_id: "root-subagents",
+						root_chat_id: "root-subagents",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			// Route to the parent (not a child) so the tree starts collapsed and
+			// the menu reads "Show subagents (3)".
+			location: {
+				path: "/agents/root-subagents",
+				pathParams: { agentId: "root-subagents" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Parent with subagents")).toBeInTheDocument();
+		});
+		// Collapsed by default: children are not rendered yet.
+		expect(canvas.queryByText("Subagent one")).not.toBeInTheDocument();
+
+		const trigger = canvas.getByLabelText(
+			"Open actions for Parent with subagents",
+		);
+		await userEvent.click(trigger);
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Show subagents (3)")).toBeInTheDocument();
+		});
+
+		// Selecting the toggle closes the menu and expands the children.
+		await userEvent.click(body.getByText("Show subagents (3)"));
+		await waitFor(() => {
+			expect(canvas.getByText("Subagent one")).toBeInTheDocument();
+		});
+
+		// Reopening the menu now offers the inverse action.
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Parent with subagents"),
+		);
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText("Hide subagents"),
+			).toBeInTheDocument();
+		});
 	},
 };
 

@@ -73,6 +73,7 @@ endif
 	docs/manifest.json \
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
+	docs/admin/setup/configuration-reference.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
@@ -153,6 +154,12 @@ _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
+# configdocgen reflects over codersdk.DeploymentValues to produce the
+# configuration reference page.
+_gen/bin/configdocgen: $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/configdocgen
+
 _gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./coderd/database/gen/dump
@@ -169,7 +176,7 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
-_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/aibridgepricesgen
 
@@ -542,7 +549,7 @@ push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
 .PHONY: push/$(CODER_MAIN_IMAGE)
 
 # Helm charts that are available
-charts = coder provisioner
+charts = coder provisioner ai-gateway
 
 # Shortcut for Helm chart package.
 $(foreach chart,$(charts),build/$(chart)_helm.tgz): build/%_helm.tgz: build/%_helm_$(VERSION).tgz
@@ -729,7 +736,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
@@ -745,8 +752,12 @@ lint/ts: site/node_modules/.installed
 	pnpm lint
 .PHONY: lint/ts
 
+# Cap cold-cache golangci-lint on high-core hosts to stay below memory limits.
+GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
+GO_LINT_MEMLIMIT ?= 8GiB
+
 lint/go:
-	golangci-lint run
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
@@ -769,6 +780,15 @@ lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
 
+# Fails when docs Markdown contains invalid inline HTML the docs site drops or
+# mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
+# end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
+# and unclosed container tags.
+lint/docs-html:
+	echo "--- check for invalid inline HTML in docs"
+	go run ./scripts/docshtmlcheck
+.PHONY: lint/docs-html
+
 lint/architecture:
 	./scripts/check_architecture.sh
 .PHONY: lint/architecture
@@ -790,7 +810,7 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	mise exec actionlint -- actionlint
+	mise exec "go:github.com/rhysd/actionlint/cmd/actionlint" -- actionlint
 .PHONY: lint/actions/actionlint
 
 # zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
@@ -998,6 +1018,7 @@ GEN_FILES := \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/install/releases/feature-stages.md \
+	docs/admin/setup/configuration-reference.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -1022,14 +1043,33 @@ gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
 
-# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
-# `make gen`. Phony so each invocation regenerates.
-coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+# Patched snapshot of the models.dev catalog. Fetched once per
+# gen/aibridge-prices run, with upstream corrections applied by
+# overrides.jq; both prices.json and the frontend known-models catalog are
+# generated from this single snapshot. Phony so each invocation refreshes it.
+_gen/models-dev.json: | _gen
+	set -o pipefail; $(call atomic_write,curl -fsSL https://models.dev/api.json | jq -f scripts/aibridgepricesgen/overrides.jq)
+.PHONY: _gen/models-dev.json
+
+# Refresh the AI Bridge pricing seed file from the patched models.dev
+# snapshot. Kept out of `make gen` because the output depends on live
+# upstream data. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	@mkdir -p $(dir $@)
-	$(call atomic_write,_gen/bin/aibridgepricesgen)
+	$(call atomic_write,_gen/bin/aibridgepricesgen -upstream _gen/models-dev.json)
 .PHONY: coderd/aibridge/prices/data/prices.json
 
-gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+# Frontend known-models catalog, generated from the same patched models.dev
+# snapshot joined with the editorial curation in
+# scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
+# same live-upstream-data reason as prices.json.
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
+.PHONY: site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
+
+gen/aibridge-prices: \
+	coderd/aibridge/prices/data/prices.json \
+	site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json
 .PHONY: gen/aibridge-prices
 
 gen/golden-files: \
@@ -1041,6 +1081,7 @@ gen/golden-files: \
 	enterprise/tailnet/testdata/.gen-golden \
 	helm/coder/tests/testdata/.gen-golden \
 	helm/provisioner/tests/testdata/.gen-golden \
+	helm/ai-gateway/tests/testdata/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden
 .PHONY: gen/golden-files
@@ -1076,6 +1117,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/install/releases/feature-stages.md \
+		docs/admin/setup/configuration-reference.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1322,6 +1364,13 @@ docs/install/releases/feature-stages.md: \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
+docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard scripts/configdocgen/*.go) $(wildcard codersdk/*.go) _gen/bin/configdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/configdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
 coderd/apidoc/.gen: \
 	node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
@@ -1377,6 +1426,7 @@ clean/golden-files:
 		enterprise/tailnet/testdata \
 		helm/coder/tests/testdata \
 		helm/provisioner/tests/testdata \
+		helm/ai-gateway/tests/testdata \
 		provisioner/terraform/testdata \
 		tailnet/testdata \
 		-type f -name '*.golden' -delete
@@ -1416,6 +1466,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 	else
 		echo "WARNING: helm not found; skipping helm/provisioner golden generation" >&2
 	fi
+	touch "$@"
+
+helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/testdata/*.yaml) $(wildcard helm/ai-gateway/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/ai-gateway/tests/*_test.go)
+	TZ=UTC go test ./helm/ai-gateway/tests -run=TestUpdateGoldenFiles -update
 	touch "$@"
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
@@ -1465,10 +1519,10 @@ RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism). CI job timeout is 25m (see test-go-pg in ci.yaml),
+# parallelism). CI job timeout is 30m (see test-go-pg in ci.yaml),
 # keep the Go timeout 5m shorter so tests produce goroutine dumps
 # instead of the CI runner killing the process with no output.
-GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 20m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 25m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
@@ -1664,6 +1718,40 @@ test-tailnet-integration:
 			./tailnet/test/integration
 .PHONY: test-tailnet-integration
 
+test-timings:
+	@tmp_json="$$(mktemp)"; \
+	trap 'rm -f "$$tmp_json"' EXIT; \
+	set +e; \
+	GOTESTSUM_JSONFILE="$$tmp_json" $(GIT_FLAGS) gotestsum --format standard-quiet \
+		$(GOTESTSUM_RETRY_FLAGS) \
+		--packages="$(TEST_PACKAGES)" \
+		-- \
+		$(GOTEST_FLAGS); \
+	test_status=$$?; \
+	jq -r -s '
+		[
+			["package", "test", "status", "elapsed_ms"],
+			(
+				map(select(
+					(.Test // "") != "" and
+					(.Action == "pass" or .Action == "fail" or .Action == "skip")
+				))
+				| sort_by([.Package, .Test])
+				| group_by([.Package, .Test])
+				| map(last)
+				| sort_by([(-(.Elapsed // 0)), .Package, .Test])
+				| .[]
+				| [.Package, .Test, .Action, ((.Elapsed // 0) * 1000)]
+			)
+		]
+		| .[]
+		| @tsv
+	' "$$tmp_json" > "$(or $(TEST_TIMINGS_OUTPUT),test-timings.tsv)"; \
+	report_status=$$?; \
+	if [[ $$test_status -ne 0 ]]; then exit $$test_status; fi; \
+	exit $$report_status
+.PHONY: test-timings
+
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
 # instead. Keeping it here for convenience.
@@ -1671,9 +1759,9 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES) site/out/index.html
 	go build -o $@ \
-		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		-tags embed,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html

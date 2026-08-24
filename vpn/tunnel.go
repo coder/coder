@@ -102,7 +102,7 @@ func NewTunnel(
 
 func (t *Tunnel) requestLoop() {
 	defer close(t.requestLoopDone)
-	for req := range t.speaker.requests {
+	for req := range t.requests {
 		if req.msg.Rpc != nil && req.msg.Rpc.MsgId != 0 {
 			t.handleRPC(req)
 			if _, ok := req.msg.GetMsg().(*ManagerMessage_Stop); ok {
@@ -124,7 +124,7 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 	resp.Rpc = &RPC{ResponseTo: req.msg.Rpc.MsgId}
 	switch msg := req.msg.GetMsg().(type) {
 	case *ManagerMessage_GetPeerUpdate:
-		err := t.updater.sendUpdateResponse(req)
+		err := t.sendUpdateResponse(req)
 		if err != nil {
 			t.logger.Error(t.ctx, "failed to send peer update", slog.Error(err))
 		}
@@ -164,6 +164,15 @@ func (t *Tunnel) handleRPC(req *request[*TunnelMessage, *ManagerMessage]) {
 				ErrorMessage: errStr,
 			},
 		}
+	case *ManagerMessage_Wake:
+		if t.rebind() {
+			t.logger.Info(t.ctx, "handling system wake; rebinding")
+		} else {
+			t.logger.Debug(t.ctx, "ignoring system wake; tunnel is not running or a rebind happened recently")
+		}
+		resp.Msg = &TunnelMessage_Wake{
+			Wake: &WakeResponse{},
+		}
 	default:
 		t.logger.Warn(t.ctx, "unhandled manager request", slog.F("request", msg))
 	}
@@ -199,7 +208,7 @@ func WithClock(clock quartz.Clock) TunnelOption {
 
 // ApplyNetworkSettings sends a request to the manager to apply the given network settings
 func (t *Tunnel) ApplyNetworkSettings(ctx context.Context, ns *NetworkSettingsRequest) error {
-	msg, err := t.speaker.unaryRPC(ctx, &TunnelMessage{
+	msg, err := t.unaryRPC(ctx, &TunnelMessage{
 		Msg: &TunnelMessage_NetworkSettings{
 			NetworkSettings: ns,
 		},
@@ -277,7 +286,7 @@ func (t *Tunnel) start(req *StartRequest) error {
 		return xerrors.Errorf("failed to start connection: %w", err)
 	}
 
-	if ok := t.updater.setConn(conn); !ok {
+	if ok := t.setConn(conn); !ok {
 		t.logger.Warn(t.ctx, "asked to start tunnel, but tunnel is already running")
 	}
 	return err
@@ -338,6 +347,8 @@ type updater struct {
 	// workspaces contains the workspaces to which agents are currently connected via the tunnel.
 	workspaces map[uuid.UUID]tailnet.Workspace
 	conn       Conn
+	// lastRebind debounces wake-triggered rebinds.
+	lastRebind time.Time
 
 	clock quartz.Clock
 }
@@ -549,6 +560,33 @@ func (u *updater) stop() error {
 	u.cancel()
 	u.conn = nil
 	return err
+}
+
+// wakeRebindDebounce is the minimum interval between wake-triggered rebinds.
+// Rebinding resets peer path trust, so duplicate wake events must not each
+// trigger one.
+const wakeRebindDebounce = 5 * time.Second
+
+// rebind resets network bindings and rediscovers peer paths. It reports
+// whether it ran; calls within wakeRebindDebounce of the previous rebind, or
+// while the tunnel is not running, are dropped.
+func (u *updater) rebind() bool {
+	u.mu.Lock()
+	conn := u.conn
+	if conn == nil {
+		u.mu.Unlock()
+		return false
+	}
+	now := u.clock.Now()
+	if now.Sub(u.lastRebind) < wakeRebindDebounce {
+		u.mu.Unlock()
+		return false
+	}
+	u.lastRebind = now
+	u.mu.Unlock()
+
+	conn.Rebind()
+	return true
 }
 
 // sendAgentUpdate sends a peer update message to the manager with the current

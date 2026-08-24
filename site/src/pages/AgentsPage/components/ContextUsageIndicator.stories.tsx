@@ -204,6 +204,65 @@ export const Dirty: Story = {
 	},
 };
 
+// Before any assistant message reports token usage there is no percentage,
+// so the popover explains when the numbers will appear.
+export const NoUsage: Story = {
+	args: {
+		usage: null,
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+	},
+};
+
+// Some providers report usage without token counts, so no percentage can be
+// computed even though a message was sent. The popover must say the usage is
+// unavailable instead of promising numbers after the next message.
+export const UsageWithoutTokenCounts: Story = {
+	args: {
+		usage: {
+			contextLimitTokens: 200_000,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(body.getByText("Context usage unavailable")).toBeVisible(),
+		);
+	},
+};
+
+// A fresh chat has pinned context before any assistant message reports token
+// usage, so the popover pairs the empty-usage copy with the resource list.
+export const NoUsageWithContext: Story = {
+	args: {
+		usage: {
+			context: MockChatContextClean,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(
+				body.getByText("Context usage will appear after sending a message."),
+			).toBeVisible(),
+		);
+		expect(body.getByText("Context files")).toBeVisible();
+		expect(body.getByText("AGENTS.md")).toBeVisible();
+	},
+};
+
 // Snapshot-level error: the ring shows a distinct error treatment and the
 // popover surfaces the error message.
 export const SnapshotError: Story = {

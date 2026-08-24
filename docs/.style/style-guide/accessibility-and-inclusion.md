@@ -1,10 +1,12 @@
 # Accessibility and inclusion
 
-The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA as a stretch goal where it doesn't sacrifice clarity.
+The Coder documentation aims for [WCAG 2.1](https://www.w3.org/TR/WCAG21/) Level AA conformance as a minimum, with Level AAA conformance wherever it doesn't sacrifice clarity.
 The rules on this page support that target.
-They cover heading structure, inclusive language, link text, images, plain English for international readers, page descriptions, and reading level.
+They cover heading structure, inclusive language, link text, and images.
+They also cover plain English for international readers, page descriptions, and reading level.
 
-> [!NOTE] Color contrast and other rendered-output a11y concerns belong to the docs site theme, not to prose conventions.
+> [!NOTE]
+> Color contrast and other rendered-output accessibility concerns belong to the docs site theme, not to prose conventions.
 > The Coder docs team tracks color-contrast conformance separately.
 
 ## Heading structure and placement
@@ -24,7 +26,7 @@ Skipping a level breaks the outline.
 
 **Do**:
 
-```markdown
+```md
 # Configure your workspace
 
 This page walks through the configuration options exposed on a Coder workspace.
@@ -33,12 +35,11 @@ The following sections cover SSH access and environment variables.
 ## Set up SSH access
 
 SSH access uses the agent that runs inside your workspace.
-Two client setups are documented in the following sections.
+The following sections cover 2 client setups.
 
 ### Connect through JetBrains Toolbox
 
-Install the Coder plugin in JetBrains Toolbox,
-then connect to your workspace by name.
+Install the Coder plugin in JetBrains Toolbox, then connect to your workspace by name.
 
 ### Connect through VS Code Remote SSH
 
@@ -52,15 +53,14 @@ Define them in the template or in the workspace's parameters.
 
 **Don't**:
 
-```markdown
+```md
 # Configure your workspace
 
 # Configure your environment
 
 #### Connect through JetBrains Toolbox
 
-Install the Coder plugin in JetBrains Toolbox,
-then connect to your workspace by name.
+Install the Coder plugin in JetBrains Toolbox, then connect to your workspace by name.
 ```
 
 The second H1 creates two competing page titles.
@@ -126,16 +126,16 @@ The alt text describes what the image shows or what purpose it serves.
 It isn't a caption.
 Captions follow the image in a `<small>` tag.
 
-Aim for one or two sentences that convey the same information a sighted reader would extract from the image.
-Lead with the subject, not "An image of" or "A screenshot showing".
+Aim for 1 or 2 sentences that convey the same information a sighted reader would extract from the image.
+Lead with the subject, not "An image of" or "A screenshot showing."
 
-```markdown
+```md
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
 <small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
-For complex diagrams that can't be summarized in alt text, provide a longer description in the body of the page and reference it from the alt text.
+For diagrams that alt text can't summarize, provide a longer description in the body of the page and reference it from the alt text.
 
 *Enforced by `markdownlint` rule `MD045` for the alt-text-required requirement.*
 
@@ -144,13 +144,13 @@ For complex diagrams that can't be summarized in alt text, provide a longer desc
 Mark images that carry no information beyond visual decoration with empty alt text.
 Empty alt text tells the screen reader to skip the image rather than announce a meaningless filename.
 
-```markdown
+```md
 ![](../../images/decorative/divider.png)
 ```
 
 Decorative images are rare in the Coder docs.
 Most images shown to a reader are screenshots or diagrams that convey information, and those images need descriptive alt text.
-When in doubt, write descriptive alt text.
+If you aren't sure, write descriptive alt text.
 
 *Documentation-only.
 No Vale rule.*
@@ -158,7 +158,7 @@ No Vale rule.*
 ## Directional language
 
 Screen-reader users navigate documents linearly and don't experience the visual layout.
-Phrases like "see below", "above the table", or "the menu on the left" lose meaning when the reader can't see where elements sit on the page.
+Phrases like "see below," "above the table," or "the menu on the left" lose meaning when the reader can't see where elements sit on the page.
 Sighted readers also benefit from semantic references when the page gets restructured or they jump in through an anchor link.
 
 Refer to content by section heading, by document order (`the previous section`, `the following section`), or by anchor link.
@@ -166,7 +166,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Do**:
 
-> See the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
+> Refer to the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
 >
 > Add a `<small>` caption after the image.
 >
@@ -174,7 +174,7 @@ Refer to UI elements by their label, not by their position on the screen.
 
 **Don't**:
 
-> See the table below for the comma convention.
+> Refer to the table below for the comma convention.
 >
 > Add a `<small>` caption underneath the image.
 >
@@ -182,18 +182,18 @@ Refer to UI elements by their label, not by their position on the screen.
 
 Common replacements:
 
-| Avoid                        | Prefer                                                  |
-|------------------------------|---------------------------------------------------------|
-| see below                    | see the following section, see the `[Section](#anchor)` |
-| see above                    | see the previous section, see earlier                   |
-| top of the page              | beginning of the page                                   |
-| bottom of the page           | end of the page                                         |
-| the menu on the left         | the **Sidebar** menu                                    |
-| the right side of the screen | the **Details** panel                                   |
-| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end   |
+| Avoid                        | Prefer                                                            |
+|------------------------------|-------------------------------------------------------------------|
+| see below                    | refer to the following section, refer to the `[Section](#anchor)` |
+| see above                    | refer to the previous section, as described earlier               |
+| top of the page              | beginning of the page                                             |
+| bottom of the page           | end of the page                                                   |
+| the menu on the left         | the **Sidebar** menu                                              |
+| the right side of the screen | the **Details** panel                                             |
+| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end             |
 
 The rule covers prose.
-Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up", "back up", "log in", and "shut down" aren't directional and stay as-is.
+Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up," "back up," "log in," and "shut down" aren't directional and stay as-is.
 
 *Documentation-only.
 No Vale rule.*
@@ -206,7 +206,7 @@ Two patterns add friction for non-native speakers without adding meaning, so the
 ### Avoid idioms and figurative language
 
 Idioms (`under the weather`, `ballpark figure`, `get the ball rolling`, `at the eleventh hour`) and figurative language (`unleash`, `supercharge`, `dive in`, `out of the box`) rely on cultural context that doesn't translate.
-They also rarely add precision.
+They add no precision.
 Replace them with the literal meaning.
 
 **Do**:
@@ -225,13 +225,18 @@ Replace them with the literal meaning.
 >
 > Coder ships with a default template out of the box.
 
+The rule covers developer idiom too.
+"Spin up a workspace" becomes "create a workspace," "tear down the deployment" becomes "delete the deployment," and "stand up a cluster" becomes "deploy a cluster."
+The figurative forms are so common in developer conversation that they no longer register as figurative, but they translate as badly as any other idiom.
+
 *Documentation-only.
 Planned Vale rule `Coder.Idioms`.*
 
 ### Latin abbreviations
 
 The following Latin abbreviations are fine in Coder docs.
-Use them when they fit the sentence; the English equivalent is also fine.
+Use them when they fit the sentence.
+The English equivalent is also fine.
 
 | Abbreviation | Meaning                                        | Notes                                                                      |
 |--------------|------------------------------------------------|----------------------------------------------------------------------------|
@@ -241,7 +246,8 @@ Use them when they fit the sentence; the English equivalent is also fine.
 | `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                         |
 | `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.     |
 
-**Prefer parentheses around `e.g.` and `i.e.` clauses.** The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
+**Prefer parentheses around `e.g.` and `i.e.` clauses.**
+The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
 
 **Do**:
 
@@ -257,7 +263,8 @@ Use them when they fit the sentence; the English equivalent is also fine.
 
 The **Don't** versions are grammatical, but the comma cascade makes the sentence structure harder to follow.
 
-**One period when `etc.` ends a sentence.** The period in `etc.` doubles as the sentence-ending period.
+**One period when `etc.` ends a sentence.**
+The period in `etc.` doubles as the sentence-ending period.
 
 **Do**:
 
@@ -276,7 +283,8 @@ The abbreviation's period closes `etc.`, the closing parenthesis follows, and th
 
 The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, though that placement is unusual.
 
-**Citation form for `et al.`** In an author-date citation, place a comma between the author phrase and the year, and keep the abbreviation's period.
+**Citation form for `et al.`**
+In an author-date citation, place a comma between the author phrase and the year, and keep the abbreviation's period.
 
 **Do**:
 
@@ -284,7 +292,8 @@ The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, th
 >
 > The protocol is described by Smith et al. (2020).
 
-**Less common Latin abbreviations aren't allowed.** Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to many readers and easy to misuse.
+**Less common Latin abbreviations aren't allowed.**
+Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to non-specialist readers and invite misuse.
 Replace them with plain English.
 
 **Don't**:
@@ -299,7 +308,9 @@ Replace them with plain English.
 Major plain-language guides such as the [Google developer documentation style guide](https://developers.google.com/style/abbreviations), the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/), the [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/), and the [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) recommend English equivalents for all Latin abbreviations.
 The argument is that the abbreviations are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
 
-The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.` These five are near-universal in industry technical writing; restricting them adds friction for writers without a clear payoff for readers familiar with the conventions of the genre.
+The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.`
+These five are near-universal in industry technical writing.
+Restricting them burdens writers without a matching gain for readers familiar with the conventions of the genre.
 
 </details>
 
@@ -318,15 +329,15 @@ A page's H1 and its sidebar title serve different jobs and may diverge.
   The Coder docs site reads the sidebar title from the `title` field in [`docs/manifest.json`](../../manifest.json).
 
 The two must each stand alone, but they don't need to be identical.
-Breadcrumb depth gives one layer of context for free.
+Breadcrumb depth already supplies one layer of context.
 The sidebar title can drop redundancy that the parent breadcrumbs already imply.
 
 Worked example.
-A page reachable through **Administration** > **Authentication** > **Google** has parent breadcrumbs that already say "Administration" and "Authentication".
+A page reachable through **Administration** > **Authentication** > **Google** has parent breadcrumbs that already say "Administration" and "Authentication."
 The sidebar title can be `Google` alone, and the H1 can be `Configure Google authentication with Coder`.
 Both labels stand alone in their own context.
 
-When the H1 and the sidebar title coincide (often the case for short-titled pages), that's fine.
+When the H1 and the sidebar title coincide (common for short-titled pages), that's fine.
 When they diverge, the divergence is intentional and serves the reader.
 The same pattern is common in mature docs sites.
 AWS, Microsoft Learn, and GitHub Docs all pair task-focused H1s with shorter noun-focused sidebar titles.
@@ -406,7 +417,7 @@ Aim for a Flesch-Kincaid grade level of 8 to 10 in body prose.
 The target supports comprehension for non-native English readers, ESL audiences, and anyone skimming under time pressure.
 The reading-level rule decomposes into prose rules covered elsewhere in this guide:
 
-- Short sentences.
+- [Short sentences and paragraphs](./voice-and-tone.md#keep-sentences-and-paragraphs-short).
   Aim for 25 words or fewer.
 - [Active voice by default](./voice-and-tone.md#active-voice-by-default).
 - [Present tense by default](./voice-and-tone.md#present-tense-by-default).
@@ -420,7 +431,7 @@ A reading-level rule is part of [WCAG 2.1 Level AAA](https://www.w3.org/TR/WCAG2
 The criterion is satisfied either by writing at the lower-secondary reading level or by providing an alternative version.
 Coder docs write at the target reading level directly.
 
-Editors that surface a grade-level score (Hemingway, Vale's `write-good.Reading`) are a useful spot check.
+Editors that surface a grade-level score (Hemingway, Vale's `Readability.FleschKincaid`) are a useful spot check.
 The grade level isn't a hard ceiling.
 A reference page that requires technical vocabulary will read higher than a tutorial, and that's correct.
 
@@ -431,12 +442,12 @@ No Vale rule wired.*
 
 The docs site theme controls color contrast, not the prose written on each page.
 Tracked separately from this guide.
-The target is WCAG 2.1 Level AA for normal text (contrast ratio 4.5:1) and Level AA for large text (3:1), with AAA (7:1 normal, 4.5:1 large) as the stretch goal.
+The target is WCAG 2.1 Level AA for normal text (contrast ratio 4.5:1) and Level AA for large text (3:1), with AAA (7:1 normal, 4.5:1 large) as the further target.
 
 *Out of scope for this guide.
 Tracked by the docs site theme.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Voice and tone](./voice-and-tone.md)

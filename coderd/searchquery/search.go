@@ -160,6 +160,8 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	filter := database.GetUsersParams{
 		Search:           parser.String(values, "", "search"),
 		Name:             parser.String(values, "", "name"),
+		ExactUsername:    parser.String(values, "", "username"),
+		ExactEmail:       parser.String(values, "", "email"),
 		Status:           httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
 		IsServiceAccount: parser.NullableBoolean(values, sql.NullBool{}, "service_account"),
 		RbacRole:         parser.Strings(values, []string{}, "role"),
@@ -172,6 +174,30 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors
+}
+
+// Groups parses a group search query using the standard filter syntax shared
+// with the rest of the dashboard. Bare terms (including multi-word terms)
+// become a free-text search over group name and display name. A value that
+// contains a colon must be quoted or supplied via the explicit search key,
+// e.g. search:"team: frontend", because an unquoted colon is otherwise treated
+// as a key:value delimiter. Unknown keys are rejected, which keeps room for
+// real key:value filters in the future.
+func Groups(query string) (string, []codersdk.ValidationError) {
+	// Always lowercase for all searches.
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return "", errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	search := parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return search, parser.Errors
 }
 
 func Members(query string, organizationID uuid.UUID) (database.OrganizationMembersParams, []codersdk.ValidationError) {
@@ -272,6 +298,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	}
 	filter.HasAITask = parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task")
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
+	// include_agent_metadata expands the response with the named agent
+	// metadata keys; it does not filter the returned workspaces.
+	filter.IncludeAgentMetadata = parser.Strings(values, []string{}, "include_agent_metadata")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
@@ -347,6 +376,7 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 		IDs:              parser.UUIDs(values, []uuid.UUID{}, "ids"),
 		Deprecated:       parser.NullableBoolean(values, sql.NullBool{}, "deprecated"),
 		HasAITask:        parser.NullableBoolean(values, sql.NullBool{}, "has-ai-task"),
+		AgentsAllowed:    parser.NullableBoolean(values, sql.NullBool{}, "agents-allowed"),
 		AuthorID:         parser.UUID(values, uuid.Nil, "author_id"),
 		AuthorUsername:   parser.String(values, "", "author"),
 		HasExternalAgent: parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent"),
@@ -519,6 +549,8 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //     ownership scope; created_by_me returns only chats the caller owns,
 //     shared_with_me returns only chats shared with the caller, all returns
 //     both)
+//   - search: full-text search over chat content; mutually exclusive
+//     with title, pr_title, and pr
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats and chats not owned by the caller.
@@ -603,6 +635,30 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 			})
 		} else {
 			filter.PrNumber = int32(n)
+		}
+	}
+
+	if values.Has("search") {
+		parser.RequiredNotEmpty("search")
+		if search := parser.String(values, "", "search"); search != "" {
+			var conflicts []string
+			if filter.TitleQuery != "" {
+				conflicts = append(conflicts, `"title"`)
+			}
+			if filter.PrTitleQuery != "" {
+				conflicts = append(conflicts, `"pr_title"`)
+			}
+			if filter.PrNumber != 0 {
+				conflicts = append(conflicts, `"pr"`)
+			}
+			if len(conflicts) > 0 {
+				parser.Errors = append(parser.Errors, codersdk.ValidationError{
+					Field:  "search",
+					Detail: fmt.Sprintf(`"search" cannot be combined with %s`, strings.Join(conflicts, ", ")),
+				})
+			} else {
+				filter.Search = search
+			}
 		}
 	}
 

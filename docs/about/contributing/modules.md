@@ -8,7 +8,7 @@ Coder modules are Terraform modules that integrate with Coder workspaces to prov
 
 Examples of modules include:
 
-- **Desktop IDEs**: [`jetbrains-fleet`](https://registry.coder.com/modules/coder/jetbrains-fleet), [`cursor`](https://registry.coder.com/modules/coder/cursor), [`windsurf`](https://registry.coder.com/modules/coder/windsurf), [`zed`](https://registry.coder.com/modules/coder/zed)
+- **Desktop IDEs**: [`jetbrains`](https://registry.coder.com/modules/coder/jetbrains), [`cursor`](https://registry.coder.com/modules/coder/cursor), [`devin-desktop`](https://registry.coder.com/modules/coder/devin-desktop), [`zed`](https://registry.coder.com/modules/coder/zed)
 - **Web IDEs**: [`code-server`](https://registry.coder.com/modules/coder/code-server), [`vscode-web`](https://registry.coder.com/modules/coder/vscode-web), [`jupyter-notebook`](https://registry.coder.com/modules/coder/jupyter-notebook), [`jupyter-lab`](https://registry.coder.com/modules/coder/jupyterlab)
 - **Integrations**: [`devcontainers-cli`](https://registry.coder.com/modules/coder/devcontainers-cli), [`vault-github`](https://registry.coder.com/modules/coder/vault-github), [`jfrog-oauth`](https://registry.coder.com/modules/coder/jfrog-oauth), [`jfrog-token`](https://registry.coder.com/modules/coder/jfrog-token)
 - **Workspace utilities**: [`git-clone`](https://registry.coder.com/modules/coder/git-clone), [`dotfiles`](https://registry.coder.com/modules/coder/dotfiles), [`filebrowser`](https://registry.coder.com/modules/coder/filebrowser), [`coder-login`](https://registry.coder.com/modules/coder/coder-login), [`personalize`](https://registry.coder.com/modules/coder/personalize)
@@ -26,20 +26,20 @@ Before contributing modules, ensure you have:
 
 1. **Fork and clone the repository**:
 
-   ```bash
+   ```sh
    git clone https://github.com/your-username/registry.git
    cd registry
    ```
 
 2. **Install dependencies**:
 
-   ```bash
+   ```sh
    bun install
    ```
 
 3. **Understand the structure**:
 
-   ```text
+   ```txt
    registry/[namespace]/
    ├── modules/         # Your modules
    ├── .images/         # Namespace avatar and screenshots
@@ -52,20 +52,20 @@ Before contributing modules, ensure you have:
 
 If you're a new contributor, create your namespace directory:
 
-```bash
+```sh
 mkdir -p registry/[your-username]
 mkdir -p registry/[your-username]/.images
 ```
 
 Add your namespace avatar by downloading your GitHub avatar and saving it as `avatar.png`:
 
-```bash
+```sh
 curl -o registry/[your-username]/.images/avatar.png https://github.com/[your-username].png
 ```
 
 Create your namespace README at `registry/[your-username]/README.md`:
 
-```markdown
+```md
 ---
 display_name: "Your Name"
 bio: "Brief description of what you do"
@@ -89,7 +89,7 @@ Brief description of who you are and what you do.
 
 Use the provided script to generate your module structure:
 
-```bash
+```sh
 ./scripts/new_module.sh [your-username]/[module-name]
 cd registry/[your-username]/modules/[module-name]
 ```
@@ -104,7 +104,7 @@ This creates:
 
 Edit `main.tf` to build your module's features. Here's an example based on the `git-clone` module structure:
 
-```terraform
+```tf
 terraform {
   required_providers {
     coder = {
@@ -168,7 +168,7 @@ output "repo_dir" {
 
 Create `main.test.ts` to test your module features:
 
-```typescript
+```tsx
 import { runTerraformApply, runTerraformInit, testRequiredVariables } from "~test"
 
 describe("git-clone", async () => {
@@ -197,7 +197,7 @@ describe("git-clone", async () => {
 
 Update `README.md` with complete documentation:
 
-```markdown
+```md
 ---
 display_name: "Git Clone"
 description: "Clone a Git repository into your Coder workspace"
@@ -256,7 +256,7 @@ Your module README should include:
 
 Run tests to ensure your module works correctly:
 
-```bash
+```sh
 # Test your specific module
 bun test -t 'git-clone'
 
@@ -319,7 +319,7 @@ When you modify a module, update its version following semantic versioning:
 
 Use the version bump script to update versions:
 
-```bash
+```sh
 ./.github/scripts/version-bump.sh patch|minor|major
 ```
 
@@ -327,22 +327,22 @@ Use the version bump script to update versions:
 
 1. **Create a feature branch**:
 
-   ```bash
+   ```sh
    git checkout -b feat/modify-git-clone-module
    ```
 
 2. **Test thoroughly**:
 
-   ```bash
+   ```sh
    bun test -t 'git-clone'
    bun fmt
    ```
 
 3. **Commit with clear messages**:
 
-   ```bash
+   ```sh
    git add .
-   git commit -m "feat(git-clone):add git-clone module"
+   git commit -m "feat(git-clone): add git-clone module"
    ```
 
 4. **Open a pull request**:

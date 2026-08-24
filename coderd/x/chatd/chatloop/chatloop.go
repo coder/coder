@@ -47,6 +47,10 @@ var (
 	// StopAfterTools produces a successful result, indicating
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
+	// ErrContentFiltered is returned when the provider's safety
+	// classifiers blocked the response and the model produced no
+	// content, e.g. Anthropic's stop_reason "refusal".
+	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -69,10 +73,10 @@ type PersistedStep struct {
 	Content      []fantasy.Content
 	Usage        fantasy.Usage
 	ContextLimit sql.NullInt64
-	// Runtime is the wall-clock duration of this step,
-	// covering LLM streaming, tool execution, and retries.
-	// Zero indicates the duration was not measured (e.g.
-	// interrupted steps).
+	// Runtime is the wall-clock duration of the model invocation
+	// that produced this step's content, measured from just before
+	// the provider stream is opened until the stream is fully
+	// consumed.
 	Runtime time.Duration
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
@@ -211,10 +215,16 @@ type GenerateAssistantOptions struct {
 	Clock                quartz.Clock
 
 	ContextLimitFallback int64
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	// CallTemplate is copied before GenerateAssistant attaches the prompt and
+	// tools.
+	CallTemplate fantasy.Call
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	// OnModelStreamStart runs immediately before the provider stream is
+	// opened, at the instant PersistedStep.Runtime starts measuring. It
+	// lets callers record the billable window's start out of band, so an
+	// interrupted attempt bills the same window a completed step reports.
+	OnModelStreamStart func()
 	Logger             slog.Logger
 	Metrics            *Metrics
 }
@@ -229,10 +239,16 @@ type AssistantOutcome struct {
 
 // ExecuteLocalToolsOptions configures one local tool execution batch.
 type ExecuteLocalToolsOptions struct {
-	Tools         []fantasy.AgentTool
-	ActiveTools   []string
-	ProviderTools []ProviderTool
-	ToolCalls     []fantasy.ToolCallContent
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []ProviderTool
+	ToolCalls          []fantasy.ToolCallContent
+	// ObservedToolCalls optionally carries the step's full assistant
+	// tool-call batch, including calls denied before execution, so
+	// step observers account for denied siblings that derivation will
+	// still count. Defaults to ToolCalls.
+	ObservedToolCalls []fantasy.ToolCallContent
 
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
@@ -270,9 +286,18 @@ type GenerateCompactionOptions struct {
 	ContextLimit         int64
 	ContextLimitFallback int64
 	SummaryPrompt        string
+	SummaryHint          string
 	SystemSummaryPrefix  string
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
+
+	// Force skips the threshold gate (including the threshold=100
+	// disable and the zero-usage early return). Set for manual,
+	// user-requested compactions.
+	Force bool
+	// Source labels what triggered the compaction. Defaults to
+	// CompactionSourceAutomatic when empty.
+	Source CompactionSource
 
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
@@ -280,7 +305,25 @@ type GenerateCompactionOptions struct {
 	ToolCallID          string
 	ToolName            string
 
+	// ResolvedProvider, ResolvedModel, and ModelConfigID identify the
+	// summary model, which can differ from the chat model when a
+	// compaction override is configured. Debug runs record these.
+	ResolvedProvider string
+	ResolvedModel    string
+	ModelConfigID    uuid.UUID
+
+	// SummaryCall is copied before GenerateCompaction attaches the summary
+	// prompt.
+	SummaryCall fantasy.Call
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+
+	// Clock measures the summary call duration. Required.
+	Clock quartz.Clock
+
+	// OnModelStreamStart runs immediately before the summary model call,
+	// at the instant CompactionResult.Runtime starts measuring.
+	OnModelStreamStart func()
 }
 
 // ProviderTool pairs a provider-native tool definition with an
@@ -363,19 +406,14 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 	opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 
-	call := fantasy.Call{
-		Prompt:           prepared,
-		Tools:            buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools),
-		MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
-		Temperature:      opts.ModelConfig.Temperature,
-		TopP:             opts.ModelConfig.TopP,
-		TopK:             opts.ModelConfig.TopK,
-		PresencePenalty:  opts.ModelConfig.PresencePenalty,
-		FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-		ProviderOptions:  opts.ProviderOptions,
-	}
+	call := opts.CallTemplate
+	call.Prompt = prepared
+	call.Tools = buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	stepStart := opts.Clock.Now()
+	if opts.OnModelStreamStart != nil {
+		opts.OnModelStreamStart()
+	}
 	stepCtx := chatdebug.ReuseStep(ctx)
 	attempt, streamErr := guardedStream(
 		stepCtx,
@@ -416,6 +454,14 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		ctx, opts.Logger, provider, modelName,
 		"assistant_helper", 0, result.finishReason, result.content,
 	)
+	// A content-filter finish without user-visible output means the
+	// provider's safety classifiers blocked the whole response (e.g.
+	// Anthropic stop_reason "refusal"). The refusal can arrive after
+	// reasoning has already streamed, so reasoning alone must not
+	// count as output.
+	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
+		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -448,6 +494,33 @@ func wrapProviderStreamError(provider string, err error) error {
 		}
 	}
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
+
+// hasUserVisibleContent reports whether any content part carries output the
+// user can see. Reasoning parts do not count: they stream transiently and are
+// not a substitute for a response.
+func hasUserVisibleContent(content []fantasy.Content) bool {
+	for _, part := range content {
+		switch part.(type) {
+		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
+	classified := chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindContentFilter,
+		Provider:  provider,
+		Retryable: false,
+	}
+	if refusal := fantasyanthropic.GetRefusalMetadata(metadata); refusal != nil {
+		classified.Message = chaterror.ContentFilterMessage(provider, refusal.Category)
+		classified.Detail = strings.TrimSpace(refusal.Explanation)
+	}
+	return chaterror.WithClassification(ErrContentFiltered, classified)
 }
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It
@@ -520,8 +593,10 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		opts.Clock,
 		opts.Tools,
 		opts.ActiveTools,
+		opts.AllowInactiveTools,
 		opts.ProviderTools,
 		localCalls,
+		opts.ObservedToolCalls,
 		opts.Metrics,
 		opts.Logger,
 		provider,
@@ -983,8 +1058,10 @@ func executeTools(
 	clock quartz.Clock,
 	allTools []fantasy.AgentTool,
 	activeTools []string,
+	allowInactiveTools map[string]bool,
 	providerTools []ProviderTool,
 	toolCalls []fantasy.ToolCallContent,
+	observedToolCalls []fantasy.ToolCallContent,
 	metrics *Metrics,
 	logger slog.Logger,
 	provider, model string,
@@ -1035,46 +1112,82 @@ func executeTools(
 		}
 	}
 
+	observed := observedToolCalls
+	if observed == nil {
+		observed = localToolCalls
+	}
+	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
+
 	results := make([]fantasy.ToolResultContent, len(localToolCalls))
 	completedAt := make([]time.Time, len(localToolCalls))
+	runCall := func(i int, tc fantasy.ToolCallContent) {
+		defer func() {
+			if r := recover(); r != nil {
+				results[i] = fantasy.ToolResultContent{
+					ToolCallID: tc.ToolCallID,
+					ToolName:   tc.ToolName,
+					Result: fantasy.ToolResultOutputContentError{
+						Error: xerrors.Errorf("tool panicked: %v", r),
+					},
+				}
+			}
+			// Record when this tool completed (or panicked).
+			// Captured per call so parallel tools get
+			// accurate individual completion times.
+			completedAt[i] = clockNow(clock)
+		}()
+		results[i] = executeSingleTool(
+			ctx,
+			toolMap,
+			tc,
+			metrics,
+			logger,
+			provider,
+			model,
+			builtinToolNames,
+			activeTools,
+			allowInactiveTools,
+			providerRunnerNames,
+			resultProviderMetadata,
+			maxResultBytes,
+			toolNameAliases,
+		)
+	}
+	// Calls to tools that opt in via SerialToolCalls run in tool-call
+	// order after every concurrent sibling has settled. The step waits
+	// for all calls anyway, so sequencing them last costs nothing, and
+	// order-sensitive shared state (for example the find_tools
+	// activation budget) is claimed deterministically after sibling
+	// outcomes are known. All other calls stay concurrent.
+	var serialIndexes []int
 	var wg sync.WaitGroup
-	wg.Add(len(localToolCalls))
 	for i, tc := range localToolCalls {
+		if isSerialToolCall(toolMap, toolNameAliases, tc.ToolName) {
+			serialIndexes = append(serialIndexes, i)
+			continue
+		}
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					results[i] = fantasy.ToolResultContent{
-						ToolCallID: tc.ToolCallID,
-						ToolName:   tc.ToolName,
-						Result: fantasy.ToolResultOutputContentError{
-							Error: xerrors.Errorf("tool panicked: %v", r),
-						},
-					}
-				}
-				// Record when this tool completed (or panicked).
-				// Captured per-goroutine so parallel tools get
-				// accurate individual completion times.
-				completedAt[i] = clockNow(clock)
-			}()
-			results[i] = executeSingleTool(
-				ctx,
-				toolMap,
-				tc,
-				metrics,
-				logger,
-				provider,
-				model,
-				builtinToolNames,
-				activeTools,
-				providerRunnerNames,
-				resultProviderMetadata,
-				maxResultBytes,
-				toolNameAliases,
-			)
+			runCall(i, tc)
 		}()
 	}
 	wg.Wait()
+
+	// Reconcile settled sibling outcomes before serial tools run, so
+	// for example find_tools refunds reservations of errored direct
+	// calls before its searches admit activations.
+	settled := make([]fantasy.ToolResultContent, 0, len(results))
+	for i := range results {
+		if !slices.Contains(serialIndexes, i) {
+			settled = append(settled, results[i])
+		}
+	}
+	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
+
+	for _, i := range serialIndexes {
+		runCall(i, localToolCalls[i])
+	}
 
 	// Publish results in the original tool-call order so SSE
 	// subscribers see a deterministic event sequence.
@@ -1188,6 +1301,7 @@ func executeSingleTool(
 	provider, model string,
 	builtinToolNames map[string]bool,
 	activeTools []string,
+	allowInactiveTools map[string]bool,
 	providerRunnerNames map[string]struct{},
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
@@ -1220,7 +1334,7 @@ func executeSingleTool(
 	}
 
 	_, isProviderRunner := providerRunnerNames[resolvedName]
-	if !isProviderRunner && !isToolActive(resolvedName, activeTools) {
+	if !isProviderRunner && !isToolActive(resolvedName, activeTools) && !allowInactiveTools[resolvedName] {
 		result.Result = fantasy.ToolResultOutputContentError{
 			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
@@ -1381,6 +1495,119 @@ func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
 }
 
+// serialToolCaller is implemented by tools whose calls within one step
+// must execute in tool-call order because they claim from shared state.
+type serialToolCaller interface{ SerialToolCalls() bool }
+
+// stepToolCallObserver is implemented by tools that need to see every
+// tool-call name in the step before any call executes, for example so
+// find_tools can charge same-step direct calls against its budget.
+type stepToolCallObserver interface{ ObserveStepToolCalls(names []string) }
+
+// notifyStepToolCallObservers passes the step's resolved tool-call
+// names to each distinct called tool that observes them.
+func notifyStepToolCallObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls []fantasy.ToolCallContent) {
+	names := make([]string, 0, len(calls))
+	for _, tc := range calls {
+		name := tc.ToolName
+		if alias, ok := toolNameAliases[name]; ok {
+			name = alias
+		}
+		names = append(names, name)
+	}
+	notified := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		if _, dup := notified[name]; dup {
+			continue
+		}
+		notified[name] = struct{}{}
+		tool, ok := toolMap[name]
+		if !ok {
+			continue
+		}
+		if observer, ok := tool.(stepToolCallObserver); ok {
+			observer.ObserveStepToolCalls(names)
+		}
+	}
+}
+
+// stepToolResultObserver is implemented by tools that need the step's
+// per-call execution outcomes, for example so find_tools can refund
+// budget it reserved for a direct call whose execution errored. names
+// and errored are parallel slices in the observed tool-call order;
+// outcomes are kept per call because one tool can be called several
+// times in a step with different results.
+type stepToolResultObserver interface {
+	ObserveStepToolResults(names []string, errored []bool)
+}
+
+// notifyStepToolResultObservers passes the settled sibling outcomes to
+// each distinct called tool that observes them, per call in observed
+// order. Observed calls missing from the executed batch were rejected
+// before execution (for example malformed JSON partitioned into
+// synthetic denials) and settle as errored, since their persisted
+// results always carry IsError. Serial calls have not run yet, so
+// their own outcomes are reported as not errored; observers only need
+// the concurrent siblings they share state with.
+func notifyStepToolResultObservers(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, calls, observed []fantasy.ToolCallContent, settled []fantasy.ToolResultContent) {
+	resolve := func(name string) string {
+		if alias, ok := toolNameAliases[name]; ok {
+			return alias
+		}
+		return name
+	}
+	erroredByID := make(map[string]bool, len(settled))
+	for _, tr := range settled {
+		_, isErr := tr.Result.(fantasy.ToolResultOutputContentError)
+		erroredByID[tr.ToolCallID] = isErr
+	}
+	executedIDs := make(map[string]struct{}, len(calls))
+	for _, tc := range calls {
+		executedIDs[tc.ToolCallID] = struct{}{}
+	}
+	names := make([]string, 0, len(observed))
+	errored := make([]bool, 0, len(observed))
+	for _, tc := range observed {
+		names = append(names, resolve(tc.ToolName))
+		if isErr, ok := erroredByID[tc.ToolCallID]; ok {
+			errored = append(errored, isErr)
+			continue
+		}
+		_, executed := executedIDs[tc.ToolCallID]
+		errored = append(errored, !executed)
+	}
+	notified := make(map[string]struct{}, len(calls))
+	for _, tc := range calls {
+		name := tc.ToolName
+		if alias, ok := toolNameAliases[name]; ok {
+			name = alias
+		}
+		if _, dup := notified[name]; dup {
+			continue
+		}
+		notified[name] = struct{}{}
+		tool, ok := toolMap[name]
+		if !ok {
+			continue
+		}
+		if observer, ok := tool.(stepToolResultObserver); ok {
+			observer.ObserveStepToolResults(names, errored)
+		}
+	}
+}
+
+func isSerialToolCall(toolMap map[string]fantasy.AgentTool, toolNameAliases map[string]string, name string) bool {
+	if alias, ok := toolNameAliases[name]; ok {
+		name = alias
+	}
+	tool, ok := toolMap[name]
+	if !ok {
+		return false
+	}
+	serial, ok := tool.(serialToolCaller)
+	return ok && serial.SerialToolCalls()
+}
+
 // buildToolDefinitions converts AgentTool definitions into the
 // fantasy.Tool slice expected by fantasy.Call. When activeTools
 // is non-empty, only function tools whose name appears in the
@@ -1394,9 +1621,16 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 			continue
 		}
 
+		// Substitute an empty object for nil properties so that a tool
+		// with no parameters never serializes "properties" to null,
+		// which OpenAI rejects.
+		properties := info.Parameters
+		if properties == nil {
+			properties = map[string]any{}
+		}
 		inputSchema := map[string]any{
 			"type":       "object",
-			"properties": info.Parameters,
+			"properties": properties,
 		}
 		// Only include "required" when non-empty so that a nil slice
 		// never serializes to null, which OpenAI rejects.

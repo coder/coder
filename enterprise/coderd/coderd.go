@@ -29,6 +29,7 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	agplconnectionlog "github.com/coder/coder/v2/coderd/connectionlog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -62,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -83,8 +85,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 		if buildinfo.IsDev() {
 			options.Authorizer = rbac.Recorder(options.Authorizer)
 		}
@@ -97,12 +99,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
-	if options.Options.UsageInserter == nil {
-		options.Options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
+	if options.UsageInserter == nil {
+		options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
 	}
-	if options.Options.UsageInserter.Load() == nil {
+	if options.UsageInserter.Load() == nil {
 		collector := usage.NewDBInserter()
-		options.Options.UsageInserter.Store(&collector)
+		options.UsageInserter.Store(&collector)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -205,7 +207,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// chat processor receives it.
 	replicaHTTPClient := replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
 	if replicaHTTPClient == nil {
-		replicaHTTPClient = options.Options.HTTPClient
+		replicaHTTPClient = options.HTTPClient
 	}
 	if replicaHTTPClient == nil {
 		replicaHTTPClient = http.DefaultClient
@@ -213,7 +215,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// Use a closure that captures api by reference so it can access
 	// api.AGPL.ID after coderd.New is called. The parts dialer is
 	// only invoked from stream subscriptions, which happen after init.
-	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
+	options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
@@ -221,8 +223,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
+	options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
+
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
+	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
@@ -230,7 +235,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 	}()
 
-	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
+	api.AGPL.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
 		c, err := license.ParseClaims(rawJWT, Keys)
 		if err != nil {
 			return "", false, err
@@ -249,7 +254,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.tailnetService, err = tailnet.NewClientService(agpltailnet.ClientServiceOptions{
 		Logger:                  api.Logger.Named("tailnetclient"),
 		CoordPtr:                &api.AGPL.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapUpdateFrequency:  api.DERPMapUpdateFrequency,
 		DERPMapFn:               api.AGPL.DERPMap,
 		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
 		ResumeTokenProvider:     api.AGPL.CoordinatorResumeTokenProvider,
@@ -333,6 +338,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
+	api.AGPL.ExperimentalHandler.Group(func(r chi.Router) {
+		r.Route("/ai/model-prices", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.listAIModelPrices)
+			r.Post("/", api.upsertAIModelPrices)
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -365,6 +381,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
 			r.Post("/", api.postLicense)
+			r.Post("/trial", api.postTrialLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
@@ -502,6 +519,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Post("/", api.postGroupByOrganization)
 			r.Get("/", api.groupsByOrganization)
+			r.Route("/ai/spend", func(r chi.Router) {
+				// AI cost controls are a paid feature (AI Governance).
+				r.Use(
+					api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				)
+				r.Get("/", api.organizationGroupsAISpend)
+			})
 			r.Route("/{groupName}", func(r chi.Router) {
 				r.Use(
 					httpmw.ExtractGroupByNameParam(api.Database),
@@ -509,7 +533,31 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 				r.Get("/", api.groupByOrganization)
 				r.Get("/members", api.groupMembersByOrganization)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpendByOrganization)
+				})
 			})
+		})
+		r.Route("/organizations/{organization}/paginated-groups", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.templateRBACEnabledMW,
+				httpmw.ExtractOrganizationParam(api.Database),
+			)
+			r.Get("/", api.paginatedGroups)
+		})
+		r.Route("/organizations/{organization}/ai/spend", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance).
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(api.Database),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/export", api.exportOrganizationAISpend)
 		})
 		r.Route("/provisionerkeys", func(r chi.Router) {
 			r.Use(
@@ -594,8 +642,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
+				r.Route("/members/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupMembersAISpend)
+				})
+				r.Route("/ai/spend", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance).
+					r.Use(
+						api.RequireFeatureMW(codersdk.FeatureAIBridge),
+					)
+					r.Get("/", api.groupAISpend)
+				})
 				r.Route("/ai/budget", func(r chi.Router) {
-					// AI cost controls are a paid feature (AI Governance add-on).
+					// AI cost controls are a paid feature (AI Governance).
 					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 					r.Get("/", api.groupAIBudget)
 					r.Put("/", api.upsertGroupAIBudget)
@@ -642,15 +704,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
 		r.Route("/users/{user}/ai", func(r chi.Router) {
-			// AI cost controls are a paid feature (AI Governance add-on).
+			// AI cost controls are a paid feature (AI Governance).
 			r.Use(
-				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
-				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Route("/budget", func(r chi.Router) {
+			r.Route("/budget/override", func(r chi.Router) {
 				r.Get("/", api.userAIBudgetOverride)
 				r.Put("/", api.upsertUserAIBudgetOverride)
 				r.Delete("/", api.deleteUserAIBudgetOverride)
@@ -691,6 +751,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 	if mountScimError != nil {
 		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
+	}
+
+	// The NATS pubsub, if enabled, used the Replica Manager for clustering. It's a layering violation if the pubsub
+	// for the Replica Manager *is* the NATS pubsub, because then we have a dependency loop.
+	if _, isNats := options.ReplicaSyncPubsub.(*nats.Pubsub); isNats {
+		return nil, xerrors.Errorf("replica sync pubsub cannot be the NATS pubsub")
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
@@ -806,7 +872,6 @@ type Options struct {
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	ReplicaErrorGracePeriod   time.Duration
-	ClusterHost               string // IP or hostname to reach this specific replica
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
 
@@ -826,6 +891,8 @@ type Options struct {
 type API struct {
 	AGPL *coderd.API
 	*Options
+
+	trialer *trialer.Trialer
 
 	// ctx is canceled immediately on shutdown, it can be used to abort
 	// interruptible tasks.
@@ -873,13 +940,13 @@ func (api *API) Close() error {
 		_ = api.derpMesh.Close()
 	}
 
-	if api.Options.CheckInactiveUsersCancelFunc != nil {
-		api.Options.CheckInactiveUsersCancelFunc()
+	if api.CheckInactiveUsersCancelFunc != nil {
+		api.CheckInactiveUsersCancelFunc()
 	}
 
 	// Close the connection logger to flush any remaining batched
 	// entries before shutting down the database connection.
-	if cl, ok := api.Options.ConnectionLogger.(io.Closer); ok {
+	if cl, ok := api.ConnectionLogger.(io.Closer); ok {
 		_ = cl.Close()
 	}
 
@@ -904,7 +971,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		reloadedEntitlements, err := license.Entitlements(
-			ctx, api.Database,
+			ctx, api.Logger, api.Database,
 			len(agedReplicas), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 				codersdk.FeatureAuditLog:                   api.AuditLogging,
 				codersdk.FeatureConnectionLog:              api.ConnectionLogging,
@@ -920,7 +987,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				codersdk.FeatureAccessControl:              true,
 				codersdk.FeatureControlSharedPorts:         true,
 				codersdk.FeatureAIBridge:                   api.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
-			})
+			},
+			api.AGPL.HTTPAuth.Authorizer,
+			api.AGPL.Experiments,
+		)
 		if err != nil {
 			return codersdk.Entitlements{}, err
 		}
@@ -1013,15 +1083,18 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				}
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					// Swap the real nats_ca CA cache and the replica peer fetcher
+					// in so the first route handshake can negotiate mTLS.
+					natsPubsub.SetCACache(api.AGPL.NATSCACache)
 					natsPubsub.SetPeerFetcher(api.replicaManager)
 					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
 				}
 
 				api.replicaManager.SetCallback("derp", func() {
 					// Only update DERP mesh if the built-in server is enabled.
-					if api.Options.DeploymentValues.DERP.Server.Enable {
+					if api.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
-						for _, replica := range api.replicaManager.Regional() {
+						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
 							// Don't add replicas with an empty relay address.
 							if replica.RelayAddress == "" {
 								continue
@@ -1034,7 +1107,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				})
 			} else {
 				coordinator = agpltailnet.NewCoordinator(api.Logger)
-				if api.Options.DeploymentValues.DERP.Server.Enable {
+				if api.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
 				api.replicaManager.SetCallback("derp", func() {
@@ -1045,6 +1118,9 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
 					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					// Revert to the noop CA cache: new route handshakes can no
+					// longer mint a leaf, so the cluster mesh stops forming.
+					natsPubsub.SetCACache(cryptokeys.NoopSigningKeycache{})
 					api.replicaManager.SetCallback("nats", nil)
 				}
 			}
@@ -1092,7 +1168,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
-			var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
+			ps := agplportsharing.DefaultPortSharer
 			if enabled {
 				ps = portsharing.NewEnterprisePortSharer()
 			}

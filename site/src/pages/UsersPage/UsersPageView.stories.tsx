@@ -35,10 +35,7 @@ const meta: Meta<typeof UsersPageView> = {
 			totalRecords: 2,
 			data: {
 				count: 2,
-				users: [
-					{ ...MockUserOwner, has_ai_seat: false },
-					{ ...MockUserMember, has_ai_seat: false },
-				],
+				users: [MockUserOwner, MockUserMember],
 			},
 		},
 	},
@@ -51,7 +48,7 @@ export const Admin: Story = {};
 
 export const SmallViewport: Story = {
 	parameters: {
-		chromatic: { viewports: [600] },
+		pixel: { matrix: { viewports: ["tablet"] } },
 	},
 };
 

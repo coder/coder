@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
@@ -459,7 +460,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	jobCtx, jobCancel := context.WithTimeout(ctx, templateBuilderCreateTemplateTimeout)
 	defer jobCancel()
 
-	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID, nil)
+	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
@@ -554,6 +555,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			MaxPortSharingLevel:          database.AppSharingLevelOwner,
 			UseClassicParameterFlow:      false,
 			CorsBehavior:                 database.CorsBehaviorSimple,
+			AgentsAllowed:                true,
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
@@ -616,11 +618,9 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 }
 
 // waitForProvisionerJob polls until the job completes or the context expires.
-// If onUpdate is non-nil, it is called after each poll with the latest job state.
 func (api *API) waitForProvisionerJob(
 	ctx context.Context,
 	jobID uuid.UUID,
-	onUpdate func(database.ProvisionerJob),
 ) (database.ProvisionerJob, error) {
 	initialIntervals := []time.Duration{
 		100 * time.Millisecond,
@@ -648,12 +648,50 @@ func (api *API) waitForProvisionerJob(
 			return database.ProvisionerJob{}, xerrors.Errorf("get provisioner job: %w", err)
 		}
 
-		if onUpdate != nil {
-			onUpdate(job)
-		}
-
 		if job.CompletedAt.Valid {
 			return job, nil
 		}
 	}
+}
+
+// @Summary Report a template builder session event
+// @ID report-a-template-builder-session-event
+// @Security CoderSessionToken
+// @Accept json
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderSessionRequest true "Session event"
+// @Success 204
+// @Router /api/v2/templatebuilder/sessions [post]
+func (api *API) templateBuilderSession(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+
+	// Only template admins should be able to use this flow and submit
+	// session telemetry, matching the compose endpoint's authorization.
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderSessionRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:              req.SessionID,
+				EventType:       string(req.EventType),
+				UserID:          apiKey.UserID,
+				BaseTemplateID:  req.BaseTemplateID,
+				ModuleIDs:       req.ModuleIDs,
+				DurationSeconds: req.DurationSeconds,
+				Success:         req.Success,
+				CreatedAt:       dbtime.Now(),
+			},
+		},
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
 }

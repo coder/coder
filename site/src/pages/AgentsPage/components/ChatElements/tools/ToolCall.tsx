@@ -1,10 +1,16 @@
-import { ChevronDownIcon, LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	LoaderIcon,
+	ShieldIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	createContext,
 	type FC,
 	type ReactNode,
 	useContext,
+	useId,
 	useState,
 } from "react";
 import {
@@ -15,7 +21,6 @@ import {
 import { cn } from "#/utils/cn";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
-import type { SubagentIconKind } from "./subagentDescriptor";
 import { ToolIcon } from "./ToolIcon";
 import type { ToolStatus } from "./utils";
 
@@ -44,6 +49,37 @@ type ToolCallContextValue = {
 };
 
 const ToolCallContext = createContext<ToolCallContextValue | null>(null);
+
+const ToolPolicyContext = createContext<{ hookRewritten: boolean }>({
+	hookRewritten: false,
+});
+
+// Some renderer branches render no `ToolCall.Header`, so emitting the
+// badge here rather than in the header keeps attribution on those cards.
+const PolicyProvider: FC<{ hookRewritten: boolean; children: ReactNode }> = ({
+	hookRewritten,
+	children,
+}) => {
+	const badgeId = useId();
+	return (
+		<ToolPolicyContext.Provider value={{ hookRewritten }}>
+			{hookRewritten ? (
+				<div role="group" aria-labelledby={badgeId}>
+					<span
+						id={badgeId}
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border-default px-1 text-[11px] leading-4 text-content-secondary"
+					>
+						<ShieldIcon aria-hidden className="size-3 shrink-0" />
+						Modified by policy
+					</span>
+					{children}
+				</div>
+			) : (
+				children
+			)}
+		</ToolPolicyContext.Provider>
+	);
+};
 
 const useToolCallContext = () => {
 	const context = useContext(ToolCallContext);
@@ -174,6 +210,13 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 	alwaysButton = false,
 }) => {
 	const { ariaLabel, collapsible, expanded, onToggle } = useToolCallContext();
+	const { hookRewritten } = useContext(ToolPolicyContext);
+	const resolvedAriaLabel =
+		typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
+	const buttonAriaLabel =
+		resolvedAriaLabel && hookRewritten
+			? `${resolvedAriaLabel}, modified by policy`
+			: resolvedAriaLabel;
 	if (!collapsible && !alwaysButton) {
 		return (
 			<HeaderRow className={cn("min-w-0", className)}>{children}</HeaderRow>
@@ -192,9 +235,7 @@ const HeaderButton: FC<ToolCallHeaderButtonProps> = ({
 			<button
 				type="button"
 				aria-expanded={collapsible ? expanded : undefined}
-				aria-label={
-					typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
-				}
+				aria-label={buttonAriaLabel}
 				onClick={collapsible ? onToggle : undefined}
 			>
 				{children}
@@ -208,7 +249,6 @@ type ToolCallLeadingIconProps = {
 	children?: ReactNode;
 	iconUrl?: string;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
 };
 
 const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
@@ -216,9 +256,8 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 	children,
 	iconUrl,
 	serverName,
-	subagentIconKind,
 }) => {
-	const { active, failed } = useToolCallContext();
+	const { active } = useToolCallContext();
 	if (children) {
 		return <>{children}</>;
 	}
@@ -229,11 +268,9 @@ const LeadingIcon: FC<ToolCallLeadingIconProps> = ({
 	return (
 		<ToolIcon
 			name={name}
-			isError={failed}
 			isRunning={active}
 			iconUrl={iconUrl}
 			serverName={serverName}
-			subagentIconKind={subagentIconKind}
 		/>
 	);
 };
@@ -267,16 +304,11 @@ const Label: FC<ToolCallLabelProps> = ({
 
 type ToolCallStatusProps = {
 	className?: string;
-	errorMessage?: string;
 };
 
-const Status: FC<ToolCallStatusProps> = ({ className, errorMessage }) => {
-	const {
-		active,
-		errorMessage: contextErrorMessage,
-		failed,
-	} = useToolCallContext();
-	const message = errorMessage || contextErrorMessage || "Tool call failed";
+const Status: FC<ToolCallStatusProps> = ({ className }) => {
+	const { active, errorMessage, failed } = useToolCallContext();
+	const message = errorMessage || "Tool call failed";
 	return (
 		<>
 			{active && (
@@ -315,7 +347,7 @@ const Chevron: FC<{ className?: string }> = ({ className }) => {
 	return (
 		<ChevronDownIcon
 			className={cn(
-				"size-3 shrink-0 text-current transition-transform",
+				"order-last size-3 shrink-0 text-current transition-transform",
 				expanded ? "rotate-0" : "-rotate-90",
 				className,
 			)}
@@ -367,7 +399,6 @@ type ToolCallHeaderProps = {
 	label: ReactNode;
 	iconUrl?: string;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
 	secondaryLabel?: ReactNode;
 	trailing?: ReactNode;
 	showStatus?: boolean;
@@ -388,7 +419,6 @@ const Header: FC<ToolCallHeaderProps> = ({
 	label,
 	iconUrl,
 	serverName,
-	subagentIconKind,
 	secondaryLabel,
 	trailing,
 	showStatus = true,
@@ -396,12 +426,7 @@ const Header: FC<ToolCallHeaderProps> = ({
 }) => {
 	return (
 		<HeaderButton className={headerClassName}>
-			<LeadingIcon
-				name={iconName}
-				iconUrl={iconUrl}
-				serverName={serverName}
-				subagentIconKind={subagentIconKind}
-			/>
+			<LeadingIcon name={iconName} iconUrl={iconUrl} serverName={serverName} />
 			<Label>{label}</Label>
 			{secondaryLabel}
 			{showStatus && <Status />}
@@ -424,6 +449,7 @@ const Content: FC<ToolCallContentProps> = ({ children }) => {
 
 export const ToolCall = {
 	Root,
+	PolicyProvider,
 	HeaderRow,
 	HeaderButton,
 	LeadingIcon,

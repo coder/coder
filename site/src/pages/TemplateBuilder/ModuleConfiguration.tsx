@@ -67,7 +67,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 					</ConfigurationFieldContainer>
 				</CollapsibleSummary>
 			) : (
-				<div className="text-sm text-content-secondary flex items-center gap-2 mt-4">
+				<div className="text-xs text-content-secondary flex items-center gap-2 mt-4">
 					<CheckIcon className="size-4" />
 					No configuration required.
 				</div>

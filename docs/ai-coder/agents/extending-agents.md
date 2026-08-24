@@ -39,7 +39,7 @@ a path-safe convenience for reading supporting files.
 
 ### Directory structure
 
-```text
+```txt
 .agents/skills/
 ├── deep-review/
 │   ├── SKILL.md
@@ -57,7 +57,7 @@ a path-safe convenience for reading supporting files.
 Each `SKILL.md` starts with YAML frontmatter containing a `name` and an
 optional `description`, followed by the full instructions in markdown:
 
-```markdown
+```md
 ---
 name: deep-review
 description: "Multi-reviewer code review with domain-specific reviewers"
@@ -93,7 +93,7 @@ frontmatter with a kebab-case `name`, an optional `description`, and a
 markdown body. This keeps content portable between personal skills and
 workspace skills.
 
-```markdown
+```md
 ---
 name: personal-reviewer
 description: "Personal review guidance"

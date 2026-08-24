@@ -1,7 +1,23 @@
-// The backend's search-query parser toggles its quoted-state on every `"` and
-// has no backslash-escape handling, so escaping quotes here would produce a
-// query the backend cannot parse. Stripping quotes from bare text keeps the
-// resulting `title:"..."` filter well-formed for the backend.
+import type { SearchFilter } from "./ChatSearchInput";
+
+export const CHAT_SEARCH_FILTER_KEYS = [
+	"has_unread",
+	"archived",
+	"pr_status",
+	"diff_url",
+] as const;
+
+export type ChatSearchFilterKey = (typeof CHAT_SEARCH_FILTER_KEYS)[number];
+
+const CHAT_SEARCH_KNOWN_FILTER_KEYS: ReadonlySet<string> = new Set(
+	CHAT_SEARCH_FILTER_KEYS,
+);
+
+const isChatSearchFilterKey = (key: string): key is ChatSearchFilterKey =>
+	CHAT_SEARCH_KNOWN_FILTER_KEYS.has(key);
+
+// The backend toggles its quoted state on every `"` and has no escape handling.
+// Stripping embedded quotes keeps the wrapper token well-formed.
 const sanitizeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', "");
 };
@@ -10,18 +26,113 @@ const addDefaultURLScheme = (value: string): string => {
 	return /^[a-z][a-z\d+\-.]*:\/\//i.test(value) ? value : `https://${value}`;
 };
 
-// Filter keys that may pass through to the backend unchanged. `title` is not
-// listed here because bare text and `title:` filters are merged into a single
-// title filter; see the title-handling branch in normalizeChatSearchInput.
-const passthroughChatSearchFilterKeys = new Set([
-	"archived",
-	"diff_url",
-	"has_unread",
-	"pr_status",
-]);
+export const normalizeChatSearchFilterValue = (
+	key: string,
+	value: string,
+): string => {
+	const sanitizedValue = sanitizeChatSearchValue(value).trim();
+	if (sanitizedValue === "") {
+		return "";
+	}
+	if (key === "diff_url") {
+		return addDefaultURLScheme(sanitizedValue);
+	}
+	if (key === "pr_status") {
+		return sanitizedValue
+			.split(/[\s,]+/)
+			.filter(Boolean)
+			.join(",");
+	}
+	return sanitizedValue;
+};
 
-const splitSearchInput = (input: string): string[] => {
-	const tokens: string[] = [];
+const validPRStatuses = new Set(["draft", "open", "merged", "closed"]);
+
+const validBooleans = new Set(["true", "false"]);
+
+const isValidDiffURL = (value: string): boolean => {
+	try {
+		const url = new URL(value);
+		return (
+			(url.protocol === "http:" || url.protocol === "https:") &&
+			Boolean(url.host)
+		);
+	} catch {
+		return false;
+	}
+};
+
+const CHAT_SEARCH_FILTER_VALIDATORS: Readonly<
+	Record<ChatSearchFilterKey, (value: string) => boolean>
+> = {
+	has_unread: (value) => validBooleans.has(value.toLowerCase()),
+	archived: (value) => validBooleans.has(value.toLowerCase()),
+	pr_status: (value) =>
+		value
+			.split(",")
+			.every((status) => validPRStatuses.has(status.toLowerCase())),
+	diff_url: isValidDiffURL,
+};
+
+export const isValidChatSearchFilterValue = (
+	key: string,
+	value: string,
+): boolean => {
+	if (!isChatSearchFilterKey(key)) {
+		return false;
+	}
+	const normalizedValue = normalizeChatSearchFilterValue(key, value);
+	if (normalizedValue === "") {
+		return false;
+	}
+	return CHAT_SEARCH_FILTER_VALIDATORS[key](normalizedValue);
+};
+
+const formatChatSearchFilterToken = (key: string, value: string): string => {
+	const formattedValue = normalizeChatSearchFilterValue(key, value);
+	// The backend splits on unquoted whitespace and colons, so filter values that
+	// contain either delimiter must be wrapped in quotes.
+	return formattedValue.includes(":") || formattedValue.includes(" ")
+		? `${key}:"${formattedValue}"`
+		: `${key}:${formattedValue}`;
+};
+
+// Frontend-emitted query shapes must match TestSearchChatsFrontendEmitted in
+// coderd/searchquery/search_test.go.
+export const buildChatSearchQuery = (
+	filters: readonly SearchFilter[],
+	freeText: string,
+): string | undefined => {
+	const parts: string[] = [];
+
+	for (const filter of filters) {
+		if (
+			filter.value !== null &&
+			isValidChatSearchFilterValue(filter.key, filter.value)
+		) {
+			parts.push(formatChatSearchFilterToken(filter.key, filter.value));
+		}
+	}
+
+	const text = sanitizeChatSearchValue(freeText).trim();
+	if (freeText.trim() !== "") {
+		// Quotes make the value one backend token and are stripped before FTS, so
+		// OR and -negation stay live but typed phrase quotes are lost. A lone
+		// quote would emit an empty value, which the backend rejects, so a single
+		// space stands in to force an empty result instead of recent chats.
+		parts.push(`search:"${text === "" ? " " : text}"`);
+	}
+
+	return parts.length > 0 ? parts.join(" ") : undefined;
+};
+
+type SearchInputToken = {
+	readonly value: string;
+	readonly quotesBalanced: boolean;
+};
+
+const splitSearchInput = (input: string): SearchInputToken[] => {
+	const tokens: SearchInputToken[] = [];
 	let token = "";
 	let quoted = false;
 
@@ -32,7 +143,7 @@ const splitSearchInput = (input: string): string[] => {
 
 		if (/\s/.test(character) && !quoted) {
 			if (token !== "") {
-				tokens.push(token);
+				tokens.push({ value: token, quotesBalanced: true });
 				token = "";
 			}
 			continue;
@@ -42,126 +153,97 @@ const splitSearchInput = (input: string): string[] => {
 	}
 
 	if (token !== "") {
-		tokens.push(token);
+		tokens.push({ value: token, quotesBalanced: !quoted });
 	}
 
 	return tokens;
 };
 
-const getKeyValueDelimiterIndex = (token: string): number | undefined => {
-	let quoted = false;
-
-	for (const [index, character] of [...token].entries()) {
-		if (character === '"') {
-			quoted = !quoted;
-		}
-
-		if (character === ":" && !quoted) {
-			return index;
-		}
-	}
-
-	return undefined;
-};
-
-const getKeyValuePair = (
-	token: string,
-): { key: string; rawKey: string; value: string } | undefined => {
-	const delimiterIndex = getKeyValueDelimiterIndex(token);
-	if (
-		delimiterIndex === undefined ||
-		delimiterIndex === 0 ||
-		delimiterIndex === token.length - 1
-	) {
-		return undefined;
-	}
-
-	const rawKey = token.slice(0, delimiterIndex).replaceAll('"', "");
-	return {
-		key: rawKey.toLowerCase(),
-		rawKey,
-		value: token.slice(delimiterIndex + 1).replace(/^"|"$/g, ""),
-	};
-};
-
-// The backend splits on unquoted whitespace and colons, so values containing
-// either (e.g. a diff URL) must be quoted.
-const normalizePassthroughChatSearchFilter = ({
-	key,
-	rawKey,
-	value,
-}: {
-	readonly key: string;
-	readonly rawKey: string;
-	readonly value: string;
-}): string => {
-	const sanitizedValue =
-		key === "diff_url"
-			? addDefaultURLScheme(sanitizeChatSearchValue(value))
-			: sanitizeChatSearchValue(value);
-	return sanitizedValue.includes(":") || sanitizedValue.includes(" ")
-		? `${rawKey}:"${sanitizedValue}"`
-		: `${rawKey}:${sanitizedValue}`;
-};
-
 /**
- * Normalizes raw search input into a query string the chat search API accepts.
- *
- * Bare text and `title:` filters are merged into a single `title:"..."`
- * filter (the backend rejects a parameter that appears more than once).
- * Recognized `key:value` filters are normalized for backend syntax.
+ * Extracts recognized filters from typed text. Unbalanced-quoted and invalid
+ * tokens pass through unchanged. `consumed` is true if any filter token was
+ * removed, even when `filters` is empty (a typed value equal to the active
+ * pill). The caller owns any separator after a suppressed Space keystroke.
  */
-export const normalizeChatSearchInput = (
-	rawInput: string,
-): string | undefined => {
-	const trimmedInput = rawInput.trim();
-	if (trimmedInput === "") {
-		return undefined;
-	}
+export const extractTypedFilters = (
+	text: string,
+	activeFilters: readonly SearchFilter[],
+): {
+	filters: SearchFilter[];
+	remainingText: string;
+	consumed: boolean;
+} => {
+	const tokens = splitSearchInput(text.trim());
+	const activeValues = new Map(
+		activeFilters.map((filter) => [
+			filter.key.toLowerCase(),
+			filter.value === null
+				? null
+				: normalizeChatSearchFilterValue(filter.key, filter.value),
+		]),
+	);
+	const filtersByKey = new Map<string, SearchFilter>();
+	const remainingTokens: string[] = [];
+	let consumed = false;
 
-	const tokens = splitSearchInput(trimmedInput);
-	const passthroughFilters: string[] = [];
-	const normalizedTokens: string[] = [];
-	const titleTerms: string[] = [];
-	let hasBareTitleText = false;
-
-	for (const token of tokens) {
-		const keyValuePair = getKeyValuePair(token);
-		if (!keyValuePair) {
-			titleTerms.push(token);
-			hasBareTitleText = true;
+	let tokenIndex = 0;
+	while (tokenIndex < tokens.length) {
+		const token = tokens[tokenIndex];
+		if (!token.quotesBalanced) {
+			remainingTokens.push(token.value);
+			tokenIndex += 1;
 			continue;
 		}
 
-		if (keyValuePair.key === "title") {
-			normalizedTokens.push(token);
-			titleTerms.push(keyValuePair.value);
+		const colonIndex = token.value.indexOf(":");
+		if (colonIndex <= 0 || colonIndex === token.value.length - 1) {
+			remainingTokens.push(token.value);
+			tokenIndex += 1;
 			continue;
 		}
 
-		if (!passthroughChatSearchFilterKeys.has(keyValuePair.key)) {
-			titleTerms.push(token);
-			hasBareTitleText = true;
+		const key = token.value.slice(0, colonIndex).toLowerCase();
+		let value = token.value
+			.slice(colonIndex + 1)
+			.replace(/^"|"$/g, "")
+			.trim();
+		const candidateTokens = [token.value];
+		let nextTokenIndex = tokenIndex + 1;
+		if (key === "pr_status" && value.endsWith(",")) {
+			while (value.endsWith(",") && nextTokenIndex < tokens.length) {
+				const nextToken = tokens[nextTokenIndex];
+				value = `${value} ${nextToken.value}`;
+				candidateTokens.push(nextToken.value);
+				nextTokenIndex += 1;
+			}
+		}
+
+		if (
+			!CHAT_SEARCH_KNOWN_FILTER_KEYS.has(key) ||
+			value.endsWith(",") ||
+			!isValidChatSearchFilterValue(key, value)
+		) {
+			remainingTokens.push(...candidateTokens);
+			tokenIndex = nextTokenIndex;
 			continue;
 		}
 
-		const normalizedFilter = normalizePassthroughChatSearchFilter(keyValuePair);
-		passthroughFilters.push(normalizedFilter);
-		normalizedTokens.push(normalizedFilter);
+		consumed = true;
+		const normalizedValue = normalizeChatSearchFilterValue(key, value);
+		if (activeValues.get(key) === normalizedValue) {
+			filtersByKey.delete(key);
+		} else {
+			filtersByKey.set(key, {
+				key,
+				value: key === "pr_status" ? normalizedValue : value,
+			});
+		}
+		tokenIndex = nextTokenIndex;
 	}
 
-	// Multiple title values must be merged into a single title filter because
-	// the backend's query parser rejects the same key appearing more than once.
-	if (titleTerms.length > 1) {
-		hasBareTitleText = true;
-	}
-
-	if (!hasBareTitleText) {
-		return normalizedTokens.join(" ");
-	}
-
-	return [
-		...passthroughFilters,
-		`title:"${sanitizeChatSearchValue(titleTerms.join(" "))}"`,
-	].join(" ");
+	return {
+		filters: [...filtersByKey.values()],
+		remainingText: remainingTokens.join(" "),
+		consumed,
+	};
 };

@@ -54,7 +54,7 @@ Given you created or added key-pairs when launching the instance, you can
 [configure your Coder deployment](../../admin/setup/index.md) by logging in via
 SSH or using the console:
 
-```shell
+```sh
 ssh ubuntu@<gcp-public-IPv4>
 sudo vim /etc/coder.d/coder.env # edit config
 sudo systemctl daemon-reload

@@ -7,7 +7,8 @@ USAGE:
 
 OPTIONS:
       --allow allow-list
-          Repeatable allow-list entry (<type>:<uuid>, e.g. workspace:1234-...).
+          Repeatable allow-list entry (`<type>:<uuid>`, e.g.
+          workspace:1234-...).
 
       --lifetime string, $CODER_TOKEN_LIFETIME
           Duration for the token lifetime. Supports standard Go duration units

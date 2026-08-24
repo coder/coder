@@ -113,9 +113,8 @@ func (s ExecutionState) QueueNonEmpty() bool {
 //
 // The classifier is a single flat switch over the valid (status,
 // archived, queue) tuples in the chat execution state model. Anything
-// outside that set (legacy pending/paused/completed statuses, archived
-// busy states, waiting with a non-empty queue, future enum values)
-// falls through to [StateInvalid].
+// outside that set (archived busy states, waiting with a non-empty
+// queue, future enum values) falls through to [StateInvalid].
 //
 //nolint:revive // queueNonEmpty/exists are simple classifier inputs.
 func ClassifyExecutionState(chat database.Chat, queueNonEmpty, exists bool) ExecutionState {

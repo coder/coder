@@ -1,4 +1,4 @@
-# Connection Logs
+# Connection Logs (Premium)
 
 > [!NOTE]
 > Connection logs require a
@@ -24,6 +24,27 @@ The connection log aims to capture a record of all workspace SSH and IDE session
 These events are reported by workspace agents, and their receipt by the server
 is not guaranteed.
 
+Agent-reported events do not identify the Coder user who connected. To
+attribute SSH and IDE activity to a user, correlate them with tunnel
+events for the same workspace and agent.
+
+## Tunnel Connections
+
+The connection log records the authorization decision for each request to add a tunnel to a workspace agent.
+Accepted requests have status code `101`, and denied requests have status code `403`.
+Tunnel events include the authenticated user's identity, IP address, and user agent.
+
+Keep the following in mind when interpreting tunnel events:
+
+- A tunnel event records an authorization decision, not how the tunnel was used.
+  Clients such as `coder ssh`, `coder port-forward`, `coder ping`, `coder speedtest`, Coder Desktop, and IDE extensions can request tunnels.
+- Tunnel events are deduplicated per workspace agent, actor, IP address, client, and authorization result.
+  Clients automatically re-request tunnels after network interruptions or server restarts.
+  These requests do not produce new events while a session is active.
+  A new event is recorded after one hour of inactivity, or when the actor, IP address, client, or result changes.
+- Like workspace app connections, tunnel events are point-in-time records.
+  They have no close time and are excluded from `status:` filter results.
+
 ## How to Filter Connection Logs
 
 You can filter connection logs by the following parameters:
@@ -36,9 +57,9 @@ You can filter connection logs by the following parameters:
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
 - `username`: The name of the user who initiated the connection.
-   Results will not include SSH or IDE sessions.
+   Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.
-   Results will not include SSH or IDE sessions.
+   Results do not include agent-reported SSH or IDE sessions.
 - `connected_after`: The time after which the connection started.
    Uses the RFC3339Nano format.
 - `connected_before`: The time before which the connection started.

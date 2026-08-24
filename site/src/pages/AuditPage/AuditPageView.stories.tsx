@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -9,13 +10,16 @@ import {
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
 import type { UsePaginatedQueryResult } from "#/hooks/usePaginatedQuery";
-import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
+	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { pixelWithTablet } from "#/testHelpers/pixel";
+import { docs } from "#/utils/docs";
+import { useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
@@ -43,6 +47,7 @@ const meta: Meta<typeof AuditPageView> = {
 		isAuditLogVisible: true,
 		filterProps: defaultFilterProps,
 		showOrgDetails: false,
+		permissions: MockPermissions,
 	},
 };
 
@@ -50,7 +55,7 @@ export default meta;
 type Story = StoryObj<typeof AuditPageView>;
 
 export const AuditPage: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		auditsQuery: mockSuccessResult,
 	},
@@ -91,10 +96,83 @@ export const NotVisible: Story = {
 		isAuditLogVisible: false,
 		auditsQuery: mockInitialRenderResult,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/security/audit-logs"));
+	},
+};
+
+export const NotVisibleWithoutLicenseAccess: Story = {
+	args: {
+		...NotVisible.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+const onResourceTypeChange = fn();
+
+// Uses the real resource-type menu so the generated resource type and its
+// friendly label are verified together.
+export const FilterByChatInstructionSettings: Story = {
+	args: {
+		auditsQuery: mockSuccessResult,
+	},
+	render: function AuditPageViewWithResourceTypeMenu(args) {
+		const resourceTypeMenu = useResourceTypeFilterMenu({
+			value: undefined,
+			onChange: onResourceTypeChange,
+		});
+		return (
+			<AuditPageView
+				{...args}
+				filterProps={{
+					...defaultFilterProps,
+					menus: {
+						...defaultFilterProps.menus,
+						resourceType: resourceTypeMenu,
+					},
+				}}
+			/>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		onResourceTypeChange.mockClear();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Select a resource type" }),
+		);
+		const option = await screen.findByRole("option", {
+			name: "Chat Instruction Settings",
+		});
+		await userEvent.click(option);
+
+		await expect(onResourceTypeChange).toHaveBeenCalledWith(
+			expect.objectContaining({
+				value: "chat_instruction_settings",
+				label: "Chat Instruction Settings",
+			}),
+		);
+	},
 };
 
 export const MultiOrg: Story = {
-	parameters: { chromatic: chromaticWithTablet },
+	parameters: { pixel: { matrix: pixelWithTablet } },
 	args: {
 		showOrgDetails: true,
 		auditsQuery: mockSuccessResult,

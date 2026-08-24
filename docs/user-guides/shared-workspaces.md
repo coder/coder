@@ -14,7 +14,7 @@ This is helpful in a number of scenarios, including:
 
 - Developers can do ad-hoc debugging or pair programming.
 - A workspace can be owned by a group of users for QA, on-call rotations, or shared staging.
-- AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Tasks](https://coder.com/docs/ai-coder/tasks).)
+- AI workflows where an agent prepares a workspace and a developer takes over to review or finalize the work (ex. with [Coder Agents](https://coder.com/docs/ai-coder/agents).)
 
 ## Getting Started
 
@@ -40,7 +40,7 @@ To remove sharing from a workspace:
 - `coder sharing remove <workspace> --group contractor`
   - Workspace is no longer shared with the group `contractor`.
 
-> [!Important]
+> [!IMPORTANT]
 > The workspace must be restarted for the user or group removal to take effect.
 
 To show who a workspace is shared with:
@@ -102,7 +102,7 @@ To allow other users to access workspace apps, configure subdomain-based access:
 2. Set `subdomain = true` on the workspace app. For example, if you use the
    [code-server module](https://registry.coder.com/modules/coder/code-server):
 
-   ```hcl
+   ```tf
    module "code-server" {
      source    = "registry.coder.com/coder/code-server/coder"
      agent_id  = coder_agent.main.id

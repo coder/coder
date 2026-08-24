@@ -27,7 +27,7 @@ the Coder host, modify your template to use the sysbox-runc runtime:
 resource "docker_container" "workspace" {
   # ...
   name    = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   env     = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
   command = ["sh", "-c", coder_agent.main.init_script]
   # Use the Sysbox container runtime (required)
@@ -105,7 +105,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
     }
   }
@@ -160,7 +160,7 @@ this secret.
 The following shows a minimal example using a the JSON API key from a GCP
 service account to pull a private image:
 
-```bash
+```sh
 # Create the secret
 $ kubectl create secret docker-registry <name> \
   --docker-server=us.gcr.io \
@@ -197,7 +197,7 @@ Before using Podman, please review the following documentation:
    [smart-device-manager](https://github.com/smarter-project/smarter-device-manager#enabling-access)
    to securely expose a FUSE devices to pods.
 
-   ```shell
+   ```sh
    cat <<EOF | kubectl create -f -
    apiVersion: apps/v1
    kind: DaemonSet
@@ -235,7 +235,7 @@ Before using Podman, please review the following documentation:
 
 2. Be sure to label your nodes to enable smarter-device-manager:
 
-   ```shell
+   ```sh
    kubectl get nodes
    kubectl label nodes --all smarter-device-manager=enabled
    ```
@@ -251,7 +251,7 @@ Before using Podman, please review the following documentation:
    [kubernetes-with-podman](https://github.com/coder/community-templates/tree/main/kubernetes-podman)
    example template, or make your own.
 
-   ```shell
+   ```sh
    echo "kubernetes-with-podman" | coder templates init
    cd ./kubernetes-with-podman
    coder templates create
@@ -265,7 +265,7 @@ Before using Podman, please review the following documentation:
 Rootless containers rely on Linux user-namespaces.
 [Bottlerocket](https://github.com/bottlerocket-os/bottlerocket) disables them by default (`user.max_user_namespaces = 0`), so Podman commands will return an error until you raise the limit:
 
-```output
+```txt
 cannot clone: Invalid argument
 user namespaces are not enabled in /proc/sys/user/max_user_namespaces
 ```
@@ -280,7 +280,7 @@ user namespaces are not enabled in /proc/sys/user/max_user_namespaces
 1. Reboot the node.
 1. Verify that the value is more than `0`:
 
-  ```shell
+  ```sh
   sysctl -n user.max_user_namespaces
   ```
 
@@ -333,7 +333,7 @@ resource "docker_container" "dind" {
 
 resource "docker_container" "workspace" {
   count   = data.coder_workspace.me.start_count
-  image   = "codercom/enterprise-base:ubuntu"
+  image   = "codercom/example-base:ubuntu"
   name    = "dev-${data.coder_workspace.me.id}"
   command = ["sh", "-c", coder_agent.main.init_script]
   env = [
@@ -391,7 +391,7 @@ resource "kubernetes_pod" "main" {
     }
     container {
       name    = "dev"
-      image   = "codercom/enterprise-base:ubuntu"
+      image   = "codercom/example-base:ubuntu"
       command = ["sh", "-c", coder_agent.main.init_script]
       security_context {
         run_as_user = "1000"
@@ -472,7 +472,7 @@ resource "kubernetes_pod" "dev" {
         name  = "CODER_AGENT_TOKEN"
         value = coder_agent.main.token
       }
-      image = "codercom/enterprise-base:ubuntu"
+      image = "codercom/example-base:ubuntu"
       command = ["sh", "-c", <<EOF
     # Start the Coder agent as the "coder" user
     # once systemd has started up

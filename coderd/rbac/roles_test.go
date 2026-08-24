@@ -203,60 +203,41 @@ func TestOwnerExec(t *testing.T) {
 	})
 }
 
-// TestMinimumImplicitMember verifies the floor/elevation gate on
-// organization-member and organization-service-account. When the option
-// is off (default), both roles carry the workspace-ops elevation. When
-// on, both roles carry only the floor and the elevation must be
-// granted explicitly via organization-workspace-access.
+// TestMemberRolesExcludeWorkspacePerms verifies that organization-member
+// and organization-service-account grant no workspace permissions, and
+// that the registered organization-workspace-access role is what carries
+// them.
 //
-//nolint:tparallel,paralleltest
-func TestMinimumImplicitMember(t *testing.T) {
+// Reads the global builtin role registry via RoleByName, which sibling
+// tests reload, so it must run serially.
+//
+//nolint:paralleltest
+func TestMemberRolesExcludeWorkspacePerms(t *testing.T) {
 	orgSettings := rbac.OrgSettings{
 		ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersEveryone,
 	}
 
 	hasResource := func(perms []rbac.Permission, resource string) bool {
-		for _, p := range perms {
-			if p.ResourceType == resource && !p.Negate {
-				return true
-			}
-		}
-		return false
+		return slices.ContainsFunc(perms, func(p rbac.Permission) bool {
+			return p.ResourceType == resource && !p.Negate
+		})
 	}
 
-	// ResourceWorkspace is granted by the elevation
-	// (OrgWorkspaceAccessMemberPerms) and not by the floor, so it acts as
-	// a witness for whether the elevation is bundled in.
-	elevationWitness := rbac.ResourceWorkspace.Type
-	// ResourceOrganizationMember is part of the floor; floor must remain
-	// regardless of the option.
-	floorWitness := rbac.ResourceOrganizationMember.Type
+	member := rbac.OrgMemberPermissions(orgSettings).Member
+	require.False(t, hasResource(member, rbac.ResourceWorkspace.Type), "organization-member must not grant workspace permissions")
+	require.True(t, hasResource(member, rbac.ResourceOrganizationMember.Type), "organization-member should grant read-self")
 
-	t.Run("Off", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(nil)
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+	sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
+	require.False(t, hasResource(sa, rbac.ResourceWorkspace.Type), "organization-service-account must not grant workspace permissions")
+	require.True(t, hasResource(sa, rbac.ResourceOrganizationMember.Type), "organization-service-account should grant read-self")
 
-		member := rbac.OrgMemberPermissions(orgSettings).Member
-		require.True(t, hasResource(member, elevationWitness), "organization-member should include the elevation when MinimumImplicitMember is off")
-		require.True(t, hasResource(member, floorWitness), "organization-member should include the floor")
-
-		sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-		require.True(t, hasResource(sa, elevationWitness), "organization-service-account should include the elevation when MinimumImplicitMember is off")
-		require.True(t, hasResource(sa, floorWitness), "organization-service-account should include the floor")
-	})
-
-	t.Run("On", func(t *testing.T) {
-		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{MinimumImplicitMember: true})
-		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
-
-		member := rbac.OrgMemberPermissions(orgSettings).Member
-		require.False(t, hasResource(member, elevationWitness), "organization-member should drop the elevation when MinimumImplicitMember is on")
-		require.True(t, hasResource(member, floorWitness), "organization-member should still include the floor")
-
-		sa := rbac.OrgServiceAccountPermissions(orgSettings).Member
-		require.False(t, hasResource(sa, elevationWitness), "organization-service-account should drop the elevation when MinimumImplicitMember is on")
-		require.True(t, hasResource(sa, floorWitness), "organization-service-account should still include the floor")
-	})
+	// The registered organization-workspace-access role is the grant
+	// path for workspace permissions.
+	orgID := uuid.New()
+	wsAccess, err := rbac.RoleByName(rbac.ScopedRoleOrgWorkspaceAccess(orgID))
+	require.NoError(t, err)
+	require.True(t, hasResource(wsAccess.ByOrgID[orgID.String()].Member, rbac.ResourceWorkspace.Type),
+		"organization-workspace-access should grant workspace permissions")
 }
 
 // These were "pared down" in https://github.com/coder/coder/pull/21359 to avoid
@@ -841,6 +822,26 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
 				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:    "MCPServerConfigRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				orgID.String(): {policy.ActionRead},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAuditor, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, templateAdmin, userAdmin, auditor},
+			},
+		},
+		{
+			Name:     "MCPServerConfigWrite",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, auditor, orgMemberMe, memberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
 			},
 		},
 		{

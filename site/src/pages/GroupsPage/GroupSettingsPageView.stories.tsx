@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { maxAIBudgetDollars } from "#/modules/groups";
 import { MockGroup } from "#/testHelpers/entities";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
@@ -23,7 +24,7 @@ type Story = StoryObj<typeof GroupSettingsPageView>;
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Without the AI add-on, the AI budget section is hidden.
+		// Without the aibridge feature, the AI budget section is hidden.
 		await expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
 	},
 };
@@ -40,10 +41,15 @@ export const WithAIBudget: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			1000,
 		);
-		const helper = canvas.getByText(/month maximum/i);
+		const helper = canvas.getByText(/month, based on/i);
 		await expect(helper).toHaveTextContent(
-			"$7,000/month maximum, based on 7 members.",
+			"This group's limit is $7,000/month, based on 7 members.",
 		);
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how budgets apply across groups/i,
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -56,11 +62,23 @@ export const AIBudgetUncapped: Story = {
 		const canvas = within(canvasElement);
 		await expect(
 			canvas.getByLabelText("Monthly limit per member"),
-		).toHaveAttribute("placeholder", "unlimited");
-		await expect(canvas.getByText("unlimited budget")).toBeInTheDocument();
+		).toHaveAttribute("placeholder", "no budget");
 		await expect(
-			canvas.getByText("Members in this group have no spending cap."),
+			canvas.getByText("This group doesn't have a budget set."),
 		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/Members will fall back to another group's limit/),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how budgets apply across groups/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#effective-group-resolution",
+			),
+		);
 	},
 };
 
@@ -75,9 +93,14 @@ export const AIBudgetDisabled: Story = {
 		await expect(canvas.getByLabelText("Monthly limit per member")).toHaveValue(
 			0,
 		);
-		await expect(canvas.getByText("no budget")).toBeInTheDocument();
+		const summary = canvas.getByText(/This group's limit has been set to/);
+		await expect(summary).toHaveTextContent(
+			"This group's limit has been set to $0.",
+		);
 		await expect(
-			canvas.getByText("A $0 limit disables AI access for this group."),
+			canvas.getByText(
+				/A \$0 limit blocks AI access for members that aren't in another group/,
+			),
 		).toBeInTheDocument();
 	},
 };
@@ -91,10 +114,32 @@ export const AIBudgetDecimal: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Cents are kept when the amount is not a whole dollar.
-		const helper = canvas.getByText(/month maximum/i);
+		const helper = canvas.getByText(/month, based on/i);
 		await expect(helper).toHaveTextContent(
-			"$99.99/month maximum, based on 1 member.",
+			"This group's limit is $99.99/month, based on 1 member.",
 		);
+	},
+};
+
+// A budget above the configurable maximum blocks saving.
+export const AIBudgetAboveMaximum: Story = {
+	args: {
+		showAISettings: true,
+		initialBudgetDollars: null,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const input = canvas.getByLabelText("Monthly limit per member");
+
+		await userEvent.type(input, String(maxAIBudgetDollars + 1));
+		// Blur to surface the error, matching the touched-then-validate flow.
+		await userEvent.tab();
+		await expect(
+			await canvas.findByText("Enter an amount between 0 and $1,000,000."),
+		).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await expect(args.onSubmit).not.toHaveBeenCalled();
 	},
 };
 

@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
@@ -9,7 +10,7 @@ import {
 } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { withProxyProvider } from "#/testHelpers/storybook";
+import { withProxyProvider, withToaster } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -739,9 +740,42 @@ const githubMCP = buildMCPServer({
 
 const githubMCPConnected = { ...githubMCP, auth_connected: true };
 
+const notionMCPConnected = buildMCPServer({
+	id: "mcp-notion",
+	display_name: "Notion",
+	slug: "notion",
+	availability: "default_on",
+	auth_type: "oauth2",
+	auth_connected: true,
+	enabled: true,
+});
+
 const mcpDefaults = {
+	chatOrganizationId: "org-1",
 	onMCPSelectionChange: fn(),
 	onMCPAuthComplete: fn(),
+};
+
+const dispatchMCPOAuthComplete = (
+	serverID: string,
+	source: MessageEventSource | null = null,
+) => {
+	window.dispatchEvent(
+		new MessageEvent("message", {
+			data: { type: "mcp-oauth2-complete", serverID },
+			origin: location.origin,
+			source,
+		}),
+	);
+};
+
+// Requires window.open mocked to return a Window; the completion
+// message's source must be that same mocked popup to correlate.
+const startMCPOAuthFlow = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+	await userEvent.click(await body.findByRole("button", { name: "Auth" }));
 };
 
 // ── MCP stories ────────────────────────────────────────────────
@@ -761,6 +795,147 @@ export const WithMCPNeedingAuth: Story = {
 		...mcpDefaults,
 		mcpServers: [sentryMCP, githubMCP],
 		selectedMCPServerIds: [sentryMCP.id, githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(null);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(body.getByRole("button", { name: "Auth" }));
+		expect(window.open).toHaveBeenCalledWith(
+			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"_blank",
+			"width=900,height=600",
+		);
+		// The popup was blocked (window.open returned null), so the flow
+		// must not enter the connecting state that disables Auth buttons.
+		expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+	},
+};
+
+export const MCPAutoEnablesAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		expect(window.open).toHaveBeenCalledWith(
+			`/api/experimental/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			"_blank",
+			"width=900,height=600",
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([
+				linearMCP.id,
+				githubMCP.id,
+			]);
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+	},
+};
+
+// The coderd callback page posts the completion message and then closes
+// the popup, so the close poll can observe the closed popup before the
+// queued message is dispatched. An iframe contentWindow stands in for
+// the popup: it is a real Window whose closed becomes true on removal.
+export const MCPAutoEnablesWhenPopupClosesBeforeMessage: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [],
+	},
+	play: async ({ args, canvasElement }) => {
+		const doc = canvasElement.ownerDocument;
+		const iframe = doc.createElement("iframe");
+		doc.body.appendChild(iframe);
+		const popup = iframe.contentWindow;
+		if (!popup) {
+			throw new Error("iframe contentWindow unavailable");
+		}
+		spyOn(window, "open").mockReturnValue(popup);
+
+		await startMCPOAuthFlow(canvasElement);
+		iframe.remove();
+		expect(popup.closed).toBe(true);
+		// Wait for the close poll to clear the connecting state before
+		// delivering the completion message.
+		const body = within(doc.body);
+		await waitFor(
+			() => {
+				expect(body.getByRole("button", { name: "Auth" })).toBeEnabled();
+			},
+			{ timeout: 2_000 },
+		);
+		dispatchMCPOAuthComplete(githubMCP.id, popup);
+
+		await waitFor(() => {
+			expect(args.onMCPSelectionChange).toHaveBeenCalledWith([githubMCP.id]);
+		});
+	},
+};
+
+export const MCPDoesNotDuplicateSelectionAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCP],
+		selectedMCPServerIds: [githubMCP.id],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresUnsolicitedOAuthComplete: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [linearMCP.id],
+	},
+	play: async ({ args }) => {
+		dispatchMCPOAuthComplete(githubMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(githubMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPIgnoresMismatchedServerAfterOAuthCompletes: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP],
+		selectedMCPServerIds: [],
+	},
+	beforeEach: () => {
+		spyOn(window, "open").mockReturnValue(window);
+	},
+	play: async ({ args, canvasElement }) => {
+		await startMCPOAuthFlow(canvasElement);
+		dispatchMCPOAuthComplete(linearMCP.id, window);
+
+		await waitFor(() => {
+			expect(args.onMCPAuthComplete).toHaveBeenCalledWith(linearMCP.id);
+		});
+		expect(args.onMCPSelectionChange).not.toHaveBeenCalled();
 	},
 };
 
@@ -800,6 +975,147 @@ export const PlusMenuOpen: Story = {
 	},
 };
 
+export const MCPDisconnectControls: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [linearMCP, githubMCP, notionMCPConnected],
+		selectedMCPServerIds: [linearMCP.id, notionMCPConnected.id],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			await body.findByRole("button", { name: "Disconnect Notion" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect GitHub" }),
+		).not.toBeInTheDocument();
+		expect(body.getByRole("button", { name: "Auth" })).toBeInTheDocument();
+		expect(
+			body.queryByRole("button", { name: "Disconnect Linear" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const MCPDisconnectCancel: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		expect(await body.findByText("Disconnect GitHub?")).toBeInTheDocument();
+		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).not.toHaveBeenCalled();
+	},
+};
+
+export const MCPDisconnectConfirm: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: true,
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledTimes(1);
+		expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalledWith(
+			githubMCPConnected.id,
+		);
+	},
+};
+
+export const MCPDisconnectRevocationWarning: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	decorators: [withToaster],
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockResolvedValue({
+			token_revoked: false,
+			token_revocation_error:
+				"The OAuth provider rejected the revocation request.",
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(body.queryByText("Disconnect GitHub?")).not.toBeInTheDocument(),
+		);
+		expect(
+			await body.findByText(
+				"The OAuth provider rejected the revocation request.",
+			),
+		).toBeInTheDocument();
+	},
+};
+
+export const MCPDisconnectError: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "disconnectMCPServerOAuth2").mockRejectedValue(
+			new Error("disconnect failed"),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Disconnect GitHub" }),
+		);
+		await body.findByText("Disconnect GitHub?");
+		await userEvent.click(body.getByRole("button", { name: "Disconnect" }));
+		await waitFor(() =>
+			expect(API.experimental.disconnectMCPServerOAuth2).toHaveBeenCalled(),
+		);
+		expect(body.getByText("Disconnect GitHub?")).toBeInTheDocument();
+	},
+};
+
 export const PlanFirstMenuItem: Story = {
 	args: {
 		onPlanModeToggle: fn(),
@@ -824,6 +1140,8 @@ export const PlanningIndicator: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "desktopZoom200" },
+		// CLEANUP: this desktop-at-200%-zoom snapshot still uses the Chromatic
+		// viewport param; migrate it to a pixel viewport.
 		chromatic: { viewports: [720] },
 	},
 	play: async ({ canvasElement }) => {
@@ -1072,7 +1390,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1164,7 +1482,7 @@ export const OverflowBadges: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
-		chromatic: { viewports: [414] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1243,7 +1561,7 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
-		chromatic: { viewports: [375] },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

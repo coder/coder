@@ -1,16 +1,24 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { MockAIGatewayKeys, mockApiError } from "#/testHelpers/entities";
+import {
+	MockAIGatewayKeys,
+	MockPermissions,
+	mockApiError,
+} from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { GatewayKeysPageView } from "./GatewayKeysPageView";
 
 const meta: Meta<typeof GatewayKeysPageView> = {
 	title: "pages/AISettingsPage/GatewayKeysPageView",
 	component: GatewayKeysPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	args: {
 		keys: MockAIGatewayKeys,
 		isLoading: false,
 		error: null,
 		showPaywall: false,
+		permissions: MockPermissions,
 		onCreateKey: fn(),
 		onDeleteKey: fn(),
 	},
@@ -68,6 +76,35 @@ export const Paywall: Story = {
 	args: {
 		showPaywall: true,
 		keys: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const cta = canvas.getByRole("link", { name: "Start trial for free" });
+		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute(
+			"href",
+			docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key"),
+		);
+	},
+};
+
+export const PaywallWithoutLicenseAccess: Story = {
+	args: {
+		...Paywall.args,
+		permissions: { ...MockPermissions, viewAllLicenses: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -10,13 +10,13 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
@@ -68,18 +68,23 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 		modelConfigID:  modelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		step: stepData{Content: []fantasy.Content{
-			fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
-			fantasy.ToolResultContent{
-				ToolCallID: "call-1",
-				ToolName:   "execute",
-				Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
 			},
-		}},
+			Runtime: 1500 * time.Millisecond,
+		},
 	})
 	require.NoError(t, err)
 	require.Len(t, got.Messages, 2)
 	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[0].RuntimeMs)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
 
 	assistantParts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
 	require.Len(t, assistantParts, 1)
@@ -93,6 +98,34 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.Equal(t, "call-1", toolParts[0].ToolCallID)
 	require.Equal(t, "execute", toolParts[0].ToolName)
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
+}
+
+// A step with no model invocation (a local tool execution batch) must
+// persist runtime_ms NULL: its wall time is not billable.
+func TestBuildCommitStepMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{ToolCallID: "call-1", ToolName: "execute", Input: `{"cmd":"pwd"}`},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
+			},
+			Runtime: 0,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
 }
 
 func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *testing.T) {
@@ -126,21 +159,13 @@ func TestBuildCommitStepMessages_ProviderExecutedResultsStayAssistantContent(t *
 	require.True(t, parts[1].ProviderExecuted)
 }
 
-func TestBuildCommitStepMessages_UsageCostRuntime(t *testing.T) {
+func TestBuildCommitStepMessages_UsageRuntime(t *testing.T) {
 	t.Parallel()
 
-	inputPrice := decimal.NewFromFloat(2.5)
-	outputPrice := decimal.NewFromFloat(7.5)
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:  uuid.New(),
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         slog.Make(),
-		modelCallConfig: codersdk.ChatModelCallConfig{
-			Cost: &codersdk.ModelCostConfig{
-				InputPricePerMillionTokens:  &inputPrice,
-				OutputPricePerMillionTokens: &outputPrice,
-			},
-		},
 		step: stepData{
 			Content:      []fantasy.Content{fantasy.TextContent{Text: "usage"}},
 			Usage:        fantasy.Usage{InputTokens: 100, OutputTokens: 20, TotalTokens: 120, ReasoningTokens: 3, CacheCreationTokens: 4, CacheReadTokens: 5},
@@ -159,8 +184,6 @@ func TestBuildCommitStepMessages_UsageCostRuntime(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 5, Valid: true}, msg.CacheReadTokens)
 	require.Equal(t, sql.NullInt64{Int64: 4096, Valid: true}, msg.ContextLimit)
 	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, msg.RuntimeMs)
-	require.True(t, msg.TotalCostMicros.Valid)
-	require.Greater(t, msg.TotalCostMicros.Int64, int64(0))
 }
 
 func TestBuildCommitStepMessages_ToolTimestampsAndMCPConfigIDs(t *testing.T) {
@@ -211,6 +234,7 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 			UsagePercent:     81.5,
 			ContextTokens:    815,
 			ContextLimit:     1000,
+			Runtime:          1500 * time.Millisecond,
 		},
 	})
 	require.NoError(t, err)
@@ -222,10 +246,12 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.True(t, got.Messages[0].Compressed)
 	require.Equal(t, uuid.NullUUID{UUID: modelConfigID, Valid: true}, got.Messages[0].ModelConfigID)
 	require.Equal(t, "system summary", parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)[0].Text)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
 
 	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
 	require.Equal(t, database.ChatMessageVisibilityUser, got.Messages[1].Visibility)
 	require.True(t, got.Messages[1].Compressed)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got.Messages[1].RuntimeMs)
 	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, callPart.Type)
 	require.Equal(t, "summary-1", callPart.ToolCallID)
@@ -234,10 +260,39 @@ func TestBuildCompactionMessages_CompressedSummaryToolCallAndResult(t *testing.T
 	require.Equal(t, database.ChatMessageRoleTool, got.Messages[2].Role)
 	require.Equal(t, database.ChatMessageVisibilityBoth, got.Messages[2].Visibility)
 	require.True(t, got.Messages[2].Compressed)
+	require.False(t, got.Messages[2].RuntimeMs.Valid)
 	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
 	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, resultPart.Type)
 	require.Equal(t, "summary-1", resultPart.ToolCallID)
 	require.JSONEq(t, `{"summary":"user report","source":"automatic","threshold_percent":70,"usage_percent":81.5,"context_tokens":815,"context_limit_tokens":1000}`, string(resultPart.Result))
+}
+
+// A compaction that never reached the summary model call carries no
+// runtime, so its assistant row must persist runtime_ms NULL.
+func TestBuildCompactionMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			ThresholdPercent: 70,
+			UsagePercent:     81.5,
+			ContextTokens:    815,
+			ContextLimit:     1000,
+			Runtime:          0,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[1].Role)
+	for i := range got.Messages {
+		require.False(t, got.Messages[i].RuntimeMs.Valid)
+	}
 }
 
 func TestCurrentTurnStepCount_ExcludesCompressedCompactionMessages(t *testing.T) {
@@ -270,6 +325,22 @@ func TestCurrentTurnStepCount_CountsAssistantMessagesAfterLatestUser(t *testing.
 	require.Equal(t, 2, got)
 }
 
+func TestCurrentTurnStepCount_IgnoresHookModelContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+		hookContext,
+		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 2, got)
+}
+
 func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	t.Parallel()
 
@@ -291,6 +362,134 @@ func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionCompact, decision.kind)
+}
+
+func TestBuildCompactionMessages_ManualSource(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCompactionMessages(buildCompactionMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		toolCallID:     "summary-1",
+		toolName:       "chat_summarized",
+		compaction: compactionOutcome{
+			SystemSummary:    "system summary",
+			SummaryReport:    "user report",
+			Source:           chatloop.CompactionSourceManual,
+			ThresholdPercent: 70,
+			UsagePercent:     10,
+			ContextTokens:    100,
+			ContextLimit:     1000,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+
+	callPart := parseMessageParts(t, got.Messages[1].Role, got.Messages[1].Content)[0]
+	require.JSONEq(t, `{"source":"manual","threshold_percent":70}`, string(callPart.Args))
+	resultPart := parseMessageParts(t, got.Messages[2].Role, got.Messages[2].Content)[0]
+	require.JSONEq(t, `{"summary":"user report","source":"manual","threshold_percent":70,"usage_percent":10,"context_tokens":100,"context_limit_tokens":1000}`, string(resultPart.Result))
+}
+
+// TestDecisionForcedCompaction verifies the manual compaction request
+// ordering contract: a pending request beats the history-complete
+// FinishTurn decision on idle chats, loses to unresolved tool calls,
+// and is skipped when nothing after the latest boundary is
+// compactable.
+func TestDecisionForcedCompaction(t *testing.T) {
+	t.Parallel()
+
+	requestedChat := database.Chat{
+		CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true},
+	}
+
+	t.Run("beats history complete", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.True(t, decision.forced)
+	})
+
+	t.Run("loses to unresolved tool calls", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionExecuteLocalTools, decision.kind)
+		require.False(t, decision.forced)
+	})
+
+	t.Run("skipped when nothing compactable", func(t *testing.T) {
+		t.Parallel()
+
+		// Everything up to and including the latest boundary is
+		// compressed; no uncompressed assistant follows, so the
+		// forced compact is skipped and the normal decision applies
+		// (after-compaction histories continue with an assistant
+		// generation, exactly as if no request were pending).
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("follow-up question")),
+			dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("follow-up answer")),
+		}
+		// Only messages up to the boundary: strip the follow-up.
+		requested, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages[:3],
+		})
+		require.NoError(t, err)
+		unrequested, err := decideGenerationAction(generationDecisionInput{
+			chat:     database.Chat{},
+			messages: messages[:3],
+		})
+		require.NoError(t, err)
+		require.Equal(t, unrequested.kind, requested.kind,
+			"stale request must not change the decision")
+		require.False(t, requested.forced)
+
+		// With an uncompressed assistant after the boundary the
+		// forced compact fires again.
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     requestedChat,
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionCompact, decision.kind)
+		require.True(t, decision.forced)
+	})
+
+	t.Run("no request follows normal decision", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("question")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
+		}
+		decision, err := decideGenerationAction(generationDecisionInput{
+			chat:     database.Chat{},
+			messages: messages,
+		})
+		require.NoError(t, err)
+		require.Equal(t, generationActionFinishTurn, decision.kind)
+	})
 }
 
 func TestCompactionStatusFromHistory(t *testing.T) {
@@ -416,6 +615,22 @@ func TestDecisionDetectsStopAfterToolFromCommittedHistory(t *testing.T) {
 	require.False(t, got)
 }
 
+func TestDecisionDetectsStopAfterToolAcrossHookContext(t *testing.T) {
+	t.Parallel()
+
+	hookContext := dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("hook context"))
+	hookContext.Visibility = database.ChatMessageVisibilityModel
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("plan")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("plan-1", "propose_plan", json.RawMessage(`{}`))),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("plan-1", "propose_plan", json.RawMessage(`{"ok":true}`), false, false)),
+		hookContext,
+	}
+	got, err := historyHasStopAfterToolResult(messages, map[string]struct{}{"propose_plan": {}})
+	require.NoError(t, err)
+	require.True(t, got)
+}
+
 func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	t.Parallel()
 
@@ -472,6 +687,59 @@ func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *t
 	syntheticParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Len(t, syntheticParts, 1)
 	require.Equal(t, "call-1", syntheticParts[0].ToolCallID)
+}
+
+func TestBufferedPartsToPartialMessages_AttachesAttemptRuntime(t *testing.T) {
+	t.Parallel()
+
+	parts := []messagepartbuffer.Part{
+		{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageText("partial ")},
+		{Seq: 2, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{"cmd":"pwd"}`))},
+	}
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, got[0].RuntimeMs)
+	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
+	require.False(t, got[1].RuntimeMs.Valid)
+}
+
+func TestBufferedPartsToPartialMessages_DropsRuntimeWithoutAssistantContent(t *testing.T) {
+	t.Parallel()
+
+	got, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          nil,
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	// Tool execution publishes assistant-role file parts for
+	// attachments. A suffix containing only those is a tool batch,
+	// not model generation, so its span is not billed.
+	got, err = bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts: []messagepartbuffer.Part{
+			{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")},
+		},
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		attemptRuntime: 1500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, database.ChatMessageRoleAssistant, got[0].Role)
+	require.False(t, got[0].RuntimeMs.Valid)
 }
 
 func TestBufferedPartsToPartialMessages_MergesToolCallDeltasWithoutFinal(t *testing.T) {
@@ -670,4 +938,73 @@ func (s *partialConversionLogSink) entriesAtLevelWithMessage(level slog.Level, m
 		}
 	}
 	return entries
+}
+
+func TestBuildCommitStepMessages_MarksHookRewrittenToolCalls(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{
+					ToolCallID: "rewritten",
+					ToolName:   "execute",
+					Input:      `{"command":"echo admitted"}`,
+				},
+				fantasy.ToolCallContent{
+					ToolCallID: "untouched",
+					ToolName:   "execute",
+					Input:      `{"command":"echo original"}`,
+				},
+			},
+		},
+		hookRewrittenToolCalls: map[string]json.RawMessage{"rewritten": {}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	parts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.Equal(t, "rewritten", parts[0].ToolCallID)
+	require.True(t, parts[0].HookRewritten)
+	require.Equal(t, "untouched", parts[1].ToolCallID)
+	require.False(t, parts[1].HookRewritten)
+}
+
+func TestBuildCommitStepMessages_SkipsProviderExecutedRewriteAttribution(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolCallContent{
+					ToolCallID:       "shared",
+					ToolName:         "web_search",
+					Input:            `{"query":"coder"}`,
+					ProviderExecuted: true,
+				},
+				fantasy.ToolCallContent{
+					ToolCallID: "shared",
+					ToolName:   "execute",
+					Input:      `{"command":"echo admitted"}`,
+				},
+			},
+		},
+		hookRewrittenToolCalls: map[string]json.RawMessage{"shared": {}},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	parts := parseMessageParts(t, got.Messages[0].Role, got.Messages[0].Content)
+	require.Len(t, parts, 2)
+	require.True(t, parts[0].ProviderExecuted)
+	require.False(t, parts[0].HookRewritten)
+	require.False(t, parts[1].ProviderExecuted)
+	require.True(t, parts[1].HookRewritten)
 }

@@ -4,11 +4,8 @@ import (
 	"context"
 	"time"
 
-	"charm.land/fantasy"
-
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
 const (
@@ -111,37 +108,4 @@ func (p *Server) scheduleDebugCleanup(
 		logFields = append(logFields, slog.Error(err))
 		p.logger.Error(context.WithoutCancel(ctx), "failed to schedule chat debug cleanup", logFields...)
 	}
-}
-
-func (p *Server) newDebugAwareModel(
-	ctx context.Context,
-	req modelClientRequest,
-	route aiGatewayModelRoute,
-	opts modelBuildOptions,
-) (fantasy.LanguageModel, bool, error) {
-	provider, resolvedModel, err := chatprovider.ResolveModelWithProviderHint(req.ModelName, route.ModelProviderHint)
-	if err != nil {
-		return nil, false, err
-	}
-	route.ModelProviderHint = provider
-	req.ModelName = resolvedModel
-
-	debugSvc := p.debugService()
-	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, req.Chat.ID, req.Chat.OwnerID)
-	opts.RecordHTTP = debugEnabled
-
-	model, err := p.newModel(ctx, req, route, opts)
-	if err != nil {
-		return nil, debugEnabled, err
-	}
-	if !debugEnabled {
-		return model, false, nil
-	}
-
-	return chatdebug.WrapModel(model, debugSvc, chatdebug.RecorderOptions{
-		ChatID:   req.Chat.ID,
-		OwnerID:  req.Chat.OwnerID,
-		Provider: provider,
-		Model:    resolvedModel,
-	}), true, nil
 }

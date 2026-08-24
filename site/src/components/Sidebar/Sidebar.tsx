@@ -8,7 +8,11 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
-	return <nav className={cn("w-60 flex-shrink-0", className)}>{children}</nav>;
+	return (
+		<nav className={cn("w-full lg:w-60 flex-shrink-0", className)}>
+			{children}
+		</nav>
+	);
 };
 
 interface SidebarHeaderProps {

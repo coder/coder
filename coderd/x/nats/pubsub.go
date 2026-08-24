@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net"
 	"net/url"
 	"sync"
 	"time"
@@ -15,7 +16,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/quartz"
 )
 
 // DefaultServerMaxPendingBytes caps how many bytes the embedded NATS server will
@@ -121,6 +124,24 @@ type Options struct {
 	// clustered embedded NATS servers. Empty disables route auth.
 	ClusterAuthToken string
 
+	// ClusterCA enables mutual TLS on the cluster route listener. When set
+	// (and cluster mode is enabled), each replica mints an ephemeral leaf
+	// certificate from the active nats_ca CA and verifies peers against the
+	// CA fetched from this cache on each handshake. Nil keeps routes
+	// plaintext (token auth only). cryptokeys.SigningKeycache satisfies this.
+	//
+	// The leaf's IP SAN (and the accept-side source binding) is this replica's
+	// ClusterHost, so ClusterHost must be an IP for mTLS to activate.
+	ClusterCA cryptokeys.SigningKeycache
+
+	// clock overrides the cluster TLS clock, for tests.
+	clock quartz.Clock
+
+	// clusterTLSTimeout overrides the cluster route TLS handshake timeout, for
+	// tests. Zero leaves the NATS default (2s). Tests use a longer timeout
+	// because handshakes are flaky under load and in CI.
+	clusterTLSTimeout time.Duration
+
 	// PeerFetcher provides the current set of peer route addresses.
 	// RefreshPeers uses it to update the configured cluster routes.
 	PeerFetcher PeerFetcher
@@ -182,6 +203,8 @@ type Pubsub struct {
 	clustered     bool
 	serverOpts    *natsserver.Options
 	currentRoutes []*url.URL
+	// clusterTLS is non-nil when the cluster route listener runs mutual TLS.
+	clusterTLS *clusterTLS
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
@@ -304,6 +327,25 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		return nil, err
 	}
 
+	// When ClusterCA is set, install the cluster TLS callbacks at boot so the
+	// route listener can negotiate mTLS. The callbacks read the CA cache on
+	// each handshake, so the default noop cache keeps routes inert (no leaf can
+	// be minted) until SetCACache swaps in a real cache. The leaf IP SAN is this
+	// replica's ClusterHost, fixed here at construction; leaf minting enforces
+	// that it is an IP. ClusterCA == nil keeps routes plaintext (token auth
+	// only).
+	var ct *clusterTLS
+	if !opts.disableCluster && opts.ClusterCA != nil {
+		selfIP := net.ParseIP(opts.ClusterHost)
+		ct = newClusterTLS(ctx, logger, opts.clock, opts.ClusterCA, selfIP)
+		sopts.Cluster.TLSConfig = ct.tlsConfig()
+		// Leave TLSTimeout unset (NATS defaults to 2s) unless a test overrides
+		// it; the default has not shown a need to change in production.
+		if opts.clusterTLSTimeout > 0 {
+			sopts.Cluster.TLSTimeout = opts.clusterTLSTimeout.Seconds()
+		}
+	}
+
 	ns, err := startEmbeddedServer(sopts)
 	if err != nil {
 		return nil, err
@@ -333,6 +375,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 	p.clustered = !opts.disableCluster
 	p.serverOpts = sopts.Clone()
 	p.currentRoutes = cloneRouteURLs(sopts.Routes)
+	p.clusterTLS = ct
 	handlers := p.buildConnHandlers()
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")

@@ -44,6 +44,32 @@ type PrebuildsSettings struct {
 	ReconciliationPaused bool      `db:"reconciliation_paused" json:"reconciliation_paused"`
 }
 
+type OAuth2ProviderSettings struct {
+	ID                               uuid.UUID `db:"id" json:"id"`
+	DynamicClientRegistrationEnabled bool      `db:"dynamic_client_registration_enabled" json:"dynamic_client_registration_enabled"`
+}
+
+// ChatInstructionSettings is the auditable shape of the deployment-wide
+// chat instruction configuration, stored across the
+// agents_chat_system_prompt, agents_chat_include_default_system_prompt and
+// agents_chat_plan_mode_instructions site_configs keys. Both the
+// system-prompt and plan-mode-instructions endpoints audit this one type;
+// each populates only the fields its endpoint can change.
+type ChatInstructionSettings struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// Name identifies which setting an audit row concerns (e.g. "System
+	// prompt"). It is ignored in diffs and set identically on Old and New.
+	Name         string `db:"name" json:"name"`
+	SystemPrompt string `db:"system_prompt" json:"system_prompt"`
+	// IncludeDefaultSystemPromptSet records whether the override row
+	// exists, not only its effective value: writing explicit false over a
+	// legacy absent row does not move the effective value but changes
+	// future behavior, so presence must enter the diff.
+	IncludeDefaultSystemPromptSet bool   `db:"include_default_system_prompt_set" json:"include_default_system_prompt_set"`
+	IncludeDefaultSystemPrompt    bool   `db:"include_default_system_prompt" json:"include_default_system_prompt"`
+	PlanModeInstructions          string `db:"plan_mode_instructions" json:"plan_mode_instructions"`
+}
+
 type Actions []policy.Action
 
 func (a *Actions) Scan(src interface{}) error {
@@ -115,6 +141,34 @@ type ChatACLEntry struct {
 	Permissions []policy.Action `json:"permissions"`
 }
 
+// AgentMetadataAggregate is the agent_metadata jsonb array the
+// GetWorkspaces query aggregates for the include_agent_metadata
+// expansion. Elements have WorkspaceAgentMetadatum's JSON shape; each
+// carries its workspace_agent_id so multi-agent workspaces can map
+// values onto the right agent. The generated row keeps
+// json.RawMessage because sqlc overrides cannot target expression
+// columns; callers Scan the raw value into this type.
+type AgentMetadataAggregate []WorkspaceAgentMetadatum
+
+func (a *AgentMetadataAggregate) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case nil:
+		return nil
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	case json.RawMessage:
+		return json.Unmarshal(v, &a)
+	}
+
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a AgentMetadataAggregate) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
 type WorkspaceACL map[string]WorkspaceACLEntry
 
 func (t *WorkspaceACL) Scan(src interface{}) error {
@@ -130,7 +184,7 @@ func (t *WorkspaceACL) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
-//nolint:revive
+//nolint:revive,staticcheck // Receiver name matches the other WorkspaceACL methods in this file.
 func (w WorkspaceACL) RBACACL() map[string][]policy.Action {
 	// Convert WorkspaceACL to a map of string to []policy.Action.
 	// This is used for RBAC checks.

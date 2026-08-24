@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -1257,7 +1258,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 	mux.Handle(revokeTokenPath, http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if f.revokeTokenGitHubFormat {
 			u, p, ok := r.BasicAuth()
-			if !ok || !(u == f.clientID && p == f.clientSecret) {
+			if !ok || (u != f.clientID || p != f.clientSecret) {
 				httpError(rw, http.StatusForbidden, xerrors.Errorf("basic auth failed"))
 				return
 			}
@@ -1641,6 +1642,7 @@ func (f *FakeIDP) ExternalAuthConfig(t testing.TB, id string, custom *ExternalAu
 			Scopes:   []string{},
 			CodeURL:  f.locked.Provider().DeviceCodeURL,
 		},
+		RefreshGroup: new(singleflight.Group),
 	}
 
 	if !custom.UseDeviceAuth {

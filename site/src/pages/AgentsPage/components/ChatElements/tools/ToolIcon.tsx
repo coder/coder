@@ -1,14 +1,16 @@
 import {
+	ActivityIcon,
 	BadgeQuestionMarkIcon,
 	BotIcon,
 	CompassIcon,
 	FilePenLineIcon,
 	FileTextIcon,
 	LightbulbIcon,
-	LogInIcon,
+	type LucideIcon,
 	MonitorIcon,
 	PowerIcon,
 	RouteIcon,
+	SearchIcon,
 	ServerIcon,
 	TerminalIcon,
 	WrenchIcon,
@@ -22,19 +24,37 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import {
-	isSubagentToolName,
-	type SubagentIconKind,
-} from "./subagentDescriptor";
+
+export const toolIcons: Partial<Record<string, LucideIcon>> = {
+	execute: TerminalIcon,
+	process_output: ActivityIcon,
+	process_list: TerminalIcon,
+	process_signal: TerminalIcon,
+	read_file: FileTextIcon,
+	read_skill: FileTextIcon,
+	write_file: FilePenLineIcon,
+	edit_files: FilePenLineIcon,
+	list_templates: ServerIcon,
+	read_template: ServerIcon,
+	create_workspace: ServerIcon,
+	start_workspace: PowerIcon,
+	chat_summarized: BotIcon,
+	list_agents: BotIcon,
+	list_subagent_models: BotIcon,
+	thinking: LightbulbIcon,
+	propose_plan: RouteIcon,
+	ask_user_question: BadgeQuestionMarkIcon,
+	advisor: CompassIcon,
+	computer: MonitorIcon,
+	find_tools: SearchIcon,
+};
 
 export const ToolIcon: React.FC<{
 	name: string;
-	isError: boolean;
 	iconUrl?: string;
 	isRunning?: boolean;
 	serverName?: string;
-	subagentIconKind?: SubagentIconKind;
-}> = ({ name, iconUrl, isRunning, serverName, subagentIconKind }) => {
+}> = ({ name, iconUrl, isRunning, serverName }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = "text-current";
 	const base = cn(
@@ -80,55 +100,6 @@ export const ToolIcon: React.FC<{
 		return img;
 	}
 
-	if (isSubagentToolName(name)) {
-		// This name-based fallback only exists for legacy callers that do
-		// not pass a descriptor. The descriptor path should provide
-		// subagentIconKind for new subagent types instead of extending it.
-		const iconKind =
-			subagentIconKind ||
-			(name === "spawn_computer_use_agent" ? "monitor" : "bot");
-		return iconKind === "monitor" ? (
-			<MonitorIcon className={base} />
-		) : (
-			<BotIcon className={base} />
-		);
-	}
-
-	switch (name) {
-		case "execute":
-		case "process_output":
-		case "process_list":
-		case "process_signal":
-			return <TerminalIcon className={base} />;
-		case "wait_for_external_auth":
-			return <LogInIcon className={base} />;
-		case "read_file":
-		case "read_skill":
-		case "read_skill_file":
-			return <FileTextIcon className={base} />;
-		case "write_file":
-		case "edit_files":
-			return <FilePenLineIcon className={base} />;
-		case "list_templates":
-		case "read_template":
-		case "create_workspace":
-			return <ServerIcon className={base} />;
-		case "start_workspace":
-			return <PowerIcon className={base} />;
-		case "chat_summarized":
-			return <BotIcon className={base} />;
-		case "thinking":
-			return <LightbulbIcon className={base} />;
-		case "propose_plan":
-			return <RouteIcon className={base} />;
-		case "ask_user_question":
-			return <BadgeQuestionMarkIcon className={base} />;
-		case "advisor":
-			return <CompassIcon className={base} />;
-		case "computer":
-			return <MonitorIcon className={base} />;
-
-		default:
-			return <WrenchIcon className={base} />;
-	}
+	const Icon = toolIcons[name] ?? WrenchIcon;
+	return <Icon className={base} />;
 };

@@ -92,6 +92,11 @@ messages remain in the database and are still visible to users, but are excluded
 from the model's context window. This happens transparently and keeps
 long-running sessions productive.
 
+You can also trigger a compaction on demand by sending `/compact` while the
+agent is idle or in an error state, which clears the error. Manual compaction
+runs the same summarization regardless of current token usage and is labeled
+as manual in the conversation.
+
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working. Messages
@@ -183,7 +188,8 @@ parallel.
 
 | Tool                                        | What it does                                                                                                                                                                                                                                                         |
 |---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                                                                                                         |
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                             |
+| `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                     |
 | `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                             |
 | `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                    |
 | `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                 |

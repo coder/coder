@@ -1,4 +1,5 @@
 import type {
+	AIModelPrice,
 	ChatModelConfig,
 	ChatModelProvider,
 	ChatProviderConfig,
@@ -38,4 +39,26 @@ export const MockChatModelProvider: ChatModelProvider = {
 	provider: "openai",
 	available: true,
 	models: [],
+};
+
+// Prices are micro-units per million tokens.
+export const MockGPT5ModelPrice: AIModelPrice = {
+	provider: "openai",
+	model: "gpt-5",
+	input_price: 1250000,
+	output_price: 10000000,
+	cache_read_price: 125000,
+	cache_write_price: null,
+	source: "default",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+};
+
+// An input price below $0.0001 per million tokens renders as a threshold
+// rather than an exact value.
+export const MockGPT5BelowThresholdModelPrice: AIModelPrice = {
+	...MockGPT5ModelPrice,
+	input_price: 50,
+	output_price: null,
+	cache_read_price: null,
 };

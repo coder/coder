@@ -13,10 +13,18 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// Exceeding this timeout fails the entitlements computation; the caller
+// keeps serving the previous entitlements. The count normally completes
+// in well under a second, but its cost scales with the number of unique
+// role sets and it runs on a context with no deadline of its own.
+const workspaceCapableUserCountTimeout = 60 * time.Second
 
 // Entitlements processes licenses to return whether features are enabled or not.
 // TODO(@deansheather): This function and the related LicensesEntitlements
@@ -26,11 +34,14 @@ import (
 //  3. generate warnings related to usage
 func Entitlements(
 	ctx context.Context,
+	logger slog.Logger,
 	db database.Store,
 	replicaCount int,
 	externalAuthCount int,
 	keys map[string]ed25519.PublicKey,
 	enablements map[codersdk.FeatureName]bool,
+	authorizer rbac.Authorizer,
+	experiments codersdk.Experiments,
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
 
@@ -44,6 +55,24 @@ func Entitlements(
 	activeUserCount, err := db.GetActiveUserCount(dbauthz.AsSystemRestricted(ctx), false) // Don't include system user in license count.
 	if err != nil {
 		return codersdk.Entitlements{}, xerrors.Errorf("query active user count: %w", err)
+	}
+
+	// Workspace-capable licensing counts only users the RBAC engine
+	// authorizes to create workspaces. The mode alone decides whether the
+	// counting function below is invoked.
+	//
+	// TODO: when the workspace-capable-licensing experiment is removed, a
+	// nil authorizer must become a hard dev error rather than a silent
+	// fallback to active-user counting. Tests already pass a real
+	// authorizer; only the dedicated nil-fallback tests rely on this
+	// branch.
+	countingMode := UserCountingModeActive
+	if experiments.Enabled(codersdk.ExperimentWorkspaceCapableLicensing) {
+		if authorizer == nil {
+			logger.Warn(ctx, "workspace-capable licensing experiment is enabled but no authorizer is configured, counting all active users")
+		} else {
+			countingMode = UserCountingModeWorkspaceCapable
+		}
 	}
 
 	// nolint:gocritic // Getting active AI seat count is a system function.
@@ -64,11 +93,18 @@ func Entitlements(
 	}
 
 	entitlements, err := LicensesEntitlements(ctx, now, licenses, enablements, keys, FeatureArguments{
+		Logger:                logger,
 		ActiveUserCount:       activeUserCount,
 		ActiveAISeatCount:     activeAISeatCount,
 		ReplicaCount:          replicaCount,
 		ExternalAuthCount:     externalAuthCount,
 		ExternalTemplateCount: int64(len(externalTemplates)),
+		UserCountingMode:      countingMode,
+		WorkspaceCapableUserCountFn: func(ctx context.Context) (int64, error) {
+			ctx, cancel := context.WithTimeout(ctx, workspaceCapableUserCountTimeout)
+			defer cancel()
+			return CountWorkspaceCapableUsers(ctx, logger, db, authorizer)
+		},
 		ManagedAgentCountFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
 			// This is not super accurate, as the start and end times will be
 			// truncated to the date in UTC timezone. This is an optimization
@@ -85,6 +121,15 @@ func Entitlements(
 				EndDate:   endTime,
 			})
 		},
+		AgentRuntimeMsFn: func(ctx context.Context, startTime time.Time, endTime time.Time) (int64, error) {
+			// Bounds and bucket semantics are documented on the query.
+			//
+			// nolint:gocritic // Reading usage events requires the usage publisher subject.
+			return db.GetTotalUsageHBAgentRuntimeV1(dbauthz.AsUsagePublisher(ctx), database.GetTotalUsageHBAgentRuntimeV1Params{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+		},
 	})
 	if err != nil {
 		return entitlements, err
@@ -94,6 +139,7 @@ func Entitlements(
 }
 
 type FeatureArguments struct {
+	Logger                slog.Logger
 	ActiveUserCount       int64
 	ActiveAISeatCount     int64
 	ReplicaCount          int
@@ -103,9 +149,185 @@ type FeatureArguments struct {
 	// state of the world, but a count between two points in time determined by
 	// the licenses.
 	ManagedAgentCountFn ManagedAgentCountFn
+	// AgentRuntimeMsFn is queried with two points in time determined by the
+	// licenses, like the managed agent count above.
+	AgentRuntimeMsFn AgentRuntimeMsFn
+	// UserCountingMode selects the count that FeatureUserLimit candidates
+	// from AI Governance addon licenses are evaluated against. Under
+	// UserCountingModeWorkspaceCapable they use WorkspaceCapableUserCountFn's
+	// count; under any other value, including the zero value, every
+	// candidate uses ActiveUserCount.
+	UserCountingMode UserCountingMode
+	// WorkspaceCapableUserCountFn returns the number of active users the
+	// RBAC engine authorizes to create workspaces. It is invoked only
+	// under UserCountingModeWorkspaceCapable, and only when a valid
+	// license carries both the AI Governance addon and a FeatureUserLimit
+	// claim; the result then applies to that license's FeatureUserLimit
+	// candidate, and replaces ActiveUserCount when such a candidate is
+	// selected for enforcement. May be nil under UserCountingModeActive;
+	// leaving it nil when the workspace-capable mode would invoke it is a
+	// dev error.
+	WorkspaceCapableUserCountFn WorkspaceCapableUserCountFn
 }
 
+// UserCountingMode selects how license seats are counted for
+// FeatureUserLimit candidates from AI Governance addon licenses.
+type UserCountingMode string
+
+const (
+	// UserCountingModeActive evaluates every FeatureUserLimit candidate
+	// against the active user count.
+	UserCountingModeActive UserCountingMode = "active_users"
+	// UserCountingModeWorkspaceCapable evaluates addon-carrying candidates
+	// against the workspace-capable user count.
+	UserCountingModeWorkspaceCapable UserCountingMode = "workspace_capable_users"
+)
+
 type ManagedAgentCountFn func(ctx context.Context, from time.Time, to time.Time) (int64, error)
+
+// AgentRuntimeMsFn returns the total Coder Agent runtime in milliseconds
+// recorded between from (inclusive) and to (exclusive).
+type AgentRuntimeMsFn = ManagedAgentCountFn
+
+type WorkspaceCapableUserCountFn func(ctx context.Context) (int64, error)
+
+// userLimitCandidate is one license's FeatureUserLimit terms: its seat limit,
+// its entitlement, and the counting mode implied by whether the license
+// carries the AI Governance addon (workspace-capable counting of
+// workspace-capable users vs. counting all active users).
+type userLimitCandidate struct {
+	limit             int64
+	entitlement       codersdk.Entitlement
+	aiGovernanceAddon bool
+}
+
+// resolvedCandidate pairs a candidate with the count its counting mode
+// implies: the workspace-capable count for addon candidates when
+// workspace-capable counting is active, the active user count otherwise.
+type resolvedCandidate struct {
+	userLimitCandidate
+	count int64
+}
+
+// betterUserLimit reports whether candidate a is more favorable than b.
+// Ordering mirrors Feature.Compare: a candidate whose count is within its
+// limit beats one whose count is not, then higher entitlement, then
+// higher limit; the addon mode breaks remaining ties since its count is
+// never larger than the active user count.
+func betterUserLimit(a, b resolvedCandidate) bool {
+	compliantA := a.count <= a.limit
+	compliantB := b.count <= b.limit
+	if compliantA != compliantB {
+		return compliantA
+	}
+	if a.entitlement.Weight() != b.entitlement.Weight() {
+		return a.entitlement.Weight() > b.entitlement.Weight()
+	}
+	if a.limit != b.limit {
+		return a.limit > b.limit
+	}
+	return a.aiGovernanceAddon && !b.aiGovernanceAddon
+}
+
+// userLimitSelection reports how the enforced FeatureUserLimit was chosen.
+type userLimitSelection struct {
+	// workspaceCapable is true when the selected candidate counts
+	// workspace-capable users rather than all active users.
+	workspaceCapable bool
+	// addonEntitled is true when at least one addon-carrying candidate is
+	// fully valid rather than in its grace period.
+	addonEntitled bool
+}
+
+// selectUserLimit picks the most favorable FeatureUserLimit candidate and
+// applies its terms to the entitlements. Every candidate is evaluated
+// against the count its own license's mode implies (the workspace-capable
+// count for workspace-capable candidates, the active user count
+// otherwise), so one license's limit is never combined with another
+// license's counting mode. A candidate satisfied by its count wins over
+// any unsatisfied one.
+//
+// For example, a deployment holding a 200-seat non-addon license and a
+// 100-seat AI Governance license:
+//
+//	active | capable | 200-seat license | 100-seat addon license | selected
+//	   250 |      90 | over             | satisfied              | addon:     90/100
+//	   180 |     150 | satisfied        | over                   | non-addon: 180/200
+//
+// Neither license's limit is ever paired with the other's count: 90
+// capable users against the 200-seat limit, or 180 active users against
+// the 100-seat limit, are not considered.
+//
+// With no candidates the entitlements are left untouched. On a count
+// failure the entitlements computation must be aborted.
+func selectUserLimit(
+	ctx context.Context,
+	entitlements *codersdk.Entitlements,
+	featureArguments FeatureArguments,
+	candidates []userLimitCandidate,
+) (userLimitSelection, error) {
+	var sel userLimitSelection
+	if len(candidates) == 0 {
+		return sel, nil
+	}
+
+	hasAddonCandidate := false
+	for _, c := range candidates {
+		if c.aiGovernanceAddon {
+			hasAddonCandidate = true
+			if c.entitlement == codersdk.EntitlementEntitled {
+				sel.addonEntitled = true
+			}
+		}
+	}
+
+	var capableCount *int64
+	if hasAddonCandidate && featureArguments.UserCountingMode == UserCountingModeWorkspaceCapable {
+		if featureArguments.WorkspaceCapableUserCountFn == nil {
+			return sel, xerrors.New("dev error: workspace-capable user count function is not set")
+		}
+		count, err := featureArguments.WorkspaceCapableUserCountFn(ctx)
+		if err != nil {
+			// A failed seat count is deliberately a hard failure rather
+			// than a recorded entitlement error: continuing with
+			// ActiveUserCount would silently change what FeatureUserLimit
+			// measures. The caller keeps the previous entitlements, so a
+			// failure yields a stale count rather than a different one.
+			return sel, xerrors.Errorf("count workspace capable users: %w", err)
+		}
+		capableCount = &count
+	}
+
+	resolved := make([]resolvedCandidate, len(candidates))
+	for i, c := range candidates {
+		resolved[i] = resolvedCandidate{userLimitCandidate: c, count: featureArguments.ActiveUserCount}
+		if c.aiGovernanceAddon && capableCount != nil {
+			resolved[i].count = *capableCount
+		}
+	}
+
+	best := resolved[0]
+	for _, c := range resolved[1:] {
+		if betterUserLimit(c, best) {
+			best = c
+		}
+	}
+
+	if best.aiGovernanceAddon && capableCount != nil {
+		sel.workspaceCapable = true
+	}
+
+	// AddFeature merged limits and entitlements across licenses without
+	// pairing them to counting modes; overwrite the merged terms with the
+	// selected candidate's. Actual is replaced wholesale, so the merged
+	// feature's alias of the caller's ActiveUserCount no longer matters.
+	userLimit := entitlements.Features[codersdk.FeatureUserLimit]
+	userLimit.Limit = &best.limit
+	userLimit.Entitlement = best.entitlement
+	userLimit.Actual = &best.count
+	entitlements.Features[codersdk.FeatureUserLimit] = userLimit
+	return sel, nil
+}
 
 // LicensesEntitlements returns the entitlements for licenses. Entitlements are
 // merged from all licenses and the highest entitlement is used for each feature.
@@ -125,11 +347,12 @@ func LicensesEntitlements(
 	keys map[string]ed25519.PublicKey,
 	featureArguments FeatureArguments,
 ) (codersdk.Entitlements, error) {
-	// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
-	// Track if AI Bridge was explicitly granted via license Features (add-on)
-	// vs inherited from FeatureSet (Premium). Only explicit grants should
-	// suppress the soft warning for AI Bridge GA.
-	hasExplicitAIBridgeEntitlement := false
+	// Each valid license's FeatureUserLimit claim forms a candidate pairing of
+	// seat limit and counting mode: licenses carrying the AI Governance
+	// addon count workspace-capable users, others count all active users.
+	// The most favorable candidate is selected once all licenses are
+	// processed.
+	var userLimitCandidates []userLimitCandidate
 
 	// Default all entitlements to be disabled.
 	entitlements := codersdk.Entitlements{
@@ -252,15 +475,37 @@ func LicensesEntitlements(
 					End:      defaultManagedAgentsEnd,
 				},
 			})
-		}
 
-		// TODO: Remove this tracking once AI Bridge is enforced as an add-on license.
-		// Track explicit AI Bridge entitlement (add-on license). This is checked
-		// at the license level since AI Bridge may come from the FeatureSet
-		// (Premium) rather than being explicitly listed in claims.Features.
-		// Only having the AI Governance addon should suppress the soft warning.
-		if slices.Contains(claims.Addons, codersdk.AddonAIGovernance) {
-			hasExplicitAIBridgeEntitlement = true
+			// Premium licenses without agent_runtime_hours_* claims are
+			// grandfathered into a zero-hour allocation: the feature is
+			// granted disabled with a zero limit, which measures and
+			// publishes usage (see the measureAgentRuntimeMs call below)
+			// and caps concurrent agentic chats the same as an explicit
+			// zero allocation.
+			var (
+				// A fixed issue time that predates any license issued with
+				// agent_runtime_hours_* claims, so a license that actually
+				// carries those claims outranks this default in
+				// Feature.Compare (IssuedAt-first for usage period features)
+				// regardless of the licenses' relative issue dates. This
+				// must remain earlier than the earliest legitimately issued
+				// claim-bearing license.
+				defaultAgentRuntimeHoursIssuedAt = time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
+				defaultAgentRuntimeHoursLimit    int64
+			)
+			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, codersdk.Feature{
+				Enabled:     false,
+				Entitlement: entitlement,
+				Limit:       &defaultAgentRuntimeHoursLimit,
+				UsagePeriod: &codersdk.UsagePeriod{
+					IssuedAt: defaultAgentRuntimeHoursIssuedAt,
+					// The license term, matching a license with an explicit
+					// zero allocation, so measured usage covers the current
+					// term.
+					Start: usagePeriodStart,
+					End:   usagePeriodEnd,
+				},
+			})
 		}
 
 		// Add all features from the feature set.
@@ -294,6 +539,13 @@ func LicensesEntitlements(
 			}
 			if featureName == "managed_agent_limit_hard" {
 				// We can safely ignore the hard limit as it is no longer used.
+				continue
+			}
+
+			// Agent runtime hour claims are decoded together after this
+			// loop; see decodeAgentRuntimeHours.
+			if featureName == codersdk.FeatureAgentRuntimeHours ||
+				isAgentRuntimeHoursClaim(featureName) {
 				continue
 			}
 
@@ -356,7 +608,27 @@ func LicensesEntitlements(
 			}
 		}
 
+		runtimeFeature, granted, ignoredClaims := decodeAgentRuntimeHours(claims.Features, entitlement, codersdk.UsagePeriod{
+			IssuedAt: claims.IssuedAt.Time,
+			Start:    usagePeriodStart,
+			End:      usagePeriodEnd,
+		})
+		if granted {
+			entitlements.AddFeature(codersdk.FeatureAgentRuntimeHours, runtimeFeature)
+		}
+		if len(ignoredClaims) > 0 {
+			featureArguments.Logger.Warn(ctx, "ignored unusable Coder Agent runtime hour claims in license",
+				slog.F("license_id", license.UUID),
+				slog.F("ignored_claims", ignoredClaims),
+			)
+			if !slices.Contains(entitlements.Warnings, codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText) {
+				entitlements.Warnings = append(entitlements.Warnings,
+					codersdk.LicenseAgentRuntimeHoursClaimsIgnoredWarningText)
+			}
+		}
+
 		addonFeatures := make(map[codersdk.FeatureName]codersdk.Feature)
+		licenseHasAIGovernanceAddon := false
 
 		// Finally, add all features from the addons. We do this last so that
 		// any dependencies of an addon are validated against the calculated
@@ -372,6 +644,9 @@ func LicensesEntitlements(
 				// Ignore the addon and don't add any features.
 				continue
 			}
+			if addon == codersdk.AddonAIGovernance {
+				licenseHasAIGovernanceAddon = true
+			}
 			for _, featureName := range addon.Features() {
 				if _, exists := addonFeatures[featureName]; !exists {
 					addonFeatures[featureName] = codersdk.Feature{
@@ -384,6 +659,21 @@ func LicensesEntitlements(
 		for featureName, feature := range addonFeatures {
 			entitlements.AddFeature(featureName, feature)
 		}
+
+		if limit := claims.Features[codersdk.FeatureUserLimit]; limit > 0 {
+			userLimitCandidates = append(userLimitCandidates, userLimitCandidate{
+				limit:             limit,
+				entitlement:       entitlement,
+				aiGovernanceAddon: licenseHasAIGovernanceAddon,
+			})
+		}
+	}
+
+	// The FeatureUserLimit feature's final terms come from best-pair selection
+	// across the candidates rather than the AddFeature merge.
+	userLimitSel, err := selectUserLimit(ctx, &entitlements, featureArguments, userLimitCandidates)
+	if err != nil {
+		return entitlements, err
 	}
 
 	// Now the license specific warnings and errors are added to the entitlements.
@@ -478,16 +768,73 @@ func LicensesEntitlements(
 		}
 	}
 
+	// Usage is measured even for a zero allocation, which reports the
+	// feature disabled: see decodeAgentRuntimeHours. Premium licenses
+	// without agent runtime hour claims grant the same disabled zero-limit
+	// feature (see the grandfather default above), so every premium
+	// deployment reports usage here. Reported usage can trail real usage;
+	// the sources of staleness and loss are documented on the
+	// enterprise/coderd/usage.AgentRuntime* constants.
+	runtimeHours := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+	if entitlements.HasLicense && runtimeHours.UsagePeriod != nil {
+		runtimeMs, ok, err := measureAgentRuntimeMs(ctx, &entitlements,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, *runtimeHours.UsagePeriod)
+		if err != nil {
+			return entitlements, err
+		}
+		if ok {
+			actualHours := agentRuntimeMsToHours(runtimeMs)
+			runtimeHours.Actual = &actualHours
+			// ActualMs carries the exact stored milliseconds so clients can
+			// render fractional hours. Negative input clamps to 0, mirroring
+			// agentRuntimeMsToHours, since AgentRuntimeMsFn is a
+			// caller-supplied seam.
+			actualMs := max(runtimeMs, 0)
+			runtimeHours.ActualMs = &actualMs
+			// Written back directly rather than through AddFeature:
+			// AddFeature only replaces the existing entry when the new one
+			// strictly outranks it, so setting Actual on an otherwise
+			// identical feature would be dropped as a tie.
+			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
+
+			// A nil Limit means the license grants unlimited runtime
+			// hours: no thresholds can exist, so no warnings.
+			if runtimeHours.Limit != nil {
+				entitlements.Warnings = appendAgentRuntimeHoursWarning(
+					entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
+			}
+		}
+	}
+
 	if entitlements.HasLicense {
 		userLimit := entitlements.Features[codersdk.FeatureUserLimit]
-		if userLimit.Limit != nil && featureArguments.ActiveUserCount > *userLimit.Limit {
+		// The enforced count and its meaning come from the selected
+		// candidate: userLimit.Actual is the count the limit was evaluated
+		// against, and the noun names what it counted.
+		userLimitActual := featureArguments.ActiveUserCount
+		if userLimit.Actual != nil {
+			userLimitActual = *userLimit.Actual
+		}
+		userNoun := "active users"
+		if userLimitSel.workspaceCapable {
+			userNoun = "workspace-capable users"
+		}
+		if userLimit.Limit != nil && userLimitActual > *userLimit.Limit {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active users but is only licensed for %d.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+				"Your deployment has %d %s but is only licensed for %d.",
+				userLimitActual, userNoun, *userLimit.Limit))
 		} else if userLimit.Limit != nil && userLimit.Entitlement == codersdk.EntitlementGracePeriod {
 			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
-				"Your deployment has %d active users but the license with the limit %d is expired.",
-				featureArguments.ActiveUserCount, *userLimit.Limit))
+				"Your deployment has %d %s but the license with the limit %d is expired.",
+				userLimitActual, userNoun, *userLimit.Limit))
+		}
+		// The addon exists only on grace-period licenses: warn that
+		// workspace-capable counting stops at the end of the grace period,
+		// at which point every active user counts.
+		if userLimitSel.workspaceCapable && !userLimitSel.addonEntitled {
+			entitlements.Warnings = append(entitlements.Warnings, fmt.Sprintf(
+				"Your license with the AI Governance addon is expired. When it fully expires, all %d active users will count toward the user limit instead of the %d workspace-capable users.",
+				featureArguments.ActiveUserCount, userLimitActual))
 		}
 		if featureArguments.ActiveAISeatCount > 0 {
 			actual := featureArguments.ActiveAISeatCount
@@ -541,6 +888,11 @@ func LicensesEntitlements(
 			if featureName == codersdk.FeatureManagedAgentLimit {
 				continue
 			}
+			// Agent runtime hours is a usage period feature and does not
+			// generate generic entitlement warnings.
+			if featureName == codersdk.FeatureAgentRuntimeHours {
+				continue
+			}
 
 			feature := entitlements.Features[featureName]
 			if !feature.Enabled {
@@ -557,17 +909,6 @@ func LicensesEntitlements(
 			default:
 			}
 		}
-
-		// TODO: Remove this soft warning block once AI Bridge is enforced as an add-on license.
-		// AI Bridge soft warning: Show warning when AI Bridge is enabled and
-		// entitled via Premium FeatureSet but not via explicit add-on license.
-		// This is a transitional warning as AI Bridge moves to GA and will
-		// require a separate add-on license in future versions.
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		if aiBridgeFeature.Enabled && aiBridgeFeature.Entitlement.Entitled() && !hasExplicitAIBridgeEntitlement {
-			entitlements.Warnings = append(entitlements.Warnings,
-				"The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more.")
-		}
 	}
 
 	// Wrap up by disabling all features that are not entitled.
@@ -581,6 +922,63 @@ func LicensesEntitlements(
 	entitlements.RefreshedAt = now
 
 	return entitlements, nil
+}
+
+// measureAgentRuntimeMs runs fn over the feature's usage period. A nil fn
+// or a failure with a dead context fails the whole call; any other failure
+// logs the cause and publishes the stable unavailable text instead. It
+// returns the measured milliseconds and true only on success.
+func measureAgentRuntimeMs(
+	ctx context.Context,
+	entitlements *codersdk.Entitlements,
+	logger slog.Logger,
+	fn AgentRuntimeMsFn,
+	usagePeriod codersdk.UsagePeriod,
+) (int64, bool, error) {
+	if fn == nil {
+		return 0, false, xerrors.New("developer error: no closure provided to measure agent runtime usage")
+	}
+	value, err := fn(ctx, usagePeriod.Start, usagePeriod.End)
+	switch {
+	case err != nil && ctx.Err() != nil:
+		// Do not classify cancellation by error shape instead of ctx.Err():
+		// Postgres raises SQLSTATE 57014 (query_canceled) for
+		// statement_timeout kills as well as client cancels, and aborting on
+		// those would fail every entitlements refresh on a deployment whose
+		// statement_timeout is shorter than a usage query.
+		return 0, false, xerrors.Errorf("get agent runtime: %w", err)
+	case err != nil:
+		logger.Error(ctx, "get agent runtime for entitlements", slog.Error(err))
+		entitlements.Errors = append(entitlements.Errors, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText)
+		return 0, false, nil
+	}
+	return value, true, nil
+}
+
+// appendAgentRuntimeHoursWarning appends at most one warning: reaching the
+// allocation supersedes the advisory soft limit, so the dashboard banner
+// never stacks both messages.
+func appendAgentRuntimeHoursWarning(warnings []string, actualHours int64, allocation int64, softLimit *int64) []string {
+	// A zero allocation (explicit or the grandfathered premium default) has
+	// no thresholds to warn about: those deployments are steered by the
+	// in-page upgrade CTA and the concurrent chat cap, not a
+	// deployment-wide banner.
+	if allocation <= 0 {
+		return warnings
+	}
+
+	switch {
+	case actualHours >= allocation:
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAgentRuntimeHoursAllocationReachedWarningText,
+			actualHours, allocation))
+	case softLimit != nil && actualHours >= *softLimit:
+		return append(warnings, fmt.Sprintf(
+			codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText,
+			actualHours, allocation, *softLimit))
+	}
+
+	return warnings
 }
 
 func appendAIGovernanceSeatLimitWarning(warnings []string, actual int64, limit int64) []string {
@@ -611,6 +1009,32 @@ const (
 	VersionClaim          = "version"
 )
 
+// Agent runtime hour license claims, minted by github.com/coder/license.
+// All three are in hours and decode together into the single
+// codersdk.FeatureAgentRuntimeHours feature; see decodeAgentRuntimeHours.
+const (
+	// ClaimAgentRuntimeHoursAllocation is the purchased runtime-hour
+	// allocation for the license term. It becomes the feature's Limit.
+	// AgentRuntimeHoursUnlimitedAllocation (-1) is reserved to mean
+	// unlimited; any other negative allocation is ignored, in which case
+	// the license does not grant the feature.
+	ClaimAgentRuntimeHoursAllocation = "agent_runtime_hours_allocation"
+	// ClaimAgentRuntimeHoursLimitSoft is the advisory warning threshold. It
+	// becomes the feature's SoftLimit when 0 <= soft < allocation and is
+	// ignored otherwise.
+	ClaimAgentRuntimeHoursLimitSoft = "agent_runtime_hours_limit_soft"
+	// ClaimAgentRuntimeHoursLimitHard is the enforcement ceiling. It becomes
+	// the feature's HardLimit when the allocation is greater than 0 and
+	// hard >= allocation, and is ignored otherwise.
+	ClaimAgentRuntimeHoursLimitHard = "agent_runtime_hours_limit_hard"
+)
+
+// AgentRuntimeHoursUnlimitedAllocation is the reserved
+// ClaimAgentRuntimeHoursAllocation value meaning the license grants
+// unlimited runtime hours. It decodes to an enabled feature with a nil
+// Limit. Mirrored in github.com/coder/license.
+const AgentRuntimeHoursUnlimitedAllocation int64 = -1
+
 var (
 	ValidMethods = []string{"EdDSA"}
 
@@ -626,6 +1050,104 @@ var (
 )
 
 type Features map[codersdk.FeatureName]int64
+
+// isAgentRuntimeHoursClaim reports whether name is one of the three claims
+// decoded by decodeAgentRuntimeHours.
+func isAgentRuntimeHoursClaim(name codersdk.FeatureName) bool {
+	switch name {
+	case ClaimAgentRuntimeHoursAllocation,
+		ClaimAgentRuntimeHoursLimitSoft,
+		ClaimAgentRuntimeHoursLimitHard:
+		return true
+	default:
+		return false
+	}
+}
+
+// agentRuntimeMsToHours floors milliseconds of Coder Agent runtime to whole
+// hours, the unit shared by the agent_runtime_hours_* claims and the
+// feature's limits. Flooring keeps the rendered value and the whole-hour
+// warning thresholds in agreement. Negative input (not producible by the
+// production query, but AgentRuntimeMsFn is a caller-supplied seam) clamps
+// to 0.
+func agentRuntimeMsToHours(ms int64) int64 {
+	if ms <= 0 {
+		return 0
+	}
+	return ms / int64(time.Hour/time.Millisecond)
+}
+
+// decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours
+// feature from its claims. granted is false when there is no usable
+// allocation claim; per-claim validity rules live on the Claim* constants
+// above.
+//
+// Unusable claims are dropped rather than invalidating the license, since
+// rejecting a signed license over a cosmetic claim would drop the deployment
+// to unlicensed. Each dropped claim is returned in ignoredClaims so the
+// caller can warn and log instead of letting an incorrectly issued license
+// look healthy.
+//
+// A zero allocation grants the feature disabled, but Actual is still
+// measured and published.
+func decodeAgentRuntimeHours(features Features, entitlement codersdk.Entitlement, usagePeriod codersdk.UsagePeriod) (feature codersdk.Feature, granted bool, ignoredClaims []string) {
+	if _, ok := features[codersdk.FeatureAgentRuntimeHours]; ok {
+		ignoredClaims = append(ignoredClaims, string(codersdk.FeatureAgentRuntimeHours))
+	}
+
+	allocation, allocOk := features[ClaimAgentRuntimeHoursAllocation]
+	soft, softOk := features[ClaimAgentRuntimeHoursLimitSoft]
+	hard, hardOk := features[ClaimAgentRuntimeHoursLimitHard]
+
+	if allocOk && allocation == AgentRuntimeHoursUnlimitedAllocation {
+		if softOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
+		}
+		if hardOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
+		}
+		return codersdk.Feature{
+			Enabled:     true,
+			Entitlement: entitlement,
+			UsagePeriod: &usagePeriod,
+		}, true, ignoredClaims
+	}
+
+	if !allocOk || allocation < 0 {
+		if allocOk && allocation < 0 {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursAllocation)
+		}
+		if softOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
+		}
+		if hardOk {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
+		}
+		return codersdk.Feature{}, false, ignoredClaims
+	}
+
+	feature = codersdk.Feature{
+		Enabled:     allocation > 0,
+		Entitlement: entitlement,
+		Limit:       &allocation,
+		UsagePeriod: &usagePeriod,
+	}
+	if softOk {
+		if soft >= 0 && soft < allocation {
+			feature.SoftLimit = &soft
+		} else {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitSoft)
+		}
+	}
+	if hardOk {
+		if allocation > 0 && hard >= allocation {
+			feature.HardLimit = &hard
+		} else {
+			ignoredClaims = append(ignoredClaims, ClaimAgentRuntimeHoursLimitHard)
+		}
+	}
+	return feature, true, ignoredClaims
+}
 
 // Claims is the full set of claims in a license.
 type Claims struct {
@@ -705,7 +1227,7 @@ func validateClaims(tok *jwt.Token) (*Claims, error) {
 		}
 
 		yearsHardLimit := time.Now().Add(5 /* years */ * 365 * 24 * time.Hour)
-		if claims.LicenseExpires == nil || claims.LicenseExpires.Time.After(yearsHardLimit) {
+		if claims.LicenseExpires == nil || claims.LicenseExpires.After(yearsHardLimit) {
 			return nil, ErrMissingLicenseExpires
 		}
 		if claims.ExpiresAt == nil {

@@ -57,7 +57,6 @@ func filterAnthropicStreamingRequests(requests []chattest.AnthropicRequest) []ch
 func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL string) (database.User, database.Organization, database.ChatModelConfig) {
 	t.Helper()
 	user := dbgen.User(t, db, database.User{})
-	_ = testAPIKeyID(t, db, user.ID)
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic}, func(params *database.InsertAIProviderParams) {
@@ -157,7 +156,6 @@ func createChatThroughServer(
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     orgID,
 		OwnerID:            userID,
-		APIKeyID:           testAPIKeyID(t, db, userID),
 		Title:              "test chat",
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
 		ModelConfigID:      modelID,

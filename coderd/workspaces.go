@@ -96,7 +96,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -122,7 +122,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -143,7 +143,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -172,15 +172,6 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		filter.OwnerUsername = ""
 	}
 
-	prepared, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error preparing sql filter.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	// To show the requester's favorite workspaces first, we pass their userID and compare it to
 	// the workspace owner_id when ordering the rows.
 	filter.RequesterID = apiKey.UserID
@@ -188,7 +179,9 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	// We need the technical row to present the correct count on every page.
 	filter.WithSummary = true
 
-	workspaceRows, err := api.Database.GetAuthorizedWorkspaces(ctx, filter, prepared)
+	// GetWorkspaces authorizes the query itself, so we don't prepare a SQL
+	// filter here.
+	workspaceRows, err := api.Database.GetWorkspaces(ctx, filter)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspaces.",
@@ -231,7 +224,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, workspaces)
+	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -253,6 +246,10 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+
+	if len(filter.IncludeAgentMetadata) > 0 {
+		attachAgentMetadata(ctx, api.Logger, wss, workspaceRows)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
@@ -316,7 +313,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -342,7 +339,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -371,7 +368,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -432,7 +429,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Tags Workspaces
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
-// @Success 200 {object} codersdk.Workspace
+// @Success 201 {object} codersdk.Workspace
 // @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -837,15 +834,8 @@ func createWorkspace(
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		[]database.WorkspaceResource{},
-		[]database.WorkspaceResourceMetadatum{},
-		[]database.WorkspaceAgent{},
-		[]database.WorkspaceApp{},
-		[]database.WorkspaceAppStatus{},
-		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
-		[]database.WorkspaceAgentLogSource{},
+		newWorkspaceBuildIndex(nil, nil, nil, nil, nil, nil, nil, provisionerDaemons),
 		database.TemplateVersion{},
-		provisionerDaemons,
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -861,7 +851,7 @@ func createWorkspace(
 		workspace,
 		apiBuild,
 		template,
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
@@ -880,8 +870,8 @@ func createWorkspace(
 // at build time uses the owner's external auth links, so the owner is the
 // subject of the check even when another user initiates the build.
 func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
-	//nolint:gocritic // System access is required to validate the workspace owner's external auth links because admins and API clients may create workspaces for other users.
-	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsSystemRestricted(ctx), templateVersion, ownerID)
+	//nolint:gocritic // Reads/refreshes the external auth links. Necessary when admins create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsExternalAuthCoordinator(ctx), templateVersion, ownerID)
 	if err != nil {
 		return err
 	}
@@ -1164,7 +1154,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// patched in the future, it's enough if one changes.
 	name := workspace.Name
 	if req.Name != "" || req.Name != workspace.Name {
-		if !api.Options.AllowWorkspaceRenames {
+		if !api.AllowWorkspaceRenames {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Workspace renames are not allowed.",
 			})
@@ -1572,7 +1562,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -1603,7 +1593,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -2150,7 +2140,7 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -2182,7 +2172,7 @@ func (api *API) watchWorkspace(
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			api.Options.AllowWorkspaceRenames,
+			api.AllowWorkspaceRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2688,7 +2678,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 // does not have the correct perms to read a given template, the template will
 // not be returned.
 // So the caller must check the templates & users exist before using them.
-func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace) (workspaceData, error) {
+func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg workspaceRelated) (workspaceData, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -2702,41 +2692,50 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		appStatuses []database.WorkspaceAppStatus
 		eg          errgroup.Group
 	)
-	eg.Go(func() (err error) {
-		templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
-			IDs: templateIDs,
+	if cfg.Template {
+		eg.Go(func() (err error) {
+			templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+				IDs: templateIDs,
+			})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get templates: %w", err)
+			}
+			return nil
 		})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get templates: %w", err)
-		}
-		return nil
-	})
-	eg.Go(func() (err error) {
-		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
-		builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get workspace builds: %w", err)
-		}
-		return nil
-	})
-	eg.Go(func() (err error) {
-		// This query must be run as system restricted to be efficient.
-		// nolint:gocritic
-		appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("get workspace app statuses: %w", err)
-		}
-		return nil
-	})
+	}
+	if cfg.LatestBuild != nil {
+		eg.Go(func() (err error) {
+			// This query must be run as system restricted to be efficient.
+			// nolint:gocritic
+			builds, err = api.Database.GetLatestWorkspaceBuildsByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace builds: %w", err)
+			}
+			return nil
+		})
+	}
+	if cfg.LatestBuild.appStatuses() {
+		eg.Go(func() (err error) {
+			// This query must be run as system restricted to be efficient.
+			// nolint:gocritic
+			appStatuses, err = api.Database.GetLatestWorkspaceAppStatusesByWorkspaceIDs(dbauthz.AsSystemRestricted(ctx), workspaceIDs)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get workspace app statuses: %w", err)
+			}
+			return nil
+		})
+	}
 	err := eg.Wait()
 	if err != nil {
 		return workspaceData{}, err
 	}
 
-	data, err := api.workspaceBuildsData(ctx, builds)
-	if err != nil {
-		return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+	var data workspaceBuildsData
+	if cfg.LatestBuild != nil {
+		data, err = api.workspaceBuildsData(ctx, builds, *cfg.LatestBuild)
+		if err != nil {
+			return workspaceData{}, xerrors.Errorf("get workspace builds data: %w", err)
+		}
 	}
 
 	apiBuilds, err := api.convertWorkspaceBuilds(
@@ -2761,8 +2760,46 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		templates:    templates,
 		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:       apiBuilds,
-		allowRenames: api.Options.AllowWorkspaceRenames,
+		allowRenames: api.AllowWorkspaceRenames,
 	}, nil
+}
+
+// attachAgentMetadata maps the agent metadata the workspaces query
+// aggregated per workspace onto the agents in the converted response.
+// Each aggregated datum carries its workspace_agent_id. An unparsable
+// aggregate degrades to missing metadata for that workspace rather
+// than failing the page: the expansion is best-effort decoration on
+// top of the list.
+func attachAgentMetadata(ctx context.Context, logger slog.Logger, workspaces []codersdk.Workspace, rows []database.GetWorkspacesRow) {
+	byAgent := map[uuid.UUID][]database.WorkspaceAgentMetadatum{}
+	for _, row := range rows {
+		if len(row.AgentMetadata) == 0 {
+			continue
+		}
+		var metadata database.AgentMetadataAggregate
+		err := metadata.Scan(row.AgentMetadata)
+		if err != nil {
+			logger.Warn(ctx, "scan agent metadata, omitting it for the workspace",
+				slog.F("workspace_id", row.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+		for _, datum := range metadata {
+			byAgent[datum.WorkspaceAgentID] = append(byAgent[datum.WorkspaceAgentID], datum)
+		}
+	}
+	for wi := range workspaces {
+		resources := workspaces[wi].LatestBuild.Resources
+		for ri := range resources {
+			for ai := range resources[ri].Agents {
+				agent := &resources[ri].Agents[ai]
+				if metadata, ok := byAgent[agent.ID]; ok {
+					agent.Metadata = convertWorkspaceAgentMetadata(metadata)
+				}
+			}
+		}
+	}
 }
 
 func convertWorkspaces(

@@ -1,4 +1,3 @@
-import http from "node:http";
 import type { BrowserContext, Page } from "@playwright/test";
 import { coderPort, gitAuth } from "./constants";
 
@@ -70,42 +69,23 @@ export const resetExternalAuthKey = async (context: BrowserContext) => {
 	);
 };
 
-const deleteExternalAuthLink = (
+const deleteExternalAuthLink = async (
 	provider: string,
 	sessionToken: string | undefined,
 ): Promise<void> => {
-	return new Promise((resolve, reject) => {
-		const options = {
-			method: "DELETE",
-			hostname: "127.0.0.1",
-			port: coderPort,
-			path: `/api/v2/external-auth/${provider}?coder_session_token=${sessionToken}`,
-		};
+	const response = await fetch(
+		`http://127.0.0.1:${coderPort}/api/v2/external-auth/${provider}?coder_session_token=${sessionToken}`,
+		{ method: "DELETE" },
+	);
 
-		const req = http.request(options, (res) => {
-			let data = "";
-			res.on("data", (chunk) => {
-				data += chunk;
-			});
-
-			res.on("end", () => {
-				// 200 = link deleted; 404 = no link existed for this provider.
-				if (res.statusCode !== 200 && res.statusCode !== 404) {
-					console.error("failed to delete external auth link", data);
-					reject(
-						new Error(
-							`failed to delete external auth link: HTTP response ${res.statusCode}`,
-						),
-					);
-					return;
-				}
-				resolve();
-			});
-		});
-
-		req.on("error", reject);
-		req.end();
-	});
+	// 200 = link deleted; 404 = no link existed for this provider.
+	if (response.status !== 200 && response.status !== 404) {
+		const data = await response.text();
+		console.error("failed to delete external auth link", data);
+		throw new Error(
+			`failed to delete external auth link: HTTP response ${response.status}`,
+		);
+	}
 };
 
 const isApiCall = (urlString: string): boolean => {

@@ -1,17 +1,13 @@
-import Link from "@mui/material/Link";
-import Snackbar from "@mui/material/Snackbar";
-import { InfoIcon } from "lucide-react";
 import { type FC, type HTMLAttributes, Suspense } from "react";
 import { Outlet } from "react-router";
-import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { AnnouncementBanners } from "#/modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { LicenseBanner } from "#/modules/dashboard/LicenseBanner/LicenseBanner";
 import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
+import { UpdateCheckNotice } from "./UpdateCheckNotice/UpdateCheckNotice";
 import { useUpdateCheck } from "./useUpdateCheck";
 
 export const DashboardLayout: FC = () => {
@@ -54,56 +50,14 @@ export const DashboardLayout: FC = () => {
 
 				<DeploymentBanner />
 
-				<Snackbar
-					data-testid="update-check-snackbar"
-					open={updateCheck.isVisible}
-					anchorOrigin={{
-						vertical: "bottom",
-						horizontal: "right",
-					}}
-					ContentProps={{
-						sx: (theme) => ({
-							background: theme.palette.background.paper,
-							color: theme.palette.text.primary,
-							maxWidth: 440,
-							flexDirection: "row",
-							borderColor: theme.palette.info.light,
-
-							"& .MuiSnackbarContent-message": {
-								flex: 1,
-							},
-
-							"& .MuiSnackbarContent-action": {
-								marginRight: 0,
-							},
-						}),
-					}}
-					message={
-						<div className="flex gap-4">
-							<InfoIcon
-								className="size-icon-xs"
-								css={(theme) => ({
-									fontSize: 16,
-									height: 20, // 20 is the height of the text line so we can align them
-									color: theme.palette.info.light,
-								})}
-							/>
-							<p>
-								Coder {updateCheck.data?.version} is now available. View the{" "}
-								<Link href={updateCheck.data?.url}>release notes</Link> and{" "}
-								<Link href={docs("/install/upgrade")}>
-									upgrade instructions
-								</Link>{" "}
-								for more information.
-							</p>
-						</div>
-					}
-					action={
-						<Button variant="subtle" size="sm" onClick={updateCheck.dismiss}>
-							Dismiss
-						</Button>
-					}
-				/>
+				{updateCheck.isVisible && updateCheck.data && (
+					<UpdateCheckNotice
+						version={updateCheck.data.version}
+						releaseNotesUrl={updateCheck.data.url}
+						onDismiss={updateCheck.dismiss}
+						aboveDeploymentBanner={Boolean(permissions.viewDeploymentStats)}
+					/>
+				)}
 			</div>
 		</>
 	);

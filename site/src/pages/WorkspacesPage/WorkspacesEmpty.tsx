@@ -10,12 +10,14 @@ interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;
 	templates?: Template[];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 }
 
 export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	isUsingFilter,
 	templates,
 	canCreateTemplate,
+	canCreateWorkspace,
 }) => {
 	const getLink = useLinks();
 
@@ -34,6 +36,17 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 		return <EmptyState message="No results matched your search" />;
 	}
 
+	if (!canCreateWorkspace) {
+		return (
+			<EmptyState
+				message="No workspaces"
+				description="You don't have permission to create workspaces. Contact your administrator if you need workspace access."
+				className="pb-0"
+				image={defaultImage}
+			/>
+		);
+	}
+
 	if (templates && templates.length === 0 && canCreateTemplate) {
 		return (
 			<EmptyState
@@ -41,7 +54,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
 					<Button asChild>
-						<Link to="/templates">Go to templates</Link>
+						<Link to="/templates/new/builder">Create a template</Link>
 					</Button>
 				}
 				className="pb-0"

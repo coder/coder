@@ -3,7 +3,15 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get OAuth2 applications.
@@ -180,7 +188,7 @@ func (api *API) revokeOAuth2Token() http.HandlerFunc {
 // @Success 200 {object} codersdk.OAuth2AuthorizationServerMetadata
 // @Router /.well-known/oauth-authorization-server [get]
 func (api *API) oauth2AuthorizationServerMetadata() http.HandlerFunc {
-	return oauth2provider.GetAuthorizationServerMetadata(api.AccessURL)
+	return oauth2provider.GetAuthorizationServerMetadata(api.Database, api.AccessURL)
 }
 
 // @Summary OAuth2 protected resource metadata.
@@ -203,6 +211,94 @@ func (api *API) oauth2ProtectedResourceMetadata() http.HandlerFunc {
 // @Router /oauth2/register [post]
 func (api *API) postOAuth2ClientRegistration() http.HandlerFunc {
 	return oauth2provider.CreateDynamicClientRegistration(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
+}
+
+// @Summary Get OAuth2 provider settings.
+// @ID get-oauth2-provider-settings
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OAuth2ProviderSettings
+// @Router /api/v2/oauth2-provider/settings [get]
+func (api *API) oauth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	enabled, err := api.Database.GetOAuth2DCREnabled(ctx)
+	if err != nil {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(enabled),
+	})
+}
+
+// @Summary Update OAuth2 provider settings.
+// @ID update-oauth2-provider-settings
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param request body codersdk.OAuth2ProviderSettings true "OAuth2 provider settings request"
+// @Success 200 {object} codersdk.OAuth2ProviderSettings
+// @Router /api/v2/oauth2-provider/settings [put]
+func (api *API) putOAuth2ProviderSettings(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	var req codersdk.OAuth2ProviderSettings
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.OAuth2ProviderSettings](rw, &audit.RequestParams{
+		Audit:   *api.Auditor.Load(),
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	var resolvedEnabled bool
+	err := api.Database.InTx(func(tx database.Store) error {
+		oldEnabled, err := tx.GetOAuth2DCREnabled(ctx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = database.OAuth2ProviderSettings{
+			DynamicClientRegistrationEnabled: oldEnabled,
+		}
+
+		// A nil field means the caller omitted it, leave the current value
+		// alone rather than overwrite it with a decoded zero value. This
+		// matters once a second field lands in this struct: an older client
+		// that only knows about this field must not silently clear a newer
+		// one it never sent.
+		resolvedEnabled = oldEnabled
+		if req.DynamicClientRegistrationEnabled != nil {
+			resolvedEnabled = *req.DynamicClientRegistrationEnabled
+			if err := tx.UpsertOAuth2DCREnabled(ctx, resolvedEnabled); err != nil {
+				return err
+			}
+		}
+		aReq.New = database.OAuth2ProviderSettings{
+			ID:                               uuid.New(),
+			DynamicClientRegistrationEnabled: resolvedEnabled,
+		}
+		return nil
+	}, &database.TxOptions{TxIdentifier: "update_oauth2_provider_settings"})
+	if err != nil {
+		if rbac.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(resolvedEnabled),
+	})
 }
 
 // @Summary Get OAuth2 client configuration (RFC 7592)

@@ -1,6 +1,7 @@
 package audit
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -92,7 +93,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.GitSSHKey:
 		return typed.PublicKey
 	case database.AuditableGroup:
-		return typed.Group.Name
+		return typed.Name
 	case database.APIKey:
 		if typed.TokenName != "nil" {
 			return typed.TokenName
@@ -111,6 +112,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 	case database.NotificationsSettings:
 		return "" // no target?
 	case database.PrebuildsSettings:
+		return "" // no target?
+	case database.OAuth2ProviderSettings:
 		return "" // no target?
 	case database.OAuth2ProviderApp:
 		return typed.Name
@@ -152,9 +155,15 @@ func ResourceTarget[T Auditable](tgt T) string {
 		// for display; collisions affect the display label and search
 		// filter but not the primary resource identifier.
 		return typed.ID.String()[:8]
+	case database.MCPServerConfig:
+		// Updates can persist an empty display name; fall back to the slug, or
+		// the ID if both are empty, so the audit entry stays identifiable.
+		return cmp.Or(typed.DisplayName, typed.Slug, typed.ID.String())
 	case database.UserSecret:
 		return typed.Name
 	case database.UserSkill:
+		return typed.Name
+	case database.ChatInstructionSettings:
 		return typed.Name
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
@@ -165,6 +174,22 @@ func ResourceTarget[T Auditable](tgt T) string {
 // An example is singleton configuration resources.
 // 51A51C = "Static"
 var noID = uuid.MustParse("51A51C00-0000-0000-0000-000000000000")
+
+// Fixed IDs for the two chat instruction settings. History-by-setting works
+// only if every change to one setting carries the same resource ID, so
+// unlike the per-write artificial IDs of the other settings singletons,
+// these never change. C1A7 = "Chat".
+var (
+	ChatInstructionSystemPromptID = uuid.MustParse("C1A715C0-0000-0000-0000-000000000001")
+	ChatInstructionPlanModeID     = uuid.MustParse("C1A715C0-0000-0000-0000-000000000002")
+)
+
+// Human-readable targets for the two chat instruction settings, so an audit
+// row names the setting it concerns.
+const (
+	ChatInstructionSystemPromptName = "System prompt"
+	ChatInstructionPlanModeName     = "Plan mode instructions"
+)
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
@@ -181,7 +206,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 	case database.GitSSHKey:
 		return typed.UserID
 	case database.AuditableGroup:
-		return typed.Group.ID
+		return typed.ID
 	case database.APIKey:
 		return typed.UserID
 	case database.License:
@@ -198,6 +223,9 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		// Artificial ID for auditing purposes
 		return typed.ID
 	case database.PrebuildsSettings:
+		// Artificial ID for auditing purposes
+		return typed.ID
+	case database.OAuth2ProviderSettings:
 		// Artificial ID for auditing purposes
 		return typed.ID
 	case database.OAuth2ProviderApp:
@@ -234,9 +262,14 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.Chat:
 		return typed.ID
+	case database.MCPServerConfig:
+		return typed.ID
 	case database.UserSecret:
 		return typed.ID
 	case database.UserSkill:
+		return typed.ID
+	case database.ChatInstructionSettings:
+		// Fixed ID per setting; see ChatInstructionSettings IDs.
 		return typed.ID
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
@@ -273,6 +306,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeNotificationsSettings
 	case database.PrebuildsSettings:
 		return database.ResourceTypePrebuildsSettings
+	case database.OAuth2ProviderSettings:
+		return database.ResourceTypeOauth2ProviderSettings
 	case database.OAuth2ProviderApp:
 		return database.ResourceTypeOauth2ProviderApp
 	case database.OAuth2ProviderAppSecret:
@@ -307,10 +342,14 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeUserAIBudgetOverride
 	case database.Chat:
 		return database.ResourceTypeChat
+	case database.MCPServerConfig:
+		return database.ResourceTypeMCPServerConfig
 	case database.UserSecret:
 		return database.ResourceTypeUserSecret
 	case database.UserSkill:
 		return database.ResourceTypeUserSkill
+	case database.ChatInstructionSettings:
+		return database.ResourceTypeChatInstructionSettings
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -347,6 +386,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Artificial ID for auditing purposes
 		return false
 	case database.PrebuildsSettings:
+		// Artificial ID for auditing purposes
+		return false
+	case database.OAuth2ProviderSettings:
 		// Artificial ID for auditing purposes
 		return false
 	case database.OAuth2ProviderApp:
@@ -392,11 +434,17 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		// Chats always have a non-null organization_id (since
 		// migration 000467).
 		return true
+	case database.MCPServerConfig:
+		// MCP server configs always carry a non-null organization_id.
+		return true
 	case database.UserSecret:
 		// User secrets are global to the user across organizations.
 		return false
 	case database.UserSkill:
 		// User skills are global to the user across organizations.
+		return false
+	case database.ChatInstructionSettings:
+		// Deployment settings, not scoped to any organization.
 		return false
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))

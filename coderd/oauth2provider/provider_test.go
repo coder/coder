@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -177,6 +178,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		validURIs := []string{
@@ -223,6 +225,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 				// Create new client for each sub-test to avoid shared state issues
 				subClient := coderdtest.New(t, nil)
 				_ = coderdtest.CreateFirstUser(t, subClient)
+				oauth2providertest.EnableDCR(t, subClient)
 				subCtx := testutil.Context(t, testutil.WaitLong)
 
 				req := codersdk.OAuth2ClientRegistrationRequest{
@@ -242,6 +245,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -260,6 +264,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -278,6 +283,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{
@@ -296,6 +302,7 @@ func TestOAuth2ClientRegistrationValidation(t *testing.T) {
 
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
+		oauth2providertest.EnableDCR(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.OAuth2ClientRegistrationRequest{

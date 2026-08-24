@@ -39,10 +39,12 @@ import {
 	selectDisabledPreferences,
 } from "#/modules/notifications/utils";
 import type { Permissions } from "#/modules/permissions";
+import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
+	const aiTasksEnabled = useAITasksEnabled();
 	const [
 		disabledPreferences,
 		systemTemplatesByGroup,
@@ -125,7 +127,7 @@ const NotificationsPage: FC = () => {
 			{ready ? (
 				<div className="flex flex-col gap-8">
 					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
-						if (!canSeeNotificationGroup(group, permissions)) {
+						if (!canSeeNotificationGroup(group, permissions, aiTasksEnabled)) {
 							return null;
 						}
 
@@ -275,17 +277,22 @@ export default NotificationsPage;
 function canSeeNotificationGroup(
 	group: string,
 	permissions: Permissions,
+	aiTasksEnabled: boolean,
 ): boolean {
 	switch (group) {
 		case "Template Events":
 			return permissions.createTemplates;
 		case "User Events":
 			return permissions.createUser;
-		case "Workspace Events":
 		case "Task Events":
+			return aiTasksEnabled;
+		case "Workspace Events":
 		case "Chat Events":
 		case "Custom Events":
+		case "AI Cost Control Events":
 			return true;
+		case "AI Cost Control Admin Events":
+			return permissions.createUser;
 		default:
 			return false;
 	}

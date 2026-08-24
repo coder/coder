@@ -71,6 +71,7 @@ const emptyParsedMessageContent = (): ParsedMessageContent => ({
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 });
 
 export const ensureToolBlock = (
@@ -111,11 +112,7 @@ export const getPendingToolCallIDs = (
 		}
 	}
 
-	for (let index = messages.length - 1; index >= 0; index -= 1) {
-		const message = messages[index];
-		if (!message) {
-			continue;
-		}
+	for (const message of messages.toReversed()) {
 		if (message.role === "user") {
 			return undefined;
 		}
@@ -173,6 +170,7 @@ export const mergeTools = (
 			mcpServerConfigId: call.mcpServerConfigId || result?.mcpServerConfigId,
 			modelIntent,
 			parsedCommands: call.parsedCommands,
+			hookRewritten: call.hookRewritten,
 		});
 	}
 
@@ -227,6 +225,7 @@ export const parseMessageContent = (
 					args: part.args,
 					parsedCommands: part.parsed_commands,
 					mcpServerConfigId: part.mcp_server_config_id,
+					hookRewritten: part.hook_rewritten,
 				});
 				parsed.blocks = ensureToolBlock(parsed.blocks, id);
 				break;
@@ -291,6 +290,12 @@ export const parseMessageContent = (
 			case "skill": {
 				// Skill parts are metadata for the context indicator;
 				// they are not rendered in the conversation timeline.
+				break;
+			}
+			case "hook-notice": {
+				if (part.text.trim()) {
+					parsed.hookNotices.push(part.text);
+				}
 				break;
 			}
 			default: {

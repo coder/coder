@@ -1,9 +1,8 @@
 # nsjail on Kubernetes
 
 > [!NOTE]
-> Agent Firewall requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access Agent Firewall.
+> Agent Firewall is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 This page describes the runtime and permission requirements for running Agent
 Firewall with the **nsjail** jail type on **Kubernetes**.
@@ -97,7 +96,7 @@ spec:
 User namespaces are often disabled (`user.max_user_namespaces=0`) on Bottlerocket
 nodes. Check and enable user namespaces:
 
-```bash
+```sh
 # Check current value
 sysctl user.max_user_namespaces
 
@@ -108,7 +107,7 @@ sysctl -w user.max_user_namespaces=65536
 If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings
 when creating the node group (e.g., in Terraform):
 
-```hcl
+```tf
 bootstrap_extra_args = <<-EOT
   [settings.kernel.sysctl]
   "user.max_user_namespaces" = "65536"

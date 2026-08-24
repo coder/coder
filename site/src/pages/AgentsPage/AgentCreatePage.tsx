@@ -3,12 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
 import {
 	chatModelConfigs,
 	chatModels,
-	chatProviderConfigs,
 	createChat,
-	mcpServerConfigs,
 	userChatPersonalModelOverrides,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
@@ -54,7 +53,6 @@ const AgentCreatePage: FC = () => {
 		userChatPersonalModelOverrides(),
 	);
 	const preferencesQuery = useQuery(preferenceSettings());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
@@ -179,8 +177,6 @@ const AgentCreatePage: FC = () => {
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}
 				rootPersonalModelOverride={rootPersonalModelOverride}
 				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
-				mcpServers={mcpServersQuery.data ?? []}
-				onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 				workspaceCount={workspacesQuery.data?.count}
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}

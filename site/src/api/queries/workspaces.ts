@@ -288,7 +288,6 @@ export const updateDeadline = (
 export const changeVersion = (
 	workspace: Workspace,
 	queryClient: QueryClient,
-	isDynamicParametersEnabled: boolean,
 ) => {
 	return {
 		mutationFn: ({
@@ -298,12 +297,7 @@ export const changeVersion = (
 			versionId: string;
 			buildParameters?: WorkspaceBuildParameter[];
 		}) => {
-			return API.changeWorkspaceVersion(
-				workspace,
-				versionId,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.changeWorkspaceVersion(workspace, versionId, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);
@@ -318,16 +312,10 @@ export const updateWorkspace = (
 	return {
 		mutationFn: ({
 			buildParameters,
-			isDynamicParametersEnabled,
 		}: {
 			buildParameters?: WorkspaceBuildParameter[];
-			isDynamicParametersEnabled: boolean;
 		}) => {
-			return API.updateWorkspace(
-				workspace,
-				buildParameters,
-				isDynamicParametersEnabled,
-			);
+			return API.updateWorkspace(workspace, buildParameters);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
 			await updateWorkspaceBuild(build, queryClient);

@@ -1,0 +1,12 @@
+# Active ESR (Extended Support Release) versions.
+#
+# This file is the single source of truth for the active ESR set. It is
+# consumed by:
+#   - scripts/update-release-calendar.sh (release calendar in
+#     docs/install/releases/index.md)
+#   - .github/workflows/backport.yaml (backport target branches)
+#
+# Update this list when a new ESR version is designated or an old one reaches
+# end of life.
+2.29
+2.34

@@ -1,5 +1,3 @@
-/** @deprecated MUI Theme type is deprecated. Migrate to Tailwind CSS theme system. */
-import type { Theme as MuiTheme } from "@mui/material/styles";
 import type * as monaco from "monaco-editor";
 import type { Branding } from "./branding";
 import dark from "./dark";
@@ -10,11 +8,12 @@ import type { ExternalImageModeStyles } from "./externalImages";
 import light from "./light";
 import lightProtanDeuter from "./lightProtanDeuter";
 import lightTritan from "./lightTritan";
+import type { Palette } from "./palette";
 import type { Roles } from "./roles";
 
-export interface Theme extends Omit<MuiTheme, "palette"> {
-	/** @deprecated prefer `theme.roles` when possible */
-	palette: MuiTheme["palette"];
+export interface Theme {
+	/** @deprecated prefer roles or CSS variables when possible */
+	palette: Palette;
 
 	/** Sets of colors that can be used based on the role that a UI element serves
 	 * for the user.

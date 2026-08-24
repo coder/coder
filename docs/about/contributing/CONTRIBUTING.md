@@ -14,7 +14,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 1. After you've installed Nix, instantiate the development with the `nix-shell`
    command:
 
-   ```shell
+   ```sh
    cd ~/code/coder
 
    # https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
@@ -31,7 +31,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    [hooks configured](https://direnv.net/docs/hook.html), you can add `use nix`
    to `.envrc` to automatically instantiate the development environment:
 
-   ```shell
+   ```sh
    cd ~/code/coder
    echo "use nix" >.envrc
    direnv allow
@@ -41,7 +41,7 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    [`direnv`](https://direnv.net/docs/hook.html) will prepare the environment
    for you:
 
-   ```shell
+   ```sh
    cd ~/code/coder
 
    direnv: loading ~/code/coder/.envrc
@@ -232,7 +232,7 @@ RC tags can be created from `main` or from a release branch. The
 `create-release-branch` type creates `release/X.Y` and tags the next RC in one
 step, continuing the RC numbering sequence.
 
-```text
+```txt
 main:  --*--*--*--*--*--*--*--*--*--
               |  rc.0   rc.1  |
               |               +--- create-release-branch ---+
@@ -358,7 +358,7 @@ If `./scripts/develop.sh` exits with a "database migration conflict" error,
 it means the database has migrations from another branch that don't exist
 on the current one. You have two options:
 
-```shell
+```sh
 # Roll back the mismatched migrations (preserves your dev data):
 ./scripts/develop.sh --db-rollback
 
@@ -373,7 +373,7 @@ On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
 `error: creating directory` when you attempt to run, build, or test, add a
 `mkdir` line to your `.envrc`:
 
-```shell
+```sh
 use nix
 mkdir -p "$TMPDIR"
 ```

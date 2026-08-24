@@ -53,6 +53,7 @@ type customQuerier interface {
 	connectionLogQuerier
 	aibridgeQuerier
 	chatQuerier
+	mcpServerConfigQuerier
 }
 
 type templateQuerier interface {
@@ -86,6 +87,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 		pq.Array(arg.IDs),
 		arg.Deprecated,
 		arg.HasAITask,
+		arg.AgentsAllowed,
 		arg.AuthorID,
 		arg.AuthorUsername,
 		arg.HasExternalAgent,
@@ -130,6 +132,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
+			&i.AgentsAllowed,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -258,6 +261,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedWorkspaces :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
+		pq.Array(arg.IncludeAgentMetadata),
 		pq.Array(arg.ParamNames),
 		pq.Array(arg.ParamValues),
 		arg.Deleted,
@@ -334,6 +338,8 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
 			&i.LatestBuildHasExternalAgent,
+			&i.LatestBuildProvisionerJobID,
+			&i.AgentMetadata,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -746,6 +752,8 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 }
 
 type chatQuerier interface {
+	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
+	LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error)
 	GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]GetChatsRow, error)
 	GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) ([]Chat, error)
 }
@@ -786,6 +794,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.PrNumber,
 		arg.RepoQuery,
 		arg.PrTitleQuery,
+		arg.Search,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -825,6 +834,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
+			&i.Chat.Summary,
+			&i.Chat.SummaryGeneratedAt,
 			&i.Chat.SnapshotVersion,
 			&i.Chat.HistoryVersion,
 			&i.Chat.QueueVersion,
@@ -841,6 +852,7 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.ContextDirtySince,
 			&i.Chat.ContextDirtyResources,
 			&i.Chat.ContextError,
+			&i.Chat.CompactionRequestedAt,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -904,6 +916,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.PlanMode,
 			&i.ClientType,
 			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
 			&i.SnapshotVersion,
 			&i.HistoryVersion,
 			&i.QueueVersion,
@@ -919,7 +933,8 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextAggregateHash,
 			&i.ContextDirtySince,
 			&i.ContextDirtyResources,
-			&i.ContextError); err != nil {
+			&i.ContextError,
+			&i.CompactionRequestedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1051,6 +1066,9 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 			&i.CacheWriteInputTokens,
 			&i.LastPrompt,
 			&i.LastActiveAt,
+			&i.NetworkCallsTotal,
+			&i.NetworkCallsBlocked,
+			&i.FirewallActive,
 		); err != nil {
 			return nil, err
 		}
@@ -1181,4 +1199,77 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
 	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)
 	return err
+}
+
+type mcpServerConfigQuerier interface {
+	GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]MCPServerConfig, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.MCPServerConfigConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getMCPServerConfigsByOrganization, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedMCPServerConfigs :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

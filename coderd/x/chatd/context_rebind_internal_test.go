@@ -48,10 +48,11 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		// Pin the chat to agent A through the production hydrate path so it
 		// starts with A's hash and A's resources, exactly as an agent push
 		// would leave it.
-		require.NoError(t, fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
 			AgentID:       fix.agentA,
 			AggregateHash: fix.hashA,
-		}))
+		})
+		require.NoError(t, err)
 		preRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, preRes, 1)
@@ -121,10 +122,11 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
 			Status:            database.ChatStatusWaiting,
 		})
-		require.NoError(t, fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+		_, err := fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
 			AgentID:       fix.agentA,
 			AggregateHash: fix.hashA,
-		}))
+		})
+		require.NoError(t, err)
 		preRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
 		require.NoError(t, err)
 		require.Len(t, preRes, 1, "chat starts pinned to agent A")

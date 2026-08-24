@@ -1,5 +1,6 @@
 import type {
 	AIProvider,
+	AIProviderBedrockProtocol,
 	AIProviderBedrockSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
@@ -114,22 +115,30 @@ export const getProviderDisplayType = (
 };
 
 const buildBedrockSettings = (
+	protocol: AIProviderBedrockProtocol,
 	region: string | undefined,
 	model: string,
 	smallFastModel: string,
 	accessKey: string,
 	accessKeySecret: string,
 	roleArn: string,
-): BedrockSettingsWire => ({
-	_type: BEDROCK_SETTINGS_TYPE,
-	_version: BEDROCK_SETTINGS_VERSION,
-	...(region ? { region } : {}),
-	model,
-	small_fast_model: smallFastModel,
-	...(accessKey ? { access_key: accessKey } : {}),
-	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
-	...(roleArn ? { role_arn: roleArn } : {}),
-});
+): BedrockSettingsWire => {
+	// Mantle is a passthrough protocol: the client sends the model, so the
+	// provider omits the model fields. The protocol is always emitted so the
+	// stored settings state it explicitly instead of relying on an absent
+	// value resolving to InvokeModel server-side.
+	const isMantle = protocol === "mantle";
+	return {
+		_type: BEDROCK_SETTINGS_TYPE,
+		_version: BEDROCK_SETTINGS_VERSION,
+		...(region ? { region } : {}),
+		protocol,
+		...(isMantle ? {} : { model, small_fast_model: smallFastModel }),
+		...(accessKey ? { access_key: accessKey } : {}),
+		...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
+		...(roleArn ? { role_arn: roleArn } : {}),
+	};
+};
 
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
 // `api_keys`. `display_name` is omitted when blank so the server stores
@@ -150,6 +159,7 @@ export const providerFormValuesToCreate = (
 	if (values.type === "bedrock") {
 		const region = parseBedrockRegionFromBaseUrl(base.base_url);
 		const settings = buildBedrockSettings(
+			values.protocol,
 			region,
 			values.model.trim(),
 			values.smallFastModel.trim(),
@@ -226,6 +236,7 @@ export const providerFormValuesToUpdate = (
 	const region = parseBedrockRegionFromBaseUrl(base.base_url ?? "");
 
 	const settings = buildBedrockSettings(
+		values.protocol,
 		region,
 		values.model.trim(),
 		values.smallFastModel.trim(),
@@ -246,12 +257,18 @@ export const aiProviderToFormValues = (
 	const displayName = provider.display_name || provider.name;
 	if (isBedrockProvider(provider)) {
 		const s = (provider.settings as SettingsWire | null) ?? {};
+		// An empty or missing protocol resolves to InvokeModel (legacy rows),
+		// mirroring the backend. Any other stored value passes through unchanged
+		// rather than being collapsed to InvokeModel.
+		const protocol: AIProviderBedrockProtocol = s.protocol || "invoke-model";
 		return {
 			type: "bedrock",
 			name: provider.name,
 			displayName,
 			icon: provider.icon || (getProviderIcon("bedrock") ?? ""),
 			baseUrl: provider.base_url,
+			protocol,
+			// Mantle providers store no model fields, so these resolve to "".
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
 			accessKey: "",

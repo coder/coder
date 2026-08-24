@@ -72,8 +72,9 @@ export const WithParentChat: Story = {
 			mcp_server_ids: [],
 			labels: {},
 			title: "Set up CI/CD pipeline",
-			status: "completed",
+			status: "waiting",
 			last_turn_summary: null,
+			summary: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
@@ -187,7 +188,7 @@ const mobileDecorator: Story["decorators"] = [
 
 export const MobileWithOpenPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -204,7 +205,7 @@ export const MobileWithOpenPR: Story = {
 
 export const MobileWithDraftPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -221,7 +222,7 @@ export const MobileWithDraftPR: Story = {
 
 export const MobileWithMergedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -239,7 +240,7 @@ export const MobileWithMergedPR: Story = {
 
 export const MobileWithClosedPR: Story = {
 	decorators: mobileDecorator,
-	parameters: { chromatic: { viewports: [390] } },
+	parameters: { pixel: { matrix: { viewports: ["phone"] } } },
 	args: {
 		diffStatusData: {
 			chat_id: "chat-1",
@@ -366,10 +367,59 @@ export const ArchiveAndDeleteWorkspaceItem: Story = {
 	},
 };
 
+export const IdleChatArchiveActionsEnabled: Story = {
+	args: {
+		hasWorkspace: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.queryByText("Interrupt or wait for the agent to finish first."),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ActiveChatArchiveActionsDisabled: Story = {
+	args: {
+		hasWorkspace: true,
+		isArchiveBlocked: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		const archiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		const archiveAndDeleteItem = body.getByRole("menuitem", {
+			name: "Archive & delete workspace",
+		});
+		expect(archiveItem).toHaveAttribute("aria-disabled", "true");
+		expect(archiveAndDeleteItem).toHaveAttribute("aria-disabled", "true");
+		const hint = "Interrupt or wait for the agent to finish first.";
+		// The menu content fades in, so visibility needs a retry window.
+		await waitFor(() => {
+			expect(body.getByText(hint)).toBeVisible();
+		});
+		expect(archiveItem).toHaveAccessibleDescription(hint);
+		expect(archiveAndDeleteItem).toHaveAccessibleDescription(hint);
+	},
+};
+
 export const PreservesArchivedFilterOnMobileBack: Story = {
 	decorators: mobileDecorator,
 	parameters: {
-		chromatic: { viewports: [390] },
+		pixel: { matrix: { viewports: ["phone"] } },
 		reactRouter: reactRouterParameters({
 			location: {
 				path: "/agents/chat-123",

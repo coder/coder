@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -74,6 +75,40 @@ func CreateTestOAuth2App(t *testing.T, client *codersdk.Client) (*codersdk.OAuth
 	require.NoError(t, err, "failed to create OAuth2 app secret")
 
 	return &app, secret.ClientSecretFull
+}
+
+// RegisterPublicClient registers a public (secretless, PKCE-only) OAuth2 client
+// via RFC 7591 dynamic registration, the only way to create one. This is the
+// public counterpart to CreateTestOAuth2App. The caller must call EnableDCR
+// first, and needs owner-level permissions to do so.
+func RegisterPublicClient(t *testing.T, client *codersdk.Client, name, redirectURI string) codersdk.OAuth2ClientRegistrationResponse {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	resp, err := client.PostOAuth2ClientRegistration(ctx, codersdk.OAuth2ClientRegistrationRequest{
+		RedirectURIs:            []string{redirectURI},
+		ClientName:              fmt.Sprintf("%s-%s", name, testutil.MustRandString(t, 10)),
+		TokenEndpointAuthMethod: codersdk.OAuth2TokenEndpointAuthMethodNone,
+	})
+	require.NoError(t, err, "failed to register public OAuth2 client")
+	// A public client is issued no secret. Asserting it here means every caller
+	// inherits the check rather than restating it.
+	require.Empty(t, resp.ClientSecret, "public client must not be issued a secret")
+	return resp
+}
+
+// EnableDCR turns on dynamic client registration for the deployment.
+// DCR defaults to disabled, so any test that registers a client via
+// POST /oauth2/register must call this first. The caller-provided client
+// must have owner-level permissions.
+func EnableDCR(t *testing.T, client *codersdk.Client) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, err := client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
+		DynamicClientRegistrationEnabled: ptr.Ref(true),
+	})
+	require.NoError(t, err, "failed to enable dynamic client registration")
 }
 
 // GeneratePKCE generates a random PKCE code verifier and challenge

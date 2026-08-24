@@ -44,13 +44,9 @@ func TestRegions(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		db, pubsub := dbtestutil.NewDB(t)
-
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AppHostname: appHostname,
-				Database:    db,
-				Pubsub:      pubsub,
 			},
 		})
 
@@ -871,7 +867,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
 	})
 
 	t.Run("BadURL", func(t *testing.T) {
@@ -890,8 +886,8 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
-		require.Contains(t, sdkErr.Response.Detail, "scheme")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Detail, "scheme")
 	})
 
 	t.Run("BadURLPath", func(t *testing.T) {
@@ -910,8 +906,8 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid URL")
-		require.Contains(t, sdkErr.Response.Detail, "The provided URL is not a valid reconnecting PTY endpoint URL")
+		require.Contains(t, sdkErr.Message, "Invalid URL")
+		require.Contains(t, sdkErr.Detail, "The provided URL is not a valid reconnecting PTY endpoint URL")
 	})
 
 	t.Run("BadHostname", func(t *testing.T) {
@@ -930,7 +926,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Invalid hostname in URL")
+		require.Contains(t, sdkErr.Message, "Invalid hostname in URL")
 	})
 
 	t.Run("NoToken", func(t *testing.T) {
@@ -1089,6 +1085,12 @@ func TestGetCryptoKeys(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeatureTailnetResume)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		// The NATS cluster CA bundle contains a private key and must never be
+		// served to workspace proxies.
+		_, err = proxy.SDKClient.CryptoKeys(ctx, codersdk.CryptoKeyFeature(database.CryptoKeyFeatureNATSCA))
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())

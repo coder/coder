@@ -11,7 +11,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
-import { Link } from "#/components/Link/Link";
 import { ScrollArea, ScrollBar } from "#/components/ScrollArea/ScrollArea";
 import { getTerminalHref } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
@@ -24,7 +23,6 @@ import {
 	type WorkspaceAppWithAgent,
 } from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
-import { docs } from "#/utils/docs";
 
 type TaskAppsProps = {
 	task: Task;
@@ -120,14 +118,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 					</h3>
 
 					<span className="text-content-secondary text-sm">
-						<Link
-							href={docs("/ai-coder/tasks")}
-							target="_blank"
-							rel="noreferrer"
-						>
-							Learn how to configure apps
-						</Link>{" "}
-						for your tasks.
+						Configure apps on your task template to see them here.
 					</span>
 				</div>
 			)}
@@ -172,12 +163,19 @@ const ExternalAppMenuItem: FC<{
 		workspace,
 	});
 
+	// External apps mint their session token on click via `link.onClick`, so we
+	// render a plain anchor (not a RouterLink) and let the hook handle opening.
 	return (
 		<DropdownMenuItem asChild>
-			<RouterLink to={link.href}>
+			<a
+				href={link.href}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noreferrer"
+			>
 				{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 				{link.label}
-			</RouterLink>
+			</a>
 		</DropdownMenuItem>
 	);
 };
@@ -201,7 +199,7 @@ const TaskAppTab: FC<TaskAppTabProps> = ({
 	});
 
 	return (
-		<TaskTab active={active} to={link.href} onClick={onClick}>
+		<TaskTab active={active} to={link.href ?? ""} onClick={onClick}>
 			{app.icon ? <ExternalImage src={app.icon} /> : <LayoutGridIcon />}
 			{link.label}
 			{app.health === "unhealthy" && (

@@ -1,12 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { chromatic } from "#/testHelpers/chromatic";
 import { mockApiError } from "#/testHelpers/entities";
 import { SetupPageView } from "./SetupPageView";
 
 const meta: Meta<typeof SetupPageView> = {
 	title: "pages/SetupPage",
-	parameters: { chromatic },
 	component: SetupPageView,
 };
 
@@ -45,6 +43,28 @@ export const TrialError: Story = {
 export const Loading: Story = {
 	args: {
 		isLoading: true,
+	},
+};
+
+export const TrialInfoValidation: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(canvas.getByTestId("trial"));
+
+		const phone = await canvas.findByRole("textbox", {
+			name: "Phone number",
+		});
+		await userEvent.type(phone, "abc");
+		await userEvent.click(canvas.getByTestId("create"));
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Phone number should be in international format (e.g. +14155552671).",
+				),
+			).toBeVisible();
+		});
 	},
 };
 

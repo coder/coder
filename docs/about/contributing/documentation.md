@@ -33,7 +33,7 @@ following third-party references:
 ## Tools
 
 This repository runs [Vale](https://vale.sh/) on `docs/` as part of CI to enforce prose style.
-The configuration is the repo-root `.vale.ini`, and the curated rule set is documented in [`docs/.style/style-guide/`](../../.style/style-guide/README.md).
+The configuration is the repo-root `.vale.ini`, and the curated rule set is documented in [`docs/.style/style-guide/`](https://github.com/coder/coder/tree/main/docs/.style/style-guide).
 Run the same checks locally with `make lint/prose`.
 Vale runs in advisory mode in this iteration: warnings surface as inline PR annotations, but they don't block the build.
 
@@ -71,17 +71,35 @@ Use _code font_ for:
 - Filenames, filename extensions, and paths
 - Folders and directories
 - HTTP verbs, status codes, and content-type values
-- Placeholder variables
+- Placeholder variables (see [Placeholders in angle brackets](#placeholders-in-angle-brackets))
 
 Use _code blocks_ for code samples and other blocks of code. Be sure to indicate
 the language your using to apply the proper syntax highlighting.
 
-```text
+```txt
 This is a codeblock.
 ```
 
 For code that you want users to enter via a command-line interface, use
 `console`, not `bash`.
+
+### Placeholders in angle brackets
+
+Placeholder values written in angle brackets **must** be wrapped in backticks so
+they render as inline code. The documentation site renders Markdown as HTML, so
+an unwrapped placeholder such as `<organization-name>` is parsed as an unknown
+HTML tag and stripped out of the page, so readers never see it.
+
+This applies wherever the text becomes documentation, including the Go CLI help
+strings and Swagger annotations that generate the CLI and API reference.
+
+```text
+# Correct: wrap the placeholder in backticks
+Structured as: `<organization-name>/<team-slug>`.
+
+# Incorrect: the placeholder renders as "Structured as: /."
+Structured as: <organization-name>/<team-slug>.
+```
 
 ### Punctuation
 

@@ -713,6 +713,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
 		LastTurnSummary:     sql.NullString{String: "turn completed", Valid: true},
+		Summary:             sql.NullString{String: "summarized the whole chat", Valid: true},
 		CreatedAt:           now,
 		UpdatedAt:           now,
 		Archived:            true,
@@ -756,11 +757,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRowsWithChildren (which joins the
-	// read-cursor query), not by Chat. Warnings is a transient
-	// field populated by handlers, not the converter. Both are
-	// expected to remain zero here.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true}
+	// These fields are set outside db2sdk.Chat and intentionally remain zero.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
@@ -850,6 +848,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 			OrganizationID: orgID,
 			Name:           "screenshot.png",
 			Mimetype:       "image/png",
+			SizeBytes:      1234,
 			CreatedAt:      now,
 		},
 	}
@@ -863,6 +862,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
 	require.Equal(t, "screenshot.png", f.Name)
 	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, int64(1234), f.SizeBytes)
 	require.Equal(t, now, f.CreatedAt)
 
 	// Verify JSON serialization uses snake_case for mime_type.
