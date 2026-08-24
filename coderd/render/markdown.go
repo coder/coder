@@ -160,20 +160,36 @@ func safeURL(url []byte) bool {
 	return parser.IsSafeURL(url)
 }
 
-// renderHTML converts Markdown to HTML. Input is untrusted, so a panic is
-// recovered and the source returned HTML-escaped: the notification still
-// arrives, showing Markdown source, and no markup escapes.
+// recoverToEscapedSource runs render and, if it panics, returns the source
+// HTML-escaped instead: the notification still arrives, showing Markdown
+// source, and no markup escapes.
 //
-// Safelink silently drops fragment and bare relative destinations, so [a](#x)
-// and [a](docs/x.md) render without an anchor. /path, ./path, mailto: and
-// http(s):// still work.
-func renderHTML(markdown string, extensions parser.Extensions) (out string) {
+// Separate from renderHTML so the recovery has a test. No input is known to
+// panic the parser now that safeURL guards the one that did, so a test driving
+// it through renderHTML would pass without exercising this at all.
+func recoverToEscapedSource(markdown string, render func() string) (out string) {
 	defer func() {
 		if r := recover(); r != nil {
 			out = xhtml.EscapeString(markdown)
 		}
 	}()
+	return render()
+}
 
+// renderHTML converts Markdown to HTML. Input is untrusted, so a parser panic
+// is recovered rather than taking down the dispatcher.
+//
+// Safelink silently drops fragment and bare relative destinations, so [a](#x)
+// and [a](docs/x.md) render without an anchor. /path, ./path, mailto: and
+// http(s):// still work.
+func renderHTML(markdown string, extensions parser.Extensions) string {
+	return recoverToEscapedSource(markdown, func() string {
+		return renderHTMLUnsafe(markdown, extensions)
+	})
+}
+
+// renderHTMLUnsafe is renderHTML without the panic guard.
+func renderHTMLUnsafe(markdown string, extensions parser.Extensions) string {
 	p := parser.NewWithExtensions(extensions)
 	p.IsSafeURLOverride = safeURL
 	doc := p.Parse([]byte(markdown))

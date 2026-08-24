@@ -115,12 +115,6 @@ func TestEscapeMarkdown(t *testing.T) {
 		"<ul", "<ol", "<hr", "<blockquote", "<table",
 	}
 
-	// body mirrors the shape of the live TemplateUserAccountSuspended body: the
-	// untrusted value sits mid-paragraph with trusted text on both sides.
-	body := func(label string) string {
-		return "The account belongs to **" + label + "** and it was suspended by **rob**."
-	}
-
 	t.Run("NeutralisesStructure", func(t *testing.T) {
 		t.Parallel()
 
@@ -192,12 +186,12 @@ func TestEscapeMarkdown(t *testing.T) {
 				rawProducedTag := false
 				for _, value := range []string{tc.value, strings.ReplaceAll(tc.value, "\n", "\n\n")} {
 					escaped := EscapeMarkdown(value)
-					html := HTMLFromNotificationMarkdown(body(escaped))
-					plain, err := PlaintextFromMarkdown(body(escaped))
+					html := HTMLFromNotificationMarkdown(suspendedBody(escaped))
+					plain, err := PlaintextFromMarkdown(suspendedBody(escaped))
 					require.NoError(t, err)
 					// The same value with escaping removed, which is what shows
 					// whether the assertions below depend on EscapeMarkdown.
-					raw := HTMLFromNotificationMarkdown(body(value))
+					raw := HTMLFromNotificationMarkdown(suspendedBody(value))
 
 					for _, tag := range structuralTags {
 						assert.NotContains(t, html, tag, "value %q rendered HTML: %s", value, html)
@@ -248,11 +242,11 @@ func TestEscapeMarkdown(t *testing.T) {
 				t.Parallel()
 
 				escaped := EscapeMarkdown(value)
-				require.Equal(t, HTMLFromNotificationMarkdown(body(value)), HTMLFromNotificationMarkdown(body(escaped)))
+				require.Equal(t, HTMLFromNotificationMarkdown(suspendedBody(value)), HTMLFromNotificationMarkdown(suspendedBody(escaped)))
 
-				wantPlain, err := PlaintextFromMarkdown(body(value))
+				wantPlain, err := PlaintextFromMarkdown(suspendedBody(value))
 				require.NoError(t, err)
-				gotPlain, err := PlaintextFromMarkdown(body(escaped))
+				gotPlain, err := PlaintextFromMarkdown(suspendedBody(escaped))
 				require.NoError(t, err)
 				require.Equal(t, wantPlain, gotPlain)
 			})
@@ -291,7 +285,7 @@ func TestEscapeMarkdown(t *testing.T) {
 		// anchor. Escaping "<" turns it into text, which is a deliberate
 		// behavior change: the value is untrusted and must not carry a
 		// destination.
-		html := HTMLFromNotificationMarkdown(body(EscapeMarkdown("Ops <ops@example.com>")))
+		html := HTMLFromNotificationMarkdown(suspendedBody(EscapeMarkdown("Ops <ops@example.com>")))
 		require.NotContains(t, html, "<a ")
 		require.Contains(t, html, "&lt;ops@example.com&gt;")
 	})
@@ -355,8 +349,10 @@ func TestEscapeMarkdownNoAutolink(t *testing.T) {
 	t.Run("HTMLFromMarkdownStillAutolinks", func(t *testing.T) {
 		t.Parallel()
 
-		// The shared renderer is unchanged, so the OIDC signups-disabled page
-		// keeps its existing behavior.
+		// The shared renderer keeps Autolink, so the OIDC signups-disabled page
+		// still linkifies. Its other behavior did change: it routes through
+		// renderHTML, so Safelink now applies there too. See
+		// TestHTMLFromMarkdownSafelink.
 		require.Contains(t, HTMLFromMarkdown("see https://coder.com/docs"), `<a href="https://coder.com/docs"`)
 	})
 

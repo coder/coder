@@ -196,6 +196,12 @@ func TestEncodeHeaderValueFolds(t *testing.T) {
 		// A rune that does not divide evenly into the per-word budget must not
 		// be split across two encoded-words: each has to decode on its own.
 		"multibyte": strings.Repeat("日本語", 400),
+		// Q-encoding expands a non-ASCII rune to three characters per byte, so
+		// these are all under the raw byte limit and over it once encoded. The
+		// gate has to measure the encoded form.
+		"200 accented runes": strings.Repeat("é", 200),
+		"300 cjk runes":      strings.Repeat("日", 300),
+		"200 emoji":          strings.Repeat("🎉", 200),
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

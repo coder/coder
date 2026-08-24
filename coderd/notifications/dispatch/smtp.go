@@ -601,14 +601,19 @@ func encodeHeaderValue(value string) string {
 			return r
 		}, value)
 	}
-	// mime.WordEncoder handles ordinary non-ASCII, but not these two: a forged
-	// encoded-word, which is printable ASCII and so passes through untouched to
-	// be decoded by the recipient's client; and an over-long value, since it
-	// joins words with a space rather than folding.
-	if strings.Contains(value, "=?") || len(value) > maxHeaderValueOctets {
+	// A forged encoded-word is printable ASCII, which mime.WordEncoder passes
+	// through untouched for the recipient's client to decode.
+	if strings.Contains(value, "=?") {
 		return encodeWords(value)
 	}
-	return mime.QEncoding.Encode("utf-8", value)
+	// Length is measured on the encoded form, not the input: Q-encoding expands
+	// a non-ASCII rune to three characters per byte, so a short value can still
+	// exceed the line limit. WordEncoder separates its words with a space
+	// rather than folding, so anything over the limit goes to encodeWords.
+	if encoded := mime.QEncoding.Encode("utf-8", value); len(encoded) <= maxHeaderValueOctets {
+		return encoded
+	}
+	return encodeWords(value)
 }
 
 // encodeWords emits value as RFC 2047 base64 encoded-words, joined with CRLF

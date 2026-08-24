@@ -7,7 +7,12 @@ import (
 	"github.com/gomarkdown/markdown/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	xhtml "golang.org/x/net/html"
 )
+
+// permissive is the grammar notificationExtensions used to enable. Tests that
+// must exercise the escaper rather than the allowlist render against it.
+const permissive = parser.CommonExtensions | parser.HardLineBreak
 
 // suspendedBody mirrors the live TemplateUserAccountSuspended body: the
 // untrusted value sits mid-paragraph with trusted text on both sides.
@@ -61,8 +66,6 @@ func TestEscapeMarkdownFenceInfo(t *testing.T) {
 func TestEscapeMarkdownColon(t *testing.T) {
 	t.Parallel()
 
-	const permissive = parser.CommonExtensions | parser.HardLineBreak
-
 	// A single-column table needs pipes on the delimiter row, so there is no
 	// pipeless spelling to cover here.
 	for name, value := range map[string]string{
@@ -98,8 +101,6 @@ func TestEscapeMarkdownColon(t *testing.T) {
 // template.
 func TestNotificationExtensionsDropUnusedGrammar(t *testing.T) {
 	t.Parallel()
-
-	const permissive = parser.CommonExtensions | parser.HardLineBreak
 
 	for name, tc := range map[string]struct{ markdown, tag string }{
 		"Tables":          {"a | b\n:-- | --:\nc | d", "<table"},
@@ -244,6 +245,52 @@ func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
 				"value %q was escaped when it is not a fold construct", value)
 		}
 	})
+}
+
+// TestRecoverToEscapedSource covers renderHTML's panic guard. Driving it
+// through renderHTML would prove nothing: safeURL closed the only input known
+// to panic, so the recovery would never run.
+func TestRecoverToEscapedSource(t *testing.T) {
+	t.Parallel()
+
+	const src = `<script>alert(1)</script> & "quoted"`
+
+	got := recoverToEscapedSource(src, func() string { panic("boom") })
+	assert.Equal(t, xhtml.EscapeString(src), got)
+	// The point of escaping rather than returning the source: no markup escapes.
+	assert.NotContains(t, got, "<script>")
+
+	// The happy path is passed through untouched.
+	assert.Equal(t, "rendered",
+		recoverToEscapedSource(src, func() string { return "rendered" }))
+}
+
+// TestHTMLFromMarkdownSafelink pins the behavior change Safelink brought to the
+// shared renderer, whose one non-notification caller is
+// OIDCConfig.SignupsDisabledText (coderd/userauth.go).
+func TestHTMLFromMarkdownSafelink(t *testing.T) {
+	t.Parallel()
+
+	// Unsafe schemes stopped linking here, not just in notifications.
+	for _, md := range []string{"[a](javascript:alert(1))", "[a](data:text/html;base64,eA==)"} {
+		assert.NotContains(t, HTMLFromMarkdown(md), "<a ", "unsafe scheme linked: %s", md)
+	}
+
+	// Fragment and bare relative destinations stopped linking too, which is a
+	// silent loss rather than a security property. See renderHTML.
+	for _, md := range []string{"[a](#anchor)", "[a](docs/x.md)"} {
+		assert.NotContains(t, HTMLFromMarkdown(md), "<a ", "destination %q now links", md)
+	}
+
+	// What the signups-disabled text actually uses must keep working.
+	for _, tc := range []struct{ md, want string }{
+		{"see https://coder.com/docs", `<a href="https://coder.com/docs"`},
+		{"[docs](https://coder.com/docs)", `<a href="https://coder.com/docs"`},
+		{"contact [us](mailto:support@coder.com)", `<a href="mailto:support@coder.com"`},
+		{"**bold** and _italic_", "<strong>bold</strong>"},
+	} {
+		assert.Contains(t, HTMLFromMarkdown(tc.md), tc.want)
+	}
 }
 
 // TestEscapeMarkdownResiduals pins the one gap EscapeMarkdown cannot close, so
