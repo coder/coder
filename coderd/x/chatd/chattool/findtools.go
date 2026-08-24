@@ -17,8 +17,7 @@ import (
 
 const (
 	FindToolsName = "find_tools"
-	// findToolsDefaultMatches keeps broad queries from flooding results;
-	// callers raise the per-call limit argument up to findToolsMaxMatches.
+	// Keep broad query results concise while allowing higher explicit limits.
 	findToolsDefaultMatches = 10
 	findToolsMaxMatches     = 20
 	findToolsCatalogTokens  = 4000
@@ -342,21 +341,11 @@ type SearchBudget struct {
 	AllowFirstOverBudget bool
 }
 
-// SearchTools includes exact name activations first, then fills the
-// remaining match slots with keyword matches ranked by distinct query
-// terms matched before raw score, so one generic high-weight term
-// (such as a server name appearing in every tool name on that server)
-// cannot outrank entries that match more of the query. Keyword
-// fill stops at the per-call limit argument (default
-// findToolsDefaultMatches, clamped to findToolsMaxMatches), while exact
-// names are explicit activation requests and bypass the limit up to the
-// hard cap. The hard cap and summary-length descriptions keep the
-// persisted result small enough that generic tool-result truncation can
-// never corrupt the activation JSON that later steps re-derive
-// activations from. A positive budget additionally skips matches whose
-// schema weight would push the aggregate past it, admitting later
-// matches that still fit. The second result counts matches skipped for
-// budget, so callers can tell an exhausted budget from no matches.
+// SearchTools prioritizes exact names, then keyword matches ranked by
+// distinct query terms matched before raw score. Exact names bypass the
+// per-call limit, but a hard cap keeps the persisted result safe from
+// generic tool-result truncation; the second return counts
+// budget-skipped matches.
 func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget SearchBudget) (FindToolsResult, int) {
 	byName := make(map[string]FindToolCatalogEntry, len(entries))
 	for _, entry := range entries {
@@ -390,9 +379,7 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 			}
 			if query.server != "" && len(query.tokens) == 0 {
 				score++
-				// A scope-only query's whole content is its server, so
-				// the scope hit is its one covered term. The ":" prefix
-				// cannot collide with tokens, which never contain ":".
+				// A scope-only hit counts as one covered term; ":" cannot occur in tokens.
 				matched[":"+query.server] = struct{}{}
 				continue
 			}
@@ -549,46 +536,42 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 	return parsed
 }
 
-// autoScopeFindToolsQuery scopes an unprefixed query to a cataloged
-// server when exactly one of its whitespace-delimited words names that
-// server, so "linear issues" ranks like "linear: issues" instead of the
-// server name inflating every tool on that server. An exact-case word
-// wins before the case-insensitive fallback, mirroring prefix scopes.
-// A query whose words name several servers stays unscoped because the
-// intended scope is ambiguous.
+// autoScopeFindToolsQuery scopes an unprefixed query whose words name
+// exactly one cataloged server (repeats merge), so "linear issues"
+// ranks like "linear: issues" rather than the server name inflating
+// every tool on it. Words naming distinct servers stay unscoped as
+// ambiguous.
 func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuery {
 	words := strings.Fields(query)
-	// Query text is model output, so inspect only as many words as the
-	// per-query token cap; the nested server scan stays bounded like
-	// scoring. The unscoped fallback still tokenizes the full query,
-	// which applies the same cap itself.
+	// Bound model-generated words before scanning every server. Unscoped
+	// fallback tokenization applies its own cap.
 	if len(words) > findToolsMaxQueryTokens {
 		words = words[:findToolsMaxQueryTokens]
 	}
-	scopeIndex := -1
-	var scope scopedFindToolsQuery
-	for i, word := range words {
+	scopeServer := ""
+	scopeExact := false
+	rest := make([]string, 0, len(words))
+	for _, word := range words {
 		server, exact, ok := matchFindToolsServerWord(servers, word)
 		if !ok {
+			rest = append(rest, word)
 			continue
 		}
-		if scopeIndex >= 0 {
-			scopeIndex = -1
-			break
+		if scopeServer != "" && server != scopeServer {
+			return scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)}
 		}
-		scopeIndex = i
-		scope = scopedFindToolsQuery{server: server, exact: exact}
+		scopeServer = server
+		scopeExact = scopeExact || exact
 	}
-	if scopeIndex < 0 {
+	if scopeServer == "" {
 		return scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)}
 	}
-	scope.tokens = tokenizeFindToolsQuery(strings.Join(slices.Delete(words, scopeIndex, scopeIndex+1), " "))
-	return scope
+	return scopedFindToolsQuery{server: scopeServer, exact: scopeExact, tokens: tokenizeFindToolsQuery(strings.Join(rest, " "))}
 }
 
 // matchFindToolsServerWord resolves one query word to a cataloged
-// server name, exact-case first. A folded match reports exact=false so
-// scoring spans case-colliding servers, exactly like a folded prefix.
+// server name, exact-case first. Folded matches report exact=false so
+// scoring spans case-colliding servers, like a folded prefix scope.
 func matchFindToolsServerWord(servers []string, word string) (server string, exact bool, ok bool) {
 	folded := ""
 	for _, candidate := range servers {

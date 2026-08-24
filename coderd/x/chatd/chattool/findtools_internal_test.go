@@ -155,6 +155,10 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Activated, 3,
 			"words naming two servers leave the query unscoped")
 
+		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear linear issue"}}, SearchBudget{})
+		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
+			"repeated words naming the same server keep the scope")
+
 		overflowScope := strings.Repeat("issue ", findToolsMaxQueryTokens) + "linear"
 		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{overflowScope}}, SearchBudget{})
 		require.Len(t, result.Activated, 2,
