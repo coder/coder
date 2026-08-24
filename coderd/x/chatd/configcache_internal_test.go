@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -25,17 +24,13 @@ import (
 type stubChatConfigStore struct {
 	database.Store
 
-	getAIProviders            func(context.Context) ([]database.AIProvider, error)
-	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
-	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
-	getChatAdvisorConfig      func(context.Context) (string, error)
+	getAIProviders          func(context.Context) ([]database.AIProvider, error)
+	getUserChatCustomPrompt func(context.Context, uuid.UUID) (string, error)
+	getChatAdvisorConfig    func(context.Context) (string, error)
 
-	enabledProvidersCalls  atomic.Int32
-	modelConfigByIDCalls   atomic.Int32
-	defaultModelConfigCall atomic.Int32
-	userPromptCalls        atomic.Int32
-	advisorConfigCalls     atomic.Int32
+	enabledProvidersCalls atomic.Int32
+	userPromptCalls       atomic.Int32
+	advisorConfigCalls    atomic.Int32
 }
 
 func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.GetAIProvidersParams) ([]database.AIProvider, error) {
@@ -44,22 +39,6 @@ func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.Get
 		panic("unexpected GetAIProviders call")
 	}
 	return s.getAIProviders(ctx)
-}
-
-func (s *stubChatConfigStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
-	s.modelConfigByIDCalls.Add(1)
-	if s.getChatModelConfigByID == nil {
-		panic("unexpected GetChatModelConfigByID call")
-	}
-	return s.getChatModelConfigByID(ctx, id)
-}
-
-func (s *stubChatConfigStore) GetDefaultChatModelConfig(ctx context.Context) (database.ChatModelConfig, error) {
-	s.defaultModelConfigCall.Add(1)
-	if s.getDefaultChatModelConfig == nil {
-		panic("unexpected GetDefaultChatModelConfig call")
-	}
-	return s.getDefaultChatModelConfig(ctx)
 }
 
 func (s *stubChatConfigStore) GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -143,118 +122,6 @@ func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 
 	require.NotEqual(t, first, second)
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
-}
-
-func TestConfigCache_ModelConfigByID_CacheHit(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	config := testChatModelConfig(configID, "model-a")
-	store := &stubChatConfigStore{
-		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-			return config, nil
-		},
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	second, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-
-	require.Equal(t, config, first)
-	require.Equal(t, config, second)
-	require.Equal(t, int32(1), store.modelConfigByIDCalls.Load())
-}
-
-func TestConfigCache_ModelConfigByID_ClonesOptionsForCache(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	const options = `{"temperature":0.1}`
-	config := testChatModelConfig(configID, "model-a")
-	config.Options = []byte(options)
-	store := &stubChatConfigStore{
-		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-			return config, nil
-		},
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	// First call populates cache via singleflight.
-	first, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	first.Options[0] = 'x' // mutate singleflight return
-
-	// Second call is a cache hit.
-	second, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	require.Equal(t, options, string(second.Options))
-	second.Options[0] = 'y' // mutate cache-hit return
-
-	// Third call is another cache hit — must be unaffected.
-	third, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	require.Equal(t, options, string(third.Options))
-}
-
-func TestConfigCache_ModelConfigByID_NotFound(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	store := &stubChatConfigStore{
-		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-			return database.ChatModelConfig{}, sql.ErrNoRows
-		},
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	_, err := cache.ModelConfigByID(ctx, configID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = cache.ModelConfigByID(ctx, configID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-	_, ok := cache.modelConfigs[configID]
-	require.False(t, ok)
-}
-
-func TestConfigCache_InvalidateModelConfig_CascadesToDefault(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	config := testChatModelConfig(configID, "model-a")
-	store := &stubChatConfigStore{}
-	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-		return config, nil
-	}
-	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
-		call := store.defaultModelConfigCall.Load()
-		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	_, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	firstDefault, err := cache.DefaultModelConfig(ctx)
-	require.NoError(t, err)
-
-	cache.InvalidateModelConfig(configID)
-	require.Nil(t, cache.defaultModelConfig)
-
-	secondDefault, err := cache.DefaultModelConfig(ctx)
-	require.NoError(t, err)
-
-	require.NotEqual(t, firstDefault, secondDefault)
-	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
 }
 
 func TestConfigCache_UserPrompt_NegativeCaching(t *testing.T) {
@@ -557,120 +424,6 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing
 	require.Equal(t, int32(2), store.enabledProvidersCalls.Load())
 }
 
-func TestConfigCache_InvalidateProviders_CascadesToModelConfigs(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	store := &stubChatConfigStore{}
-	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-		call := store.modelConfigByIDCalls.Load()
-		return testChatModelConfig(configID, fmt.Sprintf("model-%d", call)), nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	cache.InvalidateProviders()
-	second, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-
-	require.NotEqual(t, first, second)
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-}
-
-func TestConfigCache_InvalidateProviders_CascadesToDefaultModelConfig(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-	clock := quartz.NewMock(t)
-	store := &stubChatConfigStore{}
-	store.getDefaultChatModelConfig = func(context.Context) (database.ChatModelConfig, error) {
-		call := store.defaultModelConfigCall.Load()
-		return testChatModelConfig(uuid.New(), fmt.Sprintf("default-model-%d", call)), nil
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	first, err := cache.DefaultModelConfig(ctx)
-	require.NoError(t, err)
-	cache.InvalidateProviders()
-	second, err := cache.DefaultModelConfig(ctx)
-	require.NoError(t, err)
-
-	require.NotEqual(t, first, second)
-	require.Equal(t, int32(2), store.defaultModelConfigCall.Load())
-}
-
-func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	clock := quartz.NewMock(t)
-	configID := uuid.New()
-	staleConfig := testChatModelConfig(configID, "stale-model")
-	freshConfig := testChatModelConfig(configID, "fresh-model")
-	firstStarted := make(chan struct{})
-	secondStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	releaseSecond := make(chan struct{})
-	store := &stubChatConfigStore{}
-	store.getChatModelConfigByID = func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
-		switch call := store.modelConfigByIDCalls.Load(); call {
-		case 1:
-			close(firstStarted)
-			<-releaseFirst
-			return staleConfig, nil
-		case 2:
-			close(secondStarted)
-			<-releaseSecond
-			return freshConfig, nil
-		default:
-			return database.ChatModelConfig{}, xerrors.Errorf("unexpected model config call %d", call)
-		}
-	}
-	cache := newChatConfigCache(ctx, store, clock)
-
-	type result struct {
-		config database.ChatModelConfig
-		err    error
-	}
-
-	firstResult := make(chan result, 1)
-	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
-		firstResult <- result{config: config, err: err}
-	}()
-
-	waitForSignal(t, firstStarted)
-	cache.InvalidateProviders()
-
-	secondResult := make(chan result, 1)
-	go func() {
-		config, err := cache.ModelConfigByID(ctx, configID)
-		secondResult <- result{config: config, err: err}
-	}()
-
-	waitForSignal(t, secondStarted)
-	close(releaseFirst)
-	first := <-firstResult
-	require.NoError(t, first.err)
-	require.Equal(t, staleConfig, first.config)
-	_, ok := cache.modelConfigs[configID]
-	require.False(t, ok)
-
-	close(releaseSecond)
-	second := <-secondResult
-	require.NoError(t, second.err)
-	require.Equal(t, freshConfig, second.config)
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-
-	third, err := cache.ModelConfigByID(ctx, configID)
-	require.NoError(t, err)
-	require.Equal(t, freshConfig, third)
-	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
-}
-
 func testAIProvider(name string) database.AIProvider {
 	return database.AIProvider{
 		ID:          uuid.New(),
@@ -680,19 +433,6 @@ func testAIProvider(name string) database.AIProvider {
 		Enabled:     true,
 		CreatedAt:   time.Unix(0, 0).UTC(),
 		UpdatedAt:   time.Unix(0, 0).UTC(),
-	}
-}
-
-func testChatModelConfig(id uuid.UUID, model string) database.ChatModelConfig {
-	return database.ChatModelConfig{
-		ID:                   id,
-		Model:                model,
-		DisplayName:          model,
-		Enabled:              true,
-		CreatedAt:            time.Unix(0, 0).UTC(),
-		UpdatedAt:            time.Unix(0, 0).UTC(),
-		ContextLimit:         128000,
-		CompressionThreshold: 64000,
 	}
 }
 
@@ -706,8 +446,7 @@ func waitForSignal(t *testing.T, ch <-chan struct{}) {
 	}
 }
 
-// TestConfigCache_CallerCancellation verifies the DoChan-based
-// cancellation semantics across all four cache methods:
+// TestConfigCache_CallerCancellation verifies the DoChan-based cancellation semantics:
 //   - A canceled caller returns immediately without waiting for the
 //     shared fill to complete.
 //   - One canceled waiter does not poison other coalesced waiters.
@@ -730,7 +469,6 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 		storeCalls func(store *stubChatConfigStore) int32
 	}
 
-	configID := uuid.New()
 	userID := uuid.New()
 
 	methods := []cacheMethod{
@@ -762,66 +500,6 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 			},
 			storeCalls: func(store *stubChatConfigStore) int32 {
 				return store.enabledProvidersCalls.Load()
-			},
-		},
-		{
-			name: "ModelConfigByID",
-			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
-				var once sync.Once
-				store.getChatModelConfigByID = func(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
-					once.Do(func() { close(started) })
-					select {
-					case <-ctx.Done():
-						return database.ChatModelConfig{}, ctx.Err()
-					case <-release:
-						return testChatModelConfig(id, "model"), nil
-					}
-				}
-			},
-			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
-				var once sync.Once
-				store.getChatModelConfigByID = func(ctx context.Context, _ uuid.UUID) (database.ChatModelConfig, error) {
-					once.Do(func() { close(started) })
-					<-ctx.Done()
-					return database.ChatModelConfig{}, ctx.Err()
-				}
-			},
-			call: func(ctx context.Context, cache *chatConfigCache) error {
-				_, err := cache.ModelConfigByID(ctx, configID)
-				return err
-			},
-			storeCalls: func(store *stubChatConfigStore) int32 {
-				return store.modelConfigByIDCalls.Load()
-			},
-		},
-		{
-			name: "DefaultModelConfig",
-			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
-				var once sync.Once
-				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
-					once.Do(func() { close(started) })
-					select {
-					case <-ctx.Done():
-						return database.ChatModelConfig{}, ctx.Err()
-					case <-release:
-						return testChatModelConfig(uuid.New(), "default"), nil
-					}
-				}
-			},
-			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
-				var once sync.Once
-				store.getDefaultChatModelConfig = func(ctx context.Context) (database.ChatModelConfig, error) {
-					once.Do(func() { close(started) })
-					<-ctx.Done()
-					return database.ChatModelConfig{}, ctx.Err()
-				}
-			},
-			call: func(ctx context.Context, cache *chatConfigCache) error {
-				_, err := cache.DefaultModelConfig(ctx)
-				return err
-			},
-			storeCalls: func(store *stubChatConfigStore) int32 {
-				return store.defaultModelConfigCall.Load()
 			},
 		},
 		{
@@ -1098,7 +776,7 @@ func TestConfigCache_AdvisorConfig_EmptyJSONYieldsZeroValue(t *testing.T) {
 
 	cfg, err := cache.AdvisorConfig(ctx)
 	require.NoError(t, err)
-	require.Equal(t, codersdk.AdvisorConfig{}, cfg)
+	require.Equal(t, advisorRuntimeConfig{}, cfg)
 }
 
 // Guards the pubsub-driven invalidation path. Without this, an admin
@@ -1163,7 +841,7 @@ func TestConfigCache_InvalidateAdvisorConfig_BlocksStaleInFlight(t *testing.T) {
 	cache := newChatConfigCache(ctx, store, clock)
 
 	type result struct {
-		config codersdk.AdvisorConfig
+		config advisorRuntimeConfig
 		err    error
 	}
 

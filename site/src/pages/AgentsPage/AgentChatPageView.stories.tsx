@@ -50,11 +50,11 @@ import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage"
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -70,7 +70,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	owner_username: "owner",
 	owner_name: "Owner",
 	title: "Help me refactor",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -142,7 +142,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],
-		effectiveSelectedModel: defaultModelConfigID,
+		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
@@ -243,6 +243,25 @@ export const Default: Story = {
 		expect(
 			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const CachedModelsWithRefetchError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			modelCatalogError={new Error("Failed to refresh available models.")}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Failed to refresh available models."),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("combobox", {
+				name: defaultModelOptions[0].displayName,
+			}),
+		).toBeVisible();
 	},
 };
 
@@ -347,7 +366,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		const trialLink = canvas.getByRole("link", {
 			name: /start an unlimited trial/i,
 		});
-		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		expect(trialLink).toHaveAttribute("href", "/deployment/premium");
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
 		expect(learnMoreLink).toHaveAttribute(
 			"href",
@@ -894,7 +913,7 @@ export const Loading: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -918,7 +937,7 @@ export const LoadingWithModelOptions: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -941,7 +960,7 @@ export const LoadingWithRightPanel: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -965,7 +984,7 @@ export const LoadingSidebarCollapsed: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -1570,7 +1589,7 @@ export const FailedHistoryPageOffersKeyboardRetry: Story = {
 export const TerminalFocusOnTabSwitch: Story = {
 	parameters: {
 		pixel: { exclude: true },
-		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+		webSocket: [],
 	},
 	decorators: [withWebSocket],
 	render: () => (
@@ -1596,12 +1615,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 			return el;
 		});
 
-		// The xterm focus target is a textarea inside the terminal container.
+		const terminal = within(terminalContainer);
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1611,12 +1630,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 		await userEvent.click(gitTab);
 		await userEvent.click(terminalTab);
 
-		// Focus should return to the terminal textarea.
+		// Focus should return to the terminal input.
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
