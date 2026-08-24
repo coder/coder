@@ -194,7 +194,13 @@ jobs:
           COUNT: ${{ steps.audit.outputs.count }}
           LOGS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          set -euo pipefail
+          # -fsS makes curl exit non-zero on an HTTP error (e.g. a revoked or
+          # misconfigured webhook) so a failed post turns the step red instead
+          # of silently logging success; --max-time caps a hung request.
           curl \
+            -fsS \
+            --max-time 10 \
             -X POST \
             -H 'Content-type: application/json' \
             -d '{"text":":warning: *Docs URL drift detected by audit-docs-paths.*\n'"${COUNT}"' stale docs path reference(s) resolve to a redirect source. See the tracked issue and logs: '"${LOGS_URL}"'"}' \
