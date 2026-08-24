@@ -897,16 +897,13 @@ const (
 	// Cap a single turn so one long message cannot dominate the budget.
 	summaryTranscriptPerMessageMaxRunes = 4000
 	summaryMaxOutputTokens              = 512
-	// Reject pathologically long or verbose summaries. The caps apply to the
-	// structured fields before serialization, plus a ceiling on the rendered
-	// markdown so the panel stays scannable.
+	// Reject pathologically long or verbose summaries.
 	summaryMaxRunes             = 600
 	summaryHeadlineMaxRunes     = 200
 	summaryHeadlineMaxSentences = 2
 	summaryBulletMaxRunes       = 160
-	// Only an upper bound. A trivial chat is fully described by its headline,
-	// and requiring bullets there would either pad the summary with filler or
-	// reject it outright, leaving the panel empty.
+	// Upper bound only; requiring bullets would pad trivial chats with
+	// filler or reject them, leaving the panel empty.
 	summaryMaxBullets = 4
 )
 
@@ -1019,11 +1016,9 @@ func summaryObjectCall(resolved resolvedModelCall) fantasy.ObjectCall {
 	)
 }
 
-// generateChatSummary generates a whole-chat summary from a transcript as a
-// one-sentence headline plus up to 4 bullets, serialized to markdown by
-// formatChatSummaryMarkdown. Bullets are omitted for chats the headline
-// already covers. A blank or invalid result returns an error so callers
-// preserve any existing summary rather than clearing it.
+// generateChatSummary generates a headline-plus-bullets summary from a
+// transcript, serialized to markdown. A blank or invalid result returns an
+// error so callers preserve any existing summary rather than clearing it.
 func generateChatSummary(
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -1060,18 +1055,14 @@ func generateChatSummary(
 	return formatChatSummaryMarkdown(summary.Headline, summary.Bullets), result.Usage, nil
 }
 
-// normalizeSummaryField collapses internal whitespace so a field stays on one
-// line, and strips surrounding quotes. Unlike normalizeShortTextOutput it
-// preserves backticks, so a field ending in an inline code span keeps a
-// balanced pair.
+// normalizeSummaryField collapses a field onto one line. Unlike
+// normalizeShortTextOutput it preserves backticks, keeping inline code spans
+// balanced.
 func normalizeSummaryField(text string) string {
 	text = strings.Trim(strings.TrimSpace(text), "\"'")
 	return strings.Join(strings.Fields(text), " ")
 }
 
-// normalizeSummaryBullets normalizes each bullet and drops the ones that
-// normalize to nothing, so blank model output does not render as an empty
-// list item.
 func normalizeSummaryBullets(bullets []string) []string {
 	normalized := make([]string, 0, len(bullets))
 	for _, bullet := range bullets {
@@ -1082,12 +1073,8 @@ func normalizeSummaryBullets(bullets []string) []string {
 	return normalized
 }
 
-// formatChatSummaryMarkdown renders the stored summary as a headline paragraph
-// followed by an optional bullet list, separated by a blank line. Both summary
-// producers go through here so the stored format stays consistent.
-//
-// Bullets must already be normalized by normalizeSummaryBullets, which drops
-// blank entries and collapses newlines.
+// formatChatSummaryMarkdown renders a headline paragraph plus an optional
+// bullet list. Bullets must already be normalized: no blanks, no newlines.
 func formatChatSummaryMarkdown(headline string, bullets []string) string {
 	headline = strings.TrimSpace(headline)
 	if len(bullets) == 0 {
@@ -1096,10 +1083,9 @@ func formatChatSummaryMarkdown(headline string, bullets []string) string {
 	return strings.TrimSpace(headline + "\n\n- " + strings.Join(bullets, "\n- "))
 }
 
-// validateGeneratedChatSummary checks the structured fields before they are
-// serialized. Validating here rather than over the rendered markdown keeps the
-// sentence cap meaningful: bullets routinely omit trailing punctuation, so a
-// sentence count over the serialized string would pass almost anything.
+// validateGeneratedChatSummary checks the structured fields rather than the
+// rendered markdown: bullets omit trailing punctuation, so a sentence count
+// over the serialized string would pass almost anything.
 func validateGeneratedChatSummary(summary generatedChatSummary) error {
 	if summary.Headline == "" {
 		return xerrors.New("generated chat summary headline was empty")

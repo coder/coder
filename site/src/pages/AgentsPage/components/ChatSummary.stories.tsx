@@ -66,17 +66,14 @@ export const HeadlineAndBullets: Story = {
 		const list = canvas.getByRole("list");
 		await expect(within(list).getAllByRole("listitem")).toHaveLength(3);
 
-		// Identifiers wrapped in backticks render as inline code, not literal
-		// backticks.
+		// Backticked identifiers render as inline code, not literal backticks.
 		await expect(canvas.getByText("chatd.go")).toBeInTheDocument();
 		await expect(canvas.queryByText(/`/)).not.toBeInTheDocument();
 	},
 };
 
-// A summary can be a bare headline with no bullets: summaries generated before
-// the structured format are plain prose and there is no backfill, subagent
-// summaries are extracted from the agent's report rather than generated, and a
-// trivial chat is allowed to omit bullets instead of padding them.
+// Headline-only summaries: legacy prose, subagent report snippets, and
+// trivial chats whose headline covers everything.
 export const HeadlineOnlySummary: Story = {
 	args: {
 		summary:
@@ -91,9 +88,8 @@ export const HeadlineOnlySummary: Story = {
 	},
 };
 
-// A legacy prose summary that happens to start with "1. " parses as an ordered
-// list. `ol` is allowlisted so the items keep a list parent instead of
-// rendering as orphan `li` elements.
+// A prose summary starting with "1. " parses as an ordered list; `ol` is
+// allowlisted so the items keep a list parent.
 export const LegacyOrderedList: Story = {
 	args: { summary: "1. Fixed the race\n2. Added a test" },
 	play: async ({ canvasElement }) => {
@@ -104,8 +100,6 @@ export const LegacyOrderedList: Story = {
 	},
 };
 
-// Links render as plain text. A summary describes the chat rather than linking
-// out of it, and any URL in one is model-authored.
 export const LinksRenderAsPlainText: Story = {
 	args: {
 		summary:
@@ -118,18 +112,15 @@ export const LinksRenderAsPlainText: Story = {
 	},
 };
 
-// The generation prompt preserves identifiers and wraps them in backticks, so
-// a single token can be wider than the panel. It has to wrap, or it widens the
-// box past the column it sits in.
+// A single backticked identifier can be wider than the panel and must wrap.
 export const LongIdentifierWraps: Story = {
 	args: {
 		summary:
 			"Fixed `TestValidateGeneratedChatSummaryHeadlineExceedsBothTheRuneAndSentenceCaps` in `coderd/x/chatd/summarygen_internal_test.go`.",
 	},
-	// Pinned narrower than the panel's 360px minimum so the identifier cannot
-	// fit on one line. The wrapped layout itself is covered by visual
-	// regression snapshots; per FE10 the assertion here stays semantic rather
-	// than measuring geometry.
+	// Narrower than the panel minimum so the identifier cannot fit on one
+	// line. Layout is covered by visual snapshots; per FE10 the assertion
+	// stays semantic.
 	decorators: [
 		(Story) => (
 			<div className="w-[300px]">
@@ -147,8 +138,8 @@ export const LongIdentifierWraps: Story = {
 	},
 };
 
-// The summary renders at its natural height. Nothing is clipped or hidden
-// behind a disclosure toggle; the surrounding panel scrolls instead.
+// Renders at natural height; the surrounding panel scrolls instead of
+// clipping or collapsing.
 export const LongSummary: Story = {
 	args: { summary: LONG_SUMMARY },
 	play: async ({ canvasElement }) => {

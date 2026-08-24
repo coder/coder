@@ -258,13 +258,11 @@ func TestValidateGeneratedChatSummary(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			// A chat can be small enough that one bullet is all there is to say.
 			name:    "SingleBullet",
 			summary: generatedChatSummary{Headline: "Fixed it.", Bullets: []string{"Only one"}},
 		},
 		{
-			// A trivial chat is fully described by its headline. Rejecting this
-			// would leave the panel empty rather than showing the short summary.
+			// A trivial chat is fully described by its headline.
 			name:    "NoBullets",
 			summary: generatedChatSummary{Headline: "Fixed a typo in `README.md`."},
 		},
@@ -340,8 +338,7 @@ func TestNormalizeSummaryField(t *testing.T) {
 		{name: "CollapsesRuns", text: "Fixed   the\t\trace", want: "Fixed the race"},
 		{name: "StripsSurroundingQuotes", text: `"Fixed the race"`, want: "Fixed the race"},
 		{
-			// normalizeShortTextOutput would strip this trailing backtick and
-			// leave an unbalanced inline code span.
+			// normalizeShortTextOutput would strip this and unbalance the span.
 			name: "PreservesTrailingBacktick",
 			text: "Fixed `cache.go`",
 			want: "Fixed `cache.go`",
@@ -382,8 +379,8 @@ func TestFormatChatSummaryMarkdown(t *testing.T) {
 			want:     "Fixed the flaky CI job.",
 		},
 		{
-			// A blank line must separate the paragraph from the list, or
-			// CommonMark folds the first bullet into the headline paragraph.
+			// Without the blank line, CommonMark folds the first bullet
+			// into the headline paragraph.
 			name:     "HeadlineAndBullets",
 			headline: "Fixed the flaky CI job.",
 			bullets:  []string{"Traced the race", "Added a test"},
