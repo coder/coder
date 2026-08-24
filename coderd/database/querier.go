@@ -299,12 +299,6 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
-	GetAIAgentByOrigin(ctx context.Context, arg GetAIAgentByOriginParams) (AIAgent, error)
-	// Returns the newest identity for an origin regardless of deletion, so
-	// callers can distinguish "origin never had an identity" (no rows) from
-	// "identity was revoked" (deleted = true) and fail closed on the latter.
-	GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error)
-	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (AIAgent, error)
 	GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (AIAgentLedger, error)
 	// Entries about one AI agent, ordered as they were made. This machine has a
 	// cycle, `transfer` being a self-transition, so one subject can accumulate
@@ -712,6 +706,13 @@ type sqlcQuerier interface {
 	// "last" must use id order.
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
+	// The most recently created AI agent of a site whatever its state, so that a
+	// caller can tell a site that never had one, which returns no rows, from a site
+	// whose agent has been retired.
+	//
+	// A site can have had several over time, retirement freeing it for another, so
+	// this orders rather than assuming one.
+	GetLatestAIAgentByCreationSite(ctx context.Context, arg GetLatestAIAgentByCreationSiteParams) (AIAgentLedger, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
 	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
@@ -725,6 +726,12 @@ type sqlcQuerier interface {
 	GetLatestWorkspaceBuildsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceBuild, error)
 	GetLicenseByID(ctx context.Context, id int32) (License, error)
 	GetLicenses(ctx context.Context) ([]License, error)
+	// The live AI agent of a creation site, if it has one.
+	//
+	// Live means active. Retired is the only other state reachable today, and
+	// dormant, which is in the set and unreachable, is not live either, so naming
+	// the state wanted rather than the states excluded stays right when it arrives.
+	GetLiveAIAgentByCreationSite(ctx context.Context, arg GetLiveAIAgentByCreationSiteParams) (AIAgentLedger, error)
 	GetLogoURL(ctx context.Context) (string, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)

@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -378,21 +379,21 @@ func TestPostChats(t *testing.T) {
 		// owner, plus exactly one chat-scoped API key.
 		//nolint:gocritic // Verifying internal identity state requires system access.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		agent, err := db.GetAIAgentByOrigin(sysCtx, database.GetAIAgentByOriginParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   chat.ID,
+		agent, err := db.GetLiveAIAgentByCreationSite(sysCtx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   chat.ID,
 		})
 		require.NoError(t, err)
-		require.Equal(t, member.ID, agent.OwnerUserID)
-		require.False(t, agent.Deleted)
+		require.Equal(t, member.ID, agent.OwnerID)
+		require.Equal(t, entity.AIAgentStateActive, agent.State)
 
-		agentUser, err := db.GetUserByID(sysCtx, agent.UserID)
+		agentUser, err := db.GetUserByID(sysCtx, agent.ID)
 		require.NoError(t, err)
 		require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
 		require.Equal(t, database.LoginTypeNone, agentUser.LoginType)
 
 		keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
-			HolderID:  database.HolderID(agent.UserID),
+			HolderID:  database.HolderID(agent.ID),
 			LoginType: database.LoginTypeToken,
 		})
 		require.NoError(t, err)
@@ -425,9 +426,9 @@ func TestPostChats(t *testing.T) {
 
 		//nolint:gocritic // Verifying internal identity state requires system access.
 		sysCtx := dbauthz.AsSystemRestricted(ctx)
-		agent, err := db.GetAIAgentByOrigin(sysCtx, database.GetAIAgentByOriginParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   chat.ID,
+		agent, err := db.GetLiveAIAgentByCreationSite(sysCtx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   chat.ID,
 		})
 		require.NoError(t, err)
 
@@ -440,15 +441,15 @@ func TestPostChats(t *testing.T) {
 		// With the chat's AI agent actor: agent-typed subject narrowed to
 		// the chat profile scope, acting = agent user.
 		actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
-			AgentUserID: agent.UserID,
-			OwnerUserID: agent.OwnerUserID,
-			OriginType:  agent.OriginType,
-			OriginID:    agent.OriginID,
+			AgentUserID: agent.ID,
+			OwnerUserID: agent.OwnerID,
+			OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+			OriginID:    agent.CreationSiteID,
 		})
 		subject, actingUserID, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
 		require.NoError(t, err)
 		require.Equal(t, rbac.SubjectTypeAIAgent, subject.Type)
-		require.Equal(t, agent.UserID, actingUserID)
+		require.Equal(t, agent.ID, actingUserID)
 		require.Equal(t, member.ID.String(), subject.ID, "authorization identity must remain the owner")
 		require.Error(t, api.HTTPAuth.Authorizer.Authorize(
 			ctx,
@@ -459,10 +460,10 @@ func TestPostChats(t *testing.T) {
 
 		// Mismatched sponsor fails closed.
 		wrongCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
-			AgentUserID: agent.UserID,
+			AgentUserID: agent.ID,
 			OwnerUserID: uuid.New(),
-			OriginType:  agent.OriginType,
-			OriginID:    agent.OriginID,
+			OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+			OriginID:    agent.CreationSiteID,
 		})
 		_, _, err = coderd.ChatToolSubject(api, wrongCtx, member.ID)
 		require.Error(t, err)
@@ -470,7 +471,7 @@ func TestPostChats(t *testing.T) {
 		// In-process platform callbacks must re-check agent and owner
 		// liveness because chat workers are detached from the HTTP gate.
 		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
-			ID:        agent.UserID,
+			ID:        agent.ID,
 			Status:    database.UserStatusSuspended,
 			UpdatedAt: dbtime.Now(),
 		})
@@ -479,7 +480,7 @@ func TestPostChats(t *testing.T) {
 		require.Error(t, err)
 
 		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
-			ID:        agent.UserID,
+			ID:        agent.ID,
 			Status:    database.UserStatusActive,
 			UpdatedAt: dbtime.Now(),
 		})
@@ -15727,9 +15728,9 @@ func TestChatCreateWorkspace_AIDesignation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: chatAgent.UserID, Valid: true}, workspace.AIAgentID)
 
-	_, err = db.GetAIAgentByOrigin(dbauthz.AsSystemRestricted(ctx), database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   created.ID,
+	_, err = db.GetLiveAIAgentByCreationSite(dbauthz.AsSystemRestricted(ctx), database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   created.ID,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows, "chat-created workspaces must reuse the chat identity")
 }

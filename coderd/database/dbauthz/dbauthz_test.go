@@ -436,29 +436,9 @@ func (s *MethodTestSuite) TestAPIKey() {
 }
 
 func (s *MethodTestSuite) TestAIAgents() {
-	s.Run("GetAIAgentByOrigin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
-		arg := database.GetAIAgentByOriginParams{OriginType: agent.OriginType, OriginID: agent.OriginID}
-		dbm.EXPECT().GetAIAgentByOrigin(gomock.Any(), arg).Return(agent, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
-	}))
-
-	s.Run("GetAIAgentByOriginIncludingDeleted", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
-		arg := database.GetAIAgentByOriginIncludingDeletedParams{OriginType: agent.OriginType, OriginID: agent.OriginID}
-		dbm.EXPECT().GetAIAgentByOriginIncludingDeleted(gomock.Any(), arg).Return(agent, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
-	}))
-
 	s.Run("RevokeOrphanedChatAIAgents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().RevokeOrphanedChatAIAgents(gomock.Any()).Return(int64(1), nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(1))
-	}))
-
-	s.Run("GetAIAgentByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		agent := testutil.Fake(s.T(), faker, database.AIAgent{})
-		dbm.EXPECT().GetAIAgentByUserID(gomock.Any(), agent.UserID).Return(agent, nil).AnyTimes()
-		check.Args(agent.UserID).Asserts(rbac.ResourceUserObject(agent.UserID), policy.ActionRead).Returns(agent)
 	}))
 
 	s.Run("GetAIAgentsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1671,6 +1651,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionShare).Returns()
+	}))
+	s.Run("GetLiveAIAgentByCreationSite", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetLiveAIAgentByCreationSiteParams{CreationSiteType: "workspace", CreationSiteID: uuid.New()}
+		dbm.EXPECT().GetLiveAIAgentByCreationSite(gomock.Any(), arg).Return(database.AIAgentLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetLatestAIAgentByCreationSite", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetLatestAIAgentByCreationSiteParams{CreationSiteType: "workspace", CreationSiteID: uuid.New()}
+		dbm.EXPECT().GetLatestAIAgentByCreationSite(gomock.Any(), arg).Return(database.AIAgentLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetOrphanedChatAIAgents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetOrphanedChatAIAgents(gomock.Any()).Return([]uuid.UUID{}, nil).AnyTimes()

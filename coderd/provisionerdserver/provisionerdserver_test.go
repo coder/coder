@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
@@ -5778,9 +5779,9 @@ func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
 
 		_, build := completeBuild(t, f, workspace, nil, "chat-a", "chat-b")
 		requireBuildAgentsBound(t, f.db, workspace.ID, build.BuildNumber, chatAgent.UserID, 2)
-		_, err = f.db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-			OriginType: database.AIAgentOriginWorkspace,
-			OriginID:   workspace.ID,
+		_, err = f.db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+			CreationSiteID:   workspace.ID,
 		})
 		require.ErrorIs(t, err, sql.ErrNoRows, "chat-designated workspaces must not mint a workspace-origin identity")
 	})
@@ -5979,28 +5980,28 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	firstToken := metadata.GetWorkspaceAiAgentSessionToken()
 	require.NotEmpty(t, firstToken)
 
-	revokedAgent, err := db.GetAIAgentByUserID(ctx, staleAgent.UserID)
+	revokedAgent, err := db.GetAIAgentLedgerRowByID(ctx, staleAgent.UserID)
 	require.NoError(t, err)
-	require.True(t, revokedAgent.Deleted)
+	require.True(t, revokedAgent.State != entity.AIAgentStateActive)
 	_, err = db.GetAPIKeyByID(ctx, staleKey.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "claim must revoke the former owner's agent key")
 
-	agent, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
+	agent, err := db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   workspace.ID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, user.ID, agent.OwnerUserID)
-	require.NotEqual(t, staleAgent.UserID, agent.UserID)
+	require.Equal(t, user.ID, agent.OwnerID)
+	require.NotEqual(t, staleAgent.UserID, agent.ID)
 
-	agentUser, err := db.GetUserByID(ctx, agent.UserID)
+	agentUser, err := db.GetUserByID(ctx, agent.ID)
 	require.NoError(t, err)
 	require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
 
 	keyID := strings.Split(firstToken, "-")[0]
 	firstKey, err := db.GetAPIKeyByID(ctx, keyID)
 	require.NoError(t, err)
-	require.Equal(t, agent.UserID, firstKey.HolderID.AsUserIDUnchecked())
+	require.Equal(t, agent.ID, firstKey.HolderID.AsUserIDUnchecked())
 	// The key must be pinned to exactly this workspace.
 	require.Len(t, firstKey.AllowList, 1)
 	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
@@ -6011,12 +6012,12 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	require.NotEmpty(t, secondToken)
 	require.NotEqual(t, firstToken, secondToken)
 
-	reused, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
+	reused, err := db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   workspace.ID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, agent.UserID, reused.UserID, "identity user must be reused across rebuilds")
+	require.Equal(t, agent.ID, reused.ID, "identity user must be reused across rebuilds")
 	_, err = db.GetAPIKeyByID(ctx, keyID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "stale key must be rotated out")
 
@@ -6026,9 +6027,9 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	secondKeyID := strings.Split(secondToken, "-")[0]
 	_, err = db.GetAPIKeyByID(ctx, secondKeyID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "stop must revoke the agent key")
-	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
+	_, err = db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   workspace.ID,
 	})
 	require.NoError(t, err, "identity survives stop for reuse on restart")
 
@@ -6045,7 +6046,7 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	designatedWorkspace, err := db.GetWorkspaceByID(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.True(t, designatedWorkspace.AIAgentID.Valid, "marker persists across builds")
-	require.Equal(t, agent.UserID, designatedWorkspace.AIAgentID.UUID)
+	require.Equal(t, agent.ID, designatedWorkspace.AIAgentID.UUID)
 
 	// A workspace that never opts in gets no identity at all.
 	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -6053,9 +6054,9 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 		OwnerID:        user.ID,
 		OrganizationID: pd.OrganizationID,
 	})
-	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   otherWorkspace.ID,
+	_, err = db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   otherWorkspace.ID,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
@@ -6159,9 +6160,9 @@ func TestAcquireJob_AIAgentSessionTokenChatDesignated(t *testing.T) {
 
 	// No workspace-origin identity exists for this workspace: resolving
 	// revocation by origin alone would find nothing to revoke.
-	_, err = db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
+	_, err = db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   workspace.ID,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
@@ -6173,9 +6174,9 @@ func TestAcquireJob_AIAgentSessionTokenChatDesignated(t *testing.T) {
 		"stop must revoke the chat-designated workspace key")
 
 	// The identity itself survives for reuse on restart.
-	survivor, err := db.GetAIAgentByUserID(ctx, chatAgent.UserID)
+	survivor, err := db.GetAIAgentLedgerRowByID(ctx, chatAgent.UserID)
 	require.NoError(t, err)
-	require.False(t, survivor.Deleted)
+	require.False(t, survivor.State != entity.AIAgentStateActive)
 }
 
 // aiBindingFixture builds a template, user, and daemon, and completes builds

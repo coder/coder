@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
@@ -92,7 +93,7 @@ type store interface {
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error)
 
 	// Authorizer-related queries.
-	GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error)
+	GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error)
 	GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error)
 
@@ -822,18 +823,18 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	if user.Kind == database.UserKindAIAgent {
 		// Authentication must resolve identity metadata before an actor exists.
 		identityCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
-		agent, err := s.store.GetAIAgentByUserID(identityCtx, user.ID)
+		agent, err := s.store.GetAIAgentLedgerRowByID(identityCtx, user.ID)
 		if err != nil {
 			s.logger.Warn(ctx, "failed to retrieve AI agent identity", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.Error(err))
 			return nil, ErrInvalidAIAgent
 		}
-		if agent.Deleted {
+		if agent.State != entity.AIAgentStateActive {
 			return nil, ErrInvalidAIAgent
 		}
 
-		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerUserID)
+		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerID)
 		if err != nil {
-			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.F("owner_user_id", agent.OwnerUserID), slog.Error(err))
+			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("user_id", user.ID), slog.F("owner_user_id", agent.OwnerID), slog.Error(err))
 			return nil, ErrInvalidAIAgent
 		}
 		if owner.Kind != database.UserKindHuman {

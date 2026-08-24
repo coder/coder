@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
@@ -115,17 +116,17 @@ func TestAISandboxLifecycleCreateUnboundParent(t *testing.T) {
 	require.NotEmpty(t, created.SessionToken)
 	require.False(t, created.Reconciled)
 
-	workspaceIdentity, err := fixture.db.GetAIAgentByOrigin(dbauthz.AsSystemRestricted(ctx), database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   fixture.workspace.Workspace.ID,
+	workspaceIdentity, err := fixture.db.GetLiveAIAgentByCreationSite(dbauthz.AsSystemRestricted(ctx), database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   fixture.workspace.Workspace.ID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, workspaceIdentity.UserID, created.AIAgentID)
+	require.Equal(t, workspaceIdentity.ID, created.AIAgentID)
 
 	child, err := fixture.db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), created.ChildAgentID)
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: parent.ID, Valid: true}, child.ParentID)
-	require.Equal(t, uuid.NullUUID{UUID: workspaceIdentity.UserID, Valid: true}, child.AIAgentID)
+	require.Equal(t, uuid.NullUUID{UUID: workspaceIdentity.ID, Valid: true}, child.AIAgentID)
 
 	childClient := agentsdk.New(fixture.client.URL, agentsdk.WithFixedToken(created.AgentToken))
 	_, err = childClient.AIEgressPolicy(ctx)
@@ -150,9 +151,9 @@ func TestAISandboxLifecycleCreateBoundParent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uuid.NullUUID{UUID: parentIdentity.UserID, Valid: true}, child.AIAgentID)
 
-	_, err = fixture.db.GetAIAgentByOrigin(dbauthz.AsSystemRestricted(ctx), database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   fixture.workspace.Workspace.ID,
+	_, err = fixture.db.GetLiveAIAgentByCreationSite(dbauthz.AsSystemRestricted(ctx), database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   fixture.workspace.Workspace.ID,
 	})
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }

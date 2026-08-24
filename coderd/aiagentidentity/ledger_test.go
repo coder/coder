@@ -167,7 +167,7 @@ func TestConcurrentWorkspaceResolutionCreatesOneAgent(t *testing.T) {
 				errs = append(errs, err)
 				return
 			}
-			agentID[agent.UserID]++
+			agentID[agent.ID]++
 		})
 	}
 	wg.Wait()
@@ -233,18 +233,18 @@ func TestOwnershipChangeRetiresTheAgentInTheLedger(t *testing.T) {
 
 	replacement, err := aiagentidentity.ResolveWorkspaceOrigin(ctx, db, transferred)
 	require.NoError(t, err)
-	require.NotEqual(t, original.UserID, replacement.UserID, "a new owner gets a new agent")
+	require.NotEqual(t, original.ID, replacement.ID, "a new owner gets a new agent")
 
-	retired, err := db.GetAIAgentLedgerRowByID(ctx, original.UserID)
+	retired, err := db.GetAIAgentLedgerRowByID(ctx, original.ID)
 	require.NoError(t, err)
 	require.Equal(t, entity.AIAgentStateRetired, retired.State, "the old agent is retired in the ledger")
 
-	live, err := db.GetAIAgentLedgerRowByID(ctx, replacement.UserID)
+	live, err := db.GetAIAgentLedgerRowByID(ctx, replacement.ID)
 	require.NoError(t, err)
 	require.Equal(t, entity.AIAgentStateActive, live.State)
 	require.Equal(t, second.ID, live.OwnerID)
 
 	// Resolution reads the ledger, so the retired agent no longer resolves.
-	_, err = aiagentidentity.Resolve(ctx, db, original.UserID)
+	_, err = aiagentidentity.Resolve(ctx, db, original.ID)
 	require.ErrorIs(t, err, aiagentidentity.ErrAIAgentDeleted)
 }

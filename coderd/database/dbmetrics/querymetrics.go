@@ -1073,30 +1073,6 @@ func (m queryMetricsStore) FindMatchingPresetID(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIAgentByOrigin(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetAIAgentByOrigin").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByOrigin").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIAgentByOriginIncludingDeleted(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetAIAgentByOriginIncludingDeleted").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByOriginIncludingDeleted").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIAgentByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetAIAgentByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentByUserID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIAgentLedgerRowByID(ctx, id)
@@ -2417,6 +2393,14 @@ func (m queryMetricsStore) GetLastUpdateCheck(ctx context.Context) (string, erro
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetLatestAIAgentByCreationSite(ctx context.Context, arg database.GetLatestAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestAIAgentByCreationSite(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLatestAIAgentByCreationSite").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestAIAgentByCreationSite").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
@@ -2486,6 +2470,14 @@ func (m queryMetricsStore) GetLicenses(ctx context.Context) ([]database.License,
 	r0, r1 := m.s.GetLicenses(ctx)
 	m.queryLatencies.WithLabelValues("GetLicenses").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLicenses").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLiveAIAgentByCreationSite(ctx context.Context, arg database.GetLiveAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLiveAIAgentByCreationSite(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetLiveAIAgentByCreationSite").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLiveAIAgentByCreationSite").Inc()
 	return r0, r1
 }
 

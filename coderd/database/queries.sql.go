@@ -1003,6 +1003,84 @@ func (q *sqlQuerier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, 
 	return items, nil
 }
 
+const getLatestAIAgentByCreationSite = `-- name: GetLatestAIAgentByCreationSite :one
+SELECT
+	id, owner_type, owner_id, state, posting_reference, creation_site_type, creation_site_id, creation_time
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = $1
+	AND creation_site_id = $2
+ORDER BY
+	creation_time DESC
+LIMIT
+	1
+`
+
+type GetLatestAIAgentByCreationSiteParams struct {
+	CreationSiteType string    `db:"creation_site_type" json:"creation_site_type"`
+	CreationSiteID   uuid.UUID `db:"creation_site_id" json:"creation_site_id"`
+}
+
+// The most recently created AI agent of a site whatever its state, so that a
+// caller can tell a site that never had one, which returns no rows, from a site
+// whose agent has been retired.
+//
+// A site can have had several over time, retirement freeing it for another, so
+// this orders rather than assuming one.
+func (q *sqlQuerier) GetLatestAIAgentByCreationSite(ctx context.Context, arg GetLatestAIAgentByCreationSiteParams) (AIAgentLedger, error) {
+	row := q.db.QueryRowContext(ctx, getLatestAIAgentByCreationSite, arg.CreationSiteType, arg.CreationSiteID)
+	var i AIAgentLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+		&i.CreationSiteType,
+		&i.CreationSiteID,
+		&i.CreationTime,
+	)
+	return i, err
+}
+
+const getLiveAIAgentByCreationSite = `-- name: GetLiveAIAgentByCreationSite :one
+SELECT
+	id, owner_type, owner_id, state, posting_reference, creation_site_type, creation_site_id, creation_time
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = $1
+	AND creation_site_id = $2
+	AND state = 'active'
+`
+
+type GetLiveAIAgentByCreationSiteParams struct {
+	CreationSiteType string    `db:"creation_site_type" json:"creation_site_type"`
+	CreationSiteID   uuid.UUID `db:"creation_site_id" json:"creation_site_id"`
+}
+
+// The live AI agent of a creation site, if it has one.
+//
+// Live means active. Retired is the only other state reachable today, and
+// dormant, which is in the set and unreachable, is not live either, so naming
+// the state wanted rather than the states excluded stays right when it arrives.
+func (q *sqlQuerier) GetLiveAIAgentByCreationSite(ctx context.Context, arg GetLiveAIAgentByCreationSiteParams) (AIAgentLedger, error) {
+	row := q.db.QueryRowContext(ctx, getLiveAIAgentByCreationSite, arg.CreationSiteType, arg.CreationSiteID)
+	var i AIAgentLedger
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerType,
+		&i.OwnerID,
+		&i.State,
+		&i.PostingReference,
+		&i.CreationSiteType,
+		&i.CreationSiteID,
+		&i.CreationTime,
+	)
+	return i, err
+}
+
 const insertAIAgentLedgerRow = `-- name: InsertAIAgentLedgerRow :one
 INSERT INTO
 	ai_agent_ledger (
@@ -1182,84 +1260,6 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 		&i.CreationSiteType,
 		&i.CreationSiteID,
 		&i.CreationTime,
-	)
-	return i, err
-}
-
-const getAIAgentByOrigin = `-- name: GetAIAgentByOrigin :one
-SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
-FROM ai_agents
-WHERE origin_type = $1
-	AND origin_id = $2
-	AND deleted = false
-`
-
-type GetAIAgentByOriginParams struct {
-	OriginType AIAgentOrigin `db:"origin_type" json:"origin_type"`
-	OriginID   uuid.UUID     `db:"origin_id" json:"origin_id"`
-}
-
-func (q *sqlQuerier) GetAIAgentByOrigin(ctx context.Context, arg GetAIAgentByOriginParams) (AIAgent, error) {
-	row := q.db.QueryRowContext(ctx, getAIAgentByOrigin, arg.OriginType, arg.OriginID)
-	var i AIAgent
-	err := row.Scan(
-		&i.UserID,
-		&i.OwnerUserID,
-		&i.OriginType,
-		&i.OriginID,
-		&i.CreatedAt,
-		&i.Deleted,
-	)
-	return i, err
-}
-
-const getAIAgentByOriginIncludingDeleted = `-- name: GetAIAgentByOriginIncludingDeleted :one
-SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
-FROM ai_agents
-WHERE origin_type = $1
-	AND origin_id = $2
-ORDER BY created_at DESC
-LIMIT 1
-`
-
-type GetAIAgentByOriginIncludingDeletedParams struct {
-	OriginType AIAgentOrigin `db:"origin_type" json:"origin_type"`
-	OriginID   uuid.UUID     `db:"origin_id" json:"origin_id"`
-}
-
-// Returns the newest identity for an origin regardless of deletion, so
-// callers can distinguish "origin never had an identity" (no rows) from
-// "identity was revoked" (deleted = true) and fail closed on the latter.
-func (q *sqlQuerier) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg GetAIAgentByOriginIncludingDeletedParams) (AIAgent, error) {
-	row := q.db.QueryRowContext(ctx, getAIAgentByOriginIncludingDeleted, arg.OriginType, arg.OriginID)
-	var i AIAgent
-	err := row.Scan(
-		&i.UserID,
-		&i.OwnerUserID,
-		&i.OriginType,
-		&i.OriginID,
-		&i.CreatedAt,
-		&i.Deleted,
-	)
-	return i, err
-}
-
-const getAIAgentByUserID = `-- name: GetAIAgentByUserID :one
-SELECT user_id, owner_user_id, origin_type, origin_id, created_at, deleted
-FROM ai_agents
-WHERE user_id = $1
-`
-
-func (q *sqlQuerier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (AIAgent, error) {
-	row := q.db.QueryRowContext(ctx, getAIAgentByUserID, userID)
-	var i AIAgent
-	err := row.Scan(
-		&i.UserID,
-		&i.OwnerUserID,
-		&i.OriginType,
-		&i.OriginID,
-		&i.CreatedAt,
-		&i.Deleted,
 	)
 	return i, err
 }

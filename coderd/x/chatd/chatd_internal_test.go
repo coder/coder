@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -95,18 +96,19 @@ func TestRevokedChatAIAgentFailsClosed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	agent := database.AIAgent{
-		UserID:      uuid.New(),
-		OwnerUserID: chat.OwnerID,
-		OriginType:  database.AIAgentOriginChat,
-		OriginID:    chat.ID,
-		Deleted:     true,
+	agent := database.AIAgentLedger{
+		ID:               uuid.New(),
+		OwnerID:          chat.OwnerID,
+		OwnerType:        string(entity.TypeUser),
+		State:            entity.AIAgentStateRetired,
+		CreationSiteType: string(entity.CreationSiteTypeChat),
+		CreationSiteID:   chat.ID,
 	}
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+	db.EXPECT().GetLatestAIAgentByCreationSite(
 		gomock.Any(),
-		database.GetAIAgentByOriginIncludingDeletedParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   chat.ID,
+		database.GetLatestAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   chat.ID,
 		},
 	).Return(agent, nil).Times(2)
 
@@ -130,13 +132,13 @@ func TestChatAIAgentLookupErrorFailsClosed(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
 	lookupErr := xerrors.New("database unavailable")
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+	db.EXPECT().GetLatestAIAgentByCreationSite(
 		gomock.Any(),
-		database.GetAIAgentByOriginIncludingDeletedParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   chat.ID,
+		database.GetLatestAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   chat.ID,
 		},
-	).Return(database.AIAgent{}, lookupErr)
+	).Return(database.AIAgentLedger{}, lookupErr)
 
 	server := &Server{
 		db:     db,
@@ -158,17 +160,19 @@ func TestAppendRootChatToolsWrapsPlatformToolsWithAIAgentActor(t *testing.T) {
 		OwnerID:        uuid.New(),
 		OrganizationID: uuid.New(),
 	}
-	agent := database.AIAgent{
-		UserID:      uuid.New(),
-		OwnerUserID: chat.OwnerID,
-		OriginType:  database.AIAgentOriginChat,
-		OriginID:    chat.ID,
+	agent := database.AIAgentLedger{
+		ID:               uuid.New(),
+		OwnerID:          chat.OwnerID,
+		OwnerType:        string(entity.TypeUser),
+		State:            entity.AIAgentStateActive,
+		CreationSiteType: string(entity.CreationSiteTypeChat),
+		CreationSiteID:   chat.ID,
 	}
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+	db.EXPECT().GetLatestAIAgentByCreationSite(
 		gomock.Any(),
-		database.GetAIAgentByOriginIncludingDeletedParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   chat.ID,
+		database.GetLatestAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   chat.ID,
 		},
 	).Return(agent, nil)
 
@@ -195,7 +199,7 @@ func TestAppendRootChatToolsWrapsPlatformToolsWithAIAgentActor(t *testing.T) {
 		require.Equal(t, wantName, tools[i].Info().Name)
 		wrapped, ok := tools[i].(aiAgentActorTool)
 		require.True(t, ok, "%s must propagate the AI agent actor", wantName)
-		require.Equal(t, agent.UserID, wrapped.actor.AgentUserID)
+		require.Equal(t, agent.ID, wrapped.actor.AgentUserID)
 	}
 }
 
@@ -210,29 +214,31 @@ func TestChildChatUsesRootAIAgentIdentity(t *testing.T) {
 		OwnerID:    uuid.New(),
 		RootChatID: uuid.NullUUID{UUID: rootChatID, Valid: true},
 	}
-	agent := database.AIAgent{
-		UserID:      uuid.New(),
-		OwnerUserID: childChat.OwnerID,
-		OriginType:  database.AIAgentOriginChat,
-		OriginID:    rootChatID,
+	agent := database.AIAgentLedger{
+		ID:               uuid.New(),
+		OwnerID:          childChat.OwnerID,
+		OwnerType:        string(entity.TypeUser),
+		State:            entity.AIAgentStateActive,
+		CreationSiteType: string(entity.CreationSiteTypeChat),
+		CreationSiteID:   rootChatID,
 	}
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(
+	db.EXPECT().GetLatestAIAgentByCreationSite(
 		gomock.Any(),
-		database.GetAIAgentByOriginIncludingDeletedParams{
-			OriginType: database.AIAgentOriginChat,
-			OriginID:   rootChatID,
+		database.GetLatestAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   rootChatID,
 		},
 	).Return(agent, nil).Times(2)
 
 	profile := aiagentidentity.ChatAgentProfile(rootChatID)
 	rootKey := database.APIKey{
 		ID:        uuid.NewString(),
-		HolderID:  database.HolderID(agent.UserID),
+		HolderID:  database.HolderID(agent.ID),
 		TokenName: profile.TokenName,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 	db.EXPECT().GetAPIKeyByName(gomock.Any(), database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(agent.UserID),
+		HolderID:  database.HolderID(agent.ID),
 		TokenName: profile.TokenName,
 	}).Return(rootKey, nil)
 
@@ -1262,7 +1268,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(gomock.Any(), gomock.Any()).Return(database.AIAgent{}, sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetLatestAIAgentByCreationSite(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{HolderID: database.HolderID(ownerID), TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, HolderID: database.HolderID(ownerID), ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),
@@ -1414,7 +1420,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 	}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{{ProviderID: providerID, APIKey: "test-key"}}, nil).AnyTimes()
-	db.EXPECT().GetAIAgentByOriginIncludingDeleted(gomock.Any(), gomock.Any()).Return(database.AIAgent{}, sql.ErrNoRows).AnyTimes()
+	db.EXPECT().GetLatestAIAgentByCreationSite(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 	db.EXPECT().GetChatGatewayAPIKey(gomock.Any(), database.GetChatGatewayAPIKeyParams{HolderID: database.HolderID(ownerID), TokenName: GatewayTokenName(ownerID)}).Return(database.APIKey{ID: activeAPIKeyID, HolderID: database.HolderID(ownerID), ExpiresAt: time.Now().Add(48 * time.Hour)}, nil)
 	db.EXPECT().GetChatMessagesByChatIDAscPaginated(
 		gomock.Any(),

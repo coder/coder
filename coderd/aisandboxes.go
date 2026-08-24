@@ -93,7 +93,7 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 		if oerr != nil {
 			err = oerr
 		} else {
-			aiAgentID = origin.UserID
+			aiAgentID = origin.ID
 		}
 		if err != nil {
 			httpapi.InternalServerError(rw, xerrors.Errorf("resolve workspace AI identity: %w", err))

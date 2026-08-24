@@ -676,7 +676,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 			switch {
 			case isDesignated:
-				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, designated)
+				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, designated.ID)
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
@@ -685,10 +685,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				if oerr != nil {
 					return nil, failJob(fmt.Sprintf("resolve workspace AI agent identity: %s", oerr))
 				}
-				if oerr := s.designateWorkspaceAIAgent(ctx, workspace, originAgent); oerr != nil {
+				if oerr := s.designateWorkspaceAIAgent(ctx, workspace, originAgent.ID); oerr != nil {
 					return nil, failJob(fmt.Sprintf("designate workspace AI agent: %s", oerr))
 				}
-				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, originAgent)
+				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, originAgent.ID)
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
@@ -2259,7 +2259,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			if err != nil {
 				return xerrors.Errorf("resolve workspace-origin identity for AI-bound agents: %w", err)
 			}
-			aiAgentID := uuid.NullUUID{UUID: identity.UserID, Valid: true}
+			aiAgentID := uuid.NullUUID{UUID: identity.ID, Valid: true}
 			for _, agentID := range aiBoundAgentIDs {
 				if _, err := db.UpdateWorkspaceAgentAIAgentID(ctx, database.UpdateWorkspaceAgentAIAgentIDParams{
 					ID:        agentID,
@@ -3307,13 +3307,13 @@ func aiAgentOptedIn(parameters []database.WorkspaceBuildParameter) bool {
 // build parameter. Un-designating would re-expose the sponsor's ambient
 // credentials, so designation is deliberately one-way.
 // See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
-func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, bool, error) {
+func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgentLedger, bool, error) {
 	if !workspace.AIAgentID.Valid {
-		return database.AIAgent{}, false, nil
+		return database.AIAgentLedger{}, false, nil
 	}
-	agent, err := s.Database.GetAIAgentByUserID(ctx, workspace.AIAgentID.UUID)
+	agent, err := s.Database.GetAIAgentLedgerRowByID(ctx, workspace.AIAgentID.UUID)
 	if err != nil {
-		return database.AIAgent{}, false, xerrors.Errorf("get designated AI agent: %w", err)
+		return database.AIAgentLedger{}, false, xerrors.Errorf("get designated AI agent: %w", err)
 	}
 	return agent, true, nil
 }
@@ -3321,12 +3321,12 @@ func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace databas
 // designateWorkspaceAIAgent records the marker for a human opt-in workspace
 // that does not carry one yet. Chat-created workspaces are designated at
 // creation with the requesting chat's identity, so they already have one.
-func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace database.Workspace, agent database.AIAgent) error {
+func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace database.Workspace, agentID uuid.UUID) error {
 	//nolint:gocritic // Setting the internal designation marker requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	if _, err := s.Database.SetWorkspaceAIAgentID(systemCtx, database.SetWorkspaceAIAgentIDParams{
 		ID:        workspace.ID,
-		AIAgentID: uuid.NullUUID{UUID: agent.UserID, Valid: true},
+		AIAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
 	}); err != nil {
 		return xerrors.Errorf("set workspace AI designation: %w", err)
 	}
@@ -3338,14 +3338,14 @@ func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace databa
 // workspace uses its marker identity (which may be a chat identity, per the
 // identity continuity rule), while a human opt-in with no marker yet
 // creates or reuses the workspace-origin identity.
-func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace, agent database.AIAgent) (string, error) {
+func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace, agentID uuid.UUID) (string, error) {
 	// Rotate: MintKey does not replace keys by name, so drop the stale one
 	// first (mirrors deleteSessionTokenForUserAndWorkspace for owner tokens).
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
-	if err := s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName); err != nil {
+	if err := s.deleteAIAgentSessionToken(ctx, agentID, profile.TokenName); err != nil {
 		return "", xerrors.Errorf("delete stale AI agent session token: %w", err)
 	}
-	_, token, err := aiagentidentity.MintKey(ctx, s.Database, agent.UserID, profile)
+	_, token, err := aiagentidentity.MintKey(ctx, s.Database, agentID, profile)
 	if err != nil {
 		return "", xerrors.Errorf("mint AI agent session token: %w", err)
 	}
@@ -3356,15 +3356,15 @@ func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace da
 // identity for the human opt-in path. The resolution rules, including
 // re-sponsoring after an ownership change, are shared with the sandbox
 // lifecycle, so they live in the identity package.
-func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgent, error) {
+func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace database.Workspace) (database.AIAgentLedger, error) {
 	return aiagentidentity.ResolveWorkspaceOrigin(ctx, s.Database, workspace)
 }
 
-func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.AIAgent, tokenName string) error {
+func (s *server) deleteAIAgentSessionToken(ctx context.Context, agentID uuid.UUID, tokenName string) error {
 	//nolint:gocritic // Deleting an internal AI agent key requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := s.Database.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(agent.UserID),
+		HolderID:  database.HolderID(agentID),
 		TokenName: tokenName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -3388,9 +3388,9 @@ func (s *server) deleteAIAgentSessionToken(ctx context.Context, agent database.A
 // workspace-origin identity. Missing identities are not an error: a
 // workspace that never opted in has nothing to revoke.
 func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace database.Workspace) error {
-	var agent database.AIAgent
+	var agent database.AIAgentLedger
 	if workspace.AIAgentID.Valid {
-		found, err := s.Database.GetAIAgentByUserID(ctx, workspace.AIAgentID.UUID)
+		found, err := s.Database.GetAIAgentLedgerRowByID(ctx, workspace.AIAgentID.UUID)
 		if errors.Is(err, sql.ErrNoRows) {
 			// The marker identity is already revoked, which deletes its
 			// keys, so there is nothing left to revoke here.
@@ -3401,32 +3401,32 @@ func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace datab
 		}
 		agent = found
 	} else {
-		found, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-			OriginType: database.AIAgentOriginWorkspace,
-			OriginID:   workspace.ID,
+		found, err := s.Database.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+			CreationSiteID:   workspace.ID,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
-			return xerrors.Errorf("get AI agent by origin: %w", err)
+			return xerrors.Errorf("get the workspace's live AI agent: %w", err)
 		}
 		agent = found
 	}
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
-	return s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName)
+	return s.deleteAIAgentSessionToken(ctx, agent.ID, profile.TokenName)
 }
 
 func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspaceID uuid.UUID, killer uuid.UUID) error {
-	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspaceID,
+	agent, err := s.Database.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+		CreationSiteID:   workspaceID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return xerrors.Errorf("get AI agent by origin: %w", err)
+		return xerrors.Errorf("get the workspace's live AI agent: %w", err)
 	}
 	return s.revokeAIAgentIdentity(ctx, agent, killer)
 }
@@ -3439,28 +3439,30 @@ func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspac
 // prebuild is not an order to end this agent, so calling the claimant its
 // killer overstates what happened. The transition this wants does not exist on
 // the machine yet. Eric, 2026-08-23: use `kill` for now and record it.
-func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAgent, killer uuid.UUID) error {
-	profile := aiagentidentity.WorkspaceAgentIdentityProfile(agent.OriginID)
-	if err := s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName); err != nil {
+func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAgentLedger, killer uuid.UUID) error {
+	profile := aiagentidentity.WorkspaceAgentIdentityProfile(agent.CreationSiteID)
+	if err := s.deleteAIAgentSessionToken(ctx, agent.ID, profile.TokenName); err != nil {
 		return err
 	}
 	//nolint:gocritic // Marking an internal AI agent deleted requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	if err := entity.RetireAIAgent(systemCtx, s.Database, agent.UserID, entity.EventAIAgentKill,
+	if err := entity.RetireAIAgent(systemCtx, s.Database, agent.ID, entity.EventAIAgentKill,
 		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {
 		return xerrors.Errorf("retire AI agent: %w", err)
 	}
+	// The mirror's `deleted` is written only because the AI agents endpoint
+	// still reports it. Retirement above is the fact; this is the copy.
 	if _, err := s.Database.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
-		UserID:  agent.UserID,
+		UserID:  agent.ID,
 		Deleted: true,
 	}); err != nil {
 		return xerrors.Errorf("mark AI agent deleted: %w", err)
 	}
 	rewrite2026augustlog.AIAgentRevoked(ctx, rewrite2026augustlog.F{
-		"ai_agent_user_id": agent.UserID,
-		"owner_user_id":    agent.OwnerUserID,
-		"origin_type":      agent.OriginType,
-		"origin_id":        agent.OriginID,
+		"ai_agent_user_id": agent.ID,
+		"owner_user_id":    agent.OwnerID,
+		"origin_type":      agent.CreationSiteType,
+		"origin_id":        agent.CreationSiteID,
 		"route":            "provisioner, workspace deleted or reowned",
 	})
 	return nil

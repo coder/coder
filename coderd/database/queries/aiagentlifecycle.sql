@@ -91,3 +91,37 @@ ORDER BY
 	entry_id
 LIMIT
 	$2;
+
+-- name: GetLiveAIAgentByCreationSite :one
+-- The live AI agent of a creation site, if it has one.
+--
+-- Live means active. Retired is the only other state reachable today, and
+-- dormant, which is in the set and unreachable, is not live either, so naming
+-- the state wanted rather than the states excluded stays right when it arrives.
+SELECT
+	*
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = $1
+	AND creation_site_id = $2
+	AND state = 'active';
+
+-- name: GetLatestAIAgentByCreationSite :one
+-- The most recently created AI agent of a site whatever its state, so that a
+-- caller can tell a site that never had one, which returns no rows, from a site
+-- whose agent has been retired.
+--
+-- A site can have had several over time, retirement freeing it for another, so
+-- this orders rather than assuming one.
+SELECT
+	*
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = $1
+	AND creation_site_id = $2
+ORDER BY
+	creation_time DESC
+LIMIT
+	1;

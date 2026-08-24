@@ -29,20 +29,20 @@ import (
 // index over agents used to make the second insert fail; capacity is a fact
 // about the container rather than about agents, so that index is gone and the
 // race is dealt with where it happens.
-func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgent, error) {
-	var resolved database.AIAgent
+func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgentLedger, error) {
+	var resolved database.AIAgentLedger
 	err := db.InTx(func(tx database.Store) error {
 		if _, err := tx.LockWorkspaceByID(ctx, workspace.ID); err != nil {
 			return xerrors.Errorf("lock workspace to resolve its AI agent: %w", err)
 		}
 
-		agent, err := tx.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-			OriginType: database.AIAgentOriginWorkspace,
-			OriginID:   workspace.ID,
+		agent, err := tx.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeWorkspace),
+			CreationSiteID:   workspace.ID,
 		})
 		switch {
 		case err == nil:
-			if agent.OwnerUserID != workspace.OwnerID {
+			if agent.OwnerID != workspace.OwnerID {
 				if err := revokeWorkspaceOrigin(ctx, tx, agent, workspace.OwnerID); err != nil {
 					return xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
 				}
@@ -55,16 +55,16 @@ func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace da
 			resolved, err = createWorkspaceOrigin(ctx, tx, workspace)
 			return err
 		default:
-			return xerrors.Errorf("get AI agent by origin: %w", err)
+			return xerrors.Errorf("get the workspace's live AI agent: %w", err)
 		}
 	}, nil)
 	if err != nil {
-		return database.AIAgent{}, err
+		return database.AIAgentLedger{}, err
 	}
 	return resolved, nil
 }
 
-func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgent, error) {
+func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgentLedger, error) {
 	_, agent, err := Create(ctx, db, CreateParams{
 		OwnerID:        workspace.OwnerID,
 		OrganizationID: workspace.OrganizationID,
@@ -72,9 +72,10 @@ func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace dat
 		OriginID:       workspace.ID,
 	})
 	if err != nil {
-		return database.AIAgent{}, xerrors.Errorf("create workspace AI agent identity: %w", err)
+		return database.AIAgentLedger{}, xerrors.Errorf("create workspace AI agent identity: %w", err)
 	}
-	return agent, nil
+	//nolint:gocritic // Reading back what Create just wrote requires system access.
+	return db.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), agent.UserID)
 }
 
 // revokeWorkspaceOrigin retires the agent, drops its workspace-pinned key and
@@ -88,12 +89,12 @@ func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace dat
 // and entities that are not modeled yet. Eric, 2026-08-23: use `kill` for now
 // and record it. `killer` is the workspace's current owner, being the party
 // whose acquisition of it ended the old sponsorship.
-func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent database.AIAgent, killer uuid.UUID) error {
-	profile := WorkspaceAgentIdentityProfile(agent.OriginID)
+func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent database.AIAgentLedger, killer uuid.UUID) error {
+	profile := WorkspaceAgentIdentityProfile(agent.CreationSiteID)
 	//nolint:gocritic // Managing internal AI agent identities requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	key, err := db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(agent.UserID),
+		HolderID:  database.HolderID(agent.ID),
 		TokenName: profile.TokenName,
 	})
 	switch {
@@ -105,21 +106,23 @@ func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent databas
 	default:
 		return xerrors.Errorf("get AI agent API key by name: %w", err)
 	}
-	if err := entity.RetireAIAgent(systemCtx, db, agent.UserID, entity.EventAIAgentKill,
+	if err := entity.RetireAIAgent(systemCtx, db, agent.ID, entity.EventAIAgentKill,
 		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {
 		return xerrors.Errorf("retire AI agent: %w", err)
 	}
+	// The mirror's `deleted` is written only because the AI agents endpoint
+	// still reports it. Retirement above is the fact; this is the copy.
 	if _, err := db.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
-		UserID:  agent.UserID,
+		UserID:  agent.ID,
 		Deleted: true,
 	}); err != nil {
 		return xerrors.Errorf("mark AI agent deleted: %w", err)
 	}
 	rewrite2026augustlog.AIAgentRevoked(ctx, rewrite2026augustlog.F{
-		"ai_agent_user_id": agent.UserID,
-		"owner_user_id":    agent.OwnerUserID,
-		"origin_type":      agent.OriginType,
-		"origin_id":        agent.OriginID,
+		"ai_agent_user_id": agent.ID,
+		"owner_user_id":    agent.OwnerID,
+		"origin_type":      agent.CreationSiteType,
+		"origin_id":        agent.CreationSiteID,
 		"route":            "workspace origin",
 	})
 	return nil

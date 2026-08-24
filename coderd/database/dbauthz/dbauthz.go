@@ -2786,35 +2786,6 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
-func (q *querier) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
-	agent, err := q.db.GetAIAgentByOrigin(ctx, arg)
-	if err != nil {
-		return database.AIAgent{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(agent.UserID)); err != nil {
-		return database.AIAgent{}, err
-	}
-	return agent, nil
-}
-
-func (q *querier) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
-	agent, err := q.db.GetAIAgentByOriginIncludingDeleted(ctx, arg)
-	if err != nil {
-		return database.AIAgent{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(agent.UserID)); err != nil {
-		return database.AIAgent{}, err
-	}
-	return agent, nil
-}
-
-func (q *querier) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUserObject(userID)); err != nil {
-		return database.AIAgent{}, err
-	}
-	return q.db.GetAIAgentByUserID(ctx, userID)
-}
-
 func (q *querier) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.AIAgentLedger{}, err
@@ -4148,6 +4119,13 @@ func (q *querier) GetLastUpdateCheck(ctx context.Context) (string, error) {
 	return q.db.GetLastUpdateCheck(ctx)
 }
 
+func (q *querier) GetLatestAIAgentByCreationSite(ctx context.Context, arg database.GetLatestAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLedger{}, err
+	}
+	return q.db.GetLatestAIAgentByCreationSite(ctx, arg)
+}
+
 func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -4217,6 +4195,13 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 		return q.db.GetLicenses(ctx)
 	}
 	return fetchWithPostFilter(q.auth, policy.ActionRead, fetch)(ctx, nil)
+}
+
+func (q *querier) GetLiveAIAgentByCreationSite(ctx context.Context, arg database.GetLiveAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.AIAgentLedger{}, err
+	}
+	return q.db.GetLiveAIAgentByCreationSite(ctx, arg)
 }
 
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {

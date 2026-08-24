@@ -1845,51 +1845,6 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
-// GetAIAgentByOrigin mocks base method.
-func (m *MockStore) GetAIAgentByOrigin(ctx context.Context, arg database.GetAIAgentByOriginParams) (database.AIAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAgentByOrigin", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIAgentByOrigin indicates an expected call of GetAIAgentByOrigin.
-func (mr *MockStoreMockRecorder) GetAIAgentByOrigin(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByOrigin", reflect.TypeOf((*MockStore)(nil).GetAIAgentByOrigin), ctx, arg)
-}
-
-// GetAIAgentByOriginIncludingDeleted mocks base method.
-func (m *MockStore) GetAIAgentByOriginIncludingDeleted(ctx context.Context, arg database.GetAIAgentByOriginIncludingDeletedParams) (database.AIAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAgentByOriginIncludingDeleted", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIAgentByOriginIncludingDeleted indicates an expected call of GetAIAgentByOriginIncludingDeleted.
-func (mr *MockStoreMockRecorder) GetAIAgentByOriginIncludingDeleted(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByOriginIncludingDeleted", reflect.TypeOf((*MockStore)(nil).GetAIAgentByOriginIncludingDeleted), ctx, arg)
-}
-
-// GetAIAgentByUserID mocks base method.
-func (m *MockStore) GetAIAgentByUserID(ctx context.Context, userID uuid.UUID) (database.AIAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAgentByUserID", ctx, userID)
-	ret0, _ := ret[0].(database.AIAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIAgentByUserID indicates an expected call of GetAIAgentByUserID.
-func (mr *MockStoreMockRecorder) GetAIAgentByUserID(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentByUserID", reflect.TypeOf((*MockStore)(nil).GetAIAgentByUserID), ctx, userID)
-}
-
 // GetAIAgentLedgerRowByID mocks base method.
 func (m *MockStore) GetAIAgentLedgerRowByID(ctx context.Context, id uuid.UUID) (database.AIAgentLedger, error) {
 	m.ctrl.T.Helper()
@@ -4485,6 +4440,21 @@ func (mr *MockStoreMockRecorder) GetLastUpdateCheck(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastUpdateCheck", reflect.TypeOf((*MockStore)(nil).GetLastUpdateCheck), ctx)
 }
 
+// GetLatestAIAgentByCreationSite mocks base method.
+func (m *MockStore) GetLatestAIAgentByCreationSite(ctx context.Context, arg database.GetLatestAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestAIAgentByCreationSite", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgentLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestAIAgentByCreationSite indicates an expected call of GetLatestAIAgentByCreationSite.
+func (mr *MockStoreMockRecorder) GetLatestAIAgentByCreationSite(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestAIAgentByCreationSite", reflect.TypeOf((*MockStore)(nil).GetLatestAIAgentByCreationSite), ctx, arg)
+}
+
 // GetLatestCryptoKeyByFeature mocks base method.
 func (m *MockStore) GetLatestCryptoKeyByFeature(ctx context.Context, feature database.CryptoKeyFeature) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -4618,6 +4588,21 @@ func (m *MockStore) GetLicenses(ctx context.Context) ([]database.License, error)
 func (mr *MockStoreMockRecorder) GetLicenses(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLicenses", reflect.TypeOf((*MockStore)(nil).GetLicenses), ctx)
+}
+
+// GetLiveAIAgentByCreationSite mocks base method.
+func (m *MockStore) GetLiveAIAgentByCreationSite(ctx context.Context, arg database.GetLiveAIAgentByCreationSiteParams) (database.AIAgentLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLiveAIAgentByCreationSite", ctx, arg)
+	ret0, _ := ret[0].(database.AIAgentLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLiveAIAgentByCreationSite indicates an expected call of GetLiveAIAgentByCreationSite.
+func (mr *MockStoreMockRecorder) GetLiveAIAgentByCreationSite(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLiveAIAgentByCreationSite", reflect.TypeOf((*MockStore)(nil).GetLiveAIAgentByCreationSite), ctx, arg)
 }
 
 // GetLogoURL mocks base method.

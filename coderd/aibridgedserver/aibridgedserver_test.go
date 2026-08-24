@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
@@ -281,9 +282,9 @@ func TestAIAgentInterceptionLineage(t *testing.T) {
 	require.Equal(t, agentUser.ID, interception.InitiatorID)
 
 	// Lineage: the sponsoring human is recoverable via the ai_agents row.
-	resolvedAgent, err := db.GetAIAgentByUserID(ctx, interception.InitiatorID)
+	resolvedAgent, err := db.GetAIAgentLedgerRowByID(ctx, interception.InitiatorID)
 	require.NoError(t, err)
-	require.Equal(t, owner.ID, resolvedAgent.OwnerUserID)
+	require.Equal(t, owner.ID, resolvedAgent.OwnerID)
 }
 
 func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
@@ -318,8 +319,14 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 			wantErr: aibridgedserver.ErrDeletedUser,
 		},
 		{
-			name: "AI agent identity deleted",
-			mutate: func(ctx context.Context, db database.Store, _, agentUser database.User) error {
+			name: "AI agent identity retired",
+			mutate: func(ctx context.Context, db database.Store, owner, agentUser database.User) error {
+				// Retirement in the ledger is what authorization reads. The
+				// mirror is written beside it, as revocation does.
+				if err := entity.RetireAIAgent(ctx, db, agentUser.ID, entity.EventAIAgentKill,
+					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, dbtime.Now()); err != nil {
+					return err
+				}
 				_, err := db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
 					Deleted: true,
 					UserID:  agentUser.ID,

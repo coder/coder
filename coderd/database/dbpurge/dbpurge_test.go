@@ -2637,9 +2637,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.Equal(t, entity.AIAgentStateRetired, after.State,
 					"the sweep retires an orphaned agent in the ledger")
 
-				mirrored, err := db.GetAIAgentByUserID(ctx, agent.UserID)
+				mirrored, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
 				require.NoError(t, err)
-				require.True(t, mirrored.Deleted, "and marks the mirror to match")
+				require.True(t, mirrored.State != entity.AIAgentStateActive, "and marks the mirror to match")
 			},
 		},
 		{

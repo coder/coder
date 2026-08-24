@@ -46,29 +46,6 @@ INSERT INTO ai_agents (
 )
 RETURNING *;
 
--- name: GetAIAgentByUserID :one
-SELECT *
-FROM ai_agents
-WHERE user_id = @user_id;
-
--- name: GetAIAgentByOrigin :one
-SELECT *
-FROM ai_agents
-WHERE origin_type = @origin_type
-	AND origin_id = @origin_id
-	AND deleted = false;
-
--- name: GetAIAgentByOriginIncludingDeleted :one
--- Returns the newest identity for an origin regardless of deletion, so
--- callers can distinguish "origin never had an identity" (no rows) from
--- "identity was revoked" (deleted = true) and fail closed on the latter.
-SELECT *
-FROM ai_agents
-WHERE origin_type = @origin_type
-	AND origin_id = @origin_id
-ORDER BY created_at DESC
-LIMIT 1;
-
 -- name: GetAIAgentsByOwnerID :many
 SELECT
 	sqlc.embed(ai_agents),

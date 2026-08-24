@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -3891,9 +3892,13 @@ func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiag
 	//nolint:gocritic // Resolving internal AI agent metadata requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	originID := chatAIAgentOriginID(chat)
-	agent, err := p.db.GetAIAgentByOriginIncludingDeleted(systemCtx, database.GetAIAgentByOriginIncludingDeletedParams{
-		OriginType: database.AIAgentOriginChat,
-		OriginID:   originID,
+	// The latest whatever its state, so that a tree which never had an agent,
+	// which returns no rows and may fall back to owner execution, stays
+	// distinguishable from one whose agent has been retired, which fails
+	// closed.
+	agent, err := p.db.GetLatestAIAgentByCreationSite(systemCtx, database.GetLatestAIAgentByCreationSiteParams{
+		CreationSiteType: string(entity.CreationSiteTypeChat),
+		CreationSiteID:   originID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return aiagentidentity.AIAgentActor{}, false, nil
@@ -3903,14 +3908,14 @@ func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiag
 			slog.Error(err), slog.F("chat_id", chat.ID))
 		return aiagentidentity.AIAgentActor{}, false, xerrors.Errorf("resolve chat AI agent identity: %w", err)
 	}
-	if agent.Deleted {
+	if agent.State != entity.AIAgentStateActive {
 		return aiagentidentity.AIAgentActor{}, false, xerrors.Errorf("resolve chat AI agent identity: %w", aiagentidentity.ErrAIAgentDeleted)
 	}
 	return aiagentidentity.AIAgentActor{
-		AgentUserID: agent.UserID,
-		OwnerUserID: agent.OwnerUserID,
-		OriginType:  agent.OriginType,
-		OriginID:    agent.OriginID,
+		AgentUserID: agent.ID,
+		OwnerUserID: agent.OwnerID,
+		OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+		OriginID:    agent.CreationSiteID,
 	}, true, nil
 }
 
