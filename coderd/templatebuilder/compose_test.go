@@ -634,11 +634,18 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 	require.ElementsMatch(t, selectorValues, dispatchNames,
 		"quickstart languages selector options must match the install script's has_language branches")
 
-	// CRF-25: the workspace presets declare `languages` a third time. Assert
-	// each preset's languages are a subset of the selector options, so a preset
-	// can never offer a value the selector and install script do not support.
+	// The workspace presets declare `languages` a third time. Assert every
+	// preset's languages are a subset of the selector options, so a preset can
+	// never offer a value the selector and install script do not support.
 	presetLangs := templatebuilder.ExtractPresetParameterValues(mainTF, "languages")
-	require.NotEmpty(t, presetLangs, "expected the quickstart presets to set languages")
+	presetNames := templatebuilder.ExtractPresetNames(mainTF)
+	require.NotEmpty(t, presetNames, "expected the quickstart base to declare presets")
+	// Every preset must contribute a statically decodable languages list, so a
+	// preset that set languages to a non-literal (a var ref, concat(...)) would
+	// drop out of presetLangs and fail here instead of silently evading the
+	// subset check below.
+	require.Len(t, presetLangs, len(presetNames),
+		"every quickstart preset must set languages to a static list")
 	for i, langs := range presetLangs {
 		require.NotEmpty(t, langs, "preset #%d set an empty languages list", i)
 		require.Subset(t, selectorValues, langs,
@@ -646,9 +653,12 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 	}
 }
 
-// TestExtractHCLHelpers exercises the HCL extraction helpers on crafted input
-// with the edge cases the previous regex/brace-scan approach mishandled: braces
-// inside a string, and a commented-out option block.
+// TestExtractHCLHelpers verifies the HCL extraction helpers on crafted input
+// whose shape stresses their boundaries: a brace inside a parameter
+// description string, a commented-out option block, a module block, and a
+// preset whose languages list is wrapped in jsonencode(...). It asserts the
+// option values skip the commented option and the in-string brace, the module
+// names list the real block, and the preset languages are unwrapped.
 func TestExtractHCLHelpers(t *testing.T) {
 	t.Parallel()
 

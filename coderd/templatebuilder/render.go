@@ -3,7 +3,6 @@ package templatebuilder
 import (
 	"bytes"
 	"io/fs"
-	"regexp"
 	"text/template"
 
 	"github.com/hashicorp/hcl/v2"
@@ -102,41 +101,49 @@ func renderTemplate(fsys fs.FS, templatePath string, data any) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// agentResourcePattern matches `resource "coder_agent" "<name>"` in HCL.
-var agentResourcePattern = regexp.MustCompile(`resource\s+"coder_agent"\s+"(\w+)"`)
-
-// agentCountPattern detects whether a coder_agent block uses count or
-// for_each, which means references to it require an index (e.g. [0]).
-var agentCountPattern = regexp.MustCompile(
-	`resource\s+"coder_agent"\s+"\w+"\s*\{[^}]*\b(?:count|for_each)\s*=`,
-)
-
 // ExtractAgentResourceName finds the coder_agent resource declaration in
 // rendered HCL and returns the reference form to use in module templates.
 // When the agent uses count or for_each, the returned name includes an
 // index suffix (e.g. "dev[0]") so that module templates can reference it
 // as coder_agent.<name>.id. Returns an error unless exactly one
 // coder_agent resource is found; the builder only supports single-agent
-// templates. The input is expected to be rendered output from our own
-// curated base templates, not arbitrary user HCL.
+// templates. Parsing with hclsyntax means count/for_each is detected
+// wherever it appears in the block, not only before the first closing brace.
+// The input is expected to be rendered output from our own curated base
+// templates, not arbitrary user HCL.
 func ExtractAgentResourceName(hclSrc []byte) (string, error) {
-	matches := agentResourcePattern.FindAllSubmatch(hclSrc, -1)
-	switch len(matches) {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
+		return "", xerrors.New("no coder_agent resource found in rendered template")
+	}
+
+	var names []string
+	counted := false
+	for _, block := range body.Blocks {
+		if block.Type != "resource" || len(block.Labels) != 2 || block.Labels[0] != "coder_agent" {
+			continue
+		}
+		names = append(names, block.Labels[1])
+		if _, ok := block.Body.Attributes["count"]; ok {
+			counted = true
+		}
+		if _, ok := block.Body.Attributes["for_each"]; ok {
+			counted = true
+		}
+	}
+
+	switch len(names) {
 	case 0:
 		return "", xerrors.New("no coder_agent resource found in rendered template")
 	case 1:
-		name := string(matches[0][1])
-		if agentCountPattern.Match(hclSrc) {
+		name := names[0]
+		if counted {
 			name += "[0]"
 		}
 		return name, nil
 	default:
-		names := make([]string, 0, len(matches))
-		for _, m := range matches {
-			names = append(names, string(m[1]))
-		}
 		return "", xerrors.Errorf("expected exactly one coder_agent resource, found %d: %v",
-			len(matches), names)
+			len(names), names)
 	}
 }
 
@@ -239,6 +246,25 @@ func ExtractPresetParameterValues(hclSrc []byte, paramName string) [][]string {
 		}
 	}
 	return out
+}
+
+// ExtractPresetNames returns the labels of every top-level
+// `data "coder_workspace_preset"` block in rendered HCL, in declaration order.
+// The input is expected to be rendered output from our own curated base
+// templates.
+func ExtractPresetNames(hclSrc []byte) []string {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
+		return nil
+	}
+	var names []string
+	for _, block := range body.Blocks {
+		if block.Type == "data" && len(block.Labels) == 2 &&
+			block.Labels[0] == "coder_workspace_preset" {
+			names = append(names, block.Labels[1])
+		}
+	}
+	return names
 }
 
 // staticString evaluates an expression expected to be a constant string (no

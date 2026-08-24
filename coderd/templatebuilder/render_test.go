@@ -250,6 +250,21 @@ func TestExtractAgentResourceName(t *testing.T) {
 		require.Equal(t, "myagent[0]", name)
 	})
 
+	t.Run("CountAfterNestedBlock", func(t *testing.T) {
+		t.Parallel()
+		// count is declared after a nested metadata block; a brace-depth scan
+		// that stopped at the first "}" would miss it and drop the [0] suffix.
+		hcl := []byte(`resource "coder_agent" "dev" {
+  metadata {
+    key = "cpu"
+  }
+  count = data.coder_workspace.me.start_count
+}`)
+		name, err := templatebuilder.ExtractAgentResourceName(hcl)
+		require.NoError(t, err)
+		require.Equal(t, "dev[0]", name)
+	})
+
 	t.Run("UncountedAgent", func(t *testing.T) {
 		t.Parallel()
 		hcl := []byte(`resource "coder_agent" "main" {
