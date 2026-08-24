@@ -77,9 +77,16 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
+	// Built-in emoji avatars are glyphs rather than photos, so they need the
+	// same inset padding as icons to avoid rendering edge to edge.
+	const resolvedVariant =
+		variant ?? (src?.startsWith("/emojis/") ? "icon" : undefined);
+
 	return (
 		<AvatarPrimitive.Root
-			className={cn(avatarVariants({ size, variant, className }))}
+			className={cn(
+				avatarVariants({ size, variant: resolvedVariant, className }),
+			)}
 			{...props}
 		>
 			<AvatarPrimitive.Image
