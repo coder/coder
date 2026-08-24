@@ -5365,6 +5365,18 @@ func (q *querier) GetUserSecretByUserIDAndName(ctx context.Context, arg database
 	return q.db.GetUserSecretByUserIDAndName(ctx, arg)
 }
 
+func (q *querier) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	// Only the update path locks the row, so require update rather than
+	// read: a caller that may not modify the secret has no business
+	// holding a write lock on it.
+	obj := rbac.ResourceUserSecret.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.UserSecret{}, err
+	}
+
+	return q.db.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+}
+
 func (q *querier) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
 	// Telemetry queries are called from system contexts only. The
 	// query reads aggregate counts across all users' secrets, so

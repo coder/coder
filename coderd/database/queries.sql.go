@@ -30473,6 +30473,45 @@ func (q *sqlQuerier) GetUserSecretByUserIDAndName(ctx context.Context, arg GetUs
 	return i, err
 }
 
+const getUserSecretByUserIDAndNameForUpdate = `-- name: GetUserSecretByUserIDAndNameForUpdate :one
+SELECT id, user_id, name, description, value, env_name, file_path, created_at, updated_at, value_key_id, enabled
+FROM user_secrets
+WHERE user_id = $1 AND name = $2
+FOR UPDATE
+`
+
+type GetUserSecretByUserIDAndNameForUpdateParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+// Row-locking variant of GetUserSecretByUserIDAndName, used by PATCH.
+//
+// The update handler validates the post-update state against the row it
+// just read. Without the lock, two concurrent PATCHes both read the
+// pre-update row, so each one validates against a state the other is
+// about to invalidate. Taking the lock here makes the second transaction
+// wait and re-read the winner's row, so the post-state check is evaluated
+// against what will actually be updated.
+func (q *sqlQuerier) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error) {
+	row := q.db.QueryRowContext(ctx, getUserSecretByUserIDAndNameForUpdate, arg.UserID, arg.Name)
+	var i UserSecret
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Value,
+		&i.EnvName,
+		&i.FilePath,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ValueKeyID,
+		&i.Enabled,
+	)
+	return i, err
+}
+
 const getUserSecretsTelemetrySummary = `-- name: GetUserSecretsTelemetrySummary :one
 WITH active_users AS (
     SELECT id AS user_id

@@ -82,6 +82,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
+### Disable user secret file path
+
+Disable Coder-managed file path delivery for user secrets. Users can no longer add or change a secret file path, and generated agent manifests deliver user secrets only through environment variables. Stored legacy paths remain visible until users explicitly clear them and become effective again if this setting is turned off.
+
+- Environment variable: `CODER_USER_SECRETS_DISABLE_FILE_PATH`
+- CLI flag: [`--user-secrets-disable-file-path`](../../reference/cli/server.md#--user-secrets-disable-file-path)
+- YAML key: `userSecretsDisableFilePath`
+
 ### Disable workspace sharing
 
 Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.

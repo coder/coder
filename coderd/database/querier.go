@@ -958,6 +958,15 @@ type sqlcQuerier interface {
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
 	GetUserSecretByID(ctx context.Context, id uuid.UUID) (UserSecret, error)
 	GetUserSecretByUserIDAndName(ctx context.Context, arg GetUserSecretByUserIDAndNameParams) (UserSecret, error)
+	// Row-locking variant of GetUserSecretByUserIDAndName, used by PATCH.
+	//
+	// The update handler validates the post-update state against the row it
+	// just read. Without the lock, two concurrent PATCHes both read the
+	// pre-update row, so each one validates against a state the other is
+	// about to invalidate. Taking the lock here makes the second transaction
+	// wait and re-read the winner's row, so the post-state check is evaluated
+	// against what will actually be updated.
+	GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg GetUserSecretByUserIDAndNameForUpdateParams) (UserSecret, error)
 	// Returns deployment-wide aggregates for the telemetry snapshot.
 	//
 	// The denominator for both user-level counts and the per-user

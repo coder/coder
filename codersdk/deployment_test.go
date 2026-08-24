@@ -1429,6 +1429,75 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 }
 
+func TestUserSecretsDisableFilePath(t *testing.T) {
+	t.Parallel()
+
+	findOption := func(t *testing.T, dv *codersdk.DeploymentValues) serpent.Option {
+		t.Helper()
+		opts := dv.Options()
+		for _, opt := range opts {
+			if opt.Value == &dv.DisableUserSecretFilePath {
+				return opt
+			}
+		}
+		t.Fatal("DisableUserSecretFilePath is not registered as a deployment option")
+		return serpent.Option{}
+	}
+
+	t.Run("DefaultsToFalse", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.False(t, dv.DisableUserSecretFilePath.Value())
+	})
+
+	t.Run("Naming", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opt := findOption(t, &dv)
+		assert.Equal(t, "user-secrets-disable-file-path", opt.Flag)
+		assert.Equal(t, "CODER_USER_SECRETS_DISABLE_FILE_PATH", opt.Env)
+		assert.Equal(t, "userSecretsDisableFilePath", opt.YAML)
+	})
+
+	t.Run("ParsesEnv", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_USER_SECRETS_DISABLE_FILE_PATH", Value: "true"},
+		}))
+		require.True(t, dv.DisableUserSecretFilePath.Value())
+	})
+
+	t.Run("ParsesYAML", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		var node yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("userSecretsDisableFilePath: true\n"), &node))
+		require.NoError(t, node.Decode(&opts))
+		require.True(t, dv.DisableUserSecretFilePath.Value())
+	})
+
+	t.Run("PreservedWithoutSecrets", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{
+			DisableUserSecretFilePath: true,
+		}
+		withoutSecrets, err := dv.WithoutSecrets()
+		require.NoError(t, err)
+		require.True(t, withoutSecrets.DisableUserSecretFilePath.Value())
+	})
+}
+
 func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
 	t.Parallel()
 

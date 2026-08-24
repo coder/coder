@@ -3432,6 +3432,14 @@ func (m queryMetricsStore) GetUserSecretByUserIDAndName(ctx context.Context, arg
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserSecretByUserIDAndNameForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSecretByUserIDAndNameForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserSecretsTelemetrySummary(ctx)

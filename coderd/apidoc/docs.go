@@ -21719,6 +21719,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_user_secret_file_path": {
+                    "type": "boolean"
+                },
                 "disable_workspace_sharing": {
                     "type": "boolean"
                 },

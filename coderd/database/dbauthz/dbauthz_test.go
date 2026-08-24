@@ -6638,6 +6638,15 @@ func (s *MethodTestSuite) TestUserSecrets() {
 			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionRead).
 			Returns(secret)
 	}))
+	s.Run("GetUserSecretByUserIDAndNameForUpdate", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		secret := testutil.Fake(s.T(), faker, database.UserSecret{UserID: user.ID})
+		arg := database.GetUserSecretByUserIDAndNameForUpdateParams{UserID: user.ID, Name: secret.Name}
+		dbm.EXPECT().GetUserSecretByUserIDAndNameForUpdate(gomock.Any(), arg).Return(secret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSecret.WithOwner(user.ID.String()), policy.ActionUpdate).
+			Returns(secret)
+	}))
 	s.Run("ListUserSecrets", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
 		row := testutil.Fake(s.T(), faker, database.ListUserSecretsRow{UserID: user.ID})
