@@ -56,7 +56,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Match errors by code or HTTP status, not message text.
 - Match patterns in the same file before introducing a new convention.
 - Avoid single-use wrappers, aliases, constants, and hooks that add navigation without adding meaning.
-- Do not introduce a new React hook, whether shared in `hooks/` or local to a feature, when an existing hook, a plain function, or component state can express the logic. Any new hook requires explicit maintainer approval; call each one out in the PR description.
+- Do not introduce a new React hook when an existing hook, a plain function, or component state can express the logic.
 - Use JSX shorthand for boolean props whose value is `true`.
 
 ## Accessibility and robustness
