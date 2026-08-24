@@ -595,9 +595,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
-					{mcpServersQuery.error != null && (
-						<ErrorAlert error={mcpServersQuery.error} />
-					)}
 					{organizationId !== "" &&
 						modelsQuery.data !== undefined &&
 						modelsQuery.error == null &&

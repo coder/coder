@@ -25,7 +25,7 @@ import {
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { pixelWithTablet } from "#/testHelpers/pixel";
+import { pixelWithDesktop, pixelWithTablet } from "#/testHelpers/pixel";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -118,6 +118,7 @@ export const ForMember: Story = {
 
 export const CustomOrganizationRoleCanOpenModels: Story = {
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		user: MockUserMember,
 		permissions: MockNoPermissions,
 		reactRouter: modelSettingsRouter,
@@ -141,6 +142,7 @@ export const CustomOrganizationRoleCanOpenModels: Story = {
 
 export const ACLReadableMemberCanOpenModels: Story = {
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		user: MockUserMember,
 		permissions: MockNoPermissions,
 		reactRouter: modelSettingsRouter,
