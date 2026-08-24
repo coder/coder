@@ -1197,3 +1197,18 @@ AND wb.build_number = (
     FROM workspace_builds wb2
     WHERE wb2.workspace_id = w.id
 );
+
+-- name: LockWorkspaceByID :one
+-- Takes a row lock on a workspace so that work keyed on it serializes against
+-- concurrent work on the same workspace. Returns the identifier only; a caller
+-- wanting the workspace reads it separately.
+--
+-- Resolving a workspace's AI agent is check-then-create, and without this two
+-- concurrent resolutions both find nothing and both create.
+SELECT
+	id
+FROM
+	workspaces
+WHERE
+	id = $1
+FOR UPDATE;

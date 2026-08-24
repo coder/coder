@@ -1429,6 +1429,13 @@ type sqlcQuerier interface {
 	// entry point ChatMachine.Update uses to acquire the row lock and
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
+	// Takes a row lock on a workspace so that work keyed on it serializes against
+	// concurrent work on the same workspace. Returns the identifier only; a caller
+	// wanting the workspace reads it separately.
+	//
+	// Resolving a workspace's AI agent is check-then-create, and without this two
+	// concurrent resolutions both find nothing and both create.
+	LockWorkspaceByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
 	// Flips active, already-hydrated chats for an agent to dirty when the
 	// agent's latest snapshot hash differs from the chat's pinned hash. The

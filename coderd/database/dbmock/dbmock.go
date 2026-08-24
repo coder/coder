@@ -9808,6 +9808,21 @@ func (mr *MockStoreMockRecorder) LockChatAndBumpSnapshotVersion(ctx, id any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatAndBumpSnapshotVersion", reflect.TypeOf((*MockStore)(nil).LockChatAndBumpSnapshotVersion), ctx, id)
 }
 
+// LockWorkspaceByID mocks base method.
+func (m *MockStore) LockWorkspaceByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockWorkspaceByID", ctx, id)
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// LockWorkspaceByID indicates an expected call of LockWorkspaceByID.
+func (mr *MockStoreMockRecorder) LockWorkspaceByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockWorkspaceByID", reflect.TypeOf((*MockStore)(nil).LockWorkspaceByID), ctx, id)
+}
+
 // MarkAllInboxNotificationsAsRead mocks base method.
 func (m *MockStore) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	m.ctrl.T.Helper()

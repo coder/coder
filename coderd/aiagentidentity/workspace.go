@@ -20,25 +20,45 @@ import (
 // owner: after an ownership transfer the old sponsorship no longer bounds the
 // agent's permissions, so the stale identity is revoked and a fresh one is
 // created under the new owner.
+// Resolution is check-then-create, so it takes the workspace's row lock and
+// holds it to the end. Two concurrent resolutions would otherwise both find
+// nothing and both create, leaving the workspace with two live agents. A unique
+// index over agents used to make the second insert fail; capacity is a fact
+// about the container rather than about agents, so that index is gone and the
+// race is dealt with where it happens.
 func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgent, error) {
-	agent, err := db.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
-		OriginType: database.AIAgentOriginWorkspace,
-		OriginID:   workspace.ID,
-	})
-	switch {
-	case err == nil:
-		if agent.OwnerUserID != workspace.OwnerID {
-			if err := revokeWorkspaceOrigin(ctx, db, agent); err != nil {
-				return database.AIAgent{}, xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
-			}
-			return createWorkspaceOrigin(ctx, db, workspace)
+	var resolved database.AIAgent
+	err := db.InTx(func(tx database.Store) error {
+		if _, err := tx.LockWorkspaceByID(ctx, workspace.ID); err != nil {
+			return xerrors.Errorf("lock workspace to resolve its AI agent: %w", err)
 		}
-		return agent, nil
-	case errors.Is(err, sql.ErrNoRows):
-		return createWorkspaceOrigin(ctx, db, workspace)
-	default:
-		return database.AIAgent{}, xerrors.Errorf("get AI agent by origin: %w", err)
+
+		agent, err := tx.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
+			OriginType: database.AIAgentOriginWorkspace,
+			OriginID:   workspace.ID,
+		})
+		switch {
+		case err == nil:
+			if agent.OwnerUserID != workspace.OwnerID {
+				if err := revokeWorkspaceOrigin(ctx, tx, agent); err != nil {
+					return xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
+				}
+				resolved, err = createWorkspaceOrigin(ctx, tx, workspace)
+				return err
+			}
+			resolved = agent
+			return nil
+		case errors.Is(err, sql.ErrNoRows):
+			resolved, err = createWorkspaceOrigin(ctx, tx, workspace)
+			return err
+		default:
+			return xerrors.Errorf("get AI agent by origin: %w", err)
+		}
+	}, nil)
+	if err != nil {
+		return database.AIAgent{}, err
 	}
+	return resolved, nil
 }
 
 func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgent, error) {

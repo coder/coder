@@ -42137,6 +42137,29 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 	return i, err
 }
 
+const lockWorkspaceByID = `-- name: LockWorkspaceByID :one
+SELECT
+	id
+FROM
+	workspaces
+WHERE
+	id = $1
+FOR UPDATE
+`
+
+// Takes a row lock on a workspace so that work keyed on it serializes against
+// concurrent work on the same workspace. Returns the identifier only; a caller
+// wanting the workspace reads it separately.
+//
+// Resolving a workspace's AI agent is check-then-create, and without this two
+// concurrent resolutions both find nothing and both create.
+func (q *sqlQuerier) LockWorkspaceByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, lockWorkspaceByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
 const setWorkspaceAIAgentID = `-- name: SetWorkspaceAIAgentID :one
 UPDATE workspaces
 SET ai_agent_id = $1

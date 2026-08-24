@@ -7259,6 +7259,16 @@ func (q *querier) LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UU
 	return q.db.LockChatAndBumpSnapshotVersion(ctx, id)
 }
 
+// Locking a workspace row is a system operation: the callers are internal
+// resolutions that already run as the system, and what the lock protects is
+// their serialization rather than anything the workspace's owner decides.
+func (q *querier) LockWorkspaceByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.LockWorkspaceByID(ctx, id)
+}
+
 func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg database.MarkAllInboxNotificationsAsReadParams) error {
 	resource := rbac.ResourceInboxNotification.WithOwner(arg.UserID.String())
 

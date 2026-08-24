@@ -1,6 +1,7 @@
 package aiagentidentity_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -118,4 +119,71 @@ func TestChatTreeAdmitsOneLiveAgent(t *testing.T) {
 		"UPDATE chats SET occupancy_count = 1 WHERE id = $1", child.ID)
 	require.Error(t, err, "a non-root chat cannot carry an occupancy count")
 	require.Contains(t, err.Error(), "chats_occupancy_only_on_root_chats")
+}
+
+// TestConcurrentWorkspaceResolutionCreatesOneAgent asserts that a workspace
+// ends up with one AI agent when several resolutions race.
+//
+// Resolution is check-then-create, and a unique index over agents used to make
+// the losing insert fail. Capacity is a fact about the container rather than
+// about agents, so that index is gone and the workspace's row lock is what
+// serializes the resolutions.
+func TestConcurrentWorkspaceResolutionCreatesOneAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: organization.ID,
+		CreatedBy:      owner.ID,
+	})
+	table := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: organization.ID,
+		OwnerID:        owner.ID,
+		TemplateID:     template.ID,
+	})
+	workspace, err := db.GetWorkspaceByID(ctx, table.ID)
+	require.NoError(t, err)
+
+	const racers = 8
+	var (
+		wg      sync.WaitGroup
+		mu      sync.Mutex
+		agentID = map[uuid.UUID]int{}
+		errs    []error
+	)
+	for range racers {
+		wg.Go(func() {
+			agent, err := aiagentidentity.ResolveWorkspaceOrigin(ctx, db, workspace)
+			mu.Lock()
+			defer mu.Unlock()
+			if err != nil {
+				errs = append(errs, err)
+				return
+			}
+			agentID[agent.UserID]++
+		})
+	}
+	wg.Wait()
+
+	require.Empty(t, errs, "every resolution succeeds")
+	require.Len(t, agentID, 1, "every resolution names the same agent")
+
+	var live int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM ai_agents WHERE origin_type = 'workspace' AND origin_id = $1 AND NOT deleted",
+		workspace.ID).Scan(&live))
+	require.Equal(t, 1, live, "the workspace has one live agent")
+
+	var ledgerRows int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM ai_agent_ledger WHERE creation_site_type = 'workspace' AND creation_site_id = $1",
+		workspace.ID).Scan(&ledgerRows))
+	require.Equal(t, 1, ledgerRows, "and one ledger row, no losing transaction having left one behind")
 }
