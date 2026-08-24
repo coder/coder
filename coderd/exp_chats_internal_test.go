@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -25,6 +26,48 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	txErr := xerrors.New("commit transaction")
+
+	db.EXPECT().AcquireLock(
+		gomock.Any(),
+		database.GenLockID(string(chatOperationalSettingChatRetentionDays)),
+	).Return(nil)
+	db.EXPECT().GetChatSiteConfigValue(
+		gomock.Any(),
+		string(chatOperationalSettingChatRetentionDays),
+	).Return(database.GetChatSiteConfigValueRow{}, nil)
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			require.NoError(t, fn(db))
+			return txErr
+		},
+	)
+
+	auditCanceled := false
+	api := &API{Options: &Options{Database: db}}
+	err := api.auditedChatOperationalSettingWrite(
+		ctx,
+		&audit.Request[database.ChatOperationalSettings]{},
+		func(commit bool) {
+			require.False(t, commit)
+			auditCanceled = true
+		},
+		chatOperationalSettingChatRetentionDays,
+		"30",
+		func(database.Store) error {
+			return xerrors.New("write unexpectedly called")
+		},
+	)
+
+	require.ErrorIs(t, err, txErr)
+	require.False(t, auditCanceled)
+}
 
 // ExtractChatParam authorizes the read, then GetAIBridgeChatCost authorizes it
 // again. A denial on the second check means the ACL changed in between (a
