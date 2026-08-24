@@ -2,6 +2,7 @@ import range from "lodash/range";
 import {
 	type DeploymentConfig,
 	type GetLicensesResponse,
+	withDefaultCapabilities,
 	withDefaultFeatures,
 } from "#/api/api";
 import type { FieldError } from "#/api/errors";
@@ -2706,6 +2707,64 @@ export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	},
 };
 
+export const MockDeploymentCapabilities: TypesGen.DeploymentCapabilities = {
+	has_license: false,
+	trial: false,
+	features: withDefaultCapabilities({}),
+};
+
+export const MockDeploymentCapabilitiesWithAuditLog: TypesGen.DeploymentCapabilities =
+	{
+		...MockDeploymentCapabilities,
+		has_license: true,
+		features: withDefaultCapabilities({
+			audit_log: {
+				enabled: true,
+				entitlement: "entitled",
+				usable: true,
+			},
+		}),
+	};
+
+export const MockDeploymentCapabilitiesWithConnectionLog: TypesGen.DeploymentCapabilities =
+	{
+		...MockDeploymentCapabilities,
+		has_license: true,
+		features: withDefaultCapabilities({
+			connection_log: {
+				enabled: true,
+				entitlement: "entitled",
+				usable: true,
+			},
+		}),
+	};
+
+export const MockDeploymentCapabilitiesWithScheduling: TypesGen.DeploymentCapabilities =
+	{
+		...MockDeploymentCapabilities,
+		has_license: true,
+		features: withDefaultCapabilities({
+			advanced_template_scheduling: {
+				enabled: true,
+				entitlement: "entitled",
+				usable: true,
+			},
+		}),
+	};
+
+export const MockDeploymentCapabilitiesWithMultiOrg: TypesGen.DeploymentCapabilities =
+	{
+		...MockDeploymentCapabilities,
+		has_license: true,
+		features: withDefaultCapabilities({
+			multiple_organizations: {
+				enabled: true,
+				entitlement: "entitled",
+				usable: true,
+			},
+		}),
+	};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2750,51 +2809,6 @@ const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	}),
 };
 
-export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
-	errors: [],
-	warnings: [],
-	has_license: true,
-	require_telemetry: false,
-	trial: false,
-	refreshed_at: "2022-05-20T16:45:57.122Z",
-	features: withDefaultFeatures({
-		audit_log: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-	}),
-};
-
-export const MockEntitlementsWithConnectionLog: TypesGen.Entitlements = {
-	errors: [],
-	warnings: [],
-	has_license: true,
-	require_telemetry: false,
-	trial: false,
-	refreshed_at: "2022-05-20T16:45:57.122Z",
-	features: withDefaultFeatures({
-		connection_log: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-	}),
-};
-
-export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
-	errors: [],
-	warnings: [],
-	has_license: true,
-	require_telemetry: false,
-	trial: false,
-	refreshed_at: "2022-05-20T16:45:57.122Z",
-	features: withDefaultFeatures({
-		advanced_template_scheduling: {
-			enabled: true,
-			entitlement: "entitled",
-		},
-	}),
-};
-
 const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2807,17 +2821,6 @@ const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 			enabled: true,
 			entitlement: "entitled",
 			limit: 25,
-		},
-	}),
-};
-
-export const MockEntitlementsWithMultiOrg: TypesGen.Entitlements = {
-	...MockEntitlements,
-	has_license: true,
-	features: withDefaultFeatures({
-		multiple_organizations: {
-			enabled: true,
-			entitlement: "entitled",
 		},
 	}),
 };

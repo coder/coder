@@ -2,6 +2,7 @@ package entitlements_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -19,12 +20,22 @@ func TestModify(t *testing.T) {
 	require.False(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
 
 	set.Modify(func(entitlements *codersdk.Entitlements) {
+		entitlements.HasLicense = true
 		entitlements.Features[codersdk.FeatureMultipleOrganizations] = codersdk.Feature{
 			Enabled:     true,
 			Entitlement: codersdk.EntitlementEntitled,
+			Limit:       new(int64(10)),
 		}
 	})
 	require.True(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
+
+	var full codersdk.Entitlements
+	require.NoError(t, json.Unmarshal(set.AsJSON(), &full))
+	require.NotNil(t, full.Features[codersdk.FeatureMultipleOrganizations].Limit)
+	var public codersdk.DeploymentCapabilities
+	require.NoError(t, json.Unmarshal(set.AsCapabilitiesJSON(), &public))
+	require.True(t, public.Features[codersdk.FeatureMultipleOrganizations].Usable)
+	require.NotContains(t, string(set.AsCapabilitiesJSON()), "\"limit\"")
 }
 
 func TestAllowRefresh(t *testing.T) {
@@ -89,9 +100,11 @@ func TestUpdate(t *testing.T) {
 						Enabled: true,
 					},
 					codersdk.FeatureAppearance: {
-						Enabled: true,
+						Entitlement: codersdk.EntitlementEntitled,
+						Enabled:     true,
 					},
 				},
+				HasLicense: true,
 			}, nil
 		})
 		errCh <- err
@@ -103,6 +116,9 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
 	require.True(t, set.Enabled(codersdk.FeatureAppearance))
+	var public codersdk.DeploymentCapabilities
+	require.NoError(t, json.Unmarshal(set.AsCapabilitiesJSON(), &public))
+	require.True(t, public.Features[codersdk.FeatureAppearance].Usable)
 }
 
 func TestUpdate_LicenseRequiresTelemetry(t *testing.T) {
@@ -111,8 +127,10 @@ func TestUpdate_LicenseRequiresTelemetry(t *testing.T) {
 	set := entitlements.New()
 	set.Modify(func(entitlements *codersdk.Entitlements) {
 		entitlements.Errors = []string{"some error"}
+		entitlements.HasLicense = true
 		entitlements.Features[codersdk.FeatureAppearance] = codersdk.Feature{
-			Enabled: true,
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     true,
 		}
 	})
 	err := set.Update(ctx, func(_ context.Context) (codersdk.Entitlements, error) {
@@ -121,4 +139,8 @@ func TestUpdate_LicenseRequiresTelemetry(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, set.Enabled(codersdk.FeatureAppearance))
 	require.Equal(t, []string{entitlements.ErrLicenseRequiresTelemetry.Error()}, set.Errors())
+	var public codersdk.DeploymentCapabilities
+	require.NoError(t, json.Unmarshal(set.AsCapabilitiesJSON(), &public))
+	require.True(t, public.Features[codersdk.FeatureAppearance].Usable)
+	require.NotContains(t, string(set.AsCapabilitiesJSON()), entitlements.ErrLicenseRequiresTelemetry.Error())
 }

@@ -118,6 +118,47 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get deployment capabilities
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/capabilities \
+  -H 'Accept: application/json'
+```
+
+`GET /api/v2/deployment/capabilities`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "features": {
+    "property1": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    },
+    "property2": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    }
+  },
+  "has_license": true,
+  "trial": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentCapabilities](schemas.md#codersdkdeploymentcapabilities) |
+
 ## Get deployment config
 
 ### Code samples

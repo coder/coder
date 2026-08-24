@@ -1435,11 +1435,14 @@ func New(options *Options) *API {
 			r.Get("/", api.derpMapUpdates)
 		})
 		r.Route("/deployment", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.Get("/config", api.deploymentValues)
-			r.Get("/stats", api.deploymentStats)
-			r.Get("/ssh", api.sshConfig)
-			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
+			r.Get("/capabilities", api.deploymentCapabilities)
+			r.Group(func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
+				r.Get("/config", api.deploymentValues)
+				r.Get("/stats", api.deploymentStats)
+				r.Get("/ssh", api.sshConfig)
+				r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
+			})
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

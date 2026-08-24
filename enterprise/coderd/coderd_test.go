@@ -68,6 +68,21 @@ func TestMain(m *testing.M) {
 
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
+	t.Run("Authentication", func(t *testing.T) {
+		t.Parallel()
+		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		anonymous := codersdk.New(adminClient.URL)
+
+		res, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/entitlements", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+		require.NoError(t, err)
+		require.False(t, capabilities.HasLicense)
+		require.Len(t, capabilities.Features, len(codersdk.FeatureNames))
+	})
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
 		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -84,10 +99,11 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()
-		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
 		// Enable all features
 		features := make(license.Features)
 		for _, feature := range codersdk.FeatureNames {
@@ -99,22 +115,22 @@ func TestEntitlements(t *testing.T) {
 			}
 			features[feature] = 1
 		}
-		features[codersdk.FeatureUserLimit] = 100
+		features[codersdk.FeatureUserLimit] = 1
 		coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
 			Features: features,
 			Addons:   []codersdk.Addon{codersdk.AddonAIGovernance},
 			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
-		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // adding another user would put us over user limit
+		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // Verify owner access to full entitlement details.
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
 		ul := res.Features[codersdk.FeatureUserLimit]
 		assert.Equal(t, codersdk.EntitlementEntitled, ul.Entitlement)
 		if assert.NotNil(t, ul.Limit) {
-			assert.Equal(t, int64(100), *ul.Limit)
+			assert.Equal(t, int64(1), *ul.Limit)
 		}
 		if assert.NotNil(t, ul.Actual) {
-			assert.Equal(t, int64(1), *ul.Actual)
+			assert.Equal(t, int64(2), *ul.Actual)
 		}
 		assert.True(t, ul.Enabled)
 		al := res.Features[codersdk.FeatureAuditLog]
@@ -122,7 +138,33 @@ func TestEntitlements(t *testing.T) {
 		assert.True(t, al.Enabled)
 		assert.Nil(t, al.Limit)
 		assert.Nil(t, al.Actual)
-		assert.Empty(t, res.Warnings)
+		const userLimitWarning = "Your deployment has 2 active users but is only licensed for 1."
+		assert.Contains(t, res.Warnings, userLimitWarning)
+		runtime := res.Features[codersdk.FeatureAgentRuntimeHours]
+		require.NotNil(t, runtime.Limit)
+		require.NotNil(t, runtime.Actual)
+		require.NotNil(t, runtime.ActualMs)
+		require.NotNil(t, runtime.UsagePeriod)
+
+		anonymous := codersdk.New(adminClient.URL)
+		capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+		require.NoError(t, err)
+		require.True(t, capabilities.HasLicense)
+		require.True(t, capabilities.Features[codersdk.FeatureAuditLog].Usable)
+		resPublic, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/deployment/capabilities", nil)
+		require.NoError(t, err)
+		defer resPublic.Body.Close()
+		publicBody, err := io.ReadAll(resPublic.Body)
+		require.NoError(t, err)
+		require.NotContains(t, string(publicBody), userLimitWarning)
+		for _, field := range []string{"\"limit\":", "\"actual\":", "\"actual_ms\":", "\"warnings\":"} {
+			require.NotContains(t, string(publicBody), field)
+		}
+
+		memberEntitlements, err := memberClient.Entitlements(t.Context())
+		require.NoError(t, err)
+		require.True(t, memberEntitlements.HasLicense)
+		require.Equal(t, int64(1), *memberEntitlements.Features[codersdk.FeatureUserLimit].Limit)
 	})
 
 	// TestEntitlements/MultiplePrebuildsLicenseUpdates verifies that uploading

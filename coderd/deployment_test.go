@@ -2,14 +2,46 @@ package coderd_test
 
 import (
 	"context"
+	"io"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestDeploymentCapabilities(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{})
+	capabilities, err := client.DeploymentCapabilities(t.Context())
+	require.NoError(t, err)
+	require.False(t, capabilities.HasLicense)
+	require.Len(t, capabilities.Features, len(codersdk.FeatureNames))
+	for _, capability := range capabilities.Features {
+		require.Equal(t, codersdk.EntitlementNotEntitled, capability.Entitlement)
+		require.False(t, capability.Enabled)
+		require.False(t, capability.Usable)
+	}
+
+	res, err := client.Request(t.Context(), http.MethodGet, "/api/v2/deployment/capabilities", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	for _, field := range []string{
+		"\"limit\":", "\"actual\":", "\"actual_ms\":", "\"soft_limit\":",
+		"\"hard_limit\":", "\"usage_period\":", "\"warnings\":", "\"errors\":",
+		"\"require_telemetry\":", "\"refreshed_at\":",
+	} {
+		require.NotContains(t, string(body), field)
+	}
+}
 
 func TestDeploymentValues(t *testing.T) {
 	t.Parallel()

@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useQueryClient } from "react-query";
 import { expect, within } from "storybook/test";
+import { entitlementDetailsQueryKey } from "#/api/queries/entitlements";
 import {
 	type Entitlements,
 	LicenseAgentRuntimeHoursAllocationReachedWarningText,
@@ -10,15 +12,8 @@ import {
 	LicenseManagedAgentLimitExceededWarningText,
 	LicenseTelemetryRequiredErrorText,
 } from "#/api/typesGenerated";
-import {
-	MockAppearanceConfig,
-	MockBuildInfo,
-	MockDefaultOrganization,
-	MockEntitlements,
-	MockExperiments,
-} from "#/testHelpers/entities";
+import { MockEntitlements } from "#/testHelpers/entities";
 import { docs } from "#/utils/docs";
-import { DashboardContext, type DashboardValue } from "../DashboardProvider";
 import { formatLicenseMessage, LicenseBanner } from "./LicenseBanner";
 import { LicenseBannerView } from "./LicenseBannerView";
 
@@ -198,30 +193,23 @@ const renderLicenseBanner = ({
 	warnings?: string[];
 	features?: Partial<Entitlements["features"]>;
 }) => {
-	const mockDashboardValue: DashboardValue = {
-		entitlements: {
-			...MockEntitlements,
-			has_license: true,
-			errors,
-			warnings,
-			features: {
-				...MockEntitlements.features,
-				...features,
-			},
+	const entitlementDetails: Entitlements = {
+		...MockEntitlements,
+		has_license: true,
+		errors,
+		warnings,
+		features: {
+			...MockEntitlements.features,
+			...features,
 		},
-		experiments: MockExperiments,
-		appearance: MockAppearanceConfig,
-		buildInfo: MockBuildInfo,
-		organizations: [MockDefaultOrganization],
-		showOrganizations: false,
-		canViewOrganizationSettings: false,
 	};
 
-	return (
-		<DashboardContext value={mockDashboardValue}>
-			<LicenseBanner />
-		</DashboardContext>
-	);
+	const Banner = () => {
+		const queryClient = useQueryClient();
+		queryClient.setQueryData(entitlementDetailsQueryKey, entitlementDetails);
+		return <LicenseBanner />;
+	};
+	return <Banner />;
 };
 
 const renderLicenseBannerWithAIGovernance = ({

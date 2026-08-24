@@ -1948,6 +1948,17 @@ export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
 	"running",
 ];
 
+// From codersdk/deployment.go
+/**
+ * Capability is the public state needed to decide whether a deployment
+ * feature can be used.
+ */
+export interface Capability {
+	readonly entitlement: Entitlement;
+	readonly enabled: boolean;
+	readonly usable: boolean;
+}
+
 // From codersdk/users.go
 /**
  * ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
@@ -4742,6 +4753,16 @@ export interface DeleteWebpushSubscription {
 export interface DeleteWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
 	readonly port: number;
+}
+
+// From codersdk/deployment.go
+/**
+ * DeploymentCapabilities contains public deployment feature state.
+ */
+export interface DeploymentCapabilities {
+	readonly features: Record<FeatureName, Capability>;
+	readonly has_license: boolean;
+	readonly trial: boolean;
 }
 
 // From codersdk/deployment.go

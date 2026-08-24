@@ -8,6 +8,7 @@ import {
 	HEALTH_QUERY_KEY,
 	HEALTH_QUERY_SETTINGS_KEY,
 } from "#/api/queries/debug";
+import { entitlementDetailsQueryKey } from "#/api/queries/entitlements";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -38,7 +39,7 @@ export const generateMeta = ({ element, path, params }: MetaOptions) => {
 				{ key: HEALTH_QUERY_KEY, data: MockHealth },
 				{ key: HEALTH_QUERY_SETTINGS_KEY, data: MockHealthSettings },
 				{ key: ["buildInfo"], data: MockBuildInfo },
-				{ key: ["entitlements"], data: MockEntitlements },
+				{ key: entitlementDetailsQueryKey, data: MockEntitlements },
 				{ key: ["experiments"], data: MockExperiments },
 				{ key: ["appearance"], data: MockAppearanceConfig },
 			],
