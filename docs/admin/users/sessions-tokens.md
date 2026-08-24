@@ -92,7 +92,7 @@ Use our API reference for more information on how to
 ### Set max token length
 
 You can use the
-[`CODER_MAX_TOKEN_LIFETIME`](https://coder.com/docs/reference/cli/server#--max-token-lifetime)
+[`CODER_MAX_TOKEN_LIFETIME`](../../reference/cli/server.md#--max-token-lifetime)
 server flag to set the maximum duration for long-lived tokens in your
 deployment.
 
