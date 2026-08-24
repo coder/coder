@@ -33,7 +33,7 @@ const badgeVariants = cva(
 			},
 			size: {
 				xs: "border-0 text-2xs font-normal h-[18px] rounded",
-				sm: "text-2xs font-normal h-5.5 py-1",
+				sm: "text-xs font-normal h-6 py-1",
 				md: "text-xs font-normal py-1",
 			},
 			svgSize: {
