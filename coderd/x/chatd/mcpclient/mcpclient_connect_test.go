@@ -239,3 +239,54 @@ func TestConnectAll_CleanupPromptWhenServerWedges(t *testing.T) {
 		"session close DELETE never reached the server")
 	release()
 }
+
+// TestConnectAll_NoToolsWedgedCloseWithinBudget proves that a
+// server whose session yields no usable tools cannot stall
+// ConnectAll past the connect budget when its teardown DELETE
+// wedges. The discarded session must be closed off the caller's
+// path, and the teardown must still happen in the background.
+func TestConnectAll_NoToolsWedgedCloseWithinBudget(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	// Stateful handler with no registered tools so closing the
+	// discarded session sends a DELETE.
+	srv := mcp.NewServer(&mcp.Implementation{Name: "notools", Version: "1.0.0"}, nil)
+	handler := mcp.NewStreamableHTTPHandler(
+		func(*http.Request) *mcp.Server { return srv }, nil,
+	)
+
+	var deleteArrived atomic.Bool
+	releaseDelete := make(chan struct{})
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deleteArrived.Store(true)
+			select {
+			case <-releaseDelete:
+			case <-r.Context().Done():
+			}
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(ts.Close)
+
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseDelete) }) }
+	t.Cleanup(release)
+
+	cfg := makeConfig("notools", ts.URL)
+	start := time.Now()
+	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	elapsed := time.Since(start)
+	t.Cleanup(cleanup)
+
+	require.Empty(t, tools)
+	require.Less(t, elapsed, 5*time.Second,
+		"ConnectAll took %s with a wedged no-tools teardown", elapsed)
+
+	require.Eventually(t, deleteArrived.Load,
+		10*time.Second, 10*time.Millisecond,
+		"discarded session close DELETE never reached the server")
+	release()
+}

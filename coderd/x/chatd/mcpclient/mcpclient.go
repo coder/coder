@@ -309,8 +309,12 @@ func connectOne(
 		}
 		toolsResult, err := session.ListTools(connectCtx, nil)
 		if err != nil {
-			_ = session.Close()
+			// Deliver the result before closing: Close sends a
+			// DELETE on the SDK's detached context and can wedge,
+			// which would otherwise convert a fast ListTools
+			// failure into a budget timeout for the caller.
 			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
+			_ = session.Close()
 			return
 		}
 		resCh <- connectResult{session: session, tools: toolsResult}
@@ -360,7 +364,11 @@ func connectOne(
 	}
 
 	if len(tools) == 0 {
-		_ = session.Close()
+		// Close the discarded session asynchronously: Close sends
+		// a DELETE on the SDK's detached context, so a server that
+		// wedges after a successful connect would otherwise hold
+		// the caller far past the connect budget.
+		go func() { _ = session.Close() }()
 		return nil, nil, nil
 	}
 
