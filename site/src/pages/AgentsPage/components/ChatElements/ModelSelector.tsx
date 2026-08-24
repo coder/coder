@@ -162,17 +162,17 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					role="combobox"
 					type="button"
 					variant="subtle"
+					// min-w floor: keep roughly 8ch of the model name visible before
+					// truncation kicks in. 3.125rem covers the fixed chrome around
+					// the label (px-2 padding, size-3 provider icon, two gap-1 gaps,
+					// size-3.5 chevron) so the label and chevron never get clipped.
 					className={cn(
-						"h-7 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
+						"h-7 min-w-[calc(8ch+3.125rem)] shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					{/* No min-w-0 here or on the button: the label's min-w-[8ch]
-					 * floor below must propagate up so the trigger never shrinks
-					 * past roughly 8 characters of the model name. Siblings (the
-					 * badge row's +N overflow pill) absorb the remaining pressure. */}
-					<span className="flex items-center gap-1">
+					<span className="flex min-w-0 items-center gap-1">
 						{selectedModel && (
 							<span
 								className="flex shrink-0 items-center"
@@ -185,10 +185,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 								/>
 							</span>
 						)}
-						{/* Keep at least 8 characters visible before truncating.
-						 * truncate clips inside this span, so the chevron's gap to
-						 * the ellipsis stays constant. */}
-						<span className="min-w-[8ch] truncate">{triggerLabel}</span>
+						<span className="truncate">{triggerLabel}</span>
 					</span>
 					<ChevronDownIcon open={open} />
 				</Button>
