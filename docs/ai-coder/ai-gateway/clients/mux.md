@@ -1,12 +1,12 @@
-# Mux
+# Xum
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is
 > included with a Premium license.
 
-Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
+Xum (formerly Mux) makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
-Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
+Xum can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
 
 ## Prerequisites
 
@@ -19,14 +19,14 @@ Mux can be configured to route OpenAI- and Anthropic-compatible traffic through 
 
 ### OpenAI
 
-1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
+1. Open Xum settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **OpenAI**.
 3. Set **API Key** to your Coder API token.
 4. Set **Base URL** to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 
 ### Anthropic
 
-1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
+1. Open Xum settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **Anthropic**.
 3. Set **API Key** to your Coder API token.
 4. Set **Base URL** to `https://coder.example.com/api/v2/ai-gateway/anthropic`.
@@ -37,11 +37,11 @@ _Replace `coder.example.com` with your Coder deployment URL._
 
 ## Environment variables
 
-Mux reads provider configuration from its settings UI and also from environment variables.
-Environment variables are useful in CI or when running Mux inside a Coder workspace.
+Xum reads provider configuration from its settings UI and also from environment variables.
+Environment variables are useful in CI or when running Xum inside a Coder workspace.
 
 > [!NOTE]
-> Mux treats environment variables as a fallback when a provider is not configured in settings.
+> Xum treats environment variables as a fallback when a provider is not configured in settings.
 > If you have already configured a provider in the UI, clear it (or update it) for env vars to take effect.
 
 ```sh
@@ -54,9 +54,9 @@ export ANTHROPIC_API_KEY="<your-coder-api-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 ```
 
-## Run Mux in a Coder workspace
+## Run Xum in a Coder workspace
 
-To run Mux inside a Coder workspace (for example, as a Coder app), you can install it with the [Mux module](https://registry.coder.com/modules/coder/mux) and pre-configure AI Gateway via environment variables on the agent:
+To run Xum inside a Coder workspace (for example, as a Coder app), you can install it with the [`mux` module](https://registry.coder.com/modules/coder/mux) (still published under its pre-rename name) and pre-configure AI Gateway via environment variables on the agent:
 
 ```tf
 data "coder_workspace" "me" {}
@@ -82,7 +82,7 @@ module "mux" {
 
 ## Advanced: providers.jsonc
 
-If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
+If you prefer a file-based config, edit `~/.xum/providers.jsonc`:
 
 ```json
 {
@@ -97,4 +97,4 @@ If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
 }
 ```
 
-**References:** [Mux provider environment variables](https://mux.coder.com/config/providers#environment-variables)
+**References:** [Xum provider environment variables](https://xum.coder.com/config/providers#environment-variables)
