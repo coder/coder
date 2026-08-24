@@ -7069,7 +7069,7 @@ func (api *API) chatModelProviderDescriptors(
 	userID uuid.UUID,
 ) ([]codersdk.ChatModelProviderDescriptor, error) {
 	//nolint:gocritic // Fixed redacted projection under the model read gate; see function doc.
-	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{})
+	providers, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{IncludeDisabled: true})
 	if err != nil {
 		return nil, err
 	}
