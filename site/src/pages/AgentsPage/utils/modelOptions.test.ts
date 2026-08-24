@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type {
 	ChatModel,
-	ChatModelAvailabilityResponse,
+	ChatModelProviderDescriptor,
 	ChatProviderConfig,
+	OrganizationChatModelsResponse,
 } from "#/api/typesGenerated";
 import {
 	MockChatModel,
+	MockChatModelProviderDescriptor,
 	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
@@ -53,11 +55,31 @@ const providerInfoByID = new Map([
 	],
 ]);
 
+type TestProvider = Pick<
+	ChatModelProviderDescriptor,
+	"available" | "unavailable_reason"
+> & {
+	enabled?: boolean;
+	id?: string;
+	provider: string;
+};
+
 const createCatalog = (
-	providers: ChatModelAvailabilityResponse["providers"],
-	unsupportedProviders: ChatModelAvailabilityResponse["unsupported_providers"] = [],
-): ChatModelAvailabilityResponse => ({
-	providers,
+	providers: readonly TestProvider[],
+	unsupportedProviders: OrganizationChatModelsResponse["unsupported_providers"] = [],
+	models: readonly ChatModel[] = [],
+): OrganizationChatModelsResponse => ({
+	models,
+	providers: providers.map(({ id, provider, ...status }) => ({
+		...MockChatModelProviderDescriptor,
+		id: id ?? `prov-${provider}`,
+		type: provider,
+		display_name:
+			provider === MockChatModelProviderDescriptor.type
+				? MockChatModelProviderDescriptor.display_name
+				: provider,
+		...status,
+	})),
 	unsupported_providers: unsupportedProviders,
 });
 
@@ -66,7 +88,7 @@ const createProviderConfig = (
 		Partial<ChatProviderConfig>,
 ): ChatProviderConfig => ({
 	...MockChatProviderConfig,
-	id: "provider-config-1",
+	id: `prov-${overrides.provider}`,
 	display_name: overrides.provider,
 	has_api_key: false,
 	central_api_key_enabled: true,
@@ -82,7 +104,6 @@ describe("hasUserFixableProviders", () => {
 				provider: "openai",
 				available: false,
 				unavailable_reason: "user_api_key_required",
-				models: [],
 			},
 		]);
 
@@ -95,7 +116,6 @@ describe("hasUserFixableProviders", () => {
 				provider: "openai",
 				available: false,
 				unavailable_reason: "missing_api_key",
-				models: [],
 			},
 		]);
 
@@ -105,9 +125,7 @@ describe("hasUserFixableProviders", () => {
 
 describe("hasConfiguredProviderConfigs", () => {
 	it("ignores supported provider placeholders", () => {
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			hasConfiguredProviderConfigs(
@@ -118,9 +136,7 @@ describe("hasConfiguredProviderConfigs", () => {
 	});
 
 	it("returns true for database and env preset provider models", () => {
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			hasConfiguredProviderConfigs(
@@ -138,12 +154,11 @@ describe("hasConfiguredProviderConfigs", () => {
 
 	it("excludes disabled and unavailable provider models", () => {
 		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
+			{ provider: "openai", available: true },
 			{
 				provider: "anthropic",
 				available: false,
 				unavailable_reason: "missing_api_key",
-				models: [],
 			},
 		]);
 
@@ -169,15 +184,14 @@ describe("hasConfiguredProviderConfigs", () => {
 describe("countConfiguredProviderConfigs", () => {
 	it("counts only enabled provider models available in the catalog", () => {
 		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-			{ provider: "anthropic", available: true, models: [] },
-			{ provider: "google", available: true, models: [] },
-			{ provider: "azure", available: true, models: [] },
+			{ provider: "openai", available: true },
+			{ provider: "anthropic", available: true },
+			{ provider: "google", available: true },
+			{ provider: "azure", available: true },
 			{
 				provider: "bedrock",
 				available: false,
 				unavailable_reason: "missing_api_key",
-				models: [],
 			},
 		]);
 
@@ -223,7 +237,6 @@ describe("getModelSelectorPlaceholder", () => {
 				provider: "openai",
 				available: false,
 				unavailable_reason: "user_api_key_required",
-				models: [],
 			},
 		]);
 
@@ -238,7 +251,6 @@ describe("getModelSelectorPlaceholder", () => {
 				provider: "openai",
 				available: false,
 				unavailable_reason: "missing_api_key",
-				models: [],
 			},
 		]);
 
@@ -397,9 +409,7 @@ describe("getModelOptionsFromModels", () => {
 				model: "gpt-4o",
 			}),
 		];
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			getModelOptionsFromModels(
@@ -432,7 +442,6 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "openai",
 				available: true,
-				models: [],
 			},
 		]);
 
@@ -478,9 +487,7 @@ describe("getModelOptionsFromModels", () => {
 				model_config: {},
 			}),
 		];
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			getModelOptionsFromModels(
@@ -529,7 +536,6 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "anthropic",
 				available: false,
-				models: [],
 			},
 		]);
 
@@ -565,7 +571,6 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "openai",
 				available: true,
-				models: [],
 			},
 		]);
 
@@ -593,7 +598,6 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "openai",
 				available: true,
-				models: [],
 			},
 		]);
 
@@ -660,12 +664,10 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "openai",
 				available: true,
-				models: [],
 			},
 			{
 				provider: "anthropic",
 				available: true,
-				models: [],
 			},
 		]);
 
@@ -704,7 +706,6 @@ describe("getModelOptionsFromModels", () => {
 			{
 				provider: "openrouter",
 				available: true,
-				models: [],
 			},
 		]);
 
@@ -728,9 +729,7 @@ describe("getModelOptionsFromModels", () => {
 				context_limit: 128_000,
 			}),
 		];
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			getModelOptionsFromModels(models, catalog, new Map(), testOrganizationID),
@@ -755,8 +754,8 @@ describe("getModelOptionsFromModels", () => {
 			}),
 		];
 		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-			{ provider: "anthropic", available: true, models: [] },
+			{ provider: "openai", available: true },
+			{ provider: "anthropic", available: true },
 		]);
 		const partialMap = new Map([
 			["prov-openai", { provider: "openai", displayName: "OpenAI", icon: "" }],
@@ -786,7 +785,16 @@ describe("getModelOptionsFromModels", () => {
 			}),
 		];
 		const catalog = createCatalog([
-			{ provider: "anthropic", available: true, models: [] },
+			{
+				id: "prov-anthropic-primary",
+				provider: "anthropic",
+				available: true,
+			},
+			{
+				id: "prov-anthropic-hyper",
+				provider: "anthropic",
+				available: true,
+			},
 		]);
 		const sameTypeProviders = new Map([
 			[
@@ -839,7 +847,8 @@ describe("getModelOptionsFromModels", () => {
 			}),
 		];
 		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
+			{ id: "prov-enabled", provider: "openai", available: true },
+			{ id: "prov-disabled", provider: "openai", available: true },
 		]);
 		const providers = new Map([
 			[
@@ -875,9 +884,7 @@ describe("getModelOptionsFromModels", () => {
 				model: "gpt-4o",
 			}),
 		];
-		const catalog = createCatalog([
-			{ provider: "openai", available: true, models: [] },
-		]);
+		const catalog = createCatalog([{ provider: "openai", available: true }]);
 
 		expect(
 			getModelOptionsFromModels(
@@ -889,9 +896,7 @@ describe("getModelOptionsFromModels", () => {
 		).toEqual(["config-openai"]);
 	});
 
-	it("excludes only the disabled instance for same-type providers", () => {
-		// The catalog marks the type as available because of the enabled
-		// instance, so only the per-row flag can exclude the disabled one.
+	it("uses exact UUID availability for same-type providers", () => {
 		const models = [
 			createConfig({
 				id: "config-primary",
@@ -905,7 +910,17 @@ describe("getModelOptionsFromModels", () => {
 			}),
 		];
 		const catalog = createCatalog([
-			{ provider: "anthropic", available: true, models: [] },
+			{
+				id: "prov-anthropic-primary",
+				provider: "anthropic",
+				available: true,
+			},
+			{
+				id: "prov-anthropic-secondary",
+				provider: "anthropic",
+				available: false,
+				unavailable_reason: "missing_api_key",
+			},
 		]);
 		const sameTypeProviders = new Map([
 			[
@@ -923,7 +938,7 @@ describe("getModelOptionsFromModels", () => {
 					provider: "anthropic",
 					displayName: "Anthropic Secondary",
 					icon: "",
-					enabled: false,
+					enabled: true,
 				},
 			],
 		]);
@@ -1045,7 +1060,7 @@ describe("providerTypeByIDFromUserConfigs", () => {
 });
 
 describe("getUnsupportedProviderNames", () => {
-	const unsupportedCopilot: ChatModelAvailabilityResponse["unsupported_providers"] =
+	const unsupportedCopilot: OrganizationChatModelsResponse["unsupported_providers"] =
 		[
 			{
 				provider: "copilot",
@@ -1054,16 +1069,41 @@ describe("getUnsupportedProviderNames", () => {
 		];
 
 	it("returns names when no supported provider is configured", () => {
-		const catalog = createCatalog([], unsupportedCopilot);
+		const catalog = createCatalog(
+			[{ provider: "copilot", available: false }],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
+	});
+
+	it("normalizes provider types when identifying unsupported descriptors", () => {
+		const catalog = createCatalog(
+			[{ provider: " COPILOT ", available: false }],
+			unsupportedCopilot,
+		);
 		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
 	});
 
 	it("returns empty when a supported provider is also configured", () => {
 		const catalog = createCatalog(
-			[{ provider: "anthropic", available: false, models: [] }],
+			[
+				{ provider: "copilot", available: false },
+				{ provider: "anthropic", available: false },
+			],
 			unsupportedCopilot,
 		);
 		expect(getUnsupportedProviderNames(catalog)).toEqual([]);
+	});
+
+	it("returns names when the only supported provider is disabled", () => {
+		const catalog = createCatalog(
+			[
+				{ provider: "copilot", available: false },
+				{ provider: "anthropic", available: false, enabled: false },
+			],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
 	});
 
 	it("returns empty when there are no unsupported providers", () => {
@@ -1097,31 +1137,13 @@ describe("resolveModelSelector", () => {
 		display_name: "GPT-4o",
 		context_limit: 128_000,
 	});
-	const catalog = createCatalog([
-		{ provider: "openai", available: true, models: [] },
-	]);
-	const userProviderModels = [
-		{
-			provider_id: "prov-openai",
-			provider: "openai",
-			display_name: "OpenAI",
-			icon: "",
-			enabled: true,
-			has_user_api_key: false,
-			has_central_api_key_fallback: true,
-			byok_enabled: true,
-		},
-	];
+	const catalog = createCatalog([{ provider: "openai", available: true }]);
 
-	it("stays loading and drops options while the provider query is pending", () => {
-		// Catalog + models have resolved, but provider identity has not, so
-		// the provider map is empty. Options must be dropped and the flag must
-		// stay loading rather than flashing "No Models".
-		const state = resolveModelSelector(
-			testOrganizationID,
-			{ data: { ...catalog, models: [config] }, isLoading: false },
-			{ data: undefined, isLoading: true },
-		);
+	it("stays loading and drops options while the collection query is pending", () => {
+		const state = resolveModelSelector(testOrganizationID, {
+			data: undefined,
+			isLoading: true,
+		});
 
 		expect(state.isModelCatalogLoading).toBe(true);
 		expect(state.options).toEqual([]);
@@ -1129,11 +1151,10 @@ describe("resolveModelSelector", () => {
 
 	it("resolves options once every query settles", () => {
 		const runtimeCatalog = { ...catalog, models: [config] };
-		const state = resolveModelSelector(
-			testOrganizationID,
-			{ data: runtimeCatalog, isLoading: false },
-			{ data: userProviderModels, isLoading: false },
-		);
+		const state = resolveModelSelector(testOrganizationID, {
+			data: runtimeCatalog,
+			isLoading: false,
+		});
 
 		expect(state.isModelCatalogLoading).toBe(false);
 		expect(state.modelCatalog).toBe(runtimeCatalog);

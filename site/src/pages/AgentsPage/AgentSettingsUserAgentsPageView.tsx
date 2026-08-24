@@ -21,7 +21,7 @@ export interface AgentSettingsUserAgentsPageViewProps {
 	modelsError: unknown;
 	isLoadingModels: boolean;
 	isDefaultOrganizationUnresolved: boolean;
-	hasNoDefaultOrgModels: boolean;
+	hasNoAvailableDefaultOrgModels: boolean;
 	onSaveRootModelOverride: SavePersonalOverride;
 	isSavingRootModelOverride: boolean;
 	isSaveRootModelOverrideError: boolean;
@@ -46,7 +46,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 	modelsError,
 	isLoadingModels,
 	isDefaultOrganizationUnresolved,
-	hasNoDefaultOrgModels,
+	hasNoAvailableDefaultOrgModels,
 	onSaveRootModelOverride,
 	isSavingRootModelOverride,
 	isSaveRootModelOverrideError,
@@ -63,7 +63,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 		isLoading ||
 		!personalOverridesEnabled ||
 		isDefaultOrganizationUnresolved ||
-		hasNoDefaultOrgModels;
+		hasNoAvailableDefaultOrgModels;
 
 	return (
 		<div className="flex flex-col gap-8">
@@ -103,7 +103,7 @@ export const AgentSettingsUserAgentsPageView: FC<
 					</AlertDescription>
 				</Alert>
 			)}
-			{hasNoDefaultOrgModels && (
+			{hasNoAvailableDefaultOrgModels && (
 				<Alert severity="info">
 					<AlertDescription>
 						Your default organization has no available chat models. Ask an

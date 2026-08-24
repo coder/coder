@@ -1,10 +1,9 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModelAvailability,
+	chatModels,
 	updateUserChatPersonalModelOverride,
 	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -19,10 +18,7 @@ const AgentSettingsUserAgentsPage: FC = () => {
 	const { organizations } = useDashboard();
 	const overridesQuery = useQuery(userChatPersonalModelOverrides());
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
-	const availableModelsQuery = useQuery(
-		chatModelAvailability(defaultOrganizationId),
-	);
-	const providerConfigsQuery = useQuery(userChatProviderConfigs());
+	const modelsQuery = useQuery(chatModels(defaultOrganizationId));
 	const saveRootModelOverrideMutation = useMutation(
 		updateUserChatPersonalModelOverride(queryClient),
 	);
@@ -33,14 +29,18 @@ const AgentSettingsUserAgentsPage: FC = () => {
 		updateUserChatPersonalModelOverride(queryClient),
 	);
 
-	const defaultOrgModelConfigs = availableModelsQuery.data?.models ?? [];
-	const hasDefaultOrgModels = defaultOrgModelConfigs.length > 0;
+	const defaultOrgModelConfigs = modelsQuery.data?.models ?? [];
 
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
 		defaultOrganizationId,
-		availableModelsQuery,
-		providerConfigsQuery,
+		modelsQuery,
 	);
+	const hasNoAvailableDefaultOrgModels =
+		defaultOrganizationId !== "" &&
+		!modelsQuery.isLoading &&
+		modelsQuery.error === null &&
+		modelsQuery.data !== undefined &&
+		modelOptions.length === 0;
 
 	const saveModelOverride = (
 		context: TypesGen.ChatPersonalModelOverrideContext,
@@ -65,16 +65,10 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			isLoadingOverrides={overridesQuery.isLoading}
 			modelOptions={modelOptions}
 			models={defaultOrgModelConfigs}
-			modelsError={availableModelsQuery.error}
+			modelsError={modelsQuery.error}
 			isLoadingModels={isModelCatalogLoading}
 			isDefaultOrganizationUnresolved={defaultOrganizationId === ""}
-			hasNoDefaultOrgModels={
-				defaultOrganizationId !== "" &&
-				!availableModelsQuery.isLoading &&
-				availableModelsQuery.error === null &&
-				availableModelsQuery.data !== undefined &&
-				!hasDefaultOrgModels
-			}
+			hasNoAvailableDefaultOrgModels={hasNoAvailableDefaultOrgModels}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",
 				saveRootModelOverrideMutation,

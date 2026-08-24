@@ -161,7 +161,7 @@ const buildArgs = (
 	modelsError: undefined,
 	isLoadingModels: false,
 	isDefaultOrganizationUnresolved: false,
-	hasNoDefaultOrgModels: false,
+	hasNoAvailableDefaultOrgModels: false,
 	onSaveRootModelOverride: fn(),
 	isSavingRootModelOverride: false,
 	isSaveRootModelOverrideError: false,
@@ -700,11 +700,11 @@ export const SaveErrorState: Story = {
 	},
 };
 
-export const NoDefaultOrgModels: Story = {
+export const NoAvailableDefaultOrgModels: Story = {
 	args: buildArgs({
-		hasNoDefaultOrgModels: true,
+		hasNoAvailableDefaultOrgModels: true,
 		modelOptions: [],
-		models: [],
+		models: [disabledModelConfig],
 	}),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -712,9 +712,22 @@ export const NoDefaultOrgModels: Story = {
 			canvas.getByText(/default organization has no available chat models/i),
 		).toBeInTheDocument();
 		const rootSection = await getSection(canvasElement, "Root agent model");
-		expect(
-			within(rootSection).getByRole("button", { name: "Save" }),
-		).toBeDisabled();
+		const generalSection = await getSection(
+			canvasElement,
+			"General subagent model",
+		);
+		const exploreSection = await getSection(
+			canvasElement,
+			"Explore subagent model",
+		);
+		for (const section of [rootSection, generalSection, exploreSection]) {
+			expect(
+				within(section).getByRole("combobox", { name: /behavior/i }),
+			).toBeDisabled();
+			expect(
+				within(section).getByRole("button", { name: "Save" }),
+			).toBeDisabled();
+		}
 	},
 };
 

@@ -722,35 +722,6 @@ const (
 	ChatModelProviderUnavailableReasonUserAPIKeyRequired ChatModelProviderUnavailableReason = "user_api_key_required"
 )
 
-// ChatModelCatalogEntry is the runtime catalog view of a model. Its ID is the
-// synthetic catalog identity `provider:model` built by canonicalModelID, not
-// the chat_model_configs row UUID that ChatModel.ID carries.
-type ChatModelCatalogEntry struct {
-	ID          string `json:"id"`
-	Provider    string `json:"provider"`
-	Model       string `json:"model"`
-	DisplayName string `json:"display_name"`
-}
-
-// ChatModelProvider represents provider availability and model results.
-type ChatModelProvider struct {
-	Provider          string                             `json:"provider"`
-	Available         bool                               `json:"available"`
-	UnavailableReason ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
-	Models            []ChatModelCatalogEntry            `json:"models"`
-}
-
-// ChatModelAvailabilityResponse is the catalog returned from chat model discovery.
-type ChatModelAvailabilityResponse struct {
-	// Models contains the effective runtime model configs for the requested
-	// organization. Each config belongs to that organization.
-	Models    []ChatModel         `json:"models,omitempty"`
-	Providers []ChatModelProvider `json:"providers"`
-	// UnsupportedProviders lists configured providers the Agents harness
-	// cannot use, so the UI can explain the empty state.
-	UnsupportedProviders []ChatUnsupportedProvider `json:"unsupported_providers"`
-}
-
 // ChatUnsupportedProvider is a configured provider the Agents harness cannot
 // use.
 type ChatUnsupportedProvider struct {
@@ -2047,22 +2018,6 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 	return chats, ReadBodyAsJSON(res, &chats)
 }
 
-// ChatModelAvailability returns the provider-grouped, per-caller
-// availability view of one organization's chat models.
-func (c *ExperimentalClient) ChatModelAvailability(ctx context.Context, organizationID uuid.UUID) (ChatModelAvailabilityResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/chats/models/available", organizationID), nil)
-	if err != nil {
-		return ChatModelAvailabilityResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ChatModelAvailabilityResponse{}, ReadBodyAsError(res)
-	}
-
-	var catalog ChatModelAvailabilityResponse
-	return catalog, ReadBodyAsJSON(res, &catalog)
-}
-
 // ListChatProviders returns admin-managed chat provider configs.
 func (c *ExperimentalClient) ListChatProviders(ctx context.Context) ([]ChatProviderConfig, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/chats/providers", nil)
@@ -2318,23 +2273,26 @@ func (c *ExperimentalClient) DeleteChatModel(ctx context.Context, organizationID
 // never exposed. The fields mirror what /api/experimental/chats/models
 // already discloses to any authenticated caller.
 type ChatModelProviderDescriptor struct {
-	ID                 uuid.UUID `json:"id" format:"uuid"`
-	Type               string    `json:"type"`
-	DisplayName        string    `json:"display_name"`
-	Icon               string    `json:"icon"`
-	Enabled            bool      `json:"enabled"`
-	HasAPIKey          bool      `json:"has_api_key"`
-	HasUserAPIKey      bool      `json:"has_user_api_key"`
-	HasEffectiveAPIKey bool      `json:"has_effective_api_key"`
-	AllowUserAPIKey    bool      `json:"allow_user_api_key"`
+	ID                 uuid.UUID                          `json:"id" format:"uuid"`
+	Type               string                             `json:"type"`
+	DisplayName        string                             `json:"display_name"`
+	Icon               string                             `json:"icon"`
+	Enabled            bool                               `json:"enabled"`
+	HasAPIKey          bool                               `json:"has_api_key"`
+	HasUserAPIKey      bool                               `json:"has_user_api_key"`
+	HasEffectiveAPIKey bool                               `json:"has_effective_api_key"`
+	AllowUserAPIKey    bool                               `json:"allow_user_api_key"`
+	Available          bool                               `json:"available"`
+	UnavailableReason  ChatModelProviderUnavailableReason `json:"unavailable_reason,omitempty"`
 }
 
 // OrganizationChatModelsResponse is the org chat model config collection:
 // the caller-readable configs plus the redacted provider descriptors the
 // authoring page needs.
 type OrganizationChatModelsResponse struct {
-	Models    []ChatModel                   `json:"models"`
-	Providers []ChatModelProviderDescriptor `json:"providers"`
+	Models               []ChatModel                   `json:"models"`
+	Providers            []ChatModelProviderDescriptor `json:"providers"`
+	UnsupportedProviders []ChatUnsupportedProvider     `json:"unsupported_providers"`
 }
 
 // GetChatCost returns the AI Gateway cost for the whole chat tree that

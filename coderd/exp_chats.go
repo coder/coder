@@ -991,14 +991,10 @@ func (api *API) chatPersonalModelOverrideDeploymentDefaults(
 }
 
 type userChatModelAvailability struct {
-	configuredProviders  []chatprovider.ConfiguredProvider
-	configuredModels     []chatprovider.ConfiguredModel
-	enabledModels        []database.ChatModelConfig
-	providerTypeByID     map[uuid.UUID]string
-	providerStatus       map[string]chatprovider.ProviderAvailability
-	providerStatusByID   map[uuid.UUID]chatprovider.ProviderAvailability
-	enabledProviderNames map[string]struct{}
-	enabledProviderIDs   map[uuid.UUID]struct{}
+	configuredProviders []chatprovider.ConfiguredProvider
+	enabledModels       []database.ChatModelConfig
+	providerStatusByID  map[uuid.UUID]chatprovider.ProviderAvailability
+	enabledProviderIDs  map[uuid.UUID]struct{}
 }
 
 // chatModelConfigUnavailableReason reports why a model config cannot be used.
@@ -1055,26 +1051,12 @@ func (api *API) getUserChatProviderAvailability(
 		return userChatModelAvailability{}, err
 	}
 	availability := userChatModelAvailability{
-		configuredProviders:  configuredProviders,
-		configuredModels:     make([]chatprovider.ConfiguredModel, 0, len(enabledModels)),
-		enabledModels:        enabledModels,
-		providerTypeByID:     make(map[uuid.UUID]string, len(enabledProviders)),
-		enabledProviderNames: make(map[string]struct{}, len(enabledProviders)),
-		enabledProviderIDs:   make(map[uuid.UUID]struct{}, len(enabledProviders)),
-		providerStatusByID:   make(map[uuid.UUID]chatprovider.ProviderAvailability, len(enabledProviders)),
-	}
-	// Model configs carry no provider type; resolve it from the enabled
-	// providers. A config under a disabled or deleted provider is skipped
-	// for status purposes, mirroring the provider join on the enabled
-	// models query.
-	for _, provider := range enabledProviders {
-		availability.providerTypeByID[provider.ID] = string(provider.Type)
+		configuredProviders: configuredProviders,
+		enabledModels:       enabledModels,
+		enabledProviderIDs:  make(map[uuid.UUID]struct{}, len(enabledProviders)),
+		providerStatusByID:  make(map[uuid.UUID]chatprovider.ProviderAvailability, len(enabledProviders)),
 	}
 	for _, configuredProvider := range configuredProviders {
-		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
-		if normalizedProvider != "" {
-			availability.enabledProviderNames[normalizedProvider] = struct{}{}
-		}
 		if configuredProvider.ProviderID != uuid.Nil {
 			availability.enabledProviderIDs[configuredProvider.ProviderID] = struct{}{}
 		}
@@ -1087,30 +1069,14 @@ func (api *API) getUserChatProviderAvailability(
 		}
 		userKeys = make([]chatprovider.UserProviderKey, 0, len(userKeyStatus))
 		for providerID, configured := range userKeyStatus {
-			if !configured {
-				continue
+			if configured {
+				userKeys = append(userKeys, chatprovider.UserProviderKey{ChatProviderID: providerID, APIKey: "configured"})
 			}
-			userKeys = append(userKeys, chatprovider.UserProviderKey{
-				ChatProviderID: providerID,
-				APIKey:         "configured",
-			})
 		}
 	}
 
 	fallbackKeys := ChatProviderAPIKeysFromDeploymentValues(api.DeploymentValues)
-	mergeProviderStatus := func(
-		statuses map[string]chatprovider.ProviderAvailability,
-		normalizedProvider string,
-		status chatprovider.ProviderAvailability,
-	) {
-		current, ok := statuses[normalizedProvider]
-		if !ok || (!current.Available && status.Available) {
-			statuses[normalizedProvider] = status
-		}
-	}
-
-	providerStatusByType := make(map[string]chatprovider.ProviderAvailability, len(availability.configuredProviders))
-	for _, configuredProvider := range availability.configuredProviders {
+	for _, configuredProvider := range configuredProviders {
 		normalizedProvider := chatprovider.NormalizeProvider(configuredProvider.Provider)
 		if normalizedProvider == "" {
 			continue
@@ -1121,56 +1087,9 @@ func (api *API) getUserChatProviderAvailability(
 			userKeys,
 		)
 		status, ok := providerStatus[normalizedProvider]
-		if !ok {
-			continue
-		}
-		if configuredProvider.ProviderID != uuid.Nil {
+		if ok && configuredProvider.ProviderID != uuid.Nil {
 			availability.providerStatusByID[configuredProvider.ProviderID] = status
 		}
-		mergeProviderStatus(providerStatusByType, normalizedProvider, status)
-	}
-
-	modelStatusByType := make(map[string]chatprovider.ProviderAvailability, len(enabledModels))
-	for _, model := range enabledModels {
-		if !model.AIProviderID.Valid {
-			continue
-		}
-		providerID := model.AIProviderID.UUID
-		providerType, ok := availability.providerTypeByID[providerID]
-		if !ok {
-			continue
-		}
-		normalizedProvider := chatprovider.NormalizeProvider(providerType)
-		if normalizedProvider == "" {
-			continue
-		}
-		status, ok := availability.providerStatusByID[providerID]
-		if ok {
-			mergeProviderStatus(modelStatusByType, normalizedProvider, status)
-		}
-	}
-	availability.providerStatus = providerStatusByType
-	for provider, status := range modelStatusByType {
-		availability.providerStatus[provider] = status
-	}
-
-	for _, model := range enabledModels {
-		if !model.AIProviderID.Valid {
-			continue
-		}
-		providerType, ok := availability.providerTypeByID[model.AIProviderID.UUID]
-		if !ok {
-			continue
-		}
-		status, ok := availability.providerStatusByID[model.AIProviderID.UUID]
-		if !ok || !status.Available {
-			continue
-		}
-		availability.configuredModels = append(availability.configuredModels, chatprovider.ConfiguredModel{
-			Provider:    providerType,
-			Model:       model.Model,
-			DisplayName: model.DisplayName,
-		})
 	}
 	return availability, nil
 }
@@ -1619,70 +1538,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
-}
-
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// @Summary List available chat models in an organization
-// @ID list-chat-model-availability
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Param organization path string true "Organization name or ID"
-// @Success 200 {object} codersdk.ChatModelAvailabilityResponse
-// @Router /api/experimental/organizations/{organization}/chats/models/available [get]
-// @Description Experimental: this endpoint is subject to change.
-func (api *API) listChatModelAvailability(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	if !chatModelConfigReadScope(apiKey.Scopes) {
-		httpapi.Forbidden(rw)
-		return
-	}
-	organization := httpmw.OrganizationParam(r)
-	visible, err := api.canReadChatModelsInOrganization(ctx, r, organization)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if !visible {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID, organization.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load chat model configuration.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	catalog := chatprovider.NewModelCatalog()
-	var response codersdk.ChatModelAvailabilityResponse
-	if configured, ok := catalog.ListConfiguredModels(
-		availability.configuredProviders,
-		availability.configuredModels,
-		availability.providerStatus,
-		availability.enabledProviderNames,
-	); ok {
-		response = configured
-	} else {
-		response = catalog.ListConfiguredProviderAvailability(
-			availability.providerStatus,
-			availability.enabledProviderNames,
-		)
-	}
-
-	response.Models = make([]codersdk.ChatModel, 0, len(availability.enabledModels))
-	for _, model := range availability.enabledModels {
-		response.Models = append(response.Models, convertChatModelConfig(model))
-	}
-
-	// Both catalog branches drop providers the harness cannot use, so
-	// attach them here for the empty state.
-	response.UnsupportedProviders = chatprovider.UnsupportedProviders(availability.configuredProviders)
-
-	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -6996,7 +6851,7 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		httpapi.Forbidden(rw)
 		return
 	}
-	visible, err := api.canReadChatModelsInOrganization(ctx, r, organization)
+	configs, visible, err := api.readableChatModelsInOrganization(ctx, r, organization)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -7006,10 +6861,10 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
+	availability, err := api.getUserChatProviderAvailability(ctx, apiKey.UserID, organization.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
+			Message: "Failed to load chat model availability.",
 			Detail:  err.Error(),
 		})
 		return
@@ -7024,9 +6879,18 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
+	for i := range providers {
+		if status, ok := availability.providerStatusByID[providers[i].ID]; ok {
+			providers[i].Available = status.Available
+			if !status.Available {
+				providers[i].UnavailableReason = status.UnavailableReason
+			}
+		}
+	}
 	resp := codersdk.OrganizationChatModelsResponse{
-		Models:    make([]codersdk.ChatModel, 0, len(configs)),
-		Providers: providers,
+		Models:               make([]codersdk.ChatModel, 0, len(configs)),
+		Providers:            providers,
+		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
 	for _, config := range configs {
 		resp.Models = append(resp.Models, convertChatModelConfig(config))
@@ -7035,21 +6899,19 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-func (api *API) canReadChatModelsInOrganization(
+func (api *API) readableChatModelsInOrganization(
 	ctx context.Context,
 	r *http.Request,
 	organization database.Organization,
-) (bool, error) {
+) ([]database.ChatModelConfig, bool, error) {
 	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
-	for _, config := range configs {
-		if api.Authorize(r, policy.ActionRead, chatModelConfigRBACObject(config)) {
-			return true, nil
-		}
+	if len(configs) > 0 {
+		return configs, true, nil
 	}
-	return api.Authorize(r, policy.ActionRead, organization.RBACObject()), nil
+	return configs, api.Authorize(r, policy.ActionRead, organization.RBACObject()), nil
 }
 
 func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {

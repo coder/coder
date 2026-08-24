@@ -58,7 +58,6 @@ export const MockOpenAIProviderState: ProviderState = {
 	label: "OpenAI",
 	providerDescriptor: MockOpenAIProviderDescriptor,
 	models: [mockGPT5, mockDisabledModel],
-	catalogModelCount: 0,
 	hasEffectiveAPIKey: true,
 	allowUserAPIKey: false,
 };

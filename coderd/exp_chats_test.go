@@ -2579,74 +2579,50 @@ func TestListChats(t *testing.T) {
 func TestListChatModels(t *testing.T) {
 	t.Parallel()
 
+	providerByID := func(t *testing.T, response codersdk.OrganizationChatModelsResponse, id uuid.UUID) codersdk.ChatModelProviderDescriptor {
+		t.Helper()
+		for _, provider := range response.Providers {
+			if provider.ID == id {
+				return provider
+			}
+		}
+		t.Fatalf("provider %s not found", id)
+		return codersdk.ChatModelProviderDescriptor{}
+	}
+	containsModel := func(response codersdk.OrganizationChatModelsResponse, id uuid.UUID) bool {
+		return slices.ContainsFunc(response.Models, func(model codersdk.ChatModel) bool { return model.ID == id })
+	}
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		model := createChatModel(t, client)
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		var openAIProvider *codersdk.ChatModelProvider
-		for i := range models.Providers {
-			if models.Providers[i].Provider == coderdtest.TestChatProviderOpenAICompat {
-				openAIProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, openAIProvider)
-		require.True(t, openAIProvider.Available)
-
-		foundModel := false
-		for _, model := range openAIProvider.Models {
-			if model.Provider == coderdtest.TestChatProviderOpenAICompat && model.Model == modelConfig.Model {
-				foundModel = true
-				break
-			}
-		}
-		require.True(t, foundModel)
+		require.True(t, containsModel(response, model.ID))
+		require.True(t, providerByID(t, response, model.AIProviderID).Available)
 	})
 
 	t.Run("DeniedSameOrganizationEnabledModelIsHidden", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
 		privateConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-			Model:          "private-discovery-" + uuid.NewString(),
-			Enabled:        true,
-			OrganizationID: firstUser.OrganizationID,
-			GroupACL:       database.ChatACL{},
+			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: firstUser.OrganizationID,
+			Model: "private-" + uuid.NewString(), Enabled: true, GroupACL: database.ChatACL{},
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(
-			t,
-			client.Client,
-			firstUser.OrganizationID,
-			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
-		)
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-
-		models, err := memberClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		response, err := codersdk.NewExperimentalClient(memberRaw).ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		for _, model := range models.Models {
-			require.NotEqual(t, privateConfig.ID, model.ID)
-		}
-		for _, availableProvider := range models.Providers {
-			for _, model := range availableProvider.Models {
-				require.NotEqual(t, privateConfig.Model, model.Model)
-			}
-		}
+		require.False(t, containsModel(response, privateConfig.ID))
 	})
 
 	t.Run("NonDefaultOrgIncludesOnlyLocalModels", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
@@ -2655,402 +2631,175 @@ func TestListChatModels(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		thirdOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		contextLimit := int64(4096)
-		localConfig, err := client.CreateChatModel(ctx, chatOrg.ID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "local-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
+		local, err := client.CreateChatModel(ctx, chatOrg.ID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "local-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-		localConfig, err = client.UpdateChatModel(ctx, localConfig.OrganizationID, localConfig.ID, codersdk.UpdateChatModelRequest{
-			IsDefault: ptr.Ref(true),
-		})
+		third, err := client.CreateChatModel(ctx, thirdOrg.ID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "third-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-		thirdConfig, err := client.CreateChatModel(ctx, thirdOrg.ID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "third-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
+		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		response, err := codersdk.NewExperimentalClient(memberRaw).ChatModels(ctx, chatOrg.ID)
 		require.NoError(t, err)
-
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
-		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
-		models, err := memberClient.ChatModelAvailability(ctx, chatOrg.ID)
-		require.NoError(t, err)
-		var modelNames []string
-		for _, availableProvider := range models.Providers {
-			for _, model := range availableProvider.Models {
-				modelNames = append(modelNames, model.Model)
-			}
-		}
-		require.Contains(t, modelNames, localConfig.Model)
-		require.NotContains(t, modelNames, defaultConfig.Model)
-		require.NotContains(t, modelNames, thirdConfig.Model)
-
-		modelConfigIDs := make([]uuid.UUID, 0, len(models.Models))
-		for _, model := range models.Models {
-			modelConfigIDs = append(modelConfigIDs, model.ID)
-		}
-		require.Contains(t, modelConfigIDs, localConfig.ID)
-		require.NotContains(t, modelConfigIDs, defaultConfig.ID)
-		require.NotContains(t, modelConfigIDs, thirdConfig.ID)
-		require.Len(t, models.Models, 1)
-		require.True(t, models.Models[0].IsDefault)
+		require.True(t, containsModel(response, local.ID))
+		require.False(t, containsModel(response, defaultConfig.ID))
+		require.False(t, containsModel(response, third.ID))
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
-		_, err := unauthenticatedClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		_, err := codersdk.NewExperimentalClient(codersdk.New(client.URL)).ChatModels(ctx, firstUser.OrganizationID)
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
 	t.Run("CopilotOnlyUnsupported", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		// Copilot is a valid AI Gateway provider but the Agents harness
-		// cannot use it. It must surface as an unsupported provider rather
-		// than vanish, so the empty state can explain why.
-		_ = createAIProviderForTest(t, client, string(codersdk.AIProviderTypeCopilot), "")
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		provider := createAIProviderForTest(t, client, string(codersdk.AIProviderTypeCopilot), "")
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		require.False(t, slices.ContainsFunc(models.Providers, func(p codersdk.ChatModelProvider) bool {
-			return p.Provider == string(codersdk.AIProviderTypeCopilot)
-		}), "copilot must not appear in the supported model picker")
-
-		require.Equal(t, []codersdk.ChatUnsupportedProvider{
-			{
-				Provider:    "copilot",
-				DisplayName: "GitHub Copilot",
-			},
-		}, models.UnsupportedProviders)
+		require.False(t, providerByID(t, response, provider.ID).Available)
+		require.Equal(t, []codersdk.ChatUnsupportedProvider{{Provider: "copilot", DisplayName: "GitHub Copilot"}}, response.UnsupportedProviders)
 	})
 
 	t.Run("SupportedProviderHasNoUnsupportedEntry", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		require.Empty(t, models.UnsupportedProviders)
+		require.Empty(t, response.UnsupportedProviders)
 	})
 
 	t.Run("CentralOnlyProviderAvailable", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		model := createChatModel(t, client)
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		var openAIProvider *codersdk.ChatModelProvider
-		for i := range models.Providers {
-			if models.Providers[i].Provider == coderdtest.TestChatProviderOpenAICompat {
-				openAIProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, openAIProvider)
-		require.True(t, openAIProvider.Available)
+		require.True(t, providerByID(t, response, model.AIProviderID).Available)
 	})
 
 	t.Run("UserOnlyProviderRequiresUserKey", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		providerType := database.AIProviderTypeAnthropic
-		provider := createAIProviderForTest(t, client, string(providerType), "")
-
-		contextLimit := int64(4096)
-		_, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "claude-sonnet",
-			ContextLimit: &contextLimit,
-		})
+		provider := createAIProviderForTest(t, client, "anthropic", "")
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		descriptor := providerByID(t, response, provider.ID)
+		require.False(t, descriptor.Available)
+		require.Equal(t, codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired, descriptor.UnavailableReason)
+		_, err = client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "user-key"})
 		require.NoError(t, err)
-
-		var anthropicProvider *codersdk.ChatModelProvider
-		for i := range models.Providers {
-			if models.Providers[i].Provider == string(providerType) {
-				anthropicProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, anthropicProvider)
-		require.False(t, anthropicProvider.Available)
-		require.Equal(t, codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired, anthropicProvider.UnavailableReason)
-
-		_, err = client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{
-			APIKey: "user-api-key",
-		})
+		response, err = client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err = client.ChatModelAvailability(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-
-		anthropicProvider = nil
-		for i := range models.Providers {
-			if models.Providers[i].Provider == "anthropic" {
-				anthropicProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, anthropicProvider)
-		require.True(t, anthropicProvider.Available)
+		require.True(t, providerByID(t, response, provider.ID).Available)
 	})
 
 	t.Run("CentralAndUserWithFallback", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
-		provider := createAIProviderForTest(t, client, "google", "provider-api-key")
-
-		contextLimit := int64(4096)
-		_, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "gemini-1.5-pro",
-			ContextLimit: &contextLimit,
-		})
+		provider := createAIProviderForTest(t, client, "google", "provider-key")
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		require.True(t, providerByID(t, response, provider.ID).Available)
+		_, err = client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "user-key"})
 		require.NoError(t, err)
-
-		var googleProvider *codersdk.ChatModelProvider
-		for i := range models.Providers {
-			if models.Providers[i].Provider == "google" {
-				googleProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, googleProvider)
-		require.True(t, googleProvider.Available)
-
-		_, err = client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{
-			APIKey: "user-api-key",
-		})
+		response, err = client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err = client.ChatModelAvailability(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-
-		googleProvider = nil
-		for i := range models.Providers {
-			if models.Providers[i].Provider == "google" {
-				googleProvider = &models.Providers[i]
-				break
-			}
-		}
-		require.NotNil(t, googleProvider)
-		require.True(t, googleProvider.Available)
+		require.True(t, providerByID(t, response, provider.ID).Available)
 	})
 
 	t.Run("SameTypeProvidersUseExactCredentialStatus", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		availableProvider := createAIProviderForTest(t, client, "openai", "available-key")
 		unavailableProvider := createAIProviderForTest(t, client, "openai", "")
-		contextLimit := int64(4096)
-
-		availableModel, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &availableProvider.ID,
-			Model:        "available-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		unavailableModel, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &unavailableProvider.ID,
-			Model:        "unavailable-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
-		require.NoError(t, err)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-		var catalogModels []string
-		for _, provider := range models.Providers {
-			for _, model := range provider.Models {
-				catalogModels = append(catalogModels, model.Model)
-			}
-		}
-		require.Contains(t, catalogModels, availableModel.Model)
-		require.NotContains(t, catalogModels, unavailableModel.Model)
+		require.True(t, providerByID(t, response, availableProvider.ID).Available)
+		unavailable := providerByID(t, response, unavailableProvider.ID)
+		require.False(t, unavailable.Available)
+		require.NotEmpty(t, unavailable.UnavailableReason)
 	})
 
 	t.Run("UserCredentialsAreCallerIsolated", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider := createAIProviderForTest(t, client, "anthropic", "")
-		contextLimit := int64(4096)
-		modelConfig, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "caller-isolated-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
+		otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		other := codersdk.NewExperimentalClient(otherRaw)
+		_, err := client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "owner-key"})
 		require.NoError(t, err)
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(
-			t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
-		)
-		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
-
-		_, err = client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "owner-key"})
+		ownerResponse, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		ownerModels, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		otherResponse, err := other.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		otherModels, err := otherClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-		ownerConfigs, err := client.ChatModels(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-		otherConfigs, err := otherClient.ChatModels(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-
-		hasUserAPIKey := func(response codersdk.OrganizationChatModelsResponse) bool {
-			for _, descriptor := range response.Providers {
-				if descriptor.ID == provider.ID {
-					return descriptor.HasUserAPIKey
-				}
-			}
-			t.Fatal("provider descriptor not found")
-			return false
-		}
-		require.True(t, hasUserAPIKey(ownerConfigs))
-		require.False(t, hasUserAPIKey(otherConfigs))
-
-		containsModel := func(response codersdk.ChatModelAvailabilityResponse) bool {
-			for _, availableProvider := range response.Providers {
-				for _, model := range availableProvider.Models {
-					if model.Model == modelConfig.Model {
-						return true
-					}
-				}
-			}
-			return false
-		}
-		require.True(t, containsModel(ownerModels))
-		require.False(t, containsModel(otherModels))
+		require.True(t, providerByID(t, ownerResponse, provider.ID).Available)
+		require.True(t, providerByID(t, ownerResponse, provider.ID).HasUserAPIKey)
+		require.False(t, providerByID(t, otherResponse, provider.ID).Available)
+		require.False(t, providerByID(t, otherResponse, provider.ID).HasUserAPIKey)
 	})
 
 	t.Run("IncludesOnlyDefaultOrganizationModels", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
 		contextLimit := int64(4096)
-		defaultConfig, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "default-" + uuid.NewString(),
-			ContextLimit: &contextLimit,
-		})
+		defaultConfig, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "default-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-		otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		otherConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
-			Model:          "other-" + uuid.NewString(),
-			OrganizationID: otherOrganization.ID,
-		})
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		otherOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		other := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, Model: "other-" + uuid.NewString(), OrganizationID: otherOrg.ID})
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		var catalogModels []string
-		for _, availableProvider := range models.Providers {
-			for _, model := range availableProvider.Models {
-				catalogModels = append(catalogModels, model.Model)
-			}
-		}
-		require.Contains(t, catalogModels, defaultConfig.Model)
-		require.NotContains(t, catalogModels, otherConfig.Model)
+		require.True(t, containsModel(response, defaultConfig.ID))
+		require.False(t, containsModel(response, other.ID))
 	})
 
-	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
+	t.Run("DisabledProvidersAndModelsRemainVisible", func(t *testing.T) {
 		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		values := coderdtest.DeploymentValues(t)
-		values.AI.BridgeConfig.LegacyOpenAI.Key = serpent.String("deployment-openai-key")
-		client := newChatClientWithDeploymentValues(t, values)
+		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-
 		provider := createAIProviderForTest(t, client, "openai", "test-key")
-
 		contextLimit := int64(4096)
-		_, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "gpt-4o-mini",
-			ContextLimit: &contextLimit,
-		})
+		enabledModel, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "enabled-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-
-		models, err := client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		disabledModel, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "disabled-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-		require.Len(t, models.Providers, 1)
-		require.Equal(t, "openai", models.Providers[0].Provider)
-		require.Len(t, models.Providers[0].Models, 1)
-		require.Equal(t, "gpt-4o-mini", models.Providers[0].Models[0].Model)
-
-		// A disabled model under an enabled provider must not appear in
-		// availability, even though the management list still returns it.
-		disabledModel, err := client.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
-			AIProviderID: &provider.ID,
-			Model:        "gpt-4o",
-			ContextLimit: &contextLimit,
-		})
+		_, err = client.UpdateChatModel(ctx, firstUser.OrganizationID, disabledModel.ID, codersdk.UpdateChatModelRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
-		enabled := false
-		_, err = client.UpdateChatModel(ctx, disabledModel.OrganizationID, disabledModel.ID, codersdk.UpdateChatModelRequest{
-			Enabled: &enabled,
-		})
+		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err = client.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		require.True(t, containsModel(response, enabledModel.ID))
+		require.True(t, slices.ContainsFunc(response.Models, func(model codersdk.ChatModel) bool {
+			return model.ID == disabledModel.ID && !model.Enabled
+		}))
+		_, err = client.UpdateAIProvider(ctx, provider.ID.String(), codersdk.UpdateAIProviderRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
-		require.Len(t, models.Providers, 1)
-		require.Len(t, models.Providers[0].Models, 1)
-		require.Equal(t, "gpt-4o-mini", models.Providers[0].Models[0].Model)
-
-		_, err = client.UpdateAIProvider(ctx, provider.ID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: &enabled,
-		})
+		response, err = client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		models, err = client.ChatModelAvailability(ctx, firstUser.OrganizationID)
-		require.NoError(t, err)
-		require.Empty(t, models.Providers)
+		require.True(t, containsModel(response, enabledModel.ID))
+		require.True(t, containsModel(response, disabledModel.ID))
+		disabledProvider := providerByID(t, response, provider.ID)
+		require.False(t, disabledProvider.Enabled)
+		require.False(t, disabledProvider.Available)
 	})
 }
 
@@ -4837,6 +4586,8 @@ func TestListChatModelConfigs(t *testing.T) {
 		configs, err := client.ChatModels(ctx, modelConfig.OrganizationID)
 		require.NoError(t, err)
 		require.NotEmpty(t, configs.Models)
+		require.NotEmpty(t, configs.Providers)
+		require.Empty(t, configs.UnsupportedProviders)
 
 		found := false
 		for _, config := range configs.Models {
@@ -4866,13 +4617,13 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.NoError(t, codersdk.ReadBodyAsJSON(res, &configs))
 		require.Contains(t, configs, modelConfig)
 
-		availabilityRes, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
+		collectionRes, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
 		require.NoError(t, err)
-		defer availabilityRes.Body.Close()
-		require.Equal(t, http.StatusOK, availabilityRes.StatusCode)
-		var availability codersdk.ChatModelAvailabilityResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(availabilityRes, &availability))
-		require.Contains(t, availability.Models, modelConfig)
+		defer collectionRes.Body.Close()
+		require.Equal(t, http.StatusOK, collectionRes.StatusCode)
+		var collection codersdk.OrganizationChatModelsResponse
+		require.NoError(t, codersdk.ReadBodyAsJSON(collectionRes, &collection))
+		require.Contains(t, collection.Models, modelConfig)
 
 		contextLimit := int64(8192)
 		createdRes, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", codersdk.CreateChatModelRequest{
@@ -4893,7 +4644,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.NoError(t, client.DeleteChatModel(ctx, created.OrganizationID, created.ID))
 	})
 
-	t.Run("AdminIncludesDisabledModelConfigs", func(t *testing.T) {
+	t.Run("CollectionIncludesDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4916,16 +4667,9 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		configs, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-
-		found := false
-		for _, config := range configs.Models {
-			if config.ID == disabledConfig.ID {
-				found = true
-				require.False(t, config.Enabled)
-				require.Equal(t, disabledConfig.DisplayName, config.DisplayName)
-			}
-		}
-		require.True(t, found)
+		require.True(t, slices.ContainsFunc(configs.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == disabledConfig.ID && !config.Enabled
+		}))
 	})
 
 	t.Run("OrganizationMemberSeesReadableModels", func(t *testing.T) {
@@ -4972,6 +4716,8 @@ func TestListChatModelConfigs(t *testing.T) {
 				require.False(t, descriptor.HasAPIKey)
 				require.False(t, descriptor.HasUserAPIKey)
 				require.True(t, descriptor.HasEffectiveAPIKey)
+				require.True(t, descriptor.Available)
+				require.Empty(t, descriptor.UnavailableReason)
 				return
 			}
 		}
@@ -5945,22 +5691,15 @@ func TestUpdateChatModel(t *testing.T) {
 		adminConfigs, err := adminClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
 
-		foundForAdmin := false
-		for _, config := range adminConfigs.Models {
-			if config.ID == modelConfig.ID {
-				foundForAdmin = true
-				require.False(t, config.Enabled)
-			}
-		}
-		require.True(t, foundForAdmin)
+		require.True(t, slices.ContainsFunc(adminConfigs.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
+		}))
 
-		availability, err := memberClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		collection, err := memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs := make([]uuid.UUID, 0, len(availability.Models))
-		for _, config := range availability.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.NotContains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
+		}))
 
 		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -5974,7 +5713,7 @@ func TestUpdateChatModel(t *testing.T) {
 		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
 
-	t.Run("ReEnableUpdatesRuntimeAvailability", func(t *testing.T) {
+	t.Run("ReEnableUpdatesCollectionDescriptor", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5997,13 +5736,11 @@ func TestUpdateChatModel(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, modelConfig.Enabled)
 
-		availability, err := memberClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		collection, err := memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs := make([]uuid.UUID, 0, len(availability.Models))
-		for _, config := range availability.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.NotContains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
+		}))
 
 		enabled = true
 		updated, err := adminClient.UpdateChatModel(ctx, modelConfig.OrganizationID, modelConfig.ID, codersdk.UpdateChatModelRequest{
@@ -6013,13 +5750,11 @@ func TestUpdateChatModel(t *testing.T) {
 		require.Equal(t, modelConfig.ID, updated.ID)
 		require.True(t, updated.Enabled)
 
-		availability, err = memberClient.ChatModelAvailability(ctx, firstUser.OrganizationID)
+		collection, err = memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs = runtimeIDs[:0]
-		for _, config := range availability.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.Contains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && config.Enabled
+		}))
 	})
 
 	t.Run("UpdateAIProviderID", func(t *testing.T) {

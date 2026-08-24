@@ -51,6 +51,18 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	}, func(params *database.InsertChatModelConfigParams) {
 		params.Enabled = false
 	})
+	disabledProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Type: database.AIProviderTypeAnthropic,
+	}, func(params *database.InsertAIProviderParams) {
+		params.Enabled = false
+	})
+	providerDisabled := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: disabledProvider.ID, Valid: true},
+		OrganizationID: defaultOrg.ID,
+		GroupACL: database.ChatACL{
+			defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+	})
 	denied := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
 		OrganizationID: defaultOrg.ID,
 		GroupACL:       database.ChatACL{},
@@ -64,6 +76,8 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	})
 	require.True(t, ownEnabled.Enabled)
 	require.False(t, ownDisabled.Enabled)
+	require.False(t, disabledProvider.Enabled)
+	require.True(t, providerDisabled.Enabled)
 	require.True(t, denied.Enabled)
 	require.True(t, otherEnabled.Enabled)
 
@@ -107,16 +121,13 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 
 			experimentalClient := codersdk.NewExperimentalClient(scopedClient)
 			response, listErr := experimentalClient.ChatModels(ctx, defaultOrg.ID)
-			_, availabilityErr := experimentalClient.ChatModelAvailability(ctx, defaultOrg.ID)
 			model, itemErr := experimentalClient.ChatModel(ctx, defaultOrg.ID, ownEnabled.ID)
 			_, aclErr := experimentalClient.ChatModelACL(ctx, defaultOrg.ID, ownEnabled.ID)
 			if testCase.wantCollectionStatus != 0 {
 				requireSDKError(t, listErr, testCase.wantCollectionStatus)
-				requireSDKError(t, availabilityErr, testCase.wantCollectionStatus)
 			} else {
 				require.NoError(t, listErr)
 				require.NotEmpty(t, response.Models)
-				require.NoError(t, availabilityErr)
 			}
 			if testCase.wantItemStatus != 0 {
 				requireSDKError(t, itemErr, testCase.wantItemStatus)
@@ -138,13 +149,6 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			name: "Collection",
 			call: func(ctx context.Context, organizationID uuid.UUID) error {
 				_, err := memberClient.ChatModels(ctx, organizationID)
-				return err
-			},
-		},
-		{
-			name: "Availability",
-			call: func(ctx context.Context, organizationID uuid.UUID) error {
-				_, err := memberClient.ChatModelAvailability(ctx, organizationID)
 				return err
 			},
 		},
@@ -248,8 +252,16 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, containsChatModel(models.Models, ownEnabled.ID))
 			require.True(t, containsChatModel(models.Models, ownDisabled.ID))
+			require.True(t, containsChatModel(models.Models, providerDisabled.ID))
 			require.Equal(t, testCase.seesDenied, containsChatModel(models.Models, denied.ID))
 			require.False(t, containsChatModel(models.Models, otherEnabled.ID))
+
+			disabledProviderIndex := slices.IndexFunc(models.Providers, func(provider codersdk.ChatModelProviderDescriptor) bool {
+				return provider.ID == disabledProvider.ID
+			})
+			require.NotEqual(t, -1, disabledProviderIndex)
+			require.False(t, models.Providers[disabledProviderIndex].Enabled)
+			require.False(t, models.Providers[disabledProviderIndex].Available)
 		})
 	}
 }

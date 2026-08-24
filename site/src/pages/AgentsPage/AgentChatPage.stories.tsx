@@ -14,9 +14,9 @@ import {
 	chatEntityKey,
 	chatListKey,
 	chatMessagesKey,
-	chatModelAvailabilityKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelsKey,
 	toChatListParams,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
@@ -28,7 +28,10 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -128,7 +131,7 @@ const mockWorkspace: TypesGen.Workspace = {
 	},
 };
 
-const mockModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: [
 		{
 			...MockChatModel,
@@ -145,24 +148,11 @@ const mockModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
 			updated_at: "2026-02-18T00:00:00.000Z",
 		},
 	],
-	providers: [
-		{
-			provider: "openai",
-			available: true,
-			models: [
-				{
-					id: "openai:gpt-4o",
-					provider: "openai",
-					model: "gpt-4o",
-					display_name: "GPT-4o",
-				},
-			],
-		},
-	],
+	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
 };
 
-const foreignOnlyModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const foreignOnlyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...mockModelCatalog,
 	models: [
 		{
@@ -176,14 +166,15 @@ const foreignOnlyModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
 	],
 };
 
-const userApiKeyRequiredModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
-	...mockModelCatalog,
-	providers: mockModelCatalog.providers.map((provider) => ({
-		...provider,
-		available: false,
-		unavailable_reason: "user_api_key_required",
-	})),
-};
+const userApiKeyRequiredModelCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...mockModelCatalog,
+		providers: mockModelCatalog.providers.map((provider) => ({
+			...provider,
+			available: false,
+			unavailable_reason: "user_api_key_required",
+		})),
+	};
 
 const baseChatFields = {
 	organization_id: "test-org-id",
@@ -206,7 +197,7 @@ const baseChatFields = {
 	children: [],
 } as const;
 
-const recoveryModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const recoveryModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...mockModelCatalog,
 	models: [
 		{
@@ -358,7 +349,7 @@ const buildQueries = (
 			data: mockWorkspace,
 		},
 		{
-			key: chatModelAvailabilityKey(chat.organization_id),
+			key: organizationChatModelsKey(chat.organization_id),
 			data: mockModelCatalog,
 		},
 		{
@@ -1403,10 +1394,10 @@ export const StaleEditedModelUsesUsableLocalModel: Story = {
 						has_more: false,
 					},
 				),
-				chatModelAvailabilityKey(baseChatFields.organization_id),
+				organizationChatModelsKey(baseChatFields.organization_id),
 			),
 			{
-				key: chatModelAvailabilityKey(baseChatFields.organization_id),
+				key: organizationChatModelsKey(baseChatFields.organization_id),
 				data: recoveryModelCatalog,
 			},
 		],
@@ -1526,10 +1517,10 @@ export const NoLocalModelDisablesGeneration: Story = {
 					},
 					{ messages: [], queued_messages: [], has_more: false },
 				),
-				chatModelAvailabilityKey(baseChatFields.organization_id),
+				organizationChatModelsKey(baseChatFields.organization_id),
 			),
 			{
-				key: chatModelAvailabilityKey(baseChatFields.organization_id),
+				key: organizationChatModelsKey(baseChatFields.organization_id),
 				data: foreignOnlyModelCatalog,
 			},
 		],
@@ -3923,11 +3914,11 @@ export const ModelEndpointFailureKeepsHistoryReadable: Story = {
 					has_more: false,
 				},
 			),
-			chatModelAvailabilityKey(baseChatFields.organization_id),
+			organizationChatModelsKey(baseChatFields.organization_id),
 		),
 	},
 	beforeEach: () => {
-		spyOn(API.experimental, "getChatModelAvailability").mockRejectedValue(
+		spyOn(API.experimental, "getChatModels").mockRejectedValueOnce(
 			mockServerError,
 		);
 	},
@@ -3959,10 +3950,10 @@ export const ProviderRequiresUserApiKey: Story = {
 						has_more: false,
 					},
 				),
-				chatModelAvailabilityKey(baseChatFields.organization_id),
+				organizationChatModelsKey(baseChatFields.organization_id),
 			),
 			{
-				key: chatModelAvailabilityKey(baseChatFields.organization_id),
+				key: organizationChatModelsKey(baseChatFields.organization_id),
 				data: userApiKeyRequiredModelCatalog,
 			},
 		],

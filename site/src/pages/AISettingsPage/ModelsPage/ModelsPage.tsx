@@ -1,6 +1,6 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { chatModelAvailability, chatModels } from "#/api/queries/chats";
+import { chatModels } from "#/api/queries/chats";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { pageTitle } from "#/utils/page";
 import ModelsPageView from "./ModelsPageView";
@@ -12,7 +12,6 @@ import {
 const ModelsPage: FC = () => {
 	const { organization, permissions } = useOrganizationModels();
 	const organizationModelsQuery = useQuery(chatModels(organization.id));
-	const availableModelsQuery = useQuery(chatModelAvailability(organization.id));
 	const providers = organizationModelsQuery.data?.providers ?? [];
 	const providerTypeByID = new Map(
 		providers.map((provider) => [provider.id, provider.type]),
@@ -25,14 +24,9 @@ const ModelsPage: FC = () => {
 			return cmp !== 0 ? cmp : a.model.localeCompare(b.model);
 		},
 	);
-	const providerStates = deriveProviderStates(
-		models,
-		providers,
-		availableModelsQuery.data,
-	);
+	const providerStates = deriveProviderStates(models, providers);
 	const { loadError, refetchError } = splitModelQueryErrors(
 		organizationModelsQuery,
-		availableModelsQuery,
 	);
 
 	return (
@@ -41,9 +35,7 @@ const ModelsPage: FC = () => {
 
 			<ModelsPageView
 				key={organization.id}
-				isLoading={
-					organizationModelsQuery.isLoading || availableModelsQuery.isLoading
-				}
+				isLoading={organizationModelsQuery.isLoading}
 				loadError={loadError}
 				refetchError={refetchError}
 				models={models}

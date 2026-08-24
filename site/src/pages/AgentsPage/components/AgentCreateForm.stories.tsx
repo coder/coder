@@ -14,13 +14,16 @@ import {
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
-	chatModelAvailabilityKey,
+	organizationChatModelsKey,
 	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -77,32 +80,37 @@ const organization2ModelConfig = buildModelConfig({
 	is_default: true,
 });
 
-const defaultModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const defaultModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	models: defaultModelConfigs,
 	providers: [
-		{ provider: "openai", available: true, models: [] },
-		{ provider: "anthropic", available: true, models: [] },
+		MockChatModelProviderDescriptor,
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-anthropic",
+			type: "anthropic",
+			display_name: "Anthropic",
+		},
 	],
 	unsupported_providers: [],
 };
 
-const organization2RuntimeCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const organization2RuntimeCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...defaultModelCatalog,
 	models: [organization2ModelConfig, ...defaultModelConfigs],
 };
 
-const organization2LocalCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const organization2LocalCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...defaultModelCatalog,
 	models: [organization2ModelConfig],
 };
 
-const organization2ForeignOnlyCatalog: TypesGen.ChatModelAvailabilityResponse =
+const organization2ForeignOnlyCatalog: TypesGen.OrganizationChatModelsResponse =
 	{
 		...defaultModelCatalog,
 		models: defaultModelConfigs,
 	};
 
-const userApiKeyRequiredCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const userApiKeyRequiredCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...defaultModelCatalog,
 	providers: defaultModelCatalog.providers.map((provider) => ({
 		...provider,
@@ -110,6 +118,58 @@ const userApiKeyRequiredCatalog: TypesGen.ChatModelAvailabilityResponse = {
 		unavailable_reason: "user_api_key_required",
 	})),
 };
+
+const missingAPIKeyCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	providers: defaultModelCatalog.providers.map((provider) => ({
+		...provider,
+		available: false,
+		unavailable_reason: "missing_api_key",
+	})),
+};
+
+const fetchFailedCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	providers: defaultModelCatalog.providers.map((provider) => ({
+		...provider,
+		available: false,
+		unavailable_reason: "fetch_failed",
+	})),
+};
+
+const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [],
+	providers: [
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-copilot",
+			type: "copilot",
+			display_name: "GitHub Copilot",
+			has_api_key: false,
+			has_effective_api_key: false,
+			available: false,
+		},
+	],
+	unsupported_providers: [
+		{ provider: "copilot", display_name: "GitHub Copilot" },
+	],
+};
+
+const unsupportedProviderWithDisabledSupportedCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...unsupportedProviderCatalog,
+		providers: [
+			...unsupportedProviderCatalog.providers,
+			{
+				...MockChatModelProviderDescriptor,
+				id: "provider-anthropic",
+				type: "anthropic",
+				display_name: "Anthropic",
+				enabled: false,
+				available: false,
+			},
+		],
+	};
 
 const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 	{
@@ -182,7 +242,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: defaultModelCatalog,
 			},
 			{
@@ -411,12 +471,12 @@ const effortModelConfigs: TypesGen.ChatModel[] = [
 	}),
 ];
 
-const effortModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const effortModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...defaultModelCatalog,
 	models: effortModelConfigs,
 };
 
-const limitedEffortModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const limitedEffortModelCatalog: TypesGen.OrganizationChatModelsResponse = {
 	...defaultModelCatalog,
 	models: [
 		buildModelConfig({
@@ -434,7 +494,7 @@ export const RemembersReasoningEffortByModel: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: effortModelCatalog,
 			},
 			{
@@ -496,7 +556,7 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: effortModelCatalog,
 			},
 			{
@@ -541,7 +601,7 @@ export const ManualReselectKeepsRootOverrideEffort: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: effortModelCatalog,
 			},
 			{
@@ -579,7 +639,7 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: limitedEffortModelCatalog,
 			},
 			{
@@ -619,7 +679,7 @@ export const SubmitsReasoningEffort: Story = {
 		pixel: { exclude: true },
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: effortModelCatalog,
 			},
 			{
@@ -807,7 +867,7 @@ export const CachedModelsWithRefetchError: Story = {
 			const queryClient = useQueryClient();
 			useEffect(() => {
 				void queryClient.invalidateQueries({
-					queryKey: chatModelAvailabilityKey(MockDefaultOrganization.id),
+					queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
 					exact: true,
 				});
 			}, [queryClient]);
@@ -815,7 +875,7 @@ export const CachedModelsWithRefetchError: Story = {
 		},
 	],
 	beforeEach: () => {
-		spyOn(API.experimental, "getChatModelAvailability").mockRejectedValue(
+		spyOn(API.experimental, "getChatModels").mockRejectedValueOnce(
 			new Error("Failed to refresh available models."),
 		);
 	},
@@ -842,7 +902,8 @@ export const LoadingPersonalModelOverrides: Story = {
 	},
 };
 
-const emptyModelCatalog: TypesGen.ChatModelAvailabilityResponse = {
+const emptyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [],
 	providers: [],
 	unsupported_providers: [],
 };
@@ -851,7 +912,7 @@ export const NoModelsConfigured: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: emptyModelCatalog,
 			},
 			{
@@ -869,7 +930,7 @@ export const ProviderRequiresUserApiKey: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: userApiKeyRequiredCatalog,
 			},
 			{
@@ -892,11 +953,89 @@ export const ProviderRequiresUserApiKey: Story = {
 	},
 };
 
+export const ProviderMissingAPIKey: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: missingAPIKeyCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"No chat model is currently available for this organization.",
+			),
+		).toBeVisible();
+	},
+};
+
+export const ProviderFetchFailed: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: fetchFailedCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"No chat model is currently available for this organization.",
+			),
+		).toBeVisible();
+	},
+};
+
+export const UnsupportedProviderOnly: Story = {
+	args: { ...defaultArgs, canConfigureAgentSetup: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: unsupportedProviderCatalog,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
+		).toBeVisible();
+	},
+};
+
+export const UnsupportedProviderAndDisabledSupportedProvider: Story = {
+	args: { ...defaultArgs, canConfigureAgentSetup: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: unsupportedProviderWithDisabledSupportedCatalog,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
+		).toBeVisible();
+	},
+};
+
 export const MissingProviderAndModelSetup: Story = {
 	parameters: {
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: emptyModelCatalog,
 			},
 			{
@@ -1113,11 +1252,11 @@ export const WithOrganizationPicker: Story = {
 				data: [MockOrganization2, MockDefaultOrganization],
 			},
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: defaultModelCatalog,
 			},
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2RuntimeCatalog,
 			},
 			{
@@ -1186,11 +1325,11 @@ export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: defaultModelCatalog,
 			},
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2LocalCatalog,
 			},
 			{
@@ -1227,7 +1366,7 @@ export const RestrictedMultiOrganizationUser: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2LocalCatalog,
 			},
 			{
@@ -1274,7 +1413,7 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2LocalCatalog,
 			},
 			{
@@ -1646,7 +1785,7 @@ export const SingleOrgIgnoresStalePermittedCache: Story = {
 				data: [MockOrganization2],
 			},
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: defaultModelCatalog,
 			},
 			{
@@ -1730,7 +1869,7 @@ export const LocalOrganizationModels: Story = {
 				data: [MockOrganization2],
 			},
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2LocalCatalog,
 			},
 			{
@@ -1762,7 +1901,7 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 				data: [MockOrganization2],
 			},
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2ForeignOnlyCatalog,
 			},
 			{
@@ -1929,7 +2068,7 @@ export const PermittedOrgsResolvesToSubset: Story = {
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: chatModelAvailabilityKey(MockDefaultOrganization.id),
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: defaultModelCatalog,
 			},
 			{
@@ -1937,7 +2076,7 @@ export const PermittedOrgsResolvesToSubset: Story = {
 				data: defaultUserProviderConfigs,
 			},
 			{
-				key: chatModelAvailabilityKey(MockOrganization2.id),
+				key: organizationChatModelsKey(MockOrganization2.id),
 				data: organization2LocalCatalog,
 			},
 		],
