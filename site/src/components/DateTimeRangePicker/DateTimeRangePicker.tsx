@@ -214,9 +214,11 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 				{/* The icon sizes are marked important because the Button's
 				    `[&>svg]` sizing/padding rules would otherwise win on
 				    specificity and inflate the icons at larger button sizes.
-				    The calendar matches the search field icon (size-icon-sm). */}
+				    The calendar matches the search field icon (size-icon-sm),
+				    and its mr-1 plus the button's gap-1 matches the search
+				    field's 8px icon-to-text spacing. */}
 				<Button variant="outline" size={size} className="group">
-					<CalendarIcon className="!size-icon-sm !p-0 text-content-secondary" />
+					<CalendarIcon className="!size-icon-sm !p-0 mr-1 text-content-secondary" />
 					<span>{triggerLabel}</span>
 					<ChevronDownIcon className="!size-3.5 !p-0 text-content-secondary" />
 				</Button>
