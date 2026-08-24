@@ -1,18 +1,22 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModels,
 	deleteUserCompactionThreshold,
 	updateUserCompactionThreshold,
 	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();
-	const modelsQuery = useQuery(chatModels());
+	const { organizations } = useDashboard();
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
 	const providerConfigsQuery = useQuery(userChatProviderConfigs());
 	const thresholdsQuery = useQuery(userCompactionThresholds());
 	const saveThresholdMutation = useMutation(
@@ -37,10 +41,18 @@ const AgentSettingsCompactionPage: FC = () => {
 
 	return (
 		<AgentSettingsCompactionPageView
-			models={modelsQuery.data}
+			models={organizationModels.models}
 			providerTypeByID={providerTypeByID}
-			modelsError={modelsQuery.error}
-			isLoadingModels={modelsQuery.isLoading}
+			organizationNameByID={
+				new Map(
+					organizations.map((organization) => [
+						organization.id,
+						organization.display_name || organization.name,
+					]),
+				)
+			}
+			modelsError={organizationModels.error ?? organizationModels.partialError}
+			isLoadingModels={organizationModels.isLoading}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}

@@ -24,8 +24,6 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
-	chatModelAvailability,
-	chatModels,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -47,7 +45,6 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
@@ -79,6 +76,7 @@ import {
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -88,10 +86,6 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import {
-	getModelOptionsFromModels,
-	providerInfoByIDFromUserConfigs,
-} from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -232,13 +226,9 @@ const AgentsPageLayout: FC = () => {
 			sources: sidebarFilters.sources,
 		}),
 	);
-	// Model queries are kept here for the sidebar, which displays
-	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently, and react-query
-	// deduplicates the requests.
-	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
-	const chatModelsQuery = useQuery(chatModels());
-	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
@@ -388,11 +378,6 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const catalogModelOptions = getModelOptionsFromModels(
-		chatModelsQuery.data,
-		chatModelAvailabilityQuery.data,
-		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
-	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -768,8 +753,8 @@ const AgentsPageLayout: FC = () => {
 						chats={chatList}
 						currentUserId={user.id}
 						chatErrorReasons={sidebarChatErrorReasons}
-						modelOptions={catalogModelOptions}
-						models={chatModelsQuery.data ?? []}
+						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
 						onArchiveAgent={requestArchiveAgent}
 						onUnarchiveAgent={requestUnarchiveAgent}
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}

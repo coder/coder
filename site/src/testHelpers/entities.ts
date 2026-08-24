@@ -3393,6 +3393,11 @@ export const MockPermissions: Permissions = {
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
 	createChat: true,
+	viewAnyChatModelConfig: true,
+	createAnyChatModelConfig: true,
+	editAnyChatModelConfig: true,
+	deleteAnyChatModelConfig: true,
+	shareAnyChatModelConfig: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3434,6 +3439,11 @@ export const MockNoPermissions: Permissions = {
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
 	createChat: false,
+	viewAnyChatModelConfig: false,
+	createAnyChatModelConfig: false,
+	editAnyChatModelConfig: false,
+	deleteAnyChatModelConfig: false,
+	shareAnyChatModelConfig: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -3456,6 +3466,11 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
+	viewChatModelConfigs: true,
+	createChatModelConfigs: true,
+	editChatModelConfigs: true,
+	deleteChatModelConfigs: true,
+	shareChatModelConfigs: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3478,6 +3493,11 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
+	viewChatModelConfigs: false,
+	createChatModelConfigs: false,
+	editChatModelConfigs: false,
+	deleteChatModelConfigs: false,
+	shareChatModelConfigs: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

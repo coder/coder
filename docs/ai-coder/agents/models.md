@@ -125,6 +125,44 @@ For each provider request, Coder selects credentials in this order:
 Each model belongs to a provider and has its own configuration for context limits,
 generation parameters, and provider-specific options.
 
+### Select an organization
+
+Model settings use the stable path `/ai/settings/models` and the `org` query parameter to select an organization.
+For example, `/ai/settings/models?org=engineering` opens the models that you can read in the `engineering` organization.
+
+If the requested organization isn't accessible, Coder selects your accessible default organization or your first accessible organization.
+Coder shows the organization picker when you can access more than 1 organization.
+
+Members with model read access can open the model list and model details.
+Coder shows model fields as read-only unless the member also has update permission.
+Create, update, delete, and share permissions control their corresponding actions independently.
+
+### Share a model
+
+Members with model share permission can grant model read access to members and groups in the selected organization.
+
+1. Navigate to **Admin settings** > **AI** > **Models**.
+2. Select the organization that owns the model.
+3. Select the model.
+4. Open **Model actions** and select **Share model**.
+5. Add or remove organization members and groups.
+6. Select **Save**.
+
+Coder applies the complete member and group list when you save.
+Removing all entries clears the model's access list, so members without another read grant lose access on their next request.
+
+### Model visibility and runtime availability
+
+Management visibility and runtime availability are separate.
+A member can see a model in settings through its access list even when the model isn't available for chat.
+
+The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
+Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
+An unavailable provider can remain visible with a redacted reason while its models are omitted from the selector.
+
+Model APIs identify each configured model with a UUID.
+The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this model UUID.
+
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.

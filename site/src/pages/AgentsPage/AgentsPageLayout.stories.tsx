@@ -61,8 +61,8 @@ const defaultModelID = "model-config-1";
 
 const defaultModels: TypesGen.ChatModel[] = [
 	{
-		organization_id: "00000000-0000-0000-0000-000000000000",
 		id: defaultModelID,
+		organization_id: "my-organization-id",
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -349,6 +349,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 		});
 		// Mocks for child route pages that fetch their own data.
 		spyOn(API.experimental, "getChatModelAvailability").mockResolvedValue({
+			models: defaultModels,
 			providers: [
 				{
 					provider: "openai",
@@ -365,21 +366,21 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			],
 			unsupported_providers: [],
 		});
-		spyOn(API.experimental, "getChatModels").mockResolvedValue([
-			{
-				organization_id: "00000000-0000-0000-0000-000000000000",
-				id: defaultModelID,
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o",
-				enabled: true,
-				is_default: false,
-				context_limit: 200000,
-				compression_threshold: 70,
-				created_at: "2026-02-18T00:00:00.000Z",
-				updated_at: "2026-02-18T00:00:00.000Z",
-			},
-		]);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) => ({
+				models: [
+					{
+						...defaultModels[0],
+						id:
+							organizationId === MockDefaultOrganization.id
+								? defaultModelID
+								: `${defaultModelID}-${organizationId}`,
+						organization_id: organizationId,
+					},
+				],
+				providers: [],
+			}),
+		);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
 			{
 				provider: {

@@ -2,6 +2,7 @@ import type {
 	AIModelPrice,
 	ChatModel,
 	ChatModelProvider,
+	ChatModelProviderDescriptor,
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
@@ -40,6 +41,18 @@ export const MockChatModelProvider: ChatModelProvider = {
 	provider: "openai",
 	available: true,
 	models: [],
+};
+
+export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
+	id: "provider-1",
+	type: "openai",
+	display_name: "OpenAI",
+	icon: "",
+	enabled: true,
+	has_api_key: true,
+	has_user_api_key: false,
+	has_effective_api_key: true,
+	allow_user_api_key: false,
 };
 
 // Prices are micro-units per million tokens.

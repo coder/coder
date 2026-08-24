@@ -9,12 +9,14 @@ import type {
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
-import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
+import {
+	isUnsetModelRef,
+	NIL_UUID,
+	type ProviderInfo,
+} from "#/pages/AgentsPage/utils/modelOptions";
 import { pickReasoningEffort } from "#/pages/AgentsPage/utils/reasoningEffort";
 import { AgentSettingLayout } from "#/pages/AISettingsPage/CoderAgentsPage/components/AgentSettingLayout";
 import { cn } from "#/utils/cn";
-
-const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -47,9 +49,6 @@ type AdvisorSettingsFormValues = {
 	reasoning_effort: string;
 };
 
-const isUnsetModelConfigId = (id: string): boolean =>
-	id === "" || id === nilUUID;
-
 const normalizeNonNegativeInteger = (
 	value: number | string | undefined,
 ): number => {
@@ -71,7 +70,7 @@ const normalizeAdvisorConfig = (
 	),
 	model_config_id:
 		typeof config?.model_config_id === "string" &&
-		!isUnsetModelConfigId(config.model_config_id)
+		!isUnsetModelRef(config.model_config_id)
 			? config.model_config_id
 			: "",
 	reasoning_effort: config?.reasoning_effort ?? "",
@@ -83,10 +82,10 @@ const toAdvisorConfigRequest = (
 	enabled: true,
 	max_uses_per_run: normalizeNonNegativeInteger(values.max_uses_per_run),
 	max_output_tokens: normalizeNonNegativeInteger(values.max_output_tokens),
-	model_config_id: isUnsetModelConfigId(values.model_config_id)
-		? nilUUID
+	model_config_id: isUnsetModelRef(values.model_config_id)
+		? NIL_UUID
 		: values.model_config_id,
-	...(!isUnsetModelConfigId(values.model_config_id) && values.reasoning_effort
+	...(!isUnsetModelRef(values.model_config_id) && values.reasoning_effort
 		? { reasoning_effort: values.reasoning_effort }
 		: {}),
 });
@@ -167,11 +166,11 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 			// successfully and no refetch is in flight.
 			let source = values;
 			if (
-				!isUnsetModelConfigId(source.model_config_id) &&
+				!isUnsetModelRef(source.model_config_id) &&
 				!isLoadingModels &&
 				!isFetchingModels &&
 				!modelsError &&
-				!enabledModels.some((config) => config.id === source.model_config_id)
+				!enabledModels.some((model) => model.id === source.model_config_id)
 			) {
 				source = { ...source, model_config_id: "", reasoning_effort: "" };
 			}
@@ -231,7 +230,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 		: undefined;
 	const hasUnavailableSelectedModel =
 		!isLoadingModels &&
-		!isUnsetModelConfigId(form.values.model_config_id) &&
+		!isUnsetModelRef(form.values.model_config_id) &&
 		selectedModelOption === undefined;
 	const canSave = hasLoadedAdvisorConfig && form.dirty && form.isValid;
 

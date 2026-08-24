@@ -245,6 +245,25 @@ export const Default: Story = {
 	},
 };
 
+export const CachedModelsWithRefetchError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			modelCatalogError={new Error("Failed to refresh available models.")}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Failed to refresh available models."),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("combobox", {
+				name: defaultModelOptions[0].displayName,
+			}),
+		).toBeVisible();
+	},
+};
+
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
