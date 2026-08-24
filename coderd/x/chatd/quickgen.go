@@ -144,15 +144,9 @@ type shortTextCandidate struct {
 	resolved resolvedModelCall
 }
 
-// selectAllConfiguredShortTextModelConfigs returns every enabled model config
-// that matches a preferredTitleModels entry, ordered by the preferredTitleModels
-// priority list. Each preferred (provider, model) pair contributes at most one
-// config. The manual title candidate walk uses this so a slow or unavailable
-// provider can fall through to another configured preferred model.
-func selectAllConfiguredShortTextModelConfigs(
+func selectPreferredConfiguredShortTextModelConfig(
 	configs []database.GetEnabledChatModelConfigsByOrganizationRow,
-) []database.ChatModelConfig {
-	out := make([]database.ChatModelConfig, 0, len(preferredTitleModels))
+) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
@@ -161,11 +155,10 @@ func selectAllConfiguredShortTextModelConfigs(
 			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
 				continue
 			}
-			out = append(out, config.ChatModelConfig)
-			break
+			return config.ChatModelConfig, true
 		}
 	}
-	return out
+	return database.ChatModelConfig{}, false
 }
 
 func normalizeShortTextOutput(text string) string {
@@ -840,6 +833,26 @@ func renderManualTitlePrompt(
 	return prompt.String()
 }
 
+// manualTitleGenerationTimeout bounds the model call for manual title
+// generation so a slow or hung provider cannot hold the rename dialog's
+// Generate request indefinitely.
+const manualTitleGenerationTimeout = 30 * time.Second
+
+// ErrManualTitleTimedOut marks a manual title failure caused by an expired
+// title-generation deadline, as opposed to an unrelated error that merely
+// wraps context.DeadlineExceeded. The handler maps it to a friendly 504.
+var ErrManualTitleTimedOut = xerrors.New("manual title generation timed out")
+
+// markManualTitleTimeout tags err with ErrManualTitleTimedOut when it stems
+// from a deadline so the handler can distinguish a genuine title timeout from
+// other failures.
+func markManualTitleTimeout(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.Join(ErrManualTitleTimedOut, err)
+}
+
 func generateManualTitle(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -865,7 +878,7 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
-	titleCtx, cancel := context.WithTimeout(ctx, titleAttemptTimeout)
+	titleCtx, cancel := context.WithTimeout(ctx, manualTitleGenerationTimeout)
 	defer cancel()
 
 	userInput := strings.TrimSpace(latestUserMsg)

@@ -164,10 +164,9 @@ const statusClientClosedRequest = 499
 // client-closed request instead of surfacing through the 500 path.
 //
 // The 504 branch keys off chatd.ErrManualTitleTimedOut, which chatd
-// attaches only when a title deadline (per-attempt or overall walk
-// budget) actually expired. A provider failure whose chain merely
-// contains an unrelated transport deadline is not tagged and keeps its
-// provider-failure surface.
+// attaches only when the title-generation deadline actually expired. A
+// provider failure whose chain merely contains an unrelated transport
+// deadline is not tagged and keeps its provider-failure surface.
 func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled):
