@@ -14,6 +14,7 @@ import {
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
+	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
 	userChatProviderConfigsKey,
@@ -2343,8 +2344,12 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
-		expect(matches.length).toBeGreaterThan(0);
+		const alert = await canvas.findByRole("alert");
+		expect(
+			within(alert).getByRole("heading", {
+				name: /failed to load mcp servers/i,
+			}),
+		).toBeVisible();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -2371,10 +2376,13 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		if (!capturedQueryClient) {
 			throw new Error("query client was not captured by the story decorator");
 		}
-		await capturedQueryClient.refetchQueries();
-		expect(
-			canvas.queryByText(/failed to refresh mcp servers/i),
-		).not.toBeInTheDocument();
-		expect(send).toBeEnabled();
+		await capturedQueryClient.refetchQueries({
+			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
+			exact: true,
+		});
+		await waitFor(() => {
+			expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+			expect(send).toBeEnabled();
+		});
 	},
 };

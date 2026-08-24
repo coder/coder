@@ -3310,7 +3310,10 @@ export const SlashCompactCommandSubmits: Story = {
 		await userEvent.keyboard("/compact");
 		// First Enter accepts the highlighted menu entry; second Enter
 		// submits the composer.
-		expect(await within(document.body).findByText("Commands")).toBeVisible();
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByRole("option", { name: /\/compact/i })).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3376,7 +3379,9 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		// visibility rather than asserting it once.
 		await waitFor(() => {
 			expect(
-				within(document.body).getByText("Personal compact skill"),
+				within(document.body).getByRole("option", {
+					name: /personal compact skill/i,
+				}),
 			).toBeVisible();
 		});
 		await userEvent.keyboard("{Enter}");
