@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: AI models used without a price
+Subject: Missing prices for AI models
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,21 +12,24 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-The following models were used in the last week without a price. Their toke=
-n usage is recorded, but it adds nothing to spend, so it is neither reporte=
-d nor enforced against any budget.
+These models were used in the last week, but they have no price, so their u=
+sage is missing from AI spend and does not count toward any AI budget. Repo=
+rted spend is lower than actual, and a user who calls only these models has=
+ no effective limit.
 
 anthropic/claude-opus-4-8
 openai/gpt-5.7
 openrouter/z-ai/glm-5.4
 
-...and 12 more.
+3 of 15 models with no price are shown, ordered by usage.
 
-Set a price for these models to bring their usage into spend reporting.
+Every Coder release ships with prices for most models, so only the models a=
+bove need one: see how spend is calculated (https://coder.com/docs/ai-coder=
+/ai-gateway/cost-controls#how-spend-is-calculated) and how to configure pri=
+ces (https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-mod=
+el-prices). Prices are not retroactive, so usage recorded before you set a =
+price stays unpriced.
 
-
-Configure model prices: https://coder.com/docs/ai-coder/ai-gateway/cost-con=
-trols#configure-model-prices
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -38,7 +41,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>AI models used without a price</title>
+    <title>Missing prices for AI models</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -53,13 +56,14 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        AI models used without a price
+        Missing prices for AI models
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
-        <p>The following models were used in the last week without a price.=
- Their token usage is recorded, but it adds nothing to spend, so it is neit=
-her reported nor enforced against any budget.</p>
+        <p>These models were used in the last week, but they have no price,=
+ so their usage is missing from AI spend and does not count toward any AI b=
+udget. Reported spend is lower than actual, and a user who calls only these=
+ models has no effective limit.</p>
 
 <ul>
 <li>anthropic/claude-opus-4-8<br>
@@ -70,19 +74,16 @@ her reported nor enforced against any budget.</p>
 </li>
 </ul>
 
-<p>&hellip;and 12 more.</p>
+<p>3 of 15 models with no price are shown, ordered by usage.</p>
 
-<p>Set a price for these models to bring their usage into spend reporting.<=
-/p>
+<p>Every Coder release ships with prices for most models, so only the model=
+s above need one: see <a href=3D"https://coder.com/docs/ai-coder/ai-gateway=
+/cost-controls#how-spend-is-calculated">how spend is calculated</a> and <a =
+href=3D"https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-=
+model-prices">how to configure prices</a>. Prices are not retroactive, so u=
+sage recorded before you set a price stays unpriced.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
-       =20
-        <a href=3D"https://coder.com/docs/ai-coder/ai-gateway/cost-controls=
-#configure-model-prices" style=3D"display: inline-block; padding: 13px 24px=
-; background-color: #020617; color: #f8fafc; text-decoration: none; border-=
-radius: 8px; margin: 0 4px;">
-          Configure model prices
-        </a>
        =20
       </div>
       <div style=3D"border-top: 1px solid #e2e8f0; color: #475569; font-siz=

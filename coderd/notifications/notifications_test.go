@@ -1634,7 +1634,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						{"provider": "openai", "model": "gpt-5.7"},
 						{"provider": "openrouter", "model": "z-ai/glm-5.4"},
 					},
-					"overflow_count": 12.0,
+					"total_count": 15.0,
 				},
 			},
 		},

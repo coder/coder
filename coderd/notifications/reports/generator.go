@@ -431,8 +431,8 @@ func buildDataForReportUnpricedAIModels(unpriced []database.GetUnpricedAIModelsS
 		"report_frequency": unpricedAIModelsReportFrequencyLabel,
 		"models":           models,
 	}
-	if overflow := len(unpriced) - len(models); overflow > 0 {
-		data["overflow_count"] = overflow
+	if len(unpriced) > len(models) {
+		data["total_count"] = len(unpriced)
 	}
 	return data
 }

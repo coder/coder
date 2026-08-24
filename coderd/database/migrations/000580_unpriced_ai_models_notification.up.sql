@@ -12,17 +12,17 @@ INSERT INTO notification_templates (
 VALUES (
     '1b7d9fa7-f5a8-4e46-8078-5cf53abfed94',
     'Report: Unpriced AI Models',
-    E'AI models used without a price',
-    $$The following models were used in the last {{.Data.report_frequency}} without a price. Their token usage is recorded, but it adds nothing to spend, so it is neither reported nor enforced against any budget.
+    E'Missing prices for AI models',
+    $$These models were used in the last {{.Data.report_frequency}}, but they have no price, so their usage is missing from AI spend and does not count toward any AI budget. Reported spend is lower than actual, and a user who calls only these models has no effective limit.
 
 {{range $model := .Data.models}}
 * {{$model.provider}}/{{$model.model}}
 {{- end}}
-{{if .Data.overflow_count}}
-...and {{.Data.overflow_count}} more.
+{{if .Data.total_count}}
+{{len .Data.models}} of {{.Data.total_count}} models with no price are shown, ordered by usage.
 {{end}}
-Set a price for these models to bring their usage into spend reporting.$$,
-    '[{"label": "Configure model prices", "url": "https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-model-prices"}]'::jsonb,
+Every Coder release ships with prices for most models, so only the models above need one: see [how spend is calculated](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated) and [how to configure prices](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-model-prices). Prices are not retroactive, so usage recorded before you set a price stays unpriced.$$,
+    '[]'::jsonb,
     'AI Cost Control Admin Events',
     NULL,
     'system'::notification_template_kind,

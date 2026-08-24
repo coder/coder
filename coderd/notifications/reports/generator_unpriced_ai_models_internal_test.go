@@ -197,7 +197,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		models := modelsFromPayload(t, sent[0].Data)
 		require.Len(t, models, unpricedAIModelsLimit)
 		require.Equal(t, "most-used-model", models[0]["model"])
-		require.EqualValues(t, overflow, sent[0].Data["overflow_count"])
+		require.EqualValues(t, unpricedAIModelsLimit+overflow, sent[0].Data["total_count"])
 	})
 
 	t.Run("NothingToReport_AdvancesWindow", func(t *testing.T) {
