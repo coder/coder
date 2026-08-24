@@ -561,7 +561,39 @@ func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCa
 	return database.ChatMessage{}
 }
 
-func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
+// batchUsageRecords returns the model-only tool batch usage rows for the
+// chat. Cancellation rows are user-visible, so the dedicated usage record
+// only appears in the model-visibility history.
+func batchUsageRecords(t *testing.T, f *taskTestFixture, chatID uuid.UUID) []database.ChatMessage {
+	t.Helper()
+	rows, err := f.db.GetChatMessagesForPromptByChatID(testutil.Context(t, testutil.WaitShort), chatID)
+	require.NoError(t, err)
+	var records []database.ChatMessage
+	for _, msg := range rows {
+		if msg.Role != database.ChatMessageRoleTool || msg.Visibility != database.ChatMessageVisibilityModel {
+			continue
+		}
+		records = append(records, msg)
+	}
+	return records
+}
+
+func requireSingleBatchUsageRecord(t *testing.T, f *taskTestFixture, chatID uuid.UUID, billedMs int64, billedCalls int) {
+	t.Helper()
+	records := batchUsageRecords(t, f, chatID)
+	require.Len(t, records, 1)
+	require.Equal(t, sql.NullInt64{Int64: billedMs, Valid: true}, records[0].RuntimeMs)
+	parts, err := chatprompt.ParseContent(records[0])
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Equal(t, toolBatchUsagePartType, parts[0].Type)
+	require.JSONEq(t,
+		fmt.Sprintf(`{"billed_ms":%d,"billed_calls":%d}`, billedMs, billedCalls),
+		string(parts[0].Result),
+	)
+}
+
+func TestInterruptTask_ToolBatchBillsPartialWindowOnUsageRecord(t *testing.T) {
 	t.Parallel()
 
 	f := newTaskTestFixture(t)
@@ -584,9 +616,10 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 
 	messages := batch.interrupt(t, f)
 	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
+	require.False(t, execRow.RuntimeMs.Valid)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
+	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 3_000, 1)
 }
 
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
@@ -604,7 +637,8 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 
 	messages := batch.interrupt(t, f)
 	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
+	require.False(t, execRow.RuntimeMs.Valid)
+	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 7_000, 1)
 }
 
 func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
@@ -623,6 +657,7 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	messages := batch.interrupt(t, f)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
+	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
 }
 
 func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) {
@@ -648,6 +683,8 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 				"no cancellation row may bill: the billed call never began executing")
 		}
 	}
+	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID),
+		"no usage record may bill: the billed call never began executing")
 }
 
 func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
@@ -676,11 +713,14 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 
 	messages := batch.interrupt(t, f)
 	serialRow := findToolResultMessage(t, messages, serialCallID)
-	require.Equal(t, sql.NullInt64{Int64: 5_000, Valid: true}, serialRow.RuntimeMs)
+	require.False(t, serialRow.RuntimeMs.Valid)
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.False(t, execRow.RuntimeMs.Valid)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
+	// Completed execute [2s,5s] plus the serial call's own window
+	// [8s,10s]: the gap and the unbilled wait_agent do not count.
+	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 5_000, 2)
 }
 
 func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
@@ -702,13 +742,13 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	batch.clock.Advance(3 * time.Second)
 
 	messages := batch.interrupt(t, f)
-	var billed []int64
 	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-			billed = append(billed, msg.RuntimeMs.Int64)
+		if msg.Role == database.ChatMessageRoleTool {
+			require.False(t, msg.RuntimeMs.Valid)
 		}
 	}
-	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
+	// The still-running occurrence bills the full window exactly once.
+	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 6_000, 2)
 }
 
 func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
@@ -730,13 +770,14 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 	batch.clock.Advance(3 * time.Second)
 
 	messages := batch.interrupt(t, f)
-	var billed []int64
 	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-			billed = append(billed, msg.RuntimeMs.Int64)
+		if msg.Role == database.ChatMessageRoleTool {
+			require.False(t, msg.RuntimeMs.Valid)
 		}
 	}
-	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
+	// The running execute occurrence bills to the interrupt; wait_agent's
+	// early completion must not end it at 3s.
+	requireSingleBatchUsageRecord(t, f, batch.chat.ID, 6_000, 1)
 }
 
 func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
@@ -756,9 +797,11 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 	messages := batch.interrupt(t, f)
 	for _, msg := range messages {
 		if msg.Role == database.ChatMessageRoleTool {
-			require.False(t, msg.RuntimeMs.Valid, "no cancellation row may bill: only the unbilled wait_agent occurrence ran")
+			require.False(t, msg.RuntimeMs.Valid)
 		}
 	}
+	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID),
+		"no usage record may bill: only the unbilled wait_agent occurrence ran")
 }
 
 func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
@@ -781,6 +824,7 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	require.False(t, execRow.RuntimeMs.Valid)
 	waitRow := findToolResultMessage(t, messages, waitCallID)
 	require.False(t, waitRow.RuntimeMs.Valid)
+	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
 }
 
 func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
@@ -797,6 +841,7 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 	messages := batch.interrupt(t, f)
 	execRow := findToolResultMessage(t, messages, execCallID)
 	require.False(t, execRow.RuntimeMs.Valid)
+	require.Empty(t, batchUsageRecords(t, f, batch.chat.ID))
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
