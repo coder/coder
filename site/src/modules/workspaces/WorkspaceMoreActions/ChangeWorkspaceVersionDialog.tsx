@@ -104,8 +104,14 @@ export const ChangeWorkspaceVersionDialog: FC<
 											className="w-full min-w-0 pl-3.5"
 										/>
 									</ComboboxTrigger>
+									{/*
+									 * z-[1400] keeps this portalled popover above the
+									 * MUI Dialog (z-index: 1300) that still backs this
+									 * dialog on release/2.36. Without it the options
+									 * paint behind the dialog surface (DEVEX-780).
+									 */}
 									<ComboboxContent
-										className="max-w-none min-w-[min(100%,320px)]"
+										className="z-[1400] max-w-none min-w-[min(100%,320px)]"
 										align="start"
 									>
 										<ComboboxInput placeholder="Search versions…" />
