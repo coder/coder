@@ -5,8 +5,8 @@ import { API } from "#/api/api";
 import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockConnectedSSHConnectionLog,
+	MockDeploymentCapabilitiesWithConnectionLog,
 	MockDisconnectedSSHConnectionLog,
-	MockEntitlementsWithConnectionLog,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
@@ -52,8 +52,8 @@ describe("ConnectionLogPage", () => {
 
 		// Mock the entitlements
 		server.use(
-			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlementsWithConnectionLog);
+			http.get("/api/v2/deployment/capabilities", () => {
+				return HttpResponse.json(MockDeploymentCapabilitiesWithConnectionLog);
 			}),
 		);
 	});

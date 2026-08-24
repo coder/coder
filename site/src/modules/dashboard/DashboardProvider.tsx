@@ -2,13 +2,13 @@ import { createContext, type FC, type PropsWithChildren } from "react";
 import { useQuery } from "react-query";
 import { appearance } from "#/api/queries/appearance";
 import { buildInfo } from "#/api/queries/buildInfo";
-import { entitlements } from "#/api/queries/entitlements";
+import { deploymentCapabilities } from "#/api/queries/entitlements";
 import { experiments } from "#/api/queries/experiments";
 import { organizations } from "#/api/queries/organizations";
 import type {
 	AppearanceConfig,
 	BuildInfoResponse,
-	Entitlements,
+	DeploymentCapabilities,
 	Experiment,
 	Organization,
 } from "#/api/typesGenerated";
@@ -20,7 +20,7 @@ import { canViewAnyOrganization } from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {
-	entitlements: Entitlements;
+	entitlements: DeploymentCapabilities;
 	experiments: Experiment[];
 	appearance: AppearanceConfig;
 	buildInfo: BuildInfoResponse;
@@ -36,7 +36,9 @@ export const DashboardContext = createContext<DashboardValue | undefined>(
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const { permissions } = useAuthenticated();
-	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+	const entitlementsQuery = useQuery(
+		deploymentCapabilities(metadata["deployment-capabilities"]),
+	);
 	const experimentsQuery = useQuery(experiments(metadata.experiments));
 	const appearanceQuery = useQuery(appearance(metadata.appearance));
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));

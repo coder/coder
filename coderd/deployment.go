@@ -9,6 +9,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// @Summary Get deployment capabilities
+// @ID get-deployment-capabilities
+// @Produce json
+// @Tags General
+// @Success 200 {object} codersdk.DeploymentCapabilities
+// @Router /api/v2/deployment/capabilities [get]
+func (api *API) deploymentCapabilities(rw http.ResponseWriter, r *http.Request) {
+	httpapi.Write(r.Context(), rw, http.StatusOK, api.Entitlements.AsCapabilitiesJSON())
+}
+
 // @Summary Get deployment config
 // @ID get-deployment-config
 // @Security CoderSessionToken

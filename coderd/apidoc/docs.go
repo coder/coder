@@ -3856,6 +3856,26 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/deployment/capabilities": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "General"
+                ],
+                "summary": "Get deployment capabilities",
+                "operationId": "get-deployment-capabilities",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.DeploymentCapabilities"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v2/deployment/config": {
             "get": {
                 "produces": [
@@ -18175,6 +18195,20 @@ const docTemplate = `{
                 "CORSBehaviorPassthru"
             ]
         },
+        "codersdk.Capability": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "entitlement": {
+                    "$ref": "#/definitions/codersdk.Entitlement"
+                },
+                "usable": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
             "type": "object",
             "required": [
@@ -21608,6 +21642,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DeploymentCapabilities": {
+            "type": "object",
+            "properties": {
+                "features": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "$ref": "#/definitions/codersdk.Capability"
+                    }
+                },
+                "has_license": {
+                    "type": "boolean"
+                },
+                "trial": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.DeploymentConfig": {
             "type": "object",
             "properties": {
@@ -22396,7 +22447,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "actual": {
-                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds, with the precise value available in\nActualMs. FeatureAgentRuntimeHours usage can trail by roughly one\nhour because the current hour is not emitted, plus the entitlement\nrefresh interval.",
+                    "description": "Actual is the usage measured against Limit, when known: a\npoint-in-time count for most features, or usage accumulated over\nUsagePeriod for features that set one. Unlicensed\nFeatureAgentRuntimeHours instead reports all retained usage since\ntracking began without a UsagePeriod. Its unit matches Limit's;\nFeatureAgentRuntimeHours reports whole hours floored from the\nrecorded milliseconds, with the precise value available in\nActualMs. FeatureAgentRuntimeHours usage can trail by roughly one\nhour because the current hour is not emitted, plus the entitlement\nrefresh interval, and can undercount after outages beyond the usage\nevent backfill window.",
                     "type": "integer"
                 },
                 "actual_ms": {

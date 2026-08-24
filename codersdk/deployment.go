@@ -396,12 +396,15 @@ type Feature struct {
 	HardLimit *int64 `json:"hard_limit,omitempty"`
 	// Actual is the usage measured against Limit, when known: a
 	// point-in-time count for most features, or usage accumulated over
-	// UsagePeriod for features that set one. Its unit matches Limit's;
+	// UsagePeriod for features that set one. Unlicensed
+	// FeatureAgentRuntimeHours instead reports all retained usage since
+	// tracking began without a UsagePeriod. Its unit matches Limit's;
 	// FeatureAgentRuntimeHours reports whole hours floored from the
 	// recorded milliseconds, with the precise value available in
 	// ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
 	// hour because the current hour is not emitted, plus the entitlement
-	// refresh interval.
+	// refresh interval, and can undercount after outages beyond the usage
+	// event backfill window.
 	Actual *int64 `json:"actual,omitempty"`
 	// ActualMs is the precise usage backing Actual, in milliseconds, for
 	// features measured in time. It has the same freshness as Actual.
@@ -537,6 +540,21 @@ func (f Feature) Capable() bool {
 	return true
 }
 
+// Capability is the public state needed to decide whether a deployment
+// feature can be used.
+type Capability struct {
+	Entitlement Entitlement `json:"entitlement"`
+	Enabled     bool        `json:"enabled"`
+	Usable      bool        `json:"usable"`
+}
+
+// DeploymentCapabilities contains public deployment feature state.
+type DeploymentCapabilities struct {
+	Features   map[FeatureName]Capability `json:"features"`
+	HasLicense bool                       `json:"has_license"`
+	Trial      bool                       `json:"trial"`
+}
+
 type Entitlements struct {
 	Features         map[FeatureName]Feature `json:"features"`
 	Warnings         []string                `json:"warnings"`
@@ -545,6 +563,28 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+}
+
+// Capabilities returns the public deployment feature state derived from the
+// full entitlements.
+func (e Entitlements) Capabilities() DeploymentCapabilities {
+	features := make(map[FeatureName]Capability, len(FeatureNames))
+	for _, name := range FeatureNames {
+		feature, ok := e.Features[name]
+		if !ok {
+			feature.Entitlement = EntitlementNotEntitled
+		}
+		features[name] = Capability{
+			Entitlement: feature.Entitlement,
+			Enabled:     feature.Enabled,
+			Usable:      e.HasLicense && feature.Entitlement.Entitled() && feature.Enabled && feature.Capable(),
+		}
+	}
+	return DeploymentCapabilities{
+		Features:   features,
+		HasLicense: e.HasLicense,
+		Trial:      e.Trial,
+	}
 }
 
 // AddFeature will add the feature to the entitlements iff it expands
@@ -585,6 +625,20 @@ func (e *Entitlements) AddFeature(name FeatureName, add Feature) {
 		e.Features[name] = add
 		return
 	}
+}
+
+// DeploymentCapabilities returns public deployment feature state.
+func (c *Client) DeploymentCapabilities(ctx context.Context) (DeploymentCapabilities, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/capabilities", nil)
+	if err != nil {
+		return DeploymentCapabilities{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return DeploymentCapabilities{}, ReadBodyAsError(res)
+	}
+	var capabilities DeploymentCapabilities
+	return capabilities, ReadBodyAsJSON(res, &capabilities)
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {

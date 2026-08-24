@@ -1,7 +1,7 @@
 import type { CreateTemplateOptions } from "#/api/queries/templates";
 import type {
 	CreateTemplateVersionRequest,
-	Entitlements,
+	DeploymentCapabilities,
 	ProvisionerType,
 	TemplateExample,
 	VariableValue,
@@ -46,7 +46,7 @@ export const newTemplate = (
 	};
 };
 
-export const getFormPermissions = (entitlements: Entitlements) => {
+export const getFormPermissions = (entitlements: DeploymentCapabilities) => {
 	const allowAdvancedScheduling =
 		entitlements.features.advanced_template_scheduling.enabled;
 

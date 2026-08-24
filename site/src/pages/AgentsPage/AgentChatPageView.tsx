@@ -7,9 +7,10 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { useQueryClient } from "react-query";
+import { useQuery, useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
+import { entitlementDetails } from "#/api/queries/entitlements";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -402,6 +403,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const { entitlements } = useDashboard();
+	const entitlementDetailsQuery = useQuery(entitlementDetails());
 	const { permissions } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 
@@ -841,9 +843,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 
 	const hasLicense = entitlements.has_license;
 	const canManageLicenses = permissions.viewAllLicenses;
-	const runtimeHours = entitlements.features.agent_runtime_hours;
+	const runtimeHours =
+		entitlementDetailsQuery.data?.features.agent_runtime_hours;
 	const agentHoursHardLimit =
-		runtimeHours.enabled &&
+		runtimeHours?.enabled &&
 		runtimeHours.hard_limit !== undefined &&
 		runtimeHours.actual !== undefined &&
 		runtimeHours.actual >= runtimeHours.hard_limit

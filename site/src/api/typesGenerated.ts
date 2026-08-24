@@ -1948,6 +1948,17 @@ export const CancelWorkspaceBuildStatuses: CancelWorkspaceBuildStatus[] = [
 	"running",
 ];
 
+// From codersdk/deployment.go
+/**
+ * Capability is the public state needed to decide whether a deployment
+ * feature can be used.
+ */
+export interface Capability {
+	readonly entitlement: Entitlement;
+	readonly enabled: boolean;
+	readonly usable: boolean;
+}
+
 // From codersdk/users.go
 /**
  * ChangePasswordWithOneTimePasscodeRequest enables callers to change their password when they've forgotten it.
@@ -4740,6 +4751,16 @@ export interface DeleteWorkspaceAgentPortShareRequest {
 
 // From codersdk/deployment.go
 /**
+ * DeploymentCapabilities contains public deployment feature state.
+ */
+export interface DeploymentCapabilities {
+	readonly features: Record<FeatureName, Capability>;
+	readonly has_license: boolean;
+	readonly trial: boolean;
+}
+
+// From codersdk/deployment.go
+/**
  * DeploymentConfig contains both the deployment values and how they're set.
  */
 export interface DeploymentConfig {
@@ -5299,12 +5320,15 @@ export interface Feature {
 	/**
 	 * Actual is the usage measured against Limit, when known: a
 	 * point-in-time count for most features, or usage accumulated over
-	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * UsagePeriod for features that set one. Unlicensed
+	 * FeatureAgentRuntimeHours instead reports all retained usage since
+	 * tracking began without a UsagePeriod. Its unit matches Limit's;
 	 * FeatureAgentRuntimeHours reports whole hours floored from the
 	 * recorded milliseconds, with the precise value available in
 	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
 	 * hour because the current hour is not emitted, plus the entitlement
-	 * refresh interval.
+	 * refresh interval, and can undercount after outages beyond the usage
+	 * event backfill window.
 	 */
 	readonly actual?: number;
 	/**

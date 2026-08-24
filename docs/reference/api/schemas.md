@@ -2205,6 +2205,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------|
 | `passthru`, `simple` |
 
+## codersdk.Capability
+
+```json
+{
+  "enabled": true,
+  "entitlement": "entitled",
+  "usable": true
+}
+```
+
+### Properties
+
+| Name          | Type                                         | Required | Restrictions | Description |
+|---------------|----------------------------------------------|----------|--------------|-------------|
+| `enabled`     | boolean                                      | false    |              |             |
+| `entitlement` | [codersdk.Entitlement](#codersdkentitlement) | false    |              |             |
+| `usable`      | boolean                                      | false    |              |             |
+
 ## codersdk.ChangePasswordWithOneTimePasscodeRequest
 
 ```json
@@ -7240,6 +7258,36 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `agent_name` | string  | false    |              |             |
 | `port`       | integer | false    |              |             |
 
+## codersdk.DeploymentCapabilities
+
+```json
+{
+  "features": {
+    "property1": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    },
+    "property2": {
+      "enabled": true,
+      "entitlement": "entitled",
+      "usable": true
+    }
+  },
+  "has_license": true,
+  "trial": true
+}
+```
+
+### Properties
+
+| Name               | Type                                       | Required | Restrictions | Description |
+|--------------------|--------------------------------------------|----------|--------------|-------------|
+| `features`         | object                                     | false    |              |             |
+| » `[any property]` | [codersdk.Capability](#codersdkcapability) | false    |              |             |
+| `has_license`      | boolean                                    | false    |              |             |
+| `trial`            | boolean                                    | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json
@@ -9221,16 +9269,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name           | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|----------------|----------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `actual`       | integer                                      | false    |              | Actual is the usage measured against Limit, when known: a point-in-time count for most features, or usage accumulated over UsagePeriod for features that set one. Its unit matches Limit's; FeatureAgentRuntimeHours reports whole hours floored from the recorded milliseconds, with the precise value available in ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one hour because the current hour is not emitted, plus the entitlement refresh interval. |
-| `actual_ms`    | integer                                      | false    |              | Actual ms is the precise usage backing Actual, in milliseconds, for features measured in time. It has the same freshness as Actual. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                                                                                                                                                          |
-| `enabled`      | boolean                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `entitlement`  | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `hard_limit`   | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds.                                                                                                                                                                                                                                                                                                      |
-| `limit`        | integer                                      | false    |              | Limit is the maximum value the license grants for the feature, in the feature's own unit. For FeatureAgentRuntimeHours, an enabled feature with Limit omitted means the license grants unlimited runtime hours.                                                                                                                                                                                                                                                             |
-| `soft_limit`   | integer                                      | false    |              | Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation; an unlimited allocation has no thresholds, so SoftLimit is omitted alongside the omitted Limit. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                       |
-| `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod) | false    |              | Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license). These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this field.                                                                                                                       |
+| Name           | Type                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|----------------|----------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actual`       | integer                                      | false    |              | Actual is the usage measured against Limit, when known: a point-in-time count for most features, or usage accumulated over UsagePeriod for features that set one. Unlicensed FeatureAgentRuntimeHours instead reports all retained usage since tracking began without a UsagePeriod. Its unit matches Limit's; FeatureAgentRuntimeHours reports whole hours floored from the recorded milliseconds, with the precise value available in ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one hour because the current hour is not emitted, plus the entitlement refresh interval, and can undercount after outages beyond the usage event backfill window. |
+| `actual_ms`    | integer                                      | false    |              | Actual ms is the precise usage backing Actual, in milliseconds, for features measured in time. It has the same freshness as Actual. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `enabled`      | boolean                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `entitlement`  | [codersdk.Entitlement](#codersdkentitlement) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `hard_limit`   | integer                                      | false    |              | Hard limit is the enforcement threshold that accompanies Limit for features whose license carries it. See SoftLimit for the set of features that use these thresholds.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `limit`        | integer                                      | false    |              | Limit is the maximum value the license grants for the feature, in the feature's own unit. For FeatureAgentRuntimeHours, an enabled feature with Limit omitted means the license grants unlimited runtime hours.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `soft_limit`   | integer                                      | false    |              | Soft limit is the advisory warning threshold that accompanies Limit for features whose license carries it. For these features, Limit carries the purchased allocation; an unlimited allocation has no thresholds, so SoftLimit is omitted alongside the omitted Limit. Only FeatureAgentRuntimeHours sets this field.                                                                                                                                                                                                                                                                                                                                                   |
+| `usage_period` | [codersdk.UsagePeriod](#codersdkusageperiod) | false    |              | Usage period denotes that the usage is a counter that accumulates over this period (and most likely resets with the issuance of the next license). These dates are determined from the license that this entitlement comes from, see enterprise/coderd/license/license.go. Only FeatureManagedAgentLimit and FeatureAgentRuntimeHours set this field.                                                                                                                                                                                                                                                                                                                   |
 
 ## codersdk.FriendlyDiagnostic
 

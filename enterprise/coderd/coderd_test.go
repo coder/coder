@@ -43,6 +43,7 @@ import (
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	enterpriseusage "github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -69,6 +71,21 @@ func TestMain(m *testing.M) {
 
 func TestEntitlements(t *testing.T) {
 	t.Parallel()
+	t.Run("Authentication", func(t *testing.T) {
+		t.Parallel()
+		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		anonymous := codersdk.New(adminClient.URL)
+
+		res, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/entitlements", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+		require.NoError(t, err)
+		require.False(t, capabilities.HasLicense)
+		require.Len(t, capabilities.Features, len(codersdk.FeatureNames))
+	})
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
 		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -85,7 +102,7 @@ func TestEntitlements(t *testing.T) {
 	})
 	t.Run("FullLicense", func(t *testing.T) {
 		t.Parallel()
-		adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+		adminClient, _, api, adminUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
@@ -106,6 +123,9 @@ func TestEntitlements(t *testing.T) {
 			Addons:   []codersdk.Addon{codersdk.AddonAIGovernance},
 			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
+		api.Entitlements.Modify(func(entitlements *codersdk.Entitlements) {
+			entitlements.Warnings = []string{"obvious warning"}
+		})
 		res, err := adminClient.Entitlements(context.Background()) //nolint:gocritic // adding another user would put us over user limit
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
@@ -123,7 +143,33 @@ func TestEntitlements(t *testing.T) {
 		assert.True(t, al.Enabled)
 		assert.Nil(t, al.Limit)
 		assert.Nil(t, al.Actual)
-		assert.Empty(t, res.Warnings)
+		assert.Equal(t, []string{"obvious warning"}, res.Warnings)
+		runtime := res.Features[codersdk.FeatureAgentRuntimeHours]
+		require.NotNil(t, runtime.Limit)
+		require.NotNil(t, runtime.Actual)
+		require.NotNil(t, runtime.ActualMs)
+		require.NotNil(t, runtime.UsagePeriod)
+
+		anonymous := codersdk.New(adminClient.URL)
+		capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+		require.NoError(t, err)
+		require.True(t, capabilities.HasLicense)
+		require.True(t, capabilities.Features[codersdk.FeatureAuditLog].Usable)
+		resPublic, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/deployment/capabilities", nil)
+		require.NoError(t, err)
+		defer resPublic.Body.Close()
+		publicBody, err := io.ReadAll(resPublic.Body)
+		require.NoError(t, err)
+		require.NotContains(t, string(publicBody), "obvious warning")
+		for _, field := range []string{"\"limit\":", "\"actual\":", "\"actual_ms\":", "\"warnings\":"} {
+			require.NotContains(t, string(publicBody), field)
+		}
+
+		memberClient, _ := coderdtest.CreateAnotherUser(t, adminClient, adminUser.OrganizationID)
+		memberEntitlements, err := memberClient.Entitlements(t.Context())
+		require.NoError(t, err)
+		require.True(t, memberEntitlements.HasLicense)
+		require.Equal(t, int64(100), *memberEntitlements.Features[codersdk.FeatureUserLimit].Limit)
 	})
 
 	// TestEntitlements/MultiplePrebuildsLicenseUpdates verifies that uploading
@@ -270,6 +316,53 @@ func TestEntitlements(t *testing.T) {
 			return entitlements.HasLicense
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+}
+
+func TestCommunityAgentRuntimeEntitlements(t *testing.T) {
+	t.Parallel()
+
+	client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		DontAddLicense: true,
+	})
+	inserter := enterpriseusage.NewDBInserter()
+	createdAt := dbtime.Now().Add(-2 * time.Hour).Truncate(time.Hour)
+	runtimeMs := (10*time.Hour + 18*time.Minute).Milliseconds()
+	err := inserter.InsertHeartbeatUsageEvent(
+		dbauthz.AsUsagePublisher(t.Context()),
+		api.Database,
+		uuid.NewString(),
+		createdAt,
+		usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs},
+	)
+	require.NoError(t, err)
+	require.NoError(t, api.AGPL.RefreshEntitlements(t.Context()))
+
+	full, err := client.Entitlements(t.Context())
+	require.NoError(t, err)
+	require.False(t, full.HasLicense)
+	runtime := full.Features[codersdk.FeatureAgentRuntimeHours]
+	require.Equal(t, codersdk.EntitlementNotEntitled, runtime.Entitlement)
+	require.False(t, runtime.Enabled)
+	require.Nil(t, runtime.Limit)
+	require.Nil(t, runtime.SoftLimit)
+	require.Nil(t, runtime.HardLimit)
+	require.Nil(t, runtime.UsagePeriod)
+	require.NotNil(t, runtime.Actual)
+	require.Equal(t, int64(10), *runtime.Actual)
+	require.NotNil(t, runtime.ActualMs)
+	require.Equal(t, runtimeMs, *runtime.ActualMs)
+
+	anonymous := codersdk.New(client.URL)
+	capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+	require.NoError(t, err)
+	require.False(t, capabilities.Features[codersdk.FeatureAgentRuntimeHours].Usable)
+	res, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/deployment/capabilities", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "\"actual\":")
+	require.NotContains(t, string(body), "\"actual_ms\":")
 }
 
 func TestEntitlements_HeaderWarnings(t *testing.T) {

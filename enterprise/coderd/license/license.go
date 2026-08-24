@@ -783,14 +783,7 @@ func LicensesEntitlements(
 			return entitlements, err
 		}
 		if ok {
-			actualHours := agentRuntimeMsToHours(runtimeMs)
-			runtimeHours.Actual = &actualHours
-			// ActualMs carries the exact stored milliseconds so clients can
-			// render fractional hours. Negative input clamps to 0, mirroring
-			// agentRuntimeMsToHours, since AgentRuntimeMsFn is a
-			// caller-supplied seam.
-			actualMs := max(runtimeMs, 0)
-			runtimeHours.ActualMs = &actualMs
+			runtimeHours, actualHours := setAgentRuntimeUsage(runtimeHours, runtimeMs)
 			// Written back directly rather than through AddFeature:
 			// AddFeature only replaces the existing entry when the new one
 			// strictly outranks it, so setting Actual on an otherwise
@@ -803,6 +796,22 @@ func LicensesEntitlements(
 				entitlements.Warnings = appendAgentRuntimeHoursWarning(
 					entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
 			}
+		}
+	} else if !entitlements.HasLicense && featureArguments.AgentRuntimeMsFn != nil {
+		// Community usage covers all retained events since tracking began. It
+		// intentionally has no synthetic usage period or allocation warnings.
+		usageBounds := codersdk.UsagePeriod{
+			Start: time.Unix(0, 0).UTC(),
+			End:   now,
+		}
+		runtimeMs, ok, err := measureAgentRuntimeMs(ctx, &entitlements,
+			featureArguments.Logger, featureArguments.AgentRuntimeMsFn, usageBounds)
+		if err != nil {
+			return entitlements, err
+		}
+		if ok {
+			runtimeHours, _ = setAgentRuntimeUsage(runtimeHours, runtimeMs)
+			entitlements.Features[codersdk.FeatureAgentRuntimeHours] = runtimeHours
 		}
 	}
 
@@ -1075,6 +1084,14 @@ func agentRuntimeMsToHours(ms int64) int64 {
 		return 0
 	}
 	return ms / int64(time.Hour/time.Millisecond)
+}
+
+func setAgentRuntimeUsage(feature codersdk.Feature, runtimeMs int64) (codersdk.Feature, int64) {
+	actualHours := agentRuntimeMsToHours(runtimeMs)
+	feature.Actual = &actualHours
+	actualMs := max(runtimeMs, 0)
+	feature.ActualMs = &actualMs
+	return feature, actualHours
 }
 
 // decodeAgentRuntimeHours builds the codersdk.FeatureAgentRuntimeHours

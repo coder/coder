@@ -91,10 +91,26 @@ test("shows AI Governance over-limit warning in LicenseBanner for admin users", 
 	});
 
 	expect(
-		screen.getByText(
+		await screen.findByText(
 			/110 of 100 AI Governance add-on seats \(10 over the limit\)/,
 		),
 	).toBeInTheDocument();
+});
+
+test("renders the dashboard when entitlement details fail", async () => {
+	server.use(
+		http.get("/api/v2/entitlements", () =>
+			HttpResponse.json({ message: "unavailable" }, { status: 500 }),
+		),
+	);
+
+	renderWithAuth(<DashboardLayout />, {
+		children: [{ element: <h1>Test page</h1> }],
+	});
+	await waitForLoaderToBeRemoved();
+
+	expect(screen.getByRole("main")).toBeVisible();
+	expect(screen.queryByText("unavailable")).not.toBeInTheDocument();
 });
 
 test("renders a skip link before navigation content", async () => {
