@@ -270,21 +270,27 @@ type ExecuteLocalToolsOptions struct {
 	// UnbilledToolNames lists called tool names excluded from the batch
 	// window. Include deprecated aliases.
 	UnbilledToolNames map[string]bool
-	// OnToolStart fires when each local call begins. Serial calls may start
-	// after concurrent siblings settle, so interrupts bill actual starts and
-	// skip calls that never run. dispatchIndex identifies the dispatch-order
-	// occurrence.
-	OnToolStart func(dispatchIndex int, startedAt time.Time)
-	// OnToolComplete fires concurrently as each local call finishes, before
-	// ordered results publish. Interrupt billing uses the live timestamp;
-	// dispatchIndex identifies the dispatch-order occurrence.
-	// The callback must be concurrency-safe.
-	OnToolComplete func(dispatchIndex int, completedAt time.Time)
+	// BillingRecorder observes each local call's start and completion
+	// for interrupt billing. Serial calls may start after concurrent
+	// siblings settle, so interrupts bill actual starts and skip calls
+	// that never run. Optional.
+	BillingRecorder ToolBillingRecorder
 
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
 	Clock              quartz.Clock
+}
+
+// ToolBillingRecorder records live start and completion timestamps for
+// local tool calls. Interrupt billing uses these so a cancel can bill
+// work that already started and skip calls that never ran.
+// dispatchIndex identifies the dispatch-order occurrence.
+// RecordComplete may run from multiple tool goroutines; implementations
+// must be concurrency-safe.
+type ToolBillingRecorder interface {
+	RecordStart(dispatchIndex int, startedAt time.Time)
+	RecordComplete(dispatchIndex int, completedAt time.Time)
 }
 
 // GenerateCompactionOptions configures one context compaction call.
@@ -599,17 +605,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
 	batchStart := clockNow(opts.Clock)
-	// Keep completions by occurrence so duplicate IDs cannot collapse them.
-	orderedCompletions := make([]time.Time, 0, len(localCalls))
-	// Keep starts by occurrence. Serial calls may begin after unbilled waits.
-	orderedStarts := make([]time.Time, len(localCalls))
-	onToolStart := func(dispatchIndex int, startedAt time.Time) {
-		orderedStarts[dispatchIndex] = startedAt
-		if opts.OnToolStart != nil {
-			opts.OnToolStart(dispatchIndex, startedAt)
-		}
-	}
-	toolResults := executeTools(
+	toolExecutions := executeTools(
 		ctx,
 		opts.Clock,
 		opts.Tools,
@@ -626,59 +622,42 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 		maxResultBytes,
 		opts.ToolNameAliases,
 		batchStart,
-		onToolStart,
-		opts.OnToolComplete,
-		func(tr fantasy.ToolResultContent, completedAt time.Time) {
-			orderedCompletions = append(orderedCompletions, completedAt)
-			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
-			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
-			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
-			ssePart.CreatedAt = &completedAt
-			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
-		},
+		opts.BillingRecorder,
 	)
+	for _, execution := range toolExecutions {
+		tr := execution.content
+		completedAt := execution.interval.End
+		recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
+		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+		ssePart.CreatedAt = &completedAt
+		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
+		result.content = append(result.content, tr)
+	}
 	if ctx.Err() != nil {
 		return PersistedStep{}, ctx.Err()
-	}
-	for _, tr := range toolResults {
-		result.content = append(result.content, tr)
 	}
 	return PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-		BatchRuntime: billableBatchDuration(
-			batchStart,
-			localCalls,
-			orderedStarts,
-			orderedCompletions,
-			opts.UnbilledToolNames,
-		),
+		BatchRuntime:        billableBatchDuration(toolExecutions, opts.UnbilledToolNames),
 	}, nil
 }
 
 // billableBatchDuration returns the union of billed execution intervals.
-// Concurrent calls start at batchStart; serial calls use their recorded starts.
 // Unbilled tools and gaps between billed intervals do not count.
 func billableBatchDuration(
-	batchStart time.Time,
-	toolCalls []fantasy.ToolCallContent,
-	starts []time.Time,
-	completions []time.Time,
+	executions []toolExecutionResult,
 	unbilledToolNames map[string]bool,
 ) time.Duration {
-	intervals := make([]BilledInterval, 0, len(toolCalls))
-	for i, tc := range toolCalls {
-		if i >= len(completions) {
-			break
-		}
-		if unbilledToolNames[tc.ToolName] || completions[i].IsZero() {
+	intervals := make([]BilledInterval, 0, len(executions))
+	for _, execution := range executions {
+		if unbilledToolNames[execution.content.ToolName] ||
+			execution.interval.Start.IsZero() ||
+			execution.interval.End.IsZero() {
 			continue
 		}
-		start := batchStart
-		if i < len(starts) && !starts[i].IsZero() {
-			start = starts[i]
-		}
-		intervals = append(intervals, BilledInterval{Start: start, End: completions[i]})
+		intervals = append(intervals, execution.interval)
 	}
 	return BilledIntervalsDuration(intervals)
 }
@@ -1142,9 +1121,14 @@ func processStepStream(
 	return result, nil
 }
 
+type toolExecutionResult struct {
+	content  fantasy.ToolResultContent
+	interval BilledInterval
+}
+
 // executeTools runs non-serial calls concurrently, then SerialToolCalls in
-// call order. Results publish in original order after all tools finish;
-// onComplete fires as each tool finishes.
+// call order. Results are returned in original order after all tools finish.
+// recorder, if set, receives live start and completion timestamps.
 func executeTools(
 	ctx context.Context,
 	clock quartz.Clock,
@@ -1161,10 +1145,8 @@ func executeTools(
 	maxResultBytes int,
 	toolNameAliases map[string]string,
 	batchStart time.Time,
-	onStart func(dispatchIndex int, startedAt time.Time),
-	onComplete func(dispatchIndex int, completedAt time.Time),
-	onResult func(fantasy.ToolResultContent, time.Time),
-) []fantasy.ToolResultContent {
+	recorder ToolBillingRecorder,
+) []toolExecutionResult {
 	if len(toolCalls) == 0 {
 		return nil
 	}
@@ -1213,12 +1195,11 @@ func executeTools(
 	}
 	notifyStepToolCallObservers(toolMap, toolNameAliases, observed)
 
-	results := make([]fantasy.ToolResultContent, len(localToolCalls))
-	completedAt := make([]time.Time, len(localToolCalls))
+	executions := make([]toolExecutionResult, len(localToolCalls))
 	runCall := func(i int, tc fantasy.ToolCallContent) {
 		defer func() {
 			if r := recover(); r != nil {
-				results[i] = fantasy.ToolResultContent{
+				executions[i].content = fantasy.ToolResultContent{
 					ToolCallID: tc.ToolCallID,
 					ToolName:   tc.ToolName,
 					Result: fantasy.ToolResultOutputContentError{
@@ -1229,12 +1210,13 @@ func executeTools(
 			// Record when this tool completed (or panicked).
 			// Captured per call so parallel tools get
 			// accurate individual completion times.
-			completedAt[i] = clockNow(clock)
-			if onComplete != nil {
-				onComplete(i, completedAt[i])
+			completedAt := clockNow(clock)
+			executions[i].interval.End = completedAt
+			if recorder != nil {
+				recorder.RecordComplete(i, completedAt)
 			}
 		}()
-		results[i] = executeSingleTool(
+		executions[i].content = executeSingleTool(
 			ctx,
 			toolMap,
 			tc,
@@ -1260,8 +1242,9 @@ func executeTools(
 			serialIndexes = append(serialIndexes, i)
 			continue
 		}
-		if onStart != nil {
-			onStart(i, batchStart)
+		executions[i].interval.Start = batchStart
+		if recorder != nil {
+			recorder.RecordStart(i, batchStart)
 		}
 		wg.Add(1)
 		go func() {
@@ -1272,30 +1255,25 @@ func executeTools(
 	wg.Wait()
 
 	// Reconcile concurrent results before serial tools inspect shared state.
-	settled := make([]fantasy.ToolResultContent, 0, len(results))
-	for i := range results {
+	settled := make([]fantasy.ToolResultContent, 0, len(executions))
+	for i := range executions {
 		if !slices.Contains(serialIndexes, i) {
-			settled = append(settled, results[i])
+			settled = append(settled, executions[i].content)
 		}
 	}
 	notifyStepToolResultObservers(toolMap, toolNameAliases, localToolCalls, observed, settled)
 
 	for _, i := range serialIndexes {
 		// Stamp serial calls at launch, not batch start.
-		if onStart != nil {
-			onStart(i, clockNow(clock))
+		startedAt := clockNow(clock)
+		executions[i].interval.Start = startedAt
+		if recorder != nil {
+			recorder.RecordStart(i, startedAt)
 		}
 		runCall(i, localToolCalls[i])
 	}
 
-	// Publish results in the original tool-call order so SSE
-	// subscribers see a deterministic event sequence.
-	if onResult != nil {
-		for i, tr := range results {
-			onResult(tr, completedAt[i])
-		}
-	}
-	return results
+	return executions
 }
 
 // applyExclusiveToolPolicy checks whether toolCalls violate the
