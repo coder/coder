@@ -1246,6 +1246,8 @@ display_name: [broken
 				"templates",
 				"push",
 				templateName,
+				"--display-name", "CLI Override",
+				"--icon", "/tmp/cli.png",
 				"--directory", source,
 				"--test.provisioner", string(database.ProvisionerTypeEcho),
 			}

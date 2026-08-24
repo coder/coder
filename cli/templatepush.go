@@ -92,52 +92,49 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
 			var frontMatter map[string]any
 			var description string
-			content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
-			if err != nil {
-				if !errors.Is(err, os.ErrNotExist) {
-					cliui.Warn(inv.Stderr, "Failed to read README.md: "+err.Error())
-				}
-				if displayName == "" || icon == "" {
-					cliui.Warn(inv.Stderr, "No display name or icon provided via flag and README.md front matter could not be read. The template will be created without a display name or icon.")
-				}
-				if createTemplate {
-					return xerrors.New("cannot create a new template without a display name or icon. Please provide them via flag or in README.md front matter")
-				}
-			} else {
-				parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
+			if !uploadFlags.stdin(inv) {
+				content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
 				if err != nil {
-					return xerrors.Errorf("parse README.md front matter: %w", err)
-				}
-				frontMatter = parsed.FrontMatter
-
-				if displayName == "" {
-					displayName, err = frontMatterString(frontMatter, "display_name")
+					if !errors.Is(err, os.ErrNotExist) {
+						cliui.Warn(inv.Stderr, "Failed to read README.md: "+err.Error())
+					}
+				} else {
+					parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
 					if err != nil {
-						return err
-					}
-					if displayName != template.DisplayName {
-						cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
-					}
-				}
+						cliui.Warn(inv.Stderr, "Ignoring README.md front matter: "+err.Error())
+					} else {
+						frontMatter = parsed.FrontMatter
 
-				if icon == "" {
-					icon, err = frontMatterString(frontMatter, "icon")
-					if err != nil {
-						return err
-					}
-					if icon != template.Icon {
-						cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
-					}
-				}
+						if displayName == "" {
+							displayName, err = frontMatterString(frontMatter, "display_name")
+							if err != nil {
+								return err
+							}
+							if !createTemplate && displayName != template.DisplayName {
+								cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
+							}
+						}
 
-				description, err = frontMatterString(frontMatter, "description")
-				if err != nil {
-					return err
-				}
+						if icon == "" {
+							icon, err = frontMatterString(frontMatter, "icon")
+							if err != nil {
+								return err
+							}
+							if !createTemplate && icon != template.Icon {
+								cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
+							}
+						}
 
-				if displayName != "" {
-					if err := codersdk.DisplayNameValid(displayName); err != nil {
-						return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
+						description, err = frontMatterString(frontMatter, "description")
+						if err != nil {
+							return err
+						}
+					}
+
+					if displayName != "" {
+						if err := codersdk.DisplayNameValid(displayName); err != nil {
+							return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
+						}
 					}
 				}
 			}
@@ -258,6 +255,7 @@ func (r *RootCmd) templatePush() *serpent.Command {
 							"Developers can provision a workspace with this template using:")+"\n")
 			} else {
 				meta := codersdk.UpdateTemplateMeta{
+					Name:        &name,
 					DisplayName: &displayName,
 					Description: &description,
 					Icon:        &icon,
