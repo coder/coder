@@ -604,6 +604,124 @@ func insertAssistantMessage(
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 
+	t.Run("NonDefaultOrgDoesNotUseDeploymentDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from a non-default org",
+				},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "No default chat model config is configured.", sdkErr.Message)
+	})
+
+	t.Run("NonDefaultOrgUsesLocalDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		deploymentDefault := createChatModelConfig(t, client)
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		localDefault := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: org.ID,
+			IsDefault:      true,
+		})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "hello with a local default",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, localDefault.ID, chat.LastModelConfigID)
+		require.NotEqual(t, deploymentDefault.ID, chat.LastModelConfigID)
+	})
+
+	t.Run("RejectsExplicitForeignModel", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		foreignModel := createChatModelConfig(t, client)
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		_, err := client.UpdateAIProvider(ctx, foreignModel.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			ModelConfigID:  &foreignModel.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "reject the foreign model",
+			}},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Model config does not belong to the specified organization.", sdkErr.Message)
+	})
+
+	t.Run("ForeignPersonalOverrideUsesLocalDefault", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		foreignModel := createChatModelConfig(t, client)
+		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		localDefault := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: foreignModel.AIProviderID, Valid: true},
+			OrganizationID: org.ID,
+			IsDefault:      true,
+		})
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		err := client.UpdateChatPersonalModelOverridesAdminSettings(ctx, codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest{
+			AllowUsers: true,
+		})
+		require.NoError(t, err)
+		err = db.UpsertUserChatPersonalModelOverride(dbauthz.AsSystemRestricted(ctx), database.UpsertUserChatPersonalModelOverrideParams{
+			UserID: member.ID,
+			Key:    chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot),
+			Value:  "model:" + foreignModel.ID.String(),
+		})
+		require.NoError(t, err)
+
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: org.ID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "ignore the foreign personal override",
+			}},
+		})
+		require.NoError(t, err)
+		require.Equal(t, localDefault.ID, chat.LastModelConfigID)
+		require.NotEqual(t, foreignModel.ID, chat.LastModelConfigID)
+	})
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -675,7 +793,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		defaultOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: firstUser.OrganizationID,
@@ -683,6 +801,11 @@ func TestPostChats(t *testing.T) {
 		})
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -707,9 +830,14 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
 			OrganizationID: secondOrg.ID,
 			Enabled:        true,
@@ -885,7 +1013,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		deploymentDefault := createChatModelConfig(t, client)
 
 		thirdOrg := dbgen.Organization(t, db, database.Organization{})
 		thirdOrgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
@@ -894,6 +1022,11 @@ func TestPostChats(t *testing.T) {
 		})
 
 		secondOrg := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: deploymentDefault.AIProviderID, Valid: true},
+			OrganizationID: secondOrg.ID,
+			IsDefault:      true,
+		})
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -2552,6 +2685,40 @@ func TestListChatModels(t *testing.T) {
 		}
 		require.NotNil(t, googleProvider)
 		require.True(t, googleProvider.Available)
+	})
+
+	t.Run("IncludesOnlyDefaultOrganizationModels", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider := createAIProviderForTest(t, client, "openai-compat", "test-api-key")
+		contextLimit := int64(4096)
+		defaultConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &provider.ID,
+			Model:        "default-" + uuid.NewString(),
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+		otherOrganization := dbgen.Organization(t, db, database.Organization{IsDefault: false})
+		otherConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "other-" + uuid.NewString(),
+			OrganizationID: otherOrganization.ID,
+		})
+
+		models, err := client.ListChatModels(ctx)
+		require.NoError(t, err)
+
+		var catalogModels []string
+		for _, availableProvider := range models.Providers {
+			for _, model := range availableProvider.Models {
+				catalogModels = append(catalogModels, model.Model)
+			}
+		}
+		require.Contains(t, catalogModels, defaultConfig.Model)
+		require.NotContains(t, catalogModels, otherConfig.Model)
 	})
 
 	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
@@ -4484,6 +4651,27 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.Equal(t, enabledConfig.ID, memberConfigs[0].ID)
 	})
 
+	t.Run("ManagementListExcludesOtherOrganizations", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: otherOrg.ID,
+			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+		})
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+		require.Contains(t, configs, defaultConfig)
+		for _, config := range configs {
+			require.NotEqual(t, otherConfig.ID, config.ID)
+		}
+	})
+
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
@@ -4620,6 +4808,90 @@ func TestCreateChatModelConfig(t *testing.T) {
 			}
 		}
 		require.Equal(t, []uuid.UUID{claimed.ID}, defaults)
+	})
+
+	t.Run("SuccessCustomDeploymentConfigRole", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// dbauthz rejects site-permission roles on the authorized
+		// querier; seed the role through the raw store, as persisted
+		// site custom roles exist in production deployments.
+		rawDB, pubsub := dbtestutil.NewDB(t)
+		client := newChatClient(t, func(opts *coderdtest.Options) {
+			opts.Database = rawDB
+			opts.Pubsub = pubsub
+		})
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		nonDefaultOrg := dbgen.Organization(t, rawDB, database.Organization{IsDefault: false})
+
+		// A custom site role holding only deployment-config permissions
+		// passes the route gate but cannot read the default organization
+		// object; the default-org resolution is an internal step and must
+		// not require caller-held organization read. The owning org is a
+		// label on the role; the site permissions apply deployment-wide.
+		role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+			Name:           testutil.GetRandomName(t),
+			DisplayName:    "Deployment Config Admin",
+			OrganizationID: uuid.NullUUID{UUID: nonDefaultOrg.ID, Valid: true},
+			SitePermissions: database.CustomRolePermissions{
+				{
+					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					Action:       policy.ActionRead,
+				},
+				{
+					ResourceType: rbac.ResourceDeploymentConfig.Type,
+					Action:       policy.ActionUpdate,
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		aiProvider := createAIProviderForTest(t, client, "openai", "test-api-key")
+		// An existing deployment default keeps the create off the
+		// self-promotion path, which is a separate system-scoped
+		// authorization requirement.
+		_ = createChatModelConfig(t, client)
+
+		// A member of a non-default org cannot read the default
+		// organization object; the implicit organization-member role
+		// grants organization read only within its own org.
+		adminClientRaw, adminUser := coderdtest.CreateAnotherUser(
+			t,
+			client.Client,
+			nonDefaultOrg.ID,
+		)
+		_, err = client.UpdateOrganizationMemberRoles(
+			ctx,
+			nonDefaultOrg.ID,
+			adminUser.ID.String(),
+			codersdk.UpdateRoles{Roles: []string{role.Name}},
+		)
+		require.NoError(t, err)
+		adminClient := codersdk.NewExperimentalClient(adminClientRaw)
+
+		contextLimit := int64(4096)
+		modelConfig, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
+			AIProviderID: &aiProvider.ID,
+			Model:        "gpt-4o-mini",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		defaultOrg, err := rawDB.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		row, err := rawDB.GetChatModelConfigByID(ctx, modelConfig.ID)
+		require.NoError(t, err)
+		require.Equal(t, defaultOrg.ID, row.OrganizationID)
+		require.False(t, row.IsDefault)
+		require.Equal(
+			t,
+			database.ChatACL{
+				defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+			row.GroupACL,
+		)
+		require.Equal(t, database.ChatACL{}, row.UserACL)
 	})
 
 	t.Run("ReasoningEffortStored", func(t *testing.T) {
@@ -4923,6 +5195,83 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
 		require.Len(t, configs, 1)
+	})
+
+	t.Run("RejectsOtherOrganizationConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: otherOrg.ID,
+			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+		})
+
+		_, err := client.UpdateChatModelConfig(ctx, otherConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			DisplayName: "not allowed",
+		})
+		requireSDKError(t, err, http.StatusNotFound)
+
+		stored, err := db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), otherConfig.ID)
+		require.NoError(t, err)
+		require.NotEqual(t, "not allowed", stored.DisplayName)
+	})
+
+	t.Run("SoleConfigRemainsDefaultWhenDemoted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		updated, err := client.UpdateChatModelConfig(ctx, modelConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(false),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.IsDefault)
+
+		defaultConfig, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, modelConfig.ID, defaultConfig.ID)
+	})
+
+	t.Run("PromotionLeavesOtherOrganizationDefaultUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		candidateConfig := createAdditionalChatModelConfig(
+			t,
+			client,
+			coderdtest.TestChatProviderOpenAICompat,
+			"promotion-candidate",
+		)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherDefault := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "other-org-default-" + uuid.NewString(),
+			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+			OrganizationID: otherOrg.ID,
+			IsDefault:      true,
+		})
+
+		updated, err := client.UpdateChatModelConfig(ctx, candidateConfig.ID, codersdk.UpdateChatModelConfigRequest{
+			IsDefault: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.IsDefault)
+
+		orgDefault, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, candidateConfig.ID, orgDefault.ID)
+		unchangedOtherDefault, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), otherOrg.ID)
+		require.NoError(t, err)
+		require.Equal(t, otherDefault.ID, unchangedOtherDefault.ID)
 	})
 
 	t.Run("UnchangedProviderWithoutAIProviderID", func(t *testing.T) {
@@ -5504,6 +5853,57 @@ func TestDeleteChatModelConfig(t *testing.T) {
 		for _, config := range configs {
 			require.NotEqual(t, modelConfig.ID, config.ID)
 		}
+	})
+
+	t.Run("RejectsOtherOrganizationConfig", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			OrganizationID: otherOrg.ID,
+			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+		})
+
+		err := client.DeleteChatModelConfig(ctx, otherConfig.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+		_, err = db.GetChatModelConfigByID(dbauthz.AsSystemRestricted(ctx), otherConfig.ID)
+		require.NoError(t, err)
+	})
+
+	t.Run("DeletionLeavesOtherOrganizationDefaultUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		defaultConfig := createChatModelConfig(t, client)
+		candidateConfig := createAdditionalChatModelConfig(
+			t,
+			client,
+			coderdtest.TestChatProviderOpenAICompat,
+			"delete-candidate",
+		)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		otherDefault := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Model:          "other-org-default-" + uuid.NewString(),
+			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
+			OrganizationID: otherOrg.ID,
+			IsDefault:      true,
+		})
+
+		err := client.DeleteChatModelConfig(ctx, defaultConfig.ID)
+		require.NoError(t, err)
+
+		orgDefault, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), firstUser.OrganizationID)
+		require.NoError(t, err)
+		require.Equal(t, candidateConfig.ID, orgDefault.ID)
+		unchangedOtherDefault, err := db.GetDefaultChatModelConfig(dbauthz.AsSystemRestricted(ctx), otherOrg.ID)
+		require.NoError(t, err)
+		require.Equal(t, otherDefault.ID, unchangedOtherDefault.ID)
 	})
 
 	// Deleting the default must not promote a config whose provider is
@@ -14414,6 +14814,12 @@ func TestChatModelOverrides(t *testing.T) {
 				coderdtest.TestChatProviderOpenAICompat,
 				"gpt-4.1-disabled-"+string(setting.context),
 			)
+			localOrg := dbgen.Organization(t, db, database.Organization{})
+			localModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+				OrganizationID: localOrg.ID,
+				AIProviderID:   uuid.NullUUID{UUID: openAIModel.AIProviderID, Valid: true},
+				Enabled:        true,
+			})
 			memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 			memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -14578,6 +14984,14 @@ func TestChatModelOverrides(t *testing.T) {
 				unknownModelID := uuid.New()
 
 				err := putOverride(ctx, adminClient, setting.context, unknownModelID.String())
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
+			})
+
+			t.Run("ChatOrgModelReturns400", func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				err := putOverride(ctx, adminClient, setting.context, localModel.ID.String())
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "Invalid model_config_id.", sdkErr.Message)
 			})
@@ -14747,6 +15161,12 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, provider.ID)
 	require.NotEqual(t, uuid.Nil, disabledProvider.ID)
 
+	localOrg := dbgen.Organization(t, db, database.Organization{})
+	localModelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: localOrg.ID,
+		AIProviderID:   uuid.NullUUID{UUID: modelProvider.ID, Valid: true},
+		Enabled:        true,
+	})
 	personalOverride := func(
 		resp codersdk.UserChatPersonalModelOverridesResponse,
 		overrideContext codersdk.ChatPersonalModelOverrideContext,
@@ -15117,6 +15537,19 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 				rawAfter := getRawFor(tc.userID, codersdk.ChatPersonalModelOverrideContextGeneral)
 				require.Equal(t, rawBefore, rawAfter)
 			})
+		}
+	})
+
+	t.Run("PUTModelRejectsChatOrgModel", func(t *testing.T) {
+		for _, overrideContext := range contexts {
+			rawBefore := getRaw(overrideContext)
+			err := memberClient.UpdateUserChatPersonalModelOverride(ctx, overrideContext, codersdk.UpdateUserChatPersonalModelOverrideRequest{
+				Mode:          codersdk.ChatPersonalModelOverrideModeModel,
+				ModelConfigID: localModelConfig.ID.String(),
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Contains(t, sdkErr.Message, "model config not found or disabled")
+			require.Equal(t, rawBefore, getRaw(overrideContext))
 		}
 	})
 

@@ -1080,8 +1080,8 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("GetDefaultChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
-		dbm.EXPECT().GetDefaultChatModelConfig(gomock.Any()).Return(config, nil).AnyTimes()
-		check.Asserts().Returns(config)
+		dbm.EXPECT().GetDefaultChatModelConfig(gomock.Any(), config.OrganizationID).Return(config, nil).AnyTimes()
+		check.Args(config.OrganizationID).Asserts().Returns(config)
 	}))
 	s.Run("GetChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
@@ -1201,6 +1201,14 @@ func (s *MethodTestSuite) TestChats() {
 		rowB := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsRow{})
 		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{rowA, rowB}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsRow{rowA, rowB})
+	}))
+
+	s.Run("GetEnabledChatModelConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		rowA := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{})
+		rowB := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{})
+		dbm.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), orgID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{rowA, rowB}, nil).AnyTimes()
+		check.Args(orgID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsByOrganizationRow{rowA, rowB})
 	}))
 
 	s.Run("GetStaleChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1527,8 +1535,9 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(updatedChat)
 	}))
 	s.Run("UnsetDefaultChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UnsetDefaultChatModelConfigs(gomock.Any()).Return(nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		orgID := uuid.New()
+		dbm.EXPECT().UnsetDefaultChatModelConfigs(gomock.Any(), orgID).Return(nil).AnyTimes()
+		check.Args(orgID).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatDiffStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -7620,10 +7629,8 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
-		// Pin the complete ResourceUser action set: read_personal (user
-		// chat custom prompts) only. Token refresh persistence uses the
-		// per-user AsChatdTokenOwner subject, so a future site-wide
-		// personal-write grant fails here.
+		// Pin the complete ResourceUser action set: read_personal only.
+		// Token refresh persistence uses the per-user AsChatdTokenOwner subject.
 		for _, action := range rbac.ResourceUser.AvailableActions() {
 			err := auth.Authorize(ctx, actor, action, rbac.ResourceUser)
 			if action == policy.ActionReadPersonal {
@@ -7632,6 +7639,10 @@ func TestAsChatd(t *testing.T) {
 				require.Error(t, err, "user %s should be denied", action)
 			}
 		}
+
+		// Organization read is temporarily needed for the pre-cutover default-org fallback.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
+		require.NoError(t, err, "organization read should be allowed")
 	})
 
 	t.Run("DeniedActions", func(t *testing.T) {
@@ -7652,11 +7663,6 @@ func TestAsChatd(t *testing.T) {
 		// Cannot access provisioner daemons.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceProvisionerDaemon)
 		require.Error(t, err, "provisioner daemon read should be denied")
-
-		// Cannot access organizations; MCP server config resolution is
-		// strictly org-scoped and needs no organization reads.
-		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
-		require.Error(t, err, "organization read should be denied")
 	})
 }
 

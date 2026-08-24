@@ -64,7 +64,9 @@ func (p *Server) resolveCompactionOverrideConfig(
 		compactionOverrideContext,
 		raw,
 		chat.OwnerID,
-		p.resolveModelConfigAndNormalizedProvider,
+		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
+			return p.resolveModelConfigForOrganization(ctx, chat.OrganizationID, modelConfigID)
+		},
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
 		},

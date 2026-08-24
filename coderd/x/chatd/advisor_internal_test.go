@@ -210,6 +210,36 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 		requireChatModel(t, p, codersdk.AdvisorConfig{ModelConfigID: uuid.New()})
 	})
 
+	t.Run("ForeignOrgConfigUsesChatModel", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		configID := uuid.New()
+		foreignOrgID := uuid.New()
+		chatOrgID := uuid.New()
+		store := &advisorOverrideStubStore{
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				return database.ChatModelConfig{
+					ID:             configID,
+					OrganizationID: foreignOrgID,
+					Enabled:        true,
+				}, nil
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		resolved, ok, err := p.resolveAdvisorModelOverride(
+			ctx,
+			database.Chat{OrganizationID: chatOrgID},
+			codersdk.AdvisorConfig{ModelConfigID: configID},
+			advisorTestMaxOutputTokens,
+			modelBuildOptions{},
+			logger,
+		)
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.False(t, resolved.model.Valid())
+	})
+
 	t.Run("InvalidOptionsJSONUsesChatModel", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
