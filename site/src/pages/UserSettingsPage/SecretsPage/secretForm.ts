@@ -64,17 +64,65 @@ export const secretsFileFormatFromFilename = (
 };
 
 export const getCreateSecretRequiredFieldErrors = (
-	values: Pick<SecretFormValues, "name" | "value">,
+	values: Pick<SecretFormValues, "name" | "value" | "env_name">,
+	filePathEnabled = true,
 ): SecretFieldErrors => {
 	const errors: SecretFieldErrors = {};
 	if (values.name.trim() === "") {
 		errors.name = "Name is required.";
+	}
+	if (!filePathEnabled && values.env_name.trim() === "") {
+		errors.env_name =
+			"Environment variable is required when file path delivery is disabled.";
 	}
 	if (values.value === "") {
 		errors.value = "Value is required.";
 	}
 	return errors;
 };
+
+type SecretTypeLabel = "env var" | "file" | "env var + file" | "not injected";
+
+export interface SecretInjectionSummary {
+	injectsEnv: boolean;
+	injectsFile: boolean;
+	hasBlockedFilePath: boolean;
+	canEnable: boolean;
+	typeLabel: SecretTypeLabel;
+}
+
+export const getSecretInjectionSummary = (
+	secret: Pick<UserSecret, "env_name" | "file_path">,
+	filePathEnabled: boolean,
+): SecretInjectionSummary => {
+	const injectsEnv = secret.env_name !== "";
+	const hasFilePath = secret.file_path !== "";
+	const injectsFile = hasFilePath && filePathEnabled;
+
+	return {
+		injectsEnv,
+		injectsFile,
+		hasBlockedFilePath: hasFilePath && !filePathEnabled,
+		canEnable: injectsEnv || injectsFile,
+		typeLabel: getSecretTypeLabel(injectsEnv, injectsFile),
+	};
+};
+
+function getSecretTypeLabel(
+	injectsEnv: boolean,
+	injectsFile: boolean,
+): SecretTypeLabel {
+	if (injectsEnv && injectsFile) {
+		return "env var + file";
+	}
+	if (injectsEnv) {
+		return "env var";
+	}
+	if (injectsFile) {
+		return "file";
+	}
+	return "not injected";
+}
 
 export const buildCreateUserSecretRequest = (
 	values: SecretFormValues,
@@ -90,6 +138,7 @@ export const buildCreateUserSecretRequest = (
 
 type BuildUpdateUserSecretRequestOptions = {
 	clearValue?: boolean;
+	filePathEnabled?: boolean;
 };
 
 export const buildUpdateUserSecretRequest = (
@@ -97,6 +146,14 @@ export const buildUpdateUserSecretRequest = (
 	values: SecretFormValues,
 	options: BuildUpdateUserSecretRequestOptions = {},
 ): UpdateUserSecretRequest => {
+	const removesBlockedOnlyTarget =
+		options.filePathEnabled === false &&
+		secret.enabled &&
+		secret.file_path !== "" &&
+		values.file_path === "" &&
+		values.file_path !== secret.file_path &&
+		values.env_name === "";
+
 	return {
 		...(options.clearValue
 			? { value: "" }
@@ -112,6 +169,7 @@ export const buildUpdateUserSecretRequest = (
 		...(values.file_path !== secret.file_path
 			? { file_path: values.file_path }
 			: {}),
+		...(removesBlockedOnlyTarget ? { enabled: false } : {}),
 	};
 };
 
