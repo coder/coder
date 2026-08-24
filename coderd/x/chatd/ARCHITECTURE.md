@@ -939,10 +939,9 @@ The interrupt goroutine is responsible for handling interrupts. It is spawned wh
 The goroutine does the following in order:
 
 1. It fetches the generation attempt number from the database.
-2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer), reading the episode's billing stamps just before closing.
+2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
-4. It converts the buffered parts and synthesizes tool cancellation rows. Started, billable local tools contribute the union of their partial execution intervals; unstarted or excluded tools do not.
-5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
+4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 #### Dynamic tools timeout goroutine
 
