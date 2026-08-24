@@ -6,6 +6,9 @@ import (
 	"regexp"
 	"text/template"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 )
 
@@ -116,14 +119,14 @@ var agentCountPattern = regexp.MustCompile(
 // coder_agent resource is found; the builder only supports single-agent
 // templates. The input is expected to be rendered output from our own
 // curated base templates, not arbitrary user HCL.
-func ExtractAgentResourceName(hcl []byte) (string, error) {
-	matches := agentResourcePattern.FindAllSubmatch(hcl, -1)
+func ExtractAgentResourceName(hclSrc []byte) (string, error) {
+	matches := agentResourcePattern.FindAllSubmatch(hclSrc, -1)
 	switch len(matches) {
 	case 0:
 		return "", xerrors.New("no coder_agent resource found in rendered template")
 	case 1:
 		name := string(matches[0][1])
-		if agentCountPattern.Match(hcl) {
+		if agentCountPattern.Match(hclSrc) {
 			name += "[0]"
 		}
 		return name, nil
@@ -137,78 +140,147 @@ func ExtractAgentResourceName(hcl []byte) (string, error) {
 	}
 }
 
-// moduleBlockPattern matches a `module "<name>"` block declaration anchored to
-// the start of a line in HCL.
-var moduleBlockPattern = regexp.MustCompile(`(?m)^[ \t]*module[ \t]+"([^"]+)"`)
+// parseHCLBody parses rendered HCL from one of our curated base templates and
+// returns its top-level body. The input is expected to be valid HCL produced by
+// our own templates; on a parse error it returns nil so callers fail safe (they
+// yield an empty result, which trips the NotEmpty/match assertions in the tests
+// that consume them rather than passing silently).
+func parseHCLBody(hclSrc []byte) *hclsyntax.Body {
+	file, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos)
+	if diags.HasErrors() || file == nil {
+		return nil
+	}
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+	return body
+}
 
-// ExtractModuleNames returns the labels of every module block declared in
-// rendered HCL, in declaration order. Matching is anchored to the start of a
-// line so commented-out references or string literals are ignored. The input
+// ExtractModuleNames returns the labels of every top-level `module` block in
+// rendered HCL, in declaration order. Parsing with hclsyntax means commented-out
+// blocks and module-like text inside strings or heredocs are ignored. The input
 // is expected to be rendered output from our own curated base templates, not
 // arbitrary user HCL.
-func ExtractModuleNames(hcl []byte) []string {
-	matches := moduleBlockPattern.FindAllSubmatch(hcl, -1)
-	names := make([]string, 0, len(matches))
-	for _, m := range matches {
-		names = append(names, string(m[1]))
+func ExtractModuleNames(hclSrc []byte) []string {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
+		return nil
+	}
+	var names []string
+	for _, block := range body.Blocks {
+		if block.Type == "module" && len(block.Labels) > 0 {
+			names = append(names, block.Labels[0])
+		}
 	}
 	return names
 }
 
-// coderParameterOpenPattern matches the opening of a `data "coder_parameter"
-// "<name>"` block and captures the parameter name.
-var coderParameterOpenPattern = regexp.MustCompile(`data\s+"coder_parameter"\s+"([^"]+)"\s*\{`)
-
-// coderParameterOptionValuePattern matches the `value = "<v>"` assignment inside
-// an `option { ... }` block. Option blocks in our curated bases contain no
-// nested braces, so [^{}] keeps each match within a single option.
-var coderParameterOptionValuePattern = regexp.MustCompile(`(?s)option\s*\{[^{}]*?\bvalue\s*=\s*"([^"]+)"`)
-
-// ExtractParameterOptionValues returns the value of every option block declared
-// inside the `data "coder_parameter" "<paramName>"` block in rendered HCL, in
-// declaration order. It scopes to that one parameter by scanning from its
-// opening brace to the matching close, so option values from other parameters
-// are not included. Returns nil if the parameter is absent. The input is
-// expected to be rendered output from our own curated base templates, not
-// arbitrary user HCL.
-func ExtractParameterOptionValues(hcl []byte, paramName string) []string {
-	start := -1
-	for _, m := range coderParameterOpenPattern.FindAllSubmatchIndex(hcl, -1) {
-		// m[2]:m[3] bounds the captured name; m[1] is just past the opening brace.
-		if string(hcl[m[2]:m[3]]) == paramName {
-			start = m[1] - 1 // index of the opening '{'
-			break
-		}
-	}
-	if start == -1 {
+// ExtractParameterOptionValues returns the value of every `option` block inside
+// the `data "coder_parameter" "<paramName>"` block in rendered HCL, in
+// declaration order. Returns nil if the parameter is absent. The input is
+// expected to be rendered output from our own curated base templates.
+func ExtractParameterOptionValues(hclSrc []byte, paramName string) []string {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
 		return nil
 	}
-
-	// Walk from the parameter's opening brace to its matching close, tracking
-	// nesting depth, so we only read option values that belong to it.
-	depth := 0
-	end := -1
-scan:
-	for i := start; i < len(hcl); i++ {
-		switch hcl[i] {
-		case '{':
-			depth++
-		case '}':
-			depth--
-			if depth == 0 {
-				end = i
-				break scan
+	var values []string
+	for _, block := range body.Blocks {
+		if block.Type != "data" || len(block.Labels) != 2 ||
+			block.Labels[0] != "coder_parameter" || block.Labels[1] != paramName {
+			continue
+		}
+		for _, option := range block.Body.Blocks {
+			if option.Type != "option" {
+				continue
+			}
+			if attr, ok := option.Body.Attributes["value"]; ok {
+				if s, ok := staticString(attr.Expr); ok {
+					values = append(values, s)
+				}
 			}
 		}
 	}
-	if end == -1 {
+	return values
+}
+
+// ExtractPresetParameterValues returns, for every `data "coder_workspace_preset"`
+// block in rendered HCL, the string list assigned to paramName in its
+// `parameters` object (e.g. "languages"). A value written as jsonencode([...])
+// is unwrapped. Presets that do not set the key are skipped. The input is
+// expected to be rendered output from our own curated base templates.
+func ExtractPresetParameterValues(hclSrc []byte, paramName string) [][]string {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
 		return nil
 	}
-
-	matches := coderParameterOptionValuePattern.FindAllSubmatch(hcl[start:end+1], -1)
-	values := make([]string, 0, len(matches))
-	for _, m := range matches {
-		values = append(values, string(m[1]))
+	var out [][]string
+	for _, block := range body.Blocks {
+		if block.Type != "data" || len(block.Labels) < 1 ||
+			block.Labels[0] != "coder_workspace_preset" {
+			continue
+		}
+		params, ok := block.Body.Attributes["parameters"]
+		if !ok {
+			continue
+		}
+		pairs, diags := hcl.ExprMap(params.Expr)
+		if diags.HasErrors() {
+			continue
+		}
+		for _, pair := range pairs {
+			if exprKeyString(pair.Key) != paramName {
+				continue
+			}
+			if list, ok := staticStringList(pair.Value); ok {
+				out = append(out, list)
+			}
+		}
 	}
-	return values
+	return out
+}
+
+// staticString evaluates an expression expected to be a constant string (no
+// variables or functions) and reports whether it produced one.
+func staticString(expr hcl.Expression) (string, bool) {
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() || val.IsNull() || val.Type() != cty.String {
+		return "", false
+	}
+	return val.AsString(), true
+}
+
+// staticStringList evaluates an expression expected to be a constant list of
+// strings, unwrapping a single jsonencode(...) call, and reports whether it
+// produced one.
+func staticStringList(expr hcl.Expression) ([]string, bool) {
+	if call, ok := expr.(*hclsyntax.FunctionCallExpr); ok && call.Name == "jsonencode" && len(call.Args) == 1 {
+		expr = call.Args[0]
+	}
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() || val.IsNull() || !val.CanIterateElements() {
+		return nil, false
+	}
+	out := make([]string, 0, val.LengthInt())
+	for it := val.ElementIterator(); it.Next(); {
+		_, ev := it.Element()
+		if ev.Type() != cty.String {
+			return nil, false
+		}
+		out = append(out, ev.AsString())
+	}
+	return out, true
+}
+
+// exprKeyString returns the string key of an object-construction key
+// expression, handling bare identifier keys (e.g. `languages = ...`).
+func exprKeyString(key hcl.Expression) string {
+	if kw := hcl.ExprAsKeyword(key); kw != "" {
+		return kw
+	}
+	if val, diags := key.Value(nil); !diags.HasErrors() && val.Type() == cty.String {
+		return val.AsString()
+	}
+	return ""
 }

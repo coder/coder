@@ -633,6 +633,62 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 
 	require.ElementsMatch(t, selectorValues, dispatchNames,
 		"quickstart languages selector options must match the install script's has_language branches")
+
+	// CRF-25: the workspace presets declare `languages` a third time. Assert
+	// each preset's languages are a subset of the selector options, so a preset
+	// can never offer a value the selector and install script do not support.
+	presetLangs := templatebuilder.ExtractPresetParameterValues(mainTF, "languages")
+	require.NotEmpty(t, presetLangs, "expected the quickstart presets to set languages")
+	for i, langs := range presetLangs {
+		require.NotEmpty(t, langs, "preset #%d set an empty languages list", i)
+		require.Subset(t, selectorValues, langs,
+			"preset #%d languages %v must be a subset of selector options %v", i, langs, selectorValues)
+	}
+}
+
+// TestExtractHCLHelpers exercises the HCL extraction helpers on crafted input
+// with the edge cases the previous regex/brace-scan approach mishandled: braces
+// inside a string, and a commented-out option block.
+func TestExtractHCLHelpers(t *testing.T) {
+	t.Parallel()
+
+	src := []byte(`
+data "coder_parameter" "languages" {
+  description = "Pick languages { with braces } in prose"
+  option {
+    name  = "Python"
+    value = "python"
+  }
+  # option {
+  #   name  = "Commented"
+  #   value = "commented"
+  # }
+  option {
+    name  = "Go"
+    value = "go"
+  }
+}
+
+module "git-clone" {
+  source = "registry.coder.com/coder/git-clone/coder"
+}
+
+data "coder_workspace_preset" "web" {
+  parameters = {
+    languages = jsonencode(["python", "go"])
+    git_repo  = ""
+  }
+}
+`)
+
+	require.Equal(t, []string{"python", "go"},
+		templatebuilder.ExtractParameterOptionValues(src, "languages"),
+		"must skip the commented option and ignore braces inside the description string")
+	require.Equal(t, []string{"git-clone"}, templatebuilder.ExtractModuleNames(src))
+	require.Equal(t, [][]string{{"python", "go"}},
+		templatebuilder.ExtractPresetParameterValues(src, "languages"),
+		"must unwrap jsonencode(...) in preset parameters")
+	require.Nil(t, templatebuilder.ExtractParameterOptionValues(src, "nonexistent"))
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.
