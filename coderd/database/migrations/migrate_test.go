@@ -2583,7 +2583,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 		toolMsg.ID, modelOnly.ID, deletedMsg.ID)
 }
 
-func TestMigration000580ChatSearchEnglishConfigDown(t *testing.T) {
+func TestMigration000585ChatSearchEnglishConfigDown(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -2643,7 +2643,7 @@ func TestMigration000580ChatSearchEnglishConfigDown(t *testing.T) {
 	).Scan(&revisionBefore)
 	require.NoError(t, err)
 
-	downSQL, err := os.ReadFile("000580_chat_search_english_config.down.sql")
+	downSQL, err := os.ReadFile("000585_chat_search_english_config.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
