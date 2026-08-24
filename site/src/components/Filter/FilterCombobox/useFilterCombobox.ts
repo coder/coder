@@ -344,8 +344,9 @@ export const useFilterCombobox = ({
 	const typeaheadActive = activeCategoryKey === null && isBrowsing;
 	const hasTypeaheadQuery = typeaheadActive && inputValue.trim().length > 0;
 	const showSearchResults = hasTypeaheadQuery && searchResults.length > 0;
-	// Spin only until the first rows of a source arrive; once either source has
-	// resolved rows, render them instead of the spinner.
+	// Spin while either source is still fetching without rows for its own
+	// section, so an in-flight query never leaves an empty gap. The other
+	// section's rows keep rendering above the spinner.
 	const typeaheadLoading =
 		hasTypeaheadQuery &&
 		((valueSuggestionsLoading && valueSuggestions.length === 0) ||

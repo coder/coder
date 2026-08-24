@@ -113,7 +113,7 @@ export function FilterCombobox({
 										size="md"
 										data-slot="combobox-chip-search"
 										className="font-medium"
-										aria-hidden
+										aria-label={`Name search: ${committedFreeText}`}
 									>
 										{committedFreeText}
 									</Badge>
@@ -124,7 +124,7 @@ export function FilterCombobox({
 										size="md"
 										data-slot="combobox-chip-draft"
 										className="font-medium"
-										aria-hidden
+										aria-label={`Filtering by ${activeCategory.label}`}
 									>
 										{/* A single-key category previews its chip prefix
 										    (e.g. `status:`); a multi-key one (Attributes
