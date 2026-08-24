@@ -54,7 +54,7 @@ func createOpenAIChatModelForTest(
 ) codersdk.ChatModel {
 	t.Helper()
 	provider := createOpenAIProviderForTest(ctx, t, client, apiKey, baseURL)
-	defaultOrg, err := client.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
 	model, err := client.CreateChatModel(ctx, defaultOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID:         &provider.ID,
@@ -946,7 +946,7 @@ func TestChatModelDefault(t *testing.T) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	provider := createOpenAIProviderForTest(ctx, t, expClient, "test", "https://example.com")
-	defaultOrg, err := expClient.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	defaultOrg, err := expClient.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
 
 	contextLimit := int64(1000)

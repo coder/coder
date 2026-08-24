@@ -5301,7 +5301,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			client.Client,
 			defaultOrg.ID,
 		)
-		_, err = client.Client.UpdateOrganizationMemberRoles(
+		_, err = client.UpdateOrganizationMemberRoles(
 			ctx,
 			defaultOrg.ID,
 			adminUser.ID.String(),
@@ -5382,7 +5382,7 @@ func TestCreateChatModelConfig(t *testing.T) {
 			client.Client,
 			defaultOrg.ID,
 		)
-		_, err = client.Client.UpdateOrganizationMemberRoles(
+		_, err = client.UpdateOrganizationMemberRoles(
 			ctx,
 			defaultOrg.ID,
 			writerUser.ID.String(),
@@ -14177,7 +14177,7 @@ func createAdditionalChatModelWithCallConfig(
 	aiProvider := createAIProviderForTest(t, client, provider, "test-api-key")
 	contextLimit := int64(4096)
 	isDefault := false
-	defaultOrg, err := client.Client.OrganizationByName(ctx, codersdk.DefaultOrganization)
+	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
 	modelConfig, err := client.CreateChatModel(ctx, defaultOrg.ID, codersdk.CreateChatModelRequest{
 		AIProviderID: &aiProvider.ID,
