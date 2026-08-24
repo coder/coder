@@ -80,24 +80,22 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				)}
 				{(canAccessAnyChatModelConfig(permissions) ||
 					canAccessOrganizationModels) && <ModelsSidebarNavItem />}
+				{(permissions.editDeploymentConfig || canAccessOrganizationModels) && (
+					<SidebarNavItem href="/ai/settings/coder-agents">
+						Coder Agents
+					</SidebarNavItem>
+				)}
 				{permissions.editDeploymentConfig && (
-					<>
-						<SidebarNavItem href="/ai/settings/coder-agents">
-							Coder Agents
-						</SidebarNavItem>
-						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
-							<SubNavItem href="/ai/settings/mcp-servers">
-								MCP servers
-							</SubNavItem>
-							{permissions.updateTemplates && (
-								<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
-							)}
-							<SubNavItem href="/ai/settings/instructions">
-								Instructions
-							</SubNavItem>
-							<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
-						</div>
-					</>
+					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavItem href="/ai/settings/mcp-servers">MCP servers</SubNavItem>
+						{permissions.updateTemplates && (
+							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
+						)}
+						<SubNavItem href="/ai/settings/instructions">
+							Instructions
+						</SubNavItem>
+						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
+					</div>
 				)}
 				{!permissions.editDeploymentConfig &&
 					(permissions.viewAnyMCPServerConfigs ||

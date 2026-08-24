@@ -26,11 +26,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 	const defaultTitle = "Create a workspace";
 	const defaultMessage =
 		"A workspace is your personal, customizable development environment.";
-	const defaultImage = (
-		<div className="max-w-[50%] h-[272px] overflow-hidden mt-12 opacity-85">
-			<img src="/featured/workspaces.webp" alt="" className="max-w-full" />
-		</div>
-	);
 
 	if (isUsingFilter) {
 		return <EmptyState message="No results matched your search" />;
@@ -41,8 +36,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 			<EmptyState
 				message="No workspaces"
 				description="You don't have permission to create workspaces. Contact your administrator if you need workspace access."
-				className="pb-0"
-				image={defaultImage}
 			/>
 		);
 	}
@@ -57,8 +50,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 						<Link to="/templates/new/builder">Create a template</Link>
 					</Button>
 				}
-				className="pb-0"
-				image={defaultImage}
 			/>
 		);
 	}
@@ -68,8 +59,6 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 			<EmptyState
 				message={defaultTitle}
 				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
-				className="pb-0"
-				image={defaultImage}
 			/>
 		);
 	}
