@@ -173,6 +173,47 @@ func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateP
 	return createdUser, nil
 }
 
+// RevokeKey ends one of an AI agent's credentials, named by the token name its
+// profile carries.
+//
+// **This and RevokeAllKeys are the only places an AI agent's credential is
+// ended.** Ending one is currently a delete from api_keys and nothing else;
+// gathering the callers here is what lets that become a posting to the
+// credential ledger in one place rather than four. Nothing else should delete
+// a key an AI agent holds.
+//
+// **A credential that is not there is not an error.** More than one ending can
+// apply to the same credential, so this is defined to be idempotent rather
+// than to report that something got there first.
+//
+// The context is used as given. Callers needing system access escalate before
+// calling, which keeps that decision where the caller can see it.
+func RevokeKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string) error {
+	key, err := db.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		HolderID:  database.HolderID(agentID),
+		TokenName: tokenName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get AI agent API key by name: %w", err)
+	}
+	if err := db.DeleteAPIKeyByID(ctx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("delete AI agent API key: %w", err)
+	}
+	return nil
+}
+
+// RevokeAllKeys ends every credential an AI agent holds, which is what the
+// ending of the agent itself calls for. See RevokeKey for why both live here.
+func RevokeAllKeys(ctx context.Context, db database.Store, agentID uuid.UUID) error {
+	if err := db.DeleteAPIKeysByHolderID(ctx, database.HolderID(agentID)); err != nil {
+		return xerrors.Errorf("delete AI agent API keys: %w", err)
+	}
+	return nil
+}
+
 // MintKey creates a token-login API key for an AI agent identity.
 func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile) (database.APIKey, string, error) {
 	if agentUserID == uuid.Nil {

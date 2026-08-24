@@ -10,6 +10,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -507,7 +508,7 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 				entity.SystemActor, dbtime.Now()); err != nil {
 				return 0, 0, xerrors.Errorf("failed to retire orphaned chat AI agent: %w", err)
 			}
-			if err := tx.DeleteAPIKeysByHolderID(retireCtx, database.HolderID(orphan)); err != nil {
+			if err := aiagentidentity.RevokeAllKeys(retireCtx, tx, orphan); err != nil {
 				return 0, 0, xerrors.Errorf("failed to revoke orphaned chat AI agent keys: %w", err)
 			}
 		}

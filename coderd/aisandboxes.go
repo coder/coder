@@ -327,20 +327,7 @@ func (api *API) rotateAISandboxSessionToken(ctx context.Context, workspaceID uui
 
 func (api *API) deleteAISandboxSessionToken(ctx context.Context, sandbox database.AISandbox) error {
 	profile := aiagentidentity.SandboxIdentityProfile(sandbox.WorkspaceID, sandbox.ID)
-	key, err := api.Database.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(sandbox.AIAgentID),
-		TokenName: profile.TokenName,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return xerrors.Errorf("get sandbox session token: %w", err)
-	}
-	if err := api.Database.DeleteAPIKeyByID(ctx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return xerrors.Errorf("delete sandbox session token: %w", err)
-	}
-	return nil
+	return aiagentidentity.RevokeKey(ctx, api.Database, sandbox.AIAgentID, profile.TokenName)
 }
 
 func validateAISandboxRequest(req agentsdk.CreateAISandboxRequest) []codersdk.ValidationError {

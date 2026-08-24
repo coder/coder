@@ -3363,20 +3363,7 @@ func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace da
 func (s *server) deleteAIAgentSessionToken(ctx context.Context, agentID uuid.UUID, tokenName string) error {
 	//nolint:gocritic // Deleting an internal AI agent key requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	key, err := s.Database.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(agentID),
-		TokenName: tokenName,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return xerrors.Errorf("get AI agent API key by name: %w", err)
-	}
-	if err := s.Database.DeleteAPIKeyByID(systemCtx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return xerrors.Errorf("delete AI agent API key: %w", err)
-	}
-	return nil
+	return aiagentidentity.RevokeKey(systemCtx, s.Database, agentID, tokenName)
 }
 
 // revokeAIAgentSessionTokens is the stop/delete-transition counterpart of

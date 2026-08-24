@@ -93,18 +93,8 @@ func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent databas
 	profile := WorkspaceAgentIdentityProfile(agent.CreationSiteID)
 	//nolint:gocritic // Managing internal AI agent identities requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	key, err := db.GetAPIKeyByName(systemCtx, database.GetAPIKeyByNameParams{
-		HolderID:  database.HolderID(agent.ID),
-		TokenName: profile.TokenName,
-	})
-	switch {
-	case err == nil:
-		if err := db.DeleteAPIKeyByID(systemCtx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return xerrors.Errorf("delete AI agent API key: %w", err)
-		}
-	case errors.Is(err, sql.ErrNoRows):
-	default:
-		return xerrors.Errorf("get AI agent API key by name: %w", err)
+	if err := RevokeKey(systemCtx, db, agent.ID, profile.TokenName); err != nil {
+		return err
 	}
 	if err := entity.RetireAIAgent(systemCtx, db, agent.ID, entity.EventAIAgentKill,
 		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {

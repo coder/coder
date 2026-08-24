@@ -1437,7 +1437,7 @@ then the key it is carried on names its holder.
 
 ### Status
 
-Not started.
+Milestone 1 complete, 2026-08-23. The rest not started.
 
 ### What forces the work
 
@@ -1460,7 +1460,7 @@ one that changes an authorization decision, and it stands alone so that when it
 goes wrong nothing else is in the same change.
 
 **The first is about where new work lands, not about the ledger.** An AI agent's
-credential is minted in one place and ended in five, so issuance is already
+credential is minted in one place and ended in four, so issuance is already
 protected against a new call site going somewhere wrong and revocation is not.
 Until that is fixed, work on the identity code entrenches `api_keys` further
 every time something new has to end a credential, there being nowhere else for
@@ -1468,16 +1468,28 @@ it to go.
 
 ### Milestone 1: revocation gains a single door
 
-The five sites that delete an AI agent's keys call one function in
-`aiagentidentity` instead, doing exactly what they do now.
+**Done, 2026-08-23.** The sites that delete an AI agent's keys call
+`aiagentidentity.RevokeKey` or `RevokeAllKeys`, which do exactly what those
+sites did.
 
-**No ledger write, no behaviour change, nothing moved.** This is a refactor, and
-it is first because it is the cheapest thing that stops the surface widening:
-new code that ends an agent's credential acquires an obvious right place, and
-milestone 3 becomes a change to one function rather than to five.
+**No ledger write, no behaviour change, nothing moved.** A refactor, and first
+because it is the cheapest thing that stops the surface widening: new code
+ending an agent's credential has an obvious right place, and milestone 3 becomes
+a change to one function rather than to four.
 
-The five are `aiagentidentity/workspace.go`, `aisandboxes.go`, `dbpurge.go`, and
-two in `provisionerdserver.go`.
+**Four sites, not the five this package first said.** Of the two in
+`provisionerdserver`, only `deleteAIAgentSessionToken` is an agent's; the other
+is `deleteSessionTokenForUserAndWorkspace`, which ends the workspace owner's
+token and is a human credential. The four are `aiagentidentity/workspace.go`,
+`aisandboxes.go`, `dbpurge.go`, and that one site in `provisionerdserver.go`.
+
+**Two functions rather than one**, because there are two operations. Three sites
+end one named credential and the sweep ends every credential an agent holds, and
+collapsing those into one call with an optional name would hide which was meant.
+
+**Six deletion sites remain outside the door and all are human**: the token
+endpoint, two in login, the workspace owner's session token, and two in the
+OAuth2 provider.
 
 ### Milestone 2: issuance moves
 
@@ -1504,10 +1516,9 @@ makes available. Splitting them takes that state deliberately rather than by
 oversight, and this milestone is what bounds how long it lasts. **Nothing should
 read the ledger as authoritative in between.**
 
-**The scope is AI agent credentials only.** Eleven direct deletions of
-`api_keys` rows exist across eight files, and the six on human paths stay as
-they are. That keeps this package to the one holder kind the proof of concept
-scopes.
+**The scope is AI agent credentials only.** The six human deletion sites stay
+as they are, which keeps this package to the one holder kind the proof of
+concept scopes.
 
 ### Milestone 4: the key names its holder
 
@@ -1528,12 +1539,14 @@ key subject's cached AST surfaces**, those being the lines that carry it.
 
 **An AI agent's credential is ended in one place**, which is a structural
 assertion rather than a behavioural one and is what the first milestone buys.
+Met: no deletion of a key an AI agent holds occurs outside those two functions.
 
 **Every credential an AI agent presents has a ledger row**, asserted for a
 workspace agent's session token and a chat agent's key.
 
-**An ending on an AI agent path reaches the ledger**, for each of the five
-sites, so that the ledger is not merely complete about issuance.
+**An ending on an AI agent path reaches the ledger**, so that the ledger is not
+merely complete about issuance. One assertion per ending rather than per site,
+there being one site left.
 
 **One authentication path for AI agents, not two.** Asserted by the older branch
 being gone rather than by behaviour, since behaviour is what changes.
