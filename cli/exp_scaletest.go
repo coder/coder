@@ -2271,6 +2271,14 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 }
 
 func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
+	return getScaletestUsersWithPrefix(ctx, client, loadtestutil.ScaleTestPrefix+"-")
+}
+
+// getScaletestUsersWithPrefix returns scaletest users whose username starts with
+// the given full prefix. The prefix partitions users into disjoint pools (for
+// example per load generator) so that concurrent reuse runs select
+// non-overlapping users.
+func getScaletestUsersWithPrefix(ctx context.Context, client *codersdk.Client, prefix string) ([]codersdk.User, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
@@ -2279,7 +2287,7 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 
 	for {
 		page, err := client.Users(ctx, codersdk.UsersRequest{
-			Search: "scaletest-",
+			Search: prefix,
 			Pagination: codersdk.Pagination{
 				Offset: pageNumber * limit,
 				Limit:  limit,
@@ -2296,7 +2304,10 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 
 		pageUsers := make([]codersdk.User, 0, len(page.Users))
 		for _, u := range page.Users {
-			if loadtestutil.IsScaleTestUser(u.Username, u.Email) {
+			// Guard against Search matching the prefix in other fields; require
+			// the username to actually start with it, and confirm it's a
+			// scaletest user.
+			if strings.HasPrefix(u.Username, prefix) && loadtestutil.IsScaleTestUser(u.Username, u.Email) {
 				pageUsers = append(pageUsers, u)
 			}
 		}

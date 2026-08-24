@@ -150,6 +150,59 @@ func TestScaleTestNotifications_ReuseUsersInsufficient(t *testing.T) {
 	require.ErrorContains(t, err, "not enough scaletest users to reuse")
 }
 
+// TestScaleTestNotifications_ReuseUsersPrefixIsolation verifies that
+// --username-prefix restricts reuse selection to the matching pool: a full pool
+// under the default prefix is ignored when a sub-prefix is requested, so the run
+// errors instead of borrowing users from another load generator.
+func TestScaleTestNotifications_ReuseUsersPrefixIsolation(t *testing.T) {
+	t.Parallel()
+
+	if testutil.RaceEnabled() {
+		t.Skip("Skipping due to race detector")
+	}
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancelFunc()
+
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Seed a pool under the default prefix that is more than enough for the
+	// notifications run below. Without prefix filtering the run would select
+	// these users and pass the pool check.
+	createInv, createRoot := clitest.New(t, "exp", "scaletest", "create-users",
+		"--count", "4",
+		"--template-admin-percentage", "50",
+		"--no-cleanup",
+		"--concurrency", "2",
+		"--timeout", "30s",
+		"--job-timeout", "15s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, createRoot)
+	require.NoError(t, createInv.WithContext(ctx).Run())
+
+	// Reuse with a sub-prefix that no user has must ignore the default-prefix
+	// pool and error because its own pool is empty.
+	inv, root := clitest.New(t, "exp", "scaletest", "notifications",
+		"--user-count", "2",
+		"--template-admin-percentage", "50",
+		"--reuse-users",
+		"--username-prefix", "notif",
+		"--dial-timeout", "5s",
+		"--notification-timeout", "5s",
+		"--scaletest-prometheus-address", "127.0.0.1:0",
+		"--scaletest-prometheus-wait", "0s",
+		"--output", "text",
+	)
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(ctx).Run()
+	require.ErrorContains(t, err, "not enough scaletest users to reuse")
+}
+
 // This test just validates that the CLI command accepts its known arguments.
 // A more comprehensive test is performed in workspacetraffic/run_test.go
 func TestScaleTestWorkspaceTraffic(t *testing.T) {
