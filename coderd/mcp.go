@@ -1111,6 +1111,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 // @Param state query string false "Opaque state issued by the connect endpoint. Required together with code on success."
 // @Param error query string false "Provider error code. Present instead of code when authorization fails."
 // @Param error_description query string false "Provider error description accompanying error."
+// @Produce text/html
 // @Success 200
 // @Router /api/v2/mcp/servers/{mcpServer}/oauth2/callback [get]
 //

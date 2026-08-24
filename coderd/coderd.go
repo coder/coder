@@ -2307,6 +2307,12 @@ type API struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	// chatFilesRateLimit is shared by the /api/experimental and /api/v2
+	// chat file mounts so the compatibility window does not double the
+	// FilesRateLimit budget.
+	chatFilesRateLimitOnce sync.Once
+	chatFilesRateLimit     func(http.Handler) http.Handler
+
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string
 

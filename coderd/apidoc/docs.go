@@ -1326,6 +1326,25 @@ const docTemplate = `{
                         "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
                         "name": "label",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2087,6 +2106,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/files": {
             "post": {
+                "description": "Swagger notice: Swagger 2.0 cannot model the raw binary request body this endpoint reads, so the upload is described as form data.",
                 "consumes": [
                     "image/png",
                     "image/jpeg",
@@ -2114,6 +2134,20 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "query",
                         "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Attachment disposition carrying the file name, e.g. ` + "`" + `attachment; filename=\\",
+                        "name": "Content-Disposition",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "File to be uploaded, sent as the raw request body",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
                     }
                 ],
                 "responses": {
@@ -2139,6 +2173,17 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}": {
             "get": {
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
                 "tags": [
                     "Chats"
                 ],
@@ -2168,6 +2213,17 @@ const docTemplate = `{
         },
         "/api/v2/chats/files/{file}/download": {
             "get": {
+                "produces": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/gif",
+                    "image/webp",
+                    "text/plain",
+                    "text/markdown",
+                    "text/csv",
+                    "application/json",
+                    "application/pdf"
+                ],
                 "tags": [
                     "Chats"
                 ],
@@ -2936,7 +2992,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            }
                         }
                     }
                 },
@@ -4924,6 +4983,9 @@ const docTemplate = `{
         },
         "/api/v2/mcp/servers/{mcpServer}/oauth2/callback": {
             "get": {
+                "produces": [
+                    "text/html"
+                ],
                 "tags": [
                     "MCP"
                 ],

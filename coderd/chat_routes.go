@@ -11,9 +11,20 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// chatFilesRateLimitMW returns the middleware enforcing FilesRateLimit
+// on chat file routes. Both API prefixes mount the same instance, and
+// the limiter keys on a prefix-stripped endpoint, so alternating
+// prefixes cannot double the budget.
+func (api *API) chatFilesRateLimitMW() func(http.Handler) http.Handler {
+	api.chatFilesRateLimitOnce.Do(func() {
+		api.chatFilesRateLimit = httpmw.RateLimit(api.FilesRateLimit, time.Minute)
+	})
+	return api.chatFilesRateLimit
+}
+
 func (api *API) registerChatFileDownloadRoute(r chi.Router) {
 	r.Group(func(r chi.Router) {
-		r.Use(httpmw.RateLimit(api.FilesRateLimit, time.Minute))
+		r.Use(api.chatFilesRateLimitMW())
 		r.Get("/chats/files/{file}/download", api.downloadChatFile)
 	})
 }
@@ -93,7 +104,7 @@ func (api *API) registerChatCollectionRoutes(r chi.Router) {
 	r.Post("/", api.postChats)
 	r.Get("/watch", api.watchChats)
 	r.Route("/files", func(r chi.Router) {
-		r.Use(httpmw.RateLimit(api.FilesRateLimit, time.Minute))
+		r.Use(api.chatFilesRateLimitMW())
 		r.Post("/", api.postChatFile)
 		r.Post("/{file}/download-url", api.postChatFileDownloadURL)
 		r.Get("/{file}", api.chatFileByID)

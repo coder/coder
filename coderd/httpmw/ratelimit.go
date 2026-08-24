@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -107,7 +108,17 @@ func keyByNormalizedEndpoint(r *http.Request) (string, error) {
 	if p == "" {
 		p = "/"
 	}
-	return path.Clean(p), nil
+	p = path.Clean(p)
+	// Routes mounted under both prefixes during the /api/experimental to
+	// /api/v2 compatibility window share one limiter instance; stripping
+	// the prefix keeps them in one bucket per endpoint.
+	for _, prefix := range []string{"/api/v2/", "/api/experimental/"} {
+		if strings.HasPrefix(p, prefix) {
+			p = p[len(prefix)-1:]
+			break
+		}
+	}
+	return p, nil
 }
 
 // RateLimitByAuthToken returns a handler that limits requests based on the
