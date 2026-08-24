@@ -789,10 +789,10 @@ func Test_generateManualTitle_ErrorsOnEmptyNormalizedTitle(t *testing.T) {
 	require.ErrorContains(t, err, "generated title was empty")
 }
 
-func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
+func Test_selectAllConfiguredShortTextModelConfigs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
+	t.Run("returns preferred configs ordered by priority", func(t *testing.T) {
 		t.Parallel()
 
 		configs := []database.GetEnabledChatModelConfigsRow{
@@ -801,20 +801,20 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 			{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"}, Provider: "openai"},
 		}
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-		require.True(t, ok)
-		require.Equal(t, preferredTitleModels[1].model, got.Model)
+		got := selectAllConfiguredShortTextModelConfigs(configs)
+		require.Len(t, got, 2)
+		require.Equal(t, preferredTitleModels[1].model, got[0].Model)
+		require.Equal(t, preferredTitleModels[2].model, got[1].Model)
 	})
 
-	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
+	t.Run("returns empty when no preferred lightweight model is configured", func(t *testing.T) {
 		t.Parallel()
 
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.GetEnabledChatModelConfigsRow{{
+		got := selectAllConfiguredShortTextModelConfigs([]database.GetEnabledChatModelConfigsRow{{
 			ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1"},
 			Provider:        "openai",
 		}})
-		require.False(t, ok)
-		require.Equal(t, database.ChatModelConfig{}, got)
+		require.Empty(t, got)
 	})
 }
 

@@ -2530,36 +2530,52 @@ func (p *Server) generateManualTitleCandidate(
 	}
 	modelOpts := modelBuildOptions{ActiveAPIKeyID: apiKeyID}
 
-	model, modelConfig, err := p.resolveManualTitleModel(ctx, store, chat, modelOpts)
+	candidates, err := p.resolveManualTitleCandidates(ctx, store, chat, modelOpts)
 	if err != nil {
 		return "", err
 	}
 
-	titleCtx := ctx
-	titleModel := model
-	finishDebugRun := func(error) {}
-	if debugSvc := p.debugService(); debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
-		titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
-			ctx,
-			debugSvc,
-			chat,
-			modelConfig,
-			modelOpts,
+	// Bound the whole candidate walk so a slow first provider cannot starve
+	// the fallbacks. Each attempt is separately bounded inside
+	// generateManualTitle (titleAttemptTimeout).
+	overallCtx, cancel := context.WithTimeout(ctx, titleOverallTimeout)
+	defer cancel()
+
+	debugSvc := p.debugService()
+	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
+
+	attempt := func(attemptCtx context.Context, cand manualTitleCandidate, model chatprovider.Model) (string, error) {
+		titleModel := model
+		finishDebugRun := func(error) {}
+		if debugEnabled {
+			attemptCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
+				attemptCtx,
+				debugSvc,
+				chat,
+				cand.config,
+				modelOpts,
+				messages,
+				model,
+			)
+		}
+
+		title, genErr := generateManualTitle(
+			attemptCtx,
 			messages,
-			model,
+			pasteText,
+			titleModel.LanguageModel(),
+			p.titleGenerationProviderOptions(ctx, titleModel, cand.config),
 		)
+		finishDebugRun(genErr)
+		if genErr != nil {
+			return "", xerrors.Errorf("generate manual title: %w", genErr)
+		}
+		return title, nil
 	}
 
-	title, err := generateManualTitle(
-		titleCtx,
-		messages,
-		pasteText,
-		titleModel.LanguageModel(),
-		p.titleGenerationProviderOptions(ctx, titleModel, modelConfig),
-	)
-	finishDebugRun(err)
+	title, _, err := p.walkManualTitleCandidates(overallCtx, chat, candidates, attempt)
 	if err != nil {
-		return "", xerrors.Errorf("generate manual title: %w", err)
+		return "", err
 	}
 
 	return title, nil
@@ -2776,12 +2792,22 @@ func deriveChatDebugSeed(messages []database.ChatMessage) (
 	return triggerMessageID, historyTipMessageID, triggerLabel
 }
 
-func (p *Server) resolveManualTitleModel(
+// resolveManualTitleCandidates returns the ordered list of model candidates to
+// try for manual title generation. When a deployment override pins the title
+// model it is honored exclusively (matching the auto-title path). Otherwise the
+// primary is the preferred short-text model the user has credentials for (or
+// the chat's own model), followed by the remaining enabled preferred short-text
+// models as lazy fallbacks, so a slow or unavailable provider does not fail the
+// request. Fallback models are resolved lazily: the common case where the
+// primary succeeds never constructs clients it does not use.
+func (p *Server) resolveManualTitleCandidates(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
-) (chatprovider.Model, database.ChatModelConfig, error) {
+) ([]manualTitleCandidate, error) {
+	// A deployment override pins the title model; honor it exclusively and do
+	// not fall through to other models.
 	overrideConfig, overrideModel, _, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
@@ -2789,7 +2815,7 @@ func (p *Server) resolveManualTitleModel(
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return chatprovider.Model{}, database.ChatModelConfig{}, xerrors.Errorf(
+			return nil, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -2799,49 +2825,45 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(overrideErr),
 		)
 	} else if overrideSet {
-		return overrideModel, overrideConfig, nil
+		return []manualTitleCandidate{
+			newResolvedManualTitleCandidate(overrideConfig, overrideModel),
+		}, nil
 	}
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
-	if err != nil {
+	// Non-override: try every enabled preferred short-text model the user has
+	// credentials for, resolved lazily so a run that succeeds on the first
+	// candidate never constructs the others. A single GetEnabledChatModelConfigs
+	// lookup feeds the whole list.
+	var candidates []manualTitleCandidate
+	seen := make(map[uuid.UUID]bool)
+	if configs, cfgErr := store.GetEnabledChatModelConfigs(ctx); cfgErr != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
-			slog.Error(err),
+			slog.Error(cfgErr),
 		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+	} else {
+		for _, config := range selectAllConfiguredShortTextModelConfigs(configs) {
+			if config.ID != uuid.Nil {
+				if seen[config.ID] {
+					continue
+				}
+				seen[config.ID] = true
+			}
+			candidates = append(candidates, p.newLazyManualTitleCandidate(chat, config, modelOpts))
+		}
 	}
 
-	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+	// When no preferred model is configured, fall back to the chat's own model.
+	// Resolved eagerly so its error (e.g. ErrNoDefaultChatModelConfig) surfaces
+	// to the handler's existing status mapping instead of a generic walk error.
+	if len(candidates) == 0 {
+		fallbackModel, fallbackConfig, fallbackErr := p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
+		if fallbackErr != nil {
+			return nil, fallbackErr
+		}
+		candidates = append(candidates, newResolvedManualTitleCandidate(fallbackConfig, fallbackModel))
 	}
-
-	route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-	model, err := p.newModel(ctx, modelClientRequest{
-		Chat:          chat,
-		ModelName:     config.Model,
-		UserAgent:     chatprovider.UserAgent(),
-		ExtraHeaders:  chatprovider.CoderHeaders(chat),
-		ConfigOptions: config.Options,
-	}, route, modelOpts)
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-
-	return model, config, nil
+	return candidates, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(

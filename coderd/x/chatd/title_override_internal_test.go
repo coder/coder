@@ -367,7 +367,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	require.False(t, ok)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -391,18 +391,21 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+	model, err := candidates[0].resolve(ctx)
+	require.NoError(t, err)
 	require.True(t, model.Valid())
-	require.Equal(t, preferredConfig, gotConfig)
+	require.Equal(t, preferredConfig, candidates[0].config)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -440,18 +443,21 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testi
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+	model, err := candidates[0].resolve(ctx)
+	require.NoError(t, err)
 	require.True(t, model.Valid())
-	require.Equal(t, preferredConfig, gotConfig)
+	require.Equal(t, preferredConfig, candidates[0].config)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideReadDBError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -475,18 +481,21 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+	model, err := candidates[0].resolve(ctx)
+	require.NoError(t, err)
 	require.True(t, model.Valid())
-	require.Equal(t, preferredConfig, gotConfig)
+	require.Equal(t, preferredConfig, candidates[0].config)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideSetUsable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -507,18 +516,21 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	}}, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
 	)
 	require.NoError(t, err)
+	require.NotEmpty(t, candidates)
+	model, err := candidates[0].resolve(ctx)
+	require.NoError(t, err)
 	require.True(t, model.Valid())
-	require.Equal(t, overrideConfig, gotConfig)
+	require.Equal(t, overrideConfig, candidates[0].config)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideMissingCredentials(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -541,7 +553,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
@@ -550,8 +562,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "credentials are unavailable")
-	require.False(t, model.Valid())
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, candidates)
 }
 
 func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
@@ -623,7 +634,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 	require.Equal(t, apiKeyID, testutil.RequireReceive(ctx, t, seenAPIKeyID))
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideSetUnusable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -637,7 +648,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
@@ -646,8 +657,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "title generation model override is unavailable")
-	require.False(t, model.Valid())
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, candidates)
 }
 
 func TestParseModelOverride(t *testing.T) {

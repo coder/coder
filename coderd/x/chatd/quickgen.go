@@ -146,9 +146,15 @@ type shortTextCandidate struct {
 	configOptions   json.RawMessage
 }
 
-func selectPreferredConfiguredShortTextModelConfig(
+// selectAllConfiguredShortTextModelConfigs returns every enabled model config
+// that matches a preferredTitleModels entry, ordered by the preferredTitleModels
+// priority list. Each preferred (provider, model) pair contributes at most one
+// config. The manual title candidate walk uses this so a slow or unavailable
+// provider can fall through to another configured preferred model.
+func selectAllConfiguredShortTextModelConfigs(
 	configs []database.GetEnabledChatModelConfigsRow,
-) (database.ChatModelConfig, bool) {
+) []database.ChatModelConfig {
+	out := make([]database.ChatModelConfig, 0, len(preferredTitleModels))
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
 			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
@@ -157,10 +163,11 @@ func selectPreferredConfiguredShortTextModelConfig(
 			if !strings.EqualFold(strings.TrimSpace(config.ChatModelConfig.Model), preferred.model) {
 				continue
 			}
-			return config.ChatModelConfig, true
+			out = append(out, config.ChatModelConfig)
+			break
 		}
 	}
-	return database.ChatModelConfig{}, false
+	return out
 }
 
 func normalizeShortTextOutput(text string) string {
@@ -946,7 +953,7 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
-	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	titleCtx, cancel := context.WithTimeout(ctx, titleAttemptTimeout)
 	defer cancel()
 
 	userInput := strings.TrimSpace(latestUserMsg)
