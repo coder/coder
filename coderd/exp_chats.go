@@ -4518,6 +4518,20 @@ func (api *API) defaultCreateChatModelConfigID(
 	return defaultModelConfig.ID, 0, nil
 }
 
+// validateChatCompressionThreshold enforces the chat_model_configs CHECK
+// constraint range.
+func validateChatCompressionThreshold(threshold int32) error {
+	if threshold < minChatContextCompressionThreshold ||
+		threshold > maxChatContextCompressionThreshold {
+		return xerrors.Errorf(
+			"context_compression_threshold must be between %d and %d",
+			minChatContextCompressionThreshold,
+			maxChatContextCompressionThreshold,
+		)
+	}
+	return nil
+}
+
 func normalizeChatCompressionThreshold(
 	requested *int32,
 	fallback int32,
@@ -4527,13 +4541,8 @@ func normalizeChatCompressionThreshold(
 		threshold = *requested
 	}
 
-	if threshold < minChatContextCompressionThreshold ||
-		threshold > maxChatContextCompressionThreshold {
-		return 0, xerrors.Errorf(
-			"context_compression_threshold must be between %d and %d",
-			minChatContextCompressionThreshold,
-			maxChatContextCompressionThreshold,
-		)
+	if err := validateChatCompressionThreshold(threshold); err != nil {
+		return 0, err
 	}
 
 	return threshold, nil
@@ -6689,7 +6698,7 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !provider.Enabled {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
 		return
 	}
 	var req codersdk.CreateUserAIProviderKeyRequest
@@ -6895,13 +6904,17 @@ func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model 
 // through this helper so concurrent writers cannot act on stale reads, e.g.
 // two creates on an empty deployment both self-promoting to default and
 // violating the idx_chat_model_configs_single_default unique index.
+//
+// The transaction must run at ReadCommitted. A snapshot isolation level takes
+// the snapshot at the lock statement, so a re-read inside fn would observe
+// pre-lock state and reintroduce the lost update this helper prevents.
 func (api *API) inChatModelConfigWriteTx(ctx context.Context, fn func(tx database.Store) error) error {
 	return api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(ctx, database.LockIDChatModelConfigWrites); err != nil {
 			return xerrors.Errorf("acquire chat model config write lock: %w", err)
 		}
 		return fn(tx)
-	}, nil)
+	}, &database.TxOptions{Isolation: sql.LevelReadCommitted})
 }
 
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -6925,7 +6938,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
 	if err != nil {
 		if httpapi.Is404Error(err) {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
+			writeChatProviderPreconditionError(ctx, rw, errChatProviderMissing)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -6935,7 +6948,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !aiProvider.Enabled {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		writeChatProviderPreconditionError(ctx, rw, errChatProviderDisabled)
 		return
 	}
 	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
@@ -7011,12 +7024,12 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
-				return errChatProviderNotConfigured
+				return errChatProviderMissing
 			}
-			return xerrors.Errorf("get AI provider for update: %w", err)
+			return xerrors.Errorf("get AI provider for create: %w", err)
 		}
 		if !lockedAIProvider.Enabled {
-			return errChatProviderNotConfigured
+			return errChatProviderDisabled
 		}
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model); err != nil {
 			return err
@@ -7060,6 +7073,9 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if err != nil {
+		if writeChatProviderPreconditionError(ctx, rw, err) {
+			return
+		}
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
 		case errors.As(err, &providerModelErr):
@@ -7068,12 +7084,6 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
-				Detail:  err.Error(),
-			})
-			return
-		case xerrors.Is(err, errChatProviderNotConfigured):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
 			return
@@ -7104,8 +7114,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	existing, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID)
-	if err != nil {
+	if _, err := api.Database.GetChatModelConfigByID(ctx, modelConfigID); err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -7122,71 +7131,28 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	aiProviderID := existing.AIProviderID
-	if req.AIProviderID != nil {
-		//nolint:gocritic // The route already authorized chat model config updates.
-		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
-		if err != nil {
-			if httpapi.Is404Error(err) {
-				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
-				return
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get AI provider.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if !aiProvider.Enabled {
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
-			return
-		}
-		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
-	}
-
-	model := existing.Model
-	if trimmed := strings.TrimSpace(req.Model); trimmed != "" {
-		model = trimmed
-	}
-
-	displayName := existing.DisplayName
-	if trimmed := strings.TrimSpace(req.DisplayName); trimmed != "" {
-		displayName = trimmed
-	}
-
-	enabled := existing.Enabled
-	if req.Enabled != nil {
-		enabled = *req.Enabled
-	}
-	isDefault := existing.IsDefault
-	if req.IsDefault != nil {
-		isDefault = *req.IsDefault
-	}
-
-	contextLimit := existing.ContextLimit
-	if req.ContextLimit != nil {
-		if *req.ContextLimit <= 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Context limit must be greater than zero.",
-			})
-			return
-		}
-		contextLimit = *req.ContextLimit
-	}
-
-	compressionThreshold, thresholdErr := normalizeChatCompressionThreshold(
-		req.CompressionThreshold,
-		existing.CompressionThreshold,
-	)
-	if thresholdErr != nil {
+	if req.ContextLimit != nil && *req.ContextLimit <= 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid compression threshold.",
-			Detail:  thresholdErr.Error(),
+			Message: "Context limit must be greater than zero.",
 		})
 		return
 	}
 
-	modelConfigRaw := existing.Options
+	// A PATCH that omits the field keeps the stored value, which the
+	// chat_model_configs CHECK constraint already bounds to 0..100.
+	var requestedCompressionThreshold *int32
+	if req.CompressionThreshold != nil {
+		if thresholdErr := validateChatCompressionThreshold(*req.CompressionThreshold); thresholdErr != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid compression threshold.",
+				Detail:  thresholdErr.Error(),
+			})
+			return
+		}
+		requestedCompressionThreshold = req.CompressionThreshold
+	}
+
+	var requestedModelConfig json.RawMessage
 	if req.ModelConfig != nil {
 		encodedModelConfig, modelConfigErr := marshalChatModelCallConfig(req.ModelConfig)
 		if modelConfigErr != nil {
@@ -7196,51 +7162,96 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		modelConfigRaw = encodedModelConfig
+		requestedModelConfig = encodedModelConfig
 	}
 
-	updateParams := database.UpdateChatModelConfigParams{
-		Model:                model,
-		DisplayName:          displayName,
-		Enabled:              enabled,
-		IsDefault:            isDefault,
-		ContextLimit:         contextLimit,
-		CompressionThreshold: compressionThreshold,
-		Options:              modelConfigRaw,
-		AIProviderID:         aiProviderID,
-		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
-		ID:                   existing.ID,
-	}
-
-	// Re-derive the provider type under lock when the model or provider changes.
-	revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 	var updated database.ChatModelConfig
-	err = api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
+	err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
+		// The unlocked read above only rejects unknown IDs; a concurrent writer
+		// can change or delete the row between the two reads, so merge against
+		// this copy.
+		lockedExisting, err := tx.GetChatModelConfigByID(ctx, modelConfigID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
+			return xerrors.Errorf("get chat model config for update: %w", err)
+		}
+
+		model := lockedExisting.Model
+		if trimmed := strings.TrimSpace(req.Model); trimmed != "" {
+			model = trimmed
+		}
+		displayName := lockedExisting.DisplayName
+		if trimmed := strings.TrimSpace(req.DisplayName); trimmed != "" {
+			displayName = trimmed
+		}
+		enabled := lockedExisting.Enabled
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+		isDefault := lockedExisting.IsDefault
+		if req.IsDefault != nil {
+			isDefault = *req.IsDefault
+		}
+		contextLimit := lockedExisting.ContextLimit
+		if req.ContextLimit != nil {
+			contextLimit = *req.ContextLimit
+		}
+		compressionThreshold := lockedExisting.CompressionThreshold
+		if requestedCompressionThreshold != nil {
+			compressionThreshold = *requestedCompressionThreshold
+		}
+		modelConfigRaw := lockedExisting.Options
+		if requestedModelConfig != nil {
+			modelConfigRaw = requestedModelConfig
+		}
+		aiProviderID := lockedExisting.AIProviderID
+		if req.AIProviderID != nil {
+			aiProviderID = uuid.NullUUID{UUID: *req.AIProviderID, Valid: true}
+		}
+
+		updateParams := database.UpdateChatModelConfigParams{
+			Model:                model,
+			DisplayName:          displayName,
+			Enabled:              enabled,
+			IsDefault:            isDefault,
+			ContextLimit:         contextLimit,
+			CompressionThreshold: compressionThreshold,
+			Options:              modelConfigRaw,
+			AIProviderID:         aiProviderID,
+			UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
+			ID:                   lockedExisting.ID,
+		}
+
+		// An update that touches neither the provider nor the model cannot
+		// invalidate the stored provider/model pair.
+		revalidateProviderModel := updateParams.AIProviderID.Valid && (req.AIProviderID != nil || strings.TrimSpace(req.Model) != "")
 		if revalidateProviderModel {
 			//nolint:gocritic // The route already authorized chat model config updates.
 			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
 			if err != nil {
 				if xerrors.Is(err, sql.ErrNoRows) {
-					return errChatProviderNotConfigured
+					return errChatProviderMissing
 				}
 				return xerrors.Errorf("get AI provider for update: %w", err)
 			}
 			if !aiProvider.Enabled {
-				return errChatProviderNotConfigured
+				return errChatProviderDisabled
 			}
 			if err := validateChatModelConfigProviderModel(aiProvider, updateParams.Model); err != nil {
 				return err
 			}
 		}
 
-		setAsDefault := updateParams.IsDefault && !existing.IsDefault
+		setAsDefault := updateParams.IsDefault && !lockedExisting.IsDefault
 		if setAsDefault {
 			if err := tx.UnsetDefaultChatModelConfigs(ctx); err != nil {
 				return xerrors.Errorf("unset default model configs: %w", err)
 			}
 		}
 
-		_, err := tx.UpdateChatModelConfig(ctx, updateParams)
+		_, err = tx.UpdateChatModelConfig(ctx, updateParams)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
 				return errChatModelConfigNotFound
@@ -7249,8 +7260,8 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		excludeConfigID := uuid.Nil
-		if existing.IsDefault && req.IsDefault != nil && !*req.IsDefault {
-			excludeConfigID = existing.ID
+		if lockedExisting.IsDefault && req.IsDefault != nil && !*req.IsDefault {
+			excludeConfigID = lockedExisting.ID
 		}
 
 		if err := ensureDefaultChatModelConfig(
@@ -7261,18 +7272,17 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			return err
 		}
 
-		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, existing.ID)
+		refreshedConfig, err := tx.GetChatModelConfigByID(ctx, lockedExisting.ID)
 		if err != nil {
-			if xerrors.Is(err, sql.ErrNoRows) {
-				// Do not wrap with %w. The outer handler maps target misses to 404.
-				return xerrors.Errorf("refresh updated chat model config: %v", err)
-			}
 			return xerrors.Errorf("refresh updated chat model config: %w", err)
 		}
 		updated = refreshedConfig
 		return nil
 	})
 	if err != nil {
+		if writeChatProviderPreconditionError(ctx, rw, err) {
+			return
+		}
 		var providerModelErr *chatModelConfigProviderModelError
 		switch {
 		case errors.As(err, &providerModelErr):
@@ -7281,12 +7291,6 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		case database.IsUniqueViolation(err):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "Chat model config already exists.",
-				Detail:  err.Error(),
-			})
-			return
-		case xerrors.Is(err, errChatProviderNotConfigured):
-			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
-				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
 			return
@@ -7332,11 +7336,18 @@ func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := api.inChatModelConfigWriteTx(ctx, func(tx database.Store) error {
-		if err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+		if _, err := tx.DeleteChatModelConfigByID(ctx, modelConfigID); err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatModelConfigNotFound
+			}
 			return err
 		}
 		return ensureDefaultChatModelConfig(ctx, tx)
 	}); err != nil {
+		if xerrors.Is(err, errChatModelConfigNotFound) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat model config.",
 			Detail:  err.Error(),
@@ -7624,9 +7635,24 @@ func validateChatProviderAPIKeySize(apiKey string) error {
 	return nil
 }
 
+func writeChatProviderPreconditionError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var message string
+	switch {
+	case xerrors.Is(err, errChatProviderMissing):
+		message = "AI provider is not configured."
+	case xerrors.Is(err, errChatProviderDisabled):
+		message = "AI provider is disabled."
+	default:
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: message})
+	return true
+}
+
 var (
-	errChatModelConfigNotFound   = xerrors.New("chat model config not found")
-	errChatProviderNotConfigured = xerrors.New("chat provider is not configured")
+	errChatProviderDisabled    = xerrors.New("AI provider is disabled")
+	errChatProviderMissing     = xerrors.New("AI provider is not configured")
+	errChatModelConfigNotFound = xerrors.New("chat model config not found")
 )
 
 // ChatProviderAPIKeysFromDeploymentValues returns deployment-backed chat
