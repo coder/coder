@@ -59,6 +59,7 @@ type TestProvider = Pick<
 	ChatModelProviderDescriptor,
 	"available" | "unavailable_reason"
 > & {
+	enabled?: boolean;
 	id?: string;
 	provider: string;
 };
@@ -1092,6 +1093,17 @@ describe("getUnsupportedProviderNames", () => {
 			unsupportedCopilot,
 		);
 		expect(getUnsupportedProviderNames(catalog)).toEqual([]);
+	});
+
+	it("returns names when the only supported provider is disabled", () => {
+		const catalog = createCatalog(
+			[
+				{ provider: "copilot", available: false },
+				{ provider: "anthropic", available: false, enabled: false },
+			],
+			unsupportedCopilot,
+		);
+		expect(getUnsupportedProviderNames(catalog)).toEqual(["GitHub Copilot"]);
 	});
 
 	it("returns empty when there are no unsupported providers", () => {

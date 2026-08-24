@@ -155,6 +155,22 @@ const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
 	],
 };
 
+const unsupportedProviderWithDisabledSupportedCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...unsupportedProviderCatalog,
+		providers: [
+			...unsupportedProviderCatalog.providers,
+			{
+				...MockChatModelProviderDescriptor,
+				id: "provider-anthropic",
+				type: "anthropic",
+				display_name: "Anthropic",
+				enabled: false,
+				available: false,
+			},
+		],
+	};
+
 const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
 	{
 		provider_id: "provider-1",
@@ -982,6 +998,26 @@ export const UnsupportedProviderOnly: Story = {
 			{
 				key: organizationChatModelsKey(MockDefaultOrganization.id),
 				data: unsupportedProviderCatalog,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
+		).toBeVisible();
+	},
+};
+
+export const UnsupportedProviderAndDisabledSupportedProvider: Story = {
+	args: { ...defaultArgs, canConfigureAgentSetup: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: unsupportedProviderWithDisabledSupportedCatalog,
 			},
 			{ key: aiProvidersListKey, data: [] },
 		],

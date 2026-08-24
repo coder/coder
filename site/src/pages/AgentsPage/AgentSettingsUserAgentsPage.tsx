@@ -30,12 +30,17 @@ const AgentSettingsUserAgentsPage: FC = () => {
 	);
 
 	const defaultOrgModelConfigs = modelsQuery.data?.models ?? [];
-	const hasDefaultOrgModels = defaultOrgModelConfigs.length > 0;
 
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
 		defaultOrganizationId,
 		modelsQuery,
 	);
+	const hasNoAvailableDefaultOrgModels =
+		defaultOrganizationId !== "" &&
+		!modelsQuery.isLoading &&
+		modelsQuery.error === null &&
+		modelsQuery.data !== undefined &&
+		modelOptions.length === 0;
 
 	const saveModelOverride = (
 		context: TypesGen.ChatPersonalModelOverrideContext,
@@ -63,13 +68,7 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			modelsError={modelsQuery.error}
 			isLoadingModels={isModelCatalogLoading}
 			isDefaultOrganizationUnresolved={defaultOrganizationId === ""}
-			hasNoDefaultOrgModels={
-				defaultOrganizationId !== "" &&
-				!modelsQuery.isLoading &&
-				modelsQuery.error === null &&
-				modelsQuery.data !== undefined &&
-				!hasDefaultOrgModels
-			}
+			hasNoAvailableDefaultOrgModels={hasNoAvailableDefaultOrgModels}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",
 				saveRootModelOverrideMutation,

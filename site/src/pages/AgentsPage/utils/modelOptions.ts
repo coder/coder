@@ -56,6 +56,7 @@ export const getUnsupportedProviderNames = (
 	const hasSupportedProvider =
 		catalog?.providers.some(
 			(provider) =>
+				provider.enabled &&
 				!unsupportedProviderTypes.has(normalizeProvider(provider.type)),
 		) ?? false;
 	if (unsupported.length === 0 || hasSupportedProvider) {
@@ -196,9 +197,9 @@ export const providerTypeByIDFromUserConfigs = (
 	);
 
 /**
- * Drops models whose provider row is disabled or missing. Both
- * provider-info sources include every enabled provider, so a missing row
- * means the provider is disabled or deleted.
+ * Drops models whose provider row is disabled or missing. Provider descriptors
+ * include disabled providers, while user provider configs may omit inaccessible
+ * providers.
  */
 export const filterModelsWithEnabledProvider = (
 	models: readonly TypesGen.ChatModel[],

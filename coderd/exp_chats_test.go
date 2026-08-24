@@ -2772,7 +2772,7 @@ func TestListChatModels(t *testing.T) {
 		require.False(t, containsModel(response, other.ID))
 	})
 
-	t.Run("DisabledProvidersAndModelsAreFilteredOut", func(t *testing.T) {
+	t.Run("DisabledProvidersAndModelsRemainVisible", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
@@ -2788,12 +2788,18 @@ func TestListChatModels(t *testing.T) {
 		response, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
 		require.True(t, containsModel(response, enabledModel.ID))
-		require.False(t, containsModel(response, disabledModel.ID))
+		require.True(t, slices.ContainsFunc(response.Models, func(model codersdk.ChatModel) bool {
+			return model.ID == disabledModel.ID && !model.Enabled
+		}))
 		_, err = client.UpdateAIProvider(ctx, provider.ID.String(), codersdk.UpdateAIProviderRequest{Enabled: ptr.Ref(false)})
 		require.NoError(t, err)
 		response, err = client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		require.Empty(t, response.Models)
+		require.True(t, containsModel(response, enabledModel.ID))
+		require.True(t, containsModel(response, disabledModel.ID))
+		disabledProvider := providerByID(t, response, provider.ID)
+		require.False(t, disabledProvider.Enabled)
+		require.False(t, disabledProvider.Available)
 	})
 }
 
@@ -4638,7 +4644,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.NoError(t, client.DeleteChatModel(ctx, created.OrganizationID, created.ID))
 	})
 
-	t.Run("CollectionFiltersDisabledModelConfigs", func(t *testing.T) {
+	t.Run("CollectionIncludesDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -4661,8 +4667,8 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		configs, err := client.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		require.False(t, slices.ContainsFunc(configs.Models, func(config codersdk.ChatModel) bool {
-			return config.ID == disabledConfig.ID
+		require.True(t, slices.ContainsFunc(configs.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == disabledConfig.ID && !config.Enabled
 		}))
 	})
 
@@ -5685,17 +5691,15 @@ func TestUpdateChatModel(t *testing.T) {
 		adminConfigs, err := adminClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
 
-		require.False(t, slices.ContainsFunc(adminConfigs.Models, func(config codersdk.ChatModel) bool {
-			return config.ID == modelConfig.ID
+		require.True(t, slices.ContainsFunc(adminConfigs.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
 		}))
 
 		collection, err := memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs := make([]uuid.UUID, 0, len(collection.Models))
-		for _, config := range collection.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.NotContains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
+		}))
 
 		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -5709,7 +5713,7 @@ func TestUpdateChatModel(t *testing.T) {
 		require.Equal(t, "Invalid model_config_id: model config not found or disabled.", sdkErr.Message)
 	})
 
-	t.Run("ReEnableUpdatesRuntimeAvailability", func(t *testing.T) {
+	t.Run("ReEnableUpdatesCollectionDescriptor", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5734,11 +5738,9 @@ func TestUpdateChatModel(t *testing.T) {
 
 		collection, err := memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs := make([]uuid.UUID, 0, len(collection.Models))
-		for _, config := range collection.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.NotContains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && !config.Enabled
+		}))
 
 		enabled = true
 		updated, err := adminClient.UpdateChatModel(ctx, modelConfig.OrganizationID, modelConfig.ID, codersdk.UpdateChatModelRequest{
@@ -5750,11 +5752,9 @@ func TestUpdateChatModel(t *testing.T) {
 
 		collection, err = memberClient.ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
-		runtimeIDs = runtimeIDs[:0]
-		for _, config := range collection.Models {
-			runtimeIDs = append(runtimeIDs, config.ID)
-		}
-		require.Contains(t, runtimeIDs, modelConfig.ID)
+		require.True(t, slices.ContainsFunc(collection.Models, func(config codersdk.ChatModel) bool {
+			return config.ID == modelConfig.ID && config.Enabled
+		}))
 	})
 
 	t.Run("UpdateAIProviderID", func(t *testing.T) {
