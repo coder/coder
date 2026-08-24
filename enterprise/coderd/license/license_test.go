@@ -1310,6 +1310,9 @@ func TestEntitlements(t *testing.T) {
 				GetActiveAISeatCount(gomock.Any()).
 				Return(activeSeatCount, nil)
 			mDB.EXPECT().
+				GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+				Return(int64(0), nil)
+			mDB.EXPECT().
 				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 				Return([]database.Template{}, nil)
 
@@ -1372,6 +1375,9 @@ func TestEntitlements(t *testing.T) {
 			mDB.EXPECT().
 				GetActiveAISeatCount(gomock.Any()).
 				Return(activeSeatCount, nil)
+			mDB.EXPECT().
+				GetTotalUsageHBAgentRuntimeV1(gomock.Any(), gomock.Any()).
+				Return(int64(0), nil)
 			mDB.EXPECT().
 				GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 				Return([]database.Template{}, nil)
