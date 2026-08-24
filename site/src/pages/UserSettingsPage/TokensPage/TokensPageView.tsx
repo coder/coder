@@ -20,9 +20,6 @@ dayjs.extend(relativeTime);
 
 const lastUsedOrNever = (lastUsed: string) => {
 	const t = dayjs(lastUsed);
-	// Unused tokens are stamped with the Unix epoch (time.Unix(0, 0)) by the
-	// backend, so anything at or before the epoch means "never used". This also
-	// tolerates Go's zero-value time (0001-01-01), which is negative.
 	return t.valueOf() > 0 ? t.fromNow() : "Never";
 };
 
