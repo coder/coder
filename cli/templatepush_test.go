@@ -1170,7 +1170,7 @@ display_name: [broken
 		t.Run("WithVariableOption", func(t *testing.T) {
 			t.Parallel()
 			logger := testutil.Logger(t)
- 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 

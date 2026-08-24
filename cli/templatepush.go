@@ -77,7 +77,6 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				}
 			}
 
-			
 			var createTemplate bool
 			template, err := client.TemplateByName(inv.Context(), organization.ID, name)
 			if err != nil {

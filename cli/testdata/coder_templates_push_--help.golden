@@ -19,6 +19,14 @@ OPTIONS:
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
+      --display-name string
+          Specify a display name for the template. Takes precedence over
+          display_name in README.md front matter, if present.
+
+      --icon string
+          Specify an icon path or external URL for the template. Takes
+          precedence over icon in README.md front matter, if present.
+
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
