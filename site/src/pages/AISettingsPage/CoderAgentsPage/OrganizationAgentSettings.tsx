@@ -5,18 +5,18 @@ import {
 	organizationChatModelOverrides,
 	updateOrganizationChatModelOverride,
 } from "#/api/queries/chats";
-import type { ChatModelOverrideContext } from "#/api/typesGenerated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import type {
+	ChatModelOverrideContext,
+	Organization,
+} from "#/api/typesGenerated";
 import {
 	filterModelsWithEnabledProvider,
 	providerInfoByIDFromDescriptors,
 } from "#/pages/AgentsPage/utils/modelOptions";
-import { pageTitle } from "#/utils/page";
-import {
-	splitModelQueryErrors,
-	useOrganizationModels,
-} from "../organizationModels";
-import DefaultsPageView, { type SaveModelOverride } from "./DefaultsPageView";
+import { splitModelQueryErrors } from "../ModelsPage/organizationModels";
+import OrganizationAgentSettingsView, {
+	type SaveModelOverride,
+} from "./OrganizationAgentSettingsView";
 
 const contexts: readonly ChatModelOverrideContext[] = [
 	"general",
@@ -26,17 +26,31 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"advisor",
 ];
 
-const DefaultsPage: FC = () => {
-	const { organization } = useOrganizationModels();
-	// Remount on organization change so mutation state (pending saves,
-	// errors) from one organization never renders on another's form.
-	return <DefaultsPageContent key={organization.id} />;
-};
+interface OrganizationAgentSettingsProps {
+	organization: Organization;
+	canEdit: boolean;
+	showAdvisor: boolean;
+}
 
-const DefaultsPageContent: FC = () => {
+export const OrganizationAgentSettings: FC<OrganizationAgentSettingsProps> = ({
+	organization,
+	canEdit,
+	showAdvisor,
+}) => (
+	<OrganizationAgentSettingsContent
+		key={organization.id}
+		organization={organization}
+		canEdit={canEdit}
+		showAdvisor={showAdvisor}
+	/>
+);
+
+const OrganizationAgentSettingsContent: FC<OrganizationAgentSettingsProps> = ({
+	organization,
+	canEdit,
+	showAdvisor,
+}) => {
 	const queryClient = useQueryClient();
-	const { experiments } = useDashboard();
-	const { organization, permissions } = useOrganizationModels();
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
 		organizationChatModelOverrides(organization.id),
@@ -104,27 +118,22 @@ const DefaultsPageContent: FC = () => {
 	}
 
 	return (
-		<>
-			<title>{pageTitle("Defaults & overrides", "AI Settings")}</title>
-			<DefaultsPageView
-				overrides={overridesQuery.data?.overrides}
-				enabledModels={enabledModels}
-				providerInfoByID={providerInfoByID}
-				isLoading={modelsQuery.isLoading || overridesQuery.isLoading}
-				loadError={loadError}
-				refetchError={inlineError}
-				canEdit={permissions?.editChatModelConfigs ?? false}
-				showAdvisor={experiments.includes("chat-advisor")}
-				saveByContext={saveByContext}
-				savingContexts={
-					new Set(contexts.filter((_, index) => mutations[index]?.isPending))
-				}
-				errorContexts={
-					new Set(contexts.filter((_, index) => mutations[index]?.isError))
-				}
-			/>
-		</>
+		<OrganizationAgentSettingsView
+			overrides={overridesQuery.data?.overrides}
+			enabledModels={enabledModels}
+			providerInfoByID={providerInfoByID}
+			isLoading={modelsQuery.isLoading || overridesQuery.isLoading}
+			loadError={loadError}
+			refetchError={inlineError}
+			canEdit={canEdit}
+			showAdvisor={showAdvisor}
+			saveByContext={saveByContext}
+			savingContexts={
+				new Set(contexts.filter((_, index) => mutations[index]?.isPending))
+			}
+			errorContexts={
+				new Set(contexts.filter((_, index) => mutations[index]?.isError))
+			}
+		/>
 	);
 };
-
-export default DefaultsPage;
