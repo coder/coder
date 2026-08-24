@@ -14,13 +14,23 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { ToolCall } from "./ToolCall";
-import { sanitizeExecuteModelIntent, signalTooltipLabel } from "./utils";
+import {
+	sanitizeExecuteModelIntent,
+	signalTooltipLabel,
+	type ToolStatus,
+} from "./utils";
 
 type ProcessOutputToolProps = {
 	output: string;
 	command?: string;
 	modelIntent?: string;
-	isRunning: boolean;
+	status: ToolStatus;
+	/**
+	 * Whether the result snapshot saw the process still alive. This only
+	 * affects label tense and signal badges; the row must not animate for
+	 * it, because the snapshot never updates once the poll completes.
+	 */
+	processRunning?: boolean;
 	exitCode: number | null;
 	isError: boolean;
 	errorMessage?: string;
@@ -59,7 +69,8 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 	output,
 	command,
 	modelIntent,
-	isRunning,
+	status,
+	processRunning = false,
 	exitCode,
 	isError,
 	errorMessage,
@@ -73,6 +84,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 		autoDisplayState,
 	);
 
+	const isRunning = status === "running" || processRunning;
 	// A clean exit is the expected outcome of a check, so only
 	// failures earn a badge. The label verb carries the rest.
 	const isFailed = exitCode !== null && exitCode !== 0;
@@ -83,7 +95,7 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = ({
 		<ToolCall.Root
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			className="group/proc w-full"
-			status={isRunning ? "running" : isError ? "error" : "completed"}
+			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to read process output"}
 			hasContent={hasOutput}

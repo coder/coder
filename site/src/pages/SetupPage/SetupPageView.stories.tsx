@@ -46,6 +46,28 @@ export const Loading: Story = {
 	},
 };
 
+export const TrialInfoValidation: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await userEvent.click(canvas.getByTestId("trial"));
+
+		const phone = await canvas.findByRole("textbox", {
+			name: "Phone number",
+		});
+		await userEvent.type(phone, "abc");
+		await userEvent.click(canvas.getByTestId("create"));
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"Phone number should be in international format (e.g. +14155552671).",
+				),
+			).toBeVisible();
+		});
+	},
+};
+
 // TrialOpen pins the "Number of developers" bucket list. If this assertion
 // changes, coordinate the new values with the licensor service owner, since
 // the selected bucket is forwarded verbatim to v2-licensor.coder.com/trial.

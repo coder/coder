@@ -118,10 +118,32 @@ Coder supports the following OAuth2 client authentication methods at the token e
 
 - `client_secret_basic` (recommended): HTTP Basic authentication (RFC 6749 §2.3.1). The username is `client_id` and the password is `client_secret`.
 - `client_secret_post`: Form-based authentication where `client_id` and `client_secret` are sent in the request body.
+- `none`: No client secret. The client is a public client and authenticates with PKCE alone (RFC 7591 §2, OAuth 2.1 §2.1). Available only through [Dynamic Client Registration](#dynamic-client-registration), which is disabled by default, since a client's type is set when it registers and apps created through the admin UI or API are always confidential.
 
-Coder supports both methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+> [!NOTE]
+> Registration accepts `none` today, but the token endpoint does not yet
+> honor it: an `authorization_code` exchange still requires
+> `client_secret`, so a public client cannot obtain a token yet. Discovery
+> omits `none` from `token_endpoint_auth_methods_supported` for the same
+> reason, so a conforming client is not told to attempt an exchange that
+> would be rejected.
 
-If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request.
+Coder supports both secret-based methods for compatibility; existing integrations using `client_secret_post` do not need to change.
+
+Public clients suit native, mobile, and CLI applications that cannot keep a secret confidential. Note the redirect URI restrictions below before choosing one.
+
+If you use Dynamic Client Registration (RFC 7591) and omit `token_endpoint_auth_method`, clients default to `client_secret_basic`. To request `client_secret_post`, set `token_endpoint_auth_method` to `client_secret_post` in the registration request. To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
+
+> [!IMPORTANT]
+> A public client may use `http://` only with a loopback host
+> (`localhost`, `127.0.0.1`, `[::1]`). An `http://` redirect URI to any
+> other host is rejected, so use `https://` instead. A confidential
+> client has the same restriction but also accepts `.localhost`
+> subdomains over `http://`.
+>
+> Which schemes a redirect URI may use is a separate restriction that
+> also differs by client type. See
+> [Callback URL schemes](#callback-url-schemes).
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
@@ -329,6 +351,31 @@ blocked scheme (`javascript:`, `data:`, `file:`, or `ftp:`). Update the
 application's callback URL to a valid scheme (see
 [Callback URL schemes](#callback-url-schemes)).
 
+### "invalid_scope" returned to your callback
+
+The authorization endpoint validates the `scope` parameter. When it cannot
+grant what was asked for, it redirects to your registered callback with
+`error=invalid_scope` rather than issuing a code. The `error_description`
+opens with the name that caused the rejection:
+
+- `unknown or unsupported scope`: this deployment does not offer that scope
+  name. Read the current list from `scopes_supported` in
+  `GET /.well-known/oauth-authorization-server`.
+- `scope requests permissions beyond this app's allowed scopes`: the name is
+  supported, but the application was registered with a narrower `scope`.
+  Request less, or re-register the application with a wider one.
+- `none of the scopes registered for this app are supported by this
+  deployment`: the application's own registered `scope` names nothing this
+  deployment offers, so no request against it can succeed, including one
+  that omits `scope`. Re-register the application with supported scopes.
+
+Omitting `scope` requests the application's registered scopes, or full access
+if it was registered without any.
+
+The negotiated scope is recorded on the authorization and shown on the consent
+page. It does not yet restrict what the issued token can do (see
+[Limitations](#limitations)).
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
@@ -347,6 +394,8 @@ scheme (`myapp://callback`) or a loopback HTTP address.
 ## Callback URL schemes
 
 Custom URI schemes (`myapp://`, `vscode://`, `jetbrains://`, etc.) are fully supported for native and desktop applications. The OS routes the redirect back to the registered application without requiring a running HTTP server.
+
+The out-of-band URN `urn:ietf:wg:oauth:2.0:oob` is accepted from either client type, for clients that display the authorization code for the user to copy rather than receiving it on a redirect. No other URN is accepted.
 
 The following schemes are blocked for security reasons: `javascript:`, `data:`, `file:`, `ftp:`.
 

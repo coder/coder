@@ -1006,10 +1006,10 @@ func buildReplacementLines(matched, searchLines []string, replace, forcedEnding 
 			case prefix > 0 && suffix > 0:
 				prefixRLead := leadOnly(repLines[prefix-1])
 				suffixRLead := leadOnly(repLines[len(repLines)-suffix])
-				switch {
-				case rLeadForI == suffixRLead:
+				switch rLeadForI {
+				case suffixRLead:
 					refIdx = len(searchLines) - suffix
-				case rLeadForI == prefixRLead:
+				case prefixRLead:
 					refIdx = prefix - 1
 				default:
 					refIdx = len(searchLines) - suffix

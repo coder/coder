@@ -8,6 +8,7 @@ import {
 	MockUserProvisioner,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { OrganizationProvisionersPageView } from "./OrganizationProvisionersPageView";
 
 const meta: Meta<typeof OrganizationProvisionersPageView> = {
@@ -75,6 +76,9 @@ export const Paywall: Story = {
 
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/provisioners"));
 	},
 };
 
