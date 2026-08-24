@@ -31,7 +31,7 @@ const (
 // report is actually sent is enforced by the report itself, against the
 // timestamp it persists.
 func runReport(ctx context.Context, logger slog.Logger, db database.Store, lockID int64, name string, report func(tx database.Store) error) {
-	if err := db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		ok, err := tx.TryAcquireLock(ctx, lockID)
 		if err != nil {
 			return xerrors.Errorf("failed to acquire report lock: %w", err)
@@ -41,7 +41,8 @@ func runReport(ctx context.Context, logger slog.Logger, db database.Store, lockI
 			return nil
 		}
 		return report(tx)
-	}, nil); err != nil {
+	}, nil)
+	if err != nil {
 		logger.Error(ctx, "failed to generate report", slog.F("report", name), slog.Error(err))
 	}
 }
@@ -60,10 +61,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 		defer ticker.Reset(delay)
 
 		// Reports are independent, so each runs in its own transaction under
-		// its own advisory lock. Sharing either would couple them: one
-		// report's failure would roll back another's generator log after its
-		// notifications were already enqueued, and a replica that lost the
-		// lock to one report would skip the rest.
+		// its own advisory lock. Sharing either would couple them.
 		runReport(ctx, logger, db, database.LockIDNotificationsReportGenerator, "failed workspace builds",
 			func(tx database.Store) error {
 				return reportFailedWorkspaceBuilds(ctx, logger, tx, enqueuer, clk)
