@@ -163,6 +163,10 @@ func safeURL(url []byte) bool {
 // renderHTML converts Markdown to HTML. Input is untrusted, so a panic is
 // recovered and the source returned HTML-escaped: the notification still
 // arrives, showing Markdown source, and no markup escapes.
+//
+// Safelink silently drops fragment and bare relative destinations, so [a](#x)
+// and [a](docs/x.md) render without an anchor. /path, ./path, mailto: and
+// http(s):// still work.
 func renderHTML(markdown string, extensions parser.Extensions) (out string) {
 	defer func() {
 		if r := recover(); r != nil {

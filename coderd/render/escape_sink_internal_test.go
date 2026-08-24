@@ -182,6 +182,14 @@ func TestEscapeMarkdownEmptyLinkDestination(t *testing.T) {
 	for _, md := range []string{"[a](javascript:alert(1))", "[a](data:text/html;base64,eA==)"} {
 		assert.NotContains(t, HTMLFromNotificationMarkdown(md), "<a ", "unsafe scheme linked: %s", md)
 	}
+
+	// Safelink also drops these two, which is a silent loss for a template
+	// author rather than a security property. Pinned so the renderHTML comment
+	// saying so cannot drift.
+	for _, md := range []string{"[a](#anchor)", "[a](docs/x.md)"} {
+		assert.NotContains(t, HTMLFromNotificationMarkdown(md), "<a ",
+			"destination %q now renders an anchor; update the comment on renderHTML", md)
+	}
 }
 
 // TestEscapeMarkdownLeadingFoldConstruct covers a value whose own first line is
