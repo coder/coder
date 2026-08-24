@@ -107,10 +107,8 @@ func renderTemplate(fsys fs.FS, templatePath string, data any) ([]byte, error) {
 // index suffix (e.g. "dev[0]") so that module templates can reference it
 // as coder_agent.<name>.id. Returns an error unless exactly one
 // coder_agent resource is found; the builder only supports single-agent
-// templates. Parsing with hclsyntax means count/for_each is detected
-// wherever it appears in the block, not only before the first closing brace.
-// The input is expected to be rendered output from our own curated base
-// templates, not arbitrary user HCL.
+// templates. The input is expected to be rendered output from our own
+// curated base templates, not arbitrary user HCL.
 func ExtractAgentResourceName(hclSrc []byte) (string, error) {
 	body := parseHCLBody(hclSrc)
 	if body == nil {
@@ -149,9 +147,11 @@ func ExtractAgentResourceName(hclSrc []byte) (string, error) {
 
 // parseHCLBody parses rendered HCL from one of our curated base templates and
 // returns its top-level body. The input is expected to be valid HCL produced by
-// our own templates; on a parse error it returns nil so callers fail safe (they
-// yield an empty result, which trips the NotEmpty/match assertions in the tests
-// that consume them rather than passing silently).
+// our own templates; on a parse error it returns nil so callers fail safe. The
+// test-only extractors turn a nil body into an empty result, which trips their
+// NotEmpty/match assertions rather than passing silently; the one production
+// caller, ExtractAgentResourceName, turns it into an error rather than emitting a
+// broken agent reference.
 func parseHCLBody(hclSrc []byte) *hclsyntax.Body {
 	file, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos)
 	if diags.HasErrors() || file == nil {
@@ -224,7 +224,7 @@ func ExtractPresetParameterValues(hclSrc []byte, paramName string) [][]string {
 	}
 	var out [][]string
 	for _, block := range body.Blocks {
-		if block.Type != "data" || len(block.Labels) < 1 ||
+		if block.Type != "data" || len(block.Labels) != 2 ||
 			block.Labels[0] != "coder_workspace_preset" {
 			continue
 		}
