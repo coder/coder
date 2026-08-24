@@ -73,8 +73,8 @@ export const BuiltInEmojiSmSize: Story = {
 	},
 };
 
-// The emoji inset applies even when a caller passes the icon variant, so
-// emoji avatars look the same across pages.
+// Built-in emoji sources resolve to the emoji variant even when a caller
+// passes the icon variant, so emoji avatars look the same across pages.
 export const BuiltInEmojiIconVariant: Story = {
 	args: {
 		variant: "icon",
