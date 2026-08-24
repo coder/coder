@@ -24,19 +24,20 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 
 ## Full-text search
 
-`search:` uses token-based PostgreSQL full-text search with the
-`english` text search configuration:
+`search:` uses token-based PostgreSQL full-text search:
 
 - Matching is case-insensitive. Every word in the value must match
   (AND semantics). Quoted phrases, `OR`, and `-` negation follow
   [`websearch_to_tsquery`](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES)
   semantics.
-- English word stems match, so `refactor` matches `refactoring`. There
-  is no fuzzy, semantic, or partial-word (prefix) matching.
-- Common English stopwords (such as `the`, `or`, `and`) are dropped
-  during tokenization. A value that tokenizes to no searchable words,
-  including stopword-only or punctuation-only values, returns an empty
-  list. An empty `search:` value returns HTTP 400.
+- Chat titles and PR titles match whole words without stemming.
+- Message content matches English word stems, so `refactor` matches a
+  message containing `refactoring`, and ignores common English
+  stopwords (such as `the`, `or`, `and`).
+- There is no fuzzy, semantic, or partial-word (prefix) matching.
+- A value that tokenizes to no searchable words, such as punctuation
+  only, returns an empty list. An empty `search:` value returns HTTP
+  400.
 - A value that is a whole number also matches chats by exact PR number.
 - Results list matching conversations only; there are no match snippets
   or highlights.
