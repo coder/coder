@@ -109,11 +109,8 @@ a clear error message.
 When multiple `coder_env` resources append or prepend to the same variable,
 they are processed in alphabetical order by their
 [Terraform resource address](https://developer.hashicorp.com/terraform/cli/state/resource-addressing).
-In the PATH example above, `coder_env.path_cuda` is processed first, then
-`coder_env.path_go`, then `coder_env.path_rust_cargo`, because that is their
-alphabetical order. This is why only one resource in the chain needs the
-`$PATH` reference: the merged value is built as one string before it's
-expanded, so the reference works no matter where in the chain it appears.
+In the previous `PATH` example, `coder_env.path_cuda` is processed first, then `coder_env.path_go`, then `coder_env.path_rust_cargo`, because that is their alphabetical order.
+This is why only one resource in the chain needs the `$PATH` reference: the merged value is built as one string before it's expanded, so the reference works no matter where in the chain it appears.
 
 ## Agent env override
 
