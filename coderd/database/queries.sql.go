@@ -6200,6 +6200,8 @@ LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.deleted = FALSE
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -6618,6 +6620,59 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		arg.CompressionThreshold,
 		arg.Options,
 		arg.AIProviderID,
+		arg.ID,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const updateChatModelConfigACLByID = `-- name: UpdateChatModelConfigACLByID :one
+UPDATE
+    chat_model_configs
+SET
+    group_acl = $1,
+    user_acl = $2,
+    updated_by = $3::uuid,
+    updated_at = NOW()
+WHERE
+    id = $4::uuid
+    AND deleted = FALSE
+RETURNING
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
+`
+
+type UpdateChatModelConfigACLByIDParams struct {
+	GroupACL  ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL   ChatACL       `db:"user_acl" json:"user_acl"`
+	UpdatedBy uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateChatModelConfigACLByID,
+		arg.GroupACL,
+		arg.UserACL,
+		arg.UpdatedBy,
 		arg.ID,
 	)
 	var i ChatModelConfig
