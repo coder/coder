@@ -190,17 +190,25 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 // singular field by looking for the canonical value. Names IsExternalScope
 // refuses must be rejected here with a 400 rather than reaching apikey.Generate,
 // which validates against the enum and so would accept an internal-only scope.
+// It also pins two properties nothing else covers: the plural field wins when a
+// caller sets both, and the 400 tells a misspelled name apart from an internal
+// one.
 func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
 		name      string
 		requested []codersdk.APIKeyScope
+		// requestedLegacy is sent in the deprecated singular Scope field.
+		requestedLegacy codersdk.APIKeyScope
 		// canonical is the expected contents of the plural Scopes field.
 		canonical []codersdk.APIKeyScope
 		// legacy is the expected deprecated singular Scope field.
 		legacy  codersdk.APIKeyScope
 		wantErr bool
+		// wantDetail is a substring the 400 must carry, so the two rejection
+		// reasons stay distinguishable to the caller.
+		wantDetail string
 	}{
 		{
 			name:      "all",
@@ -231,16 +239,33 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 			legacy:    codersdk.APIKeyScopeAll,
 		},
 		{
-			name:      "unknown scope",
-			requested: []codersdk.APIKeyScope{"not_a_real_scope"},
-			wantErr:   true,
+			// Nothing sends both fields today. Pinning the precedence keeps a
+			// later edit from quietly widening a read-only request to coder:all,
+			// which no other case here would catch.
+			// The singular field is empty because convertAPIKey derives it only
+			// for coder:all and coder:application_connect. That the caller sent
+			// APIKeyScopeAll and reads back nothing is the clearest evidence the
+			// plural field decided the result.
+			name:            "plural wins over singular",
+			requested:       []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			requestedLegacy: codersdk.APIKeyScopeAll,
+			canonical:       []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			legacy:          "",
+		},
+		{
+			name:       "unknown scope",
+			requested:  []codersdk.APIKeyScope{"not_a_real_scope"},
+			wantErr:    true,
+			wantDetail: "unknown API key scope",
 		},
 		{
 			// A real api_key_scope member that IsExternalScope refuses, so the
-			// enum check in apikey.Generate would not catch it.
-			name:      "internal scope",
-			requested: []codersdk.APIKeyScope{codersdk.APIKeyScope(database.ApiKeyScopeDebugInfoRead)},
-			wantErr:   true,
+			// enum check in apikey.Generate would not catch it. Re-spelling it
+			// never helps, so the message must not read like a typo.
+			name:       "internal scope",
+			requested:  []codersdk.APIKeyScope{codersdk.APIKeyScope(database.ApiKeyScopeDebugInfoRead)},
+			wantErr:    true,
+			wantDetail: "is internal and cannot be requested",
 		},
 	}
 
@@ -252,6 +277,7 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scope:  tc.requestedLegacy,
 				Scopes: tc.requested,
 			})
 			if tc.wantErr {
@@ -259,6 +285,7 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 				require.Contains(t, sdkErr.Detail, string(tc.requested[0]))
+				require.Contains(t, sdkErr.Detail, tc.wantDetail)
 				return
 			}
 			require.NoError(t, err)

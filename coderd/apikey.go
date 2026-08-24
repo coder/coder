@@ -25,6 +25,25 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// scopeDocsURL documents which scopes a token may carry. The api_key_scope enum
+// table in the API reference is a superset: it lists internal scopes too.
+const scopeDocsURL = "https://coder.com/docs/admin/users/sessions-tokens#api-key-scopes"
+
+// writeUnrequestableScope answers 400 for a scope name a token may not carry.
+// The two reasons need different words: a name that is no scope at all is a
+// typo the caller fixes by re-spelling it, while an internal scope is a real
+// api_key_scope member that no spelling will make requestable.
+func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name rbac.ScopeName) {
+	detail := fmt.Sprintf("unknown API key scope: %q. See %s for the scopes a token may request.", name, scopeDocsURL)
+	if database.APIKeyScope(name).Valid() {
+		detail = fmt.Sprintf("API key scope %q is internal and cannot be requested by a token. See %s for the scopes a token may request.", name, scopeDocsURL)
+	}
+	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+		Message: "Failed to create API key.",
+		Detail:  detail,
+	})
+}
+
 // Creates a new token API key with the given scope and lifetime.
 //
 // @Summary Create token API key
@@ -65,33 +84,28 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// IsExternalScope accepts alias spellings that are not api_key_scope enum
-	// members, so every accepted name is canonicalized before it goes into
-	// CreateParams. Defaulting to coder:all is for backward compatibility.
+	// This handler decides only which names may be requested. Rewriting an
+	// accepted alias to the spelling the enum stores belongs to apikey.Generate,
+	// which every caller goes through. Defaulting to coder:all is for backward
+	// compatibility. The plural field wins when both are set.
 	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
 		for _, s := range createToken.Scopes {
 			name := rbac.ScopeName(s)
 			if !rbac.IsExternalScope(name) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to create API key.",
-					Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-				})
+				writeUnrequestableScope(ctx, rw, name)
 				return
 			}
-			scopes = append(scopes, database.APIKeyScope(rbac.CanonicalScopeName(name)))
+			scopes = append(scopes, database.APIKeyScope(name))
 		}
 	} else if string(createToken.Scope) != "" {
 		name := rbac.ScopeName(createToken.Scope)
 		if !rbac.IsExternalScope(name) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to create API key.",
-				Detail:  fmt.Sprintf("invalid or unsupported API key scope: %q", name),
-			})
+			writeUnrequestableScope(ctx, rw, name)
 			return
 		}
-		scopes = database.APIKeyScopes{database.APIKeyScope(rbac.CanonicalScopeName(name))}
+		scopes = database.APIKeyScopes{database.APIKeyScope(name)}
 	}
 
 	tokenName := namesgenerator.NameDigitWith("_")
