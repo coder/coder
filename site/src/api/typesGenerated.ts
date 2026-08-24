@@ -413,6 +413,10 @@ export interface AIProvider {
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * Status carries runtime routing status; nil when empty.
+	 */
+	readonly status?: AIProviderStatus;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -566,6 +570,15 @@ export interface AIProviderSettings {}
  * AIProviderBedrockSettings.
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderStatus carries non-fatal routing warnings. Direct
+ * routing remains available for the provider.
+ */
+export interface AIProviderStatus {
+	readonly warnings?: readonly string[];
+}
 
 // From codersdk/chats.go
 /**
@@ -1213,19 +1226,6 @@ export interface AdvisorConfig {
 	 * use the runtime default.
 	 */
 	readonly max_output_tokens: number;
-	/**
-	 * ModelConfigID selects a specific admin-managed ChatModel to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved, such as when the referenced ChatModel was soft-deleted or
-	 * its provider was disabled after the admin saved this configuration.
-	 */
-	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -2830,11 +2830,11 @@ export interface ChatMessagesResponse {
 
 // From codersdk/chats.go
 /**
- * ChatModel is an admin-managed model record for an organization.
- * It is not a discovery catalog entry. See ChatModelCatalogEntry.
+ * ChatModel is an org-scoped model configuration.
  */
 export interface ChatModel {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
@@ -2850,6 +2850,16 @@ export interface ChatModel {
 	readonly reasoning_efforts?: readonly string[];
 	readonly created_at: string;
 	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelACL is the access control list for an organization-scoped chat
+ * model. Each principal is mapped to its effective model role.
+ */
+export interface ChatModelACL {
+	readonly user_roles: Record<string, ChatRole>;
+	readonly group_roles: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go
@@ -2877,20 +2887,6 @@ export interface ChatModelAnthropicThinkingOptions {
 
 // From codersdk/chats.go
 /**
- * ChatModelAvailabilityResponse groups the discovery catalog by provider and
- * reports provider availability.
- */
-export interface ChatModelAvailabilityResponse {
-	readonly providers: readonly ChatModelProvider[];
-	/**
-	 * UnsupportedProviders lists configured providers the Agents harness
-	 * cannot use, so the UI can explain the empty state.
-	 */
-	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatModelCallConfig configures per-call model behavior defaults.
  */
 export interface ChatModelCallConfig {
@@ -2903,19 +2899,6 @@ export interface ChatModelCallConfig {
 	readonly reasoning_effort?: ChatModelReasoningEffortConfig;
 	readonly openai_config?: ChatModelOpenAIConfig;
 	readonly provider_options?: ChatModelProviderOptions;
-}
-
-// From codersdk/chats.go
-/**
- * ChatModelCatalogEntry is a discovery catalog entry for end users.
- * Its ID is a synthetic provider:model value, not the UUID in ChatModel.ID.
- * It is not an admin-managed record. See ChatModel.
- */
-export interface ChatModelCatalogEntry {
-	readonly id: string;
-	readonly provider: string;
-	readonly model: string;
-	readonly display_name: string;
 }
 
 // From codersdk/chats.go
@@ -3030,12 +3013,14 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "advisor"
 	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"advisor",
 	"compaction",
 	"explore",
 	"general",
@@ -3044,25 +3029,42 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 
 // From codersdk/chats.go
 /**
- * ChatModelOverrideResponse is the response body for the chat model override
- * configuration endpoint.
+ * ChatModelOverrideResponse is the response body for one chat model override.
  */
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
 /**
- * ChatModelProvider represents provider availability and model results.
+ * ChatModelOverridesResponse is the response body for organization chat model overrides.
  */
-export interface ChatModelProvider {
-	readonly provider: string;
+export interface ChatModelOverridesResponse {
+	readonly overrides: readonly ChatModelOverrideResponse[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelProviderDescriptor is the redacted view of an AI provider carried
+ * on the org model collection response. It carries only the capability
+ * metadata the Models UI needs; key material, base URLs, and headers are
+ * never exposed. The fields mirror what /api/experimental/chats/models
+ * already discloses to any authenticated caller.
+ */
+export interface ChatModelProviderDescriptor {
+	readonly id: string;
+	readonly type: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+	readonly has_user_api_key: boolean;
+	readonly has_effective_api_key: boolean;
+	readonly allow_user_api_key: boolean;
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
-	readonly models: readonly ChatModelCatalogEntry[];
 }
 
 // From codersdk/chats.go
@@ -3189,7 +3191,6 @@ export interface ChatPersonalModelOverride {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -4996,6 +4997,12 @@ export interface EditChatMessageRequest {
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
+	/**
+	 * MCPServerIDs, when set, replaces the chat's MCP server selection
+	 * before the replacement turn runs. When nil the current selection
+	 * is preserved.
+	 */
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -7019,6 +7026,18 @@ export interface Organization extends MinimalOrganization {
 	readonly default_org_member_roles: readonly string[];
 }
 
+// From codersdk/chats.go
+/**
+ * OrganizationChatModelsResponse is the org chat model config collection:
+ * the caller-readable configs plus the redacted provider descriptors the
+ * authoring page needs.
+ */
+export interface OrganizationChatModelsResponse {
+	readonly models: readonly ChatModel[];
+	readonly providers: readonly ChatModelProviderDescriptor[];
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
+}
+
 // From codersdk/aibridge.go
 /**
  * OrganizationGroupAISpend is the current AI spend snapshot for a group
@@ -8117,6 +8136,7 @@ export type ResourceType =
 	| "chat"
 	| "chat_instruction_settings"
 	| "chat_model_config"
+	| "chat_operational_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -8158,6 +8178,7 @@ export const ResourceTypes: ResourceType[] = [
 	"chat",
 	"chat_instruction_settings",
 	"chat_model_config",
+	"chat_operational_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -9691,38 +9712,17 @@ export interface UpdateActiveTemplateVersion {
 
 // From codersdk/chats.go
 /**
- * UpdateAdvisorConfigRequest is the request body for updating advisor
- * runtime configuration. It is a type alias for AdvisorConfig because
- * the request and response shapes are currently identical.
+ * UpdateAdvisorConfigRequest is the request body for updating advisor runtime configuration.
  */
 export interface UpdateAdvisorConfigRequest {
-	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
-	 */
-	readonly enabled: boolean;
-	/**
-	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
-	 */
 	readonly max_uses_per_run: number;
-	/**
-	 * MaxOutputTokens caps the advisor model response tokens. 0 means
-	 * use the runtime default.
-	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific admin-managed ChatModel to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved, such as when the referenced ChatModel was soft-deleted or
-	 * its provider was disabled after the admin saved this configuration.
+	 * @deprecated moved to the organization model override endpoint.
 	 */
-	readonly model_config_id: string;
+	readonly model_config_id?: string;
 	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
+	 * @deprecated moved to the organization model override endpoint.
 	 */
 	readonly reasoning_effort?: string;
 }
@@ -9778,6 +9778,17 @@ export interface UpdateChatDebugLoggingAllowUsersRequest {
  */
 export interface UpdateChatDebugRetentionDaysRequest {
 	readonly debug_retention_days: number;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
+ * listed principals change. ChatRoleDeleted removes an entry, while an omitted
+ * map or principal is unchanged.
+ */
+export interface UpdateChatModelACLRequest {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go

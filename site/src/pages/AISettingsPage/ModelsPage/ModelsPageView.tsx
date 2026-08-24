@@ -1,6 +1,6 @@
 import { ChevronDownIcon, PlusIcon, SearchIcon } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -44,6 +44,11 @@ import {
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
+import {
+	organizationAddModelPath,
+	organizationModelPath,
+	useOrganizationModels,
+} from "./organizationModels";
 
 const MODELS_PAGE_SIZE = 10;
 const ALL_PROVIDERS_VALUE = "all";
@@ -53,6 +58,8 @@ const AddModelDropdown: FC<{
 	align?: "start" | "end";
 }> = ({ providerStates, align = "end" }) => {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const { organization } = useOrganizationModels();
 	const manageableProviderStates = providerStates.filter(
 		canManageProviderModels,
 	);
@@ -76,13 +83,11 @@ const AddModelDropdown: FC<{
 					manageableProviderStates.map((providerState) => (
 						<DropdownMenuItem
 							key={providerState.key}
-							onSelect={() =>
-								void navigate(
-									`/ai/settings/models/add?provider=${encodeURIComponent(
-										providerState.key,
-									)}`,
-								)
-							}
+							onSelect={() => {
+								const next = new URLSearchParams(searchParams);
+								next.set("provider", providerState.key);
+								void navigate(organizationAddModelPath(organization, next));
+							}}
 						>
 							<ProviderIcon provider={providerState.provider} />
 							<span>{providerState.label}</span>
@@ -96,20 +101,26 @@ const AddModelDropdown: FC<{
 
 interface ModelsPageViewProps {
 	isLoading: boolean;
-	error: unknown;
+	loadError: unknown;
+	refetchError: unknown;
 	models: readonly ChatModel[];
 	providerStates: readonly ProviderState[];
 	providerTypeByID: ReadonlyMap<string, string>;
+	canCreateModel: boolean;
 }
 
 const ModelsPageView: FC<ModelsPageViewProps> = ({
 	isLoading,
-	error,
+	loadError,
+	refetchError,
 	models,
 	providerStates,
 	providerTypeByID,
+	canCreateModel,
 }) => {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const { organization } = useOrganizationModels();
 	const [page, setPage] = useState(1);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [providerFilter, setProviderFilter] =
@@ -139,7 +150,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
 			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, Boolean(providerState.providerConfig));
+				map.set(providerModel.id, true);
 			}
 		}
 		return map;
@@ -149,10 +160,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		const map = new Map<string, boolean>();
 		for (const providerState of providerStates) {
 			for (const providerModel of providerState.models) {
-				map.set(
-					providerModel.id,
-					providerState.providerConfig?.enabled === true,
-				);
+				map.set(providerModel.id, providerState.providerDescriptor.enabled);
 			}
 		}
 		return map;
@@ -207,7 +215,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	return (
 		<div>
 			<SettingsHeader
-				actions={<AddModelDropdown providerStates={providerStates} />}
+				actions={
+					canCreateModel ? (
+						<AddModelDropdown providerStates={providerStates} />
+					) : undefined
+				}
 			>
 				<SettingsHeaderTitle>Models</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -215,9 +227,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 					users to select. You can set a default and adjust context limits.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			{Boolean(error) && (
+			{(loadError ?? refetchError) != null && (
 				<div className="mb-4">
-					<ErrorAlert error={error} />
+					<ErrorAlert error={loadError ?? refetchError} />
 				</div>
 			)}
 			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -270,15 +282,17 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
-					) : !hasModels ? (
+					) : loadError != null ? null : !hasModels ? (
 						<TableEmpty
 							message="No models configured"
 							description="Configured models will appear here."
 							cta={
-								<AddModelDropdown
-									providerStates={providerStates}
-									align="start"
-								/>
+								canCreateModel ? (
+									<AddModelDropdown
+										providerStates={providerStates}
+										align="start"
+									/>
+								) : undefined
 							}
 						/>
 					) : filteredModels.length === 0 ? (
@@ -297,7 +311,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								providerEnabled={
 									providerEnabledByModelId.get(model.id) ?? false
 								}
-								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
+								onClick={() =>
+									void navigate(
+										organizationModelPath(organization, model.id, searchParams),
+									)
+								}
 							/>
 						))
 					)}

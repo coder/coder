@@ -3632,6 +3632,7 @@ const (
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3709,7 +3710,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
-		ResourceTypeChatModelConfig:
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3756,6 +3758,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 
@@ -5264,6 +5267,14 @@ type ChatModelConfig struct {
 	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
 }
 
+type ChatOrganizationModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+}
+
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5341,6 +5352,16 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUserModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	Mode            string         `db:"mode" json:"mode"`
+	ModelConfigID   uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ConnectionLog struct {

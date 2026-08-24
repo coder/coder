@@ -596,59 +596,6 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## List chat models
-
-### Code samples
-
-```sh
-# Example request using curl
-curl -X GET http://coder-server:8080/api/experimental/chats/models \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /api/experimental/chats/models`
-
-Experimental: this endpoint is subject to change.
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "providers": [
-    {
-      "available": true,
-      "models": [
-        {
-          "display_name": "string",
-          "id": "string",
-          "model": "string",
-          "provider": "string"
-        }
-      ],
-      "provider": "string",
-      "unavailable_reason": "missing_api_key"
-    }
-  ],
-  "unsupported_providers": [
-    {
-      "display_name": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                                     |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelAvailabilityResponse](schemas.md#codersdkchatmodelavailabilityresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Watch chat events for a user via WebSockets
 
 ### Code samples
@@ -2174,6 +2121,9 @@ Experimental: this endpoint is subject to change.
       "text": "string",
       "type": "text"
     }
+  ],
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
   "reasoning_effort": "string"

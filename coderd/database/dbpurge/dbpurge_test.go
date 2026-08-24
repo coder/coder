@@ -2234,8 +2234,9 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		return chatDebugDeps{user: user, org: org, modelConfig: modelConfig}
 	}
@@ -2460,8 +2461,9 @@ func TestDeleteOldChatFiles(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		mc := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		return chatDeps{user: user, org: org, modelConfig: mc}
 	}
@@ -3051,8 +3053,9 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			DisplayName: "OpenAI",
 		})
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "test-model",
-			ContextLimit: 8192,
+			Model:          "test-model",
+			ContextLimit:   8192,
+			OrganizationID: org.ID,
 		})
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,

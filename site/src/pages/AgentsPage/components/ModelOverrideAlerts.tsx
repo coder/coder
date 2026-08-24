@@ -4,8 +4,6 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 interface ModelOverrideAlertsProps {
 	isUnavailableSavedModel: boolean;
 	unavailableMessage: ReactNode;
-	isMalformedOverride: boolean;
-	malformedMessage: ReactNode;
 	modelsError: unknown;
 	children?: ReactNode;
 }
@@ -13,8 +11,6 @@ interface ModelOverrideAlertsProps {
 export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 	isUnavailableSavedModel,
 	unavailableMessage,
-	isMalformedOverride,
-	malformedMessage,
 	modelsError,
 	children,
 }) => {
@@ -23,11 +19,6 @@ export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 			{isUnavailableSavedModel && (
 				<Alert severity="warning">
 					<AlertDescription>{unavailableMessage}</AlertDescription>
-				</Alert>
-			)}
-			{isMalformedOverride && (
-				<Alert severity="warning">
-					<AlertDescription>{malformedMessage}</AlertDescription>
 				</Alert>
 			)}
 			{children}

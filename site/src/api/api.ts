@@ -352,7 +352,12 @@ const aiSpendBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
-const chatModelsPath = "/api/experimental/chats/model-configs";
+const chatModelsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/models`;
+const chatModelPath = (organizationId: string, modelId: string) =>
+	`${chatModelsPath(organizationId)}/${encodeURIComponent(modelId)}`;
+const chatModelACLPath = (organizationId: string, modelId: string) =>
+	`${chatModelPath(organizationId, modelId)}/acl`;
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
@@ -3490,15 +3495,6 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getChatModelAvailability =
-		async (): Promise<TypesGen.ChatModelAvailabilityResponse> => {
-			const response =
-				await this.axios.get<TypesGen.ChatModelAvailabilityResponse>(
-					"/api/experimental/chats/models",
-				);
-			return response.data;
-		};
-
 	getAIModelPrices = async (filter: {
 		provider?: string;
 		model?: string;
@@ -3602,23 +3598,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatModelOverride = async (
-		context: TypesGen.ChatModelOverrideContext,
-	): Promise<TypesGen.ChatModelOverrideResponse> => {
-		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	getOrganizationChatModelOverrides = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatModelOverridesResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverridesResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides`,
 		);
 		return response.data;
 	};
 
-	updateChatModelOverride = async (
+	updateOrganizationChatModelOverride = async (
+		organizationId: string,
 		context: TypesGen.ChatModelOverrideContext,
 		req: TypesGen.UpdateChatModelOverrideRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.put<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
+		return response.data;
 	};
 
 	getChatPersonalModelOverridesAdminSettings =
@@ -3672,21 +3670,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getUserChatPersonalModelOverrides =
-		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
-			const response =
-				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
-					"/api/experimental/chats/config/user-personal-model-overrides",
-				);
-			return response.data;
-		};
+	getUserChatPersonalModelOverrides = async (
+		organizationId: string,
+		user: string,
+	): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+		const response =
+			await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides`,
+			);
+		return response.data;
+	};
 
 	updateUserChatPersonalModelOverride = async (
+		organizationId: string,
+		user: string,
 		context: TypesGen.ChatPersonalModelOverrideContext,
 		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3894,34 +3896,72 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatModels = async (): Promise<TypesGen.ChatModel[]> => {
-		const response = await this.axios.get<TypesGen.ChatModel[]>(chatModelsPath);
+	getChatModels = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationChatModelsResponse> => {
+		const response =
+			await this.axios.get<TypesGen.OrganizationChatModelsResponse>(
+				chatModelsPath(organizationId),
+			);
+		return response.data;
+	};
+
+	getChatModel = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.get<TypesGen.ChatModel>(
+			chatModelPath(organizationId, modelId),
+		);
 		return response.data;
 	};
 
 	createChatModel = async (
+		organizationId: string,
 		req: TypesGen.CreateChatModelRequest,
 	): Promise<TypesGen.ChatModel> => {
 		const response = await this.axios.post<TypesGen.ChatModel>(
-			chatModelsPath,
+			chatModelsPath(organizationId),
 			req,
 		);
 		return response.data;
 	};
 
 	updateChatModel = async (
+		organizationId: string,
 		modelId: string,
 		req: TypesGen.UpdateChatModelRequest,
 	): Promise<TypesGen.ChatModel> => {
 		const response = await this.axios.patch<TypesGen.ChatModel>(
-			`${chatModelsPath}/${encodeURIComponent(modelId)}`,
+			chatModelPath(organizationId, modelId),
 			req,
 		);
 		return response.data;
 	};
 
-	deleteChatModel = async (modelId: string): Promise<void> => {
-		await this.axios.delete(`${chatModelsPath}/${encodeURIComponent(modelId)}`);
+	getChatModelACL = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<TypesGen.ChatModelACL> => {
+		const response = await this.axios.get<TypesGen.ChatModelACL>(
+			chatModelACLPath(organizationId, modelId),
+		);
+		return response.data;
+	};
+
+	updateChatModelACL = async (
+		organizationId: string,
+		modelId: string,
+		req: TypesGen.UpdateChatModelACLRequest,
+	): Promise<void> => {
+		await this.axios.patch(chatModelACLPath(organizationId, modelId), req);
+	};
+
+	deleteChatModel = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<void> => {
+		await this.axios.delete(chatModelPath(organizationId, modelId));
 	};
 
 	getMCPServerConfigs = async (

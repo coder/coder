@@ -2,7 +2,12 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
-import { mcpServerConfigs } from "#/api/queries/chats";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import {
+	chatModels,
+	mcpServerConfigs,
+	userChatPersonalModelOverrides,
+} from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -13,10 +18,13 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
-	hasConfiguredModelsInCatalog,
+	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	resolveModelSelector,
 } from "../utils/modelOptions";
 import {
 	getReasoningEffortForModel,
@@ -30,7 +38,6 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
-import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
@@ -43,8 +50,6 @@ import { getModelSelectorHelp } from "./ModelSelectorHelp";
 export const emptyInputStorageKey = "agents.empty-input";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
-type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
 	message: string;
@@ -128,18 +133,8 @@ interface AgentCreateFormProps {
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
-	modelCatalog: TypesGen.ChatModelAvailabilityResponse | null | undefined;
-	modelOptions: readonly ChatModelOption[];
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	isModelCatalogLoading: boolean;
-	models: readonly TypesGen.ChatModel[];
-	isModelsLoading: boolean;
-	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
-	isPersonalModelOverridesLoading?: boolean;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -152,18 +147,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isCreating,
 	createError,
 	canCreateChat,
-	modelCatalog,
-	modelOptions,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
-	models,
-	isModelCatalogLoading,
-	isModelsLoading,
-	rootPersonalModelOverride,
-	isPersonalModelOverridesLoading = false,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -180,92 +165,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	/*
-	 * Model precedence: user click > root override (specific model) > root
-	 * override (chat_default, resolved) > last-used > default > first available.
-	 */
-	const lastUsedModelID =
-		initialLastModelConfigID &&
-		modelOptions.some((option) => option.id === initialLastModelConfigID)
-			? initialLastModelConfigID
-			: "";
-	const defaultModelID = (() => {
-		const defaultModelConfig = Array.isArray(models)
-			? models.find((config) => config.is_default)
-			: undefined;
-		if (!defaultModelConfig) {
-			return "";
-		}
-		return modelOptions.some((option) => option.id === defaultModelConfig.id)
-			? defaultModelConfig.id
-			: "";
-	})();
-	const isUsableRootPersonalOverride =
-		rootPersonalModelOverride?.is_set === true &&
-		!rootPersonalModelOverride.is_malformed;
-	const rootOverrideModelID =
-		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "model" &&
-		modelOptions.some(
-			(option) => option.id === rootPersonalModelOverride.model_config_id,
-		)
-			? rootPersonalModelOverride.model_config_id
-			: "";
-	const isRootOverrideChatDefault =
-		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "chat_default";
-	const rootOverrideDisplayModelID = isRootOverrideChatDefault
-		? defaultModelID || (modelOptions[0]?.id ?? "")
-		: rootOverrideModelID;
-	const fallbackModelID =
-		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
-	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
-	const [userSelectedModel, setUserSelectedModel] = useState("");
-	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
-	const hasValidUserSelectedModel =
-		hasUserSelectedModel &&
-		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
-	// Derive the effective model every render so we never reference
-	// a stale model id and can honor fallback precedence.
-	const selectedModel = hasValidUserSelectedModel
-		? userSelectedModel
-		: preferredModelID;
-	const submittedModel = (() => {
-		if (hasValidUserSelectedModel) {
-			return userSelectedModel;
-		}
-		if (rootOverrideModelID) {
-			return rootOverrideModelID;
-		}
-		return selectedModel || undefined;
-	})();
-	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
-		Record<string, string>
-	>({});
-	const selectedModelOption = modelOptions.find(
-		(option) => option.id === selectedModel,
-	);
-	// Persisted per-model choice wins over a root override; a stale
-	// stored value is ignored so the override still applies. The
-	// override applies to its own model even after a manual re-select.
-	const rootOverrideReasoningEffort =
-		selectedModel === rootOverrideModelID
-			? rootPersonalModelOverride?.reasoning_effort
-			: undefined;
-	const persistedReasoningEffort = (() => {
-		const stored = getReasoningEffortForModel(selectedModel);
-		const efforts = selectedModelOption?.reasoningEfforts;
-		return stored && efforts?.includes(stored) ? stored : undefined;
-	})();
-	const effectiveReasoningEffort = selectedModelOption
-		? pickReasoningEffort(
-				selectedReasoningEfforts[selectedModel] ??
-					persistedReasoningEffort ??
-					rootOverrideReasoningEffort,
-				selectedModelOption.reasoningEfforts ?? [],
-				selectedModelOption.reasoningEffortDefault,
-			)
-		: undefined;
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
@@ -372,39 +271,143 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
 		}
 	}, [selectedWorkspaceId]);
+	const modelsQuery = useQuery(chatModels(organizationId));
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const organizationRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
+	const effectiveRootPersonalModelOverride =
+		organizationRootPersonalModelOverride;
+	// A failed overrides fetch must keep the form blocked: submitting with an
+	// undefined override would send a catalog fallback as an explicit
+	// model_config_id, silently bypassing the user's saved root override.
+	const isPersonalModelOverridesUnresolved =
+		organizationId !== "" && personalModelOverridesQuery.data === undefined;
+	const availableModelConfigs = modelsQuery.data?.models ?? [];
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canConfigureAgentSetup,
+	});
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(organizationId, modelsQuery);
+	const modelConfigs = availableModelConfigs;
+	/*
+	 * Model precedence: user click > root override (specific model) > root
+	 * override (chat_default, resolved) > last-used > default > first available.
+	 */
+	const lastUsedModelID =
+		initialLastModelConfigID &&
+		modelOptions.some((option) => option.id === initialLastModelConfigID)
+			? initialLastModelConfigID
+			: "";
+	const defaultModelID = getUsableDefaultModelIDForOrganization(
+		modelConfigs,
+		modelOptions,
+		organizationId,
+	);
+	const isUsableRootPersonalOverride =
+		effectiveRootPersonalModelOverride?.is_set === true;
+	const rootOverrideModelID =
+		isUsableRootPersonalOverride &&
+		effectiveRootPersonalModelOverride.mode === "model" &&
+		modelOptions.some(
+			(option) =>
+				option.id === effectiveRootPersonalModelOverride.model_config_id,
+		)
+			? effectiveRootPersonalModelOverride.model_config_id
+			: "";
+	const isRootOverrideChatDefault =
+		isUsableRootPersonalOverride &&
+		effectiveRootPersonalModelOverride.mode === "chat_default";
+	const rootOverrideDisplayModelID = isRootOverrideChatDefault
+		? defaultModelID || (modelOptions[0]?.id ?? "")
+		: rootOverrideModelID;
+	const fallbackModelID =
+		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
+	const [userSelectedModel, setUserSelectedModel] = useState("");
+	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	const hasValidUserSelectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
+	// Derive the effective model every render so we never reference
+	// a stale model id and can honor fallback precedence.
+	const selectedModel = hasValidUserSelectedModel
+		? userSelectedModel
+		: preferredModelID;
+	const submittedModel = (() => {
+		if (hasValidUserSelectedModel) {
+			return userSelectedModel;
+		}
+		if (rootOverrideModelID) {
+			return rootOverrideModelID;
+		}
+		return selectedModel || undefined;
+	})();
+	const [selectedReasoningEfforts, setSelectedReasoningEfforts] = useState<
+		Record<string, string>
+	>({});
+	const selectedModelOption = modelOptions.find(
+		(option) => option.id === selectedModel,
+	);
+	// Persisted per-model choice wins over a root override; a stale
+	// stored value is ignored so the override still applies. The
+	// override applies to its own model even after a manual re-select.
+	const rootOverrideReasoningEffort =
+		selectedModel === rootOverrideModelID
+			? effectiveRootPersonalModelOverride?.reasoning_effort
+			: undefined;
+	const persistedReasoningEffort = (() => {
+		const stored = getReasoningEffortForModel(selectedModel);
+		const efforts = selectedModelOption?.reasoningEfforts;
+		return stored && efforts?.includes(stored) ? stored : undefined;
+	})();
+	const effectiveReasoningEffort = selectedModelOption
+		? pickReasoningEffort(
+				selectedReasoningEfforts[selectedModel] ??
+					persistedReasoningEffort ??
+					rootOverrideReasoningEffort,
+				selectedModelOption.reasoningEfforts ?? [],
+				selectedModelOption.reasoningEffortDefault,
+			)
+		: undefined;
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	// Treat the unsettled-organization window as pending so the model selector
+	// keeps its loading state instead of flashing the provisional organization's
+	// catalog before permissions resolve.
+	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	useEffect(() => {
-		if (!initialLastModelConfigID) {
-			return;
-		}
-		if (isModelCatalogLoading || isModelsLoading) {
-			return;
-		}
-		if (lastUsedModelID) {
-			return;
-		}
-		localStorage.removeItem(lastModelConfigIDStorageKey);
-	}, [
-		initialLastModelConfigID,
-		isModelCatalogLoading,
-		isModelsLoading,
-		lastUsedModelID,
-	]);
+	const providerCount =
+		canConfigureAgentSetup && chatProviderConfigsQuery.data && modelsQuery.data
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					modelsQuery.data,
+				)
+			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		modelsQuery.data,
+	);
 
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
@@ -440,14 +443,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
-	const handleReasoningEffortChange = (value: string) => {
-		setSelectedReasoningEfforts((current) => ({
-			...current,
-			[selectedModel]: value,
-		}));
-		saveReasoningEffortForModel(selectedModel, value);
-	};
-
 	const isForbidden = !canCreateChat || noPermittedOrgs;
 
 	// Filter workspaces by the selected organization. We use
@@ -475,26 +470,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const workspaceValidationPending =
 		selectedWorkspaceId !== null && isWorkspacesLoading;
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: effectiveWorkspaceId ?? undefined,
-			model: submittedModel,
-			reasoningEffort: effectiveReasoningEffort,
-			organizationId,
-			mcpServerIds:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
-			planMode: planModeEnabled ? "plan" : undefined,
-		}).catch((err) => {
-			resetDraft();
-			throw err;
-		});
-	};
-
 	const {
 		organizationAdopted,
 		attachments,
@@ -515,6 +490,34 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -579,12 +582,33 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{mcpServersQuery.data === undefined &&
+						mcpServersQuery.error != null && (
+							<ErrorAlert error={mcpServersQuery.error} />
+						)}
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{mcpServersQuery.error != null && (
-						<ErrorAlert error={mcpServersQuery.error} />
+					{modelsQuery.error != null && (
+						<ErrorAlert error={modelsQuery.error} />
 					)}
+					{personalModelOverridesQuery.error != null && (
+						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
+					{organizationId !== "" &&
+						modelsQuery.data !== undefined &&
+						modelsQuery.error == null &&
+						!isModelCatalogLoading &&
+						!hasModelOptions && (
+							<Alert severity="warning">
+								<AlertTitle>No model is available</AlertTitle>
+								<AlertDescription>
+									{hasUserFixableModelProviders
+										? "A provider requires your API key. Add it in provider settings to enable models."
+										: "No chat model is currently available for this organization."}
+								</AlertDescription>
+							</Alert>
+						)}
 					{/* The pre-settlement list is the unfiltered dashboard fallback;
 					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
@@ -619,7 +643,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
 							workspaceValidationPending ||
-							isPersonalModelOverridesLoading ||
+							isPersonalModelOverridesUnresolved ||
 							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
@@ -634,7 +658,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
 						onReasoningEffortChange={handleReasoningEffortChange}
-						isModelCatalogLoading={isModelCatalogLoading}
+						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}

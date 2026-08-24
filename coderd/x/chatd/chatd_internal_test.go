@@ -1086,7 +1086,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
 		Name:    "primary-openai",
@@ -1132,7 +1132,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), organizationID).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -1242,7 +1242,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 		aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 	}
 
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
 		Name:    "primary-openai",
@@ -1281,7 +1281,7 @@ func TestRegenerateChatTitle_SkipsPersistWhenTitleChangedConcurrently(t *testing
 			LimitVal: manualTitleMessageWindowLimit,
 		},
 	).Return(nil, nil)
-	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), organizationID).Return(nil, nil)
 
 	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
@@ -3673,16 +3673,8 @@ func TestResolveModelConfigProviderLookupError(t *testing.T) {
 	db := dbmock.NewMockStore(ctrl)
 	organizationID := uuid.New()
 	modelConfigID := uuid.New()
-	providerID := uuid.New()
-	modelConfig := database.ChatModelConfig{
-		ID:             modelConfigID,
-		Enabled:        true,
-		OrganizationID: organizationID,
-		AIProviderID:   uuid.NullUUID{UUID: providerID, Valid: true},
-	}
 
-	db.EXPECT().GetChatModelConfigByID(gomock.Any(), modelConfigID).Return(modelConfig, nil)
-	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{}, sql.ErrConnDone)
+	db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelConfigID).Return(database.ChatModelConfig{}, sql.ErrConnDone)
 
 	server := &Server{
 		db:          db,
@@ -3693,7 +3685,7 @@ func TestResolveModelConfigProviderLookupError(t *testing.T) {
 		LastModelConfigID: modelConfigID,
 	})
 	require.ErrorIs(t, err, sql.ErrConnDone)
-	require.ErrorContains(t, err, "get AI provider")
+	require.ErrorContains(t, err, "get chat model config")
 }
 
 func TestResolveModelConfigOrganizationScope(t *testing.T) {
@@ -3784,7 +3776,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		lastModel := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
 		require.NoError(t, err)
 		require.Equal(t, lastModel.ID, resolved)
 	})
@@ -3800,7 +3792,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		enabledProvider := newProvider(t, db, true)
 		defaultModel := newModelConfig(t, db, orgID, enabledProvider.ID, true)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
 		require.NoError(t, err)
 		require.Equal(t, defaultModel.ID, resolved)
 	})
@@ -3814,7 +3806,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		defaultModel := newModelConfig(t, db, orgID, provider.ID, true)
 
-		resolved, err := resolveFallbackModelConfigID(ctx, db, orgID, uuid.Nil)
+		resolved, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
 		require.NoError(t, err)
 		require.Equal(t, defaultModel.ID, resolved)
 	})
@@ -3830,7 +3822,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		newModelConfig(t, db, defaultOrg.ID, provider.ID, true)
 
-		_, err = resolveFallbackModelConfigID(ctx, db, otherOrgID, uuid.Nil)
+		_, err = resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: otherOrgID}, uuid.Nil)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
@@ -3855,7 +3847,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = resolveFallbackModelConfigID(ctx, db, orgID, uuid.Nil)
+		_, err = resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
@@ -3868,7 +3860,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		newModelConfig(t, db, orgID, disabledProvider.ID, true)
 
-		_, err := resolveFallbackModelConfigID(ctx, db, orgID, uuid.Nil)
+		_, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, uuid.Nil)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 
@@ -3882,7 +3874,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		lastModel := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 		newModelConfig(t, db, orgID, disabledProvider.ID, true)
 
-		_, err := resolveFallbackModelConfigID(ctx, db, orgID, lastModel.ID)
+		_, err := resolveFallbackModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, lastModel.ID)
 		require.ErrorIs(t, err, ErrNoDefaultChatModelConfig)
 	})
 

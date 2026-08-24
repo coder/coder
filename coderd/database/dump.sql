@@ -618,7 +618,8 @@ CREATE TYPE resource_type AS ENUM (
     'oauth2_provider_settings',
     'chat_instruction_settings',
     'mcp_server_config',
-    'chat_model_config'
+    'chat_model_config',
+    'chat_operational_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -2094,6 +2095,15 @@ CREATE TABLE chat_model_configs (
     CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
+CREATE TABLE chat_organization_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    model_config_id uuid NOT NULL,
+    reasoning_effort text,
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
+);
+
 CREATE SEQUENCE chat_queued_messages_position_seq
     START WITH 1
     INCREMENT BY 1
@@ -2144,6 +2154,19 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_user_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    mode text NOT NULL,
+    model_config_id uuid,
+    reasoning_effort text,
+    CONSTRAINT chat_user_model_overrides_context_check CHECK ((context = ANY (ARRAY['root'::text, 'general'::text, 'explore'::text]))),
+    CONSTRAINT chat_user_model_overrides_mode_check CHECK ((mode = ANY (ARRAY['model'::text, 'chat_default'::text, 'deployment_default'::text]))),
+    CONSTRAINT chat_user_model_overrides_model_requires_config_check CHECK (((mode = 'model'::text) = (model_config_id IS NOT NULL)))
+);
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4401,7 +4424,16 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_id_key UNIQUE (organization_id, id);
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_context_key UNIQUE (organization_id, context);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4411,6 +4443,12 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_organization_context_key UNIQUE (user_id, organization_id, context);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -5276,8 +5314,23 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_model_config_fkey FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;

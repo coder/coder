@@ -2209,6 +2209,147 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
+func TestEditMessage_MCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	optionalConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Optional MCP",
+		Slug:           "optional-mcp",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "edit-mcp-server-ids",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       []uuid.UUID{},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	latestUserMessageID := func(chatID uuid.UUID) int64 {
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+		var id int64
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleUser && !message.Deleted {
+				id = message.ID
+			}
+		}
+		require.NotZero(t, id)
+		return id
+	}
+
+	// An edit that provides MCP server IDs replaces the selection.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit with mcp")},
+		MCPServerIDs:    &[]uuid.UUID{optionalConfig.ID},
+	})
+	require.NoError(t, err)
+
+	dbChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// A nil selection preserves the persisted one.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit without mcp")},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// An edit that clears the list cannot remove a force_on server
+	// (Cure53 CDM-02-010 parity with the send path).
+	forcedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit clearing mcp")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{forcedConfig.ID}, dbChat.MCPServerIDs,
+		"force_on MCP server must survive an emptied mcp_server_ids edit")
+
+	// Explore child chats keep the spawn-time MCP snapshot immutable.
+	exploreContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("explore"),
+	})
+	require.NoError(t, err)
+	createdExplore, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: chat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "explore-mcp-immutable",
+		Mode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		MCPServerIDs: []uuid.UUID{optionalConfig.ID},
+		ClientType:   database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        exploreContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	exploreChat := createdExplore.Chat
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          exploreChat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(exploreChat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit explore")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs,
+		"explore subagent MCP snapshot must be immutable after spawn")
+}
+
 // TestEditMessageDebugCleanupDeletesPreEditRuns verifies that
 // EditMessage schedules the chat debug cleanup goroutine when debug
 // logging is enabled and that it deletes debug runs tied to the
@@ -5775,7 +5916,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: overrideModel.OrganizationID,
+			Context:        string(codersdk.ChatModelOverrideContextCompaction),
+			ModelConfigID:  overrideModel.ID,
+		}))
 		return overrideModel
 	}
 

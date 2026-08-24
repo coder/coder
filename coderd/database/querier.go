@@ -147,6 +147,7 @@ type sqlcQuerier interface {
 	// archive-cleanup retry).
 	DeleteChatDebugDataByChatID(ctx context.Context, arg DeleteChatDebugDataByChatIDParams) (int64, error)
 	DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error
 	DeleteChatQueuedMessage(ctx context.Context, arg DeleteChatQueuedMessageParams) error
 	// Deletes a queued message, scoped to the parent chat. Returns the
 	// number of affected rows so callers can detect missing rows without
@@ -419,7 +420,6 @@ type sqlcQuerier interface {
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
-	GetChatCompactionModelOverride(ctx context.Context) (string, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
@@ -442,7 +442,6 @@ type sqlcQuerier interface {
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
-	GetChatExploreModelOverride(ctx context.Context) (string, error)
 	// Returns the chat IDs of every chat in a family (root + all children)
 	// in deterministic order. The id parameter must be the root id; the
 	// query does not walk up from a child.
@@ -458,7 +457,6 @@ type sqlcQuerier interface {
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
-	GetChatGeneralModelOverride(ctx context.Context) (string, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
@@ -482,9 +480,21 @@ type sqlcQuerier interface {
 	// results remain after their assistant calls.
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
-	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
+	GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
+	// All live configs in one organization, unfiltered. Consumed ONLY by
+	// ensureDefaultChatModelConfig's default-election read inside the write
+	// transaction; authorization is the caller's update-in-org check that every
+	// path reaching the election already requires. No @authorize_filter.
+	GetChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error)
 	// deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
+	GetChatOrganizationModelOverride(ctx context.Context, arg GetChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error)
+	GetChatOrganizationModelOverrides(ctx context.Context, organizationID uuid.UUID) ([]ChatOrganizationModelOverride, error)
+	// Returns every non-deleted organization's override for one context together
+	// with the resolved model and provider, for bulk consumers such as telemetry.
+	// model_available mirrors GetEnabledChatModelConfigByID: it is false when the
+	// referenced config or its provider is disabled or deleted.
+	GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]GetChatOrganizationModelOverridesByContextRow, error)
 	// GetChatPersonalModelOverridesEnabled returns whether users may configure
 	// personal chat model overrides. It defaults to false when unset.
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
@@ -502,6 +512,8 @@ type sqlcQuerier interface {
 	// dbpurge. Returns 30 (days) when no value has been configured.
 	// A value of 0 disables chat purging entirely.
 	GetChatRetentionDays(ctx context.Context) (int32, error)
+	// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
+	GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
@@ -510,7 +522,8 @@ type sqlcQuerier interface {
 	// non-empty custom prompt implied opting out before the explicit toggle
 	// existed.
 	GetChatSystemPromptConfig(ctx context.Context) (GetChatSystemPromptConfigRow, error)
-	GetChatTitleGenerationModelOverride(ctx context.Context) (string, error)
+	GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error)
+	GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error)
 	// Returns the concatenated text of each user-visible user prompt in a
 	// chat, newest first. Used by the composer to populate the up/down
 	// arrow prompt-history cycle. Non-text parts (tool calls, files,
@@ -562,7 +575,6 @@ type sqlcQuerier interface {
 	// Providers can be disabled independently of their model configs.
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
-	GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error)
 	GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsByOrganizationRow, error)
 	GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error)
@@ -759,6 +771,11 @@ type sqlcQuerier interface {
 	// Blocks until the row is available for update.
 	GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
+	// Fetches provisioner jobs by their IDs without computing queue position or
+	// queue size. Callers that do not need the queue position should prefer this
+	// over GetProvisionerJobsByIDsWithQueuePosition, whose window functions over
+	// pending jobs and provisioner daemons are comparatively expensive.
+	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg GetProvisionerJobsByIDsWithQueuePositionParams) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error)
 	GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
@@ -922,7 +939,6 @@ type sqlcQuerier interface {
 	GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error)
 	GetUserChatCustomPrompt(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserChatDebugLoggingEnabled(ctx context.Context, userID uuid.UUID) (bool, error)
-	GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error)
 	GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the "Everyone" group (id == organization_id) to attribute a user's
@@ -1284,7 +1300,6 @@ type sqlcQuerier interface {
 	// Used by the usage generator to find missing heartbeat buckets.
 	ListUsageEventCreatedAtsByTypeSince(ctx context.Context, arg ListUsageEventCreatedAtsByTypeSinceParams) ([]time.Time, error)
 	ListUserChatCompactionThresholds(ctx context.Context, userID uuid.UUID) ([]UserConfig, error)
-	ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error)
 	// Returns metadata only (no value or value_key_id) for the
 	// REST API list and get endpoints.
 	ListUserSecrets(ctx context.Context, userID uuid.UUID) ([]ListUserSecretsRow, error)
@@ -1645,7 +1660,6 @@ type sqlcQuerier interface {
 	// to JSON before invoking this query.
 	UpsertChatAdvisorConfig(ctx context.Context, value string) error
 	UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveDays int32) error
-	UpsertChatCompactionModelOverride(ctx context.Context, value string) error
 	UpsertChatComputerUseProvider(ctx context.Context, provider string) error
 	// UpsertChatDebugLoggingAllowUsers updates the runtime admin setting that
 	// allows users to opt into chat debug logging.
@@ -1654,19 +1668,18 @@ type sqlcQuerier interface {
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
-	UpsertChatExploreModelOverride(ctx context.Context, value string) error
-	UpsertChatGeneralModelOverride(ctx context.Context, value string) error
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error
 	UpsertChatIncludeDefaultSystemPrompt(ctx context.Context, includeDefaultSystemPrompt bool) error
+	UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error
 	// UpsertChatPersonalModelOverridesEnabled updates whether users may configure
 	// personal chat model overrides.
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
-	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error
+	UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error
 	UpsertChatWorkspaceTTL(ctx context.Context, workspaceTtl string) error
 	// The default proxy is implied and not actually stored in the database.
 	// So we need to store it's configuration here for display purposes.
@@ -1702,7 +1715,6 @@ type sqlcQuerier interface {
 	// created_at for the insert path only.
 	UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAIProviderKey, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
-	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
 	UpsertWorkspaceAgentContextResource(ctx context.Context, arg UpsertWorkspaceAgentContextResourceParams) (WorkspaceAgentContextResource, error)
 	UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg UpsertWorkspaceAgentContextSnapshotParams) (WorkspaceAgentContextSnapshot, error)

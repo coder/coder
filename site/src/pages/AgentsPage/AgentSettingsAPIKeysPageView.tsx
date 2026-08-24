@@ -195,11 +195,12 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				<p className="m-0 text-sm font-medium text-content-primary">
 					Enabled models
 				</p>
-				{areModelsUnavailable ? (
+				{areModelsUnavailable && enabledModels.length > 0 && (
 					<p className="m-0 text-sm text-content-secondary">
-						Enabled model badges are temporarily unavailable.
+						Some enabled model badges are temporarily unavailable.
 					</p>
-				) : isModelsLoading ? (
+				)}
+				{isModelsLoading ? (
 					<p className="m-0 text-sm text-content-secondary">
 						Loading models...
 					</p>
@@ -211,6 +212,10 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 							</Badge>
 						))}
 					</div>
+				) : areModelsUnavailable ? (
+					<p className="m-0 text-sm text-content-secondary">
+						Enabled model badges are temporarily unavailable.
+					</p>
 				) : (
 					<p className="m-0 text-sm text-content-secondary">
 						No enabled models configured.

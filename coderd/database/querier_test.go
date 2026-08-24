@@ -6491,6 +6491,85 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 }
 
+func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	availableOrg := dbgen.Organization(t, db, database.Organization{})
+	availableModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-available-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: availableOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: availableOrg.ID,
+		Context:        "general",
+		ModelConfigID:  availableModel.ID,
+	}))
+
+	// An override referencing a disabled model reports the model unavailable.
+	// dbgen coerces Enabled=false to true, so disable it after insertion.
+	disabledOrg := dbgen.Organization(t, db, database.Organization{})
+	disabledModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-disabled-" + uuid.NewString(),
+		OrganizationID: disabledOrg.ID,
+	})
+	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+		ID:                   disabledModel.ID,
+		Model:                disabledModel.Model,
+		DisplayName:          disabledModel.DisplayName,
+		Enabled:              false,
+		IsDefault:            disabledModel.IsDefault,
+		ContextLimit:         disabledModel.ContextLimit,
+		CompressionThreshold: disabledModel.CompressionThreshold,
+		Options:              disabledModel.Options,
+		AIProviderID:         disabledModel.AIProviderID,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: disabledOrg.ID,
+		Context:        "general",
+		ModelConfigID:  disabledModel.ID,
+	}))
+
+	// Deleted organizations are excluded from the bulk read.
+	deletedOrg := dbgen.Organization(t, db, database.Organization{})
+	deletedOrgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-deleted-org-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: deletedOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: deletedOrg.ID,
+		Context:        "general",
+		ModelConfigID:  deletedOrgModel.ID,
+	}))
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
+
+	rows, err := db.GetChatOrganizationModelOverridesByContext(ctx, "general")
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	byOrg := make(map[uuid.UUID]database.GetChatOrganizationModelOverridesByContextRow, len(rows))
+	for _, row := range rows {
+		byOrg[row.OrganizationID] = row
+	}
+	available := byOrg[availableOrg.ID]
+	require.True(t, available.ModelAvailable)
+	require.Equal(t, availableModel.Model, available.Model)
+	require.NotEmpty(t, available.ProviderType)
+	unavailable := byOrg[disabledOrg.ID]
+	require.False(t, unavailable.ModelAvailable)
+	require.Empty(t, unavailable.Model)
+
+	otherContext, err := db.GetChatOrganizationModelOverridesByContext(ctx, "advisor")
+	require.NoError(t, err)
+	require.Empty(t, otherContext)
+}
+
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -12485,15 +12564,15 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, enabledConfig.OrganizationID)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
@@ -19439,4 +19518,36 @@ func TestGetAIModelPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetChatSiteConfigValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_chat_retention_days",
+		Value: "30",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_unset",
+		Value: "not a chat setting",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "derp_mesh_key",
+		Value: "secret",
+	}))
+
+	value, err := db.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{Value: "30", Exists: true}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "agents_unset")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "derp_mesh_key")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
 }
