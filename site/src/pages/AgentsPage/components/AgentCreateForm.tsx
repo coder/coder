@@ -595,20 +595,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
-					{organizationId !== "" &&
-						modelsQuery.data !== undefined &&
-						modelsQuery.error == null &&
-						!isModelCatalogLoading &&
-						!hasModelOptions && (
-							<Alert severity="warning">
-								<AlertTitle>No model is available</AlertTitle>
-								<AlertDescription>
-									{hasUserFixableModelProviders
-										? "A provider requires your API key. Add it in provider settings to enable models."
-										: "No chat model is currently available for this organization."}
-								</AlertDescription>
-							</Alert>
-						)}
 					{/* The pre-settlement list is the unfiltered dashboard fallback;
 					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
