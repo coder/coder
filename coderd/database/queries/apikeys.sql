@@ -100,7 +100,7 @@ WHERE
 	holder_id = $1 AND
 	'coder:application_connect'::api_key_scope = ANY(scopes);
 
--- name: DeleteAPIKeysByUserID :exec
+-- name: DeleteAPIKeysByHolderID :exec
 DELETE FROM
 	api_keys
 WHERE

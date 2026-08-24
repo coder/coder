@@ -203,7 +203,7 @@ func TestSyntheticAPIKeyDeletionDoesNotMutateChatState(t *testing.T) {
 		{
 			name: "all user keys",
 			deleteKey: func(ctx context.Context, db database.Store, userID uuid.UUID, _ string) error {
-				return db.DeleteAPIKeysByUserID(ctx, database.HolderID(userID))
+				return db.DeleteAPIKeysByHolderID(ctx, database.HolderID(userID))
 			},
 		},
 	}

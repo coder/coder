@@ -2067,14 +2067,14 @@ func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
 
-func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
+func (q *querier) DeleteAPIKeysByHolderID(ctx context.Context, userID database.HolderID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, policy.ActionDelete,
 		rbac.ResourceApiKey.WithOwner(userID.String()))
 	if err != nil {
 		return err
 	}
-	return q.db.DeleteAPIKeysByUserID(ctx, userID)
+	return q.db.DeleteAPIKeysByHolderID(ctx, userID)
 }
 
 func (q *querier) DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error {
@@ -7469,14 +7469,6 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
-}
-
-func (q *querier) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
-	// Retention-purge maintenance: revokes identities and keys system-wide.
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
-		return 0, err
-	}
-	return q.db.RevokeOrphanedChatAIAgents(ctx)
 }
 
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {

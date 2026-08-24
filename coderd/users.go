@@ -1764,7 +1764,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 
 		//nolint:gocritic // Password resets must revoke all keys owned by the
 		// target user, not just keys addressable by the caller's actor.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
+		err = tx.DeleteAPIKeysByHolderID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
 		if err != nil {
 			return xerrors.Errorf("delete api keys by user ID: %w", err)
 		}

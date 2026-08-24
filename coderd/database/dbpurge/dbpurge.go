@@ -478,9 +478,10 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 			return 0, 0, xerrors.Errorf("failed to delete old chat files: %w", err)
 		}
 
-		// Purged chats leave their AI agent identities behind
-		// (ai_agents.origin_id has no FK to chats): retire them in the
-		// ledger, mark them deleted and revoke their API keys.
+		// Purged chats leave their AI agent identities behind: a creation
+		// site has no foreign key to chats and could not have one, the site
+		// being of more than one kind. Retire each in the ledger and revoke
+		// its keys.
 		//
 		// **The actor is the system actor and that is a proof of concept
 		// cheat.** Nobody noticed these agents were orphaned; a sweep did, and
@@ -506,9 +507,9 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 				entity.SystemActor, dbtime.Now()); err != nil {
 				return 0, 0, xerrors.Errorf("failed to retire orphaned chat AI agent: %w", err)
 			}
-		}
-		if _, err := tx.RevokeOrphanedChatAIAgents(ctx); err != nil {
-			return 0, 0, xerrors.Errorf("failed to revoke orphaned chat AI agents: %w", err)
+			if err := tx.DeleteAPIKeysByHolderID(retireCtx, database.HolderID(orphan)); err != nil {
+				return 0, 0, xerrors.Errorf("failed to revoke orphaned chat AI agent keys: %w", err)
+			}
 		}
 	}
 

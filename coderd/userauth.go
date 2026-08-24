@@ -432,7 +432,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		//nolint:gocritic // Password resets must revoke all keys owned by the
 		// target user, not just keys addressable by the caller's actor.
-		err = tx.DeleteAPIKeysByUserID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
+		err = tx.DeleteAPIKeysByHolderID(dbauthz.AsAPIKeyRevoker(ctx, user.ID), database.HolderID(user.ID))
 		if err != nil {
 			logger.Error(ctx, "unable to delete user's api keys", slog.Error(err))
 			return xerrors.Errorf("delete api keys for user: %w", err)

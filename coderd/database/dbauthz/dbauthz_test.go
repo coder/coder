@@ -436,11 +436,6 @@ func (s *MethodTestSuite) TestAPIKey() {
 }
 
 func (s *MethodTestSuite) TestAIAgents() {
-	s.Run("RevokeOrphanedChatAIAgents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().RevokeOrphanedChatAIAgents(gomock.Any()).Return(int64(1), nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete).Returns(int64(1))
-	}))
-
 	s.Run("GetAIAgentsByOwner", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		owner := uuid.New()
 		dbm.EXPECT().GetAIAgentsByOwner(gomock.Any(), owner).Return([]database.GetAIAgentsByOwnerRow{}, nil).AnyTimes()
@@ -3201,9 +3196,9 @@ func (s *MethodTestSuite) TestUser() {
 		// No asserts because SQLFilter.
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts()
 	}))
-	s.Run("DeleteAPIKeysByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("DeleteAPIKeysByHolderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		key := testutil.Fake(s.T(), faker, database.APIKey{})
-		dbm.EXPECT().DeleteAPIKeysByUserID(gomock.Any(), key.HolderID).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteAPIKeysByHolderID(gomock.Any(), key.HolderID).Return(nil).AnyTimes()
 		check.Args(key.HolderID).Asserts(rbac.ResourceApiKey.WithOwner(key.HolderID.AsUserIDUnchecked().String()), policy.ActionDelete).Returns()
 	}))
 	s.Run("ExpirePrebuildsAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

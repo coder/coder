@@ -117,7 +117,7 @@ type sqlcQuerier interface {
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
-	DeleteAPIKeysByUserID(ctx context.Context, holderID HolderID) error
+	DeleteAPIKeysByHolderID(ctx context.Context, holderID HolderID) error
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.
 	DeleteAllChatHeartbeats(ctx context.Context, chatID uuid.UUID) error
@@ -788,10 +788,13 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
-	// Chat-origin AI agent identities whose chat no longer exists. Read before the
-	// revocation below so that each one can be retired in the ledger through the
-	// entity function, the ledger being a fold of its journal and not somewhere a
-	// bulk statement may write directly.
+	// Live AI agents whose chat tree no longer exists, retention having hard
+	// deleted the chat and nothing having ended the agent with it.
+	//
+	// Idempotency comes from the state rather than from a flag: an agent this
+	// returns is retired by the caller and so is not returned again. The creation
+	// site has no foreign key to chats and could not have one, the site being of
+	// more than one kind, which is why an agent can outlive its tree at all.
 	GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error)
 	// Returns, per effective group, the number of users at or over their spend
 	// limit since period_start. Only users with an enforceable limit (override or
@@ -1532,10 +1535,6 @@ type sqlcQuerier interface {
 	// to find, so that two concurrent posters cannot both believe they succeeded.
 	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLedger, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
-	// Marks chat-origin AI agent identities deleted when their chat no longer
-	// exists (retention purge hard-deletes chats; ai_agents.origin_id has no
-	// FK) and revokes their API keys. Idempotent.
-	RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error)
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.

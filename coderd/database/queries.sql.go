@@ -1137,6 +1137,47 @@ func (q *sqlQuerier) GetLiveAIAgentByCreationSite(ctx context.Context, arg GetLi
 	return i, err
 }
 
+const getOrphanedChatAIAgents = `-- name: GetOrphanedChatAIAgents :many
+SELECT
+	id
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = 'chat'
+	AND state = 'active'
+	AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agent_ledger.creation_site_id)
+`
+
+// Live AI agents whose chat tree no longer exists, retention having hard
+// deleted the chat and nothing having ended the agent with it.
+//
+// Idempotency comes from the state rather than from a flag: an agent this
+// returns is retired by the caller and so is not returned again. The creation
+// site has no foreign key to chats and could not have one, the site being of
+// more than one kind, which is why an agent can outlive its tree at all.
+func (q *sqlQuerier) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getOrphanedChatAIAgents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIAgentLedgerRow = `-- name: InsertAIAgentLedgerRow :one
 INSERT INTO
 	ai_agent_ledger (
@@ -1320,41 +1361,6 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 	return i, err
 }
 
-const getOrphanedChatAIAgents = `-- name: GetOrphanedChatAIAgents :many
-SELECT user_id
-FROM ai_agents
-WHERE origin_type = 'chat'
-	AND deleted = false
-	AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agents.origin_id)
-`
-
-// Chat-origin AI agent identities whose chat no longer exists. Read before the
-// revocation below so that each one can be retired in the ledger through the
-// entity function, the ledger being a fold of its journal and not somewhere a
-// bulk statement may write directly.
-func (q *sqlQuerier) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, getOrphanedChatAIAgents)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var user_id uuid.UUID
-		if err := rows.Scan(&user_id); err != nil {
-			return nil, err
-		}
-		items = append(items, user_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const insertAIAgent = `-- name: InsertAIAgent :one
 INSERT INTO ai_agents (
 	user_id,
@@ -1466,30 +1472,6 @@ func (q *sqlQuerier) InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUse
 		&i.Kind,
 	)
 	return i, err
-}
-
-const revokeOrphanedChatAIAgents = `-- name: RevokeOrphanedChatAIAgents :execrows
-WITH orphaned AS (
-	UPDATE ai_agents
-	SET deleted = true
-	WHERE origin_type = 'chat'
-		AND deleted = false
-		AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agents.origin_id)
-	RETURNING user_id
-)
-DELETE FROM api_keys
-WHERE holder_id IN (SELECT user_id FROM orphaned)
-`
-
-// Marks chat-origin AI agent identities deleted when their chat no longer
-// exists (retention purge hard-deletes chats; ai_agents.origin_id has no
-// FK) and revokes their API keys. Idempotent.
-func (q *sqlQuerier) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
-	result, err := q.db.ExecContext(ctx, revokeOrphanedChatAIAgents)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
 }
 
 const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one
@@ -4822,15 +4804,15 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
-const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
+const deleteAPIKeysByHolderID = `-- name: DeleteAPIKeysByHolderID :exec
 DELETE FROM
 	api_keys
 WHERE
 	holder_id = $1
 `
 
-func (q *sqlQuerier) DeleteAPIKeysByUserID(ctx context.Context, holderID HolderID) error {
-	_, err := q.db.ExecContext(ctx, deleteAPIKeysByUserID, holderID)
+func (q *sqlQuerier) DeleteAPIKeysByHolderID(ctx context.Context, holderID HolderID) error {
+	_, err := q.db.ExecContext(ctx, deleteAPIKeysByHolderID, holderID)
 	return err
 }
 

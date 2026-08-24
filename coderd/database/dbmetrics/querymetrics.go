@@ -425,11 +425,11 @@ func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) erro
 	return r0
 }
 
-func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID database.HolderID) error {
+func (m queryMetricsStore) DeleteAPIKeysByHolderID(ctx context.Context, userID database.HolderID) error {
 	start := time.Now()
-	r0 := m.s.DeleteAPIKeysByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("DeleteAPIKeysByUserID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAPIKeysByUserID").Inc()
+	r0 := m.s.DeleteAPIKeysByHolderID(ctx, userID)
+	m.queryLatencies.WithLabelValues("DeleteAPIKeysByHolderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAPIKeysByHolderID").Inc()
 	return r0
 }
 
@@ -5391,14 +5391,6 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeDBCryptKey").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.RevokeOrphanedChatAIAgents(ctx)
-	m.queryLatencies.WithLabelValues("RevokeOrphanedChatAIAgents").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeOrphanedChatAIAgents").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {

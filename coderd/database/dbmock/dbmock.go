@@ -675,18 +675,18 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeyByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeyByID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeyByID), ctx, id)
 }
 
-// DeleteAPIKeysByUserID mocks base method.
-func (m *MockStore) DeleteAPIKeysByUserID(ctx context.Context, holderID database.HolderID) error {
+// DeleteAPIKeysByHolderID mocks base method.
+func (m *MockStore) DeleteAPIKeysByHolderID(ctx context.Context, holderID database.HolderID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteAPIKeysByUserID", ctx, holderID)
+	ret := m.ctrl.Call(m, "DeleteAPIKeysByHolderID", ctx, holderID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteAPIKeysByUserID indicates an expected call of DeleteAPIKeysByUserID.
-func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(ctx, holderID any) *gomock.Call {
+// DeleteAPIKeysByHolderID indicates an expected call of DeleteAPIKeysByHolderID.
+func (mr *MockStoreMockRecorder) DeleteAPIKeysByHolderID(ctx, holderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), ctx, holderID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByHolderID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByHolderID), ctx, holderID)
 }
 
 // DeleteAllChatHeartbeats mocks base method.
@@ -10177,21 +10177,6 @@ func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string
 func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
-}
-
-// RevokeOrphanedChatAIAgents mocks base method.
-func (m *MockStore) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeOrphanedChatAIAgents", ctx)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RevokeOrphanedChatAIAgents indicates an expected call of RevokeOrphanedChatAIAgents.
-func (mr *MockStoreMockRecorder) RevokeOrphanedChatAIAgents(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeOrphanedChatAIAgents", reflect.TypeOf((*MockStore)(nil).RevokeOrphanedChatAIAgents), ctx)
 }
 
 // SelectUsageEventsForPublishing mocks base method.

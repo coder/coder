@@ -313,7 +313,6 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().GetOrphanedChatAIAgents(gomock.Any()).Return([]uuid.UUID{}, nil).AnyTimes()
-		mDB.EXPECT().RevokeOrphanedChatAIAgents(gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)

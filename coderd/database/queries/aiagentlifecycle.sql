@@ -142,3 +142,20 @@ WHERE
 	ai_agent_ledger.owner_id = $1
 ORDER BY
 	ai_agent_ledger.creation_time DESC;
+
+-- name: GetOrphanedChatAIAgents :many
+-- Live AI agents whose chat tree no longer exists, retention having hard
+-- deleted the chat and nothing having ended the agent with it.
+--
+-- Idempotency comes from the state rather than from a flag: an agent this
+-- returns is retired by the caller and so is not returned again. The creation
+-- site has no foreign key to chats and could not have one, the site being of
+-- more than one kind, which is why an agent can outlive its tree at all.
+SELECT
+	id
+FROM
+	ai_agent_ledger
+WHERE
+	creation_site_type = 'chat'
+	AND state = 'active'
+	AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agent_ledger.creation_site_id);
