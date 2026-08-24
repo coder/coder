@@ -251,9 +251,6 @@ importers:
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
-      uuid:
-        specifier: 11.1.1
-        version: 11.1.1
       websocket-ts:
         specifier: 2.3.0
         version: 2.3.0
@@ -366,9 +363,6 @@ importers:
       '@types/ua-parser-js':
         specifier: 0.7.36
         version: 0.7.36
-      '@types/uuid':
-        specifier: 9.0.2
-        version: 9.0.2
       '@vitejs/plugin-react':
         specifier: 6.0.5
         version: 6.0.5(@rolldown/plugin-babel@0.2.3(@babel/core@7.29.7)(@babel/runtime@7.26.10)(rolldown@1.2.4)(vite@8.2.1(@types/node@20.19.41)(esbuild@0.25.12)(jiti@1.21.7)(tsx@4.22.4)(yaml@2.8.3)))(babel-plugin-react-compiler@1.0.0)(vite@8.2.1(@types/node@20.19.41)(esbuild@0.25.12)(jiti@1.21.7)(tsx@4.22.4)(yaml@2.8.3))
@@ -2689,9 +2683,6 @@ packages:
 
   '@types/unist@3.0.3':
     resolution: {integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==, tarball: https://registry.npmjs.org/@types/unist/-/unist-3.0.3.tgz}
-
-  '@types/uuid@9.0.2':
-    resolution: {integrity: sha512-kNnC1GFBLuhImSnV7w4njQkUiJi0ZXUycu1rUaouPqiKlXkh77JKgdRnTAp1x5eBwcIwbtI+3otwzuIDEuDoxQ==, tarball: https://registry.npmjs.org/@types/uuid/-/uuid-9.0.2.tgz}
 
   '@types/wrap-ansi@3.0.0':
     resolution: {integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==, tarball: https://registry.npmjs.org/@types/wrap-ansi/-/wrap-ansi-3.0.0.tgz}
@@ -8496,8 +8487,6 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
-
-  '@types/uuid@9.0.2': {}
 
   '@types/wrap-ansi@3.0.0': {}
 

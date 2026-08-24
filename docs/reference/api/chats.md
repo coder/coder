@@ -97,7 +97,8 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -127,6 +128,7 @@ Experimental: this endpoint is subject to change.
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
@@ -202,6 +204,7 @@ Status Code **200**
 | `»» name`                 | string                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» organization_id`      | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» owner_id`             | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» size_bytes`           | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» has_unread`            | boolean                                                                            | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
 | `» id`                    | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» labels`                | object                                                                             | false    |              |                                                                                                                                                                                                                                                                            |
@@ -224,6 +227,7 @@ Status Code **200**
 | `» parent_chat_id`        | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» pin_order`             | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                            |
 | `» plan_mode`             | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `» queued_for_capacity`   | boolean                                                                            | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `» root_chat_id`          | string(uuid)                                                                       | false    |              |                                                                                                                                                                                                                                                                            |
 | `» shared`                | boolean                                                                            | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `» status`                | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                               | false    |              |                                                                                                                                                                                                                                                                            |
@@ -374,7 +378,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -404,6 +409,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -468,7 +474,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -498,6 +505,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -513,9 +521,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                   |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Chat](schemas.md#codersdkchat) |
+| Status | Meaning                                                                 | Description                  | Schema                                           |
+|--------|-------------------------------------------------------------------------|------------------------------|--------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                      | [codersdk.Chat](schemas.md#codersdkchat)         |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 256 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -552,9 +561,10 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                                       |
-|--------|--------------------------------------------------------------|-------------|------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| Status | Meaning                                                                 | Description                 | Schema                                                                       |
+|--------|-------------------------------------------------------------------------|-----------------------------|------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)            | Created                     | [codersdk.UploadChatFileResponse](schemas.md#codersdkuploadchatfileresponse) |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 10 MiB | [codersdk.Response](schemas.md#codersdkresponse)                             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -583,59 +593,6 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                 | Description | Schema |
 |--------|---------------------------------------------------------|-------------|--------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## List chat models
-
-### Code samples
-
-```sh
-# Example request using curl
-curl -X GET http://coder-server:8080/api/experimental/chats/models \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /api/experimental/chats/models`
-
-Experimental: this endpoint is subject to change.
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "providers": [
-    {
-      "available": true,
-      "models": [
-        {
-          "display_name": "string",
-          "id": "string",
-          "model": "string",
-          "provider": "string"
-        }
-      ],
-      "provider": "string",
-      "unavailable_reason": "missing_api_key"
-    }
-  ],
-  "unsupported_providers": [
-    {
-      "display_name": "string",
-      "provider": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelsResponse](schemas.md#codersdkchatmodelsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -719,7 +676,8 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -749,6 +707,7 @@ Experimental: this endpoint is subject to change.
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
@@ -867,7 +826,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -897,6 +857,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -961,7 +922,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -991,6 +953,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -1146,7 +1109,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -1176,6 +1140,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -1240,7 +1205,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -1270,6 +1236,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -1475,7 +1442,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -1505,6 +1473,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -1569,7 +1538,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -1599,6 +1569,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -2490,7 +2461,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -2520,6 +2492,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -2584,7 +2557,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -2614,6 +2588,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -3092,7 +3067,8 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -3122,6 +3098,7 @@ Experimental: this endpoint is subject to change.
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -3186,7 +3163,8 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -3216,6 +3194,7 @@ Experimental: this endpoint is subject to change.
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",

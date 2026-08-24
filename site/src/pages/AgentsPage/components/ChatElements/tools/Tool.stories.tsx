@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { chatModelConfigsKey } from "#/api/queries/chats";
+import { chatModelKey } from "#/api/queries/chats";
 import { workspaceBuildLogs } from "#/api/queries/workspaceBuilds";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import { MockWorkspace, MockWorkspaceBuild } from "#/testHelpers/entities";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/MessageBlocks";
@@ -35,6 +35,7 @@ const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
 	args: {
+		organizationId: MockChatModel.organization_id,
 		name: "execute",
 		args: { command: executeCommand },
 		status: "completed",
@@ -262,6 +263,20 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		result: {
 			workspace_name: "agent-icons",
 			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		},
+	},
+	{
+		name: "find_tools",
+		args: { queries: ["github issues"] },
+		result: {
+			matches: [
+				{
+					name: "github__list_issues",
+					description: "List issues in a GitHub repository.",
+				},
+			],
+			activated: ["github__list_issues"],
+			total_deferred: 12,
 		},
 	},
 	{
@@ -557,20 +572,15 @@ export const ExecuteBackgrounded: Story = {
 		shellToolDisplayMode: "always_collapsed",
 		result: {
 			background_process_id: "process-123",
+			backgrounded: true,
 			output: "",
 			wall_duration_ms: 2100,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const backgroundIndicator = canvas.getByRole("img", {
-			name: "Running in background",
-		});
-		expect(backgroundIndicator).toBeVisible();
-		await userEvent.hover(backgroundIndicator);
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(
-			"Running in background",
-		);
+		expect(canvas.queryByText(/for 2\.1s/)).not.toBeInTheDocument();
+		expect(canvas.getByText(/npm start/)).toBeInTheDocument();
 	},
 };
 
@@ -667,13 +677,117 @@ export const ProcessOutputAlwaysExpanded: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/process output line 1/)).toBeVisible();
 		expect(canvas.getByText(/process output line 30/)).toBeVisible();
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", {
-					name: "Collapse full process output",
-				}),
-			).toHaveAttribute("aria-expanded", "true");
-		});
+	},
+};
+
+export const ProcessOutputExitZeroNoBadge: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "dogfood complete",
+			exit_code: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.queryByText(/exit/)).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputModelIntent: Story = {
+	args: {
+		name: "process_output",
+		status: "running",
+		args: {
+			process_id: "process-123",
+			model_intent: "Waiting for the dev server to be ready",
+		},
+		modelIntent: "Waiting for the dev server to be ready",
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Waiting for the dev server to be ready"),
+		).toBeVisible();
+		expect(canvas.queryByText(/npm start/)).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("img", { name: "Tool call running" }),
+		).toBeVisible();
+	},
+};
+
+/**
+ * Wait timed out while the process lives on: running:true in the result.
+ * The label keeps the present tense, but the row must not keep animating
+ * (spinner/shimmer) once the poll itself has completed.
+ */
+export const ProcessOutputStillRunningResult: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checking npm start")).toBeVisible();
+		expect(canvas.queryByText(/Checked/)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Tool call running" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** A later kill overrides a stale running snapshot; SIGTERM does not. */
+export const ProcessOutputRunningThenSignaled: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		killedBySignal: "kill",
+		args: { process_id: "process-123" },
+		result: {
+			command: "npm start",
+			output: "> Starting Vite dev server...",
+			running: true,
+			note: "process is still running",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checked npm start")).toBeVisible();
+		expect(canvas.queryByText(/Checking/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("img", { name: "Killed (SIGKILL)" })).toBeVisible();
+	},
+};
+
+/** Older transcripts carry no command; the label falls back. */
+export const ProcessOutputNoCommand: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		args: { process_id: "process-123" },
+		result: {
+			output: "some output",
+			exit_code: 0,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Process output")).toBeVisible();
+		expect(canvas.getByText("some output")).toBeVisible();
 	},
 };
 
@@ -745,8 +859,8 @@ export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
 	},
 };
 
-const mockChatModelConfig = {
-	...MockChatModelConfig,
+const mockChatModel = {
+	...MockChatModel,
 	id: "8b29eba2-53a9-4c9a-95bb-b0326ac0a2fe",
 	model: "claude-sonnet-4-6",
 	display_name: "Claude Sonnet 4.6",
@@ -772,7 +886,12 @@ export const SubagentSpawnWithModelAndEffort: Story = {
 		},
 	},
 	parameters: {
-		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -802,7 +921,12 @@ export const SubagentSpawnWithModelDefaultEffort: Story = {
 		},
 	},
 	parameters: {
-		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -834,7 +958,12 @@ export const SubagentSpawnWithEffortOnly: Story = {
 		},
 	},
 	parameters: {
-		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+		queries: [
+			{
+				key: chatModelKey(mockChatModel.organization_id, mockChatModel.id),
+				data: mockChatModel,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -862,7 +991,15 @@ export const SubagentSpawnWithUnknownModelConfig: Story = {
 		},
 	},
 	parameters: {
-		queries: [{ key: chatModelConfigsKey, data: [mockChatModelConfig] }],
+		queries: [
+			{
+				key: chatModelKey(
+					MockChatModel.organization_id,
+					"00000000-0000-0000-0000-000000000000",
+				),
+				data: null,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1649,6 +1786,7 @@ export const TaskNameGenericRendering: Story = {
 const sampleMCPServers = [
 	{
 		id: "mcp-server-1",
+		organization_id: "00000000-0000-4000-8000-000000000001",
 		slug: "linear",
 		display_name: "Linear",
 		description: "Project management",

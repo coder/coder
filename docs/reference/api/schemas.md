@@ -1149,22 +1149,38 @@ title: Schemas
   "model": "string",
   "output_price": 0,
   "provider": "string",
+  "source": "default",
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `cache_read_price`  | integer | false    |              |             |
-| `cache_write_price` | integer | false    |              |             |
-| `created_at`        | string  | false    |              |             |
-| `input_price`       | integer | false    |              |             |
-| `model`             | string  | false    |              |             |
-| `output_price`      | integer | false    |              |             |
-| `provider`          | string  | false    |              |             |
-| `updated_at`        | string  | false    |              |             |
+| Name                | Type                                                       | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------|----------|--------------|-------------|
+| `cache_read_price`  | integer                                                    | false    |              |             |
+| `cache_write_price` | integer                                                    | false    |              |             |
+| `created_at`        | string                                                     | false    |              |             |
+| `input_price`       | integer                                                    | false    |              |             |
+| `model`             | string                                                     | false    |              |             |
+| `output_price`      | integer                                                    | false    |              |             |
+| `provider`          | string                                                     | false    |              |             |
+| `source`            | [codersdk.AIModelPriceSource](#codersdkaimodelpricesource) | false    |              |             |
+| `updated_at`        | string                                                     | false    |              |             |
+
+## codersdk.AIModelPriceSource
+
+```json
+"default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `custom`, `default` |
 
 ## codersdk.AIModelPriceUpsert
 
@@ -1388,9 +1404,9 @@ None
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_gateway_key:update`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `chat_model_config:*`, `chat_model_config:create`, `chat_model_config:delete`, `chat_model_config:read`, `chat_model_config:share`, `chat_model_config:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `mcp_server_config:*`, `mcp_server_config:create`, `mcp_server_config:delete`, `mcp_server_config:read`, `mcp_server_config:share`, `mcp_server_config:update`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_build_orchestration:*`, `workspace_build_orchestration:create`, `workspace_build_orchestration:delete`, `workspace_build_orchestration:read`, `workspace_build_orchestration:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -2250,7 +2266,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size_bytes": 0
         }
       ],
       "has_unread": true,
@@ -2280,6 +2297,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
+      "queued_for_capacity": true,
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
@@ -2344,7 +2362,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size_bytes": 0
     }
   ],
   "has_unread": true,
@@ -2374,6 +2393,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
+  "queued_for_capacity": true,
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
@@ -2416,6 +2436,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `queued_for_capacity`   | boolean                                                         | false    |              | Queued for capacity reports that the chat is waiting for a concurrent agent slot. Single-chat reads derive it; list responses leave it false.                                                                                                                              |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2790,6 +2811,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
+## codersdk.ChatFileDownloadURLResponse
+
+```json
+{
+  "expires_at": "2019-08-24T14:15:22Z",
+  "mime_type": "string",
+  "name": "string",
+  "sha256": "string",
+  "size_bytes": 0,
+  "url": "http://example.com"
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `expires_at` | string  | false    |              |             |
+| `mime_type`  | string  | false    |              |             |
+| `name`       | string  | false    |              |             |
+| `sha256`     | string  | false    |              |             |
+| `size_bytes` | integer | false    |              |             |
+| `url`        | string  | false    |              |             |
+
 ## codersdk.ChatFileMetadata
 
 ```json
@@ -2799,20 +2844,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mime_type": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "size_bytes": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `mime_type`       | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `created_at`      | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `mime_type`       | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `organization_id` | string  | false    |              |             |
+| `owner_id`        | string  | false    |              |             |
+| `size_bytes`      | integer | false    |              |             |
 
 ## codersdk.ChatGroup
 
@@ -3350,48 +3397,935 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
-  "id": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
   "model": "string",
-  "provider": "string"
+  "model_config": {
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "openai_config": {
+      "use_responses_api": true
+    },
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "context_1m_enabled": true,
+        "disable_parallel_tool_use": true,
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "thinking_display": "string",
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0,
+          "thinking_level": "string"
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "reasoning_effort": {
+      "default": "string",
+      "max": "string"
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "reasoning_efforts": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `display_name` | string | false    |              |             |
-| `id`           | string | false    |              |             |
-| `model`        | string | false    |              |             |
-| `provider`     | string | false    |              |             |
+| Name                    | Type                                                         | Required | Restrictions | Description                                                                                        |
+|-------------------------|--------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------|
+| `ai_provider_id`        | string                                                       | false    |              |                                                                                                    |
+| `compression_threshold` | integer                                                      | false    |              |                                                                                                    |
+| `context_limit`         | integer                                                      | false    |              |                                                                                                    |
+| `created_at`            | string                                                       | false    |              |                                                                                                    |
+| `display_name`          | string                                                       | false    |              |                                                                                                    |
+| `enabled`               | boolean                                                      | false    |              |                                                                                                    |
+| `id`                    | string                                                       | false    |              |                                                                                                    |
+| `is_default`            | boolean                                                      | false    |              |                                                                                                    |
+| `model`                 | string                                                       | false    |              |                                                                                                    |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |                                                                                                    |
+| `organization_id`       | string                                                       | false    |              |                                                                                                    |
+| `reasoning_efforts`     | array of string                                              | false    |              | Reasoning efforts lists selectable reasoning effort values through the model's configured maximum. |
+| `updated_at`            | string                                                       | false    |              |                                                                                                    |
 
-## codersdk.ChatModelProvider
+## codersdk.ChatModelACL
 
 ```json
 {
-  "available": true,
-  "models": [
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+
+## codersdk.ChatModelAnthropicProviderOptions
+
+```json
+{
+  "allowed_domains": [
+    "string"
+  ],
+  "blocked_domains": [
+    "string"
+  ],
+  "context_1m_enabled": true,
+  "disable_parallel_tool_use": true,
+  "send_reasoning": true,
+  "thinking": {
+    "budget_tokens": 0
+  },
+  "thinking_display": "string",
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                        | Type                                                                                     | Required | Restrictions | Description |
+|-----------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `allowed_domains`           | array of string                                                                          | false    |              |             |
+| `blocked_domains`           | array of string                                                                          | false    |              |             |
+| `context_1m_enabled`        | boolean                                                                                  | false    |              |             |
+| `disable_parallel_tool_use` | boolean                                                                                  | false    |              |             |
+| `send_reasoning`            | boolean                                                                                  | false    |              |             |
+| `thinking`                  | [codersdk.ChatModelAnthropicThinkingOptions](#codersdkchatmodelanthropicthinkingoptions) | false    |              |             |
+| `thinking_display`          | string                                                                                   | false    |              |             |
+| `web_search_enabled`        | boolean                                                                                  | false    |              |             |
+
+## codersdk.ChatModelAnthropicThinkingOptions
+
+```json
+{
+  "budget_tokens": 0
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description |
+|-----------------|---------|----------|--------------|-------------|
+| `budget_tokens` | integer | false    |              |             |
+
+## codersdk.ChatModelCallConfig
+
+```json
+{
+  "frequency_penalty": 0,
+  "max_output_tokens": 0,
+  "openai_config": {
+    "use_responses_api": true
+  },
+  "presence_penalty": 0,
+  "provider_options": {
+    "anthropic": {
+      "allowed_domains": [
+        "string"
+      ],
+      "blocked_domains": [
+        "string"
+      ],
+      "context_1m_enabled": true,
+      "disable_parallel_tool_use": true,
+      "send_reasoning": true,
+      "thinking": {
+        "budget_tokens": 0
+      },
+      "thinking_display": "string",
+      "web_search_enabled": true
+    },
+    "google": {
+      "cached_content": "string",
+      "safety_settings": [
+        {
+          "category": "string",
+          "threshold": "string"
+        }
+      ],
+      "thinking_config": {
+        "include_thoughts": true,
+        "thinking_budget": 0,
+        "thinking_level": "string"
+      },
+      "threshold": "string",
+      "web_search_enabled": true
+    },
+    "openai": {
+      "allowed_domains": [
+        "string"
+      ],
+      "include": [
+        "string"
+      ],
+      "instructions": "string",
+      "log_probs": true,
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "max_completion_tokens": 0,
+      "max_tool_calls": 0,
+      "metadata": {
+        "property1": null,
+        "property2": null
+      },
+      "parallel_tool_calls": true,
+      "prediction": {
+        "property1": null,
+        "property2": null
+      },
+      "prompt_cache_key": "string",
+      "reasoning_summary": "string",
+      "safety_identifier": "string",
+      "search_context_size": "string",
+      "service_tier": "string",
+      "store": true,
+      "strict_json_schema": true,
+      "structured_outputs": true,
+      "text_verbosity": "string",
+      "top_log_probs": 0,
+      "user": "string",
+      "web_search_enabled": true
+    },
+    "openaicompat": {
+      "user": "string"
+    },
+    "openrouter": {
+      "extra_body": {
+        "property1": null,
+        "property2": null
+      },
+      "include_usage": true,
+      "log_probs": true,
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "parallel_tool_calls": true,
+      "provider": {
+        "allow_fallbacks": true,
+        "data_collection": "string",
+        "ignore": [
+          "string"
+        ],
+        "only": [
+          "string"
+        ],
+        "order": [
+          "string"
+        ],
+        "quantizations": [
+          "string"
+        ],
+        "require_parameters": true,
+        "sort": "string"
+      },
+      "reasoning": {
+        "enabled": true,
+        "exclude": true,
+        "max_tokens": 0
+      },
+      "user": "string"
+    },
+    "vercel": {
+      "extra_body": {
+        "property1": null,
+        "property2": null
+      },
+      "logit_bias": {
+        "property1": 0,
+        "property2": 0
+      },
+      "logprobs": true,
+      "parallel_tool_calls": true,
+      "providerOptions": {
+        "models": [
+          "string"
+        ],
+        "order": [
+          "string"
+        ]
+      },
+      "reasoning": {
+        "enabled": true,
+        "exclude": true,
+        "max_tokens": 0
+      },
+      "top_logprobs": 0,
+      "user": "string"
+    }
+  },
+  "reasoning_effort": {
+    "default": "string",
+    "max": "string"
+  },
+  "temperature": 0,
+  "top_k": 0,
+  "top_p": 0
+}
+```
+
+### Properties
+
+| Name                | Type                                                                               | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `frequency_penalty` | number                                                                             | false    |              |             |
+| `max_output_tokens` | integer                                                                            | false    |              |             |
+| `openai_config`     | [codersdk.ChatModelOpenAIConfig](#codersdkchatmodelopenaiconfig)                   | false    |              |             |
+| `presence_penalty`  | number                                                                             | false    |              |             |
+| `provider_options`  | [codersdk.ChatModelProviderOptions](#codersdkchatmodelprovideroptions)             | false    |              |             |
+| `reasoning_effort`  | [codersdk.ChatModelReasoningEffortConfig](#codersdkchatmodelreasoningeffortconfig) | false    |              |             |
+| `temperature`       | number                                                                             | false    |              |             |
+| `top_k`             | integer                                                                            | false    |              |             |
+| `top_p`             | number                                                                             | false    |              |             |
+
+## codersdk.ChatModelGoogleProviderOptions
+
+```json
+{
+  "cached_content": "string",
+  "safety_settings": [
     {
-      "display_name": "string",
-      "id": "string",
-      "model": "string",
-      "provider": "string"
+      "category": "string",
+      "threshold": "string"
     }
   ],
-  "provider": "string",
+  "thinking_config": {
+    "include_thoughts": true,
+    "thinking_budget": 0,
+    "thinking_level": "string"
+  },
+  "threshold": "string",
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                                    | Required | Restrictions | Description |
+|----------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `cached_content`     | string                                                                                  | false    |              |             |
+| `safety_settings`    | array of [codersdk.ChatModelGoogleSafetySetting](#codersdkchatmodelgooglesafetysetting) | false    |              |             |
+| `thinking_config`    | [codersdk.ChatModelGoogleThinkingConfig](#codersdkchatmodelgooglethinkingconfig)        | false    |              |             |
+| `threshold`          | string                                                                                  | false    |              |             |
+| `web_search_enabled` | boolean                                                                                 | false    |              |             |
+
+## codersdk.ChatModelGoogleSafetySetting
+
+```json
+{
+  "category": "string",
+  "threshold": "string"
+}
+```
+
+### Properties
+
+| Name        | Type   | Required | Restrictions | Description |
+|-------------|--------|----------|--------------|-------------|
+| `category`  | string | false    |              |             |
+| `threshold` | string | false    |              |             |
+
+## codersdk.ChatModelGoogleThinkingConfig
+
+```json
+{
+  "include_thoughts": true,
+  "thinking_budget": 0,
+  "thinking_level": "string"
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `include_thoughts` | boolean | false    |              |             |
+| `thinking_budget`  | integer | false    |              |             |
+| `thinking_level`   | string  | false    |              |             |
+
+## codersdk.ChatModelOpenAICompatProviderOptions
+
+```json
+{
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `user` | string | false    |              |             |
+
+## codersdk.ChatModelOpenAIConfig
+
+```json
+{
+  "use_responses_api": true
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `use_responses_api` | boolean | false    |              |             |
+
+## codersdk.ChatModelOpenAIProviderOptions
+
+```json
+{
+  "allowed_domains": [
+    "string"
+  ],
+  "include": [
+    "string"
+  ],
+  "instructions": "string",
+  "log_probs": true,
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "max_completion_tokens": 0,
+  "max_tool_calls": 0,
+  "metadata": {
+    "property1": null,
+    "property2": null
+  },
+  "parallel_tool_calls": true,
+  "prediction": {
+    "property1": null,
+    "property2": null
+  },
+  "prompt_cache_key": "string",
+  "reasoning_summary": "string",
+  "safety_identifier": "string",
+  "search_context_size": "string",
+  "service_tier": "string",
+  "store": true,
+  "strict_json_schema": true,
+  "structured_outputs": true,
+  "text_verbosity": "string",
+  "top_log_probs": 0,
+  "user": "string",
+  "web_search_enabled": true
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description |
+|-------------------------|-----------------|----------|--------------|-------------|
+| `allowed_domains`       | array of string | false    |              |             |
+| `include`               | array of string | false    |              |             |
+| `instructions`          | string          | false    |              |             |
+| `log_probs`             | boolean         | false    |              |             |
+| `logit_bias`            | object          | false    |              |             |
+| » `[any property]`      | integer         | false    |              |             |
+| `max_completion_tokens` | integer         | false    |              |             |
+| `max_tool_calls`        | integer         | false    |              |             |
+| `metadata`              | object          | false    |              |             |
+| » `[any property]`      | any             | false    |              |             |
+| `parallel_tool_calls`   | boolean         | false    |              |             |
+| `prediction`            | object          | false    |              |             |
+| » `[any property]`      | any             | false    |              |             |
+| `prompt_cache_key`      | string          | false    |              |             |
+| `reasoning_summary`     | string          | false    |              |             |
+| `safety_identifier`     | string          | false    |              |             |
+| `search_context_size`   | string          | false    |              |             |
+| `service_tier`          | string          | false    |              |             |
+| `store`                 | boolean         | false    |              |             |
+| `strict_json_schema`    | boolean         | false    |              |             |
+| `structured_outputs`    | boolean         | false    |              |             |
+| `text_verbosity`        | string          | false    |              |             |
+| `top_log_probs`         | integer         | false    |              |             |
+| `user`                  | string          | false    |              |             |
+| `web_search_enabled`    | boolean         | false    |              |             |
+
+## codersdk.ChatModelOpenRouterProvider
+
+```json
+{
+  "allow_fallbacks": true,
+  "data_collection": "string",
+  "ignore": [
+    "string"
+  ],
+  "only": [
+    "string"
+  ],
+  "order": [
+    "string"
+  ],
+  "quantizations": [
+    "string"
+  ],
+  "require_parameters": true,
+  "sort": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type            | Required | Restrictions | Description |
+|----------------------|-----------------|----------|--------------|-------------|
+| `allow_fallbacks`    | boolean         | false    |              |             |
+| `data_collection`    | string          | false    |              |             |
+| `ignore`             | array of string | false    |              |             |
+| `only`               | array of string | false    |              |             |
+| `order`              | array of string | false    |              |             |
+| `quantizations`      | array of string | false    |              |             |
+| `require_parameters` | boolean         | false    |              |             |
+| `sort`               | string          | false    |              |             |
+
+## codersdk.ChatModelOpenRouterProviderOptions
+
+```json
+{
+  "extra_body": {
+    "property1": null,
+    "property2": null
+  },
+  "include_usage": true,
+  "log_probs": true,
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "parallel_tool_calls": true,
+  "provider": {
+    "allow_fallbacks": true,
+    "data_collection": "string",
+    "ignore": [
+      "string"
+    ],
+    "only": [
+      "string"
+    ],
+    "order": [
+      "string"
+    ],
+    "quantizations": [
+      "string"
+    ],
+    "require_parameters": true,
+    "sort": "string"
+  },
+  "reasoning": {
+    "enabled": true,
+    "exclude": true,
+    "max_tokens": 0
+  },
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                         | Required | Restrictions | Description |
+|-----------------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `extra_body`          | object                                                                       | false    |              |             |
+| » `[any property]`    | any                                                                          | false    |              |             |
+| `include_usage`       | boolean                                                                      | false    |              |             |
+| `log_probs`           | boolean                                                                      | false    |              |             |
+| `logit_bias`          | object                                                                       | false    |              |             |
+| » `[any property]`    | integer                                                                      | false    |              |             |
+| `parallel_tool_calls` | boolean                                                                      | false    |              |             |
+| `provider`            | [codersdk.ChatModelOpenRouterProvider](#codersdkchatmodelopenrouterprovider) | false    |              |             |
+| `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)     | false    |              |             |
+| `user`                | string                                                                       | false    |              |             |
+
+## codersdk.ChatModelOverrideContext
+
+```json
+"general"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                          |
+|-------------------------------------------------------------------|
+| `advisor`, `compaction`, `explore`, `general`, `title_generation` |
+
+## codersdk.ChatModelOverrideResponse
+
+```json
+{
+  "context": "general",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                   | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`          | [codersdk.ChatModelOverrideContext](#codersdkchatmodeloverridecontext) | false    |              |             |
+| `model_config_id`  | string                                                                 | false    |              |             |
+| `reasoning_effort` | string                                                                 | false    |              |             |
+
+## codersdk.ChatModelOverridesResponse
+
+```json
+{
+  "overrides": [
+    {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name        | Type                                                                              | Required | Restrictions | Description |
+|-------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `overrides` | array of [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+
+## codersdk.ChatModelProviderDescriptor
+
+```json
+{
+  "allow_user_api_key": true,
+  "available": true,
+  "display_name": "string",
+  "enabled": true,
+  "has_api_key": true,
+  "has_effective_api_key": true,
+  "has_user_api_key": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "type": "string",
   "unavailable_reason": "missing_api_key"
 }
 ```
 
 ### Properties
 
-| Name                 | Type                                                                                       | Required | Restrictions | Description |
-|----------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `available`          | boolean                                                                                    | false    |              |             |
-| `models`             | array of [codersdk.ChatModel](#codersdkchatmodel)                                          | false    |              |             |
-| `provider`           | string                                                                                     | false    |              |             |
-| `unavailable_reason` | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
+| Name                    | Type                                                                                       | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `allow_user_api_key`    | boolean                                                                                    | false    |              |             |
+| `available`             | boolean                                                                                    | false    |              |             |
+| `display_name`          | string                                                                                     | false    |              |             |
+| `enabled`               | boolean                                                                                    | false    |              |             |
+| `has_api_key`           | boolean                                                                                    | false    |              |             |
+| `has_effective_api_key` | boolean                                                                                    | false    |              |             |
+| `has_user_api_key`      | boolean                                                                                    | false    |              |             |
+| `icon`                  | string                                                                                     | false    |              |             |
+| `id`                    | string                                                                                     | false    |              |             |
+| `type`                  | string                                                                                     | false    |              |             |
+| `unavailable_reason`    | [codersdk.ChatModelProviderUnavailableReason](#codersdkchatmodelproviderunavailablereason) | false    |              |             |
+
+## codersdk.ChatModelProviderOptions
+
+```json
+{
+  "anthropic": {
+    "allowed_domains": [
+      "string"
+    ],
+    "blocked_domains": [
+      "string"
+    ],
+    "context_1m_enabled": true,
+    "disable_parallel_tool_use": true,
+    "send_reasoning": true,
+    "thinking": {
+      "budget_tokens": 0
+    },
+    "thinking_display": "string",
+    "web_search_enabled": true
+  },
+  "google": {
+    "cached_content": "string",
+    "safety_settings": [
+      {
+        "category": "string",
+        "threshold": "string"
+      }
+    ],
+    "thinking_config": {
+      "include_thoughts": true,
+      "thinking_budget": 0,
+      "thinking_level": "string"
+    },
+    "threshold": "string",
+    "web_search_enabled": true
+  },
+  "openai": {
+    "allowed_domains": [
+      "string"
+    ],
+    "include": [
+      "string"
+    ],
+    "instructions": "string",
+    "log_probs": true,
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "max_completion_tokens": 0,
+    "max_tool_calls": 0,
+    "metadata": {
+      "property1": null,
+      "property2": null
+    },
+    "parallel_tool_calls": true,
+    "prediction": {
+      "property1": null,
+      "property2": null
+    },
+    "prompt_cache_key": "string",
+    "reasoning_summary": "string",
+    "safety_identifier": "string",
+    "search_context_size": "string",
+    "service_tier": "string",
+    "store": true,
+    "strict_json_schema": true,
+    "structured_outputs": true,
+    "text_verbosity": "string",
+    "top_log_probs": 0,
+    "user": "string",
+    "web_search_enabled": true
+  },
+  "openaicompat": {
+    "user": "string"
+  },
+  "openrouter": {
+    "extra_body": {
+      "property1": null,
+      "property2": null
+    },
+    "include_usage": true,
+    "log_probs": true,
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "parallel_tool_calls": true,
+    "provider": {
+      "allow_fallbacks": true,
+      "data_collection": "string",
+      "ignore": [
+        "string"
+      ],
+      "only": [
+        "string"
+      ],
+      "order": [
+        "string"
+      ],
+      "quantizations": [
+        "string"
+      ],
+      "require_parameters": true,
+      "sort": "string"
+    },
+    "reasoning": {
+      "enabled": true,
+      "exclude": true,
+      "max_tokens": 0
+    },
+    "user": "string"
+  },
+  "vercel": {
+    "extra_body": {
+      "property1": null,
+      "property2": null
+    },
+    "logit_bias": {
+      "property1": 0,
+      "property2": 0
+    },
+    "logprobs": true,
+    "parallel_tool_calls": true,
+    "providerOptions": {
+      "models": [
+        "string"
+      ],
+      "order": [
+        "string"
+      ]
+    },
+    "reasoning": {
+      "enabled": true,
+      "exclude": true,
+      "max_tokens": 0
+    },
+    "top_logprobs": 0,
+    "user": "string"
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                           | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `anthropic`    | [codersdk.ChatModelAnthropicProviderOptions](#codersdkchatmodelanthropicprovideroptions)       | false    |              |             |
+| `google`       | [codersdk.ChatModelGoogleProviderOptions](#codersdkchatmodelgoogleprovideroptions)             | false    |              |             |
+| `openai`       | [codersdk.ChatModelOpenAIProviderOptions](#codersdkchatmodelopenaiprovideroptions)             | false    |              |             |
+| `openaicompat` | [codersdk.ChatModelOpenAICompatProviderOptions](#codersdkchatmodelopenaicompatprovideroptions) | false    |              |             |
+| `openrouter`   | [codersdk.ChatModelOpenRouterProviderOptions](#codersdkchatmodelopenrouterprovideroptions)     | false    |              |             |
+| `vercel`       | [codersdk.ChatModelVercelProviderOptions](#codersdkchatmodelvercelprovideroptions)             | false    |              |             |
 
 ## codersdk.ChatModelProviderUnavailableReason
 
@@ -3407,40 +4341,180 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------------------------------------------------|
 | `fetch_failed`, `missing_api_key`, `user_api_key_required` |
 
-## codersdk.ChatModelsResponse
+## codersdk.ChatModelReasoningEffortConfig
 
 ```json
 {
-  "providers": [
-    {
-      "available": true,
-      "models": [
-        {
-          "display_name": "string",
-          "id": "string",
-          "model": "string",
-          "provider": "string"
-        }
-      ],
-      "provider": "string",
-      "unavailable_reason": "missing_api_key"
-    }
+  "default": "string",
+  "max": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `default` | string | false    |              |             |
+| `max`     | string | false    |              |             |
+
+## codersdk.ChatModelReasoningOptions
+
+```json
+{
+  "enabled": true,
+  "exclude": true,
+  "max_tokens": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description |
+|--------------|---------|----------|--------------|-------------|
+| `enabled`    | boolean | false    |              |             |
+| `exclude`    | boolean | false    |              |             |
+| `max_tokens` | integer | false    |              |             |
+
+## codersdk.ChatModelVercelGatewayProviderOptions
+
+```json
+{
+  "models": [
+    "string"
   ],
-  "unsupported_providers": [
-    {
-      "display_name": "string",
-      "provider": "string"
-    }
+  "order": [
+    "string"
   ]
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                                            |
-|-------------------------|-------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
-| `providers`             | array of [codersdk.ChatModelProvider](#codersdkchatmodelprovider)             | false    |              |                                                                                                                        |
-| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider) | false    |              | Unsupported providers lists configured providers the Agents harness cannot use, so the UI can explain the empty state. |
+| Name     | Type            | Required | Restrictions | Description |
+|----------|-----------------|----------|--------------|-------------|
+| `models` | array of string | false    |              |             |
+| `order`  | array of string | false    |              |             |
+
+## codersdk.ChatModelVercelProviderOptions
+
+```json
+{
+  "extra_body": {
+    "property1": null,
+    "property2": null
+  },
+  "logit_bias": {
+    "property1": 0,
+    "property2": 0
+  },
+  "logprobs": true,
+  "parallel_tool_calls": true,
+  "providerOptions": {
+    "models": [
+      "string"
+    ],
+    "order": [
+      "string"
+    ]
+  },
+  "reasoning": {
+    "enabled": true,
+    "exclude": true,
+    "max_tokens": 0
+  },
+  "top_logprobs": 0,
+  "user": "string"
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                             | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `extra_body`          | object                                                                                           | false    |              |             |
+| » `[any property]`    | any                                                                                              | false    |              |             |
+| `logit_bias`          | object                                                                                           | false    |              |             |
+| » `[any property]`    | integer                                                                                          | false    |              |             |
+| `logprobs`            | boolean                                                                                          | false    |              |             |
+| `parallel_tool_calls` | boolean                                                                                          | false    |              |             |
+| `providerOptions`     | [codersdk.ChatModelVercelGatewayProviderOptions](#codersdkchatmodelvercelgatewayprovideroptions) | false    |              |             |
+| `reasoning`           | [codersdk.ChatModelReasoningOptions](#codersdkchatmodelreasoningoptions)                         | false    |              |             |
+| `top_logprobs`        | integer                                                                                          | false    |              |             |
+| `user`                | string                                                                                           | false    |              |             |
+
+## codersdk.ChatPersonalModelOverride
+
+```json
+{
+  "context": "root",
+  "is_set": true,
+  "mode": "deployment_default",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `context`          | [codersdk.ChatPersonalModelOverrideContext](#codersdkchatpersonalmodeloverridecontext) | false    |              |             |
+| `is_set`           | boolean                                                                                | false    |              |             |
+| `mode`             | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode)       | false    |              |             |
+| `model_config_id`  | string                                                                                 | false    |              |             |
+| `reasoning_effort` | string                                                                                 | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideContext
+
+```json
+"root"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                     |
+|------------------------------|
+| `explore`, `general`, `root` |
+
+## codersdk.ChatPersonalModelOverrideDeploymentDefaults
+
+```json
+{
+  "explore": {
+    "context": "general",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "general": {
+    "context": "general",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  }
+}
+```
+
+### Properties
+
+| Name      | Type                                                                     | Required | Restrictions | Description |
+|-----------|--------------------------------------------------------------------------|----------|--------------|-------------|
+| `explore` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+| `general` | [codersdk.ChatModelOverrideResponse](#codersdkchatmodeloverrideresponse) | false    |              |             |
+
+## codersdk.ChatPersonalModelOverrideMode
+
+```json
+"deployment_default"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `chat_default`, `deployment_default`, `model` |
 
 ## codersdk.ChatPlanMode
 
@@ -4173,7 +5247,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size_bytes": 0
       }
     ],
     "has_unread": true,
@@ -4203,6 +5278,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
+    "queued_for_capacity": true,
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
@@ -4481,12 +5557,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type                           | Required | Restrictions | Description                                                               |
-|----------------|--------------------------------|----------|--------------|---------------------------------------------------------------------------|
-| `slug_or_port` | string                         | false    |              |                                                                           |
-| `status_code`  | integer                        | false    |              | Status code is the HTTP status code of the request.                       |
-| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was from an unauthenticated user. |
-| `user_agent`   | string                         | false    |              |                                                                           |
+| Name           | Type                           | Required | Restrictions | Description                                                          |
+|----------------|--------------------------------|----------|--------------|----------------------------------------------------------------------|
+| `slug_or_port` | string                         | false    |              |                                                                      |
+| `status_code`  | integer                        | false    |              | Status code is the HTTP status code or tunnel authorization outcome. |
+| `user`         | [codersdk.User](#codersdkuser) | false    |              | User is omitted if the connection event was unauthenticated.         |
+| `user_agent`   | string                         | false    |              |                                                                      |
 
 ## codersdk.ConnectionType
 
@@ -4881,6 +5957,186 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
 | `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
 
+## codersdk.CreateChatModelRequest
+
+```json
+{
+  "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "openai_config": {
+      "use_responses_api": true
+    },
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "context_1m_enabled": true,
+        "disable_parallel_tool_use": true,
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "thinking_display": "string",
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0,
+          "thinking_level": "string"
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "reasoning_effort": {
+      "default": "string",
+      "max": "string"
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `ai_provider_id`        | string                                                       | false    |              |             |
+| `compression_threshold` | integer                                                      | false    |              |             |
+| `context_limit`         | integer                                                      | false    |              |             |
+| `display_name`          | string                                                       | false    |              |             |
+| `enabled`               | boolean                                                      | false    |              |             |
+| `is_default`            | boolean                                                      | false    |              |             |
+| `model`                 | string                                                       | false    |              |             |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+
 ## codersdk.CreateChatRequest
 
 ```json
@@ -5054,6 +6310,80 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string  | true     |              |             |
 | `quota_allowance` | integer | false    |              |             |
 
+## codersdk.CreateMCPServerConfigRequest
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "api_key_value": "string",
+  "auth_type": "none",
+  "availability": "force_on",
+  "custom_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "icon_url": "string",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_client_secret": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "streamable_http",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                            |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                        |
+| `api_key_header`        | string          | false    |              |                                                                                                                        |
+| `api_key_value`         | string          | false    |              |                                                                                                                        |
+| `auth_type`             | string          | true     |              |                                                                                                                        |
+| `availability`          | string          | true     |              |                                                                                                                        |
+| `custom_headers`        | object          | false    |              |                                                                                                                        |
+| » `[any property]`      | string          | false    |              |                                                                                                                        |
+| `description`           | string          | false    |              |                                                                                                                        |
+| `display_name`          | string          | true     |              |                                                                                                                        |
+| `enabled`               | boolean         | false    |              |                                                                                                                        |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when true, forwards Coder identity headers on every outgoing MCP request. See MCPServerConfig.   |
+| `icon_url`              | string          | false    |              |                                                                                                                        |
+| `model_intent`          | boolean         | false    |              |                                                                                                                        |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                        |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                        |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                        |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is the provider's RFC 7009 revocation endpoint; auto-populated by OAuth2 discovery when omitted. |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                        |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                        |
+| `slug`                  | string          | true     |              |                                                                                                                        |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                        |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                        |
+| `transport`             | string          | true     |              |                                                                                                                        |
+| `url`                   | string          | true     |              |                                                                                                                        |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                                   |
+|----------------|------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                    |
+| `transport`    | `sse`, `streamable_http`                                   |
+
 ## codersdk.CreateOrganizationRequest
 
 ```json
@@ -5087,28 +6417,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name  | Type   | Required | Restrictions | Description |
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
-
-## codersdk.CreateTaskRequest
-
-```json
-{
-  "display_name": "string",
-  "input": "string",
-  "name": "string",
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1"
-}
-```
-
-### Properties
-
-| Name                         | Type   | Required | Restrictions | Description |
-|------------------------------|--------|----------|--------------|-------------|
-| `display_name`               | string | false    |              |             |
-| `input`                      | string | false    |              |             |
-| `name`                       | string | false    |              |             |
-| `template_version_id`        | string | false    |              |             |
-| `template_version_preset_id` | string | false    |              |             |
 
 ## codersdk.CreateTemplateRequest
 
@@ -5316,6 +6624,38 @@ This is required on creation to enable a user-flow of validating a template work
 | `scope`      | [codersdk.APIKeyScope](#codersdkapikeyscope)                        | false    |              | Deprecated: use Scopes instead. |
 | `scopes`     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)               | false    |              |                                 |
 | `token_name` | string                                                              | false    |              |                                 |
+
+## codersdk.CreateTrialLicenseRequest
+
+```json
+{
+  "attribution_id": "6f882a62-1d45-46e1-b5f4-0abfea127010",
+  "company_name": "Acme Corp",
+  "country": "United States",
+  "developers": "string",
+  "email": "jane.doe@example.com",
+  "first_name": "Jane",
+  "job_title": "Engineering Manager",
+  "last_name": "Doe",
+  "phone_number": "+14155552671",
+  "source": "aibridge_session_threads"
+}
+```
+
+### Properties
+
+| Name             | Type                                                         | Required | Restrictions | Description                                                                                                                                |
+|------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `attribution_id` | string                                                       | false    |              | Attribution ID is the ID of the cta_click funnel event that led here, so that a signup can be joined back to the paywall that produced it. |
+| `company_name`   | string                                                       | true     |              |                                                                                                                                            |
+| `country`        | string                                                       | true     |              |                                                                                                                                            |
+| `developers`     | string                                                       | true     |              |                                                                                                                                            |
+| `email`          | string                                                       | true     |              |                                                                                                                                            |
+| `first_name`     | string                                                       | true     |              |                                                                                                                                            |
+| `job_title`      | string                                                       | true     |              |                                                                                                                                            |
+| `last_name`      | string                                                       | true     |              |                                                                                                                                            |
+| `phone_number`   | string                                                       | true     |              |                                                                                                                                            |
+| `source`         | [codersdk.PremiumFunnelSource](#codersdkpremiumfunnelsource) | false    |              | Source is the premium paywall the request came from, for telemetry. It is not forwarded to the licensor. Omit it to report "direct".       |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -5576,9 +6916,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                      |
-|-----------------------------------------------------------------------------------------------|
-| `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
+| Value(s)                                                                                                          |
+|-------------------------------------------------------------------------------------------------------------------|
+| `chat_files_token`, `nats_ca`, `oidc_convert`, `tailnet_resume`, `workspace_apps_api_key`, `workspace_apps_token` |
 
 ## codersdk.CustomNotificationContent
 
@@ -6070,6 +7410,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     },
+    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -6116,7 +7457,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "refresh": 0,
       "threshold_database": 0
     },
-    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "host_prefix": true,
@@ -6698,6 +8038,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "scheme": "string",
     "user": {}
   },
+  "enable_ai_tasks": true,
   "enable_authz_recording": true,
   "enable_terraform_debug_mode": true,
   "ephemeral_deployment": true,
@@ -6744,7 +8085,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "refresh": 0,
     "threshold_database": 0
   },
-  "hide_ai_tasks": true,
   "http_address": "string",
   "http_cookies": {
     "host_prefix": true,
@@ -7081,6 +8421,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `enable_ai_tasks`                              | boolean                                                                                              | false    |              |                                                                    |
 | `enable_authz_recording`                       | boolean                                                                                              | false    |              |                                                                    |
 | `enable_terraform_debug_mode`                  | boolean                                                                                              | false    |              |                                                                    |
 | `ephemeral_deployment`                         | boolean                                                                                              | false    |              |                                                                    |
@@ -7089,7 +8430,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `external_auth_github_default_provider_enable` | boolean                                                                                              | false    |              |                                                                    |
 | `external_token_encryption_keys`               | array of string                                                                                      | false    |              |                                                                    |
 | `healthcheck`                                  | [codersdk.HealthcheckConfig](#codersdkhealthcheckconfig)                                             | false    |              |                                                                    |
-| `hide_ai_tasks`                                | boolean                                                                                              | false    |              |                                                                    |
 | `http_address`                                 | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
 | `http_cookies`                                 | [codersdk.HTTPCookieConfig](#codersdkhttpcookieconfig)                                               | false    |              |                                                                    |
 | `job_hang_detector_interval`                   | integer                                                                                              | false    |              |                                                                    |
@@ -7601,9 +8941,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                     |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-seat-exclusion`, `auto-fill-parameters`, `chat-advisor`, `chat-virtual-desktop`, `example`, `mcp-server-http`, `mcp-tool-search`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -8665,6 +10005,247 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------------|--------|----------|--------------|-------------|
 | `session_token` | string | true     |              |             |
 
+## codersdk.MCPServerConfig
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "auth_connected": true,
+  "auth_type": "string",
+  "availability": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "has_api_key": true,
+  "has_custom_headers": true,
+  "has_oauth2_secret": true,
+  "icon_url": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
+|-------------------------|-----------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `api_key_header`        | string          | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
+| `auth_connected`        | boolean         | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |
+| `auth_type`             | string          | false    |              | "none", "oauth2", "api_key", "custom_headers", "user_oidc"                                                                                                                                                                                                                                           |
+| `availability`          | string          | false    |              | Availability policy set by admin.                                                                                                                                                                                                                                                                    |
+| `created_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `description`           | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `display_name`          | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `enabled`               | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers forwards the same Coder identity headers we send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this MCP server on every request. Off by default to avoid leaking chat identity to third-party servers. |
+| `has_api_key`           | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_custom_headers`    | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `has_oauth2_secret`     | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `icon_url`              | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `id`                    | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `model_intent`          | boolean         | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_client_id`      | string          | false    |              | Oauth2 client ID fields (only populated for admins).                                                                                                                                                                                                                                                 |
+| `oauth2_revocation_url` | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `organization_id`       | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `slug`                  | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `tool_allow_list`       | array of string | false    |              | Tool governance.                                                                                                                                                                                                                                                                                     |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `transport`             | string          | false    |              | "streamable_http" or "sse"                                                                                                                                                                                                                                                                           |
+| `updated_at`            | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+| `url`                   | string          | false    |              |                                                                                                                                                                                                                                                                                                      |
+
+## codersdk.MCPServerConfigACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                                    | Required | Restrictions | Description |
+|----------|-------------------------------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.MCPServerConfigGroup](#codersdkmcpserverconfiggroup) | false    |              |             |
+| `users`  | array of [codersdk.MCPServerConfigUser](#codersdkmcpserverconfiguser)   | false    |              |             |
+
+## codersdk.MCPServerConfigGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                         | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|--------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                       | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                       | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                       | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser)        | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                       | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                       | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                       | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                       | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                                      | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.MCPServerConfigRole](#codersdkmcpserverconfigrole) | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)                 | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                                      | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.MCPServerConfigRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
+## codersdk.MCPServerConfigUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                                         | Required | Restrictions | Description |
+|--------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                                       | false    |              |             |
+| `id`         | string                                                       | true     |              |             |
+| `name`       | string                                                       | false    |              |             |
+| `role`       | [codersdk.MCPServerConfigRole](#codersdkmcpserverconfigrole) | false    |              |             |
+| `username`   | string                                                       | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
+## codersdk.MCPServerOAuth2DisconnectResponse
+
+```json
+{
+  "token_revocation_error": "string",
+  "token_revoked": true
+}
+```
+
+### Properties
+
+| Name                     | Type    | Required | Restrictions | Description |
+|--------------------------|---------|----------|--------------|-------------|
+| `token_revocation_error` | string  | false    |              |             |
+| `token_revoked`          | boolean | false    |              |             |
+
 ## codersdk.MatchedProvisioners
 
 ```json
@@ -9677,6 +11258,213 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`                     | string          | false    |              |                                                                                                                                                 |
 | `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
+## codersdk.OrganizationChatModelsResponse
+
+```json
+{
+  "models": [
+    {
+      "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+      "compression_threshold": 0,
+      "context_limit": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "enabled": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_default": true,
+      "model": "string",
+      "model_config": {
+        "frequency_penalty": 0,
+        "max_output_tokens": 0,
+        "openai_config": {
+          "use_responses_api": true
+        },
+        "presence_penalty": 0,
+        "provider_options": {
+          "anthropic": {
+            "allowed_domains": [
+              "string"
+            ],
+            "blocked_domains": [
+              "string"
+            ],
+            "context_1m_enabled": true,
+            "disable_parallel_tool_use": true,
+            "send_reasoning": true,
+            "thinking": {
+              "budget_tokens": 0
+            },
+            "thinking_display": "string",
+            "web_search_enabled": true
+          },
+          "google": {
+            "cached_content": "string",
+            "safety_settings": [
+              {
+                "category": "string",
+                "threshold": "string"
+              }
+            ],
+            "thinking_config": {
+              "include_thoughts": true,
+              "thinking_budget": 0,
+              "thinking_level": "string"
+            },
+            "threshold": "string",
+            "web_search_enabled": true
+          },
+          "openai": {
+            "allowed_domains": [
+              "string"
+            ],
+            "include": [
+              "string"
+            ],
+            "instructions": "string",
+            "log_probs": true,
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "max_completion_tokens": 0,
+            "max_tool_calls": 0,
+            "metadata": {
+              "property1": null,
+              "property2": null
+            },
+            "parallel_tool_calls": true,
+            "prediction": {
+              "property1": null,
+              "property2": null
+            },
+            "prompt_cache_key": "string",
+            "reasoning_summary": "string",
+            "safety_identifier": "string",
+            "search_context_size": "string",
+            "service_tier": "string",
+            "store": true,
+            "strict_json_schema": true,
+            "structured_outputs": true,
+            "text_verbosity": "string",
+            "top_log_probs": 0,
+            "user": "string",
+            "web_search_enabled": true
+          },
+          "openaicompat": {
+            "user": "string"
+          },
+          "openrouter": {
+            "extra_body": {
+              "property1": null,
+              "property2": null
+            },
+            "include_usage": true,
+            "log_probs": true,
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "parallel_tool_calls": true,
+            "provider": {
+              "allow_fallbacks": true,
+              "data_collection": "string",
+              "ignore": [
+                "string"
+              ],
+              "only": [
+                "string"
+              ],
+              "order": [
+                "string"
+              ],
+              "quantizations": [
+                "string"
+              ],
+              "require_parameters": true,
+              "sort": "string"
+            },
+            "reasoning": {
+              "enabled": true,
+              "exclude": true,
+              "max_tokens": 0
+            },
+            "user": "string"
+          },
+          "vercel": {
+            "extra_body": {
+              "property1": null,
+              "property2": null
+            },
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "logprobs": true,
+            "parallel_tool_calls": true,
+            "providerOptions": {
+              "models": [
+                "string"
+              ],
+              "order": [
+                "string"
+              ]
+            },
+            "reasoning": {
+              "enabled": true,
+              "exclude": true,
+              "max_tokens": 0
+            },
+            "top_logprobs": 0,
+            "user": "string"
+          }
+        },
+        "reasoning_effort": {
+          "default": "string",
+          "max": "string"
+        },
+        "temperature": 0,
+        "top_k": 0,
+        "top_p": 0
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "reasoning_efforts": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "providers": [
+    {
+      "allow_user_api_key": true,
+      "available": true,
+      "display_name": "string",
+      "enabled": true,
+      "has_api_key": true,
+      "has_effective_api_key": true,
+      "has_user_api_key": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "type": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                    | Type                                                                                  | Required | Restrictions | Description |
+|-------------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `models`                | array of [codersdk.ChatModel](#codersdkchatmodel)                                     | false    |              |             |
+| `providers`             | array of [codersdk.ChatModelProviderDescriptor](#codersdkchatmodelproviderdescriptor) | false    |              |             |
+| `unsupported_providers` | array of [codersdk.ChatUnsupportedProvider](#codersdkchatunsupportedprovider)         | false    |              |             |
+
 ## codersdk.OrganizationGroupAISpend
 
 ```json
@@ -10167,245 +11955,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`             | string  | true     |              |             |
 | `regenerate_token` | boolean | false    |              |             |
 
-## codersdk.PauseTaskResponse
-
-```json
-{
-  "workspace_build": {
-    "build_number": 0,
-    "created_at": "2019-08-24T14:15:22Z",
-    "daily_cost": 0,
-    "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
-    "has_external_agent": true,
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-    "initiator_name": "string",
-    "job": {
-      "available_workers": [
-        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-      ],
-      "canceled_at": "2019-08-24T14:15:22Z",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "error": "string",
-      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-      "input": {
-        "error": "string",
-        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
-      },
-      "logs_overflowed": true,
-      "metadata": {
-        "template_display_name": "string",
-        "template_icon": "string",
-        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-        "template_name": "string",
-        "template_version_name": "string",
-        "workspace_build_transition": "start",
-        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-        "workspace_name": "string"
-      },
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "queue_position": 0,
-      "queue_size": 0,
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "pending",
-      "tags": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
-      "worker_name": "string"
-    },
-    "matched_provisioners": {
-      "available": 0,
-      "count": 0,
-      "most_recently_seen": "2019-08-24T14:15:22Z"
-    },
-    "max_deadline": "2019-08-24T14:15:22Z",
-    "reason": "initiator",
-    "resources": [
-      {
-        "agents": [
-          {
-            "api_version": "string",
-            "apps": [
-              {
-                "command": "string",
-                "display_name": "string",
-                "external": true,
-                "group": "string",
-                "health": "disabled",
-                "healthcheck": {
-                  "interval": 0,
-                  "threshold": 0,
-                  "url": "string"
-                },
-                "hidden": true,
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "open_in": "slim-window",
-                "sharing_level": "owner",
-                "slug": "string",
-                "statuses": [
-                  {
-                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "icon": "string",
-                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                    "message": "string",
-                    "needs_user_attention": true,
-                    "state": "working",
-                    "uri": "string",
-                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-                  }
-                ],
-                "subdomain": true,
-                "subdomain_name": "string",
-                "tooltip": "string",
-                "url": "string"
-              }
-            ],
-            "architecture": "string",
-            "connection_timeout_seconds": 0,
-            "created_at": "2019-08-24T14:15:22Z",
-            "directory": "string",
-            "disconnected_at": "2019-08-24T14:15:22Z",
-            "display_apps": [
-              "vscode"
-            ],
-            "environment_variables": {
-              "property1": "string",
-              "property2": "string"
-            },
-            "expanded_directory": "string",
-            "first_connected_at": "2019-08-24T14:15:22Z",
-            "health": {
-              "healthy": false,
-              "reason": "agent has lost connection"
-            },
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "instance_id": "string",
-            "last_connected_at": "2019-08-24T14:15:22Z",
-            "latency": {
-              "property1": {
-                "latency_ms": 0,
-                "preferred": true
-              },
-              "property2": {
-                "latency_ms": 0,
-                "preferred": true
-              }
-            },
-            "lifecycle_state": "created",
-            "log_sources": [
-              {
-                "created_at": "2019-08-24T14:15:22Z",
-                "display_name": "string",
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-              }
-            ],
-            "logs_length": 0,
-            "logs_overflowed": true,
-            "metadata": [
-              {
-                "description": {
-                  "display_name": "string",
-                  "interval": 0,
-                  "key": "string",
-                  "script": "string",
-                  "timeout": 0
-                },
-                "result": {
-                  "age": 0,
-                  "collected_at": "2019-08-24T14:15:22Z",
-                  "error": "string",
-                  "value": "string"
-                }
-              }
-            ],
-            "name": "string",
-            "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
-            "ready_at": "2019-08-24T14:15:22Z",
-            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "scripts": [
-              {
-                "cron": "string",
-                "display_name": "string",
-                "exit_code": 0,
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "log_path": "string",
-                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-                "run_on_start": true,
-                "run_on_stop": true,
-                "script": "string",
-                "start_blocks_login": true,
-                "status": "ok",
-                "timeout": 0
-              }
-            ],
-            "started_at": "2019-08-24T14:15:22Z",
-            "startup_script_behavior": "blocking",
-            "status": "connecting",
-            "subsystems": [
-              "envbox"
-            ],
-            "troubleshooting_url": "string",
-            "updated_at": "2019-08-24T14:15:22Z",
-            "version": "string"
-          }
-        ],
-        "created_at": "2019-08-24T14:15:22Z",
-        "daily_cost": 0,
-        "hide": true,
-        "icon": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-        "metadata": [
-          {
-            "key": "string",
-            "sensitive": true,
-            "value": "string"
-          }
-        ],
-        "name": "string",
-        "type": "string",
-        "workspace_transition": "start"
-      }
-    ],
-    "status": "pending",
-    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-    "template_version_name": "string",
-    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
-    "transition": "start",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_name": "string",
-    "workspace_owner_avatar_url": "string",
-    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
-  }
-}
-```
-
-### Properties
-
-| Name              | Type                                               | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------|----------|--------------|-------------|
-| `workspace_build` | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
-
 ## codersdk.Permission
 
 ```json
@@ -10510,6 +12059,52 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                    | Type    | Required | Restrictions | Description |
 |-------------------------|---------|----------|--------------|-------------|
 | `reconciliation_paused` | boolean | false    |              |             |
+
+## codersdk.PremiumFunnelEventRequest
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "source": "aibridge_session_threads",
+  "variant": "premium"
+}
+```
+
+### Properties
+
+| Name      | Type                                                           | Required | Restrictions | Description                                                                                       |
+|-----------|----------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `id`      | string                                                         | true     |              | ID identifies this click, and doubles as the attribution token that a later trial signup reports. |
+| `source`  | [codersdk.PremiumFunnelSource](#codersdkpremiumfunnelsource)   | true     |              |                                                                                                   |
+| `variant` | [codersdk.PremiumFunnelVariant](#codersdkpremiumfunnelvariant) | true     |              |                                                                                                   |
+
+## codersdk.PremiumFunnelSource
+
+```json
+"aibridge_session_threads"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                                                                                                                                                                      |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_keys`, `ai_governance`, `aibridge_session_threads`, `aibridge_sessions`, `appearance`, `audit_log`, `browser_only`, `connection_log`, `custom_roles`, `direct`, `external_auth`, `groups`, `idp_org_sync`, `idp_sync`, `multiple_organizations`, `observability`, `provisioner_keys`, `provisioners`, `template_permissions`, `workspace_proxies` |
+
+## codersdk.PremiumFunnelVariant
+
+```json
+"premium"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                            |
+|-------------------------------------|
+| `ai_governance`, `premium`, `small` |
 
 ## codersdk.Preset
 
@@ -11291,9 +12886,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `chat_model_config`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `mcp_server_config`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_build_orchestration`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -11509,9 +13104,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -11535,245 +13130,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `detail`      | string                                                        | false    |              | Detail is a debug message that provides further insight into why the action failed. This information can be technical and a regular golang err.Error() text. - "database: too many open connections" - "stat: too many open files" |
 | `message`     | string                                                        | false    |              | Message is an actionable message that depicts actions the request took. These messages should be fully formed sentences with proper punctuation. Examples: - "A user has been created." - "Failed to create a user."               |
 | `validations` | array of [codersdk.ValidationError](#codersdkvalidationerror) | false    |              | Validations are form field-specific friendly error messages. They will be shown on a form field in the UI. These can also be used to add additional context if there is a set of errors in the primary 'Message'.                  |
-
-## codersdk.ResumeTaskResponse
-
-```json
-{
-  "workspace_build": {
-    "build_number": 0,
-    "created_at": "2019-08-24T14:15:22Z",
-    "daily_cost": 0,
-    "deadline": "2019-08-24T14:15:22Z",
-    "has_ai_task": true,
-    "has_external_agent": true,
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-    "initiator_name": "string",
-    "job": {
-      "available_workers": [
-        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-      ],
-      "canceled_at": "2019-08-24T14:15:22Z",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "created_at": "2019-08-24T14:15:22Z",
-      "error": "string",
-      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
-      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-      "input": {
-        "error": "string",
-        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
-      },
-      "logs_overflowed": true,
-      "metadata": {
-        "template_display_name": "string",
-        "template_icon": "string",
-        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-        "template_name": "string",
-        "template_version_name": "string",
-        "workspace_build_transition": "start",
-        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-        "workspace_name": "string"
-      },
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "queue_position": 0,
-      "queue_size": 0,
-      "started_at": "2019-08-24T14:15:22Z",
-      "status": "pending",
-      "tags": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "type": "template_version_import",
-      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b",
-      "worker_name": "string"
-    },
-    "matched_provisioners": {
-      "available": 0,
-      "count": 0,
-      "most_recently_seen": "2019-08-24T14:15:22Z"
-    },
-    "max_deadline": "2019-08-24T14:15:22Z",
-    "reason": "initiator",
-    "resources": [
-      {
-        "agents": [
-          {
-            "api_version": "string",
-            "apps": [
-              {
-                "command": "string",
-                "display_name": "string",
-                "external": true,
-                "group": "string",
-                "health": "disabled",
-                "healthcheck": {
-                  "interval": 0,
-                  "threshold": 0,
-                  "url": "string"
-                },
-                "hidden": true,
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "open_in": "slim-window",
-                "sharing_level": "owner",
-                "slug": "string",
-                "statuses": [
-                  {
-                    "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-                    "app_id": "affd1d10-9538-4fc8-9e0b-4594a28c1335",
-                    "created_at": "2019-08-24T14:15:22Z",
-                    "icon": "string",
-                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                    "message": "string",
-                    "needs_user_attention": true,
-                    "state": "working",
-                    "uri": "string",
-                    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-                  }
-                ],
-                "subdomain": true,
-                "subdomain_name": "string",
-                "tooltip": "string",
-                "url": "string"
-              }
-            ],
-            "architecture": "string",
-            "connection_timeout_seconds": 0,
-            "created_at": "2019-08-24T14:15:22Z",
-            "directory": "string",
-            "disconnected_at": "2019-08-24T14:15:22Z",
-            "display_apps": [
-              "vscode"
-            ],
-            "environment_variables": {
-              "property1": "string",
-              "property2": "string"
-            },
-            "expanded_directory": "string",
-            "first_connected_at": "2019-08-24T14:15:22Z",
-            "health": {
-              "healthy": false,
-              "reason": "agent has lost connection"
-            },
-            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "instance_id": "string",
-            "last_connected_at": "2019-08-24T14:15:22Z",
-            "latency": {
-              "property1": {
-                "latency_ms": 0,
-                "preferred": true
-              },
-              "property2": {
-                "latency_ms": 0,
-                "preferred": true
-              }
-            },
-            "lifecycle_state": "created",
-            "log_sources": [
-              {
-                "created_at": "2019-08-24T14:15:22Z",
-                "display_name": "string",
-                "icon": "string",
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-              }
-            ],
-            "logs_length": 0,
-            "logs_overflowed": true,
-            "metadata": [
-              {
-                "description": {
-                  "display_name": "string",
-                  "interval": 0,
-                  "key": "string",
-                  "script": "string",
-                  "timeout": 0
-                },
-                "result": {
-                  "age": 0,
-                  "collected_at": "2019-08-24T14:15:22Z",
-                  "error": "string",
-                  "value": "string"
-                }
-              }
-            ],
-            "name": "string",
-            "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
-            "ready_at": "2019-08-24T14:15:22Z",
-            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "scripts": [
-              {
-                "cron": "string",
-                "display_name": "string",
-                "exit_code": 0,
-                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-                "log_path": "string",
-                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-                "run_on_start": true,
-                "run_on_stop": true,
-                "script": "string",
-                "start_blocks_login": true,
-                "status": "ok",
-                "timeout": 0
-              }
-            ],
-            "started_at": "2019-08-24T14:15:22Z",
-            "startup_script_behavior": "blocking",
-            "status": "connecting",
-            "subsystems": [
-              "envbox"
-            ],
-            "troubleshooting_url": "string",
-            "updated_at": "2019-08-24T14:15:22Z",
-            "version": "string"
-          }
-        ],
-        "created_at": "2019-08-24T14:15:22Z",
-        "daily_cost": 0,
-        "hide": true,
-        "icon": "string",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-        "metadata": [
-          {
-            "key": "string",
-            "sensitive": true,
-            "value": "string"
-          }
-        ],
-        "name": "string",
-        "type": "string",
-        "workspace_transition": "start"
-      }
-    ],
-    "status": "pending",
-    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-    "template_version_name": "string",
-    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
-    "transition": "start",
-    "updated_at": "2019-08-24T14:15:22Z",
-    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-    "workspace_name": "string",
-    "workspace_owner_avatar_url": "string",
-    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-    "workspace_owner_name": "string"
-  }
-}
-```
-
-### Properties
-
-| Name              | Type                                               | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------|----------|--------------|-------------|
-| `workspace_build` | [codersdk.WorkspaceBuild](#codersdkworkspacebuild) | false    |              |             |
 
 ## codersdk.RetentionConfig
 
@@ -12172,274 +13528,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `min_version`            | string                               | false    |              |             |
 | `redirect_http`          | boolean                              | false    |              |             |
 | `supported_ciphers`      | array of string                      | false    |              |             |
-
-## codersdk.Task
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "current_state": {
-    "message": "string",
-    "state": "working",
-    "timestamp": "2019-08-24T14:15:22Z",
-    "uri": "string"
-  },
-  "display_name": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initial_prompt": "string",
-  "name": "string",
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_avatar_url": "string",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-  "owner_name": "string",
-  "status": "pending",
-  "template_display_name": "string",
-  "template_icon": "string",
-  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-  "template_name": "string",
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "workspace_agent_health": {
-    "healthy": false,
-    "reason": "agent has lost connection"
-  },
-  "workspace_agent_id": {
-    "uuid": "string",
-    "valid": true
-  },
-  "workspace_agent_lifecycle": "created",
-  "workspace_app_id": {
-    "uuid": "string",
-    "valid": true
-  },
-  "workspace_build_number": 0,
-  "workspace_id": {
-    "uuid": "string",
-    "valid": true
-  },
-  "workspace_name": "string",
-  "workspace_status": "pending"
-}
-```
-
-### Properties
-
-| Name                        | Type                                                                 | Required | Restrictions | Description |
-|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `created_at`                | string                                                               | false    |              |             |
-| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
-| `display_name`              | string                                                               | false    |              |             |
-| `id`                        | string                                                               | false    |              |             |
-| `initial_prompt`            | string                                                               | false    |              |             |
-| `name`                      | string                                                               | false    |              |             |
-| `organization_id`           | string                                                               | false    |              |             |
-| `owner_avatar_url`          | string                                                               | false    |              |             |
-| `owner_id`                  | string                                                               | false    |              |             |
-| `owner_name`                | string                                                               | false    |              |             |
-| `status`                    | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |             |
-| `template_display_name`     | string                                                               | false    |              |             |
-| `template_icon`             | string                                                               | false    |              |             |
-| `template_id`               | string                                                               | false    |              |             |
-| `template_name`             | string                                                               | false    |              |             |
-| `template_version_id`       | string                                                               | false    |              |             |
-| `updated_at`                | string                                                               | false    |              |             |
-| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
-| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
-| `workspace_app_id`          | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_build_number`    | integer                                                              | false    |              |             |
-| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_name`            | string                                                               | false    |              |             |
-| `workspace_status`          | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
-
-#### Enumerated Values
-
-| Property           | Value(s)                                                                                                          |
-|--------------------|-------------------------------------------------------------------------------------------------------------------|
-| `status`           | `active`, `error`, `initializing`, `paused`, `pending`, `unknown`                                                 |
-| `workspace_status` | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
-
-## codersdk.TaskLogEntry
-
-```json
-{
-  "content": "string",
-  "id": 0,
-  "time": "2019-08-24T14:15:22Z",
-  "type": "input"
-}
-```
-
-### Properties
-
-| Name      | Type                                         | Required | Restrictions | Description |
-|-----------|----------------------------------------------|----------|--------------|-------------|
-| `content` | string                                       | false    |              |             |
-| `id`      | integer                                      | false    |              |             |
-| `time`    | string                                       | false    |              |             |
-| `type`    | [codersdk.TaskLogType](#codersdktasklogtype) | false    |              |             |
-
-## codersdk.TaskLogType
-
-```json
-"input"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)          |
-|-------------------|
-| `input`, `output` |
-
-## codersdk.TaskLogsResponse
-
-```json
-{
-  "logs": [
-    {
-      "content": "string",
-      "id": 0,
-      "time": "2019-08-24T14:15:22Z",
-      "type": "input"
-    }
-  ],
-  "snapshot": true,
-  "snapshot_at": "string"
-}
-```
-
-### Properties
-
-| Name          | Type                                                    | Required | Restrictions | Description |
-|---------------|---------------------------------------------------------|----------|--------------|-------------|
-| `logs`        | array of [codersdk.TaskLogEntry](#codersdktasklogentry) | false    |              |             |
-| `snapshot`    | boolean                                                 | false    |              |             |
-| `snapshot_at` | string                                                  | false    |              |             |
-
-## codersdk.TaskSendRequest
-
-```json
-{
-  "input": "string"
-}
-```
-
-### Properties
-
-| Name    | Type   | Required | Restrictions | Description |
-|---------|--------|----------|--------------|-------------|
-| `input` | string | false    |              |             |
-
-## codersdk.TaskState
-
-```json
-"working"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                |
-|-----------------------------------------|
-| `complete`, `failed`, `idle`, `working` |
-
-## codersdk.TaskStateEntry
-
-```json
-{
-  "message": "string",
-  "state": "working",
-  "timestamp": "2019-08-24T14:15:22Z",
-  "uri": "string"
-}
-```
-
-### Properties
-
-| Name        | Type                                     | Required | Restrictions | Description |
-|-------------|------------------------------------------|----------|--------------|-------------|
-| `message`   | string                                   | false    |              |             |
-| `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
-| `timestamp` | string                                   | false    |              |             |
-| `uri`       | string                                   | false    |              |             |
-
-## codersdk.TaskStatus
-
-```json
-"pending"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                                                          |
-|-------------------------------------------------------------------|
-| `active`, `error`, `initializing`, `paused`, `pending`, `unknown` |
-
-## codersdk.TasksListResponse
-
-```json
-{
-  "count": 0,
-  "tasks": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "current_state": {
-        "message": "string",
-        "state": "working",
-        "timestamp": "2019-08-24T14:15:22Z",
-        "uri": "string"
-      },
-      "display_name": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initial_prompt": "string",
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_avatar_url": "string",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "owner_name": "string",
-      "status": "pending",
-      "template_display_name": "string",
-      "template_icon": "string",
-      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
-      "template_name": "string",
-      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "workspace_agent_health": {
-        "healthy": false,
-        "reason": "agent has lost connection"
-      },
-      "workspace_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_agent_lifecycle": "created",
-      "workspace_app_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_build_number": 0,
-      "workspace_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "workspace_name": "string",
-      "workspace_status": "pending"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name    | Type                                    | Required | Restrictions | Description |
-|---------|-----------------------------------------|----------|--------------|-------------|
-| `count` | integer                                 | false    |              |             |
-| `tasks` | array of [codersdk.Task](#codersdktask) | false    |              |             |
 
 ## codersdk.TelemetryConfig
 
@@ -13996,6 +15084,226 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `user_roles`       | object                                 | false    |              |             |
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 
+## codersdk.UpdateChatModelACLRequest
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+
+## codersdk.UpdateChatModelOverrideRequest
+
+```json
+{
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `model_config_id`  | string | false    |              |             |
+| `reasoning_effort` | string | false    |              |             |
+
+## codersdk.UpdateChatModelRequest
+
+```json
+{
+  "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "openai_config": {
+      "use_responses_api": true
+    },
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "context_1m_enabled": true,
+        "disable_parallel_tool_use": true,
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "thinking_display": "string",
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0,
+          "thinking_level": "string"
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "reasoning_effort": {
+      "default": "string",
+      "max": "string"
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  }
+}
+```
+
+### Properties
+
+| Name                    | Type                                                         | Required | Restrictions | Description |
+|-------------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `ai_provider_id`        | string                                                       | false    |              |             |
+| `compression_threshold` | integer                                                      | false    |              |             |
+| `context_limit`         | integer                                                      | false    |              |             |
+| `display_name`          | string                                                       | false    |              |             |
+| `enabled`               | boolean                                                      | false    |              |             |
+| `is_default`            | boolean                                                      | false    |              |             |
+| `model`                 | string                                                       | false    |              |             |
+| `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
+
 ## codersdk.UpdateChatRequest
 
 ```json
@@ -14056,6 +15364,104 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `url`     | string  | false    |              | URL to download the latest release of Coder.                            |
 | `version` | string  | false    |              | Version is the semantic version for the latest release of Coder.        |
 
+## codersdk.UpdateMCPServerConfigACLRequest
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                         | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                                       | false    |              |             |
+| » `[any property]` | [codersdk.MCPServerConfigRole](#codersdkmcpserverconfigrole) | false    |              |             |
+| `user_roles`       | object                                                       | false    |              |             |
+| » `[any property]` | [codersdk.MCPServerConfigRole](#codersdkmcpserverconfigrole) | false    |              |             |
+
+## codersdk.UpdateMCPServerConfigRequest
+
+```json
+{
+  "allow_in_plan_mode": true,
+  "api_key_header": "string",
+  "api_key_value": "string",
+  "auth_type": "none",
+  "availability": "force_on",
+  "custom_headers": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "enabled": true,
+  "forward_coder_headers": true,
+  "icon_url": "string",
+  "model_intent": true,
+  "oauth2_auth_url": "string",
+  "oauth2_client_id": "string",
+  "oauth2_client_secret": "string",
+  "oauth2_revocation_url": "string",
+  "oauth2_scopes": "string",
+  "oauth2_token_url": "string",
+  "slug": "string",
+  "tool_allow_list": [
+    "string"
+  ],
+  "tool_deny_list": [
+    "string"
+  ],
+  "transport": "streamable_http",
+  "url": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type            | Required | Restrictions | Description                                                                                                             |
+|-------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------|
+| `allow_in_plan_mode`    | boolean         | false    |              |                                                                                                                         |
+| `api_key_header`        | string          | false    |              |                                                                                                                         |
+| `api_key_value`         | string          | false    |              |                                                                                                                         |
+| `auth_type`             | string          | false    |              |                                                                                                                         |
+| `availability`          | string          | false    |              |                                                                                                                         |
+| `custom_headers`        | object          | false    |              |                                                                                                                         |
+| » `[any property]`      | string          | false    |              |                                                                                                                         |
+| `description`           | string          | false    |              |                                                                                                                         |
+| `display_name`          | string          | false    |              |                                                                                                                         |
+| `enabled`               | boolean         | false    |              |                                                                                                                         |
+| `forward_coder_headers` | boolean         | false    |              | Forward coder headers when set, updates whether Coder identity headers are forwarded on every outgoing MCP request.     |
+| `icon_url`              | string          | false    |              |                                                                                                                         |
+| `model_intent`          | boolean         | false    |              |                                                                                                                         |
+| `oauth2_auth_url`       | string          | false    |              |                                                                                                                         |
+| `oauth2_client_id`      | string          | false    |              |                                                                                                                         |
+| `oauth2_client_secret`  | string          | false    |              |                                                                                                                         |
+| `oauth2_revocation_url` | string          | false    |              | Oauth2 revocation URL is validated in the handler because a validate tag would reject the pointer to "" that clears it. |
+| `oauth2_scopes`         | string          | false    |              |                                                                                                                         |
+| `oauth2_token_url`      | string          | false    |              |                                                                                                                         |
+| `slug`                  | string          | false    |              |                                                                                                                         |
+| `tool_allow_list`       | array of string | false    |              |                                                                                                                         |
+| `tool_deny_list`        | array of string | false    |              |                                                                                                                         |
+| `transport`             | string          | false    |              |                                                                                                                         |
+| `url`                   | string          | false    |              |                                                                                                                         |
+
+#### Enumerated Values
+
+| Property       | Value(s)                                                   |
+|----------------|------------------------------------------------------------|
+| `auth_type`    | `api_key`, `custom_headers`, `none`, `oauth2`, `user_oidc` |
+| `availability` | `default_off`, `default_on`, `force_on`                    |
+| `transport`    | `sse`, `streamable_http`                                   |
+
 ## codersdk.UpdateOrganizationRequest
 
 ```json
@@ -14095,20 +15501,6 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name    | Type            | Required | Restrictions | Description |
 |---------|-----------------|----------|--------------|-------------|
 | `roles` | array of string | false    |              |             |
-
-## codersdk.UpdateTaskInputRequest
-
-```json
-{
-  "input": "string"
-}
-```
-
-### Properties
-
-| Name    | Type   | Required | Restrictions | Description |
-|---------|--------|----------|--------------|-------------|
-| `input` | string | false    |              |             |
 
 ## codersdk.UpdateTemplateACL
 
@@ -14234,6 +15626,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_mode`  | `single`, `sync`                                                                            |
+
+## codersdk.UpdateUserChatPersonalModelOverrideRequest
+
+```json
+{
+  "mode": "deployment_default",
+  "model_config_id": "string",
+  "reasoning_effort": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                             | Required | Restrictions | Description |
+|--------------------|----------------------------------------------------------------------------------|----------|--------------|-------------|
+| `mode`             | [codersdk.ChatPersonalModelOverrideMode](#codersdkchatpersonalmodeloverridemode) | false    |              |             |
+| `model_config_id`  | string                                                                           | false    |              |             |
+| `reasoning_effort` | string                                                                           | false    |              |             |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -14860,6 +16270,57 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
 | `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
 | `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+
+## codersdk.UserChatPersonalModelOverridesResponse
+
+```json
+{
+  "deployment_defaults": {
+    "explore": {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    },
+    "general": {
+      "context": "general",
+      "model_config_id": "string",
+      "reasoning_effort": "string"
+    }
+  },
+  "enabled": true,
+  "explore": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "general": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  },
+  "root": {
+    "context": "root",
+    "is_set": true,
+    "mode": "deployment_default",
+    "model_config_id": "string",
+    "reasoning_effort": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                                                                                         | Required | Restrictions | Description |
+|-----------------------|--------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `deployment_defaults` | [codersdk.ChatPersonalModelOverrideDeploymentDefaults](#codersdkchatpersonalmodeloverridedeploymentdefaults) | false    |              |             |
+| `enabled`             | boolean                                                                                                      | false    |              |             |
+| `explore`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `general`             | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
+| `root`                | [codersdk.ChatPersonalModelOverride](#codersdkchatpersonalmodeloverride)                                     | false    |              |             |
 
 ## codersdk.UserLatency
 

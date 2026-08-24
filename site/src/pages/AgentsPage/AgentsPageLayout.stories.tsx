@@ -19,12 +19,15 @@ import {
 	chatMessagesKey,
 	chatPromptsKey,
 } from "#/api/queries/chats";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
+	MockDefaultOrganization,
 	MockNoPermissions,
+	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -54,11 +57,12 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModels: TypesGen.ChatModel[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
+		organization_id: "my-organization-id",
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -71,6 +75,20 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	},
 ];
 
+const mockDefaultOrganizationMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-default-organization",
+	display_name: "Default organization MCP",
+	slug: "default-organization-mcp",
+};
+
+const mockSecondOrganizationMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
+	id: "mcp-second-organization",
+	display_name: "Second organization MCP",
+	slug: "second-organization-mcp",
+};
+
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
@@ -80,7 +98,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	owner_id: "owner-1",
 	owner_username: "owner",
 	owner_name: undefined,
-	last_model_config_id: defaultModelConfigs[0].id,
+	last_model_config_id: defaultModels[0].id,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -92,30 +110,6 @@ const AgentsRouteElement = () => (
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		exploreModelOverrideData={{
-			context: "explore",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		titleGenerationModelOverrideData={{
-			context: "title_generation",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		modelConfigsData={[]}
-		providerInfoByID={new Map()}
-		modelConfigsError={undefined}
-		isLoadingModelConfigs={false}
-		isFetchingModelConfigs={false}
-		onSaveTitleGenerationModel={fn()}
-		isSavingTitleGenerationModel={false}
-		isSaveTitleGenerationModelError={false}
-		onSaveCompactionModel={fn()}
-		isSavingCompactionModel={false}
-		isSaveCompactionModelError={false}
-		onSaveExploreModelOverride={fn()}
-		isSavingExploreModelOverride={false}
-		isSaveExploreModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
@@ -284,32 +278,27 @@ const meta: Meta<typeof AgentsPageLayout> = {
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			general: {
 				context: "general",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			explore: {
 				context: "explore",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			deployment_defaults: {
 				general: {
 					context: "general",
 					model_config_id: "",
-					is_malformed: false,
 				},
 				explore: {
 					context: "explore",
 					model_config_id: "",
-					is_malformed: false,
 				},
 			},
 		});
@@ -330,37 +319,35 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API.experimental, "getChatModels").mockResolvedValue({
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-			unsupported_providers: [],
-		});
-		spyOn(API.experimental, "getChatModelConfigs").mockResolvedValue([
-			{
-				id: defaultModelConfigID,
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o",
-				enabled: true,
-				is_default: false,
-				context_limit: 200000,
-				compression_threshold: 70,
-				created_at: "2026-02-18T00:00:00.000Z",
-				updated_at: "2026-02-18T00:00:00.000Z",
-			},
-		]);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) => ({
+				models: [
+					{
+						...defaultModels[0],
+						id:
+							organizationId === MockDefaultOrganization.id
+								? defaultModelID
+								: `${defaultModelID}-${organizationId}`,
+						organization_id: organizationId,
+					},
+				],
+				providers: [
+					{
+						id: defaultModels[0].ai_provider_id,
+						type: "openai",
+						display_name: "OpenAI",
+						icon: "",
+						enabled: true,
+						has_api_key: true,
+						has_user_api_key: false,
+						has_effective_api_key: true,
+						allow_user_api_key: false,
+						available: true,
+					},
+				],
+				unsupported_providers: [],
+			}),
+		);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
 			{
 				provider: {
@@ -406,7 +393,7 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			API.experimental,
 			"updateUserChatCompactionThreshold",
 		).mockResolvedValue({
-			model_config_id: defaultModelConfigID,
+			model_config_id: defaultModelID,
 			threshold_percent: 70,
 		});
 		spyOn(
@@ -433,7 +420,74 @@ const mockChats = (chats: Chat[]) => {
 	spyOn(API.experimental, "getChats").mockResolvedValue(chats);
 };
 
-export const EmptyState: Story = {};
+export const EmptyState: Story = {
+	play: async () => {
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
+		});
+	},
+};
+
+export const OrganizationScopedMCPServers: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: permittedOrganizations({
+					object: { resource_type: "chat", owner_id: "me" },
+					action: "create",
+				}).queryKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockImplementation(
+			async (organization) =>
+				organization === MockDefaultOrganization.id
+					? [mockDefaultOrganizationMCPServer]
+					: [mockSecondOrganizationMCPServer],
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockDefaultOrganization.id,
+			);
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			(await body.findAllByText("Default organization MCP")).length,
+		).toBeGreaterThan(0);
+		await userEvent.keyboard("{Escape}");
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			body.getByRole("option", { name: MockOrganization2.display_name }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+				MockOrganization2.id,
+			);
+		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		expect(
+			(await body.findAllByText("Second organization MCP")).length,
+		).toBeGreaterThan(0);
+		expect(
+			body.queryByText("Default organization MCP"),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const WithChatList: Story = {
 	beforeEach: () => {
@@ -963,7 +1017,7 @@ const watchedChat = (overrides: Partial<Chat> = {}): Chat => ({
 	...MockChat,
 	id: WATCHED_CHAT_ID,
 	title: "Watched agent",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -1193,9 +1247,7 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(
-					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
-				),
+				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
 			).toBeInTheDocument();
 		});
 	},

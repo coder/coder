@@ -352,19 +352,37 @@ const aiSpendBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
-const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const chatModelsPath = (organizationId: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/models`;
+const chatModelPath = (organizationId: string, modelId: string) =>
+	`${chatModelsPath(organizationId)}/${encodeURIComponent(modelId)}`;
+const chatModelACLPath = (organizationId: string, modelId: string) =>
+	`${chatModelPath(organizationId, modelId)}/acl`;
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
-const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+const mcpServerConfigsPath = (organization: string) =>
+	`/api/experimental/organizations/${encodeURIComponent(organization)}/mcp-servers`;
+const mcpServerConfigPath = (organization: string, id: string) =>
+	`${mcpServerConfigsPath(organization)}/${encodeURIComponent(id)}`;
+export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
+	`${mcpServerConfigPath(organization, id)}/oauth2/connect`;
+const mcpServerOAuth2DisconnectPath = (id: string) =>
+	`/api/experimental/mcp/servers/${encodeURIComponent(id)}/oauth2/disconnect`;
 
 type Claims = {
 	license_expires: number;
 	// nbf is a standard JWT claim for "not before" - the license valid from date
 	nbf?: number;
+	// iat is a standard JWT claim for "issued at"; the merged
+	// usage_period.issued_at is stamped from the winning license's iat.
+	iat?: number;
+	// exp is a standard JWT claim for "expires at" (end of grace period);
+	// it stamps usage_period.end, and nbf stamps usage_period.start.
+	exp?: number;
 	account_type?: string;
 	account_id?: string;
 	trial: boolean;
@@ -2451,6 +2469,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	reportPremiumFunnelEvent = async (
+		req: TypesGen.PremiumFunnelEventRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/deployment/premium-funnel-events", req);
+	};
+
 	getReplicas = async (): Promise<TypesGen.Replica[]> => {
 		const response = await this.axios.get("/api/v2/replicas");
 		return response.data;
@@ -2605,6 +2629,13 @@ class ApiMethods {
 		data: TypesGen.AddLicenseRequest,
 	): Promise<TypesGen.AddLicenseRequest> => {
 		const response = await this.axios.post("/api/v2/licenses", data);
+		return response.data;
+	};
+
+	createTrialLicense = async (
+		data: TypesGen.CreateTrialLicenseRequest,
+	): Promise<TypesGen.License> => {
+		const response = await this.axios.post("/api/v2/licenses/trial", data);
 		return response.data;
 	};
 
@@ -3464,9 +3495,13 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
-		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
-			"/api/experimental/chats/models",
+	getAIModelPrices = async (filter: {
+		provider?: string;
+		model?: string;
+	}): Promise<TypesGen.AIModelPrice[]> => {
+		const response = await this.axios.get<TypesGen.AIModelPrice[]>(
+			"/api/experimental/ai/model-prices",
+			{ params: filter },
 		);
 		return response.data;
 	};
@@ -3563,23 +3598,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getChatModelOverride = async (
-		context: TypesGen.ChatModelOverrideContext,
-	): Promise<TypesGen.ChatModelOverrideResponse> => {
-		const response = await this.axios.get<TypesGen.ChatModelOverrideResponse>(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	getOrganizationChatModelOverrides = async (
+		organizationId: string,
+	): Promise<TypesGen.ChatModelOverridesResponse> => {
+		const response = await this.axios.get<TypesGen.ChatModelOverridesResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides`,
 		);
 		return response.data;
 	};
 
-	updateChatModelOverride = async (
+	updateOrganizationChatModelOverride = async (
+		organizationId: string,
 		context: TypesGen.ChatModelOverrideContext,
 		req: TypesGen.UpdateChatModelOverrideRequest,
-	): Promise<void> => {
-		await this.axios.put(
-			`/api/experimental/chats/config/model-override/${encodeURIComponent(context)}`,
+	): Promise<TypesGen.ChatModelOverrideResponse> => {
+		const response = await this.axios.put<TypesGen.ChatModelOverrideResponse>(
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
+		return response.data;
 	};
 
 	getChatPersonalModelOverridesAdminSettings =
@@ -3633,21 +3670,25 @@ class ExperimentalApiMethods {
 		);
 	};
 
-	getUserChatPersonalModelOverrides =
-		async (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
-			const response =
-				await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
-					"/api/experimental/chats/config/user-personal-model-overrides",
-				);
-			return response.data;
-		};
+	getUserChatPersonalModelOverrides = async (
+		organizationId: string,
+		user: string,
+	): Promise<TypesGen.UserChatPersonalModelOverridesResponse> => {
+		const response =
+			await this.axios.get<TypesGen.UserChatPersonalModelOverridesResponse>(
+				`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides`,
+			);
+		return response.data;
+	};
 
 	updateUserChatPersonalModelOverride = async (
+		organizationId: string,
+		user: string,
 		context: TypesGen.ChatPersonalModelOverrideContext,
 		req: TypesGen.UpdateUserChatPersonalModelOverrideRequest,
 	): Promise<void> => {
 		await this.axios.put(
-			`/api/experimental/chats/config/user-personal-model-overrides/${encodeURIComponent(context)}`,
+			`/api/experimental/organizations/${encodeURIComponent(organizationId)}/members/${encodeURIComponent(user)}/chats/model-overrides/${encodeURIComponent(context)}`,
 			req,
 		);
 	};
@@ -3838,87 +3879,138 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 	updateUserChatCompactionThreshold = async (
-		modelConfigId: string,
+		modelId: string,
 		req: TypesGen.UpdateUserChatCompactionThresholdRequest,
 	): Promise<TypesGen.UserChatCompactionThreshold> => {
 		const response = await this.axios.put<TypesGen.UserChatCompactionThreshold>(
-			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelId)}`,
 			req,
 		);
 		return response.data;
 	};
 	deleteUserChatCompactionThreshold = async (
-		modelConfigId: string,
+		modelId: string,
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelId)}`,
 		);
 	};
 
-	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
+	getChatModels = async (
+		organizationId: string,
+	): Promise<TypesGen.OrganizationChatModelsResponse> => {
 		const response =
-			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);
+			await this.axios.get<TypesGen.OrganizationChatModelsResponse>(
+				chatModelsPath(organizationId),
+			);
 		return response.data;
 	};
 
-	createChatModelConfig = async (
-		req: TypesGen.CreateChatModelConfigRequest,
-	): Promise<TypesGen.ChatModelConfig> => {
-		const response = await this.axios.post<TypesGen.ChatModelConfig>(
-			chatModelConfigsPath,
+	getChatModel = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.get<TypesGen.ChatModel>(
+			chatModelPath(organizationId, modelId),
+		);
+		return response.data;
+	};
+
+	createChatModel = async (
+		organizationId: string,
+		req: TypesGen.CreateChatModelRequest,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.post<TypesGen.ChatModel>(
+			chatModelsPath(organizationId),
 			req,
 		);
 		return response.data;
 	};
 
-	updateChatModelConfig = async (
-		modelConfigId: string,
-		req: TypesGen.UpdateChatModelConfigRequest,
-	): Promise<TypesGen.ChatModelConfig> => {
-		const response = await this.axios.patch<TypesGen.ChatModelConfig>(
-			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+	updateChatModel = async (
+		organizationId: string,
+		modelId: string,
+		req: TypesGen.UpdateChatModelRequest,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.patch<TypesGen.ChatModel>(
+			chatModelPath(organizationId, modelId),
 			req,
 		);
 		return response.data;
 	};
 
-	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
-		await this.axios.delete(
-			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+	getChatModelACL = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<TypesGen.ChatModelACL> => {
+		const response = await this.axios.get<TypesGen.ChatModelACL>(
+			chatModelACLPath(organizationId, modelId),
 		);
+		return response.data;
 	};
 
-	getMCPServerConfigs = async (): Promise<TypesGen.MCPServerConfig[]> => {
-		const response =
-			await this.axios.get<TypesGen.MCPServerConfig[]>(mcpServerConfigsPath);
+	updateChatModelACL = async (
+		organizationId: string,
+		modelId: string,
+		req: TypesGen.UpdateChatModelACLRequest,
+	): Promise<void> => {
+		await this.axios.patch(chatModelACLPath(organizationId, modelId), req);
+	};
+
+	deleteChatModel = async (
+		organizationId: string,
+		modelId: string,
+	): Promise<void> => {
+		await this.axios.delete(chatModelPath(organizationId, modelId));
+	};
+
+	getMCPServerConfigs = async (
+		organization: string,
+	): Promise<TypesGen.MCPServerConfig[]> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig[]>(
+			mcpServerConfigsPath(organization),
+		);
+		return response.data;
+	};
+
+	getMCPServerConfig = async (
+		organization: string,
+		id: string,
+	): Promise<TypesGen.MCPServerConfig> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfig>(
+			mcpServerConfigPath(organization, id),
+		);
 		return response.data;
 	};
 
 	createMCPServerConfig = async (
+		organization: string,
 		req: TypesGen.CreateMCPServerConfigRequest,
 	): Promise<TypesGen.MCPServerConfig> => {
 		const response = await this.axios.post<TypesGen.MCPServerConfig>(
-			mcpServerConfigsPath,
+			mcpServerConfigsPath(organization),
 			req,
 		);
 		return response.data;
 	};
 
 	updateMCPServerConfig = async (
+		organization: string,
 		id: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
 	): Promise<TypesGen.MCPServerConfig> => {
 		const response = await this.axios.patch<TypesGen.MCPServerConfig>(
-			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
+			mcpServerConfigPath(organization, id),
 			req,
 		);
 		return response.data;
 	};
 
-	deleteMCPServerConfig = async (id: string): Promise<void> => {
-		await this.axios.delete(
-			`${mcpServerConfigsPath}/${encodeURIComponent(id)}`,
-		);
+	deleteMCPServerConfig = async (
+		organization: string,
+		id: string,
+	): Promise<void> => {
+		await this.axios.delete(mcpServerConfigPath(organization, id));
 	};
 
 	disconnectMCPServerOAuth2 = async (
@@ -3926,7 +4018,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.MCPServerOAuth2DisconnectResponse> => {
 		const response =
 			await this.axios.delete<TypesGen.MCPServerOAuth2DisconnectResponse>(
-				`${mcpServerConfigsPath}/${encodeURIComponent(id)}/oauth2/disconnect`,
+				mcpServerOAuth2DisconnectPath(id),
 			);
 		return response.data;
 	};

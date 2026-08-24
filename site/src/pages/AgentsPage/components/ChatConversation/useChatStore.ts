@@ -143,8 +143,8 @@ export const useChatStore = (
 	// source for chatStatus and the REST-fetched chatRecord.status
 	// must not overwrite it. Without this guard, a React Query
 	// refetch (e.g. on window focus) can regress chatStatus to a
-	// stale value like "waiting", causing shouldApplyMessagePart()
-	// to drop all incoming parts.
+	// stale value like "waiting", hiding live status from the user
+	// until the next server event arrives.
 	const wsStatusReceivedRef = useRef(false);
 	const [pendingStatusResync, setPendingStatusResync] = useState(false);
 	const pendingStatusResyncUpdatedAtRef = useRef<number | null>(null);
@@ -423,9 +423,13 @@ export const useChatStore = (
 		let historyResetPending = false;
 		const historyReplacementBuf: TypesGen.ChatMessage[] = [];
 
-		const shouldApplyMessagePart = (): boolean => {
-			return store.getSnapshot().chatStatus !== "waiting";
-		};
+		// Set when the stream reports "waiting", cleared by any other
+		// stream status. While set, parts are dropped: they are late
+		// leftovers from the finished turn. REST and optimistic
+		// statuses never set it, because they can lag a live turn.
+		let streamReportedWaiting = false;
+
+		const shouldKeepMessagePart = (): boolean => !streamReportedWaiting;
 
 		const schedulePartsFlush = () => {
 			if (partsFlushTimer !== null || partsBuf.length === 0) {
@@ -436,11 +440,11 @@ export const useChatStore = (
 				if (disposed || activeChatIDRef.current !== chatID) {
 					return;
 				}
-				const parts = partsBuf.splice(0);
-				if (parts.length === 0 || !shouldApplyMessagePart()) {
+				if (!shouldKeepMessagePart()) {
+					partsBuf.length = 0;
 					return;
 				}
-				store.applyMessageParts(parts);
+				store.applyMessageParts(partsBuf.splice(0));
 			}, 0);
 		};
 
@@ -455,11 +459,11 @@ export const useChatStore = (
 				clearTimeout(partsFlushTimer);
 				partsFlushTimer = null;
 			}
-			const parts = partsBuf.splice(0);
-			if (activeChatIDRef.current !== chatID || !shouldApplyMessagePart()) {
+			if (activeChatIDRef.current !== chatID || !shouldKeepMessagePart()) {
+				partsBuf.length = 0;
 				return;
 			}
-			store.applyMessageParts(parts);
+			store.applyMessageParts(partsBuf.splice(0));
 		};
 
 		// Discard buffered parts without applying them. Used when
@@ -521,7 +525,7 @@ export const useChatStore = (
 							continue;
 						}
 						commitHistoryReplacement();
-						if (!shouldApplyMessagePart()) {
+						if (!shouldKeepMessagePart()) {
 							continue;
 						}
 						const part = streamEvent.message_part?.part;
@@ -565,17 +569,10 @@ export const useChatStore = (
 						continue;
 					}
 
-					// Only flush buffered parts before events that
-					// need them applied first. `message` events
-					// commit durable state that must include all
-					// stream parts. `error` events should surface
-					// partial output. Other events (status, retry,
-					// queue_update) must not flush. Status changes
-					// need to be visible before parts so the
-					// Thinking indicator can render, and retry
-					// clears stream state which a flush would
-					// re-populate.
-					if (streamEvent.type === "message" || streamEvent.type === "error") {
+					// Flush buffered parts before a durable message
+					// commits them. Other events must not flush because
+					// some clear the stream and a flush would restore it.
+					if (streamEvent.type === "message") {
 						flushMessageParts();
 					}
 
@@ -622,14 +619,23 @@ export const useChatStore = (
 								continue;
 							}
 
+							streamReportedWaiting = nextStatus === "waiting";
 							wsStatusReceivedRef.current = true;
 							store.clearRetryState();
+							const prevStatus = store.getSnapshot().chatStatus;
 							store.applyServerChatStatus(nextStatus);
 							if (nextStatus === "waiting") {
 								discardBufferedParts();
 							}
 							if (nextStatus !== "error") {
 								clearChatErrorReasonEvent(chatID);
+								// Only an errored chat starting a new turn
+								// supersedes the stored error. A status from a
+								// turn that was already running must not clear
+								// an unrelated request failure.
+								if (prevStatus === "error") {
+									store.clearStreamError();
+								}
 							}
 							updateSidebarChat((chat) =>
 								chat.status === nextStatus
@@ -643,9 +649,15 @@ export const useChatStore = (
 								kind: "generic",
 								message: "Chat processing failed.",
 							};
+							// An error ends the turn. Clear the partial
+							// stream so no tool keeps spinning. Parts stay
+							// ungated because the next turn can send a part
+							// before its running status.
+							discardBufferedParts();
 							wsStatusReceivedRef.current = true;
 							store.applyServerChatStatus("error");
 							store.setStreamError(reason);
+							store.clearStreamState();
 							store.clearRetryState();
 							setChatErrorReasonEvent(chatID, reason);
 							updateSidebarChat((chat) =>
@@ -698,9 +710,8 @@ export const useChatStore = (
 							clearTimeout(partsFlushTimer);
 							partsFlushTimer = null;
 						}
-						const nextParts = partsBuf.splice(0);
-						if (shouldApplyMessagePart()) {
-							store.applyMessageParts(nextParts);
+						if (shouldKeepMessagePart()) {
+							store.applyMessageParts(partsBuf.splice(0));
 						}
 					}
 				}

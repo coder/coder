@@ -178,6 +178,19 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
 	params := database.InsertChatModelConfigParams{
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -189,6 +202,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		GroupACL:             groupACL,
+		UserACL:              userACL,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -328,6 +344,15 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
 	t.Helper()
 
+	// New configs belong to the default organization, matching the
+	// org-less shape they had before configs became org-scoped.
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+
 	// CreatedBy and UpdatedBy are user FKs, so default fixtures create a user.
 	createdBy := seed.CreatedBy.UUID
 	if createdBy == uuid.Nil {
@@ -338,7 +363,20 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		updatedBy = createdBy
 	}
 
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
+	if userACL == nil {
+		userACL = database.ChatACL{}
+	}
+
 	cfg, err := db.InsertMCPServerConfig(genCtx, database.InsertMCPServerConfigParams{
+		ID:                      takeFirst(seed.ID, uuid.New()),
+		OrganizationID:          organizationID,
 		DisplayName:             takeFirst(seed.DisplayName, "Test MCP Server"),
 		Slug:                    takeFirst(seed.Slug, testutil.GetRandomName(t)),
 		Description:             seed.Description,
@@ -365,6 +403,8 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
 		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
+		GroupACL:                groupACL,
+		UserACL:                 userACL,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})
@@ -779,7 +819,7 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 		}
 		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
 		// a unique violation - 2 rows get the same started_at value.
-		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt.Equal(time.Time{})) {
 			// Wait 1 millisecond so dbtime.Now() changes
 			time.Sleep(time.Millisecond * 1)
 			continue
@@ -1150,7 +1190,7 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 	require.NotEqual(t, member.UserID, uuid.Nil, "A user id is required to use 'dbgen.GroupMember', use 'dbgen.User'.")
 	require.NotEqual(t, member.GroupID, uuid.Nil, "A group id is required to use 'dbgen.GroupMember', use 'dbgen.Group'.")
 
-	//nolint:gosimple
+	//nolint:staticcheck
 	err := db.InsertGroupMember(genCtx, database.InsertGroupMemberParams{
 		UserID:  member.UserID,
 		GroupID: member.GroupID,
@@ -2228,6 +2268,8 @@ func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureChatFilesToken:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureNATSCA:
 		return generateCACryptoKeySecret()

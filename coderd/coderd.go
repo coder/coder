@@ -273,6 +273,8 @@ type Options struct {
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
 	ChatStreamPartsDialer chatd.StreamPartsDialer
+	// Nil keeps the default chat agent caps active.
+	ChatAgentCapacityUnlock chatd.AgentCapacityUnlock
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -323,6 +325,7 @@ type Options struct {
 	AppSigningKeyCache    cryptokeys.SigningKeycache
 	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache   cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache cryptokeys.SigningKeycache
 	// NATSCACache serves the NATS cluster mTLS CA via the generic signing key
 	// cache for the nats_ca feature. SigningKey returns the active CA
 	// (a *NATSCA); VerifyingKey returns a specific CA by sequence. The key
@@ -593,6 +596,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	if options.ChatFileTokenKeyCache == nil {
+		options.ChatFileTokenKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("chat_file_token_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureChatFilesToken,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate chat file token signing cache", slog.Error(err))
+		}
+	}
+
 	if options.AppSigningKeyCache == nil {
 		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
 			options.Logger.Named("app_signing_keycache"),
@@ -771,7 +785,7 @@ func New(options *Options) *API {
 		Entitlements:      options.Entitlements,
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
-		HideAITasks:       options.DeploymentValues.HideAITasks.Value(),
+		AITasksEnabled:    options.DeploymentValues.EnableAITasks.Value(),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
 	})
 	if err != nil {
@@ -941,6 +955,7 @@ func New(options *Options) *API {
 				HookDispatcher:                 hookDispatcher,
 				UsageTracker:                   options.WorkspaceUsageTracker,
 				PrometheusRegistry:             options.PrometheusRegistry,
+				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
@@ -973,8 +988,8 @@ func New(options *Options) *API {
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
-		api.Options.NetworkTelemetryBatchFrequency,
-		api.Options.NetworkTelemetryBatchMaxSize,
+		api.NetworkTelemetryBatchFrequency,
+		api.NetworkTelemetryBatchMaxSize,
 		api.handleNetworkTelemetry,
 	)
 	if options.CoordinatorResumeTokenProvider == nil {
@@ -983,10 +998,10 @@ func New(options *Options) *API {
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   api.Logger.Named("tailnetclient"),
 		CoordPtr:                 &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapUpdateFrequency:   api.DERPMapUpdateFrequency,
 		DERPMapFn:                api.DERPMap,
 		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		ResumeTokenProvider:      api.CoordinatorResumeTokenProvider,
 		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
 	if err != nil {
@@ -1314,27 +1329,33 @@ func New(options *Options) *API {
 		// NOTE(DanielleMaywood):
 		// Tasks have been promoted to stable, but we have guaranteed a single release transition period
 		// where these routes must remain. These should be removed no earlier than Coder v2.30.0
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+		//
+		// Coder Tasks is hidden unless the deployment opts in, so the routes are
+		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
+		// unregistered path fall through to the route not found handler above.
+		if options.DeploymentValues.EnableAITasks {
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
 
-			r.Get("/", api.tasksList)
+				r.Get("/", api.tasksList)
 
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Post("/", api.tasksCreate)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Post("/", api.tasksCreate)
 
-				r.Route("/{task}", func(r chi.Router) {
-					r.Use(httpmw.ExtractTaskParam(options.Database))
-					r.Get("/", api.taskGet)
-					r.Delete("/", api.taskDelete)
-					r.Patch("/input", api.taskUpdateInput)
-					r.Post("/send", api.taskSend)
-					r.Get("/logs", api.taskLogs)
-					r.Post("/pause", api.pauseTask)
-					r.Post("/resume", api.resumeTask)
+					r.Route("/{task}", func(r chi.Router) {
+						r.Use(httpmw.ExtractTaskParam(options.Database))
+						r.Get("/", api.taskGet)
+						r.Delete("/", api.taskDelete)
+						r.Patch("/input", api.taskUpdateInput)
+						r.Post("/send", api.taskSend)
+						r.Get("/logs", api.taskLogs)
+						r.Post("/pause", api.pauseTask)
+						r.Post("/resume", api.resumeTask)
+					})
 				})
 			})
-		})
+		}
 		r.Route("/users/{user}/skills", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1359,6 +1380,97 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserAIProviderKey)
 			})
 		})
+		r.Group(func(r chi.Router) {
+			r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
+			r.Get("/chats/files/{file}/download", api.downloadChatFile)
+		})
+		r.Route("/organizations", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Route("/{organization}", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationParam(options.Database))
+				r.Route("/mcp-servers", func(r chi.Router) {
+					r.Get("/", api.listMCPServerConfigs)
+					r.Post("/", api.createMCPServerConfig)
+					r.Route("/{mcpserverconfig}", func(r chi.Router) {
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionUpdate)).Patch("/", api.updateMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionDelete)).Delete("/", api.deleteMCPServerConfig)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
+						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+							policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+					})
+				})
+			})
+		})
+		// Organization-scoped ChatModel management and runtime discovery.
+		// Keep the previous default-organization collection routes until the
+		// frontend uses the organization-scoped routes.
+		r.Route("/chats/model-configs", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				func(next http.Handler) http.Handler {
+					return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+						chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+						next.ServeHTTP(rw, req)
+					})
+				},
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
+			r.Post("/", api.createChatModelConfig)
+		})
+		r.With(
+			apiKeyMiddleware,
+			func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+					chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
+					next.ServeHTTP(rw, req)
+				})
+			},
+			httpmw.ExtractOrganizationParam(options.Database),
+		).Get("/chats/models", api.listChatModelConfigsByOrganization)
+
+		r.Route("/organizations/{organization}/chats/model-overrides", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+			)
+			r.Get("/", api.getOrganizationChatModelOverrides)
+			r.Put("/{context}", api.putOrganizationChatModelOverride)
+		})
+		r.Route("/organizations/{organization}/members/{user}/chats/model-overrides", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractOrganizationParam(options.Database),
+				httpmw.ExtractOrganizationMemberParam(options.Database),
+			)
+			r.Get("/", api.getUserChatPersonalModelOverrides)
+			r.Put("/{context}", api.putUserChatPersonalModelOverride)
+		})
+		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
+			r.With(httpmw.ExtractOrganizationParam(options.Database)).Post("/", api.createChatModelConfig)
+			r.Route("/{model}", func(r chi.Router) {
+				r.Use(
+					httpmw.ExtractOrganizationParam(options.Database),
+					httpmw.ExtractChatModelConfigParam(options.Database),
+				)
+				r.Get("/", api.getChatModelConfig)
+				r.Patch("/", api.updateChatModelConfig)
+				r.Delete("/", api.deleteChatModelConfig)
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.chatModelConfigACLHandler)
+					r.Patch("/", api.updateChatModelConfigACL)
+				})
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1366,11 +1478,11 @@ func New(options *Options) *API {
 			r.Get("/by-workspace", api.chatsByWorkspace)
 			r.Get("/", api.listChats)
 			r.Post("/", api.postChats)
-			r.Get("/models", api.listChatModels)
 			r.Get("/watch", api.watchChats)
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
+				r.Post("/{file}/download-url", api.postChatFileDownloadURL)
 				r.Get("/{file}", api.chatFileByID)
 			})
 			r.Route("/config", func(r chi.Router) {
@@ -1378,12 +1490,8 @@ func New(options *Options) *API {
 				r.Put("/system-prompt", api.putChatSystemPrompt)
 				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
 				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/model-override/{context}", api.getChatModelOverride)
-				r.Put("/model-override/{context}", api.putChatModelOverride)
 				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
 				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
-				r.Get("/user-personal-model-overrides", api.getUserChatPersonalModelOverrides)
-				r.Put("/user-personal-model-overrides/{context}", api.putUserChatPersonalModelOverride)
 				r.Group(func(r chi.Router) {
 					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
 					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
@@ -1419,15 +1527,6 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Patch("/", api.updateChatProvider)
 					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/model-configs", func(r chi.Router) {
-				r.Get("/", api.listChatModelConfigs)
-				r.Post("/", api.createChatModelConfig)
-				r.Route("/{modelConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatModelConfig)
-					r.Delete("/", api.deleteChatModelConfig)
 				})
 			})
 			r.Route("/user-provider-configs", func(r chi.Router) {
@@ -1479,20 +1578,11 @@ func New(options *Options) *API {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			// MCP server configuration endpoints.
-			r.Route("/servers", func(r chi.Router) {
-				r.Get("/", api.listMCPServerConfigs)
-				r.Post("/", api.createMCPServerConfig)
-				r.Route("/{mcpServer}", func(r chi.Router) {
-					r.Get("/", api.getMCPServerConfig)
-					r.Patch("/", api.updateMCPServerConfig)
-					r.Delete("/", api.deleteMCPServerConfig)
-					// OAuth2 user flow
-					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
-					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-				})
-			})
+			// This callback path is frozen because it is registered with OAuth2 providers.
+			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+			// Disconnect stays outside organization routes so former organization
+			// members can delete their stored token after losing config read access.
+			r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
@@ -1537,6 +1627,7 @@ func New(options *Options) *API {
 			r.Get("/config", api.deploymentValues)
 			r.Get("/stats", api.deploymentStats)
 			r.Get("/ssh", api.sshConfig)
+			r.Post("/premium-funnel-events", api.postPremiumFunnelEvent)
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1898,9 +1989,13 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
-				r.Route("/tasks/{task}", func(r chi.Router) {
-					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
-				})
+				// Agent-side Coder Tasks reporting, registered only when the
+				// deployment opts in, for the same reason as the /tasks trees.
+				if options.DeploymentValues.EnableAITasks {
+					r.Route("/tasks/{task}", func(r chi.Router) {
+						r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
+					})
+				}
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -2170,27 +2265,32 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
-		r.Route("/tasks", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
+		// Coder Tasks is hidden unless the deployment opts in, so the routes are
+		// only registered when CODER_ENABLE_AI_TASKS is set. Requests to an
+		// unregistered path fall through to the route not found handler above.
+		if options.DeploymentValues.EnableAITasks {
+			r.Route("/tasks", func(r chi.Router) {
+				r.Use(apiKeyMiddleware)
 
-			r.Get("/", api.tasksList)
+				r.Get("/", api.tasksList)
 
-			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
-				r.Post("/", api.tasksCreate)
+				r.Route("/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMembersParam(options.Database, api.HTTPAuth.Authorize))
+					r.Post("/", api.tasksCreate)
 
-				r.Route("/{task}", func(r chi.Router) {
-					r.Use(httpmw.ExtractTaskParam(options.Database))
-					r.Get("/", api.taskGet)
-					r.Delete("/", api.taskDelete)
-					r.Patch("/input", api.taskUpdateInput)
-					r.Post("/send", api.taskSend)
-					r.Get("/logs", api.taskLogs)
-					r.Post("/pause", api.pauseTask)
-					r.Post("/resume", api.resumeTask)
+					r.Route("/{task}", func(r chi.Router) {
+						r.Use(httpmw.ExtractTaskParam(options.Database))
+						r.Get("/", api.taskGet)
+						r.Delete("/", api.taskDelete)
+						r.Patch("/input", api.taskUpdateInput)
+						r.Post("/send", api.taskSend)
+						r.Get("/logs", api.taskLogs)
+						r.Post("/pause", api.pauseTask)
+						r.Post("/resume", api.resumeTask)
+					})
 				})
 			})
-		})
+		}
 	})
 
 	if options.SwaggerEndpoint {
@@ -2493,6 +2593,7 @@ func (api *API) Close() error {
 	}
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.ChatFileTokenKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	if api.NATSCACache != nil {
@@ -2691,10 +2792,10 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 func (api *API) DERPMap() *tailcfg.DERPMap {
 	fn := api.DERPMapper.Load()
 	if fn != nil {
-		return (*fn)(api.Options.BaseDERPMap)
+		return (*fn)(api.BaseDERPMap)
 	}
 
-	return api.Options.BaseDERPMap
+	return api.BaseDERPMap
 }
 
 // nolint:revive

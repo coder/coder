@@ -15,6 +15,7 @@ import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
 import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import { ExecuteTool as ExecuteToolComponent } from "./ExecuteTool";
+import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
@@ -61,6 +62,7 @@ import {
 import { WriteFileTool } from "./WriteFileTool";
 
 interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
+	organizationId?: string;
 	name: string;
 	status?: ToolStatus;
 	args?: unknown;
@@ -97,6 +99,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 // Props passed to each tool-specific renderer function. Each renderer
 // only computes the expensive values it needs from the raw args/result.
 type ToolRendererProps = {
+	organizationId?: string;
 	name: string;
 	status: ToolStatus;
 	args: unknown;
@@ -246,19 +249,29 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
+	const command = rec ? asString(rec.command).trim() : "";
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
+	// The process may outlive the poll that produced this result
+	// (wait timeout); the result flags it explicitly. A later
+	// SIGKILL overrides the stale running snapshot; SIGTERM is
+	// catchable, so it does not.
+	const processRunning = rec?.running === true && killedBySignal !== "kill";
 
 	return (
 		<ProcessOutputTool
 			output={output}
-			isRunning={status === "running"}
+			command={command || undefined}
+			modelIntent={modelIntent}
+			status={status}
+			processRunning={processRunning}
 			exitCode={exitCode}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -416,6 +429,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 const SubagentRenderer: FC<ToolRendererProps> = ({
+	organizationId,
 	name,
 	status,
 	args,
@@ -503,6 +517,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 
 	return (
 		<SubagentTool
+			organizationId={organizationId ?? ""}
 			descriptor={descriptor}
 			title={title}
 			chatId={chatId}
@@ -835,6 +850,8 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel={`Contents of ${file.name}`}
 			orientation="both"
 			scrollBarClassName="w-1.5"
 			horizontalScrollBarClassName="h-1.5"
@@ -985,6 +1002,97 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+const parseArray = <T,>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	let array = value;
+	if (typeof array === "string") {
+		try {
+			array = JSON.parse(array);
+		} catch {
+			return null;
+		}
+	}
+	if (!Array.isArray(array)) {
+		return null;
+	}
+	const items: T[] = [];
+	for (const item of array) {
+		const parsed = parseItem(item);
+		if (parsed === null) {
+			return null;
+		}
+		items.push(parsed);
+	}
+	return items;
+};
+
+const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
+
+const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
+	parseArray(value, (item) => {
+		const record = asRecord(item);
+		return record &&
+			typeof record.name === "string" &&
+			typeof record.description === "string"
+			? { name: record.name, description: record.description }
+			: null;
+	});
+
+const FindToolsRenderer: FC<ToolRendererProps> = (props) => {
+	const parsedArgs = parseArgs(props.args);
+	if (!parsedArgs) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const queries =
+		parsedArgs.queries === undefined ? [] : parseStringList(parsedArgs.queries);
+	const names =
+		parsedArgs.names === undefined ? [] : parseStringList(parsedArgs.names);
+	if (!queries || !names) {
+		return <GenericToolRenderer {...props} />;
+	}
+	const parsedResult = parseArgs(props.result);
+	if (props.isError) {
+		// Error results carry plain text or an error record instead of
+		// matches, so they render through the specialized error state
+		// rather than the malformed-result fallback.
+		const errorMessage = parsedResult
+			? asString(parsedResult.error || parsedResult.message)
+			: asString(props.result);
+		return (
+			<FindToolsTool
+				queries={queries}
+				names={names}
+				matches={[]}
+				status={props.status}
+				isError
+				errorMessage={errorMessage || undefined}
+			/>
+		);
+	}
+	let matches: FindToolsMatch[] | null = [];
+	if (props.status !== "running" || props.result !== undefined) {
+		matches = parsedResult ? parseFindToolsMatches(parsedResult.matches) : null;
+	}
+	if (!matches) {
+		return <GenericToolRenderer {...props} />;
+	}
+
+	return (
+		<FindToolsTool
+			queries={queries}
+			names={names}
+			matches={matches}
+			status={props.status}
+			isError={false}
+		/>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
@@ -1033,6 +1141,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 // ---------------------------------------------------------------------------
 
 export const toolRenderers: Record<string, FC<ToolRendererProps>> = {
+	find_tools: FindToolsRenderer,
 	execute: ExecuteRenderer,
 	process_output: ProcessOutputRenderer,
 	process_signal: ProcessSignalRenderer,
@@ -1065,6 +1174,7 @@ export const toolRendererNames: readonly string[] = Object.keys(toolRenderers);
 export const Tool = memo(
 	({
 		className,
+		organizationId,
 		name,
 		status = "completed",
 		args,
@@ -1112,6 +1222,7 @@ export const Tool = memo(
 			>
 				<ToolCall.PolicyProvider hookRewritten={hookRewritten}>
 					<Renderer
+						organizationId={organizationId}
 						name={name}
 						status={status}
 						args={args}

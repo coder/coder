@@ -34,16 +34,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Create a new AI task
-// @ID create-a-new-ai-task
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param request body codersdk.CreateTaskRequest true "Create task request"
-// @Success 201 {object} codersdk.Task
-// @Router /api/v2/tasks/{user} [post]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -390,12 +383,12 @@ func deriveTaskCurrentState(
 			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
 		case taskAgentLifecycle != nil:
-			switch {
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
 				message = "Agent is connecting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+			case codersdk.WorkspaceAgentLifecycleStarting:
 				message = "Agent is starting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+			case codersdk.WorkspaceAgentLifecycleReady:
 				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
 					message = "App is initializing"
 				} else {
@@ -421,14 +414,9 @@ func deriveTaskCurrentState(
 	return currentState
 }
 
-// @Summary List AI tasks
-// @ID list-ai-tasks
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Tasks
-// @Param q query string false "Search query for filtering tasks. Supports: `owner:<username/uuid/me>`, `organization:<org-name/uuid>`, `status:<status>`"
-// @Success 200 {object} codersdk.TasksListResponse
-// @Router /api/v2/tasks [get]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) tasksList(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -499,7 +487,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	}
 
 	// Gather associated data and convert to API workspaces.
-	data, err := api.workspaceData(ctx, workspaces)
+	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
 	if err != nil {
 		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
@@ -530,15 +518,9 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	return result, nil
 }
 
-// @Summary Get AI task by ID or name
-// @ID get-ai-task-by-id-or-name
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID, or task name"
-// @Success 200 {object} codersdk.Task
-// @Router /api/v2/tasks/{user}/{task} [get]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -565,7 +547,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -590,7 +572,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -605,14 +587,9 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, taskResp)
 }
 
-// @Summary Delete AI task
-// @ID delete-ai-task
-// @Security CoderSessionToken
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID, or task name"
-// @Success 202
-// @Router /api/v2/tasks/{user}/{task} [delete]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -677,16 +654,9 @@ func (api *API) taskDelete(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusAccepted)
 }
 
-// @Summary Update AI task input
-// @ID update-ai-task-input
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID, or task name"
-// @Param request body codersdk.UpdateTaskInputRequest true "Update task input request"
-// @Success 204
-// @Router /api/v2/tasks/{user}/{task}/input [patch]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx              = r.Context()
@@ -757,16 +727,9 @@ func (api *API) taskUpdateInput(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// @Summary Send input to AI task
-// @ID send-input-to-ai-task
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID, or task name"
-// @Param request body codersdk.TaskSendRequest true "Task input request"
-// @Success 204
-// @Router /api/v2/tasks/{user}/{task}/send [post]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskSend(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -850,15 +813,9 @@ func convertAgentAPIMessagesToLogEntries(messages []agentapisdk.Message) ([]code
 	return logs, nil
 }
 
-// @Summary Get AI task logs
-// @ID get-ai-task-logs
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID, or task name"
-// @Success 200 {object} codersdk.TaskLogsResponse
-// @Router /api/v2/tasks/{user}/{task}/logs [get]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) taskLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	task := httpmw.TaskParam(r)
@@ -1129,16 +1086,9 @@ type TaskLogSnapshotEnvelope struct {
 	Data   any    `json:"data"`
 }
 
-// @Summary Upload task log snapshot
-// @ID upload-task-log-snapshot
-// @Security CoderSessionToken
-// @Accept json
-// @Tags Tasks
-// @Param task path string true "Task ID" format(uuid)
-// @Param format query string true "Snapshot format" enums(agentapi)
-// @Param request body object true "Raw snapshot payload (structure depends on format parameter)"
-// @Success 204
-// @Router /api/v2/workspaceagents/me/tasks/{task}/log-snapshot [post]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx         = r.Context()
@@ -1206,9 +1156,6 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	// Limit payload size to avoid excessive memory or data usage.
-	r.Body = http.MaxBytesReader(rw, r.Body, taskSnapshotMaxSize)
-
 	// Create envelope to store validated payload.
 	envelope := TaskLogSnapshotEnvelope{
 		Format: format,
@@ -1216,12 +1163,10 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 
 	switch format {
 	case "agentapi":
+		// Validate is a no-op here: agentapisdk.GetMessagesResponse has no
+		// validate tags.
 		var payload agentapisdk.GetMessagesResponse
-		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to decode request payload.",
-				Detail:  err.Error(),
-			})
+		if !httpapi.ReadLimit(ctx, rw, r, taskSnapshotMaxSize, &payload) {
 			return
 		}
 		// Verify messages field exists (can be empty array).
@@ -1279,15 +1224,9 @@ func (api *API) postWorkspaceAgentTaskLogSnapshot(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// @Summary Pause task
-// @ID pause-task
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
-// @Success 202 {object} codersdk.PauseTaskResponse
-// @Router /api/v2/tasks/{user}/{task}/pause [post]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -1356,15 +1295,9 @@ func (api *API) pauseTask(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// @Summary Resume task
-// @ID resume-task
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Tasks
-// @Param user path string true "Username, user ID, or 'me' for the authenticated user"
-// @Param task path string true "Task ID" format(uuid)
-// @Success 202 {object} codersdk.ResumeTaskResponse
-// @Router /api/v2/tasks/{user}/{task}/resume [post]
+// Deprecated: Coder Tasks is deprecated as of v2.36. This route is only
+// registered when CODER_ENABLE_AI_TASKS is set, and is planned for removal in
+// v2.37.
 func (api *API) resumeTask(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
