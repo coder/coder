@@ -26,17 +26,14 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span>
-						<Badge className="gap-0 rounded-e-none text-sm font-normal" size="md">
-							<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
+						<Badge className="gap-0.5 rounded-e-none">
+							<ArrowDownIcon className="size-icon-xs flex-shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(inputTokens)}
 							</span>
 						</Badge>
-						<Badge
-							className="gap-0 bg-surface-tertiary rounded-s-none text-sm font-normal"
-							size="md"
-						>
-							<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
+						<Badge className="gap-0.5 bg-surface-tertiary rounded-s-none">
+							<ArrowUpIcon className="size-icon-xs flex-shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(outputTokens)}
 							</span>
