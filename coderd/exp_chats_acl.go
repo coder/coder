@@ -26,8 +26,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get chat ACLs
 // @ID get-chat-acls
 // @Security CoderSessionToken
@@ -35,9 +33,7 @@ import (
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatACL
-// @Router /api/experimental/chats/{chat}/acl [get]
-// @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/acl [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
@@ -81,8 +77,6 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Update chat ACL
 // @ID update-chat-acl
 // @Security CoderSessionToken
@@ -91,9 +85,7 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatACL true "Update chat ACL request"
 // @Success 204
-// @Router /api/experimental/chats/{chat}/acl [patch]
-// @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/acl [patch]
 func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

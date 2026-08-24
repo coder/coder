@@ -24,18 +24,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get an AI model ACL
-// @ID get-ai-model-acl
+// @ID get-an-ai-model-acl
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param organization path string true "Organization name or ID"
 // @Param model path string true "Model ID" format(uuid)
 // @Success 200 {object} codersdk.ChatModelACL
-// @Router /api/experimental/organizations/{organization}/chats/models/{model}/acl [get]
-// @x-apidocgen {"skip": true}
+// @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [get]
 func (api *API) chatModelConfigACLHandler(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.ChatModelConfigParam(r)
@@ -55,10 +52,8 @@ func (*chatModelACLValidationError) Error() string {
 	return "invalid chat model ACL"
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Update an AI model ACL
-// @ID update-ai-model-acl
+// @ID update-an-ai-model-acl
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
@@ -66,8 +61,7 @@ func (*chatModelACLValidationError) Error() string {
 // @Param model path string true "Model ID" format(uuid)
 // @Param request body codersdk.UpdateChatModelACLRequest true "Sparse model ACL update"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/chats/models/{model}/acl [patch]
-// @x-apidocgen {"skip": true}
+// @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [patch]
 func (api *API) updateChatModelConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

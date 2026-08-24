@@ -21,8 +21,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get MCP server config ACL
 // @ID get-mcp-server-config-acl
 // @Security CoderSessionToken
@@ -31,8 +29,7 @@ import (
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
-// @x-apidocgen {"skip": true}
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
 func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)
@@ -58,8 +55,6 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Update MCP server config ACL
 // @ID update-mcp-server-config-acl
 // @Security CoderSessionToken
@@ -69,8 +64,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
-// @x-apidocgen {"skip": true}
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)

@@ -321,7 +321,7 @@ func assertGoCommentFirst(t *testing.T, comment SwaggerComment) {
 		text := strings.TrimSpace(line.Text)
 
 		if inSwaggerBlock {
-			if !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") {
+			if text != "//" && !strings.HasPrefix(text, "// @") && !strings.HasPrefix(text, "// nolint:") && !strings.HasPrefix(text, "//nolint:") {
 				assert.Fail(t, "Go function comment must be placed before swagger comments")
 				return
 			}
@@ -369,7 +369,8 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/api/v2/users/login" ||
 		comment.router == "/api/v2/users/otp/request" ||
 		comment.router == "/api/v2/users/otp/change-password" ||
-		comment.router == "/api/v2/init-script/{os}/{arch}" {
+		comment.router == "/api/v2/init-script/{os}/{arch}" ||
+		comment.router == "/api/v2/chats/files/{file}/download" {
 		return // endpoints do not require authorization
 	}
 	if comment.router == "/api/v2/ai-gateway/serve" {
@@ -381,6 +382,10 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 }
 
 func assertAccept(t *testing.T, comment SwaggerComment) {
+	if comment.method == "post" && comment.router == "/api/v2/chats/files" {
+		return
+	}
+
 	var hasRequestBody bool
 	for _, c := range comment.parameters {
 		if c.name == "request" && c.kind == "body" ||
@@ -407,6 +412,11 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 var allowedProduceTypes = []string{"json", "text/event-stream", "text/html", "text/plain"}
 
 func assertProduce(t *testing.T, comment SwaggerComment) {
+	if comment.method == "get" && (comment.router == "/api/v2/chats/files/{file}" ||
+		comment.router == "/api/v2/chats/files/{file}/download") {
+		return
+	}
+
 	var hasResponseModel bool
 	for _, r := range comment.successes {
 		if r.model != "" {
