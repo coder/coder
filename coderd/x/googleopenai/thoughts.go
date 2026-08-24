@@ -3,6 +3,7 @@ package googleopenai
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -145,6 +146,9 @@ func (b *thoughtStreamBody) rewriteLine(line []byte) []byte {
 	if !choices.IsArray() {
 		return line
 	}
+	if errPayload := functionCallFilterErrorPayload(choices); errPayload != nil {
+		return assembleDataLine(errPayload, suffix)
+	}
 	out := payload
 	for index, choice := range choices.Array() {
 		delta := choice.Get("delta")
@@ -186,9 +190,53 @@ func (b *thoughtStreamBody) rewriteLine(line []byte) []byte {
 			b.inThought[index] = false
 		}
 	}
-	rewritten := make([]byte, 0, len(streamDataPrefix)+len(out)+len(suffix))
+	return assembleDataLine(out, suffix)
+}
+
+func assembleDataLine(payload, suffix []byte) []byte {
+	rewritten := make([]byte, 0, len(streamDataPrefix)+len(payload)+len(suffix))
 	rewritten = append(rewritten, streamDataPrefix...)
-	rewritten = append(rewritten, out...)
+	rewritten = append(rewritten, payload...)
 	rewritten = append(rewritten, suffix...)
 	return rewritten
+}
+
+// functionCallFilterFinishReasonPrefix marks Gemini's server-side
+// function-call filter on the OpenAI-compatible endpoint, observed as
+// finish_reason "function_call_filter: MALFORMED_FUNCTION_CALL": the
+// rejected call is dropped and the stream ends cleanly with no answer
+// output, so clients would otherwise treat the empty step as a normal
+// completion.
+const functionCallFilterFinishReasonPrefix = "function_call_filter"
+
+type streamErrorEvent struct {
+	Error streamErrorDetail `json:"error"`
+}
+
+type streamErrorDetail struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+}
+
+// functionCallFilterErrorPayload converts a chunk carrying a
+// function-call-filter finish reason into an OpenAI-style SSE error
+// event so the stream fails loudly and the step can be retried.
+func functionCallFilterErrorPayload(choices gjson.Result) []byte {
+	for _, choice := range choices.Array() {
+		reason := choice.Get("finish_reason")
+		if reason.Type != gjson.String || !strings.HasPrefix(reason.Str, functionCallFilterFinishReasonPrefix) {
+			continue
+		}
+		payload, err := json.Marshal(streamErrorEvent{Error: streamErrorDetail{
+			Message: "gemini dropped the model's generated function call (finish_reason " + strconv.Quote(reason.Str) + ")",
+			Type:    "invalid_response_error",
+			Code:    "malformed_function_call",
+		}})
+		if err != nil {
+			return nil
+		}
+		return payload
+	}
+	return nil
 }

@@ -177,6 +177,15 @@ func Classify(err error) ClassifiedError {
 		return classified
 	}
 
+	if classified, ok := functionCallFilterClassification(
+		lower,
+		provider,
+		statusCode,
+		structured,
+	); ok {
+		return classified
+	}
+
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
 	// combinedText merges the transport wrapper text with the structured
 	// provider response body so signal patterns in either are detected.
@@ -373,6 +382,33 @@ func streamIncompleteClassification(
 
 func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
+}
+
+// functionCallFilterClassification matches the stream error injected by
+// coderd/x/googleopenai when Gemini's server-side function-call filter drops
+// a generated call (finish_reason "function_call_filter: ..."). Retrying
+// re-samples the call, which usually produces a well-formed one.
+func functionCallFilterClassification(
+	lowerMessage string,
+	provider string,
+	statusCode int,
+	structured providerErrorDetails,
+) (ClassifiedError, bool) {
+	if !strings.Contains(lowerMessage, "function_call_filter") {
+		return ClassifiedError{}, false
+	}
+	if provider == "" {
+		provider = "google"
+	}
+	return normalizeClassification(ClassifiedError{
+		Message:    "Gemini rejected the model's generated function call as malformed.",
+		Detail:     structured.detail,
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   provider,
+		Retryable:  true,
+		StatusCode: statusCode,
+		RetryAfter: structured.retryAfter,
+	}), true
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {

@@ -80,6 +80,24 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			// The error event injected by coderd/x/googleopenai when
+			// Gemini's server-side filter drops a generated function call.
+			name: "GeminiFunctionCallFilter",
+			err: xerrors.New(
+				`stream response: received error while streaming: ` +
+					`{"message":"gemini dropped the model's generated function call ` +
+					`(finish_reason \"function_call_filter: MALFORMED_FUNCTION_CALL\")",` +
+					`"type":"invalid_response_error","code":"malformed_function_call"}`,
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "Gemini rejected the model's generated function call as malformed.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "google",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
 			name: "AuthBeatsConfig",
 			err:  xerrors.New("authentication failed: invalid model"),
 			want: chaterror.ClassifiedError{

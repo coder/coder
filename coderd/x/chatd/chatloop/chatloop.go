@@ -51,6 +51,10 @@ var (
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
 	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
+	// ErrNoModelOutput is returned when the stream finished without
+	// user-visible content or tool calls under a finish reason that
+	// cannot legitimately end a response (see silentNoOutputFinish).
+	ErrNoModelOutput = xerrors.New("model stream finished without output")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -462,6 +466,17 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
+	// Providers can end a stream cleanly after dropping the whole response
+	// (for example Gemini's server-side function-call filter), leaving
+	// neither text nor tool calls behind. Persisting nothing here would
+	// end the turn silently, so surface a retryable error instead. Stop
+	// and length finishes keep their semantics: reasoning-only output is
+	// legitimate for them.
+	if silentNoOutputFinish(result.finishReason) && !hasUserVisibleContent(result.content) && len(result.toolCalls) == 0 {
+		noOutputErr := noModelOutputError(errorProvider, result.finishReason)
+		opts.Metrics.RecordStreamRetry(provider, modelName, chaterror.Classify(noOutputErr))
+		return AssistantOutcome{}, noOutputErr
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -508,6 +523,31 @@ func hasUserVisibleContent(content []fantasy.Content) bool {
 		}
 	}
 	return false
+}
+
+// silentNoOutputFinish reports whether reason cannot legitimately end a
+// response that produced no user-visible content and no tool calls. A
+// tool-calls finish that delivered zero tool calls belongs here: the
+// provider claimed calls that never arrived.
+func silentNoOutputFinish(reason fantasy.FinishReason) bool {
+	switch reason {
+	case fantasy.FinishReasonUnknown, fantasy.FinishReasonError,
+		fantasy.FinishReasonOther, fantasy.FinishReasonToolCalls:
+		return true
+	default:
+		return false
+	}
+}
+
+func noModelOutputError(provider string, reason fantasy.FinishReason) error {
+	classified := chaterror.ClassifiedError{
+		Message:   "The model ended its response without producing any output.",
+		Detail:    "finish reason: " + string(reason),
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  provider,
+		Retryable: true,
+	}
+	return chaterror.WithClassification(ErrNoModelOutput, classified)
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
