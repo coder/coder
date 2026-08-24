@@ -1260,6 +1260,8 @@ WHERE id = ANY($1::uuid[]);
 
 ## Relay mechanism
 
+TODO(CODAGT-921): update this section for the /api/v2 promotion. The stream and parts endpoints are dual-mounted under /api/experimental and /api/v2 during the compatibility window, while the internal replica-to-replica relay dial stays on /api/experimental until CODAGT-922 removes the experimental mounts.
+
 We make use of a relay mechanism when there are multiple coderd replicas. If a client connects to the stream endpoint on replica A, but the chat worker that owns the chat is on replica B, the endpoint will connect to replica B and relay streaming message parts.
 
 There exists a `GET /api/experimental/chats/{chat}/stream/parts` endpoint that is responsible exclusively for streaming message parts. That endpoint talks to the chat worker on the same replica to obtain the message parts and relay them to the client.
@@ -1293,6 +1295,8 @@ If `worker_id` changes, the relay forwarder connects to the new worker's parts e
 The forwarder must only pass parts for the currently requested episode to the stream loop.
 
 ### Parts endpoint
+
+TODO(CODAGT-921): update the endpoint paths in this section for the /api/v2 promotion and compatibility window.
 
 The parts endpoint is a WebSocket endpoint.
 

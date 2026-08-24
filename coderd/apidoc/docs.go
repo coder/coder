@@ -2873,7 +2873,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
+                        "type": "integer",
                         "description": "Queued message ID",
                         "name": "queuedMessage",
                         "in": "path",
@@ -2911,7 +2911,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "string",
+                        "type": "integer",
                         "description": "Queued message ID",
                         "name": "queuedMessage",
                         "in": "path",
@@ -2986,6 +2986,12 @@ const docTemplate = `{
                         "name": "chat",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Skip snapshot messages with id at or before this cursor",
+                        "name": "after_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3065,7 +3071,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                            }
                         }
                     }
                 },

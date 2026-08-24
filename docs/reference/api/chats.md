@@ -3876,10 +3876,10 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 
 ### Parameters
 
-| Name            | In   | Type   | Required | Description       |
-|-----------------|------|--------|----------|-------------------|
-| `chat`          | path | string | true     | Chat ID           |
-| `queuedMessage` | path | string | true     | Queued message ID |
+| Name            | In   | Type    | Required | Description       |
+|-----------------|------|---------|----------|-------------------|
+| `chat`          | path | string  | true     | Chat ID           |
+| `queuedMessage` | path | integer | true     | Queued message ID |
 
 ### Responses
 
@@ -3904,10 +3904,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 
 ### Parameters
 
-| Name            | In   | Type   | Required | Description       |
-|-----------------|------|--------|----------|-------------------|
-| `chat`          | path | string | true     | Chat ID           |
-| `queuedMessage` | path | string | true     | Queued message ID |
+| Name            | In   | Type    | Required | Description       |
+|-----------------|------|---------|----------|-------------------|
+| `chat`          | path | string  | true     | Chat ID           |
+| `queuedMessage` | path | integer | true     | Queued message ID |
 
 ### Example responses
 
@@ -4184,9 +4184,10 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
 
 ### Parameters
 
-| Name   | In   | Type         | Required | Description |
-|--------|------|--------------|----------|-------------|
-| `chat` | path | string(uuid) | true     | Chat ID     |
+| Name       | In    | Type         | Required | Description                                             |
+|------------|-------|--------------|----------|---------------------------------------------------------|
+| `chat`     | path  | string(uuid) | true     | Chat ID                                                 |
+| `after_id` | query | integer      | false    | Skip snapshot messages with id at or before this cursor |
 
 ### Example responses
 
@@ -4645,176 +4646,27 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/parts \
 > 200 Response
 
 ```json
-{
-  "action_required": {
-    "tool_calls": [
-      {
-        "args": "string",
-        "tool_call_id": "string",
-        "tool_name": "string"
-      }
-    ]
-  },
-  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "error": {
-    "detail": "string",
-    "kind": "generic",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
-  "message": {
-    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-    "content": [
-      {
-        "args": [
-          0
-        ],
-        "args_delta": "string",
-        "completed_at": "2019-08-24T14:15:22Z",
-        "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "context_file_content": "string",
-        "context_file_directory": "string",
-        "context_file_os": "string",
-        "context_file_path": "string",
-        "context_file_skill_meta_file": "string",
-        "context_file_truncated": true,
-        "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
-        "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "file_name": "string",
-        "hook_rewritten": true,
-        "is_error": true,
-        "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "media_type": "string",
-        "name": "string",
-        "parsed_commands": [
-          [
-            "string"
-          ]
-        ],
-        "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
-        "result_delta": "string",
-        "result_reset": true,
-        "skill_description": "string",
-        "skill_dir": "string",
-        "skill_name": "string",
-        "source_id": "string",
-        "start_line": 0,
-        "text": "string",
-        "title": "string",
-        "tool_call_id": "string",
-        "tool_name": "string",
-        "type": "text",
-        "url": "string"
-      }
-    ],
-    "created_at": "2019-08-24T14:15:22Z",
-    "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
-    "id": 0,
-    "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-    "role": "system",
-    "usage": {
-      "cache_creation_tokens": 0,
-      "cache_read_tokens": 0,
-      "context_limit": 0,
-      "input_tokens": 0,
-      "output_tokens": 0,
-      "reasoning_tokens": 0,
-      "total_tokens": 0
-    }
-  },
-  "message_part": {
-    "generation_attempt": 0,
-    "history_version": 0,
-    "part": {
-      "args": [
-        0
-      ],
-      "args_delta": "string",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "context_file_content": "string",
-      "context_file_directory": "string",
-      "context_file_os": "string",
-      "context_file_path": "string",
-      "context_file_skill_meta_file": "string",
-      "context_file_truncated": true,
-      "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
-      "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "file_name": "string",
-      "hook_rewritten": true,
-      "is_error": true,
-      "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "media_type": "string",
-      "name": "string",
-      "parsed_commands": [
-        [
-          "string"
-        ]
-      ],
-      "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
-      "result": [
-        0
-      ],
-      "result_delta": "string",
-      "result_reset": true,
-      "skill_description": "string",
-      "skill_dir": "string",
-      "skill_name": "string",
-      "source_id": "string",
-      "start_line": 0,
-      "text": "string",
-      "title": "string",
-      "tool_call_id": "string",
-      "tool_name": "string",
-      "type": "text",
-      "url": "string"
+[
+  {
+    "action_required": {
+      "tool_calls": [
+        {
+          "args": "string",
+          "tool_call_id": "string",
+          "tool_name": "string"
+        }
+      ]
     },
-    "role": "system",
-    "seq": 0
-  },
-  "queued_messages": [
-    {
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "error": {
+      "detail": "string",
+      "kind": "generic",
+      "message": "string",
+      "provider": "string",
+      "retryable": true,
+      "status_code": 0
+    },
+    "message": {
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -4881,31 +4733,296 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream/parts \
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
+      "created_by": "ee824cad-d7a6-4f48-87dc-e8461a9201c4",
       "id": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
-    }
-  ],
-  "retry": {
-    "attempt": 0,
-    "delay_ms": 0,
-    "error": "string",
-    "kind": "generic",
-    "provider": "string",
-    "retrying_at": "2019-08-24T14:15:22Z",
-    "status_code": 0
-  },
-  "status": {
-    "status": "waiting"
-  },
-  "type": "message_part"
-}
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "role": "system",
+      "usage": {
+        "cache_creation_tokens": 0,
+        "cache_read_tokens": 0,
+        "context_limit": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    },
+    "message_part": {
+      "generation_attempt": 0,
+      "history_version": 0,
+      "part": {
+        "args": [
+          0
+        ],
+        "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
+        "content": "string",
+        "context_file_agent_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "context_file_content": "string",
+        "context_file_directory": "string",
+        "context_file_os": "string",
+        "context_file_path": "string",
+        "context_file_skill_meta_file": "string",
+        "context_file_truncated": true,
+        "created_at": "2019-08-24T14:15:22Z",
+        "data": [
+          0
+        ],
+        "end_line": 0,
+        "file_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "file_name": "string",
+        "hook_rewritten": true,
+        "is_error": true,
+        "is_media": true,
+        "mcp_server_config_id": {
+          "uuid": "string",
+          "valid": true
+        },
+        "media_type": "string",
+        "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
+        "provider_executed": true,
+        "provider_metadata": [
+          0
+        ],
+        "result": [
+          0
+        ],
+        "result_delta": "string",
+        "result_reset": true,
+        "skill_description": "string",
+        "skill_dir": "string",
+        "skill_name": "string",
+        "source_id": "string",
+        "start_line": 0,
+        "text": "string",
+        "title": "string",
+        "tool_call_id": "string",
+        "tool_name": "string",
+        "type": "text",
+        "url": "string"
+      },
+      "role": "system",
+      "seq": 0
+    },
+    "queued_messages": [
+      {
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "content": [
+          {
+            "args": [
+              0
+            ],
+            "args_delta": "string",
+            "completed_at": "2019-08-24T14:15:22Z",
+            "content": "string",
+            "context_file_agent_id": {
+              "uuid": "string",
+              "valid": true
+            },
+            "context_file_content": "string",
+            "context_file_directory": "string",
+            "context_file_os": "string",
+            "context_file_path": "string",
+            "context_file_skill_meta_file": "string",
+            "context_file_truncated": true,
+            "created_at": "2019-08-24T14:15:22Z",
+            "data": [
+              0
+            ],
+            "end_line": 0,
+            "file_id": {
+              "uuid": "string",
+              "valid": true
+            },
+            "file_name": "string",
+            "hook_rewritten": true,
+            "is_error": true,
+            "is_media": true,
+            "mcp_server_config_id": {
+              "uuid": "string",
+              "valid": true
+            },
+            "media_type": "string",
+            "name": "string",
+            "parsed_commands": [
+              [
+                "string"
+              ]
+            ],
+            "provider_executed": true,
+            "provider_metadata": [
+              0
+            ],
+            "result": [
+              0
+            ],
+            "result_delta": "string",
+            "result_reset": true,
+            "skill_description": "string",
+            "skill_dir": "string",
+            "skill_name": "string",
+            "source_id": "string",
+            "start_line": 0,
+            "text": "string",
+            "title": "string",
+            "tool_call_id": "string",
+            "tool_name": "string",
+            "type": "text",
+            "url": "string"
+          }
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": 0,
+        "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
+      }
+    ],
+    "retry": {
+      "attempt": 0,
+      "delay_ms": 0,
+      "error": "string",
+      "kind": "generic",
+      "provider": "string",
+      "retrying_at": "2019-08-24T14:15:22Z",
+      "status_code": 0
+    },
+    "status": {
+      "status": "waiting"
+    },
+    "type": "message_part"
+  }
+]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatStreamEvent](schemas.md#codersdkchatstreamevent) |
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ChatStreamEvent](schemas.md#codersdkchatstreamevent) |
+
+<h3 id="stream-chat-parts-via-websockets-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                               | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|------------------------------------|----------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                     | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» action_required`                | [codersdk.ChatStreamActionRequired](schemas.md#codersdkchatstreamactionrequired) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» tool_calls`                    | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» tool_call_id`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» chat_id`                        | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» error`                          | [codersdk.ChatError](schemas.md#codersdkchaterror)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» detail`                        | string                                                                           | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                                                                                                  |
+| `»» kind`                          | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                                                                                                 |
+| `»» message`                       | string                                                                           | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                                                                                                                                                      |
+| `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
+| `»» retryable`                     | boolean                                                                          | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                                                                                               |
+| `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» message`                        | [codersdk.ChatMessage](schemas.md#codersdkchatmessage)                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
+| `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
+| `»»» context_file_agent_id`        | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» context_file_content`         | string                                                                           | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
+| `»»» context_file_directory`       | string                                                                           | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
+| `»»» context_file_os`              | string                                                                           | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
+| `»»» context_file_path`            | string                                                                           | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
+| `»»» context_file_skill_meta_file` | string                                                                           | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
+| `»»» context_file_truncated`       | boolean                                                                          | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
+| `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
+| `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» file_id`                      | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» hook_rewritten`               | boolean                                                                          | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
+| `»»» is_error`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» is_media`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» mcp_server_config_id`         | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
+| `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `»»» provider_metadata`            | array                                                                            | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `»»» result`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» result_reset`                 | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» skill_description`            | string                                                                           | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
+| `»»» skill_dir`                    | string                                                                           | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
+| `»»» skill_name`                   | string                                                                           | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `»»» source_id`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» start_line`                   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» text`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» title`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» tool_call_id`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» tool_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» url`                          | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» created_by`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» usage`                         | [codersdk.ChatMessageUsage](schemas.md#codersdkchatmessageusage)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» cache_creation_tokens`        | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» cache_read_tokens`            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» context_limit`                | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» input_tokens`                 | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» output_tokens`                | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» reasoning_tokens`             | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» total_tokens`                 | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» message_part`                   | [codersdk.ChatStreamMessagePart](schemas.md#codersdkchatstreammessagepart)       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» generation_attempt`            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» history_version`               | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» part`                          | [codersdk.ChatMessagePart](schemas.md#codersdkchatmessagepart)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» role`                          | [codersdk.ChatMessageRole](schemas.md#codersdkchatmessagerole)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» seq`                           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» queued_messages`                | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» chat_id`                       | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» content`                       | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» created_at`                    | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» id`                            | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» model_config_id`               | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» retry`                          | [codersdk.ChatStreamRetry](schemas.md#codersdkchatstreamretry)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» attempt`                       | integer                                                                          | false    |              | Attempt is the 1-indexed retry attempt number.                                                                                                                                                                                                                                                                                                                                                             |
+| `»» delay_ms`                      | integer                                                                          | false    |              | Delay ms is the backoff delay in milliseconds before the retry.                                                                                                                                                                                                                                                                                                                                            |
+| `»» error`                         | string                                                                           | false    |              | Error is the normalized error message from the failed attempt.                                                                                                                                                                                                                                                                                                                                             |
+| `»» kind`                          | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)                       | false    |              | Kind classifies the retry reason for consistent client rendering.                                                                                                                                                                                                                                                                                                                                          |
+| `»» provider`                      | string                                                                           | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                                                                                                |
+| `»» retrying_at`                   | string(date-time)                                                                | false    |              | Retrying at is the timestamp when the retry will be attempted.                                                                                                                                                                                                                                                                                                                                             |
+| `»» status_code`                   | integer                                                                          | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                                                                                                  |
+| `» status`                         | [codersdk.ChatStreamStatus](schemas.md#codersdkchatstreamstatus)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» type`                           | [codersdk.ChatStreamEventType](schemas.md#codersdkchatstreameventtype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+
+#### Enumerated Values
+
+| Property | Value(s)                                                                                                                                                                                                                                                                |
+|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`   | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                |
+| `type`   | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `source`, `status`, `text`, `tool-call`, `tool-result` |
+| `role`   | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                   |
+| `status` | `error`, `interrupting`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
