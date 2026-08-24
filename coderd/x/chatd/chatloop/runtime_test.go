@@ -400,42 +400,63 @@ func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *test
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
 }
 
-func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
+// recordingToolBillingRecorder is a test ToolBillingRecorder that
+// counts start/complete calls and can publish live completions.
+type recordingToolBillingRecorder struct {
+	starts      int
+	completions int
+	completeCh  chan recordedToolCompletion
+}
+
+type recordedToolCompletion struct {
+	dispatchIndex int
+	completedAt   time.Time
+}
+
+func (r *recordingToolBillingRecorder) RecordStart(int, time.Time) {
+	r.starts++
+}
+
+func (r *recordingToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	r.completions++
+	if r.completeCh != nil {
+		r.completeCh <- recordedToolCompletion{
+			dispatchIndex: dispatchIndex,
+			completedAt:   completedAt,
+		}
+	}
+}
+
+func TestExecuteLocalTools_BillingRecorderRecordsOnlyRuns(t *testing.T) {
 	t.Parallel()
 
 	t.Run("started call records a paired lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		starts := 0
-		completions := 0
+		recorder := &recordingToolBillingRecorder{}
 		startedWhenToolRan := false
 		tool := fantasy.NewAgentTool(
 			"fast_tool",
 			"test tool",
 			func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				startedWhenToolRan = starts > 0
+				startedWhenToolRan = recorder.starts > 0
 				return fantasy.NewTextResponse("done"), nil
 			},
 		)
 		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
-			Clock:       quartz.NewMock(t),
-			Tools:       []fantasy.AgentTool{tool},
-			ActiveTools: []string{"fast_tool"},
-			OnToolStart: func(int, time.Time) {
-				starts++
-			},
-			OnToolComplete: func(int, time.Time) {
-				completions++
-			},
+			Clock:           quartz.NewMock(t),
+			Tools:           []fantasy.AgentTool{tool},
+			ActiveTools:     []string{"fast_tool"},
+			BillingRecorder: recorder,
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
 			},
 		})
 		require.NoError(t, err)
 		require.Len(t, outcome.Content, 1)
-		require.Equal(t, 1, starts)
-		require.Equal(t, 1, completions)
-		require.True(t, startedWhenToolRan, "the start callback must fire before the tool runs")
+		require.Equal(t, 1, recorder.starts)
+		require.Equal(t, 1, recorder.completions)
+		require.True(t, startedWhenToolRan, "RecordStart must run before the tool runs")
 	})
 
 	t.Run("canceled context records no lifecycle", func(t *testing.T) {
@@ -443,31 +464,27 @@ func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		started := false
-		completed := false
+		recorder := &recordingToolBillingRecorder{}
 		_, err := chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
-			Clock:          quartz.NewMock(t),
-			OnToolStart:    func(int, time.Time) { started = true },
-			OnToolComplete: func(int, time.Time) { completed = true },
+			Clock:           quartz.NewMock(t),
+			BillingRecorder: recorder,
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "fast_tool", Input: "{}"},
 			},
 		})
 		require.ErrorIs(t, err, context.Canceled)
-		require.False(t, started)
-		require.False(t, completed)
+		require.Zero(t, recorder.starts)
+		require.Zero(t, recorder.completions)
 	})
 
 	t.Run("exclusive violation records no lifecycle", func(t *testing.T) {
 		t.Parallel()
 
-		started := false
-		completed := false
+		recorder := &recordingToolBillingRecorder{}
 		outcome, err := chatloop.ExecuteLocalTools(context.Background(), chatloop.ExecuteLocalToolsOptions{
 			Clock:              quartz.NewMock(t),
 			ExclusiveToolNames: map[string]bool{"exclusive_tool": true},
-			OnToolStart:        func(int, time.Time) { started = true },
-			OnToolComplete:     func(int, time.Time) { completed = true },
+			BillingRecorder:    recorder,
 			ToolCalls: []fantasy.ToolCallContent{
 				{ToolCallID: "call-1", ToolName: "exclusive_tool", Input: "{}"},
 				{ToolCallID: "call-2", ToolName: "fast_tool", Input: "{}"},
@@ -475,8 +492,8 @@ func TestExecuteLocalTools_ExecutionCallbacksFireOnlyForRuns(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, outcome.Content, 2, "the whole batch resolves to synthesized policy errors")
-		require.False(t, started)
-		require.False(t, completed)
+		require.Zero(t, recorder.starts)
+		require.Zero(t, recorder.completions)
 	})
 }
 
@@ -514,7 +531,7 @@ func TestExecuteLocalTools_EmptyToolCallIDStillBillsWindow(t *testing.T) {
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
 }
 
-func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
+func TestExecuteLocalTools_BillingRecorderReportsLiveCompletions(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -522,11 +539,9 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	trap := clock.Trap().Now()
 	defer trap.Close()
 
-	type completion struct {
-		dispatchIndex int
-		completedAt   time.Time
+	recorder := &recordingToolBillingRecorder{
+		completeCh: make(chan recordedToolCompletion, 2),
 	}
-	completionCh := make(chan completion, 2)
 	fastGo := make(chan struct{})
 	slowGo := make(chan struct{})
 	resultCh := executeToolBatch(t, clock, chatloop.ExecuteLocalToolsOptions{
@@ -534,10 +549,8 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 			blockingTool("fast_tool", fastGo, fantasy.NewTextResponse("done")),
 			blockingTool("slow_tool", slowGo, fantasy.NewTextResponse("done")),
 		},
-		ActiveTools: []string{"fast_tool", "slow_tool"},
-		OnToolComplete: func(dispatchIndex int, completedAt time.Time) {
-			completionCh <- completion{dispatchIndex: dispatchIndex, completedAt: completedAt}
-		},
+		ActiveTools:     []string{"fast_tool", "slow_tool"},
+		BillingRecorder: recorder,
 		ToolCalls: []fantasy.ToolCallContent{
 			{ToolCallID: "call-fast", ToolName: "fast_tool", Input: "{}"},
 			{ToolCallID: "call-slow", ToolName: "slow_tool", Input: "{}"},
@@ -548,12 +561,12 @@ func TestExecuteLocalTools_OnToolCompleteReportsLiveCompletions(t *testing.T) {
 	clock.Advance(10 * time.Second)
 	close(fastGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	fast := testutil.RequireReceive(ctx, t, completionCh)
+	fast := testutil.RequireReceive(ctx, t, recorder.completeCh)
 	require.Equal(t, 0, fast.dispatchIndex)
 	clock.Advance(50 * time.Second)
 	close(slowGo)
 	trap.MustWait(ctx).MustRelease(ctx)
-	slow := testutil.RequireReceive(ctx, t, completionCh)
+	slow := testutil.RequireReceive(ctx, t, recorder.completeCh)
 	require.Equal(t, 1, slow.dispatchIndex)
 	require.Equal(t, 50*time.Second, slow.completedAt.Sub(fast.completedAt))
 
