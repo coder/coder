@@ -367,13 +367,14 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	for i, entry := range entries {
 		entryTokens[i] = tokenizeFindToolsEntry(entry)
 	}
-	scoreEntries := func(queries []scopedFindToolsQuery) []scoredEntry {
+	scoreEntries := func(queries []scopedFindToolsQuery) ([]scoredEntry, []bool) {
 		scored := make([]scoredEntry, 0, len(entries))
+		contributed := make([]bool, len(queries))
 		for i, entry := range entries {
 			tokens := entryTokens[i]
 			score := 0
 			matched := make(map[string]struct{})
-			for _, query := range queries {
+			for queryIndex, query := range queries {
 				if query.server != "" {
 					if query.exact && entry.Server != query.server {
 						continue
@@ -386,12 +387,14 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 					score++
 					// A scope-only hit counts as one covered term; ":" cannot occur in tokens.
 					matched[":"+query.server] = struct{}{}
+					contributed[queryIndex] = true
 					continue
 				}
 				for _, token := range query.tokens {
 					if tokenScore := tokens.score(token); tokenScore > 0 {
 						score += tokenScore
 						matched[token] = struct{}{}
+						contributed[queryIndex] = true
 					}
 				}
 			}
@@ -399,26 +402,25 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 				scored = append(scored, scoredEntry{entry: entry, coverage: len(matched), score: score})
 			}
 		}
-		return scored
+		return scored, contributed
 	}
-	scored := scoreEntries(queries)
-	// Inferred scopes are best-effort: when nothing matches under them,
-	// retry those queries unscoped so a server named after a capability
-	// word cannot hide matches on other servers. Explicit "server:"
-	// scopes are honored even when they match nothing.
-	if len(scored) == 0 {
-		downgraded := false
-		fallback := make([]scopedFindToolsQuery, len(queries))
-		for i, query := range queries {
-			fallback[i] = query
-			if query.autoScoped {
-				fallback[i] = scopedFindToolsQuery{tokens: query.fallbackTokens}
-				downgraded = true
-			}
+	scored, contributed := scoreEntries(queries)
+	// Inferred scopes are best-effort: each auto-scoped query that
+	// matched nothing retries unscoped, independently of its siblings,
+	// so a server named after a capability word cannot hide matches on
+	// other servers. Explicit "server:" scopes are honored even when
+	// they match nothing.
+	fallback := make([]scopedFindToolsQuery, len(queries))
+	downgraded := false
+	for i, query := range queries {
+		fallback[i] = query
+		if query.autoScoped && !contributed[i] {
+			fallback[i] = scopedFindToolsQuery{tokens: query.fallbackTokens}
+			downgraded = true
 		}
-		if downgraded {
-			scored = scoreEntries(fallback)
-		}
+	}
+	if downgraded {
+		scored, _ = scoreEntries(fallback)
 	}
 	slices.SortFunc(scored, func(a, b scoredEntry) int {
 		if a.coverage != b.coverage {
@@ -586,6 +588,9 @@ func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuer
 	}
 	scopeServer := ""
 	scopeExact := false
+	// spanned pins the scope to the whole fold family once distinct
+	// exact-case siblings are named; later repeats cannot re-narrow it.
+	spanned := false
 	rest := make([]string, 0, len(words))
 	for _, word := range words {
 		server, exact, ok := matchFindToolsServerWord(servers, word)
@@ -599,7 +604,8 @@ func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuer
 		case exact && scopeExact && server != scopeServer:
 			// Distinct exact-case siblings: span the fold family.
 			scopeExact = false
-		case exact:
+			spanned = true
+		case exact && !spanned:
 			scopeServer, scopeExact = server, true
 		}
 	}

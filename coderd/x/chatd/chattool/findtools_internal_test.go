@@ -169,6 +169,7 @@ func TestSearchTools(t *testing.T) {
 		fallbackEntries := []FindToolCatalogEntry{
 			{Name: "search__web", Description: "Query the web", Server: "search"},
 			{Name: "tracker__find_issues", Description: "Search issues", Server: "tracker"},
+			{Name: "calendar__list_events", Description: "List events", Server: "calendar"},
 		}
 		result, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search issues"}}, SearchBudget{})
 		require.Len(t, result.Matches, 2,
@@ -178,6 +179,11 @@ func TestSearchTools(t *testing.T) {
 		explicit, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search: issues"}}, SearchBudget{})
 		require.Empty(t, explicit.Matches,
 			"an explicit scope that matches nothing does not fall back")
+
+		multi, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search issues", "calendar events"}}, SearchBudget{})
+		require.Contains(t, multi.Activated, "calendar__list_events")
+		require.Contains(t, multi.Activated, "tracker__find_issues",
+			"an empty inferred scope falls back even when a sibling query matched")
 	})
 	t.Run("server prefix scope", func(t *testing.T) {
 		t.Parallel()
@@ -236,6 +242,10 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(spanEntries, FindToolsArgs{Queries: []string{"GitHub github status"}}, SearchBudget{})
 		require.Len(t, result.Activated, 2,
 			"distinct exact-case sibling words span their fold family, not the whole catalog")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GitHub github GitHub status"}}, SearchBudget{})
+		require.Len(t, result.Activated, 2,
+			"a repeated exact sibling cannot re-narrow a spanned fold family")
 	})
 	t.Run("folded scopes with different byte lengths", func(t *testing.T) {
 		t.Parallel()
