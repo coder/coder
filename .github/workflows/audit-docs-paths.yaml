@@ -121,6 +121,52 @@ jobs:
             cat "${WORKSPACE}/audit-report.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Send Slack notification on drift
+        # Reuses weekly-docs.yaml's docs Slack webhook (same channel, no new secret).
+        # Runs right after the audit so a later report- or issue-step failure can't
+        # suppress the ping.
+        if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
+        env:
+          COUNT: ${{ steps.audit.outputs.count }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK: ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          # -f: a revoked or misconfigured webhook must fail the step, not log success.
+          [ -n "${SLACK_WEBHOOK}" ] || { echo "::error::DOCS_LINK_SLACK_WEBHOOK is not set"; exit 1; }
+          curl \
+            -fsS \
+            --max-time 10 \
+            --retry 3 \
+            --retry-all-errors \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":warning: *Docs URL drift detected by audit-docs-paths.*\n'"${COUNT}"' stale docs path reference(s) resolve to a redirect source. See the run: '"${RUN_URL}"'"}' \
+            "${SLACK_WEBHOOK}"
+          echo "Sent Slack drift notification"
+
+      - name: Send Slack notification on audit failure
+        # If the audit errors out (expired token, coder.com layout change, script
+        # bug) it can't report drift; alert so a broken audit is visible, not just
+        # an unwatched red run.
+        if: failure() && steps.audit.outcome == 'failure'
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_WEBHOOK: ${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          [ -n "${SLACK_WEBHOOK}" ] || { echo "::error::DOCS_LINK_SLACK_WEBHOOK is not set"; exit 1; }
+          curl \
+            -fsS \
+            --max-time 10 \
+            --retry 3 \
+            --retry-all-errors \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":rotating_light: *audit-docs-paths failed before it could check for docs URL drift.*\nDrift is not being monitored until this is fixed. See the run: '"${RUN_URL}"'"}' \
+            "${SLACK_WEBHOOK}"
+          echo "Sent Slack audit-failure notification"
+
       - name: Upload audit report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -184,28 +230,6 @@ jobs:
               echo "Audit clean and no tracked issue open; nothing to do."
             fi
           fi
-
-      - name: Send Slack notification on drift
-        # Mirrors weekly-docs.yaml's link-check Slack step and reuses the docs
-        # webhook. Fires only on drift (findings > 0); clean runs and audit
-        # errors stay silent. Turns on with the job's AUDIT_DOCS_PATHS_ENABLED gate.
-        if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
-        env:
-          COUNT: ${{ steps.audit.outputs.count }}
-          LOGS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          # -fsS makes curl exit non-zero on an HTTP error (e.g. a revoked or
-          # misconfigured webhook) so a failed post turns the step red instead
-          # of silently logging success; --max-time caps a hung request.
-          curl \
-            -fsS \
-            --max-time 10 \
-            -X POST \
-            -H 'Content-type: application/json' \
-            -d '{"text":":warning: *Docs URL drift detected by audit-docs-paths.*\n'"${COUNT}"' stale docs path reference(s) resolve to a redirect source. See the tracked issue and logs: '"${LOGS_URL}"'"}' \
-            "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
-          echo "Sent Slack notification"
 
       - name: Fail the run when findings exist
         if: steps.audit.outputs.count != '' && steps.audit.outputs.count != '0'
