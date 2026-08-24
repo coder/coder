@@ -196,12 +196,73 @@ func TestEscapeMarkdownEmptyLinkDestination(t *testing.T) {
 	}
 }
 
-// TestEscapeMarkdownResiduals pins the two gaps EscapeMarkdown cannot close, so
-// that closing either one later is a deliberate change rather than an accident,
-// and so the limits stay visible next to the function that has them.
+// TestEscapeMarkdownLeadingFoldConstruct covers a value whose own first line is
+// a fold construct.
 //
-// Both depend on where the value lands rather than on what it contains, which
-// is exactly what a pre-render escaper cannot see.
+// The fold can only remove a line break EscapeMarkdown emitted, and the first
+// line has none in front of it, so the template decides where it lands. Two
+// consequences, both closed here by escaping instead:
+//
+//   - A title template that begins with a label puts the value at the start of
+//     the document. A value of "~~~" makes the whole title an unterminated
+//     tilde fence whose info string is the trusted text, and glamour renders an
+//     empty code block, so the Subject, <title> and heading all come out blank.
+//   - A body template that puts a value at a line start beneath a text line
+//     lets "===" underline the trusted line into an <h1>. No shipped template
+//     does this today.
+//
+// The cost is a visible backslash: neither renderer honors "\=" or "\~". That is
+// why isLeadingFoldConstruct is exact rather than approximate, and why the
+// untouched cases below matter as much as the neutralized ones.
+func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TitleKeepsItsTrustedText", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"~~~", "~~~~", "~~~x", "~~~ ", "  ~~~"} {
+			subject, err := PlaintextFromMarkdown(EscapeMarkdown(value) + " shared a chat with you")
+			require.NoError(t, err)
+			assert.Contains(t, subject, "shared a chat with you",
+				"value %q swallowed the trusted subject text", value)
+		}
+
+		// The backtick spelling is closed by backtick being inlineCritical.
+		subject, err := PlaintextFromMarkdown(EscapeMarkdown("```") + " shared a chat with you")
+		require.NoError(t, err)
+		require.Equal(t, "``` shared a chat with you", subject)
+	})
+
+	t.Run("SetextCannotPromoteATrustedLine", func(t *testing.T) {
+		t.Parallel()
+
+		for _, value := range []string{"===", "=", "===\nx", "  ===  "} {
+			html := HTMLFromNotificationMarkdown(
+				"Trusted line\n" + EscapeMarkdown(value) + "\nTrusted trailer.")
+			assert.NotContains(t, html, "<h1", "value %q promoted a heading: %s", value, html)
+		}
+	})
+
+	t.Run("NonConstructsAreUntouched", func(t *testing.T) {
+		t.Parallel()
+
+		// These begin with a fold character without being a construct. Escaping
+		// them would put a backslash in front of an ordinary display name.
+		for _, value := range []string{
+			"=> next", "~tilde name", "= x", "~~strike~~", "=?utf-8?q?x?=",
+			"~", "~~", "=== and more", "a\n===",
+		} {
+			plain, err := PlaintextFromMarkdown(EscapeMarkdown(value) + " end")
+			require.NoError(t, err)
+			assert.NotContains(t, plain, `\`,
+				"value %q was escaped when it is not a fold construct", value)
+		}
+	})
+}
+
+// TestEscapeMarkdownResiduals pins the one gap EscapeMarkdown cannot close, so
+// that closing it later is a deliberate change rather than an accident, and so
+// the limit stays visible next to the function that has it.
 func TestEscapeMarkdownResiduals(t *testing.T) {
 	t.Parallel()
 
@@ -211,47 +272,13 @@ func TestEscapeMarkdownResiduals(t *testing.T) {
 		// CommonMark does not process escapes inside a code span, so a template
 		// that wraps the value in backticks renders our backslashes literally.
 		// The workspace out-of-disk body does this with `{{$volume.path}}`.
+		//
+		// Unlike the fold constructs above, there is no lever here at all: the
+		// escaper cannot see that its output lands inside a code span, so it
+		// cannot choose not to escape. Only resolving after rendering can.
 		html := HTMLFromNotificationMarkdown("The volume `" + EscapeMarkdown("config[0]") + "` is full.")
 		require.Contains(t, html, `config\[0\]`,
 			"if this no longer leaks, the residual is closed and this test should become an assertion that it stays closed")
-	})
-
-	t.Run("FirstLineIsNotFolded", func(t *testing.T) {
-		t.Parallel()
-
-		// The fold can only remove line breaks EscapeMarkdown emitted, so a
-		// value whose first line opens a fold construct is still in whatever
-		// position the template gave it. No shipped template places a value at
-		// a line start beneath a text line; this test is what fails if one does.
-		html := HTMLFromNotificationMarkdown("Trusted line\n" + EscapeMarkdown("===\nx") + "\nTrusted trailer.")
-		require.Contains(t, html, "<h1",
-			"if this no longer promotes a heading, the residual is closed")
-	})
-
-	t.Run("TildeFenceBlanksATitle", func(t *testing.T) {
-		t.Parallel()
-
-		// The same first-line wall, reached through the title templates that
-		// begin with a label ("{{.Labels.initiator}} shared a chat with you").
-		// A value of "~~~" makes the whole title an unterminated tilde fence
-		// whose info string is the trusted text, and glamour renders a code
-		// block with no content, so the Subject, <title> and heading all come
-		// out empty.
-		//
-		// Escaping "~" is not available: glamour does not honor "\~", so it
-		// would leak a backslash into every plaintext part. Closing this needs
-		// either a guard on an empty rendered subject or the placeholder
-		// rewrite, not another character class.
-		subject, err := PlaintextFromMarkdown(EscapeMarkdown("~~~") + " shared a chat with you")
-		require.NoError(t, err)
-		require.Empty(t, subject,
-			"if this no longer blanks the subject, the residual is closed")
-
-		// The backtick spelling of the same trick is closed, because backtick
-		// is escaped everywhere.
-		subject, err = PlaintextFromMarkdown(EscapeMarkdown("```") + " shared a chat with you")
-		require.NoError(t, err)
-		require.Equal(t, "``` shared a chat with you", subject)
 	})
 }
 
