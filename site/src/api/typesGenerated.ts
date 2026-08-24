@@ -5551,8 +5551,8 @@ export interface GroupMemberAISpend {
 	readonly effective_budget: AIBudgetLimit | null;
 	/**
 	 * GroupBudget is the budget when the queried group is this user's
-	 * effective budget source. Null when the user's budget resolves to another
-	 * group or no budget applies to the user.
+	 * effective budget source. When populated, it matches EffectiveBudget. Null
+	 * when the user's budget resolves to another group or no budget applies.
 	 */
 	readonly group_budget: AIBudgetLimit | null;
 	/**

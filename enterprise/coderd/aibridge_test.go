@@ -5422,6 +5422,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, resp.Members[0].EffectiveGroupID)
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
@@ -5720,6 +5721,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, got.Members, 1)
 		require.Equal(t, targetUser.ID, got.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, got.Members[0].EffectiveGroupID)
+		require.Nil(t, got.Members[0].EffectiveBudget)
 		require.Nil(t, got.Members[0].GroupBudget)
 		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
 	})
@@ -5751,6 +5753,8 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	// Disable the member floor's implicit group:read grant so the authorization
+	// subtest can exercise a hidden effective group.
 	//nolint:gocritic // The owner is required to configure workspace sharing.
 	_, err := ownerClient.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.UpdateWorkspaceSharingSettingsRequest{
 		ShareableWorkspaceOwners: codersdk.ShareableWorkspaceOwnersNone,

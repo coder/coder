@@ -122,8 +122,7 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		}
 	} else if (spend) {
-		const effectiveBudget = spend.group_budget ?? spend.effective_budget;
-		const limit = effectiveBudget?.spend_limit_micros ?? null;
+		const limit = spend.effective_budget?.spend_limit_micros ?? null;
 		if (limit === null) {
 			// The effective group has no budget, so no limit applies.
 			budget = (
@@ -139,7 +138,9 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		} else {
 			const limitLabel =
-				effectiveBudget?.limit_source === "user_override" ? "Custom" : "Group";
+				spend.effective_budget?.limit_source === "user_override"
+					? "Custom"
+					: "Group";
 			budget = (
 				<div className="flex flex-col gap-0.5">
 					<span>

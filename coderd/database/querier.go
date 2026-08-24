@@ -620,8 +620,8 @@ type sqlcQuerier interface {
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
-	// A LEFT JOIN leaves group_spend_limit_micros and limit_source null for users
-	// whose effective budget source is not the queried group.
+	// A LEFT JOIN leaves group_spend_limit_micros and group_limit_source null for
+	// users whose effective budget source is not the queried group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)

@@ -540,7 +540,7 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 			within(cell).getByRole("button", { name: "More info" }),
 		);
 		await expect(
-			await body.findByText(/managed by a group in another organization/),
+			await body.findByText(/managed by a group that isn't visible to you/),
 		).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
 

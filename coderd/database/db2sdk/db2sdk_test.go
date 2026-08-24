@@ -41,7 +41,7 @@ func TestGroupMemberAISpend(t *testing.T) {
 				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
 				EffectiveLimitSource:      sql.NullString{String: "user_override", Valid: true},
 				GroupSpendLimitMicros:     sql.NullInt64{Int64: 2_000_000, Valid: true},
-				LimitSource:               sql.NullString{String: "user_override", Valid: true},
+				GroupLimitSource:          sql.NullString{String: "user_override", Valid: true},
 				GroupSpendMicros:          500_000,
 			},
 			want: codersdk.GroupMemberAISpend{
@@ -75,6 +75,17 @@ func TestGroupMemberAISpend(t *testing.T) {
 					LimitSource:      codersdk.AIBudgetLimitSourceGroup,
 				},
 				GroupSpendMicros: 250_000,
+			},
+		},
+		{
+			name: "UnlimitedEveryoneFallback",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:           userID,
+				EffectiveGroupID: uuid.NullUUID{UUID: effectiveGroupID, Valid: true},
+			},
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &effectiveGroupID,
 			},
 		},
 		{

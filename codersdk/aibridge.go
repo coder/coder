@@ -125,8 +125,8 @@ type GroupMemberAISpend struct {
 	// caller.
 	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
 	// GroupBudget is the budget when the queried group is this user's
-	// effective budget source. Null when the user's budget resolves to another
-	// group or no budget applies to the user.
+	// effective budget source. When populated, it matches EffectiveBudget. Null
+	// when the user's budget resolves to another group or no budget applies.
 	GroupBudget *AIBudgetLimit `json:"group_budget"`
 	// GroupSpendMicros is the user's spend attributed to the queried group
 	// over the current budget period.

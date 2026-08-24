@@ -101,7 +101,7 @@ export const Unlimited: Story = {
 	},
 };
 
-export const EveryoneBudgetFromAnotherGroup: Story = {
+export const EveryoneBudgetViewedFromMemberGroup: Story = {
 	args: {
 		spend: {
 			...mockSpend,
@@ -194,6 +194,7 @@ export const ZeroBudget: Story = {
 	args: {
 		spend: {
 			...mockSpend,
+			effective_budget: { spend_limit_micros: 0, limit_source: "group" },
 			group_budget: { spend_limit_micros: 0, limit_source: "group" },
 		},
 	},
@@ -212,6 +213,7 @@ export const ZeroBudgetExceeded: Story = {
 		spend: {
 			...mockSpend,
 			group_spend_micros: 100_000_000,
+			effective_budget: { spend_limit_micros: 0, limit_source: "group" },
 			group_budget: { spend_limit_micros: 0, limit_source: "group" },
 		},
 	},
@@ -342,14 +344,14 @@ export const NotAttributedOtherOrganization: Story = {
 		);
 		await expect(
 			await within(document.body).findByText(
-				/managed by a group in another organization/,
+				/managed by a group that isn't visible to you/,
 			),
 		).toBeInTheDocument();
 		// Close this popover so the shared message only matches once.
 		await userEvent.keyboard("{Escape}");
 		const body = await openInfo(canvasElement);
 		await expect(
-			await body.findByText(/managed by a group in another organization/),
+			await body.findByText(/managed by a group that isn't visible to you/),
 		).toBeInTheDocument();
 	},
 };
