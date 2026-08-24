@@ -1203,6 +1203,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
 				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				// Report models used without a price. Unpriced usage is recorded
+				// at a NULL cost, so it is neither reported nor enforced, and
+				// only an admin can close the gap by setting a price.
+				unpricedModelsReporter := aibridgedserver.NewUnpricedModelsReporter(
+					ctx, logger.Named("aigateway_unpriced_models_reporter"),
+					coderAPI.Database, options.NotificationsEnqueuer, quartz.NewReal(),
+				)
+				defer unpricedModelsReporter.Close()
 				// The handler is bound to coderAPI's lifecycle; Close() on the
 				// daemon does not affect in-flight requests but is needed to
 				// release pool/recorder resources at shutdown.
