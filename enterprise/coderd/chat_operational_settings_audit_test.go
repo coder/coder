@@ -171,11 +171,13 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			},
 		},
 		{
-			name:           "ComputerUseProvider",
-			key:            "agents_computer_use_provider",
-			diffField:      "computer_use_provider",
-			oldValueAbsent: true,
-			newValue:       string(codersdk.ChatComputerUseProviderOpenAI),
+			name:             "ComputerUseProvider",
+			key:              "agents_computer_use_provider",
+			diffField:        "computer_use_provider",
+			oldValue:         string(codersdk.ChatComputerUseProviderAnthropic),
+			oldValueAbsent:   true,
+			newValue:         string(codersdk.ChatComputerUseProviderOpenAI),
+			effectiveDefault: string(codersdk.ChatComputerUseProviderAnthropic),
 			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
 				return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
 					Provider: codersdk.ChatComputerUseProvider(value),

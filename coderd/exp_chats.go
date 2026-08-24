@@ -4812,7 +4812,7 @@ func (s chatOperationalSetting) defaultValue() string {
 	case chatOperationalSettingWorkspaceTTL:
 		return "0s"
 	case chatOperationalSettingComputerUseProvider:
-		return ""
+		return string(chattool.DefaultComputerUseProvider(""))
 	case chatOperationalSettingDebugLoggingAllowUsers,
 		chatOperationalSettingPersonalModelOverridesEnabled:
 		return "false"
