@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -272,9 +273,11 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(messages), 3)
-	parts, err := chatprompt.ParseContent(messages[len(messages)-2])
+	partial := messages[len(messages)-2]
+	parts, err := chatprompt.ParseContent(partial)
 	require.NoError(t, err)
 	require.Equal(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("partial answer")}, parts)
+	require.False(t, partial.ExecutionStepID.Valid, "an episode without operation metadata cannot be classified safely")
 	require.Equal(t, database.ChatMessageRoleUser, messages[len(messages)-1].Role)
 }
 
@@ -357,6 +360,7 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	buffer := starter.opts.MessagePartBuffer
 	key := messagepartbuffer.Key{ChatID: chat.ID, HistoryVersion: acquired.HistoryVersion, GenerationAttempt: acquired.GenerationAttempt}
 	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel))
 	callID := "call_" + uuid.NewString()
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessagePart{
 		Type:       codersdk.ChatMessagePartTypeToolCall,
@@ -381,8 +385,17 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	require.GreaterOrEqual(t, len(messages), 4)
 	assistant := messages[len(messages)-3]
 	tool := messages[len(messages)-2]
+	promoted := messages[len(messages)-1]
 	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
 	require.Equal(t, database.ChatMessageRoleTool, tool.Role)
+	require.Equal(t, database.ChatMessageRoleUser, promoted.Role)
+	require.True(t, assistant.ExecutionStepID.Valid)
+	require.Equal(t, assistant.ExecutionStepID, tool.ExecutionStepID)
+	require.False(t, promoted.ExecutionStepID.Valid)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), assistant.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, step.Outcome)
+	require.Equal(t, database.ChatExecutionStepOperationModel, step.Operation)
 	toolParts, err := chatprompt.ParseContent(tool)
 	require.NoError(t, err)
 	require.Len(t, toolParts, 1)
@@ -409,6 +422,7 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
 	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel))
 	// Prompt preparation and attempt bookkeeping run before the
 	// provider stream opens and must not be billed.
 	clock.Advance(3 * time.Second)
@@ -432,7 +446,57 @@ func TestInterruptTask_PartialAssistantKeepsAttemptRuntime(t *testing.T) {
 	require.GreaterOrEqual(t, len(messages), 3)
 	assistant := messages[len(messages)-2]
 	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
-	require.Equal(t, sql.NullInt64{Int64: 1500, Valid: true}, assistant.RuntimeMs)
+	require.False(t, assistant.RuntimeMs.Valid)
+	require.True(t, assistant.ExecutionStepID.Valid)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), assistant.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1500), step.RuntimeMs)
+	require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, step.Outcome)
+}
+
+func TestInterruptTask_PartialCompactionKeepsAttemptRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, newTaskSideEffectRecorder(), clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationCompaction))
+	require.NoError(t, buffer.StartModelInvocation(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial summary")))
+	clock.Advance(1200 * time.Millisecond)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.True(t, assistant.ExecutionStepID.Valid)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), assistant.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatExecutionStepOperationCompaction, step.Operation)
+	require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, step.Outcome)
+	require.Equal(t, int64(1200), step.RuntimeMs)
 }
 
 func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *testing.T) {
@@ -453,6 +517,7 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
 	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	clock.Advance(1500 * time.Millisecond)
 	interrupting := f.interruptChat(t, chat.ID)
@@ -473,6 +538,55 @@ func TestInterruptTask_PartialAssistantWithoutModelInvocationHasNoRuntime(t *tes
 	assistant := messages[len(messages)-2]
 	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
 	require.False(t, assistant.RuntimeMs.Valid)
+	require.True(t, assistant.ExecutionStepID.Valid)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), assistant.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Zero(t, step.RuntimeMs)
+}
+
+func TestInterruptTask_AttachmentOnlyPartialHasZeroModelRuntime(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	clock := quartz.NewMock(t)
+	starter := newTestTaskStarterWithClock(t, f, newTaskSideEffectRecorder(), clock)
+	buffer := starter.opts.MessagePartBuffer
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+	}
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel))
+	require.NoError(t, buffer.StartModelInvocation(key))
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageFile(uuid.New(), "image/png", "screenshot.png")))
+	clock.Advance(2 * time.Second)
+	interrupting := f.interruptChat(t, chat.ID)
+
+	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    interrupting.HistoryVersion,
+		GenerationAttempt: interrupting.GenerationAttempt,
+		Status:            database.ChatStatusInterrupting,
+	})
+	require.NoError(t, err)
+
+	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(messages), 3)
+	assistant := messages[len(messages)-2]
+	require.Equal(t, database.ChatMessageRoleAssistant, assistant.Role)
+	require.True(t, assistant.ExecutionStepID.Valid)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), assistant.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatExecutionStepOperationModel, step.Operation)
+	require.Zero(t, step.RuntimeMs)
 }
 
 type interruptedBatch struct {
@@ -484,10 +598,151 @@ type interruptedBatch struct {
 	runnerID uuid.UUID
 }
 
+func TestBufferToolBillingRecorderMapsDispatchIndexes(t *testing.T) {
+	t.Parallel()
+
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
+	key := messagepartbuffer.Key{
+		ChatID:            uuid.New(),
+		HistoryVersion:    7,
+		GenerationAttempt: 3,
+	}
+	require.NoError(t, buffer.CreateEpisode(key))
+	recorder := &bufferToolBillingRecorder{
+		allowedIndexes: []int{1, 3},
+		recordStart: func(callIndex int, startedAt time.Time) {
+			require.NoError(t, buffer.RecordToolStart(key, callIndex, startedAt))
+		},
+		recordComplete: func(callIndex int, completedAt time.Time) {
+			require.NoError(t, buffer.RecordToolCompletion(key, callIndex, completedAt))
+		},
+	}
+	startedAt := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	completedAt := startedAt.Add(time.Second)
+	recorder.RecordStart(0, startedAt)
+	recorder.RecordStart(1, startedAt)
+	recorder.RecordComplete(1, completedAt)
+	recorder.RecordStart(2, startedAt)
+
+	require.Equal(t, map[int]messagepartbuffer.ToolCompletion{
+		1: {StartedAt: startedAt},
+		3: {StartedAt: startedAt, CompletedAt: completedAt},
+	}, buffer.ToolCompletions(key))
+}
+
+func TestExecuteLocalToolsMapsAllowedDispatchIndexesToBufferOccurrences(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	chat := f.createRunningChat(t)
+	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
+	rawToolCalls, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "rejected",
+			ToolName:   "fetch",
+			Args:       json.RawMessage(`{"url":"first","URL":"second"}`),
+		},
+		{
+			Type:       codersdk.ChatMessagePartTypeToolCall,
+			ToolCallID: "executed",
+			ToolName:   "fetch",
+			Args:       json.RawMessage(`{"url":"https://example.com"}`),
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, machine.Update(testutil.Context(t, testutil.WaitLong), func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{{
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        rawToolCalls,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			ContentVersion: chatprompt.CurrentContentVersion,
+			ModelConfigID:  uuid.NullUUID{UUID: f.model.ID, Valid: true},
+		}}})
+		return err
+	}))
+	workerID := uuid.New()
+	runnerID := uuid.New()
+	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
+	input := chatWorkerTaskStartInput{
+		ChatID:            chat.ID,
+		WorkerID:          workerID,
+		RunnerID:          runnerID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt,
+		Status:            database.ChatStatusRunning,
+	}
+	err = starter.executeLocalTools(
+		testutil.Context(t, testutil.WaitLong),
+		machine,
+		input,
+		generationPrepared{
+			Chat:             acquired,
+			Tools:            []fantasy.AgentTool{fetchToolStub()},
+			ActiveTools:      []string{"fetch"},
+			ModelConfigID:    f.model.ID,
+			BuiltinToolNames: map[string]bool{"fetch": true},
+		},
+		generationDecision{
+			kind: generationActionExecuteLocalTools,
+			localToolCalls: []fantasy.ToolCallContent{
+				{
+					ToolCallID: "rejected",
+					ToolName:   "fetch",
+					Input:      `{"url":"first","URL":"second"}`,
+				},
+				{
+					ToolCallID: "executed",
+					ToolName:   "fetch",
+					Input:      `{"url":"https://example.com"}`,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	key := messagepartbuffer.Key{
+		ChatID:            chat.ID,
+		HistoryVersion:    acquired.HistoryVersion,
+		GenerationAttempt: acquired.GenerationAttempt + 1,
+	}
+	completions := starter.opts.MessagePartBuffer.ToolCompletions(key)
+	require.NotContains(t, completions, 0, "the rejected occurrence must keep its index gap")
+	executed, ok := completions[1]
+	require.True(t, ok, "dispatch index zero must map back to unresolved occurrence one")
+	require.False(t, executed.StartedAt.IsZero())
+	require.False(t, executed.CompletedAt.IsZero())
+}
+
+type interruptedBatchFixtureOptions struct {
+	withoutEpisode bool
+}
+
 func interruptedBatchFixture(
 	t *testing.T,
 	f *taskTestFixture,
 	calls []codersdk.ChatMessagePart,
+) interruptedBatch {
+	t.Helper()
+	return interruptedBatchFixtureWithOptions(t, f, calls, interruptedBatchFixtureOptions{})
+}
+
+func interruptedBatchFixtureWithoutEpisode(
+	t *testing.T,
+	f *taskTestFixture,
+	calls []codersdk.ChatMessagePart,
+) interruptedBatch {
+	t.Helper()
+	return interruptedBatchFixtureWithOptions(t, f, calls, interruptedBatchFixtureOptions{withoutEpisode: true})
+}
+
+func interruptedBatchFixtureWithOptions(
+	t *testing.T,
+	f *taskTestFixture,
+	calls []codersdk.ChatMessagePart,
+	options interruptedBatchFixtureOptions,
 ) interruptedBatch {
 	t.Helper()
 	chat := f.createRunningChat(t)
@@ -507,15 +762,17 @@ func interruptedBatchFixture(
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	recorder := newTaskSideEffectRecorder()
 	clock := quartz.NewMock(t)
-	starter := newTestTaskStarterWithClock(t, f, recorder, clock)
+	starter := newTestTaskStarterWithClock(t, f, newTaskSideEffectRecorder(), clock)
 	key := messagepartbuffer.Key{
 		ChatID:            chat.ID,
 		HistoryVersion:    acquired.HistoryVersion,
 		GenerationAttempt: acquired.GenerationAttempt,
 	}
-	require.NoError(t, starter.opts.MessagePartBuffer.CreateEpisode(key))
+	if !options.withoutEpisode {
+		require.NoError(t, starter.opts.MessagePartBuffer.CreateEpisode(key))
+		require.NoError(t, starter.opts.MessagePartBuffer.SetOperation(key, database.ChatExecutionStepOperationLocalToolBatch))
+	}
 	return interruptedBatch{
 		chat:     chat,
 		starter:  starter,
@@ -526,7 +783,7 @@ func interruptedBatchFixture(
 	}
 }
 
-func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database.ChatMessage {
+func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) (database.ChatExecutionStep, []database.ChatMessage) {
 	t.Helper()
 	interrupting := f.interruptChat(t, b.chat.ID)
 	err := b.starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
@@ -540,25 +797,93 @@ func (b interruptedBatch) interrupt(t *testing.T, f *taskTestFixture) []database
 	require.NoError(t, err)
 	messages, err := f.db.GetChatMessagesByChatID(testutil.Context(t, testutil.WaitShort), database.GetChatMessagesByChatIDParams{ChatID: b.chat.ID})
 	require.NoError(t, err)
-	return messages
-}
-
-func findToolResultMessage(t *testing.T, messages []database.ChatMessage, toolCallID string) database.ChatMessage {
-	t.Helper()
-	for _, msg := range messages {
-		if msg.Role != database.ChatMessageRoleTool {
+	var stepID uuid.UUID
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleTool {
 			continue
 		}
-		parts, err := chatprompt.ParseContent(msg)
-		require.NoError(t, err)
-		for _, part := range parts {
-			if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolCallID == toolCallID {
-				return msg
-			}
+		require.False(t, message.RuntimeMs.Valid)
+		require.True(t, message.ExecutionStepID.Valid)
+		if stepID == uuid.Nil {
+			stepID = message.ExecutionStepID.UUID
+		} else {
+			require.Equal(t, stepID, message.ExecutionStepID.UUID)
 		}
 	}
-	t.Fatalf("no tool result message for call %s", toolCallID)
-	return database.ChatMessage{}
+	require.NotEqual(t, uuid.Nil, stepID)
+	step, err := f.db.GetChatExecutionStepByID(testutil.Context(t, testutil.WaitShort), stepID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatExecutionStepOperationLocalToolBatch, step.Operation)
+	require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, step.Outcome)
+	return step, messages
+}
+
+func TestInterruptTask_ParallelToolIntervalsBillUnionOnExecutionStep(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{}`)),
+		codersdk.ChatMessageToolCall("call-2", "execute", json.RawMessage(`{}`)),
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(5 * time.Second)
+
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(8000), step.RuntimeMs)
+}
+
+func TestInterruptTask_SerialToolGapsAreExcluded(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{}`)),
+		codersdk.ChatMessageToolCall("call-2", "execute", json.RawMessage(`{}`)),
+	})
+	buffer := batch.starter.opts.MessagePartBuffer
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(3 * time.Second)
+	require.NoError(t, buffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
+	batch.clock.Advance(2 * time.Second)
+
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(5000), step.RuntimeMs)
+}
+
+func TestInterruptTask_AllUnbilledToolsCreateZeroRuntimeStep(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-1", "wait_agent", json.RawMessage(`{}`)),
+	})
+	batch.clock.Advance(2 * time.Second)
+	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
+	batch.clock.Advance(10 * time.Second)
+
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs)
+}
+
+func TestInterruptTask_MissingLocalToolEpisodeCreatesZeroRuntimeStep(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	batch := interruptedBatchFixtureWithoutEpisode(t, f, []codersdk.ChatMessagePart{
+		codersdk.ChatMessageToolCall("call-1", "execute", json.RawMessage(`{}`)),
+	})
+
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs)
 }
 
 func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T) {
@@ -582,11 +907,8 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnCancellationRow(t *testing.T
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(5 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 3_000, Valid: true}, execRow.RuntimeMs)
-	waitRow := findToolResultMessage(t, messages, waitCallID)
-	require.False(t, waitRow.RuntimeMs.Valid)
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(3_000), step.RuntimeMs)
 }
 
 func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
@@ -602,9 +924,8 @@ func TestInterruptTask_RunningBilledToolBillsUpToInterrupt(t *testing.T) {
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(7 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.Equal(t, sql.NullInt64{Int64: 7_000, Valid: true}, execRow.RuntimeMs)
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(7_000), step.RuntimeMs)
 }
 
 func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
@@ -620,9 +941,8 @@ func TestInterruptTask_UnbilledOnlyBatchBillsNothingOnInterrupt(t *testing.T) {
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	waitRow := findToolResultMessage(t, messages, waitCallID)
-	require.False(t, waitRow.RuntimeMs.Valid)
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs)
 }
 
 func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) {
@@ -641,13 +961,8 @@ func TestInterruptTask_UnstartedSerialCallBillsNothingOnInterrupt(t *testing.T) 
 	require.NoError(t, buffer.RecordToolStart(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool {
-			require.False(t, msg.RuntimeMs.Valid,
-				"no cancellation row may bill: the billed call never began executing")
-		}
-	}
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs, "the billed call never began executing")
 }
 
 func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
@@ -674,13 +989,8 @@ func TestInterruptTask_StartedSerialCallBillsFromItsOwnStart(t *testing.T) {
 	require.NoError(t, buffer.RecordToolStart(batch.key, 2, batch.clock.Now()))
 	batch.clock.Advance(2 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	serialRow := findToolResultMessage(t, messages, serialCallID)
-	require.Equal(t, sql.NullInt64{Int64: 5_000, Valid: true}, serialRow.RuntimeMs)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.False(t, execRow.RuntimeMs.Valid)
-	waitRow := findToolResultMessage(t, messages, waitCallID)
-	require.False(t, waitRow.RuntimeMs.Valid)
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(5_000), step.RuntimeMs)
 }
 
 func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
@@ -701,14 +1011,8 @@ func TestInterruptTask_DuplicateCallIDsKeepOccurrenceStates(t *testing.T) {
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 0, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	var billed []int64
-	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-			billed = append(billed, msg.RuntimeMs.Int64)
-		}
-	}
-	require.Equal(t, []int64{6_000}, billed, "the still-running occurrence bills the full window exactly once")
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(6_000), step.RuntimeMs, "the still-running occurrence bills the full window exactly once")
 }
 
 func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T) {
@@ -729,14 +1033,8 @@ func TestInterruptTask_DuplicateCallIDCompletionStampsOwnOccurrence(t *testing.T
 	require.NoError(t, buffer.RecordToolCompletion(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(3 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	var billed []int64
-	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-			billed = append(billed, msg.RuntimeMs.Int64)
-		}
-	}
-	require.Equal(t, []int64{6_000}, billed, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
+	step, _ := batch.interrupt(t, f)
+	require.Equal(t, int64(6_000), step.RuntimeMs, "the running execute occurrence bills to the interrupt; wait_agent's early completion must not end it at 3s")
 }
 
 func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *testing.T) {
@@ -753,12 +1051,8 @@ func TestInterruptTask_RejectedDuplicateIDDoesNotStealDispatchedOccurrence(t *te
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleTool {
-			require.False(t, msg.RuntimeMs.Valid, "no cancellation row may bill: only the unbilled wait_agent occurrence ran")
-		}
-	}
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs, "only the unbilled wait_agent occurrence ran")
 }
 
 func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
@@ -776,11 +1070,8 @@ func TestInterruptTask_RejectedCallBillsNothingOnInterrupt(t *testing.T) {
 	require.NoError(t, batch.starter.opts.MessagePartBuffer.RecordToolStart(batch.key, 1, batch.clock.Now()))
 	batch.clock.Advance(10 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.False(t, execRow.RuntimeMs.Valid)
-	waitRow := findToolResultMessage(t, messages, waitCallID)
-	require.False(t, waitRow.RuntimeMs.Valid)
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs)
 }
 
 func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T) {
@@ -788,15 +1079,14 @@ func TestInterruptTask_ToolCancellationWithoutLiveBatchHasNoRuntime(t *testing.T
 
 	f := newTaskTestFixture(t)
 	execCallID := "call_" + uuid.NewString()
-	batch := interruptedBatchFixture(t, f, []codersdk.ChatMessagePart{
+	batch := interruptedBatchFixtureWithoutEpisode(t, f, []codersdk.ChatMessagePart{
 		{Type: codersdk.ChatMessagePartTypeToolCall, ToolCallID: execCallID, ToolName: "execute", Args: json.RawMessage(`{}`)},
 	})
 
 	batch.clock.Advance(10 * time.Second)
 
-	messages := batch.interrupt(t, f)
-	execRow := findToolResultMessage(t, messages, execCallID)
-	require.False(t, execRow.RuntimeMs.Valid)
+	step, _ := batch.interrupt(t, f)
+	require.Zero(t, step.RuntimeMs)
 }
 
 func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
@@ -996,10 +1286,11 @@ func TestGenerationTask_RecordRetryState(t *testing.T) {
 			HistoryVersion: acquired.HistoryVersion,
 			Status:         database.ChatStatusRunning,
 		},
+		database.ChatExecutionStepOperationModel,
 	)
 	require.NoError(t, err)
 	attempt.closeEpisode()
-	require.Equal(t, int64(1), attempt.number)
+	require.Equal(t, int64(1), attempt.key.GenerationAttempt)
 	before, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
 	require.False(t, before.RetryState.Valid)
@@ -1068,10 +1359,11 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 				HistoryVersion: acquired.HistoryVersion,
 				Status:         database.ChatStatusRunning,
 			},
+			database.ChatExecutionStepOperationModel,
 		)
 		require.NoError(t, err)
 		attempt.closeEpisode()
-		require.Positive(t, attempt.number)
+		require.Positive(t, attempt.key.GenerationAttempt)
 	}
 
 	decision, err := starter.recordGenerationRetry(
@@ -1122,10 +1414,10 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 		Status:         database.ChatStatusRunning,
 	}
 
-	attempt, err := starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	attempt, err := starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input, database.ChatExecutionStepOperationModel)
 	require.NoError(t, err)
 	attempt.closeEpisode()
-	require.Equal(t, int64(1), attempt.number)
+	require.Equal(t, int64(1), attempt.key.GenerationAttempt)
 	_, err = starter.recordGenerationRetry(
 		testutil.Context(t, testutil.WaitLong),
 		machine,
@@ -1142,10 +1434,10 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, withRetry.RetryState.Valid)
 
-	attempt, err = starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	attempt, err = starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input, database.ChatExecutionStepOperationModel)
 	require.NoError(t, err)
 	attempt.closeEpisode()
-	require.Equal(t, int64(2), attempt.number)
+	require.Equal(t, int64(2), attempt.key.GenerationAttempt)
 	after, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
 	require.False(t, after.RetryState.Valid)
@@ -1173,10 +1465,11 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 			HistoryVersion: acquired.HistoryVersion,
 			Status:         database.ChatStatusRunning,
 		},
+		database.ChatExecutionStepOperationModel,
 	)
 	require.NoError(t, err)
 	attempt.closeEpisode()
-	require.Equal(t, int64(1), attempt.number)
+	require.Equal(t, int64(1), attempt.key.GenerationAttempt)
 
 	otherWorkerID := uuid.New()
 	otherRunnerID := uuid.New()

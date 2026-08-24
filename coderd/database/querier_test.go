@@ -11073,7 +11073,7 @@ func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	require.EqualValues(t, 1757, total(hour(1, 0), hour(5, 0)))
 }
 
-func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
+func TestGetTotalChatExecutionRuntimeMsInRange(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -11082,7 +11082,7 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	rangeStart := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
 	rangeEnd := rangeStart.Add(time.Hour)
 
-	total, err := db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+	total, err := db.GetTotalChatExecutionRuntimeMsInRange(ctx, database.GetTotalChatExecutionRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
 	})
@@ -11111,39 +11111,209 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 		LastModelConfigID: mc.ID,
 	})
 
-	insertMessage := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, createdAt time.Time, deleted bool) {
+	var generationAttempt int64
+	insertStep := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, recordedAt time.Time, deleted bool) database.ChatExecutionStep {
 		t.Helper()
-		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
-			ChatID:        chatID,
-			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
-			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
-			Role:          role,
-			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
+		generationAttempt++
+		step, err := db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+			ChatID:            chatID,
+			HistoryVersion:    1,
+			GenerationAttempt: generationAttempt,
+			Operation:         database.ChatExecutionStepOperationModel,
+			Outcome:           database.ChatExecutionStepOutcomeCompleted,
+			RuntimeMs:         runtimeMs,
 		})
-		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
 		require.NoError(t, err)
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chatID,
+			CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:   uuid.NullUUID{UUID: mc.ID, Valid: true},
+			Role:            role,
+			ExecutionStepID: uuid.NullUUID{UUID: step.ID, Valid: true},
+		})
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_execution_steps SET recorded_at = $1 WHERE id = $2", recordedAt, step.ID)
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", recordedAt, deleted, msg.ID)
+		require.NoError(t, err)
+		return step
 	}
 
 	// Counted: on the inclusive start boundary, in the middle (across two
 	// chats), soft-deleted, and just before the exclusive end boundary.
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
-	insertMessage(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
-	// Tool rows count because runtime totals are role-agnostic.
-	insertMessage(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
+	first := insertStep(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
+	_, err = db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+		ChatID:            chat1.ID,
+		HistoryVersion:    first.HistoryVersion,
+		GenerationAttempt: first.GenerationAttempt,
+		Operation:         database.ChatExecutionStepOperationModel,
+		Outcome:           database.ChatExecutionStepOutcomeCompleted,
+		RuntimeMs:         1000,
+	})
+	require.True(t, database.IsUniqueViolation(err, database.UniqueIndexChatExecutionStepsEpisode))
+	_, err = db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+		ChatID:            chat1.ID,
+		HistoryVersion:    1,
+		GenerationAttempt: 1000,
+		Operation:         database.ChatExecutionStepOperationModel,
+		Outcome:           database.ChatExecutionStepOutcomeCompleted,
+		RuntimeMs:         -1,
+	})
+	require.True(t, database.IsCheckViolation(err, database.CheckChatExecutionStepsRuntimeMsNonnegative))
+	deidentified := insertStep(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
+	insertStep(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
+	insertStep(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
+	// Execution runtime is independent of the associated message role.
+	insertStep(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
 	// Not counted: before the range, on the exclusive end boundary, and a
-	// NULL runtime (runtime 0 is stored as NULL).
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
-	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
+	// zero-runtime grouping step.
+	insertStep(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
+	insertStep(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
+	zero := insertStep(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
 
-	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+	// A compatibility-column value does not affect execution-step billing.
+	_, err = sqlDB.ExecContext(ctx, "UPDATE chat_messages SET runtime_ms = 999 WHERE execution_step_id = $1", zero.ID)
+	require.NoError(t, err)
+
+	// Hard deletion removes messages and de-identifies retained runtime.
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", chat2.ID)
+	require.NoError(t, err)
+	retained, err := db.GetChatExecutionStepByID(ctx, deidentified.ID)
+	require.NoError(t, err)
+	require.False(t, retained.ChatID.Valid)
+	deletedMessages, err := db.GetChatMessagesByExecutionStepID(ctx, deidentified.ID)
+	require.NoError(t, err)
+	require.Empty(t, deletedMessages)
+
+	total, err = db.GetTotalChatExecutionRuntimeMsInRange(ctx, database.GetTotalChatExecutionRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 79, total)
+}
+
+func TestGetChatMessageSummariesPerChatExecutionRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+	})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "summary-test-model",
+		ContextLimit: 8192,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+	})
+
+	cutoff := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+	var generationAttempt int64
+	insertStep := func(runtimeMs int64, recordedAt time.Time) database.ChatExecutionStep {
+		t.Helper()
+		generationAttempt++
+		step, err := db.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+			ChatID:            chat.ID,
+			HistoryVersion:    1,
+			GenerationAttempt: generationAttempt,
+			Operation:         database.ChatExecutionStepOperationModel,
+			Outcome:           database.ChatExecutionStepOutcomeCompleted,
+			RuntimeMs:         runtimeMs,
+		})
+		require.NoError(t, err)
+		_, err = sqlDB.ExecContext(ctx,
+			"UPDATE chat_execution_steps SET recorded_at = $1 WHERE id = $2",
+			recordedAt, step.ID,
+		)
+		require.NoError(t, err)
+		return step
+	}
+	insertMessage := func(
+		role database.ChatMessageRole,
+		executionStepID uuid.NullUUID,
+		createdAt time.Time,
+		deleted bool,
+		legacyRuntime sql.NullInt64,
+	) {
+		t.Helper()
+		message := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			CreatedBy:       uuid.NullUUID{UUID: user.ID, Valid: role == database.ChatMessageRoleUser},
+			ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:            role,
+			ExecutionStepID: executionStepID,
+		})
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1, deleted = $2, runtime_ms = $3 WHERE id = $4",
+			createdAt, deleted, legacyRuntime, message.ID,
+		)
+		require.NoError(t, err)
+	}
+
+	shared := insertStep(100, cutoff.Add(time.Minute))
+	sharedID := uuid.NullUUID{UUID: shared.ID, Valid: true}
+	insertMessage(database.ChatMessageRoleAssistant, sharedID, cutoff.Add(time.Minute), false, sql.NullInt64{})
+	insertMessage(database.ChatMessageRoleTool, sharedID, cutoff.Add(time.Minute), false, sql.NullInt64{})
+	insertMessage(database.ChatMessageRoleSystem, sharedID, cutoff.Add(time.Minute), false, sql.NullInt64{})
+
+	softDeleted := insertStep(200, cutoff.Add(2*time.Minute))
+	insertMessage(
+		database.ChatMessageRoleAssistant,
+		uuid.NullUUID{UUID: softDeleted.ID, Valid: true},
+		cutoff.Add(2*time.Minute),
+		true,
+		sql.NullInt64{},
+	)
+
+	beforeWindow := insertStep(300, cutoff.Add(-time.Minute))
+	insertMessage(
+		database.ChatMessageRoleAssistant,
+		uuid.NullUUID{UUID: beforeWindow.ID, Valid: true},
+		cutoff.Add(3*time.Minute),
+		false,
+		sql.NullInt64{},
+	)
+
+	afterWindow := insertStep(400, cutoff.Add(4*time.Minute))
+	insertMessage(
+		database.ChatMessageRoleAssistant,
+		uuid.NullUUID{UUID: afterWindow.ID, Valid: true},
+		cutoff.Add(-time.Minute),
+		false,
+		sql.NullInt64{},
+	)
+
+	insertMessage(
+		database.ChatMessageRoleUser,
+		uuid.NullUUID{},
+		cutoff.Add(5*time.Minute),
+		false,
+		sql.NullInt64{Int64: 999, Valid: true},
+	)
+
+	summaries, err := db.GetChatMessageSummariesPerChat(ctx, cutoff)
+	require.NoError(t, err)
+	require.Len(t, summaries, 1)
+	summary := summaries[0]
+	require.Equal(t, chat.ID, summary.ChatID)
+	require.Equal(t, int64(5), summary.MessageCount)
+	require.Equal(t, int64(1), summary.UserMessageCount)
+	require.Equal(t, int64(2), summary.AssistantMessageCount)
+	require.Equal(t, int64(1), summary.ToolMessageCount)
+	require.Equal(t, int64(1), summary.SystemMessageCount)
+	require.Equal(t, int64(1), summary.DistinctModelCount)
+	require.Equal(t, int64(500), summary.TotalRuntimeMs,
+		"one shared step counts once, soft-deleted and pre-window steps do not count, and legacy message runtime is ignored")
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
@@ -12705,7 +12875,6 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 	}
@@ -12749,6 +12918,15 @@ func TestInsertChatMessages(t *testing.T) {
 		t.Parallel()
 
 		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+		executionStep, err := store.InsertChatExecutionStep(ctx, database.InsertChatExecutionStepParams{
+			ChatID:            chat.ID,
+			HistoryVersion:    chat.HistoryVersion,
+			GenerationAttempt: chat.GenerationAttempt,
+			Operation:         database.ChatExecutionStepOperationLocalToolBatch,
+			Outcome:           database.ChatExecutionStepOutcomeCompleted,
+			RuntimeMs:         123,
+		})
+		require.NoError(t, err)
 		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chat.ID,
 			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
@@ -12765,7 +12943,7 @@ func TestInsertChatMessages(t *testing.T) {
 			CacheReadTokens:     []int64{0, 0, 0},
 			ContextLimit:        []int64{0, 0, 0},
 			Compressed:          []bool{false, false, false},
-			RuntimeMs:           []int64{0, 500, 0},
+			ExecutionStepID:     []uuid.UUID{uuid.Nil, executionStep.ID, executionStep.ID},
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 3)
@@ -12793,12 +12971,12 @@ func TestInsertChatMessages(t *testing.T) {
 		require.True(t, msgs[1].OutputTokens.Valid)
 		require.Equal(t, int64(20), msgs[1].OutputTokens.Int64)
 
-		// Verify cost: assistant has cost, others NULL.
-
-		// Verify runtime_ms on assistant message.
-		require.True(t, msgs[1].RuntimeMs.Valid)
-		require.Equal(t, int64(500), msgs[1].RuntimeMs.Int64)
+		// New inserts leave the rolling-upgrade compatibility column empty.
+		require.False(t, msgs[1].RuntimeMs.Valid)
 		require.False(t, msgs[0].RuntimeMs.Valid)
+		require.False(t, msgs[0].ExecutionStepID.Valid)
+		require.Equal(t, uuid.NullUUID{UUID: executionStep.ID, Valid: true}, msgs[1].ExecutionStepID)
+		require.Equal(t, msgs[1].ExecutionStepID, msgs[2].ExecutionStepID)
 	})
 }
 
@@ -12837,7 +13015,6 @@ func insertChatMessagesInvertedTimestamps(t *testing.T, db database.Store, sqlDB
 		CacheReadTokens:     make([]int64, count),
 		ContextLimit:        make([]int64, count),
 		Compressed:          make([]bool, count),
-		RuntimeMs:           make([]int64, count),
 	})
 	require.NoError(t, err)
 	require.Len(t, inserted, count)
@@ -13008,7 +13185,6 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 			CacheCreationTokens: []int64{0},
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 		return database.ChatMessage(results[0])
@@ -16031,7 +16207,6 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -16152,7 +16327,6 @@ func TestUpdateChatSummary(t *testing.T) {
 		CacheReadTokens:     []int64{0},
 		ContextLimit:        []int64{0},
 		Compressed:          []bool{false},
-		RuntimeMs:           []int64{0},
 	})
 	require.NoError(t, err)
 
@@ -17933,7 +18107,6 @@ func TestGetChatsFilter(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 	}
@@ -18177,7 +18350,6 @@ func TestGetChatsSearch(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
@@ -18409,7 +18581,6 @@ func TestChatHasUnread(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 	}

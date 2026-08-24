@@ -6438,7 +6438,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 		require.Len(t, msgs, 1)
@@ -6519,7 +6518,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 
@@ -6545,7 +6543,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 
@@ -6739,7 +6736,6 @@ func TestGetChatUserPrompts(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 
@@ -11837,7 +11833,6 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			CacheReadTokens:     []int64{0},
 			ContextLimit:        []int64{0},
 			Compressed:          []bool{false},
-			RuntimeMs:           []int64{0},
 		})
 		require.NoError(t, err)
 

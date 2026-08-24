@@ -442,6 +442,7 @@ type sqlcQuerier interface {
 	// intentionally excluded from these aggregates.
 	GetChatDiffStatusSummary(ctx context.Context) (GetChatDiffStatusSummaryRow, error)
 	GetChatDiffStatusesByChatIDs(ctx context.Context, chatIds []uuid.UUID) ([]ChatDiffStatus, error)
+	GetChatExecutionStepByID(ctx context.Context, id uuid.UUID) (ChatExecutionStep, error)
 	GetChatExploreModelOverride(ctx context.Context) (string, error)
 	// Returns the chat IDs of every chat in a family (root + all children)
 	// in deterministic order. The id parameter must be the root id; the
@@ -466,9 +467,9 @@ type sqlcQuerier interface {
 	// otherwise the setting defaults to true.
 	GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error)
 	GetChatMessageByID(ctx context.Context, id int64) (ChatMessage, error)
-	// Aggregates message-level metrics per chat for messages created
-	// after the given timestamp. Uses message created_at so that
-	// ongoing activity in long-running chats is captured each window.
+	// Aggregates message metrics by message created_at and execution runtime by
+	// step recorded_at. A step contributes once while any associated message
+	// remains non-deleted, even when that surviving message predates the window.
 	GetChatMessageSummariesPerChat(ctx context.Context, createdAfter time.Time) ([]GetChatMessageSummariesPerChatRow, error)
 	// Ordered by id to match the @after_id cursor. created_at is the transaction
 	// start time, so it can disagree with append order when a transaction takes the
@@ -476,6 +477,9 @@ type sqlcQuerier interface {
 	GetChatMessagesByChatID(ctx context.Context, arg GetChatMessagesByChatIDParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDAscPaginated(ctx context.Context, arg GetChatMessagesByChatIDAscPaginatedParams) ([]ChatMessage, error)
 	GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg GetChatMessagesByChatIDDescPaginatedParams) ([]ChatMessage, error)
+	// Internal association inspection includes soft-deleted and non-user-visible
+	// messages; its authorization wrapper requires a system read.
+	GetChatMessagesByExecutionStepID(ctx context.Context, executionStepID uuid.UUID) ([]ChatMessage, error)
 	// Stream deltas and reset snapshots must use the same message order.
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
 	// The compaction boundary and final ordering must use the same key so tool
@@ -867,9 +871,9 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	// Computes hb_agent_runtime_v1 usage event payloads. Deliberately includes
-	// soft-deleted messages and messages from all chats.
-	GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg GetTotalChatMessageRuntimeMsInRangeParams) (int64, error)
+	// Computes hb_agent_runtime_v1 usage event payloads. Runtime remains billable
+	// after message soft deletion or chat hard deletion.
+	GetTotalChatExecutionRuntimeMsInRange(ctx context.Context, arg GetTotalChatExecutionRuntimeMsInRangeParams) (int64, error)
 	// Gets the total number of managed agents created between two dates. Uses the
 	// aggregate table to avoid large scans or a complex index on the usage_events
 	// table.
@@ -1122,6 +1126,7 @@ type sqlcQuerier interface {
 	// rows, and sql.ErrNoRows is returned. The UPDATE also serializes
 	// with concurrent FinalizeStale under READ COMMITTED isolation.
 	InsertChatDebugStep(ctx context.Context, arg InsertChatDebugStepParams) (ChatDebugStep, error)
+	InsertChatExecutionStep(ctx context.Context, arg InsertChatExecutionStepParams) (ChatExecutionStep, error)
 	InsertChatFile(ctx context.Context, arg InsertChatFileParams) (InsertChatFileRow, error)
 	// Returns the inserted rows in input array order. Ids are allocated before the
 	// insert and the k-th smallest is assigned to input index k, so callers may

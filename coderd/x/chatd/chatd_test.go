@@ -3080,7 +3080,7 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 		messages := chatMessages(ctx, t, db, chat.ID)
 		var userTexts []string
 		var foundPartial bool
-		var partialRuntime sql.NullInt64
+		var partialStepID uuid.NullUUID
 		for _, msg := range messages {
 			parts, parseErr := chatprompt.ParseContent(msg)
 			require.NoError(t, parseErr)
@@ -3095,16 +3095,19 @@ func TestActiveServer_InterruptionBehavior(t *testing.T) {
 				for _, part := range parts {
 					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial assistant output") {
 						foundPartial = true
-						partialRuntime = msg.RuntimeMs
+						partialStepID = msg.ExecutionStepID
 					}
 				}
 			}
 		}
 		require.Equal(t, []string{"start and call a tool", "queued after interrupt"}, userTexts)
 		require.True(t, foundPartial)
-		// The interrupted attempt bills the model invocation window it
-		// opened, so the partial assistant row keeps a runtime.
-		require.True(t, partialRuntime.Valid)
+		require.True(t, partialStepID.Valid)
+		partialStep, err := db.GetChatExecutionStepByID(ctx, partialStepID.UUID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatExecutionStepOperationModel, partialStep.Operation)
+		require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, partialStep.Outcome)
+		require.Positive(t, partialStep.RuntimeMs)
 
 		parts := chatToolParts(ctx, t, db, chat.ID)
 		call := requireToolCallPart(t, parts, "read_file")
@@ -5348,7 +5351,22 @@ func TestActiveServer_Compaction(t *testing.T) {
 		require.Equal(t, callPart.ToolCallID, resultPart.ToolCallID)
 		require.Equal(t, "chat_summarized", resultPart.ToolName)
 		require.JSONEq(t, `{"summary":"summary text for compaction","source":"automatic","threshold_percent":70,"usage_percent":80,"context_tokens":80,"context_limit_tokens":100}`, string(resultPart.Result))
-		requireTextPart(t, messages[len(messages)-1], "continued after compaction")
+		compactionStepID := compressed.summaries[0].ExecutionStepID
+		require.True(t, compactionStepID.Valid)
+		require.Equal(t, compactionStepID, compressed.calls[0].ExecutionStepID)
+		require.Equal(t, compactionStepID, compressed.results[0].ExecutionStepID)
+		compactionStep, err := db.GetChatExecutionStepByID(ctx, compactionStepID.UUID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatExecutionStepOperationCompaction, compactionStep.Operation)
+		require.Equal(t, database.ChatExecutionStepOutcomeCompleted, compactionStep.Outcome)
+
+		continued := messages[len(messages)-1]
+		requireTextPart(t, continued, "continued after compaction")
+		require.True(t, continued.ExecutionStepID.Valid)
+		modelStep, err := db.GetChatExecutionStepByID(ctx, continued.ExecutionStepID.UUID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatExecutionStepOperationModel, modelStep.Operation)
+		require.Equal(t, database.ChatExecutionStepOutcomeCompleted, modelStep.Outcome)
 	})
 
 	t.Run("does not compact when high usage finishes the turn", func(t *testing.T) {
@@ -6129,10 +6147,10 @@ func TestActiveServer_BasicAssistantGenerationAndPromptPreparation(t *testing.T)
 	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
 	require.True(t, last.ContextLimit.Valid)
 	require.Equal(t, int64(4096), last.ContextLimit.Int64)
-	// runtime_ms is not asserted here: this stream is served in
-	// process and routinely finishes in under a millisecond, which
-	// InsertChatMessages stores as NULL. Runtime measurement and
-	// persistence are pinned deterministically in
+	// Positive execution-step runtime is not asserted here: this stream is
+	// served in process and routinely finishes in under a millisecond, which
+	// truncates to a zero-millisecond step. Runtime measurement and persistence
+	// are pinned deterministically in
 	// chatloop.TestGenerateAssistant_RecordsModelInvocationRuntime and
 	// TestInterruptTask_PartialAssistantKeepsAttemptRuntime.
 	requireTextPart(t, last, "done")
@@ -6448,13 +6466,22 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 		}
 
 		messages := chatMessages(ctx, t, db, chat.ID)
-		billedToolRows := 0
+		toolStepIDs := map[uuid.UUID]struct{}{}
 		for _, msg := range messages {
-			if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-				billedToolRows++
+			if msg.Role != database.ChatMessageRoleTool {
+				continue
 			}
+			require.False(t, msg.RuntimeMs.Valid)
+			require.True(t, msg.ExecutionStepID.Valid)
+			toolStepIDs[msg.ExecutionStepID.UUID] = struct{}{}
 		}
-		require.LessOrEqual(t, billedToolRows, 1)
+		require.Len(t, toolStepIDs, 1)
+		for stepID := range toolStepIDs {
+			step, err := db.GetChatExecutionStepByID(ctx, stepID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatExecutionStepOperationLocalToolBatch, step.Operation)
+			require.Equal(t, database.ChatExecutionStepOutcomeCompleted, step.Outcome)
+		}
 	})
 }
 

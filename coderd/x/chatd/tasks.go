@@ -263,6 +263,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	modelInvokedAt := s.opts.MessagePartBuffer.ModelInvokedAt(key)
 	toolCompletions := s.opts.MessagePartBuffer.ToolCompletions(key)
+	operation := s.opts.MessagePartBuffer.Operation(key)
+	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
@@ -280,21 +282,23 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		}
 		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
 	}
-	interruptedAt := s.opts.Clock.Now("chatworker", "interrupt")
-	var attemptRuntime time.Duration
-	if !modelInvokedAt.IsZero() {
-		attemptRuntime = interruptedAt.Sub(modelInvokedAt)
-	}
-	partialMessages, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+	partial, err := bufferedPartsToPartialMessagesWithMetadata(bufferedPartsToPartialMessagesInput{
 		parts:          parts,
 		modelConfigID:  chat.LastModelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
 		logger:         s.opts.Logger,
 		interruptedAt:  interruptedAt,
-		attemptRuntime: attemptRuntime,
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)
+	}
+	var interruptedRuntime time.Duration
+	if (operation == database.ChatExecutionStepOperationModel ||
+		operation == database.ChatExecutionStepOperationCompaction) &&
+		partial.ModelAssistantDurable &&
+		!modelInvokedAt.IsZero() &&
+		interruptedAt.After(modelInvokedAt) {
+		interruptedRuntime = interruptedAt.Sub(modelInvokedAt)
 	}
 
 	var committed database.Chat
@@ -303,18 +307,39 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		if err != nil {
 			return xerrors.Errorf("load chat for task: %w", err)
 		}
-		messages := partialMessages
+		messages := partial.Messages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
 		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
-		if len(committedCancels) > 0 {
-			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
+		if len(committedCancels.Messages) > 0 {
+			messages = append(append([]chatstate.Message{}, partial.Messages...), committedCancels.Messages...)
+		}
+		// If the replica lost the in-memory episode after the local batch was
+		// recorded, the unresolved committed calls are still enough to classify
+		// the cancellation batch. Keep its association but do not reconstruct
+		// any runtime from message content.
+		if !operation.Valid() && len(committedCancels.Messages) > 0 {
+			operation = database.ChatExecutionStepOperationLocalToolBatch
+		}
+		if operation == database.ChatExecutionStepOperationLocalToolBatch {
+			interruptedRuntime = committedCancels.Runtime
+		}
+		var executionStep *chatstate.ExecutionStepInput
+		if len(messages) > 0 && operation.Valid() {
+			executionStep = &chatstate.ExecutionStepInput{
+				HistoryVersion:    key.HistoryVersion,
+				GenerationAttempt: key.GenerationAttempt,
+				Operation:         operation,
+				Outcome:           database.ChatExecutionStepOutcomeInterrupted,
+				Runtime:           interruptedRuntime,
+			}
 		}
 		if _, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{
 			PartialMessages: messages,
+			ExecutionStep:   executionStep,
 		}); err != nil {
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
@@ -684,37 +709,38 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
+type committedPendingLocalToolCancellations struct {
+	Messages []chatstate.Message
+	Runtime  time.Duration
+}
+
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
 	toolCompletions map[int]messagepartbuffer.ToolCompletion,
-) ([]chatstate.Message, error) {
+) (committedPendingLocalToolCancellations, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
+		return committedPendingLocalToolCancellations{}, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
 	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 	if err != nil {
-		return nil, err
+		return committedPendingLocalToolCancellations{}, err
 	}
 	if len(localCalls) == 0 {
-		return nil, nil
+		return committedPendingLocalToolCancellations{}, nil
 	}
-	var (
-		windowEnd    time.Time
-		windowRowIdx = -1
-		intervals    []chatloop.BilledInterval
-	)
+	intervals := make([]chatloop.BilledInterval, 0, len(localCalls))
 	result := make([]chatstate.Message, 0, len(localCalls))
-	for i, call := range localCalls {
+	for index, call := range localCalls {
 		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+			return committedPendingLocalToolCancellations{}, xerrors.Errorf("marshal interrupted tool result: %w", err)
 		}
 		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
 		if !interruptedAt.IsZero() {
@@ -722,7 +748,7 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result part: %w", err)
+			return committedPendingLocalToolCancellations{}, xerrors.Errorf("marshal interrupted tool result part: %w", err)
 		}
 		result = append(result, chatstate.Message{
 			Role:           database.ChatMessageRoleTool,
@@ -734,29 +760,24 @@ func committedPendingLocalToolCancellationMessages(
 		if unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Bill only matching started calls. Completed calls end at completion,
-		// running calls end at the interrupt, and ties keep the first call.
-		occurrence, ok := toolCompletions[i]
-		if !ok {
-			continue
-		}
-		start := occurrence.StartedAt
-		if start.IsZero() {
+		occurrence, ok := toolCompletions[index]
+		if !ok || occurrence.StartedAt.IsZero() {
 			continue
 		}
 		end := occurrence.CompletedAt
 		if end.IsZero() {
 			end = interruptedAt
 		}
-		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
-		if end.After(windowEnd) {
-			windowEnd = end
-			windowRowIdx = len(result) - 1
+		if !end.After(occurrence.StartedAt) {
+			continue
 		}
+		intervals = append(intervals, chatloop.BilledInterval{
+			Start: occurrence.StartedAt,
+			End:   end,
+		})
 	}
-	// Bill the interval union once on the row whose interval ends last.
-	if windowRowIdx >= 0 {
-		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(chatloop.BilledIntervalsDuration(intervals).Milliseconds())
-	}
-	return result, nil
+	return committedPendingLocalToolCancellations{
+		Messages: result,
+		Runtime:  chatloop.BilledIntervalsDuration(intervals),
+	}, nil
 }

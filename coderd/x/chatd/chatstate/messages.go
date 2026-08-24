@@ -15,8 +15,8 @@ import (
 // (parsed parts, calculated cost, resolved model config) before
 // passing it in.
 //
-// The state machine never reshapes a Message except to attach the
-// runtime `chat_id`.
+// The state machine never reshapes a Message; its owning chat and optional
+// execution-step association are supplied when the batch is inserted.
 type Message struct {
 	Role                database.ChatMessageRole
 	Content             pqtype.NullRawMessage
@@ -33,7 +33,6 @@ type Message struct {
 	CacheCreationTokens sql.NullInt64
 	CacheReadTokens     sql.NullInt64
 	ContextLimit        sql.NullInt64
-	RuntimeMs           sql.NullInt64
 }
 
 // toInsertParams converts a batch of Messages into the parallel-array
@@ -43,6 +42,10 @@ type Message struct {
 // The chat ID is supplied by the caller because Message itself does
 // not carry one (the chat machine already knows the chat).
 func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMessagesParams {
+	return toInsertParamsWithExecutionStep(chatID, messages, uuid.Nil)
+}
+
+func toInsertParamsWithExecutionStep(chatID uuid.UUID, messages []Message, executionStepID uuid.UUID) database.InsertChatMessagesParams {
 	n := len(messages)
 	params := database.InsertChatMessagesParams{
 		ChatID:              chatID,
@@ -61,7 +64,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		CacheReadTokens:     make([]int64, n),
 		ContextLimit:        make([]int64, n),
 		Compressed:          make([]bool, n),
-		RuntimeMs:           make([]int64, n),
+		ExecutionStepID:     make([]uuid.UUID, n),
 	}
 	for i, m := range messages {
 		params.CreatedBy[i] = nullUUIDOrNil(m.CreatedBy)
@@ -87,7 +90,7 @@ func toInsertParams(chatID uuid.UUID, messages []Message) database.InsertChatMes
 		params.CacheReadTokens[i] = nullInt64Or(m.CacheReadTokens, 0)
 		params.ContextLimit[i] = nullInt64Or(m.ContextLimit, 0)
 		params.Compressed[i] = m.Compressed
-		params.RuntimeMs[i] = nullInt64Or(m.RuntimeMs, 0)
+		params.ExecutionStepID[i] = executionStepID
 	}
 	return params
 }

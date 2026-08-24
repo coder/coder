@@ -3309,6 +3309,23 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 	return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 }
 
+func (q *querier) GetChatExecutionStepByID(ctx context.Context, id uuid.UUID) (database.ChatExecutionStep, error) {
+	step, err := q.db.GetChatExecutionStepByID(ctx, id)
+	if err != nil {
+		return database.ChatExecutionStep{}, err
+	}
+	if step.ChatID.Valid {
+		if _, err := q.GetChatByID(ctx, step.ChatID.UUID); err != nil {
+			return database.ChatExecutionStep{}, err
+		}
+		return step, nil
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.ChatExecutionStep{}, err
+	}
+	return step, nil
+}
+
 func (q *querier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
 		return "", err
@@ -3492,6 +3509,16 @@ func (q *querier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, arg 
 		return nil, err
 	}
 	return q.db.GetChatMessagesByChatIDDescPaginated(ctx, arg)
+}
+
+func (q *querier) GetChatMessagesByExecutionStepID(ctx context.Context, executionStepID uuid.UUID) ([]database.ChatMessage, error) {
+	// This internal association query deliberately includes soft-deleted and
+	// non-user-visible messages, so it requires a system read rather than the
+	// ordinary chat read used by user-facing history queries.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatMessagesByExecutionStepID(ctx, executionStepID)
 }
 
 func (q *querier) GetChatMessagesByRevisionForStream(ctx context.Context, arg database.GetChatMessagesByRevisionForStreamParams) ([]database.ChatMessage, error) {
@@ -5006,14 +5033,14 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
-func (q *querier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatMessageRuntimeMsInRangeParams) (int64, error) {
+func (q *querier) GetTotalChatExecutionRuntimeMsInRange(ctx context.Context, arg database.GetTotalChatExecutionRuntimeMsInRangeParams) (int64, error) {
 	// This query exists solely to compute hb_agent_runtime_v1 usage event
 	// payloads and returns a bare sum with no chat content, so it is gated
 	// on usage event creation rather than on reading chats.
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
 		return 0, err
 	}
-	return q.db.GetTotalChatMessageRuntimeMsInRange(ctx, arg)
+	return q.db.GetTotalChatExecutionRuntimeMsInRange(ctx, arg)
 }
 
 func (q *querier) GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg database.GetTotalUsageDCManagedAgentsV1Params) (int64, error) {
@@ -6096,6 +6123,17 @@ func (q *querier) InsertChatDebugStep(ctx context.Context, arg database.InsertCh
 		return database.ChatDebugStep{}, err
 	}
 	return q.db.InsertChatDebugStep(ctx, arg)
+}
+
+func (q *querier) InsertChatExecutionStep(ctx context.Context, arg database.InsertChatExecutionStepParams) (database.ChatExecutionStep, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatExecutionStep{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatExecutionStep{}, err
+	}
+	return q.db.InsertChatExecutionStep(ctx, arg)
 }
 
 func (q *querier) InsertChatFile(ctx context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {

@@ -61,7 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
-	for i, toolResult := range toolResults {
+	for _, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
 		if part.ToolCallID != "" && input.step.ToolResultCreatedAt != nil {
@@ -74,10 +74,6 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
 		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
-		// Usage sums runtime_ms across rows, so store the batch once.
-		if i == 0 {
-			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
-		}
 		messages = append(messages, msg)
 	}
 
@@ -200,10 +196,6 @@ func assistantMessage(
 		msg.CacheReadTokens = nullInt64IfNonZero(step.Usage.CacheReadTokens)
 	}
 	msg.ContextLimit = step.ContextLimit
-	// InsertChatMessages maps a zero runtime to NULL, so a model
-	// invocation shorter than a millisecond persists the same way an
-	// unmeasured one does.
-	msg.RuntimeMs = nullInt64IfNonZero(step.Runtime.Milliseconds())
 	return msg
 }
 
@@ -312,8 +304,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 		return compactionMessagesForCommit{}, xerrors.Errorf("marshal compaction tool result: %w", err)
 	}
 
-	assistantMsg := baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent)
-	assistantMsg.RuntimeMs = nullInt64IfNonZero(input.compaction.Runtime.Milliseconds())
 	messages := []chatstate.Message{
 		{
 			Role:           database.ChatMessageRoleUser,
@@ -322,7 +312,7 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
 			ContentVersion: contentVersion,
 		},
-		assistantMsg,
+		baseMessage(database.ChatMessageRoleAssistant, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, assistantContent),
 		baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, toolContent),
 	}
 	for i := range messages {
@@ -555,12 +545,11 @@ type bufferedPartsToPartialMessagesInput struct {
 	contentVersion int16
 	logger         slog.Logger
 	interruptedAt  time.Time
-	// attemptRuntime is the interrupted attempt's billable model
-	// invocation window: the span from the provider stream opening to
-	// the interrupt closing its buffer episode. It is persisted as
-	// runtime_ms on the first partial assistant message when the
-	// attempt streamed model-generated assistant content.
-	attemptRuntime time.Duration
+}
+
+type partialMessagesForCommit struct {
+	Messages              []chatstate.Message
+	ModelAssistantDurable bool
 }
 
 type partialToolCall struct {
@@ -578,6 +567,14 @@ type partialToolResult struct {
 }
 
 func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) ([]chatstate.Message, error) {
+	result, err := bufferedPartsToPartialMessagesWithMetadata(input)
+	if err != nil {
+		return nil, err
+	}
+	return result.Messages, nil
+}
+
+func bufferedPartsToPartialMessagesWithMetadata(input bufferedPartsToPartialMessagesInput) (partialMessagesForCommit, error) {
 	contentVersion := input.contentVersion
 	if contentVersion == 0 {
 		contentVersion = chatprompt.CurrentContentVersion
@@ -596,33 +593,25 @@ func bufferedPartsToPartialMessages(input bufferedPartsToPartialMessagesInput) (
 	}
 	for _, buffered := range parts {
 		if err := state.consume(buffered); err != nil {
-			return nil, err
+			return partialMessagesForCommit{}, err
 		}
 	}
 	if err := state.finalizeToolCallPlaceholders(); err != nil {
-		return nil, err
+		return partialMessagesForCommit{}, err
 	}
 	if err := state.flushAssistant(); err != nil {
-		return nil, err
+		return partialMessagesForCommit{}, err
 	}
 	if err := state.flushAccumulatedToolResults(); err != nil {
-		return nil, err
+		return partialMessagesForCommit{}, err
 	}
 	if err := state.appendSyntheticInterruptionResults(); err != nil {
-		return nil, err
+		return partialMessagesForCommit{}, err
 	}
-	if input.attemptRuntime > 0 && state.modelStreamedAssistant {
-		// Usage reporting sums runtime_ms across rows, so placing the
-		// whole span on the first assistant message is sufficient.
-		for i := range state.messages {
-			if state.messages[i].Role != database.ChatMessageRoleAssistant {
-				continue
-			}
-			state.messages[i].RuntimeMs = nullInt64IfNonZero(input.attemptRuntime.Milliseconds())
-			break
-		}
-	}
-	return state.messages, nil
+	return partialMessagesForCommit{
+		Messages:              state.messages,
+		ModelAssistantDurable: state.modelAssistantDurable,
+	}, nil
 }
 
 type partialMessageConversionState struct {
@@ -636,9 +625,9 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
-	// modelStreamedAssistant distinguishes streamed content from tool
+	// modelAssistantDurable distinguishes durable model content from tool
 	// attachment parts, which must not carry model runtime.
-	modelStreamedAssistant bool
+	modelAssistantDurable bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -658,9 +647,6 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	if part.Type == "" {
 		s.logSkippedPart(buffered, "empty buffered assistant part type")
 		return
-	}
-	if part.Type != codersdk.ChatMessagePartTypeFile {
-		s.modelStreamedAssistant = true
 	}
 	if part.Type != codersdk.ChatMessagePartTypeToolCall {
 		if part.Type == codersdk.ChatMessagePartTypeReasoning &&
@@ -841,6 +827,9 @@ func (s *partialMessageConversionState) flushAssistant() error {
 		part.ResultDelta = ""
 		part.ResultReset = false
 		durable = append(durable, part)
+		if part.Type != codersdk.ChatMessagePartTypeFile {
+			s.modelAssistantDurable = true
+		}
 	}
 	s.assistantParts = nil
 	if len(durable) == 0 {

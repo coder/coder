@@ -78,8 +78,8 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // title or labels) that must be atomic with the transition.
 //
 // Callers MUST NOT use Store to mutate execution-state tables
-// (chats.status, chat_messages, chat_queued_messages, chat_heartbeats,
-// or the version fields on chats). Those mutations belong to the
+// (chats.status, chat_messages, chat_execution_steps, chat_queued_messages,
+// chat_heartbeats, or the version fields on chats). Those mutations belong to the
 // transition methods and are validated against the state machine
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }

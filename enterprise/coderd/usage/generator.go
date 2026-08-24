@@ -228,7 +228,7 @@ func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
 
 // generateBucket computes and inserts the event for a single hourly bucket.
 func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error {
-	runtimeMs, err := g.db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
+	runtimeMs, err := g.db.GetTotalChatExecutionRuntimeMsInRange(ctx, database.GetTotalChatExecutionRuntimeMsInRangeParams{
 		StartTime: bucket,
 		EndTime:   bucket.Add(AgentRuntimeInterval),
 	})

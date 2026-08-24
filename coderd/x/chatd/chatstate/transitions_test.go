@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -666,6 +667,150 @@ func TestEditMessageNonUserReturnsSentinel(t *testing.T) {
 		"non-user edit returns ErrEditedMessageNotUser via TransitionError cause")
 	require.ErrorIs(t, editErr, chatstate.ErrTransitionNotAllowed,
 		"ErrEditedMessageNotUser still matches the generic transition sentinel")
+}
+
+func TestCommitStepAssociatesGeneratedAndHookMessages(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+
+	assistant := userTextMessage("generated", f.User.ID, f.Model.ID)
+	assistant.Role = database.ChatMessageRoleAssistant
+	hook := userTextMessage("hook result", f.User.ID, f.Model.ID)
+	hook.Role = database.ChatMessageRoleSystem
+	var result chatstate.CommitStepResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		result, err = tx.CommitStep(chatstate.CommitStepInput{
+			Messages: []chatstate.Message{assistant, hook},
+			ExecutionStep: &chatstate.ExecutionStepInput{
+				HistoryVersion:    created.Chat.HistoryVersion,
+				GenerationAttempt: created.Chat.GenerationAttempt,
+				Operation:         database.ChatExecutionStepOperationModel,
+				Outcome:           database.ChatExecutionStepOutcomeCompleted,
+				Runtime:           1500 * time.Millisecond,
+			},
+		})
+		return err
+	}))
+	require.Len(t, result.InsertedMessages, 2)
+	stepID := result.InsertedMessages[0].ExecutionStepID
+	require.True(t, stepID.Valid)
+	require.Equal(t, stepID, result.InsertedMessages[1].ExecutionStepID)
+	for _, message := range result.InsertedMessages {
+		require.False(t, message.RuntimeMs.Valid)
+	}
+
+	step, err := f.DB.GetChatExecutionStepByID(ctx, stepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, created.Chat.ID, step.ChatID.UUID)
+	require.Equal(t, created.Chat.HistoryVersion, step.HistoryVersion)
+	require.Equal(t, created.Chat.GenerationAttempt, step.GenerationAttempt)
+	require.Equal(t, int64(1500), step.RuntimeMs)
+	associated, err := f.DB.GetChatMessagesByExecutionStepID(ctx, step.ID)
+	require.NoError(t, err)
+	require.Equal(t, []int64{result.InsertedMessages[0].ID, result.InsertedMessages[1].ID}, []int64{associated[0].ID, associated[1].ID})
+
+	hookOnly := userTextMessage("session stop", f.User.ID, f.Model.ID)
+	hookOnly.Role = database.ChatMessageRoleSystem
+	var hookOnlyResult chatstate.CommitStepResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		hookOnlyResult, err = tx.CommitStep(chatstate.CommitStepInput{Messages: []chatstate.Message{hookOnly}})
+		return err
+	}))
+	require.Len(t, hookOnlyResult.InsertedMessages, 1)
+	require.False(t, hookOnlyResult.InsertedMessages[0].ExecutionStepID.Valid)
+}
+
+func TestFinishInterruptionAssociatesPartialsButNotPromotedQueueHead(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	queued := sendQueuedMessage(t, f, machine, "queued after interruption")
+	require.NotNil(t, queued.QueuedMessage)
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
+		return err
+	}))
+	interrupted := f.readChat(ctx, t, created.Chat.ID)
+	require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
+
+	partial := userTextMessage("partial response", f.User.ID, f.Model.ID)
+	partial.Role = database.ChatMessageRoleAssistant
+	var result chatstate.FinishInterruptionResult
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		var err error
+		result, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{
+			PartialMessages: []chatstate.Message{partial},
+			ExecutionStep: &chatstate.ExecutionStepInput{
+				HistoryVersion:    interrupted.HistoryVersion,
+				GenerationAttempt: interrupted.GenerationAttempt,
+				Operation:         database.ChatExecutionStepOperationModel,
+				Outcome:           database.ChatExecutionStepOutcomeInterrupted,
+				Runtime:           2 * time.Second,
+			},
+		})
+		return err
+	}))
+	require.Len(t, result.InsertedMessages, 2)
+	partialRow := result.InsertedMessages[0]
+	require.True(t, partialRow.ExecutionStepID.Valid)
+	require.NotNil(t, result.PromotedMessage)
+	require.False(t, result.PromotedMessage.ExecutionStepID.Valid)
+	require.Equal(t, result.PromotedMessage.ID, result.InsertedMessages[1].ID)
+
+	step, err := f.DB.GetChatExecutionStepByID(ctx, partialRow.ExecutionStepID.UUID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatExecutionStepOutcomeInterrupted, step.Outcome)
+	require.Equal(t, int64(2000), step.RuntimeMs)
+	associated, err := f.DB.GetChatMessagesByExecutionStepID(ctx, step.ID)
+	require.NoError(t, err)
+	require.Len(t, associated, 1)
+	require.Equal(t, partialRow.ID, associated[0].ID)
+}
+
+func TestCommitStepRollsBackExecutionStepWhenMessageInsertFails(t *testing.T) {
+	t.Parallel()
+
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	executionStep := &chatstate.ExecutionStepInput{
+		HistoryVersion:    created.Chat.HistoryVersion,
+		GenerationAttempt: created.Chat.GenerationAttempt,
+		Operation:         database.ChatExecutionStepOperationModel,
+		Outcome:           database.ChatExecutionStepOutcomeCompleted,
+		Runtime:           time.Second,
+	}
+	invalid := userTextMessage("invalid", f.User.ID, f.Model.ID)
+	invalid.Role = database.ChatMessageRoleAssistant
+	invalid.Content = pqtype.NullRawMessage{RawMessage: []byte("{"), Valid: true}
+	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:      []chatstate.Message{invalid},
+			ExecutionStep: executionStep,
+		})
+		return err
+	})
+	require.Error(t, err)
+
+	valid := userTextMessage("valid retry", f.User.ID, f.Model.ID)
+	valid.Role = database.ChatMessageRoleAssistant
+	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		_, err := tx.CommitStep(chatstate.CommitStepInput{
+			Messages:      []chatstate.Message{valid},
+			ExecutionStep: executionStep,
+		})
+		return err
+	}), "retrying the episode key succeeds only if the failed step was rolled back")
 }
 
 func TestEditMessageInsertsSuffixMessages(t *testing.T) {

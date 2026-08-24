@@ -29,7 +29,7 @@ func TestGenerateBucketUniqueViolation(t *testing.T) {
 	gen := NewGenerator(quartz.NewMock(t), slogtest.Make(t, nil), mDB, NewDBInserter())
 
 	mDB.EXPECT().
-		GetTotalChatMessageRuntimeMsInRange(gomock.Any(), gomock.Any()).
+		GetTotalChatExecutionRuntimeMsInRange(gomock.Any(), gomock.Any()).
 		Return(int64(1000), nil)
 	mDB.EXPECT().
 		InsertUsageEvent(gomock.Any(), gomock.Any()).

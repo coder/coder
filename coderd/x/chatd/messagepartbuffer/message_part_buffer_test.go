@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -146,6 +147,21 @@ func TestBuffer_ModelInvokedAt(t *testing.T) {
 	implicit := testEpisodeKey()
 	require.NoError(t, buffer.CloseEpisode(implicit))
 	require.Zero(t, buffer.ModelInvokedAt(implicit))
+}
+
+func TestBuffer_Operation(t *testing.T) {
+	t.Parallel()
+
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
+	key := testEpisodeKey()
+	require.Empty(t, buffer.Operation(key))
+	require.ErrorIs(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel), messagepartbuffer.ErrEpisodeNotFound)
+	require.NoError(t, buffer.CreateEpisode(key))
+	require.NoError(t, buffer.SetOperation(key, database.ChatExecutionStepOperationLocalToolBatch))
+	require.Equal(t, database.ChatExecutionStepOperationLocalToolBatch, buffer.Operation(key))
+	require.NoError(t, buffer.CloseEpisode(key))
+	require.ErrorIs(t, buffer.SetOperation(key, database.ChatExecutionStepOperationModel), messagepartbuffer.ErrEpisodeClosed)
 }
 
 func TestBuffer_ToolCompletions(t *testing.T) {

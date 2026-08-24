@@ -84,6 +84,24 @@ func TestPing(t *testing.T) {
 	require.NoError(t, err, "must not error")
 }
 
+func TestGetChatExecutionStepByIDDeidentified(t *testing.T) {
+	t.Parallel()
+
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().Wrappers().Return([]string{})
+	step := database.ChatExecutionStep{ID: uuid.New()}
+	db.EXPECT().GetChatExecutionStepByID(gomock.Any(), step.ID).Return(step, nil)
+
+	authorizer := &coderdtest.RecordingAuthorizer{Wrapped: &coderdtest.FakeAuthorizer{}}
+	q := dbauthz.New(db, authorizer, slog.Make(), coderdtest.AccessControlStorePointer())
+	actor := coderdtest.RandomRBACSubject()
+	got, err := q.GetChatExecutionStepByID(dbauthz.As(context.Background(), actor), step.ID)
+	require.NoError(t, err)
+	require.Equal(t, step, got)
+	authorizer.AssertActor(t, actor, authorizer.Pair(policy.ActionRead, rbac.ResourceSystem))
+	require.NoError(t, authorizer.AllAsserted())
+}
+
 // TestInTX is not perfect, just checks that it properly checks auth.
 func TestInTX(t *testing.T) {
 	t.Parallel()
@@ -1110,6 +1128,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionRead).Returns(msg)
 	}))
+	s.Run("GetChatExecutionStepByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		step := testutil.Fake(s.T(), faker, database.ChatExecutionStep{
+			ChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+		})
+		dbm.EXPECT().GetChatExecutionStepByID(gomock.Any(), step.ID).Return(step, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		check.Args(step.ID).Asserts(chat, policy.ActionRead).Returns(step)
+	}))
+	s.Run("GetChatMessagesByExecutionStepID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		step := testutil.Fake(s.T(), faker, database.ChatExecutionStep{})
+		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{
+			ExecutionStepID: uuid.NullUUID{UUID: step.ID, Valid: true},
+		})}
+		dbm.EXPECT().GetChatMessagesByExecutionStepID(gomock.Any(), step.ID).Return(msgs, nil).AnyTimes()
+		check.Args(step.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(msgs)
+	}))
 	s.Run("GetChatMessagesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msgs := []database.ChatMessage{testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})}
@@ -1348,6 +1383,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().InsertChatMessages(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msgs)
+	}))
+	s.Run("InsertChatExecutionStep", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := testutil.Fake(s.T(), faker, database.InsertChatExecutionStepParams{ChatID: chat.ID})
+		step := testutil.Fake(s.T(), faker, database.ChatExecutionStep{
+			ChatID: uuid.NullUUID{UUID: chat.ID, Valid: true},
+		})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().InsertChatExecutionStep(gomock.Any(), arg).Return(step, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(step)
 	}))
 
 	s.Run("InsertChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -6760,15 +6805,15 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
-	// GetTotalChatMessageRuntimeMsInRange exists solely to compute usage
+	// GetTotalChatExecutionRuntimeMsInRange exists solely to compute usage
 	// event payloads, so it asserts usage event creation rather than chat
 	// read permissions.
-	s.Run("GetTotalChatMessageRuntimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		params := database.GetTotalChatMessageRuntimeMsInRangeParams{
+	s.Run("GetTotalChatExecutionRuntimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetTotalChatExecutionRuntimeMsInRangeParams{
 			StartTime: time.Time{},
 			EndTime:   time.Time{},
 		}
-		db.EXPECT().GetTotalChatMessageRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
+		db.EXPECT().GetTotalChatExecutionRuntimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
 	}))
 }
@@ -6789,14 +6834,14 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	require.True(t, dbauthz.IsNotAuthorizedError(err))
 }
 
-// TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied mechanically
+// TestGetTotalChatExecutionRuntimeMsInRange_HumanRolesDenied mechanically
 // checks the invariant the query's authz gate relies on: it exposes a
 // deployment-wide aggregate behind usage_event create at site scope, which no
 // human-assignable role holds. Owner is excluded from usage_event via
 // allPermsExcept in roles.go; org roles such as org-admin do carry
 // usage_event permissions, but only at org scope, which cannot satisfy a
 // site-scoped check. If either of those ever changes, this test fails.
-func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
+func TestGetTotalChatExecutionRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
 	t.Parallel()
 
 	orgID := uuid.New()
@@ -6819,7 +6864,7 @@ func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
 		mDB := dbmock.NewMockStore(gomock.NewController(t))
 		mDB.EXPECT().Wrappers().Times(1).Return([]string{})
 		dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
-		_, err := dbz.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{})
+		_, err := dbz.GetTotalChatExecutionRuntimeMsInRange(ctx, database.GetTotalChatExecutionRuntimeMsInRangeParams{})
 		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
 	}
 }

@@ -345,6 +345,17 @@ CREATE TYPE chat_client_type AS ENUM (
     'api'
 );
 
+CREATE TYPE chat_execution_step_operation AS ENUM (
+    'model',
+    'local_tool_batch',
+    'compaction'
+);
+
+CREATE TYPE chat_execution_step_outcome AS ENUM (
+    'completed',
+    'interrupted'
+);
+
 CREATE TYPE chat_message_role AS ENUM (
     'system',
     'user',
@@ -2005,6 +2016,20 @@ CREATE TABLE chat_diff_statuses (
     head_branch text
 );
 
+CREATE TABLE chat_execution_steps (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    chat_id uuid,
+    history_version bigint NOT NULL,
+    generation_attempt bigint NOT NULL,
+    operation chat_execution_step_operation NOT NULL,
+    outcome chat_execution_step_outcome NOT NULL,
+    runtime_ms bigint NOT NULL,
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT chat_execution_steps_runtime_ms_nonnegative CHECK ((runtime_ms >= 0))
+);
+
+COMMENT ON TABLE chat_execution_steps IS 'De-identified billable execution runtime. chat_id is cleared when its chat is hard-deleted.';
+
 CREATE TABLE chat_file_links (
     chat_id uuid NOT NULL,
     file_id uuid NOT NULL
@@ -2052,12 +2077,17 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    execution_step_id uuid
 );
+
+COMMENT ON COLUMN chat_messages.runtime_ms IS 'Deprecated rolling-upgrade compatibility column. New runtime is stored on chat_execution_steps.';
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.execution_step_id IS 'Associates a generated message batch with the execution step that produced it.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -4388,6 +4418,9 @@ ALTER TABLE ONLY chat_debug_steps
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_pkey PRIMARY KEY (chat_id);
 
+ALTER TABLE ONLY chat_execution_steps
+    ADD CONSTRAINT chat_execution_steps_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_file_id_key UNIQUE (chat_id, file_id);
 
@@ -4852,6 +4885,12 @@ CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (
 
 CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
 
+CREATE INDEX idx_chat_execution_steps_chat_id ON chat_execution_steps USING btree (chat_id) WHERE (chat_id IS NOT NULL);
+
+CREATE UNIQUE INDEX idx_chat_execution_steps_episode ON chat_execution_steps USING btree (chat_id, history_version, generation_attempt) WHERE (chat_id IS NOT NULL);
+
+CREATE INDEX idx_chat_execution_steps_recorded_at ON chat_execution_steps USING btree (recorded_at);
+
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 
 CREATE INDEX idx_chat_file_links_file_id ON chat_file_links USING btree (file_id);
@@ -4871,6 +4910,8 @@ CREATE INDEX idx_chat_messages_chat_role_id ON chat_messages USING btree (chat_i
 CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USING btree (chat_id, id DESC) WHERE ((compressed = true) AND (deleted = false) AND (visibility = 'model'::chat_message_visibility));
 
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
+
+CREATE INDEX idx_chat_messages_execution_step_id ON chat_messages USING btree (execution_step_id) WHERE (execution_step_id IS NOT NULL);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
 
@@ -5243,6 +5284,9 @@ ALTER TABLE ONLY chat_debug_steps
 ALTER TABLE ONLY chat_diff_statuses
     ADD CONSTRAINT chat_diff_statuses_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY chat_execution_steps
+    ADD CONSTRAINT chat_execution_steps_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE SET NULL;
+
 ALTER TABLE ONLY chat_file_links
     ADD CONSTRAINT chat_file_links_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -5260,6 +5304,9 @@ ALTER TABLE ONLY chat_heartbeats
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_messages
+    ADD CONSTRAINT chat_messages_execution_step_id_fkey FOREIGN KEY (execution_step_id) REFERENCES chat_execution_steps(id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
