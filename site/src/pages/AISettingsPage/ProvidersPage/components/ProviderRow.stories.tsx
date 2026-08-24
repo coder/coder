@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -100,5 +100,58 @@ export const SupportedHasNoAgentsLabel: Story = {
 		await expect(
 			canvas.queryByText("Not supported in Agents"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const WithHostnameCollisionWarning: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: {
+				warnings: [
+					'hostname "api.openai.com" is claimed by provider "first"; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/openai/...) instead',
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = canvas.getByText(/warning/i);
+		await expect(badge).toBeInTheDocument();
+		await expect(badge).toHaveAttribute(
+			"aria-label",
+			expect.stringContaining("api.openai.com"),
+		);
+		await expect(badge).toHaveAttribute("tabIndex", "0");
+
+		// Hover shows the tooltip with the warning text.
+		await userEvent.hover(badge);
+		await expect(
+			await canvas.findByText(/api\.openai\.com/, {}, { timeout: 2000 }),
+		).toBeInTheDocument();
+
+		// Keyboard and mouse activation must not navigate the row.
+		badge.focus();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard(" ");
+		await userEvent.click(badge);
+		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
+
+export const EmptyWarnings: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: { warnings: [] },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText(/warning/i)).not.toBeInTheDocument();
+		// An empty warnings array must not leak a bare "0" into the row.
+		await expect(canvas.queryByText("0")).not.toBeInTheDocument();
 	},
 };

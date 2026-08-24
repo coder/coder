@@ -2,6 +2,7 @@ import {
 	ArrowLeftIcon,
 	CopyIcon,
 	EllipsisVerticalIcon,
+	Share2Icon,
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -27,10 +28,12 @@ import {
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { getProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { cn } from "#/utils/cn";
+import { useOrganizationModelsPath } from "../organizationModels";
 
 export const ModelFormBackLink: FC = () => {
+	const modelsPath = useOrganizationModelsPath();
 	return (
-		<Link to="/ai/settings/models" className="-ml-3">
+		<Link to={modelsPath} className="-ml-3">
 			<Button variant="subtle" type="button">
 				<ArrowLeftIcon />
 				<span>Back to models</span>
@@ -43,9 +46,10 @@ export const ModelFormHeader: FC<{
 	title: string;
 	selectedProviderState: ProviderState;
 	isEditing: boolean;
-	editingModel?: TypesGen.ChatModelConfig;
-	onDeleteModel?: (modelConfigId: string) => Promise<void>;
+	editingModel?: TypesGen.ChatModel;
+	onDeleteModel?: (modelId: string) => Promise<void>;
 	onDuplicate?: () => void;
+	onShareModel?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 	isSaving: boolean;
 	enabledToggleDisabled: boolean;
@@ -57,6 +61,7 @@ export const ModelFormHeader: FC<{
 	editingModel,
 	onDeleteModel,
 	onDuplicate,
+	onShareModel,
 	onToggleEnabled,
 	isSaving,
 	enabledToggleDisabled,
@@ -66,37 +71,49 @@ export const ModelFormHeader: FC<{
 		<>
 			<div className="flex items-center justify-between">
 				<ModelFormBackLink />
-				{isEditing && editingModel && onDeleteModel && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								type="button"
-								disabled={isSaving}
-								aria-label="Model actions"
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{onDuplicate && (
-								<DropdownMenuItem onClick={onDuplicate}>
-									<CopyIcon className="size-icon-sm" />
-									Duplicate model
-								</DropdownMenuItem>
-							)}
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRequestDelete}
-							>
-								<TrashIcon />
-								Delete…
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				)}
+				{isEditing &&
+					editingModel &&
+					(onDeleteModel || onDuplicate || onShareModel) && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button
+									variant="subtle"
+									size="icon"
+									type="button"
+									disabled={isSaving}
+									aria-label="Model actions"
+								>
+									<EllipsisVerticalIcon />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								{onShareModel && (
+									<DropdownMenuItem onClick={onShareModel}>
+										<Share2Icon className="size-icon-sm" />
+										Share model
+									</DropdownMenuItem>
+								)}
+								{onDuplicate && (
+									<DropdownMenuItem onClick={onDuplicate}>
+										<CopyIcon className="size-icon-sm" />
+										Duplicate model
+									</DropdownMenuItem>
+								)}
+								{onDeleteModel && (onShareModel || onDuplicate) && (
+									<DropdownMenuSeparator />
+								)}
+								{onDeleteModel && (
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={onRequestDelete}
+									>
+										<TrashIcon />
+										Delete…
+									</DropdownMenuItem>
+								)}
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 			</div>
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-4 min-w-0">
@@ -123,14 +140,14 @@ export const ModelFormHeader: FC<{
 						!editingModel.is_default &&
 						!editingModel.enabled && <Badge variant="default">Disabled</Badge>}
 				</div>
-				{isEditing && editingModel && (
+				{isEditing && editingModel && onToggleEnabled && (
 					<div className="flex shrink-0 items-center gap-2">
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<span className="inline-flex">
 									<Switch
 										checked={editingModel.enabled}
-										onCheckedChange={(checked) => onToggleEnabled?.(checked)}
+										onCheckedChange={onToggleEnabled}
 										disabled={enabledToggleDisabled}
 										aria-label="Model enabled"
 									/>

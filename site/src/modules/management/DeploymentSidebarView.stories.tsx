@@ -71,10 +71,9 @@ export const PremiumTabVisible: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.getByRole("link", { name: "Premium" })).toHaveAttribute(
-			"href",
-			"/deployment/premium",
-		);
+		await expect(
+			canvas.getByRole("link", { name: "Trial Upgrade" }),
+		).toHaveAttribute("href", "/deployment/premium");
 	},
 };
 
@@ -87,7 +86,7 @@ export const PremiumTabHidden: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.queryByRole("link", { name: "Premium" }),
+			canvas.queryByRole("link", { name: "Trial Upgrade" }),
 		).not.toBeInTheDocument();
 		// A neighbouring item must survive the change.
 		await expect(

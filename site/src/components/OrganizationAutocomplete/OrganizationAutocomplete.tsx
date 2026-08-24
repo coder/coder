@@ -17,6 +17,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 
 type OrganizationAutocompleteProps = {
 	value: Organization | null;
@@ -30,6 +31,12 @@ type OrganizationAutocompleteProps = {
 	ariaLabel?: string;
 	required?: boolean;
 	disabled?: boolean;
+	/**
+	 * Overrides the trigger button's width/layout classes when the default
+	 * full-width treatment does not fit (e.g. a fixed-width switcher).
+	 */
+	triggerClassName?: string;
+	optionsTabbable?: boolean;
 };
 
 export const getOrganizationLabel = (
@@ -58,9 +65,20 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	ariaLabel,
 	required,
 	disabled,
+	triggerClassName,
+	optionsTabbable = false,
 }) => {
 	const [open, setOpen] = useState(false);
 	const labelContext = labelOrganizations ?? options;
+
+	// GetOrganizations has no ORDER BY, so the caller needs a stable order.
+	const sortedOptions = options.toSorted((a, b) => {
+		if (a.id === value?.id) return -1;
+		if (b.id === value?.id) return 1;
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -73,7 +91,10 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					aria-expanded={open}
 					aria-required={required}
 					data-testid="organization-autocomplete"
-					className="w-full justify-start gap-2 font-normal"
+					className={cn(
+						"w-full justify-start gap-2 font-normal",
+						triggerClassName,
+					)}
 				>
 					{value ? (
 						<>
@@ -103,7 +124,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					<CommandList>
 						<CommandEmpty>No organizations found.</CommandEmpty>
 						<CommandGroup>
-							{options.map((org) => (
+							{sortedOptions.map((org) => (
 								<CommandItem
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
@@ -111,6 +132,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										onChange(org);
 										setOpen(false);
 									}}
+									tabIndex={optionsTabbable ? 0 : undefined}
 								>
 									<Avatar
 										size="sm"

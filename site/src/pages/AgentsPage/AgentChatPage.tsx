@@ -33,7 +33,6 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
 	chatModels,
 	chatQueueConvergence,
 	compactChat,
@@ -51,7 +50,6 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
-	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -119,7 +117,9 @@ import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -778,15 +778,15 @@ const getPersistedDetailError = ({
  * preferring the user's override when set.
  */
 function resolveCompactionThreshold(
-	modelConfigID: string | undefined,
+	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
-	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!modelID || !Array.isArray(models)) return undefined;
+	const config = models.find((c) => c.id === modelID);
 	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelConfigID,
+		(threshold) => threshold.model_config_id === modelID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
@@ -942,13 +942,12 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels(chatOrganizationId));
+	const models = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -992,27 +991,20 @@ const AgentChatPage: FC = () => {
 		isModelCatalogLoading,
 		modelCatalog,
 		hasConfiguredModels,
-	} = resolveModelSelector(
-		chatModelConfigsQuery,
-		chatModelsQuery,
-		userProviderConfigsQuery,
-	);
-	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	} = resolveModelSelector(chatOrganizationId, modelsQuery);
+	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
 	const providerCount =
 		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.isSuccess &&
-		chatModelsQuery.isSuccess
+		chatProviderConfigsQuery.data &&
+		modelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelsQuery.data,
+					modelsQuery.data,
 				)
 			: undefined;
-	const modelCount =
-		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
-			? modelOptions.length
-			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelsQuery.data,
+		modelsQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1335,9 +1327,8 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
-	// Compute an effective selected model by validating the user's
-	// explicit choice against the current model options, falling
-	// back to the chat's last model or the first available option.
+	// Validate explicit and historical choices against organization options.
+	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1355,8 +1346,36 @@ const AgentChatPage: FC = () => {
 			return resolvedChatModel;
 		}
 
-		return modelOptions[0]?.id ?? "";
+		return (
+			getUsableDefaultModelIDForOrganization(
+				models,
+				modelOptions,
+				chatOrganizationId,
+			) ||
+			modelOptions[0]?.id ||
+			""
+		);
 	})();
+	const hasModelOptions = modelOptions.length > 0;
+	const hasResolvedModelData =
+		!isModelDataPending &&
+		modelsQuery.data !== undefined &&
+		modelsQuery.error == null;
+	const hasUnavailableHistoricalModel =
+		hasResolvedModelData &&
+		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	const unavailableModelNotice = hasUnavailableHistoricalModel
+		? hasModelOptions
+			? "The model used by this chat is not available. A usable model is selected for new messages."
+			: hasUserFixableModelProviders
+				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
+		: hasResolvedModelData && !hasModelOptions
+			? hasUserFixableModelProviders
+				? "No usable chat model is available. Add your API key in provider settings to enable models."
+				: "No usable chat model is currently available. Generation is disabled."
+			: undefined;
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
@@ -1372,18 +1391,16 @@ const AgentChatPage: FC = () => {
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
-		modelConfigs,
+		models,
 	);
-	const hasModelOptions = modelOptions.length > 0;
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
@@ -1713,15 +1730,19 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
-			// Only override the original model when the user has switched to
-			// a different selectable option. If the original is no longer
-			// selectable, the picker is showing a fallback we should not
-			// silently use; let the backend preserve the original.
+				modelOptions.some((option) => option.id === originalModelConfigID);
+			const originalIsUnavailable = isUnavailableHistoricalModelID(
+				originalModelConfigID,
+				modelOptions,
+			);
+			// Use the picker fallback for an unavailable historical model.
+			// Override a selectable model only after the user changes it.
+			// Omit blank and nil references so the backend preserves the original.
 			const editSelectedModelConfigID =
 				pickerModelConfigID &&
-				originalIsSelectable &&
-				pickerModelConfigID !== originalModelConfigID
+				(originalIsUnavailable ||
+					(originalIsSelectable &&
+						pickerModelConfigID !== originalModelConfigID))
 					? pickerModelConfigID
 					: undefined;
 			// Omit so the backend preserves the original effort.
@@ -1731,6 +1752,7 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: isEditReasoningEffortDirtyRef.current
 					? effectiveReasoningEffort
 					: undefined,
+				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1930,7 +1952,7 @@ const AgentChatPage: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				isModelCatalogLoading={isModelCatalogLoading}
+				isModelCatalogLoading={isModelDataPending}
 				planModeEnabled={planModeEnabled}
 				onPlanModeToggle={handlePlanModeToggle}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -2009,6 +2031,8 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			modelCatalogError={modelsQuery.error}
+			unavailableModelNotice={unavailableModelNotice}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {
 				setSelectedReasoningEffort(value);
@@ -2022,7 +2046,7 @@ const AgentChatPage: FC = () => {
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
+			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}
