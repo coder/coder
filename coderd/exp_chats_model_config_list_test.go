@@ -248,7 +248,7 @@ func newSiteCustomRoleClient(
 	require.NoError(t, err)
 
 	rawClient, user := coderdtest.CreateAnotherUser(t, ownerClient.Client, organizationID)
-	_, err = ownerClient.Client.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
+	_, err = ownerClient.UpdateUserRoles(ctx, user.ID.String(), codersdk.UpdateRoles{
 		Roles: []string{role.Name},
 	})
 	require.NoError(t, err)
