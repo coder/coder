@@ -1437,7 +1437,9 @@ then the key it is carried on names its holder.
 
 ### Status
 
-Milestones 1 and 2 complete, 2026-08-23. Milestones 3 and 4 not started.
+Milestones 1 and 2 complete, 2026-08-23. Milestone 4's minting change went with
+milestone 2 and was not noticed until 2026-08-24; what is left of it is removal.
+Milestone 3 not started.
 
 ### What forces the work
 
@@ -1455,9 +1457,14 @@ alone.
 
 ### Four milestones, and why
 
-Each lands on its own and each is separately revertible. The last is the only
-one that changes an authorization decision, and it stands alone so that when it
-goes wrong nothing else is in the same change.
+Each lands on its own and each is separately revertible. The last was meant to
+be the only one that changes an authorization decision, standing alone so that
+when it went wrong nothing else was in the same change.
+
+**That did not hold.** The holder type rides on issuance, so milestone 2 carried
+it and the authorization change landed there. The separation was a property of
+the plan and not of the code, and nothing in the milestone's own description
+would have revealed it.
 
 **The first is about where new work lands, not about the ledger.** An AI agent's
 credential is minted in one place and ended in four, so issuance is already
@@ -1498,10 +1505,23 @@ OAuth2 provider.
 The credential every AI agent request carries is in the ledger for the first
 time.
 
-**Authentication is untouched.** It reads `api_keys`, splits a token and
+**Verification is untouched.** It still reads `api_keys`, splits a token and
 compares a digest, and knows nothing of any ledger. See "Issuance can move to
 the journal before authentication moves" in `rewrite_rbac.md`, which is the
 position this milestone realises.
+
+**But the subject built from the credential did move, and that was not
+intended.** `MintKey` issues with an AI agent holder, `apiKeyHolderType` maps
+that to `ai_agent`, and the mirror writes it. `httpmw/apikey.go` routes on
+exactly that, so every key minted from this point reaches the branch WP5 added
+and gets its subject from the ledger identity rather than from the owner's roles
+with decoration. **This is milestone 4's change and it arrived here.**
+
+It was reported at the time as touching no authorization, which was wrong. What
+was checked is that verification still reads `api_keys`; what was not checked is
+which branch the key then takes. The tests cover it, minting through `MintKey`
+and asserting the AI agent subject, so the change is exercised. It was simply
+not announced.
 
 **Nothing is lost by dropping `apikey.Generate` from this path.** It defaults an
 empty scope set and allow list and validates scopes; `validateProfile` is
@@ -1539,8 +1559,10 @@ the check worth having.
 
 ### Milestone 3: endings move
 
-The function milestone 1 introduced posts the ending to the ledger as well as
-deleting the key. One function, because of the order these are taken in.
+**Most of this arrived without being written.** `RetireAIAgent` lapses every
+valid credential of an agent whatever its type, so once milestone 2 put the
+api_key credential in the ledger, all three retirement paths began posting its
+ending. What remains is endings where the credential dies and the agent lives.
 
 **Between milestone 2 and this one the ledger is complete about beginnings and
 silent about deaths**, which `rewrite_rbac.md` names as the mistake the staging
@@ -1548,24 +1570,109 @@ makes available. Splitting them takes that state deliberately rather than by
 oversight, and this milestone is what bounds how long it lasts. **Nothing should
 read the ledger as authoritative in between.**
 
-**The scope is AI agent credentials only.** The six human deletion sites stay
-as they are, which keeps this package to the one holder kind the proof of
-concept scopes.
+**Three sites, all `discharge`.** Sandbox deletion in `aisandboxes.go`, and
+workspace stop and workspace delete reached through `revokeAIAgentSessionTokens`
+in `provisionerdserver.go`. The grounds differ by site and are stated in "How
+the credential machine is read" in `entity_model.md`.
+
+**Implement `discharge`.** `entity/credential.go` has issue, revoke and lapse
+over a shared `invalidateCredential`, and nothing discharges. The ledger update
+is identical for every transition into `invalid`, so what a discharge adds is an
+entry: its own event, no actor, and a reference to what entailed it.
+
+**It must not copy `LapseCredential`'s signature**, which takes an actor and
+refuses to run without one. A status comment on that function records the rework
+this anticipates, and writing a new function to match the neighbour would give
+it that cheat at birth.
+
+**The two-field entailing reference, pulled in from WP13.** An entry reference
+and an annotative text, exactly one set, never both and never neither. All three
+sites fill the text, neither a sandbox nor a workspace being an entity, and it
+says what ended. Small enough to carry here, and this milestone is its only
+consumer.
+
+**Ordering and atomicity.** Each ending commits in the transaction that causes
+it, with the causing thing recorded first: the sandbox's destruction before its
+credential's discharge, the retirement before the mirrored key is deleted.
+Sharing the transaction closes the window in which the ledger says invalid while
+`api_keys` still authenticates. Both pairs are conceptually simultaneous and are
+ordered for data coherence rather than because one causes the other, which is
+the open question on posting order across ledgers.
+
+**Both rotations are excluded**, and extracting their common function belongs
+with the rotation work in WP13 rather than here. **This milestone does not
+depend on it**: nothing is added to the rotation paths either way.
+
+**Rotation is where `revoke` happens**, inside the rotation rather than at any
+ending, so posting a bare revoke at those sites would be work the rotation
+rewrite unpicks.
+
+**Where the discharge is posted has to be settled here.** It cannot go inside
+`RevokeKey` unconditionally, because that function is also how a retirement
+deletes the mirrored key after the credential has already lapsed, and a
+retirement must not post both. Either the endings call a function of their own,
+or the mirror deletion moves into the lapse and leaves `RevokeKey` to the
+endings alone. The second is tidier and is a larger change.
+
+**No handling for a key without a ledger credential.** Every AI agent key is
+minted by `MintKey` and every `MintKey` goes through the ledger, so a key
+without one cannot arise. The lookup's own error is the loud failure, and a
+branch would be code asserting a state that cannot occur.
+
+**The scope is AI agent credentials only.** The six human deletion sites stay as
+they are, which keeps this package to the one holder kind the proof of concept
+scopes.
+
+### Acceptance tests for milestone 3
+
+**Each of the three sites posts a discharge**, whose entry carries no actor and
+an annotative reference naming what ended.
+
+**A retirement still posts a lapse**, not a discharge, and its reference is the
+retirement entry rather than a text.
+
+**Nothing outside `RotateKey` and the endings deletes a key an AI agent holds**,
+which is a structural assertion and is what milestone 1 bought.
+
+**A rotation leaves the agent with a usable credential throughout**, which is
+what distinguishes it from an ending and is why it is excluded here.
 
 ### Milestone 4: the key names its holder
 
-`MintKey` mints with `holder_type = 'ai_agent'`. The key then routes to the
-branch WP5 added, `AIAgentRBACSubject`, and the older branch in
-`httpmw/apikey.go` becomes unreachable and goes.
+**The minting half is done and was not meant to be done here.** `MintKey` mints
+with `holder_type = 'ai_agent'` because the holder type rides on issuance, so
+this landed with milestone 2 on 2026-08-23. Every key minted since routes to the
+branch WP5 added, `AIAgentRBACSubject`, and takes its subject from the ledger
+identity.
 
-**This changes what an AI agent is authorized to do, not only how it is looked
-up.** The surviving branch builds the subject from the ledger identity; the
-dying one builds it from the owner's roles and decorates the result. The two do
-not produce the same subject, and the difference is the point rather than a
-detail to be preserved.
+**So the authorization change is live**, in the part of this work that was to be
+taken slowly. The surviving branch builds the subject from the ledger identity;
+the branch it displaced builds it from the owner's roles and decorates the
+result. The two do not produce the same subject, and the difference is the point
+rather than a detail to be preserved. What is different from the plan is only
+that nobody chose the moment.
 
-**It is also where the finding recorded in `security_findings.md` about the API
-key subject's cached AST surfaces**, those being the lines that carry it.
+**What remains is removal, and it is smaller than what happened.**
+
+Delete the branch at `httpmw/apikey.go` that fetches a user and reads its kind,
+and the resolution path behind it that exists to serve it. A freshly minted key
+never reaches it, so it is dead for anything this system now creates.
+
+Confirm nothing can reach it again, meaning no path mints a key for an AI agent
+with a user holder type. `MintKey` is the only minting path for an agent, so the
+check is that it stays so.
+
+**The finding recorded in `security_findings.md` about the API key subject's
+cached AST is carried by those same lines**, and deleting them is where it is
+answered rather than merely moved.
+
+**How this was found is worth keeping.** It was reported at the time as touching
+no authorization, and the error was checking that verification still reads
+`api_keys` and inferring from that that nothing downstream had moved. The
+question that would have caught it is not "does authentication still work" but
+"which branch does this key now take". That is the second consequence in this
+package to arrive unannounced, after milestone 3's endings, and both were found
+by being asked rather than by looking.
 
 ### Acceptance tests
 
@@ -1652,3 +1759,136 @@ without one**, which are the three consumers that read it today.
 
 **An agent's displayed name is unchanged**, which is what makes the username
 column's removal invisible rather than merely tolerable.
+
+## WP13. The credential journal's structure
+
+### Status
+
+**Not yet fully written.** Two milestones are in scope and more journal
+structure work is expected to join them before this is planned properly. What
+follows states what forces each and what is unresolved, not how it is done.
+
+### Milestone 1: an entry becomes an atomic group
+
+**The schema claims a capability its primary key forbids.** The comment on
+`credential_lifecycle_journal.entry_id` reads: "An entry may occupy several
+lines sharing this value, expressing an atomic group: rotation issues one
+credential and revokes another as a single event, so that no interval passes
+without a valid one." The table has `PRIMARY KEY (entry_id)`, one `subject` and
+one `event`, so an entry names exactly one credential and exactly one thing that
+happened to it. Two subjects in one entry is not expressible.
+
+**What forces it.** `entity_model.md` holds that rotation is issuing one
+credential and revoking another as one entry, and that recording it as two
+entries would assert the gap the overlap exists to prevent. The bar against
+rotation in the proof of concept was lifted on 2026-08-24, so the position now
+has to be implementable.
+
+**The shape this implies.** The entry carries when and who; the lines carry
+which credential and what happened to it. That moves `subject` and `event` off
+the entry, which touches every credential write rather than only rotation.
+
+**One actor per entry survives untouched, and that is a position rather than an
+artifact.** `entity_model.md`, "One actor per entry, not two": delegation being
+recorded once and separately, an entry needs no principal beside its agent, and
+recording the actor alone stays uniform whether a sandbox holds an AI agent or a
+user. One subject per entry is not a position. It is what the table happens to
+do, and it is the only thing standing between the schema's own comment and what
+the schema permits.
+
+**`subject` and `event` are a pair and move together.** Moving the subject alone
+looks sufficient and is not: a rotation is an `issue` and a `revoke`, so a single
+`event` column leaves it inexpressible however many subjects an entry can name.
+
+**So an atomic group is one party, one moment, several subjects, each with its
+own event.** The corpus's own phrasing implies the split, calling rotation "two
+subjects, one entry" and never suggesting two actors.
+
+**It pays beyond rotation.** `RetireAIAgent` lapses a holder's credentials as
+one entry each. Under lines that is one entry with a line per credential, which
+is what happened: one event ending several credentials.
+
+### Milestone 2: `reissue` acquires an implementation
+
+**This milestone stays in this package whatever the question below settles.**
+Eric, 2026-08-24. It is a separate milestone from the multiline work rather than
+a part of it, the two sharing a subject rather than a dependency.
+
+`reissue` is on the credential machine, `valid` to `valid`, commanded, and
+nothing posts it. Its reading names the case exactly: a credential's validity
+pushed forward rather than replaced, which the chat gateway does because an in
+flight generation may already hold the current identifier.
+
+**The site exists.** `coderd/x/chatd/synthetickey.go:57` extends a chat agent
+key's expiry with `UpdateAPIKeyByID`, writing a new `ExpiresAt` straight to
+`api_keys` where the ledger never sees it.
+
+**This item belongs to the expiration work as much as to this package**, being
+about an expiry date, and cannot land before that discussion settles what an
+expiry means. See the deferred agenda, which also records the four way tradeoff
+this sits inside.
+
+**The question that has to be answered before this milestone can proceed.**
+Whether `reissue` becomes a line like the operations in milestone 1. It has one
+subject and so does not need a multiline entry, and on its own it does not force
+the change.
+
+What the answer decides is ordering, not membership. Landing the two separately
+restructures the journal twice; landing them together makes the expiry
+discussion gate milestone 1 as well, which it otherwise does not. Neither is
+obviously right, and the cost of guessing is paid in a migration.
+
+### Item: an entailed entry's reference has two forms
+
+**An entailed operation's entry names what entailed it**, per
+`implementation_patterns.md`. Sandbox deletion discharges a credential and a
+sandbox has no journal, so there is no entry to name and will not be one until
+the sandbox is an entity.
+
+**Two parallel fields, exactly one of them set.** A reference to an entry, and
+an annotative text. The constraint is that one is present and the other is
+absent: never both, never neither. Eric, 2026-08-24.
+
+Use the entry reference wherever the implementation is mature enough to have
+one, which today is a lapse following a retirement, the retirement entry being
+real. Generate the text where it is not, which today is a discharge following a
+sandbox's destruction. **The two ending kinds therefore differ in which field
+they fill**, and that difference is the visible measure of how far the entity
+work has got.
+
+**The text is annotative and posting never reads it**, per "Annotative fields
+are named so, and posting never reads them" in `implementation_patterns.md`.
+
+**This modifies a position in `implementation_patterns.md`** and that document
+has not been changed. The position as written admits only the entry reference.
+
+### Not written yet
+
+Acceptance tests, the migration's shape, and whether the AI agent and
+authorization journals take the same treatment or keep the form they have. That
+last is the likeliest home for the further journal structure work this package
+is expected to gather.
+
+### Item: the rotation rewrite
+
+**Step one is a common function, and does not wait for anything.**
+`regenerateAIAgentSessionToken` in `provisionerdserver` and
+`rotateAISandboxSessionToken` in `aisandboxes` are substantially the same:
+`RevokeKey` by the profile's token name, then `MintKey` with that profile,
+differing only in which profile and how the agent is reached. Extracting
+`RotateKey` **puts the reason in the function's name**, which is what keeps the
+endings door from having to be told why it was called, and it is a pure refactor
+with no ledger contact.
+
+It was split out of WP11 milestone 3 on 2026-08-24, having been put there on the
+mistaken view that rotation was a kind of ending.
+
+**Step two needs the atomic group.** `regenerateAIAgentSessionToken` deletes the
+stale key and then mints, two statements outside a transaction in
+`acquireProtoJob`, so there is a real interval with no valid credential.
+Rewriting it onto a rotation entry, one entry naming both credentials, is short
+once milestone 1 exists.
+
+**The gap it leaves today has no plausible victim**, the legitimate holder not
+existing during a start build, but it is a true gap and the record should not
+have to assert one where the overlap is the point.

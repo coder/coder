@@ -594,9 +594,18 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 // LapseCredential invalidates a credential because what it rested on went
 // away, and records it.
 //
-// **Observed, not commanded.** Nobody withdrew it. The actor records who
-// noticed, which where the ending is ours to record is the control plane, so
-// callers pass SystemActor rather than whoever commanded that ending.
+// **Status: this signature is wrong and a rework is planned.** It was written
+// when a lapse was classed observed, so it takes an actor and refuses to run
+// without one, and callers pass SystemActor to satisfy it. A lapse is now held
+// to be entailed, and an entailed operation has no actor at all. What is here
+// is therefore a cheat sustaining a cheat: a fixed system identity, filed among
+// users because there is nowhere else to put one, standing in for a party that
+// does not exist.
+//
+// The rework removes the actor rather than finding a better one, and takes the
+// same decision for `discharge`, which is entailed on the same grounds and must
+// not acquire this shape by being written to match. Until then, read the actor
+// on a lapse entry as noise.
 //
 // store may be a transaction handle, so a lapse can commit with the ending that
 // caused it.

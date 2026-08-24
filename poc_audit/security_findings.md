@@ -4,7 +4,9 @@ Recorded 2026-08-06.
 
 This document records **mandates and recommendations for work after the proof
 of concept**. It prescribes no code. Nothing here is scheduled, and nothing
-here is implemented on the `tigre` branch.
+here is implemented on the `tigre` branch, with one exception: section 7 was
+found during proof of concept work and its live path was closed there, which is
+said where it arises.
 
 Terminology follows `poc_audit/audit_approach.md`. `workspace_agent` is always
 written in full. The bare word "agent" is reserved for the principal and agent
@@ -289,6 +291,73 @@ with treating this value as a bearer secret with a lifecycle. A name that says
 `token` invites the reader to think about a string being passed, and a type
 that says `uuid` forecloses storing a hash. Names that describe encodings and
 presentations are how the wrong model gets propagated.
+
+## 7. Subject construction for an AI agent
+
+Unlike the sections above, this concerns an AI agent rather than a
+`workspace_agent`, and it was found while writing proof of concept code rather
+than by tracing an existing design.
+
+### Problem
+
+**P9. A subject built by assigning onto a constructed `rbac.Subject` does not
+reach the policy, so a control that depends on it does not engage.**
+`coderd/httpmw/apikey.go` took the subject returned by `UserRBACSubject` and
+assigned `Type` and `FriendlyName` onto it. That subject already carries a
+cached rego AST, and `regoValue()` short-circuits on the cache, so neither
+assignment reached the policy input.
+
+The policy therefore saw `type: "user"` and `ai_agent_id: ""`. Both disjuncts of
+`subject_is_ai_agent` were false, and `policy.rego` has
+`ai_workspace_designation_allow if { not subject_is_ai_agent }` as the third
+conjunct of `allow`. The boundary passed unconditionally, so **the control
+confining an AI agent to workspaces designated to it did not engage on that
+path.**
+
+Verified three ways on 2026-08-23: a probe printing the rego value after each
+construction, the policy chain read end to end, and a test that fails when
+pointed at the direct-assignment construction.
+
+**Exposure was covered by an unrelated control, which is the fragile part.** The
+keys actually presented pin their allow list to a single workspace, so
+`scope_allow` confined them whatever the designation boundary did. The chat
+profile carries `workspace: *` and would have depended on designation, but its
+token is discarded and never presented. Nothing connected those two facts on
+purpose: **the control that was working was not the control that was supposed to
+be working**, and either of the facts holding it up could change without anyone
+noticing they were load bearing.
+
+**P10. Mutating an `rbac.Subject` after construction is silently ineffective,
+and nothing says so.** P9 is one instance. The type offers exported fields and
+an internal cache, and assigning to the fields after the cache exists changes
+what the struct reports and not what the authorizer decides. There is no error,
+no panic, and no divergence visible in a debugger that prints the struct.
+
+The two other places that build an AI agent's subject,
+`coderd/x/chatd/chattool/subject.go` and `coderd/httpmw/workspaceagent.go`, both
+call `Subject.AsAIAgent`, which rebuilds the cache, and are correct by having
+used the constructor rather than by having understood the hazard.
+
+### Solution
+
+**For P9**, build through a constructor that rebuilds the cache. On `tigre` this
+happened as a side effect: WP5 added `httpmw.AIAgentRBACSubject`, which builds
+through `AsAIAgent`, and once every key carried an AI agent holder type the
+defective branch stopped being reached. **The branch still exists and still
+contains the defect**, so the remaining work is deletion, not repair.
+
+That the live path was closed by a refactor which did not set out to close it is
+worth recording rather than being reassured by.
+
+**For P10**, the type should not permit it. Either the mutable fields become
+unexported with construction through functions that maintain the cache, or the
+cache is invalidated on assignment, or the value is made immutable and
+decoration returns a new subject. Any of the three converts a silent wrong
+answer into a compile error or a correct one.
+
+Until then the rule is that an `rbac.Subject` is constructed and never adjusted,
+and a reviewer seeing a field assigned on one should treat it as a defect
+regardless of what the surrounding code appears to achieve.
 
 ## Policy
 

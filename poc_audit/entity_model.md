@@ -1253,12 +1253,20 @@ It earns its place practically rather than theoretically: expiry is common
 enough that making every reader derive it from an actor would be a false
 economy, and the cost of the extra transition is close to nothing.
 
-**Rotation is out of scope, and is what multiline entries are for.** Rotating a
-credential is issuing one and revoking another: two subjects, one entry. The
-overlap exists so that no interval passes without a valid credential, and
-recording it as two entries would assert the very gap the overlap is there to
-prevent. Simultaneous issuance of several kinds of credential has the same
-shape, and is not wanted either.
+**Rotation is what multiline entries are for.** Rotating a credential is issuing
+one and revoking another: two subjects, one entry. The overlap exists so that no
+interval passes without a valid credential, and recording it as two entries
+would assert the very gap the overlap is there to prevent. Simultaneous issuance
+of several kinds of credential has the same shape.
+
+**The bar against rotation in the proof of concept is lifted.** Eric,
+2026-08-24. It was set when rotation looked irrelevant, and what changed is the
+recognition that RBAC has to be rewritten: the identity code rotates a workspace
+agent's credential on every start build by deleting one and minting another, and
+leaving that alone would entrench a way of thinking about credential issuance
+that the journal supersedes. **Atomicity across credential operations had no
+principle before and now has one.** Lifting the bar is not a commitment to do
+everything about rotation; it removes the prohibition.
 
 #### How the credential machine is read
 
@@ -1302,39 +1310,45 @@ one expired credential racing to record the same thing.
 authenticates nobody: there is no party left for it to speak for. It references
 the entry recording that ending.
 
-`discharge` arises when the authorization the credential serves ends while the
+`discharge` arises when the thing a credential is accessory to ends while the
 holder still exists. The credential would still identify its holder correctly;
-what has gone is the authority there was any point in exercising. It references
-the entry ending the authorization.
+what has gone is whatever made exercising it worth anything. It references the
+entry recording that ending.
 
 **The word is borrowed from suretyship**, where a surety is discharged when the
 principal obligation is discharged. The structure is the one wanted: a thing
 accessory to another ends because that other has ended, without anybody acting
-on the accessory thing. A credential is accessory to an authorization in the
-same way, being a means of exercising it.
+on the accessory thing.
 
-**Both grounds hold at once when an AI agent is retired, and the transition
-recorded is `lapse`.** The retirement ends the holder and lapses the
-authorization in the same instant, so neither of those endings caused the other.
-They are consequences of a common cause, and **a sibling is not referenced**:
-the reference names what an operation follows from, and following from the same
-thing is not following from each other. `discharge` is therefore reachable only
-where the authorization ends and the holder does not, which is `revoke` or
-`disqualify` of the grant.
+**A credential can be accessory in more than one way**, and the cases known here
+differ both in what it is accessory to and in what kind of thing entails the
+ending.
 
-**Both are entailed, and neither carries an actor.**
+An authorization is withdrawn from an AI agent that goes on existing. Its
+credential still names that agent, and a verifier would still accept it, and
+there is no longer anything it lets the agent do. The credential was accessory
+to the authority, being a means of exercising it.
 
-**Lapse ought to coincide with the end of the authorization, and in practice may
-not.** Every valid credential should become invalid at the moment the
-authorization supporting it ends. What is likely is that invalidation follows
-soon after, leaving an interval in which a credential remains valid although the
-authority it serves has gone.
+A sandbox is destroyed while the AI agent that occupied it goes on existing,
+holding the credentials issued for its other sandboxes. The credential issued
+for the destroyed sandbox is one nothing can be done with, there being no
+sandbox left to act in. The credential was accessory to the sandbox it was
+issued for.
 
-That is the second gap in this work handed to reconciliation rather than to a
-check, after a grant naming an agent that was never created. The check reads the
-credential ledger for rows still `valid` whose authorization has reached
-`terminated`, and the interval it finds is the measure of how far invalidation
-lags. It needs no state beyond the two ledgers.
+A workspace is deleted, and so is everything it contained. The credential is one
+of those contents. **This is a cascade, not as a database operation but as an
+entailment by material necessity**: there is no container any more.
+
+A workspace is stopped, and the container still exists, so that is not the
+ground. **A credential is attached to a live workspace and not to a suspended
+one, by operation of policy.** A credential no live actor can use is an
+unnecessary threat surface, so when the liveness goes the credential goes,
+because that is the prescribed behaviour.
+
+**Entailment by material necessity and entailment by rule are both entailment.**
+The first follows from what the world now is, the second from what the system
+has undertaken to do, and neither is anybody's act, so neither entry carries an
+actor.
 
 #### Relative lifespans, and what follows from them
 
@@ -1648,6 +1662,38 @@ that created the sandbox, and so reports at first hand.
 **What would make a false report detectable is the chain, not the reporter.** A
 report that disagrees with the creation entry above it is visible as a
 disagreement. Nothing about who reports makes it so.
+
+### What the credential machine's endings still owe
+
+**Moved out of "How the credential machine is read" on 2026-08-24.** Eric does
+not recall approving any of it, and `discharge` reached Established prematurely
+while he had asked for the question to be deferred until he understood it
+better. **A sibling is not referenced** is my line and should have appeared here
+in the first place. It needs tightening, and the enumeration of grounds below is
+now too narrow to survive the general characterization of `discharge`.
+
+**Both grounds hold at once when an AI agent is retired, and the transition
+recorded is `lapse`.** The retirement ends the holder and lapses the
+authorization in the same instant, so neither of those endings caused the other.
+They are consequences of a common cause, and **a sibling is not referenced**:
+the reference names what an operation follows from, and following from the same
+thing is not following from each other. `discharge` is therefore reachable only
+where the authorization ends and the holder does not, which is `revoke` or
+`disqualify` of the grant.
+
+**Both are entailed, and neither carries an actor.**
+
+**Lapse ought to coincide with the end of the authorization, and in practice may
+not.** Every valid credential should become invalid at the moment the
+authorization supporting it ends. What is likely is that invalidation follows
+soon after, leaving an interval in which a credential remains valid although the
+authority it serves has gone.
+
+That is the second gap in this work handed to reconciliation rather than to a
+check, after a grant naming an agent that was never created. The check reads the
+credential ledger for rows still `valid` whose authorization has reached
+`terminated`, and the interval it finds is the measure of how far invalidation
+lags. It needs no state beyond the two ledgers.
 
 ### One actor per entry, not two
 
