@@ -1102,6 +1102,42 @@ func validateChatMCPServerIDs(
 	return unique, invalid, nil
 }
 
+// normalizeRequestedChatMCPServerIDs validates a request's MCP server
+// selection for an existing chat. When requested is nil there is no
+// change to make. IDs already persisted on the chat are exempt from the
+// enabled-in-organization check: a server that is disabled or revoked
+// after selection must not block sends. The generation path skips
+// servers the chat can no longer use, and keeping the ID preserves the
+// selection if the server is re-enabled. A non-nil response indicates
+// the caller must write it with the returned status and stop.
+func (api *API) normalizeRequestedChatMCPServerIDs(ctx context.Context, chat database.Chat, requested *[]uuid.UUID) (*[]uuid.UUID, int, *codersdk.Response) {
+	if requested == nil {
+		return nil, 0, nil
+	}
+	normalized, invalid, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *requested)
+	if err != nil {
+		return nil, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Failed to validate MCP server IDs.",
+			Detail:  err.Error(),
+		}
+	}
+	persisted := make(map[uuid.UUID]struct{}, len(chat.MCPServerIDs))
+	for _, id := range chat.MCPServerIDs {
+		persisted[id] = struct{}{}
+	}
+	newlyInvalid := make([]uuid.UUID, 0, len(invalid))
+	for _, id := range invalid {
+		if _, ok := persisted[id]; !ok {
+			newlyInvalid = append(newlyInvalid, id)
+		}
+	}
+	if len(newlyInvalid) > 0 {
+		resp := invalidChatMCPServerIDsResponse(newlyInvalid)
+		return nil, http.StatusBadRequest, &resp
+	}
+	return &normalized, 0, nil
+}
+
 func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 	invalid := make([]string, 0, len(ids))
 	for _, id := range ids {
@@ -2555,36 +2591,12 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.MCPServerIDs != nil {
-		normalizedMCPServerIDs, invalidMCPServerIDs, err := validateChatMCPServerIDs(ctx, api.Database, chat.OrganizationID, *req.MCPServerIDs)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to validate MCP server IDs.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		req.MCPServerIDs = &normalizedMCPServerIDs
-		// IDs already persisted on the chat are exempt: a server that
-		// is disabled or revoked after selection must not block sends.
-		// The generation path skips servers the chat can no longer use,
-		// and keeping the ID preserves the selection if the server is
-		// re-enabled.
-		persisted := make(map[uuid.UUID]struct{}, len(chat.MCPServerIDs))
-		for _, id := range chat.MCPServerIDs {
-			persisted[id] = struct{}{}
-		}
-		newlyInvalid := make([]uuid.UUID, 0, len(invalidMCPServerIDs))
-		for _, id := range invalidMCPServerIDs {
-			if _, ok := persisted[id]; !ok {
-				newlyInvalid = append(newlyInvalid, id)
-			}
-		}
-		if len(newlyInvalid) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, invalidChatMCPServerIDsResponse(newlyInvalid))
-			return
-		}
+	normalizedMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
+	if mcpResp != nil {
+		httpapi.Write(ctx, rw, status, *mcpResp)
+		return
 	}
+	req.MCPServerIDs = normalizedMCPServerIDs
 
 	if req.PlanMode != nil {
 		if !validateChatPlanMode(*req.PlanMode) {
@@ -2803,6 +2815,12 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	editMCPServerIDs, status, mcpResp := api.normalizeRequestedChatMCPServerIDs(ctx, chat, req.MCPServerIDs)
+	if mcpResp != nil {
+		httpapi.Write(ctx, rw, status, *mcpResp)
+		return
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
@@ -2810,6 +2828,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		Content:         contentBlocks,
 		ModelConfigID:   editModelConfigID,
 		ReasoningEffort: editReasoningEffort,
+		MCPServerIDs:    editMCPServerIDs,
 	})
 	if editErr != nil {
 		if writeChatHookErr(ctx, rw, editErr, "Chat message denied by lifecycle hook.") {
