@@ -125,6 +125,44 @@ For each provider request, Coder selects credentials in this order:
 Each model belongs to a provider and has its own configuration for context limits,
 generation parameters, and provider-specific options.
 
+### Select an organization
+
+Model settings use the stable path `/ai/settings/models` and the `org` query parameter to select an organization.
+For example, `/ai/settings/models?org=engineering` opens the models that you can read in the `engineering` organization.
+
+If the requested organization isn't accessible, Coder selects your accessible default organization or your first accessible organization.
+Coder shows the organization picker when you can access more than 1 organization.
+
+Members with model read access can open the model list and model details.
+Coder shows model fields as read-only unless the member also has update permission.
+Create, update, delete, and share permissions control their corresponding actions independently.
+
+### Share a model
+
+Members with model share permission can grant model read access to members and groups in the selected organization.
+
+1. Navigate to **Admin settings** > **AI** > **Models**.
+2. Select the organization that owns the model.
+3. Select the model.
+4. Open **Model actions** and select **Share model**.
+5. Add or remove organization members and groups.
+6. Select **Save**.
+
+Coder applies the member and group changes when you save.
+Removing all entries clears the model's access list, so members without another read grant lose access on their next request.
+
+### Model visibility and runtime availability
+
+Management visibility and runtime availability are separate.
+A member can see a model in settings through its access list even when the model isn't available for chat.
+
+The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
+Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
+An unavailable provider can remain visible with a redacted reason while its models are omitted from the selector.
+
+Model APIs identify each configured model with a UUID.
+The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this model UUID.
+
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
@@ -260,37 +298,50 @@ contact an administrator.
 ## Model overrides
 
 Beyond the chat-level model picker, Coder Agents supports two override
-layers:
+layers. Both are stored per organization and resolve from the chat's
+organization:
 
-- **Subagent overrides** (admin, deployment-wide): Pin specific subagent
-  contexts to a particular model. Configure them at **Agents** >
-  **Settings** > **Manage Agents** > **Agents**.
-- **Personal overrides** (per user, opt-in by admin): Let users override
-  the model for their own root chats and delegated subagents. Admins
-  enable the toggle on the same admin page; once on, each user sees an
-  **Agents** tab in their personal **Agents** > **Settings**.
+- **Admin overrides** (per organization): Pin specific contexts to a
+  particular model. Configure them on the **Defaults & overrides** tab
+  under **AI Settings** > **Models** for the selected organization.
+- **Personal overrides** (per user and organization, opt-in by admin):
+  Let users override the model for their own root chats and delegated
+  subagents. Admins enable the deployment-wide toggle under
+  **AI Settings** > **Coder Agents**; once on, each user sees an
+  **Agents** tab in their personal **Agents** > **Settings**. Users in
+  more than one organization pick which organization to configure.
+
+> [!IMPORTANT]
+> When a deployment upgrades from the older deployment-wide override
+> storage, existing admin and personal overrides are deleted rather than
+> migrated. Admins and users must re-select their override models in
+> settings after the upgrade.
 
 The configurable contexts:
 
-| Context              | Layer        | Applies to                                                                     |
-|----------------------|--------------|--------------------------------------------------------------------------------|
-| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
-| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
-| **Title generation** | Admin only   | Automatic title generation for new chats.                                      |
-| **Root**             | User only    | The user's own root chats.                                                     |
+| Context              | Layer        | Applies to                                                                             |
+|----------------------|--------------|----------------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
+| **Title generation** | Admin only   | Automatic title generation for new chats.                                              |
+| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
+| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
+| **Root**             | User only    | The user's own root chats.                                                             |
 
-Resolution order, evaluated per chat or subagent:
+Resolution order, evaluated per chat or subagent from the chat's
+organization:
 
 1. Explicit `model_config_id` on the `spawn_agent` tool call (general and
    explore subagents only).
 1. Personal override (when the admin gate is on and a model is set).
-1. Admin subagent override.
-1. The chat's selected model (or the deployment default for new chats).
+1. Admin override.
+1. The chat's selected model (or the organization default for new chats).
 
 If a referenced model is later disabled or deleted, that layer is skipped
-and resolution falls through to the next. Explicit `spawn_agent` selection
-is different: an unusable `model_config_id` fails the tool call instead of
-falling through. Agents discover selectable models (and their reasoning
+and resolution falls through to the next, with two exceptions: an unusable
+explicit `spawn_agent` `model_config_id` fails the tool call, and an
+unusable title generation override skips title generation instead of
+falling back. Agents discover selectable models (and their reasoning
 effort ranges) with the `list_subagent_models` tool, which only returns
 enabled models usable with the chat owner's credentials. Computer-use
 subagents always run on the administrator-configured computer-use model and
@@ -298,8 +349,10 @@ reject explicit model selection.
 
 > [!NOTE]
 > Both override layers may change between releases.
-> The same values are available through the chat
-> configuration API under `/api/v2/chats/config/`.
+> Admin overrides are available through the API at
+> `/api/experimental/organizations/{organization}/chats/model-overrides`
+> and personal overrides at
+> `/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides`.
 
 ## User API keys (BYOK)
 

@@ -9,7 +9,6 @@ import {
 } from "react";
 import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
-import { v4 as uuidv4 } from "uuid";
 import { invalidateChatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
@@ -17,6 +16,7 @@ import type {
 	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -28,6 +28,7 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import { generateUUID } from "#/utils/random";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
@@ -140,6 +141,8 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	modelCatalogError?: unknown;
+	unavailableModelNotice?: string;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
@@ -167,7 +170,7 @@ interface AgentChatPageViewProps {
 	// Right panel state (owned by the parent so loading and
 	// loaded views share the same layout).
 	showSidebarPanel: boolean;
-	onSetShowSidebarPanel: (next: boolean | ((prev: boolean) => boolean)) => void;
+	onSetShowSidebarPanel: (next: boolean) => void;
 
 	// Sidebar content data.
 	prNumber: number | undefined;
@@ -203,6 +206,7 @@ interface AgentChatPageViewProps {
 	isPinned?: boolean;
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
+	isArchiveBlocked?: boolean;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -335,6 +339,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	modelCatalogError,
+	unavailableModelNotice,
 	reasoningEffort,
 	onReasoningEffortChange,
 	canConfigureAgentSetup,
@@ -378,6 +384,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
+	isArchiveBlocked,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -429,7 +436,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
 		null,
 	);
-	const visualExpanded = dragVisualExpanded ?? isRightPanelExpanded;
+	// Expansion must never outlive the panel: when narrow-viewport
+	// suppression or an explicit close hides the panel, gate expansion
+	// off (rather than resetting it) so it is restored with the panel.
+	const visualExpanded =
+		showSidebarPanel && (dragVisualExpanded ?? isRightPanelExpanded);
 
 	const [sidebarTabId, setSidebarTabIdState] = useState<string | null>(() =>
 		getPersistedSidebarTabId(agentId),
@@ -592,7 +603,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const createUserRightPanelTabId = (
 		kind: UserRightPanelTab["kind"],
 	): string => {
-		return `${kind}-${uuidv4()}`;
+		return `${kind}-${generateUUID()}`;
 	};
 
 	const handleAddTerminalTab = () => {
@@ -611,7 +622,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			{
 				id: tabId,
 				kind: "terminal",
-				reconnectionToken: uuidv4(),
+				reconnectionToken: generateUUID(),
 			},
 		]);
 		startPendingTab(tabId);
@@ -657,7 +668,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			id: createUserRightPanelTabId("terminal"),
 			kind: "terminal",
 			label: app.display_name ?? app.slug,
-			reconnectionToken: uuidv4(),
+			reconnectionToken: generateUUID(),
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
@@ -872,7 +883,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								parentChat={parentChat}
 								panel={{
 									showSidebarPanel,
-									onToggleSidebar: () => onSetShowSidebarPanel((prev) => !prev),
+									onToggleSidebar: () =>
+										onSetShowSidebarPanel(!showSidebarPanel),
 								}}
 								onArchiveAgent={handleArchiveAgentAction}
 								onUnarchiveAgent={handleUnarchiveAgentAction}
@@ -885,6 +897,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isPinned={isPinned}
 								isChildChat={isChildChat}
 								isArchiving={isArchivingThisChat}
+								isArchiveBlocked={isArchiveBlocked}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
@@ -903,6 +916,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										: undefined
 								}
 							/>
+							{modelCatalogError != null && (
+								<ErrorAlert error={modelCatalogError} />
+							)}
+							{unavailableModelNotice && (
+								<div
+									role="status"
+									aria-label={unavailableModelNotice}
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									{unavailableModelNotice}
+								</div>
+							)}
 							{chatOwnerWarning && (
 								<div
 									role="status"
@@ -932,6 +959,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</div>
 						<ChatPageTimeline
 							key={agentId}
+							organizationId={organizationId}
 							store={store}
 							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 							persistedError={persistedError}
@@ -1021,7 +1049,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					</div>
 					<RightPanel
 						isOpen={shouldShowSidebar}
-						isExpanded={isRightPanelExpanded}
+						isExpanded={showSidebarPanel && isRightPanelExpanded}
 						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 						onClose={() => onSetShowSidebarPanel(false)}
 						onVisualExpandedChange={setDragVisualExpanded}

@@ -284,6 +284,53 @@ func TestValidateChatModelProviderOptions_AnthropicThinkingDisplay(t *testing.T)
 	}
 }
 
+func TestValidateChatModelProviderOptions_GoogleThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		level   *string
+		budget  *int64
+		wantErr string
+	}{
+		{name: "Minimal", level: ptr.Ref("minimal")},
+		{name: "High", level: ptr.Ref(" HIGH ")},
+		{name: "Empty", level: ptr.Ref(" ")},
+		{name: "NilLevelWithBudget", budget: ptr.Ref(int64(2048))},
+		{name: "EmptyLevelWithBudget", level: ptr.Ref(""), budget: ptr.Ref(int64(2048))},
+		{
+			name:    "Invalid",
+			level:   ptr.Ref("ultra"),
+			wantErr: "provider_options.google.thinking_config.thinking_level must be one of minimal, low, medium, high",
+		},
+		{
+			name:    "LevelWithBudget",
+			level:   ptr.Ref("high"),
+			budget:  ptr.Ref(int64(2048)),
+			wantErr: "provider_options.google.thinking_config.thinking_level cannot be combined with thinking_budget",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateChatModelProviderOptions(&codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel:  tt.level,
+						ThinkingBudget: tt.budget,
+					},
+				},
+			})
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestValidateChatModelConfigProviderModel(t *testing.T) {
 	t.Parallel()
 

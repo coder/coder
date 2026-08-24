@@ -496,9 +496,9 @@ backend = "go:github.com/coder/whichtests"
 version = "v4.19.0"
 backend = "go:github.com/golang-migrate/migrate/v4/cmd/migrate"
 
-[[tools."go:github.com/golangci/golangci-lint/cmd/golangci-lint"]]
-version = "1.64.8"
-backend = "go:github.com/golangci/golangci-lint/cmd/golangci-lint"
+[[tools."go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint"]]
+version = "2.0.2"
+backend = "go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint"
 
 [[tools."go:github.com/goreleaser/nfpm/v2/cmd/nfpm"]]
 version = "v2.35.1"
@@ -707,7 +707,6 @@ url = "https://nodejs.org/dist/v22.19.0/node-v22.19.0-linux-arm64.tar.gz"
 [tools.node."platforms.linux-arm64-musl"]
 checksum = "sha256:4cea680423f98abc6a2a5ca127fb34c5f6586c24217f57749be6ea886c9be9a6"
 url = "https://nodejs.org/dist/v22.19.0/node-v22.19.0.tar.gz"
-install = "source"
 
 [tools.node."platforms.linux-x64"]
 checksum = "sha256:d36e56998220085782c0ca965f9d51b7726335aed2f5fc7321c6c0ad233aa96d"

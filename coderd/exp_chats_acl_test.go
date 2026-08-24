@@ -36,7 +36,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		opts.NotificationsEnqueuer = notifyEnq
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	sharedClientExp := codersdk.NewExperimentalClient(sharedClient)
@@ -223,7 +223,7 @@ func TestChatACLSharingNotifiesDirectReadersOnly(t *testing.T) {
 		opts.NotificationsEnqueuer = notifyEnq
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 
 	// A non-owner org admin can share another user's chat via ActionShare.
 	adminClient, admin := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID))
@@ -271,7 +271,7 @@ func TestChatACLSubChatInheritance(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 	sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	sharedClientExp := codersdk.NewExperimentalClient(sharedClient)
 
@@ -319,7 +319,7 @@ func TestChatACLValidation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_ = createChatModelConfig(t, client)
+	_ = createChatModel(t, client)
 	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "validation chat")
 	missingUserID := uuid.New()
 	missingGroupID := uuid.New()
@@ -410,7 +410,7 @@ func TestSharedReaderStreamChat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 	sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	sharedClientExp := codersdk.NewExperimentalClient(sharedClient)
 	chat := dbgen.Chat(t, db, database.Chat{
@@ -462,7 +462,7 @@ func TestListChatsSharedScope(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
 	viewerClientExp := codersdk.NewExperimentalClient(viewerClient)
 	sharedChat := dbgen.Chat(t, db, database.Chat{
@@ -561,7 +561,7 @@ func TestChatSharingDisabled(t *testing.T) {
 		opts.Pubsub = pubsub
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	modelConfig := createChatModelConfig(t, client)
+	modelConfig := createChatModel(t, client)
 	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
 	viewerClientExp := codersdk.NewExperimentalClient(viewerClient)
 

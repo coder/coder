@@ -11,8 +11,10 @@ import {
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
-import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
+import { aiTasksEnabled } from "./modules/tasks/useAITasksEnabled";
+import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexRedirect";
+import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -435,6 +437,9 @@ const AISettingsGatewayKeysPage = lazy(
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
 );
+const AISettingsOrganizationModelsLayout = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/OrganizationModelsLayout"),
+);
 const AISettingsInstructionsPage = lazy(
 	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
 );
@@ -463,24 +468,6 @@ const AISettingsUpdateMCPServerPage = lazy(
 			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
 		),
 );
-
-const AISettingsIndexRedirect = () => {
-	const { permissions } = useAuthenticated();
-
-	if (permissions.viewAnyAIProvider) {
-		return <Navigate to="/ai/settings/providers" replace />;
-	}
-
-	if (permissions.viewAIGatewayKeys) {
-		return <Navigate to="/ai/settings/gateway-keys" replace />;
-	}
-
-	if (permissions.editDeploymentConfig) {
-		return <Navigate to="/ai/settings/models" replace />;
-	}
-
-	return <Navigate to="/ai/settings/providers" replace />;
-};
 
 const GlobalLayout = () => {
 	return (
@@ -599,7 +586,7 @@ export const router = createBrowserRouter(
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
-					<Route path="/tasks" element={<TasksPage />} />
+					{aiTasksEnabled() && <Route path="/tasks" element={<TasksPage />} />}
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />
@@ -754,7 +741,15 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route index element={<AISettingsIndexRedirect />} />
-						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="models/defaults" element={<ModelDefaultsRedirect />} />
+						<Route
+							path="models"
+							element={<AISettingsOrganizationModelsLayout />}
+						>
+							<Route index element={<AISettingsModelsPage />} />
+							<Route path="add" element={<AISettingsAddModelPage />} />
+							<Route path=":modelId" element={<AISettingsUpdateModelPage />} />
+						</Route>
 						<Route
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
@@ -762,11 +757,6 @@ export const router = createBrowserRouter(
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
 						<Route path="coder-agents" element={<CoderAgentsPage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
-						<Route path="models/add" element={<AISettingsAddModelPage />} />
-						<Route
-							path="models/:modelId"
-							element={<AISettingsUpdateModelPage />}
-						/>
 						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />
 						<Route
 							path="mcp-servers/add"
@@ -828,7 +818,9 @@ export const router = createBrowserRouter(
 				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
-				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				{aiTasksEnabled() && (
+					<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
+				)}
 				<Route
 					path="/agents"
 					element={

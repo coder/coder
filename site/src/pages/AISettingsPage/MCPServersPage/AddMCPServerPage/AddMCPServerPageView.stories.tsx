@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import AddMCPServerPageView from "./AddMCPServerPageView";
 
 const meta: Meta<typeof AddMCPServerPageView> = {
@@ -10,9 +10,14 @@ const meta: Meta<typeof AddMCPServerPageView> = {
 	component: AddMCPServerPageView,
 	args: {
 		isSaving: false,
+		canCreate: true,
+		canSelectUserOIDC: true,
+		canViewServerList: true,
+		organizations: [MockDefaultOrganization],
+		organization: MockDefaultOrganization,
+		onSelectOrganization: fn(),
 		onCreateServer: fn(
-			async (req: TypesGen.CreateMCPServerConfigRequest) =>
-				({ ...MockMCPServerConfig, ...req }) as TypesGen.MCPServerConfig,
+			async (_req: TypesGen.CreateMCPServerConfigRequest) => true,
 		),
 		onCancel: fn(),
 	},
@@ -32,6 +37,11 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		const addButton = canvas.getByRole("button", { name: "Add server" });
 
+		await expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeVisible();
 		await expect(addButton).toBeDisabled();
 		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
 		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("github");
@@ -62,5 +72,31 @@ export const Default: Story = {
 				}),
 			);
 		});
+		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/^slug/i)).toHaveValue("");
+		await expect(canvas.getByLabelText(/server url/i)).toHaveValue("");
+		await expect(addButton).toBeDisabled();
+	},
+};
+
+export const UserOIDCRequiresDeploymentPermission: Story = {
+	args: {
+		canSelectUserOIDC: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /authentication/i }),
+		);
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: /authentication method/i }),
+		);
+		await expect(
+			body.getByRole("option", { name: "OAuth2" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: "User OIDC identity" }),
+		).not.toBeInTheDocument();
 	},
 };

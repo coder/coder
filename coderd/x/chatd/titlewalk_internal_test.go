@@ -11,7 +11,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
 func walkTestServer(t *testing.T) *Server {
@@ -27,8 +26,8 @@ func walkTestServer(t *testing.T) *Server {
 func resolvedCandidate(model string) manualTitleCandidate {
 	return manualTitleCandidate{
 		config: database.ChatModelConfig{Model: model},
-		resolve: func(context.Context) (chatprovider.Model, error) {
-			return chatprovider.Model{}, nil
+		resolve: func(context.Context) (resolvedModelCall, error) {
+			return resolvedModelCall{}, nil
 		},
 	}
 }
@@ -44,7 +43,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("a"), resolvedCandidate("b")},
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				calls++
 				return "Title A", nil
 			},
@@ -63,7 +62,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("slow"), resolvedCandidate("fast")},
-			func(_ context.Context, cand manualTitleCandidate, _ chatprovider.Model) (string, error) {
+			func(_ context.Context, cand manualTitleCandidate, _ resolvedModelCall) (string, error) {
 				models = append(models, cand.config.Model)
 				if cand.config.Model == "slow" {
 					return "", xerrors.Errorf("generate manual title: %w", context.DeadlineExceeded)
@@ -86,7 +85,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("first"), resolvedCandidate("second")},
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				calls++
 				return "", sentinel
 			},
@@ -103,8 +102,8 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 		candidates := []manualTitleCandidate{
 			{
 				config: database.ChatModelConfig{Model: "unavailable"},
-				resolve: func(context.Context) (chatprovider.Model, error) {
-					return chatprovider.Model{}, xerrors.New("no credentials")
+				resolve: func(context.Context) (resolvedModelCall, error) {
+					return resolvedModelCall{}, xerrors.New("no credentials")
 				},
 			},
 			resolvedCandidate("available"),
@@ -113,7 +112,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			candidates,
-			func(_ context.Context, cand manualTitleCandidate, _ chatprovider.Model) (string, error) {
+			func(_ context.Context, cand manualTitleCandidate, _ resolvedModelCall) (string, error) {
 				attempted = append(attempted, cand.config.Model)
 				return "Title", nil
 			},
@@ -131,7 +130,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("a"), resolvedCandidate("b")},
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				return "", xerrors.Errorf("generate manual title: %w", context.DeadlineExceeded)
 			},
 		)
@@ -153,7 +152,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			ctx,
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("a"), resolvedCandidate("b")},
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				calls++
 				// Simulate the caller disconnecting during this attempt.
 				cancel()
@@ -175,7 +174,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			ctx,
 			database.Chat{},
 			[]manualTitleCandidate{resolvedCandidate("a")},
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				calls++
 				return "Title", nil
 			},
@@ -191,7 +190,7 @@ func TestWalkManualTitleCandidates(t *testing.T) {
 			context.Background(),
 			database.Chat{},
 			nil,
-			func(context.Context, manualTitleCandidate, chatprovider.Model) (string, error) {
+			func(context.Context, manualTitleCandidate, resolvedModelCall) (string, error) {
 				return "Title", nil
 			},
 		)

@@ -2,7 +2,6 @@ import { useFormik } from "formik";
 import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
-import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
@@ -135,7 +134,7 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 
 interface UpdateGroupFormProps {
 	group: Group;
-	/** Whether the AI add-on settings are shown (gated by the aibridge feature). */
+	/** Whether the AI budget settings are shown (gated by the aibridge feature). */
 	showAISettings: boolean;
 	/** Per-member AI budget in dollars, or null for unlimited spend. */
 	initialBudgetDollars: number | null;
@@ -251,14 +250,9 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 
 			{showAISettings && (
 				<section className="flex flex-col gap-8 max-w-md">
-					<div className="flex items-center gap-2">
-						<h2 className="m-0 text-xl font-semibold text-content-primary">
-							AI budget
-						</h2>
-						<Badge variant="purple" size="sm">
-							AI add-on
-						</Badge>
-					</div>
+					<h2 className="m-0 text-xl font-semibold text-content-primary">
+						AI budget
+					</h2>
 					<div className="flex flex-col gap-6">
 						<div className="flex flex-col items-start gap-2">
 							<Label htmlFor={budgetField.id}>Monthly limit per member</Label>
@@ -278,7 +272,9 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									placeholder="no budget"
 									aria-invalid={budgetField.error}
 								/>
-								<InputGroupAddon align="inline-end">USD</InputGroupAddon>
+								<InputGroupAddon align="inline-end" className="pr-3">
+									USD
+								</InputGroupAddon>
 							</InputGroup>
 							<AIBudgetFeedback
 								error={budgetField.error}

@@ -17,34 +17,84 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 
 type OrganizationAutocompleteProps = {
 	value: Organization | null;
 	onChange: (organization: Organization | null) => void;
 	options: readonly Organization[];
+	// Collision set for disambiguation labels. Lets callers include
+	// organizations that are visible but not selectable, such as a
+	// selected organization missing from options. Defaults to options.
+	labelOrganizations?: readonly Organization[];
 	id?: string;
+	ariaLabel?: string;
 	required?: boolean;
+	disabled?: boolean;
+	/**
+	 * Overrides the trigger button's width/layout classes when the default
+	 * full-width treatment does not fit (e.g. a fixed-width switcher).
+	 */
+	triggerClassName?: string;
+	optionsTabbable?: boolean;
+};
+
+export const getOrganizationLabel = (
+	organization: Organization,
+	organizations: readonly Organization[],
+) => {
+	const displayName = organization.display_name || organization.name;
+	const hasCollidingDisplayName = organizations.some(
+		(other) =>
+			other.id !== organization.id &&
+			(other.display_name || other.name) === displayName,
+	);
+
+	if (hasCollidingDisplayName && organization.name !== displayName) {
+		return `${displayName} (${organization.name})`;
+	}
+	return displayName;
 };
 
 export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	value,
 	onChange,
 	options,
+	labelOrganizations,
 	id,
+	ariaLabel,
 	required,
+	disabled,
+	triggerClassName,
+	optionsTabbable = false,
 }) => {
 	const [open, setOpen] = useState(false);
+	const labelContext = labelOrganizations ?? options;
+
+	// GetOrganizations has no ORDER BY, so the caller needs a stable order.
+	const sortedOptions = options.toSorted((a, b) => {
+		if (a.id === value?.id) return -1;
+		if (b.id === value?.id) return 1;
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
 				<Button
 					id={id}
+					aria-label={ariaLabel}
 					variant="outline"
+					disabled={disabled}
 					aria-expanded={open}
 					aria-required={required}
 					data-testid="organization-autocomplete"
-					className="w-full justify-start gap-2 font-normal"
+					className={cn(
+						"w-full justify-start gap-2 font-normal",
+						triggerClassName,
+					)}
 				>
 					{value ? (
 						<>
@@ -53,7 +103,9 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 								src={value.icon}
 								fallback={value.display_name}
 							/>
-							<span className="truncate">{value.display_name}</span>
+							<span className="truncate">
+								{getOrganizationLabel(value, labelContext)}
+							</span>
 						</>
 					) : (
 						<span className="text-content-secondary">
@@ -72,7 +124,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					<CommandList>
 						<CommandEmpty>No organizations found.</CommandEmpty>
 						<CommandGroup>
-							{options.map((org) => (
+							{sortedOptions.map((org) => (
 								<CommandItem
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
@@ -80,6 +132,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										onChange(org);
 										setOpen(false);
 									}}
+									tabIndex={optionsTabbable ? 0 : undefined}
 								>
 									<Avatar
 										size="sm"
@@ -87,7 +140,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										fallback={org.display_name}
 									/>
 									<span className="truncate">
-										{org.display_name || org.name}
+										{getOrganizationLabel(org, labelContext)}
 									</span>
 									{value?.id === org.id && (
 										<CheckIcon className="ml-auto size-icon-sm shrink-0" />

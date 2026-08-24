@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog/v3"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 )
 
@@ -32,7 +31,7 @@ const (
 // only exercise the primary candidate do not force fallback resolution.
 type manualTitleCandidate struct {
 	config  database.ChatModelConfig
-	resolve func(ctx context.Context) (chatprovider.Model, error)
+	resolve func(ctx context.Context) (resolvedModelCall, error)
 }
 
 // manualTitleFallThrough reports whether a failed manual title attempt should
@@ -60,7 +59,7 @@ func (p *Server) walkManualTitleCandidates(
 	ctx context.Context,
 	chat database.Chat,
 	candidates []manualTitleCandidate,
-	attempt func(ctx context.Context, cand manualTitleCandidate, model chatprovider.Model) (string, error),
+	attempt func(ctx context.Context, cand manualTitleCandidate, resolved resolvedModelCall) (string, error),
 ) (string, database.ChatModelConfig, error) {
 	var lastErr error
 	var lastConfig database.ChatModelConfig
@@ -70,7 +69,7 @@ func (p *Server) walkManualTitleCandidates(
 			return "", lastConfig, ctxErr
 		}
 
-		model, err := cand.resolve(ctx)
+		resolved, err := cand.resolve(ctx)
 		if err != nil {
 			// Model construction is best-effort: log and try the next
 			// candidate rather than failing the whole request.
@@ -84,7 +83,7 @@ func (p *Server) walkManualTitleCandidates(
 			continue
 		}
 
-		title, err := attempt(ctx, cand, model)
+		title, err := attempt(ctx, cand, resolved)
 		if err == nil {
 			return title, cand.config, nil
 		}
@@ -110,14 +109,11 @@ func (p *Server) walkManualTitleCandidates(
 
 // newResolvedManualTitleCandidate wraps an already-resolved model as a
 // candidate whose resolve step is a no-op.
-func newResolvedManualTitleCandidate(
-	config database.ChatModelConfig,
-	model chatprovider.Model,
-) manualTitleCandidate {
+func newResolvedManualTitleCandidate(resolved resolvedModelCall) manualTitleCandidate {
 	return manualTitleCandidate{
-		config: config,
-		resolve: func(context.Context) (chatprovider.Model, error) {
-			return model, nil
+		config: resolved.dbConfig,
+		resolve: func(context.Context) (resolvedModelCall, error) {
+			return resolved, nil
 		},
 	}
 }
@@ -132,18 +128,13 @@ func (p *Server) newLazyManualTitleCandidate(
 ) manualTitleCandidate {
 	return manualTitleCandidate{
 		config: config,
-		resolve: func(ctx context.Context) (chatprovider.Model, error) {
-			route, err := p.resolveModelRouteForConfig(ctx, chat.OwnerID, config)
-			if err != nil {
-				return chatprovider.Model{}, err
-			}
-			return p.newModel(ctx, modelClientRequest{
-				Chat:          chat,
-				ModelName:     config.Model,
-				UserAgent:     chatprovider.UserAgent(),
-				ExtraHeaders:  chatprovider.CoderHeaders(chat),
-				ConfigOptions: config.Options,
-			}, route, modelOpts)
+		resolve: func(ctx context.Context) (resolvedModelCall, error) {
+			return p.resolveModelCall(ctx, modelCallSpec{
+				purpose:        "title",
+				chat:           chat,
+				explicitConfig: &config,
+				buildOptions:   modelOpts,
+			})
 		},
 	}
 }
