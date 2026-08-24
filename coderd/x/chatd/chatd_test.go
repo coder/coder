@@ -6447,14 +6447,14 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			}
 		}
 
+		// Batch runtime bills a dedicated model-only usage row, so no
+		// user-visible tool row ever carries runtime.
 		messages := chatMessages(ctx, t, db, chat.ID)
-		billedToolRows := 0
 		for _, msg := range messages {
-			if msg.Role == database.ChatMessageRoleTool && msg.RuntimeMs.Valid {
-				billedToolRows++
+			if msg.Role == database.ChatMessageRoleTool {
+				require.False(t, msg.RuntimeMs.Valid)
 			}
 		}
-		require.LessOrEqual(t, billedToolRows, 1)
 	})
 }
 

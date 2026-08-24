@@ -1597,6 +1597,7 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
 		BatchRuntime:         step.BatchRuntime,
+		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,
 		ToolResultCreatedAt:  step.ToolResultCreatedAt,
 		ReasoningStartedAt:   step.ReasoningStartedAt,

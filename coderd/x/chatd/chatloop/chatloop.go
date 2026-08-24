@@ -79,6 +79,9 @@ type PersistedStep struct {
 	// BatchRuntime is the union of billed local-tool execution intervals.
 	// Parallel calls count once and serial calls count from their own start.
 	BatchRuntime time.Duration
+	// BatchBilledCalls counts the executed calls whose intervals produced
+	// BatchRuntime. Audit metadata for the batch usage record.
+	BatchBilledCalls int
 	// PendingDynamicToolCalls lists tool calls that target
 	// dynamic tools. When non-empty the chatloop exits with
 	// ErrDynamicToolCall so the caller can execute them
@@ -637,19 +640,21 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 	if ctx.Err() != nil {
 		return PersistedStep{}, ctx.Err()
 	}
+	billedIntervals := billableBatchIntervals(toolExecutions, opts.UnbilledToolNames)
 	return PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-		BatchRuntime:        billableBatchDuration(toolExecutions, opts.UnbilledToolNames),
+		BatchRuntime:        BilledIntervalsDuration(billedIntervals),
+		BatchBilledCalls:    len(billedIntervals),
 	}, nil
 }
 
-// billableBatchDuration returns the union of billed execution intervals.
-// Unbilled tools and gaps between billed intervals do not count.
-func billableBatchDuration(
+// billableBatchIntervals returns the billed execution intervals.
+// Unbilled tools and calls without both stamps do not count.
+func billableBatchIntervals(
 	executions []toolExecutionResult,
 	unbilledToolNames map[string]bool,
-) time.Duration {
+) []BilledInterval {
 	intervals := make([]BilledInterval, 0, len(executions))
 	for _, execution := range executions {
 		if unbilledToolNames[execution.content.ToolName] ||
@@ -659,7 +664,7 @@ func billableBatchDuration(
 		}
 		intervals = append(intervals, execution.interval)
 	}
-	return BilledIntervalsDuration(intervals)
+	return intervals
 }
 
 // BilledInterval is one billed tool call's execution window.
