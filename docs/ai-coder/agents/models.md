@@ -297,14 +297,19 @@ contact an administrator.
 
 ## Model overrides
 
-Beyond the chat-level model picker, Coder Agents supports two override layers.
-Both are stored per organization and resolve from the chat's organization:
+Beyond the chat-level model picker, Coder Agents supports two override
+layers. Both are stored per organization and resolve from the chat's
+organization:
 
-- **Admin overrides** (per organization): Pin specific contexts to a particular model.
-  Configure them under **AI Settings** > **Coder Agents** > **Organization settings** for the selected organization.
-- **Personal overrides** (per user and organization, opt-in by admin): Let users override the model for their own root chats and delegated subagents.
-  Admins enable the deployment-wide toggle under **AI Settings** > **Coder Agents**; once enabled, each user sees an **Agents** tab in their personal **Agents** > **Settings**.
-  Users in more than one organization pick which organization to configure.
+- **Admin overrides** (per organization): Pin specific contexts to a
+  particular model. Configure them on the **Defaults & overrides** tab
+  under **AI Settings** > **Models** for the selected organization.
+- **Personal overrides** (per user and organization, opt-in by admin):
+  Let users override the model for their own root chats and delegated
+  subagents. Admins enable the deployment-wide toggle under
+  **AI Settings** > **Coder Agents**; once on, each user sees an
+  **Agents** tab in their personal **Agents** > **Settings**. Users in
+  more than one organization pick which organization to configure.
 
 > [!IMPORTANT]
 > When a deployment upgrades from the older deployment-wide override
