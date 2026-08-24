@@ -1934,6 +1934,13 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 		expect(
 			canvas.queryByRole("tab", { name: "Summary" }),
 		).not.toBeInTheDocument();
+
+		// Widening again restores the persisted panel, still expanded.
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
