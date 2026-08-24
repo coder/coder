@@ -86,8 +86,8 @@ type FindToolsOptions struct {
 }
 
 type FindToolsArgs struct {
-	Queries []string `json:"queries,omitempty"`
-	Names   []string `json:"names,omitempty"`
+	Queries []string `json:"queries,omitempty" description:"Task or capability keywords, matched against tool names, descriptions, parameters, and server metadata. Prefer a few specific keywords over sentences."`
+	Names   []string `json:"names,omitempty" description:"Exact cataloged tool names to activate directly."`
 	Limit   int      `json:"limit,omitempty" description:"Maximum keyword matches to return and activate (default 10, max 20)."`
 }
 
@@ -343,7 +343,10 @@ type SearchBudget struct {
 }
 
 // SearchTools includes exact name activations first, then fills the
-// remaining match slots with the top-scored keyword matches. Keyword
+// remaining match slots with keyword matches ranked by distinct query
+// terms matched before raw score, so one generic high-weight term
+// (such as a server name appearing in every tool name on that server)
+// cannot outrank entries that match more of the query. Keyword
 // fill stops at the per-call limit argument (default
 // findToolsDefaultMatches, clamped to findToolsMaxMatches), while exact
 // names are explicit activation requests and bypass the limit up to the
@@ -367,13 +370,15 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 	queries := parseFindToolsQueries(entries, queryArgs)
 
 	type scoredEntry struct {
-		entry FindToolCatalogEntry
-		score int
+		entry    FindToolCatalogEntry
+		coverage int
+		score    int
 	}
 	scored := make([]scoredEntry, 0, len(entries))
 	for _, entry := range entries {
 		tokens := tokenizeFindToolsEntry(entry)
 		score := 0
+		matched := make(map[string]struct{})
 		for _, query := range queries {
 			if query.server != "" {
 				if query.exact && entry.Server != query.server {
@@ -385,17 +390,27 @@ func SearchTools(entries []FindToolCatalogEntry, args FindToolsArgs, budget Sear
 			}
 			if query.server != "" && len(query.tokens) == 0 {
 				score++
+				// A scope-only query's whole content is its server, so
+				// the scope hit is its one covered term. The ":" prefix
+				// cannot collide with tokens, which never contain ":".
+				matched[":"+query.server] = struct{}{}
 				continue
 			}
 			for _, token := range query.tokens {
-				score += tokens.score(token)
+				if tokenScore := tokens.score(token); tokenScore > 0 {
+					score += tokenScore
+					matched[token] = struct{}{}
+				}
 			}
 		}
 		if score > 0 {
-			scored = append(scored, scoredEntry{entry: entry, score: score})
+			scored = append(scored, scoredEntry{entry: entry, coverage: len(matched), score: score})
 		}
 	}
 	slices.SortFunc(scored, func(a, b scoredEntry) int {
+		if a.coverage != b.coverage {
+			return b.coverage - a.coverage
+		}
 		if a.score != b.score {
 			return b.score - a.score
 		}
@@ -528,10 +543,59 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 			}
 		}
 		if !scoped {
-			parsed = append(parsed, scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)})
+			parsed = append(parsed, autoScopeFindToolsQuery(servers, query))
 		}
 	}
 	return parsed
+}
+
+// autoScopeFindToolsQuery scopes an unprefixed query to a cataloged
+// server when exactly one of its whitespace-delimited words names that
+// server, so "linear issues" ranks like "linear: issues" instead of the
+// server name inflating every tool on that server. An exact-case word
+// wins before the case-insensitive fallback, mirroring prefix scopes.
+// A query whose words name several servers stays unscoped because the
+// intended scope is ambiguous.
+func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuery {
+	words := strings.Fields(query)
+	scopeIndex := -1
+	var scope scopedFindToolsQuery
+	for i, word := range words {
+		server, exact, ok := matchFindToolsServerWord(servers, word)
+		if !ok {
+			continue
+		}
+		if scopeIndex >= 0 {
+			scopeIndex = -1
+			break
+		}
+		scopeIndex = i
+		scope = scopedFindToolsQuery{server: server, exact: exact}
+	}
+	if scopeIndex < 0 {
+		return scopedFindToolsQuery{tokens: tokenizeFindToolsQuery(query)}
+	}
+	scope.tokens = tokenizeFindToolsQuery(strings.Join(slices.Delete(words, scopeIndex, scopeIndex+1), " "))
+	return scope
+}
+
+// matchFindToolsServerWord resolves one query word to a cataloged
+// server name, exact-case first. A folded match reports exact=false so
+// scoring spans case-colliding servers, exactly like a folded prefix.
+func matchFindToolsServerWord(servers []string, word string) (server string, exact bool, ok bool) {
+	folded := ""
+	for _, candidate := range servers {
+		if word == candidate {
+			return candidate, true, true
+		}
+		if folded == "" && strings.EqualFold(word, candidate) {
+			folded = candidate
+		}
+	}
+	if folded != "" {
+		return folded, false, true
+	}
+	return "", false, false
 }
 
 // cutPrefixFold is a case-insensitive strings.CutPrefix. It compares
@@ -630,7 +694,7 @@ func (t findToolsEntryTokens) score(token string) int {
 }
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry, catalogTokenBudget float64) string {
-	const usage = "Search deferred MCP tools by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most limit tools are returned and activated per call (default 10, max 20); exact names always activate, up to 20 per call. Narrow the query or raise limit for more.\n\n"
+	const usage = "The MCP tools cataloged below exist but are deferred: they stay out of your tool list until activated. Search them by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix; matches activate and become callable on the next step. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most limit tools are returned and activated per call (default 10, max 20); exact names always activate, up to 20 per call. Narrow the query or raise limit for more.\n\n"
 	budget := float64(findToolsCatalogTokens)
 	if catalogTokenBudget > 0 && catalogTokenBudget < budget {
 		budget = catalogTokenBudget

@@ -121,6 +121,40 @@ func TestSearchTools(t *testing.T) {
 			"tool description match outranks server metadata match")
 		require.Len(t, result.Matches, 2)
 	})
+	t.Run("coverage outranks concentrated score", func(t *testing.T) {
+		t.Parallel()
+		coverageEntries := []FindToolCatalogEntry{
+			{Name: "tracker__update", Description: "Assign labels and update status"},
+			{Name: "labels__tool", Description: "unrelated"},
+		}
+		result, _ := SearchTools(coverageEntries, FindToolsArgs{Queries: []string{"labels status"}}, SearchBudget{})
+		require.Len(t, result.Matches, 2)
+		require.Equal(t, "tracker__update", result.Matches[0].Name,
+			"an entry matching more distinct query terms outranks a higher single-term score")
+	})
+	t.Run("server-name query words scope automatically", func(t *testing.T) {
+		t.Parallel()
+		autoEntries := []FindToolCatalogEntry{
+			{Name: "linear__create_issue", Description: "Create an issue", Server: "linear"},
+			{Name: "linear__list_teams", Description: "List teams", Server: "linear"},
+			{Name: "github__create_issue", Description: "Create an issue imported from linear", Server: "github"},
+		}
+		result, _ := SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear issue"}}, SearchBudget{})
+		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
+			"a query word naming a server scopes the query to that server")
+
+		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"Linear issue"}}, SearchBudget{})
+		require.Equal(t, []string{"linear__create_issue"}, result.Activated,
+			"a case-variant server word still scopes")
+
+		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear"}}, SearchBudget{})
+		require.Equal(t, []string{"linear__create_issue", "linear__list_teams"}, result.Activated,
+			"a bare server-name query lists that server's tools without cross-server description hits")
+
+		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear github issue"}}, SearchBudget{})
+		require.Len(t, result.Activated, 3,
+			"words naming two servers leave the query unscoped")
+	})
 	t.Run("server prefix scope", func(t *testing.T) {
 		t.Parallel()
 		scopedEntries := []FindToolCatalogEntry{
@@ -160,6 +194,14 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB: status"}}, SearchBudget{})
 		require.Len(t, result.Activated, 2,
 			"a prefix matching no exact-case name falls back to spanning the case-colliding servers")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GitHub status"}}, SearchBudget{})
+		require.Equal(t, []string{"GitHub__enterprise_status"}, result.Activated,
+			"an exact-case server word auto-scopes only to its own server")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB status"}}, SearchBudget{})
+		require.Len(t, result.Activated, 2,
+			"a server word matching no exact-case name spans the case-colliding servers")
 	})
 	t.Run("folded scopes with different byte lengths", func(t *testing.T) {
 		t.Parallel()
@@ -291,6 +333,17 @@ func TestFindTools(t *testing.T) {
 	resp, err = tool.Run(context.Background(), fantasy.ToolCall{Input: `{}`})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)
+}
+
+func TestFindToolsArgDescriptions(t *testing.T) {
+	t.Parallel()
+	info := FindTools(FindToolsOptions{}).Info()
+	for _, name := range []string{"queries", "names", "limit"} {
+		property, ok := info.Parameters[name].(map[string]any)
+		require.True(t, ok, "parameter %q must exist in the schema", name)
+		description, _ := property["description"].(string)
+		require.NotEmpty(t, description, "parameter %q needs model guidance in its schema description", name)
+	}
 }
 
 func TestFindToolsSerialToolCalls(t *testing.T) {
