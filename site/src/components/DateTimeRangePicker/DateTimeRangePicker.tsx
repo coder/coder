@@ -211,7 +211,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				{/* The trigger mirrors ComboboxButton (gap-2, pr-1.5, chevron
+				{/* The trigger mirrors ComboboxButton (gap-2, pr-1.5, icons
 				    inheriting the button's primary text color) so it matches
 				    the other filter dropdowns. The calendar icon sizing is
 				    marked important because the Button's `[&>svg]` rules would
@@ -221,10 +221,7 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 				    glyph is denser than the magnifier, so its stroke is
 				    slightly thinner to read as the same optical weight. */}
 				<Button variant="outline" size={size} className="group gap-2 pr-1.5">
-					<CalendarIcon
-						strokeWidth={1.75}
-						className="!size-icon-sm !p-0 text-content-secondary"
-					/>
+					<CalendarIcon strokeWidth={1.75} className="!size-icon-sm !p-0" />
 					<span>{triggerLabel}</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
