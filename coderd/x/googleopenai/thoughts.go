@@ -209,6 +209,12 @@ func assembleDataLine(payload, suffix []byte) []byte {
 // completion.
 const functionCallFilterFinishReasonPrefix = "function_call_filter"
 
+// MalformedFunctionCallMessagePrefix opens the message of the injected SSE
+// error event. chaterror matches this exact prefix to classify the failure,
+// so unrelated provider errors that merely mention function_call_filter are
+// not misclassified.
+const MalformedFunctionCallMessagePrefix = "gemini dropped the model's generated function call"
+
 type streamErrorEvent struct {
 	Error streamErrorDetail `json:"error"`
 }
@@ -229,7 +235,7 @@ func functionCallFilterErrorPayload(choices gjson.Result) []byte {
 			continue
 		}
 		payload, err := json.Marshal(streamErrorEvent{Error: streamErrorDetail{
-			Message: "gemini dropped the model's generated function call (finish_reason " + strconv.Quote(reason.Str) + ")",
+			Message: MalformedFunctionCallMessagePrefix + " (finish_reason " + strconv.Quote(reason.Str) + ")",
 			Type:    "invalid_response_error",
 			Code:    "malformed_function_call",
 		}})

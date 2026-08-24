@@ -9,6 +9,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/googleopenai"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -387,14 +388,16 @@ func streamIncompleteMessage(provider string) string {
 // functionCallFilterClassification matches the stream error injected by
 // coderd/x/googleopenai when Gemini's server-side function-call filter drops
 // a generated call (finish_reason "function_call_filter: ..."). Retrying
-// re-samples the call, which usually produces a well-formed one.
+// re-samples the call, which usually produces a well-formed one. The match
+// requires the injected message prefix so provider errors that merely
+// mention function_call_filter keep their own classification.
 func functionCallFilterClassification(
 	lowerMessage string,
 	provider string,
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
-	if !strings.Contains(lowerMessage, "function_call_filter") {
+	if !strings.Contains(lowerMessage, googleopenai.MalformedFunctionCallMessagePrefix) {
 		return ClassifiedError{}, false
 	}
 	if provider == "" {

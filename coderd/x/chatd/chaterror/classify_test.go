@@ -80,6 +80,20 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			// A provider error that merely mentions function_call_filter
+			// must keep its own classification (here: strong auth signal),
+			// not the injected malformed-call classification.
+			name: "FunctionCallFilterMentionKeepsOwnClassification",
+			err:  xerrors.New(`status 401: function_call_filter is not supported for this endpoint`),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Kind:       codersdk.ChatErrorKindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 401,
+			},
+		},
+		{
 			// The error event injected by coderd/x/googleopenai when
 			// Gemini's server-side filter drops a generated function call.
 			name: "GeminiFunctionCallFilter",
