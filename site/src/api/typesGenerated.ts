@@ -5326,12 +5326,15 @@ export interface Feature {
 	/**
 	 * Actual is the usage measured against Limit, when known: a
 	 * point-in-time count for most features, or usage accumulated over
-	 * UsagePeriod for features that set one. Its unit matches Limit's;
+	 * UsagePeriod for features that set one. Unlicensed
+	 * FeatureAgentRuntimeHours instead reports all retained usage since
+	 * tracking began without a UsagePeriod. Its unit matches Limit's;
 	 * FeatureAgentRuntimeHours reports whole hours floored from the
 	 * recorded milliseconds, with the precise value available in
 	 * ActualMs. FeatureAgentRuntimeHours usage can trail by roughly one
 	 * hour because the current hour is not emitted, plus the entitlement
-	 * refresh interval.
+	 * refresh interval, and can undercount after outages beyond the usage
+	 * event backfill window.
 	 */
 	readonly actual?: number;
 	/**

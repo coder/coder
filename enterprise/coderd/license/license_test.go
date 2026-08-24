@@ -1092,7 +1092,7 @@ func TestEntitlements(t *testing.T) {
 		// Drive the real Entitlements closures with a mock database so
 		// measureAgentRuntimeMs's failure path is exercised end to end: the cause
 		// must land in the coderd log, which the stable payload texts point
-		// at, and must not land on the unauthenticated entitlements payload.
+		// at, and must not land on the entitlements payload.
 		mDB, _ := premiumRuntimeHoursFixture(t)
 
 		mDB.EXPECT().
@@ -1546,6 +1546,9 @@ func TestLicenseEntitlements(t *testing.T) {
 	var agentRuntimeUsageQueryFrom, agentRuntimeUsageQueryTo time.Time
 	var agentRuntimeUsageQueryCalled bool
 
+	var communityRuntimeUsageQueryFrom, communityRuntimeUsageQueryTo time.Time
+	var communityRuntimeUsageQueryCalled bool
+
 	// grandfatherIssuedAt is the fixed UsagePeriod.IssuedAt carried by the
 	// zero-hour agent runtime allocation that premium licenses without
 	// agent runtime hour claims are grandfathered into; see license.go.
@@ -1592,6 +1595,54 @@ func TestLicenseEntitlements(t *testing.T) {
 				assertNoWarnings(t, entitlements)
 				assert.False(t, entitlements.HasLicense)
 				assert.False(t, entitlements.Trial)
+			},
+		},
+		{
+			Name: "CommunityAgentRuntime",
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, from, to time.Time) (int64, error) {
+					communityRuntimeUsageQueryFrom = from
+					communityRuntimeUsageQueryTo = to
+					communityRuntimeUsageQueryCalled = true
+					return (10*time.Hour + 18*time.Minute).Milliseconds(), nil
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoErrors(t, entitlements)
+				assertNoWarnings(t, entitlements)
+				require.True(t, communityRuntimeUsageQueryCalled)
+				assert.Equal(t, time.Unix(0, 0).UTC(), communityRuntimeUsageQueryFrom)
+				assert.Equal(t, entitlements.RefreshedAt, communityRuntimeUsageQueryTo)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+				assert.False(t, feature.Enabled)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(10), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, int64(37_080_000), *feature.ActualMs)
+				assert.Nil(t, feature.Limit)
+				assert.Nil(t, feature.SoftLimit)
+				assert.Nil(t, feature.HardLimit)
+				assert.Nil(t, feature.UsagePeriod)
+			},
+		},
+		{
+			Name: "CommunityAgentRuntimeQueryError",
+			Arguments: license.FeatureArguments{
+				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
+					return 0, xerrors.New("kaboom")
+				},
+			},
+			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
+				assertNoWarnings(t, entitlements)
+				require.Equal(t, []string{codersdk.LicenseAgentRuntimeUsageUnavailableErrorText}, entitlements.Errors)
+				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
+				assert.False(t, feature.Enabled)
+				assert.Nil(t, feature.Actual)
+				assert.Nil(t, feature.ActualMs)
+				assert.Nil(t, feature.UsagePeriod)
+				userLimit := entitlements.Features[codersdk.FeatureUserLimit]
+				require.NotNil(t, userLimit.Actual)
 			},
 		},
 		{
@@ -2033,7 +2084,7 @@ func TestLicenseEntitlements(t *testing.T) {
 				require.Len(t, entitlements.Errors, 1)
 				assert.Equal(t, codersdk.LicenseAgentRuntimeUsageUnavailableErrorText, entitlements.Errors[0])
 				// The raw error is logged rather than exposed on the
-				// unauthenticated entitlements payload.
+				// entitlements payload.
 				assert.NotContains(t, entitlements.Errors[0], "kaboom")
 				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
 				assert.Nil(t, feature.Actual)

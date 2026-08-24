@@ -106,6 +106,8 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
+		isAgentRuntimeUsageLoading={false}
+		isAgentRuntimeUsageUnavailable
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}

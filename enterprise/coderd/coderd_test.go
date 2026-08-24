@@ -43,6 +43,7 @@ import (
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
@@ -53,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
+	enterpriseusage "github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -312,6 +314,53 @@ func TestEntitlements(t *testing.T) {
 			return entitlements.HasLicense
 		}, testutil.WaitShort, testutil.IntervalFast)
 	})
+}
+
+func TestCommunityAgentRuntimeEntitlements(t *testing.T) {
+	t.Parallel()
+
+	client, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		DontAddLicense: true,
+	})
+	inserter := enterpriseusage.NewDBInserter()
+	createdAt := dbtime.Now().Add(-2 * time.Hour).Truncate(time.Hour)
+	runtimeMs := (10*time.Hour + 18*time.Minute).Milliseconds()
+	err := inserter.InsertHeartbeatUsageEvent(
+		dbauthz.AsUsagePublisher(t.Context()),
+		api.Database,
+		uuid.NewString(),
+		createdAt,
+		usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs},
+	)
+	require.NoError(t, err)
+	require.NoError(t, api.AGPL.RefreshEntitlements(t.Context()))
+
+	full, err := client.Entitlements(t.Context())
+	require.NoError(t, err)
+	require.False(t, full.HasLicense)
+	runtime := full.Features[codersdk.FeatureAgentRuntimeHours]
+	require.Equal(t, codersdk.EntitlementNotEntitled, runtime.Entitlement)
+	require.False(t, runtime.Enabled)
+	require.Nil(t, runtime.Limit)
+	require.Nil(t, runtime.SoftLimit)
+	require.Nil(t, runtime.HardLimit)
+	require.Nil(t, runtime.UsagePeriod)
+	require.NotNil(t, runtime.Actual)
+	require.Equal(t, int64(10), *runtime.Actual)
+	require.NotNil(t, runtime.ActualMs)
+	require.Equal(t, runtimeMs, *runtime.ActualMs)
+
+	anonymous := codersdk.New(client.URL)
+	capabilities, err := anonymous.DeploymentCapabilities(t.Context())
+	require.NoError(t, err)
+	require.False(t, capabilities.Features[codersdk.FeatureAgentRuntimeHours].Usable)
+	res, err := anonymous.Request(t.Context(), http.MethodGet, "/api/v2/deployment/capabilities", nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	require.NotContains(t, string(body), "\"actual\":")
+	require.NotContains(t, string(body), "\"actual_ms\":")
 }
 
 func TestEntitlements_HeaderWarnings(t *testing.T) {

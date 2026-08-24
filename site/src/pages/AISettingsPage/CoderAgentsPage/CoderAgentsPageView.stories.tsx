@@ -1,12 +1,46 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { MockAgentRuntimeHoursFeature } from "#/testHelpers/entities";
 import {
 	CoderAgentsPageView,
 	type CoderAgentsPageViewProps,
 } from "./CoderAgentsPageView";
 
+const actualMs = (10 * 60 + 18) * 60_000;
+const communityRuntimeFeature = {
+	...MockAgentRuntimeHoursFeature,
+	entitlement: "not_entitled",
+	enabled: false,
+	limit: undefined,
+	soft_limit: undefined,
+	hard_limit: undefined,
+	actual: 10,
+	actual_ms: actualMs,
+	usage_period: undefined,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+const licensedFiniteRuntimeFeature = {
+	...MockAgentRuntimeHoursFeature,
+	limit: 100,
+	soft_limit: undefined,
+	hard_limit: 120,
+	actual: 10,
+	actual_ms: actualMs,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+const licensedUnlimitedRuntimeFeature = {
+	...MockAgentRuntimeHoursFeature,
+	limit: undefined,
+	soft_limit: undefined,
+	hard_limit: undefined,
+	actual: 10,
+	actual_ms: actualMs,
+} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
+
 const defaultArgs: CoderAgentsPageViewProps = {
+	hasLicense: false,
+	agentRuntimeHoursFeature: communityRuntimeFeature,
+	isAgentRuntimeUsageLoading: false,
+	isAgentRuntimeUsageUnavailable: false,
 	adminOverridesData: { allow_users: true },
 	onSaveAdminOverrides: fn(),
 	isSavingAdminOverrides: false,
@@ -50,6 +84,12 @@ export const Default: Story = {
 	args: { onSaveAdvisorConfig: fn() },
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("heading", { name: "Usage" })).toBeVisible();
+		await expect(canvas.getByText("10.3 hours")).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+			"href",
+			"/deployment/premium",
+		);
 		await expect(
 			canvas.getAllByRole("link", { name: "Defaults & overrides" })[0],
 		).toBeVisible();
@@ -74,5 +114,67 @@ export const WithoutAdvisor: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Advisor")).not.toBeInTheDocument();
+	},
+};
+
+export const UsageLoading: Story = {
+	args: {
+		hasLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		isAgentRuntimeUsageLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("status", { name: "Loading Agent Time usage" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
+export const UsageUnavailable: Story = {
+	args: {
+		hasLicense: undefined,
+		agentRuntimeHoursFeature: undefined,
+		isAgentRuntimeUsageUnavailable: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText("Agent Time usage is unavailable."),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("switch", { name: "Allow personal model overrides" }),
+		).toBeVisible();
+	},
+};
+
+export const LicensedFiniteAllocation: Story = {
+	args: {
+		hasLicense: true,
+		agentRuntimeHoursFeature: licensedFiniteRuntimeFeature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("10.3 / 100 hours")).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "Manage license" }),
+		).toHaveAttribute("href", "/deployment/licenses");
+	},
+};
+
+export const LicensedUnlimitedAllocation: Story = {
+	args: {
+		hasLicense: true,
+		agentRuntimeHoursFeature: licensedUnlimitedRuntimeFeature,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("10.3 / Unlimited hours")).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "View usage documentation" }),
+		).toBeVisible();
 	},
 };

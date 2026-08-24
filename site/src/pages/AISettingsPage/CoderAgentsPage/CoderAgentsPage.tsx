@@ -8,6 +8,7 @@ import {
 	updateChatComputerUseProvider,
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
+import { entitlementDetails } from "#/api/queries/entitlements";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -23,6 +24,7 @@ const CoderAgentsPage: FC = () => {
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
+	const entitlementDetailsQuery = useQuery(entitlementDetails());
 	const personalOverridesQuery = useQuery({
 		...chatPersonalModelOverridesAdminSettings(),
 		enabled: canEditDeploymentConfig,
@@ -49,6 +51,14 @@ const CoderAgentsPage: FC = () => {
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
 			<CoderAgentsPageView
+				hasLicense={entitlementDetailsQuery.data?.has_license}
+				agentRuntimeHoursFeature={
+					entitlementDetailsQuery.data?.features.agent_runtime_hours
+				}
+				isAgentRuntimeUsageLoading={entitlementDetailsQuery.isLoading}
+				isAgentRuntimeUsageUnavailable={
+					entitlementDetailsQuery.isError && !entitlementDetailsQuery.data
+				}
 				adminOverridesData={personalOverridesQuery.data}
 				adminOverridesError={personalOverridesQuery.error}
 				onRetryAdminOverrides={() => void personalOverridesQuery.refetch()}
