@@ -229,6 +229,7 @@ func TestExecuteLocalTools_BatchWindowIsMaxNotSum(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 60*time.Second, outcome.BatchRuntime)
+	require.Equal(t, 2, outcome.BatchBilledCalls)
 }
 
 func TestExecuteLocalTools_SimultaneousCompletionsBillOnce(t *testing.T) {
@@ -325,6 +326,7 @@ func TestExecuteLocalTools_UnbilledOnlyBatchBillsNothing(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Zero(t, outcome.BatchRuntime)
+	require.Zero(t, outcome.BatchBilledCalls)
 }
 
 func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
@@ -364,6 +366,7 @@ func TestExecuteLocalTools_AliasNamesClassifyAsCalled(t *testing.T) {
 
 	outcome := testutil.RequireReceive(ctx, t, resultCh)
 	require.Equal(t, 10*time.Second, outcome.BatchRuntime)
+	require.Equal(t, 1, outcome.BatchBilledCalls)
 }
 
 func TestExecuteLocalTools_DuplicateToolCallIDsKeepOccurrenceCompletions(t *testing.T) {
