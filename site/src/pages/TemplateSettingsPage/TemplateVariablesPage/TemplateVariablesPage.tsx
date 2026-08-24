@@ -5,7 +5,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import {
 	createAndBuildTemplateVersion,

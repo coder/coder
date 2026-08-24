@@ -45,7 +45,7 @@ export const NoPermission: Story = {
 		).toBeDisabled();
 		await expect(
 			canvas.getByRole("checkbox", {
-				name: /use the classic parameter flow/i,
+				name: /use parameter compatibility mode for workspace builds/i,
 			}),
 		).toBeDisabled();
 	},
@@ -66,7 +66,7 @@ export const OptsIntoClassicParameters: Story = {
 		const user = userEvent.setup();
 
 		const checkbox = canvas.getByRole("checkbox", {
-			name: /use the classic parameter flow/i,
+			name: /use parameter compatibility mode for workspace builds/i,
 		});
 		await expect(checkbox).not.toBeChecked();
 
