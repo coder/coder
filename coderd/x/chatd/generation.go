@@ -834,10 +834,8 @@ func (s *taskStarter) admitStepToolCalls(
 	return preflight, nil
 }
 
-// bufferToolBillingRecorder implements chatloop.ToolBillingRecorder by
-// stamping tool starts and completions on the attempt's buffer episode.
-// It translates dispatch-order indexes back to unresolved-call positions
-// so rejected gaps and duplicate tool-call IDs remain distinct.
+// bufferToolBillingRecorder translates a dispatch index in the filtered batch
+// back to the unresolved-call position the buffer episode keys timings by.
 type bufferToolBillingRecorder struct {
 	allowedIndexes []int
 	recordStart    func(callIndex int, startedAt time.Time)

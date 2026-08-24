@@ -640,16 +640,16 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Pers
 	return PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-		BatchRuntime:        billableBatchDuration(toolExecutions, opts.UnbilledToolNames),
+		BatchRuntime:        BilledIntervalsDuration(billableBatchIntervals(toolExecutions, opts.UnbilledToolNames)),
 	}, nil
 }
 
-// billableBatchDuration returns the union of billed execution intervals.
-// Unbilled tools and gaps between billed intervals do not count.
-func billableBatchDuration(
+// billableBatchIntervals returns the billed execution intervals.
+// Unbilled tools and calls without both stamps do not count.
+func billableBatchIntervals(
 	executions []toolExecutionResult,
 	unbilledToolNames map[string]bool,
-) time.Duration {
+) []BilledInterval {
 	intervals := make([]BilledInterval, 0, len(executions))
 	for _, execution := range executions {
 		if unbilledToolNames[execution.content.ToolName] ||
@@ -659,7 +659,7 @@ func billableBatchDuration(
 		}
 		intervals = append(intervals, execution.interval)
 	}
-	return BilledIntervalsDuration(intervals)
+	return intervals
 }
 
 // BilledInterval is one billed tool call's execution window.
