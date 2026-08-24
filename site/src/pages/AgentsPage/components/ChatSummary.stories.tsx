@@ -32,7 +32,7 @@ const meta: Meta<typeof ChatSummary> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-[400px] max-w-full p-4">
+			<div className="w-[400px] max-w-full">
 				<Story />
 			</div>
 		),
@@ -153,9 +153,50 @@ export const LongSummary: Story = {
 
 export const NoSummary: Story = {
 	args: { summary: null },
+	decorators: [
+		(Story) => (
+			<div className="flex h-[420px] w-[400px] max-w-full flex-col border border-solid border-border-default">
+				<Story />
+			</div>
+		),
+	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("No summary yet.")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Not enough details to summarize."),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText(
+				"A recap of your chat will appear here after a few more messages.",
+			),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Generating summary"),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Created:")).toBeInTheDocument();
+		await expect(canvas.getByText("Updated:")).toBeInTheDocument();
+		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
+		await expect(canvas.getByText("$1.25")).toBeInTheDocument();
+	},
+};
+
+export const GeneratingSummary: Story = {
+	args: { summary: null, isGenerating: true },
+	decorators: [
+		(Story) => (
+			<div className="flex h-[420px] w-[400px] max-w-full flex-col border border-solid border-border-default">
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Generating summary")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Not enough details to summarize."),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Created:")).toBeInTheDocument();
+		await expect(canvas.getByText("Cost:")).toBeInTheDocument();
 	},
 };
 

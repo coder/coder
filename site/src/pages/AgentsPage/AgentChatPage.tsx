@@ -863,6 +863,7 @@ const AgentChatPage: FC = () => {
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onChatReady,
+		summaryGeneratingChatIds,
 	} = useOutletContext<AgentsPageOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
@@ -2000,6 +2001,7 @@ const AgentChatPage: FC = () => {
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
+			isChatSummaryGenerating={summaryGeneratingChatIds?.has(agentId) ?? false}
 			store={store}
 			initialChatStatus={chatQuery.data.status}
 			initialMessages={chatMessagesList ?? []}

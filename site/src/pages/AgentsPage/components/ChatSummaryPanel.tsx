@@ -10,11 +10,14 @@ type ChatSummaryPanelProps = {
 	chatId: string;
 	/** Gate reads on tab visibility so the chat and cost queries don't run while the tab is hidden. */
 	isVisible: boolean;
+	/** Set only after the server reports that summary generation started. */
+	isGenerating?: boolean;
 };
 
 export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	chatId,
 	isVisible,
+	isGenerating,
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
@@ -28,12 +31,17 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 
 	let content: ReactNode = null;
 	if (chatQuery.isError) {
-		content = <ErrorAlert error={chatQuery.error} />;
+		content = (
+			<div className="p-4">
+				<ErrorAlert error={chatQuery.error} />
+			</div>
+		);
 	} else if (chatData) {
 		content = (
 			<ChatSummary
 				summary={chatData.summary}
 				isSubagent={Boolean(chatData.parent_chat_id)}
+				isGenerating={isGenerating}
 				createdAt={chatData.created_at}
 				updatedAt={chatData.updated_at}
 				costMicros={costQuery.data?.total_cost_micros}
@@ -46,7 +54,7 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	}
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-y-auto p-4">
+		<div className="flex h-full min-h-0 flex-col overflow-y-auto">
 			{content}
 		</div>
 	);

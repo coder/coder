@@ -3364,6 +3364,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
 			chat_summary_change: false,
+			chat_summary_generating: false,
 			context_dirty: false,
 			created: false,
 			deleted: false,
@@ -3443,6 +3444,7 @@ describe("semantic cache operations: prefix invalidations", () => {
 		const expectedByKind: Record<TypesGen.ChatWatchEventKind, boolean> = {
 			action_required: true,
 			chat_summary_change: false,
+			chat_summary_generating: false,
 			context_dirty: false,
 			created: false,
 			deleted: false,

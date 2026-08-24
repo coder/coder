@@ -123,6 +123,7 @@ interface AgentChatPageViewProps {
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
+	isChatSummaryGenerating: boolean;
 
 	// Store handle.
 	store: ChatStoreHandle;
@@ -327,6 +328,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	chatBuildId,
+	isChatSummaryGenerating,
 	store,
 	initialChatStatus,
 	initialMessages,
@@ -705,6 +707,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<ChatSummaryPanel
 						chatId={agentId}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						isGenerating={isChatSummaryGenerating}
 					/>
 				);
 			case "git":

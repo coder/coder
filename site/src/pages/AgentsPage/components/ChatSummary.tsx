@@ -1,10 +1,15 @@
+import { MessageSquareDashedIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { InlineMarkdown } from "#/components/Markdown/InlineMarkdown";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { Shimmer } from "./ChatElements";
 
 const EMPTY_VALUE = "-";
+const EMPTY_SUMMARY_TITLE = "Not enough details to summarize.";
+const EMPTY_SUMMARY_DESCRIPTION =
+	"A recap of your chat will appear here after a few more messages.";
 
 interface ChatSummaryProps {
 	summary: string | null;
@@ -19,6 +24,8 @@ interface ChatSummaryProps {
 	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
 	isSubagent?: boolean;
+	/** True while a root-chat summary is expected to land after a finished turn. */
+	isGenerating?: boolean;
 }
 
 export const ChatSummary: FC<ChatSummaryProps> = ({
@@ -31,6 +38,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	unpricedRequestCount,
 	showCost,
 	isSubagent,
+	isGenerating,
 }) => {
 	const trimmedSummary = summary?.trim();
 	const hasCost =
@@ -39,16 +47,29 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 		hasCost && unpricedRequestCount != null && unpricedRequestCount > 0;
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div className="flex min-h-0 flex-col gap-4 p-4">
 			{trimmedSummary ? (
 				<ChatSummaryBody summary={trimmedSummary} />
-			) : (
+			) : isSubagent ? (
 				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
-					{isSubagent ? "Summary pending agent completion." : "No summary yet."}
+					Summary pending agent completion.
 				</p>
+			) : (
+				<ChatSummaryEmpty
+					title={
+						isGenerating ? (
+							<Shimmer as="span" className="text-sm font-medium">
+								Generating summary
+							</Shimmer>
+						) : (
+							EMPTY_SUMMARY_TITLE
+						)
+					}
+					description={isGenerating ? undefined : EMPTY_SUMMARY_DESCRIPTION}
+				/>
 			)}
 
-			<dl className="m-0 flex flex-col gap-1.5">
+			<dl className="m-0 flex shrink-0 flex-col gap-1.5">
 				<ChatSummaryRow label="Created:">
 					{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
 				</ChatSummaryRow>
@@ -86,6 +107,29 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 		</div>
 	);
 };
+
+interface ChatSummaryEmptyProps {
+	title: ReactNode;
+	description?: string;
+}
+
+const ChatSummaryEmpty: FC<ChatSummaryEmptyProps> = ({
+	title,
+	description,
+}) => (
+	<div className="flex flex-col items-center px-4 py-8 text-center">
+		<div className="mb-4 flex size-10 items-center justify-center rounded-lg border border-solid border-border-default bg-surface-secondary">
+			<MessageSquareDashedIcon
+				aria-hidden
+				className="size-5 text-content-secondary"
+			/>
+		</div>
+		<p className="m-0 text-sm font-medium text-content-primary">{title}</p>
+		<p className="mt-1 min-h-8 max-w-56 text-xs text-content-secondary">
+			{description}
+		</p>
+	</div>
+);
 
 interface ChatSummaryBodyProps {
 	summary: string;

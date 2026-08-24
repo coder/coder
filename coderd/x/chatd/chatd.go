@@ -4755,6 +4755,8 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryGenerating, nil)
+
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
 	summary, _, genErr := generateChatSummary(summaryCtx, resolved.model.LanguageModel(), summaryObjectCall(resolved), transcript)
