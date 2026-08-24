@@ -96,9 +96,9 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	}
 
 	// Callers may pass an alias spelling such as "all", which is not an
-	// api_key_scope enum member and so would fail the validity check. Build a new
-	// slice rather than canonicalizing in place, so params is left as the caller
-	// passed it.
+	// api_key_scope enum member and so would fail the validity check.
+	// params.Scopes shares its backing array with the caller, so canonicalize
+	// into a new slice rather than in place.
 	scopes := make(database.APIKeyScopes, 0, len(requested))
 	for _, s := range requested {
 		canonical := database.APIKeyScope(rbac.CanonicalScopeName(rbac.ScopeName(s)))

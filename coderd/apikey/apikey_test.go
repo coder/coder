@@ -1,6 +1,7 @@
 package apikey_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -227,7 +228,7 @@ func TestGenerateScopeNames(t *testing.T) {
 			params.LoginType = database.LoginTypePassword
 			params.DefaultLifetime = time.Hour
 
-			requested := append(database.APIKeyScopes(nil), params.Scopes...)
+			requested := slices.Clone(params.Scopes)
 
 			key, _, err := apikey.Generate(params)
 			if tc.fail {
