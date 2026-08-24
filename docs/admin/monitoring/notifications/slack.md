@@ -196,7 +196,7 @@ To enable webhook integration in Coder, define the POST webhook endpoint
 matching the deployed Slack bot:
 
 ```bash
-export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook`
+export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=http://localhost:6000/v1/webhook
 ```
 
 Finally, go to the **Notification Settings** in Coder and switch the notifier to
