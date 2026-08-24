@@ -145,7 +145,7 @@ func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Success 200 {array} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers [get]
 //
@@ -284,7 +284,7 @@ func (api *API) mcpServerConfigReadInKeyScope(r *http.Request, organizationID uu
 // @Tags MCP
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param request body codersdk.CreateMCPServerConfigRequest true "Create MCP server config request"
 // @Success 201 {object} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers [post]
@@ -510,7 +510,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [get]
@@ -596,7 +596,7 @@ func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Re
 // @Tags MCP
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigRequest true "Update MCP server config request"
 // @Success 200 {object} codersdk.MCPServerConfig
@@ -960,7 +960,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @ID delete-mcp-server-config
 // @Security CoderSessionToken
 // @Tags MCP
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 204
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [delete]
@@ -1018,7 +1018,7 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @ID initiate-mcp-server-oauth2-connect
 // @Security CoderSessionToken
 // @Tags MCP
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 307
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect [get]

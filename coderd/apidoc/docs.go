@@ -1322,7 +1322,11 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "multi",
                         "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
                         "name": "label",
                         "in": "query"
@@ -6760,8 +6764,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -6799,8 +6802,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -6843,8 +6845,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -6881,8 +6882,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -6922,8 +6922,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -6974,8 +6973,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -7015,8 +7013,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true
@@ -7061,8 +7058,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
+                        "description": "Organization name or ID",
                         "name": "organization",
                         "in": "path",
                         "required": true

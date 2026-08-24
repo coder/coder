@@ -88,9 +88,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/mcp-ser
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-|----------------|------|--------------|----------|-----------------|
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type   | Required | Description             |
+|----------------|------|--------|----------|-------------------------|
+| `organization` | path | string | true     | Organization name or ID |
 
 ### Example responses
 
@@ -234,7 +234,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/mcp-se
 
 | Name           | In   | Type                                                                                     | Required | Description                      |
 |----------------|------|------------------------------------------------------------------------------------------|----------|----------------------------------|
-| `organization` | path | string(uuid)                                                                             | true     | Organization ID                  |
+| `organization` | path | string                                                                                   | true     | Organization name or ID          |
 | `body`         | body | [codersdk.CreateMCPServerConfigRequest](schemas.md#codersdkcreatemcpserverconfigrequest) | true     | Create MCP server config request |
 
 ### Example responses
@@ -301,10 +301,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/mcp-ser
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description          |
-|-------------------|------|--------------|----------|----------------------|
-| `organization`    | path | string(uuid) | true     | Organization ID      |
-| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID |
+| Name              | In   | Type         | Required | Description             |
+|-------------------|------|--------------|----------|-------------------------|
+| `organization`    | path | string       | true     | Organization name or ID |
+| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID    |
 
 ### Example responses
 
@@ -369,10 +369,10 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/mcp-
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description          |
-|-------------------|------|--------------|----------|----------------------|
-| `organization`    | path | string(uuid) | true     | Organization ID      |
-| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID |
+| Name              | In   | Type         | Required | Description             |
+|-------------------|------|--------------|----------|-------------------------|
+| `organization`    | path | string       | true     | Organization name or ID |
+| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID    |
 
 ### Responses
 
@@ -437,7 +437,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/mcp-s
 
 | Name              | In   | Type                                                                                     | Required | Description                      |
 |-------------------|------|------------------------------------------------------------------------------------------|----------|----------------------------------|
-| `organization`    | path | string(uuid)                                                                             | true     | Organization ID                  |
+| `organization`    | path | string                                                                                   | true     | Organization name or ID          |
 | `mcpserverconfig` | path | string(uuid)                                                                             | true     | MCP server config ID             |
 | `body`            | body | [codersdk.UpdateMCPServerConfigRequest](schemas.md#codersdkupdatemcpserverconfigrequest) | true     | Update MCP server config request |
 
@@ -505,10 +505,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/mcp-ser
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description          |
-|-------------------|------|--------------|----------|----------------------|
-| `organization`    | path | string(uuid) | true     | Organization ID      |
-| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID |
+| Name              | In   | Type         | Required | Description             |
+|-------------------|------|--------------|----------|-------------------------|
+| `organization`    | path | string       | true     | Organization name or ID |
+| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID    |
 
 ### Example responses
 
@@ -599,7 +599,7 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/mcp-s
 
 | Name              | In   | Type                                                                                           | Required | Description                          |
 |-------------------|------|------------------------------------------------------------------------------------------------|----------|--------------------------------------|
-| `organization`    | path | string(uuid)                                                                                   | true     | Organization ID                      |
+| `organization`    | path | string                                                                                         | true     | Organization name or ID              |
 | `mcpserverconfig` | path | string(uuid)                                                                                   | true     | MCP server config ID                 |
 | `body`            | body | [codersdk.UpdateMCPServerConfigACLRequest](schemas.md#codersdkupdatemcpserverconfigaclrequest) | true     | Update MCP server config ACL request |
 
@@ -625,10 +625,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/mcp-ser
 
 ### Parameters
 
-| Name              | In   | Type         | Required | Description          |
-|-------------------|------|--------------|----------|----------------------|
-| `organization`    | path | string(uuid) | true     | Organization ID      |
-| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID |
+| Name              | In   | Type         | Required | Description             |
+|-------------------|------|--------------|----------|-------------------------|
+| `organization`    | path | string       | true     | Organization name or ID |
+| `mcpserverconfig` | path | string(uuid) | true     | MCP server config ID    |
 
 ### Responses
 

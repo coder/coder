@@ -26,7 +26,7 @@ import (
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
@@ -60,7 +60,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Accept json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
