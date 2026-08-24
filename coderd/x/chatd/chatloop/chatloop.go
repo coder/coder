@@ -51,6 +51,9 @@ var (
 	// classifiers blocked the response and the model produced no
 	// content, e.g. Anthropic's stop_reason "refusal".
 	ErrContentFiltered = xerrors.New("response blocked by provider content filter")
+	// ErrNoModelOutput is returned when a stream ends without visible content or
+	// tool calls and its finish reason indicates an incomplete response.
+	ErrNoModelOutput = xerrors.New("model stream finished without output")
 
 	errStreamSilenceTimeout = xerrors.New(
 		"chat stream was silent for longer than the configured timeout",
@@ -462,6 +465,12 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 	if result.finishReason == fantasy.FinishReasonContentFilter && !hasUserVisibleContent(result.content) {
 		return AssistantOutcome{}, contentFilterError(errorProvider, result.providerMetadata)
 	}
+	// Treat discarded responses as retryable so an empty turn is not persisted.
+	if silentNoOutputFinish(result.finishReason) && !hasUserVisibleContent(result.content) && len(result.toolCalls) == 0 {
+		noOutputErr := noModelOutputError(errorProvider, result.finishReason)
+		opts.Metrics.RecordStreamRetry(provider, modelName, chaterror.Classify(noOutputErr))
+		return AssistantOutcome{}, noOutputErr
+	}
 	step := PersistedStep{
 		Content:              result.content,
 		Usage:                result.usage,
@@ -496,18 +505,46 @@ func wrapProviderStreamError(provider string, err error) error {
 	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
 }
 
-// hasUserVisibleContent reports whether any content part carries output the
-// user can see. Reasoning parts do not count: they stream transiently and are
-// not a substitute for a response.
+// hasUserVisibleContent ignores reasoning and blank text because neither can
+// complete a user-facing response.
 func hasUserVisibleContent(content []fantasy.Content) bool {
 	for _, part := range content {
-		switch part.(type) {
+		switch value := part.(type) {
 		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		case fantasy.TextContent:
+			if strings.TrimSpace(value.Text) != "" {
+				return true
+			}
+		case *fantasy.TextContent:
+			if value != nil && strings.TrimSpace(value.Text) != "" {
+				return true
+			}
 		default:
 			return true
 		}
 	}
 	return false
+}
+
+func silentNoOutputFinish(reason fantasy.FinishReason) bool {
+	switch reason {
+	case fantasy.FinishReasonUnknown, fantasy.FinishReasonError,
+		fantasy.FinishReasonOther, fantasy.FinishReasonToolCalls:
+		return true
+	default:
+		return false
+	}
+}
+
+func noModelOutputError(provider string, reason fantasy.FinishReason) error {
+	classified := chaterror.ClassifiedError{
+		Message:   "The model ended its response without producing any output.",
+		Detail:    "finish reason: " + string(reason),
+		Kind:      codersdk.ChatErrorKindGeneric,
+		Provider:  provider,
+		Retryable: true,
+	}
+	return chaterror.WithClassification(ErrNoModelOutput, classified)
 }
 
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
