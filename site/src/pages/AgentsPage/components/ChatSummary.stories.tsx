@@ -47,6 +47,45 @@ export const NoSummary: Story = {
 	},
 };
 
+export const WithPreviews: Story = {
+	args: {
+		previews: [
+			{
+				label: "Storybook",
+				port: 6006,
+				url: "https://6006--main--ws--user.proxy.example.com/",
+			},
+			{
+				label: "Preview",
+				port: 8080,
+				url: "https://8080--main--ws--user.proxy.example.com/",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Preview:")).toBeInTheDocument();
+		const storybookLink = canvas.getByRole("link", {
+			name: /Storybook \(6006\)/,
+		});
+		await expect(storybookLink).toHaveAttribute(
+			"href",
+			"https://6006--main--ws--user.proxy.example.com/",
+		);
+		await expect(
+			canvas.getByRole("link", { name: /Preview \(8080\)/ }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoPreviews: Story = {
+	args: { previews: [] },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Preview:")).not.toBeInTheDocument();
+	},
+};
+
 // A subagent's summary is its final report, persisted when it
 // completes, so an empty summary means the agent is still working.
 export const SubagentSummaryPending: Story = {

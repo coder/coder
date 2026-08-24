@@ -1,3 +1,4 @@
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { formatCostMicros } from "#/utils/currency";
@@ -5,7 +6,14 @@ import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 
 const EMPTY_VALUE = "-";
 
-interface ChatSummaryProps {
+/** A live port-forward link derived from the workspace's listening ports. */
+export interface ChatSummaryPreviewLink {
+	label: string;
+	port: number;
+	url: string;
+}
+
+export interface ChatSummaryProps {
 	summary: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -18,6 +26,7 @@ interface ChatSummaryProps {
 	showCost: boolean;
 	/** Subagent summaries are the agent's final report, persisted when it completes, so the empty state reads as pending rather than absent. */
 	isSubagent?: boolean;
+	previews?: readonly ChatSummaryPreviewLink[];
 }
 
 export const ChatSummary: FC<ChatSummaryProps> = ({
@@ -30,6 +39,7 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 	unpricedRequestCount,
 	showCost,
 	isSubagent,
+	previews,
 }) => {
 	const trimmedSummary = summary?.trim();
 	const hasCost =
@@ -56,6 +66,24 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 				<ChatSummaryRow label="Updated:">
 					{formatDateTime(updatedAt, DATE_FORMAT.MEDIUM_DATE)}
 				</ChatSummaryRow>
+				{previews && previews.length > 0 && (
+					<ChatSummaryRow label="Preview:">
+						<div className="flex flex-col">
+							{previews.map((preview) => (
+								<a
+									key={preview.port}
+									href={preview.url}
+									target="_blank"
+									rel="noreferrer"
+									className="inline-flex items-center gap-1 text-content-link no-underline hover:underline"
+								>
+									{preview.label} ({preview.port})
+									<ExternalLinkIcon aria-hidden className="size-3 shrink-0" />
+								</a>
+							))}
+						</div>
+					</ChatSummaryRow>
+				)}
 				{showCost && (
 					<ChatSummaryRow label="Cost:">
 						{isCostLoading ? (

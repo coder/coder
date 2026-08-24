@@ -710,6 +710,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 					<ChatSummaryPanel
 						chatId={agentId}
 						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+						wildcardHostname={wildcardHostname}
 					/>
 				);
 			case "git":
