@@ -788,6 +788,8 @@ func New(options *Options) *API {
 		Telemetry:         options.Telemetry,
 		Logger:            options.Logger.Named("site"),
 		AIGatewayEnabled:  options.DeploymentValues.AI.BridgeConfig.Enabled.Value(),
+
+		UserSecretFilePathEnabled: !options.DeploymentValues.DisableUserSecretFilePath.Value(),
 	})
 	if err != nil {
 		options.Logger.Fatal(ctx, "failed to initialize site handler", slog.Error(err))
