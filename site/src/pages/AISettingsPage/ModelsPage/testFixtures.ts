@@ -1,4 +1,4 @@
-import type { ChatModelConfig, ChatProviderConfig } from "#/api/typesGenerated";
+import type { ChatModel, ChatProviderConfig } from "#/api/typesGenerated";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 
 const now = "2026-02-18T12:00:00.000Z";
@@ -26,7 +26,7 @@ const MockAnthropicProviderConfig: ChatProviderConfig = {
 	display_name: "Anthropic",
 };
 
-export const mockGPT5: ChatModelConfig = {
+export const mockGPT5: ChatModel = {
 	id: "model-gpt5",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",
@@ -39,7 +39,7 @@ export const mockGPT5: ChatModelConfig = {
 	updated_at: now,
 };
 
-export const mockClaude: ChatModelConfig = {
+export const mockClaude: ChatModel = {
 	...mockGPT5,
 	id: "model-claude",
 	ai_provider_id: "prov-anthropic",
@@ -48,7 +48,7 @@ export const mockClaude: ChatModelConfig = {
 	is_default: false,
 };
 
-export const mockDisabledModel: ChatModelConfig = {
+export const mockDisabledModel: ChatModel = {
 	...mockGPT5,
 	id: "model-disabled",
 	model: "gpt-4o-mini",
@@ -63,7 +63,7 @@ export const MockOpenAIProviderState: ProviderState = {
 	provider: "openai",
 	label: "OpenAI",
 	providerConfig: MockOpenAIProviderConfig,
-	modelConfigs: [mockGPT5, mockDisabledModel],
+	models: [mockGPT5, mockDisabledModel],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,
 	hasCatalogAPIKey: true,
@@ -79,7 +79,7 @@ export const MockAnthropicProviderState: ProviderState = {
 	provider: "anthropic",
 	label: "Anthropic",
 	providerConfig: MockAnthropicProviderConfig,
-	modelConfigs: [mockClaude],
+	models: [mockClaude],
 };
 
 const MockGoogleProviderConfig: ChatProviderConfig = {
@@ -95,7 +95,7 @@ export const MockGoogleProviderState: ProviderState = {
 	provider: "google",
 	label: "Google",
 	providerConfig: MockGoogleProviderConfig,
-	modelConfigs: [],
+	models: [],
 };
 
 const MockBedrockProviderConfig: ChatProviderConfig = {
@@ -105,7 +105,7 @@ const MockBedrockProviderConfig: ChatProviderConfig = {
 	display_name: "AWS Bedrock",
 };
 
-export const mockBedrockClaude: ChatModelConfig = {
+export const mockBedrockClaude: ChatModel = {
 	...mockClaude,
 	id: "model-bedrock-claude",
 	ai_provider_id: "prov-bedrock",
@@ -119,7 +119,7 @@ export const MockBedrockProviderState: ProviderState = {
 	provider: "bedrock",
 	label: "AWS Bedrock",
 	providerConfig: MockBedrockProviderConfig,
-	modelConfigs: [mockBedrockClaude],
+	models: [mockBedrockClaude],
 };
 
 export const MockAzureProviderState: ProviderState = {
@@ -133,7 +133,7 @@ export const MockAzureProviderState: ProviderState = {
 		provider: "azure",
 		display_name: "Azure OpenAI",
 	},
-	modelConfigs: [],
+	models: [],
 };
 
 const MockDisabledProviderConfig: ChatProviderConfig = {
@@ -143,7 +143,7 @@ const MockDisabledProviderConfig: ChatProviderConfig = {
 	enabled: false,
 };
 
-export const mockProviderDisabledModel: ChatModelConfig = {
+export const mockProviderDisabledModel: ChatModel = {
 	...mockGPT5,
 	id: "model-provider-disabled",
 	ai_provider_id: "prov-openai-disabled",
@@ -158,7 +158,7 @@ export const MockDisabledProviderState: ProviderState = {
 	provider: "openai",
 	label: "OpenAI Secondary",
 	providerConfig: MockDisabledProviderConfig,
-	modelConfigs: [mockProviderDisabledModel],
+	models: [mockProviderDisabledModel],
 };
 
 export const MockCopilotProviderState: ProviderState = {
@@ -172,14 +172,14 @@ export const MockCopilotProviderState: ProviderState = {
 		provider: "copilot",
 		display_name: "GitHub Copilot",
 	},
-	modelConfigs: [],
+	models: [],
 };
 
 // A model whose provider row has been deleted. In production such models
 // still appear in the top-level model list, but `deriveProviderStates`
-// drops them from every providerState.modelConfigs. Stories should feed
+// drops them from every providerState.models. Stories should feed
 // this fixture through `models` alone; do not add it to a provider state.
-export const mockOrphanedModel: ChatModelConfig = {
+export const mockOrphanedModel: ChatModel = {
 	...mockGPT5,
 	id: "model-orphaned",
 	ai_provider_id: "prov-orphaned",

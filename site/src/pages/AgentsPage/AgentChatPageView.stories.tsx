@@ -50,11 +50,11 @@ import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage"
 // ---------------------------------------------------------------------------
 const AGENT_ID = "agent-detail-view-1";
 
-const defaultModelConfigID = "model-config-1";
+const defaultModelID = "model-config-1";
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
-		id: defaultModelConfigID,
+		id: defaultModelID,
 		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
@@ -70,7 +70,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	owner_username: "owner",
 	owner_name: "Owner",
 	title: "Help me refactor",
-	last_model_config_id: defaultModelConfigID,
+	last_model_config_id: defaultModelID,
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	...overrides,
@@ -141,7 +141,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],
-		effectiveSelectedModel: defaultModelConfigID,
+		effectiveSelectedModel: defaultModelID,
 		setSelectedModel: fn(),
 		modelOptions: defaultModelOptions,
 		modelSelectorPlaceholder: "Select a model",
@@ -893,7 +893,7 @@ export const Loading: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -917,7 +917,7 @@ export const LoadingWithModelOptions: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled={false}
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -940,7 +940,7 @@ export const LoadingWithRightPanel: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"
@@ -964,7 +964,7 @@ export const LoadingSidebarCollapsed: Story = {
 			remountKey={0}
 			onContentChange={fn()}
 			isInputDisabled
-			effectiveSelectedModel={defaultModelConfigID}
+			effectiveSelectedModel={defaultModelID}
 			setSelectedModel={fn()}
 			modelOptions={defaultModelOptions}
 			modelSelectorPlaceholder="Select a model"

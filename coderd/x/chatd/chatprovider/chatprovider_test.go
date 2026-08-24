@@ -679,7 +679,7 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 		configuredModels       []chatprovider.ConfiguredModel
 		availabilityByProvider map[string]chatprovider.ProviderAvailability
 		enabledProviders       map[string]struct{}
-		want                   codersdk.ChatModelsResponse
+		want                   codersdk.ChatModelAvailabilityResponse
 	}{
 		{
 			name: "PolicyUnavailableOverridesConfiguredKey",
@@ -697,11 +697,11 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 				},
 			},
 			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:          fantasyopenai.Name,
 				Available:         false,
 				UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-				Models: []codersdk.ChatModel{{
+				Models: []codersdk.ChatModelCatalogEntry{{
 					ID:          fantasyopenai.Name + ":gpt-4",
 					Provider:    fantasyopenai.Name,
 					Model:       "gpt-4",
@@ -722,10 +722,10 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 				fantasyanthropic.Name: {Available: true},
 			},
 			enabledProviders: enabledProviders(fantasyanthropic.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:  fantasyanthropic.Name,
 				Available: true,
-				Models: []codersdk.ChatModel{{
+				Models: []codersdk.ChatModelCatalogEntry{{
 					ID:          fantasyanthropic.Name + ":claude-3-5-sonnet",
 					Provider:    fantasyanthropic.Name,
 					Model:       "claude-3-5-sonnet",
@@ -748,10 +748,10 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 				fantasyopenai.Name:    {Available: true},
 			},
 			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:  fantasyopenai.Name,
 				Available: true,
-				Models: []codersdk.ChatModel{{
+				Models: []codersdk.ChatModelCatalogEntry{{
 					ID:          fantasyopenai.Name + ":gpt-4",
 					Provider:    fantasyopenai.Name,
 					Model:       "gpt-4",
@@ -769,11 +769,11 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 				Model:    "gpt-4o",
 			}},
 			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:          fantasyopenai.Name,
 				Available:         false,
 				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-				Models: []codersdk.ChatModel{{
+				Models: []codersdk.ChatModelCatalogEntry{{
 					ID:          fantasyopenai.Name + ":gpt-4o",
 					Provider:    fantasyopenai.Name,
 					Model:       "gpt-4o",
@@ -815,7 +815,7 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 		name                   string
 		availabilityByProvider map[string]chatprovider.ProviderAvailability
 		enabledProviders       map[string]struct{}
-		want                   codersdk.ChatModelsResponse
+		want                   codersdk.ChatModelAvailabilityResponse
 	}{
 		{
 			name: "EnabledProvidersUsePolicyAvailability",
@@ -827,17 +827,17 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 				fantasyopenai.Name: {Available: true},
 			},
 			enabledProviders: enabledProviders(fantasyanthropic.Name, fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{
 				{
 					Provider:          fantasyanthropic.Name,
 					Available:         false,
 					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-					Models:            []codersdk.ChatModel{},
+					Models:            []codersdk.ChatModelCatalogEntry{},
 				},
 				{
 					Provider:  fantasyopenai.Name,
 					Available: true,
-					Models:    []codersdk.ChatModel{},
+					Models:    []codersdk.ChatModelCatalogEntry{},
 				},
 			}},
 		},
@@ -848,20 +848,20 @@ func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
 				fantasyopenai.Name:    {Available: true},
 			},
 			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:  fantasyopenai.Name,
 				Available: true,
-				Models:    []codersdk.ChatModel{},
+				Models:    []codersdk.ChatModelCatalogEntry{},
 			}}},
 		},
 		{
 			name:             "MissingAvailabilityDefaultsToMissingAPIKey",
 			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{{
 				Provider:          fantasyopenai.Name,
 				Available:         false,
 				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-				Models:            []codersdk.ChatModel{},
+				Models:            []codersdk.ChatModelCatalogEntry{},
 			}}},
 		},
 	}

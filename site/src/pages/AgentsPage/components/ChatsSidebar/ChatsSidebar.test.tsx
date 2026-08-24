@@ -104,7 +104,7 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelOptions: [],
-	modelConfigs: [],
+	models: [],
 	onArchiveAgent: vi.fn(),
 	onUnarchiveAgent: vi.fn(),
 	onArchiveAndDeleteWorkspace: vi.fn(),
@@ -580,7 +580,7 @@ describe("ChatsSidebar model display names", () => {
 				displayName: "GPT-4o (Quality)",
 			},
 		];
-		const modelConfigs: TypesGen.ChatModelConfig[] = [
+		const models: TypesGen.ChatModel[] = [
 			{
 				id: "config-fast",
 				ai_provider_id: "prov-openai",
@@ -619,7 +619,7 @@ describe("ChatsSidebar model display names", () => {
 						}),
 					]}
 					modelOptions={modelOptions}
-					modelConfigs={modelConfigs}
+					models={models}
 				/>
 			</Wrapper>,
 		);

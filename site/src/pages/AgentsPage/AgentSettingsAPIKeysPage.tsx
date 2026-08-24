@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	chatModelConfigs,
+	chatModels,
 	deleteUserChatProviderKey,
 	upsertUserChatProviderKey,
 	userChatProviderConfigs,
@@ -26,7 +26,7 @@ const AgentSettingsAPIKeysPage: FC = () => {
 	>({});
 
 	const providersQuery = useQuery(userChatProviderConfigs());
-	const modelsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels());
 
 	const upsertMutationOptions = upsertUserChatProviderKey(queryClient);
 	const upsertMutation = useMutation({

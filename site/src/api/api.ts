@@ -352,7 +352,7 @@ const aiSpendBatchSize = 100;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
 const aiGatewayPath = "/api/v2/ai-gateway";
-const chatModelConfigsPath = "/api/experimental/chats/model-configs";
+const chatModelsPath = "/api/experimental/chats/model-configs";
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
 const userSkillPath = (user: string, name: string) =>
@@ -3490,12 +3490,14 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	getChatModels = async (): Promise<TypesGen.ChatModelsResponse> => {
-		const response = await this.axios.get<TypesGen.ChatModelsResponse>(
-			"/api/experimental/chats/models",
-		);
-		return response.data;
-	};
+	getChatModelAvailability =
+		async (): Promise<TypesGen.ChatModelAvailabilityResponse> => {
+			const response =
+				await this.axios.get<TypesGen.ChatModelAvailabilityResponse>(
+					"/api/experimental/chats/models",
+				);
+			return response.data;
+		};
 
 	getAIModelPrices = async (filter: {
 		provider?: string;
@@ -3875,54 +3877,51 @@ class ExperimentalApiMethods {
 			return response.data;
 		};
 	updateUserChatCompactionThreshold = async (
-		modelConfigId: string,
+		modelId: string,
 		req: TypesGen.UpdateUserChatCompactionThresholdRequest,
 	): Promise<TypesGen.UserChatCompactionThreshold> => {
 		const response = await this.axios.put<TypesGen.UserChatCompactionThreshold>(
-			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelId)}`,
 			req,
 		);
 		return response.data;
 	};
 	deleteUserChatCompactionThreshold = async (
-		modelConfigId: string,
+		modelId: string,
 	): Promise<void> => {
 		await this.axios.delete(
-			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelConfigId)}`,
+			`/api/experimental/chats/config/user-compaction-thresholds/${encodeURIComponent(modelId)}`,
 		);
 	};
 
-	getChatModelConfigs = async (): Promise<TypesGen.ChatModelConfig[]> => {
-		const response =
-			await this.axios.get<TypesGen.ChatModelConfig[]>(chatModelConfigsPath);
+	getChatModels = async (): Promise<TypesGen.ChatModel[]> => {
+		const response = await this.axios.get<TypesGen.ChatModel[]>(chatModelsPath);
 		return response.data;
 	};
 
-	createChatModelConfig = async (
-		req: TypesGen.CreateChatModelConfigRequest,
-	): Promise<TypesGen.ChatModelConfig> => {
-		const response = await this.axios.post<TypesGen.ChatModelConfig>(
-			chatModelConfigsPath,
+	createChatModel = async (
+		req: TypesGen.CreateChatModelRequest,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.post<TypesGen.ChatModel>(
+			chatModelsPath,
 			req,
 		);
 		return response.data;
 	};
 
-	updateChatModelConfig = async (
-		modelConfigId: string,
-		req: TypesGen.UpdateChatModelConfigRequest,
-	): Promise<TypesGen.ChatModelConfig> => {
-		const response = await this.axios.patch<TypesGen.ChatModelConfig>(
-			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
+	updateChatModel = async (
+		modelId: string,
+		req: TypesGen.UpdateChatModelRequest,
+	): Promise<TypesGen.ChatModel> => {
+		const response = await this.axios.patch<TypesGen.ChatModel>(
+			`${chatModelsPath}/${encodeURIComponent(modelId)}`,
 			req,
 		);
 		return response.data;
 	};
 
-	deleteChatModelConfig = async (modelConfigId: string): Promise<void> => {
-		await this.axios.delete(
-			`${chatModelConfigsPath}/${encodeURIComponent(modelConfigId)}`,
-		);
+	deleteChatModel = async (modelId: string): Promise<void> => {
+		await this.axios.delete(`${chatModelsPath}/${encodeURIComponent(modelId)}`);
 	};
 
 	getMCPServerConfigs = async (

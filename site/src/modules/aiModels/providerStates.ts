@@ -10,7 +10,7 @@ export type ProviderState = {
 	provider: string;
 	label: string;
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	models: readonly TypesGen.ChatModel[];
 	catalogModelCount: number;
 	hasManagedAPIKey: boolean;
 	hasCatalogAPIKey: boolean;
@@ -20,7 +20,8 @@ export type ProviderState = {
 	baseURL: string;
 };
 
-type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
+type CatalogProvider =
+	TypesGen.ChatModelAvailabilityResponse["providers"][number];
 
 const envPresetProviders = new Set(["openai", "anthropic"]);
 
@@ -42,7 +43,7 @@ const isDatabaseProviderConfig = (
 };
 
 const getCatalogProviders = (
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): readonly CatalogProvider[] => {
 	const providers = catalog?.providers;
 	return Array.isArray(providers) ? providers : [];
@@ -86,9 +87,9 @@ type ProviderEntry = {
 
 // Returns provider states ordered alphabetically by display label.
 export const deriveProviderStates = (
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	models: readonly TypesGen.ChatModel[],
 	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,
-	catalog: TypesGen.ChatModelsResponse | null | undefined,
+	catalog: TypesGen.ChatModelAvailabilityResponse | null | undefined,
 ): readonly ProviderState[] => {
 	const orderedEntries: ProviderEntry[] = [];
 	const seenEntries = new Set<string>();
@@ -120,7 +121,7 @@ export const deriveProviderStates = (
 		}
 		includeEntry(key, provider);
 	}
-	const modelStateKey = (modelConfig: TypesGen.ChatModelConfig): string =>
+	const modelStateKey = (modelConfig: TypesGen.ChatModel): string =>
 		readOptionalString(modelConfig.ai_provider_id) ?? "";
 
 	for (const cp of catalogProviders) {
@@ -128,20 +129,20 @@ export const deriveProviderStates = (
 		if (!provider || providerTypesWithConfigs.has(provider)) continue;
 		includeEntry(provider, provider);
 	}
-	for (const mc of modelConfigs) {
+	for (const mc of models) {
 		const key = modelStateKey(mc);
 		includeEntry(key, providerConfigsByKey.get(key)?.provider ?? "");
 	}
 
-	const modelConfigsByKey = new Map<string, TypesGen.ChatModelConfig[]>();
-	for (const mc of modelConfigs) {
+	const modelsByKey = new Map<string, TypesGen.ChatModel[]>();
+	for (const mc of models) {
 		const key = modelStateKey(mc);
 		if (!key) continue;
-		const existing = modelConfigsByKey.get(key);
+		const existing = modelsByKey.get(key);
 		if (existing) {
 			existing.push(mc);
 		} else {
-			modelConfigsByKey.set(key, [mc]);
+			modelsByKey.set(key, [mc]);
 		}
 	}
 
@@ -166,7 +167,7 @@ export const deriveProviderStates = (
 		const hasBedrockAmbientCredentials =
 			provider === "bedrock" &&
 			providerConfig?.central_api_key_enabled === true;
-		const modelConfigsForProvider = modelConfigsByKey.get(key) ?? [];
+		const modelsForProvider = modelsByKey.get(key) ?? [];
 		const isCatalogEnvPreset =
 			!providerConfig && envPresetProviders.has(provider) && hasCatalogAPIKey;
 		const isEnvPreset =
@@ -177,7 +178,7 @@ export const deriveProviderStates = (
 			provider,
 			label,
 			providerConfig,
-			modelConfigs: modelConfigsForProvider,
+			models: modelsForProvider,
 			catalogModelCount: getProviderModels(catalogProvider).length,
 			hasManagedAPIKey,
 			hasCatalogAPIKey,

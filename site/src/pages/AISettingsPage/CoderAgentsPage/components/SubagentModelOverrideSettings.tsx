@@ -29,9 +29,9 @@ interface SubagentModelOverrideSettingsProps {
 	title: string;
 	description?: ReactNode;
 	modelOverrideData: ModelOverrideData | undefined;
-	enabledModelConfigs: readonly TypesGen.ChatModelConfig[];
+	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	modelConfigsError: unknown;
+	modelsError: unknown;
 	isLoading: boolean;
 	onSaveModelOverride: (
 		req: UpdateModelOverrideRequest,
@@ -51,9 +51,9 @@ export const SubagentModelOverrideSettings: FC<
 	title,
 	description,
 	modelOverrideData,
-	enabledModelConfigs,
+	enabledModels,
 	providerInfoByID,
-	modelConfigsError,
+	modelsError,
 	isLoading,
 	onSaveModelOverride,
 	isSaving,
@@ -66,7 +66,7 @@ export const SubagentModelOverrideSettings: FC<
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 	const hasLoadedModelOverride = modelOverrideData !== undefined;
 	const isMalformedOverride = modelOverrideData?.is_malformed ?? false;
-	const enabledModelOptions = enabledModelConfigs.map((modelConfig) => {
+	const enabledModelOptions = enabledModels.map((modelConfig) => {
 		const providerInfo = providerInfoByID.get(modelConfig.ai_provider_id);
 		const reasoningEffort = modelConfig.model_config?.reasoning_effort;
 		const reasoningEfforts = modelConfig.reasoning_efforts ?? [];
@@ -177,7 +177,7 @@ export const SubagentModelOverrideSettings: FC<
 					unavailableMessage={unavailableModelWarning}
 					isMalformedOverride={isMalformedOverride}
 					malformedMessage="The saved override is malformed and is being treated as unset. Click Save to clear it."
-					modelConfigsError={modelConfigsError}
+					modelsError={modelsError}
 				/>
 			</div>
 			<Button

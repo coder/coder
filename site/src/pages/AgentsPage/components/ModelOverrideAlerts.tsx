@@ -6,7 +6,7 @@ interface ModelOverrideAlertsProps {
 	unavailableMessage: ReactNode;
 	isMalformedOverride: boolean;
 	malformedMessage: ReactNode;
-	modelConfigsError: unknown;
+	modelsError: unknown;
 	children?: ReactNode;
 }
 
@@ -15,7 +15,7 @@ export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 	unavailableMessage,
 	isMalformedOverride,
 	malformedMessage,
-	modelConfigsError,
+	modelsError,
 	children,
 }) => {
 	return (
@@ -31,9 +31,9 @@ export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 				</Alert>
 			)}
 			{children}
-			{Boolean(modelConfigsError) && (
+			{Boolean(modelsError) && (
 				<p className="m-0 text-xs text-content-destructive">
-					Failed to load model configs.
+					Failed to load models.
 				</p>
 			)}
 		</>

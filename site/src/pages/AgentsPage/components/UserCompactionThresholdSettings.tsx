@@ -29,18 +29,18 @@ import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 
 interface UserCompactionThresholdSettingsProps {
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
+	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
-	modelConfigsError?: unknown;
-	isLoadingModelConfigs?: boolean;
+	modelsError?: unknown;
+	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
 	thresholdsError: unknown;
 	onSaveThreshold: (
-		modelConfigId: string,
+		modelId: string,
 		thresholdPercent: number,
 	) => Promise<unknown>;
-	onResetThreshold: (modelConfigId: string) => Promise<unknown>;
+	onResetThreshold: (modelId: string) => Promise<unknown>;
 }
 
 const parseThresholdDraft = (value: string): number | null => {
@@ -72,10 +72,10 @@ const ContextCompactionHeader: FC = () => (
 export const UserCompactionThresholdSettings: FC<
 	UserCompactionThresholdSettingsProps
 > = ({
-	modelConfigs,
+	models,
 	providerTypeByID,
-	modelConfigsError,
-	isLoadingModelConfigs,
+	modelsError,
+	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
 	thresholdsError,
@@ -87,7 +87,7 @@ export const UserCompactionThresholdSettings: FC<
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
-	const enabledModelConfigs = modelConfigs.filter((config) => config.enabled);
+	const enabledModels = models.filter((config) => config.enabled);
 	const overridesByModelID = new Map(
 		(thresholds ?? []).map(
 			(threshold: TypesGen.UserChatCompactionThreshold) => [
@@ -97,21 +97,21 @@ export const UserCompactionThresholdSettings: FC<
 		),
 	);
 
-	const clearDraft = (modelConfigID: string) => {
+	const clearDraft = (modelID: string) => {
 		setDrafts((currentDrafts) => {
 			const nextDrafts = { ...currentDrafts };
-			delete nextDrafts[modelConfigID];
+			delete nextDrafts[modelID];
 			return nextDrafts;
 		});
 	};
 
-	const clearRowError = (modelConfigID: string) => {
+	const clearRowError = (modelID: string) => {
 		setRowErrors((currentErrors) => {
-			if (!(modelConfigID in currentErrors)) {
+			if (!(modelID in currentErrors)) {
 				return currentErrors;
 			}
 			const nextErrors = { ...currentErrors };
-			delete nextErrors[modelConfigID];
+			delete nextErrors[modelID];
 			return nextErrors;
 		});
 	};
@@ -128,55 +128,55 @@ export const UserCompactionThresholdSettings: FC<
 		});
 	};
 
-	const handleReset = (modelConfigId: string) => {
-		clearRowError(modelConfigId);
-		addPending(modelConfigId);
-		onResetThreshold(modelConfigId)
+	const handleReset = (modelId: string) => {
+		clearRowError(modelId);
+		addPending(modelId);
+		onResetThreshold(modelId)
 			.then(() => {
-				clearDraft(modelConfigId);
-				clearRowError(modelConfigId);
+				clearDraft(modelId);
+				clearRowError(modelId);
 			})
 			.catch((error: unknown) => {
 				setRowErrors((currentErrors) => ({
 					...currentErrors,
-					[modelConfigId]: getErrorMessage(
+					[modelId]: getErrorMessage(
 						error,
 						"Failed to reset compaction threshold.",
 					),
 				}));
 			})
 			.finally(() => {
-				removePending(modelConfigId);
+				removePending(modelId);
 			});
 	};
 
 	// Compute dirty rows: rows where the user has typed a valid value
 	// that differs from the current server-side override.
-	const dirtyRows: Array<{ modelConfigId: string; value: number }> = [];
-	for (const modelConfig of enabledModelConfigs) {
+	const dirtyRows: Array<{ modelId: string; value: number }> = [];
+	for (const modelConfig of enabledModels) {
 		const draft = drafts[modelConfig.id];
 		if (draft === undefined) continue;
 		const parsed = parseThresholdDraft(draft);
 		if (parsed === null) continue;
 		const existingOverride = overridesByModelID.get(modelConfig.id);
 		if (parsed === existingOverride) continue;
-		dirtyRows.push({ modelConfigId: modelConfig.id, value: parsed });
+		dirtyRows.push({ modelId: modelConfig.id, value: parsed });
 	}
 
 	const handleSaveAll = () => {
-		const saves = dirtyRows.map(({ modelConfigId, value }) => {
-			clearRowError(modelConfigId);
-			addPending(modelConfigId);
-			return onSaveThreshold(modelConfigId, value)
+		const saves = dirtyRows.map(({ modelId, value }) => {
+			clearRowError(modelId);
+			addPending(modelId);
+			return onSaveThreshold(modelId, value)
 				.then(() => {
-					clearDraft(modelConfigId);
-					clearRowError(modelConfigId);
+					clearDraft(modelId);
+					clearRowError(modelId);
 					return true;
 				})
 				.catch((error: unknown) => {
 					setRowErrors((currentErrors) => ({
 						...currentErrors,
-						[modelConfigId]: getErrorMessage(
+						[modelId]: getErrorMessage(
 							error,
 							"Failed to save compaction threshold.",
 						),
@@ -184,7 +184,7 @@ export const UserCompactionThresholdSettings: FC<
 					return false;
 				})
 				.finally(() => {
-					removePending(modelConfigId);
+					removePending(modelId);
 				});
 		});
 		void Promise.all(saves).then((results) => {
@@ -234,19 +234,16 @@ export const UserCompactionThresholdSettings: FC<
 	return (
 		<div className="flex flex-col gap-3">
 			<ContextCompactionHeader />
-			{isLoadingModelConfigs ? (
+			{isLoadingModels ? (
 				<div className="flex items-center gap-2 text-sm text-content-secondary">
 					<Spinner loading className="size-4" />
 					Loading models...
 				</div>
-			) : modelConfigsError ? (
+			) : modelsError ? (
 				<p className="m-0 text-xs text-content-destructive">
-					{getErrorMessage(
-						modelConfigsError,
-						"Failed to load model configurations.",
-					)}
+					{getErrorMessage(modelsError, "Failed to load model configurations.")}
 				</p>
-			) : enabledModelConfigs.length === 0 ? (
+			) : enabledModels.length === 0 ? (
 				<p className="m-0 text-xs text-content-secondary">
 					No enabled chat models available. An administrator must configure chat
 					models before compaction thresholds can be set.
@@ -261,7 +258,7 @@ export const UserCompactionThresholdSettings: FC<
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{enabledModelConfigs.map((modelConfig) => {
+						{enabledModels.map((modelConfig) => {
 							const existingOverride = overridesByModelID.get(modelConfig.id);
 							const hasOverride = overridesByModelID.has(modelConfig.id);
 							const draftValue =

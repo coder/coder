@@ -12,13 +12,11 @@ interface AddModelPageViewProps {
 	isLoading: boolean;
 	providerStates: readonly ProviderState[];
 	selectedProviderState: ProviderState | null;
-	duplicateSourceModel?: TypesGen.ChatModelConfig;
-	currentDefaultModel?: TypesGen.ChatModelConfig;
+	duplicateSourceModel?: TypesGen.ChatModel;
+	currentDefaultModel?: TypesGen.ChatModel;
 	isSaving: boolean;
 	onProviderChange: (providerKey: string) => void;
-	onCreateModel: (
-		req: TypesGen.CreateChatModelConfigRequest,
-	) => Promise<unknown>;
+	onCreateModel: (req: TypesGen.CreateChatModelRequest) => Promise<unknown>;
 }
 
 const AddModelPageView: FC<AddModelPageViewProps> = ({

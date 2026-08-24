@@ -643,9 +643,9 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                               |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelsResponse](schemas.md#codersdkchatmodelsresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                                     |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatModelAvailabilityResponse](schemas.md#codersdkchatmodelavailabilityresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
