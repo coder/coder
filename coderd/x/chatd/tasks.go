@@ -705,11 +705,7 @@ func committedPendingLocalToolCancellationMessages(
 	if len(localCalls) == 0 {
 		return nil, nil
 	}
-	var (
-		windowEnd    time.Time
-		windowRowIdx = -1
-		intervals    []chatloop.BilledInterval
-	)
+	var intervals []chatloop.BilledInterval
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
 		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
@@ -734,8 +730,8 @@ func committedPendingLocalToolCancellationMessages(
 		if unbilledSubagentToolNames[call.ToolName] {
 			continue
 		}
-		// Bill only matching started calls. Completed calls end at completion,
-		// running calls end at the interrupt, and ties keep the first call.
+		// Bill only started calls. Completed calls end at completion and
+		// running calls end at the interrupt.
 		occurrence, ok := toolCompletions[i]
 		if !ok {
 			continue
@@ -749,14 +745,20 @@ func committedPendingLocalToolCancellationMessages(
 			end = interruptedAt
 		}
 		intervals = append(intervals, chatloop.BilledInterval{Start: start, End: end})
-		if end.After(windowEnd) {
-			windowEnd = end
-			windowRowIdx = len(result) - 1
-		}
 	}
-	// Bill the interval union once on the row whose interval ends last.
-	if windowRowIdx >= 0 {
-		result[windowRowIdx].RuntimeMs = nullInt64IfNonZero(chatloop.BilledIntervalsDuration(intervals).Milliseconds())
+	// Bill the interval union once on a dedicated usage record so
+	// cancellation rows stay free of batch-level runtime.
+	stamp, ok, err := batchUsageMessage(
+		chat.LastModelConfigID,
+		chatprompt.CurrentContentVersion,
+		chatloop.BilledIntervalsDuration(intervals),
+		len(intervals),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		result = append(result, stamp)
 	}
 	return result, nil
 }
