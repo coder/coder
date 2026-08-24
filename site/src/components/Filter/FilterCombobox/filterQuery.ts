@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { needsQuotes } from "#/components/Filter/filterQuery";
 import type { FilterOption } from "./types";
 
 const FILTER_TOKEN_RE = /([\w-]+):"([^"]+)"|([\w-]+):(\S+)/g;
@@ -113,7 +114,7 @@ export const composeFilterQuery = (
 		const separatorIndex = token.indexOf(":");
 		const key = token.slice(0, separatorIndex);
 		const value = token.slice(separatorIndex + 1);
-		return value.includes(" ") ? `${key}:"${value}"` : `${key}:${value}`;
+		return needsQuotes(value) ? `${key}:"${value}"` : `${key}:${value}`;
 	});
 
 	const trimmedFreeText = freeText.trim();

@@ -611,13 +611,7 @@ export const WithFilterError: Story = {
 			name: "Search and filter workspaces…",
 		});
 		expect(input).toHaveAttribute("aria-invalid", "true");
-		expect(input).toHaveAttribute(
-			"aria-errormessage",
-			"workspaces-filter-error",
-		);
-		expect(canvas.getByRole("alert")).toHaveAttribute(
-			"id",
-			"workspaces-filter-error",
-		);
+		const alert = canvas.getByRole("alert");
+		expect(input).toHaveAttribute("aria-errormessage", alert.id);
 	},
 };

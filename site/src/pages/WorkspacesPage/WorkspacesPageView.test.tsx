@@ -4,15 +4,14 @@ import { MockTemplate } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
-const createFilter = (used = false) =>
-	({
-		query: "",
-		values: {},
-		used,
-		update: vi.fn(),
-		debounceUpdate: vi.fn(),
-		cancelDebounce: vi.fn(),
-	}) as unknown as UseFilterResult;
+const createFilter = (used = false): UseFilterResult => ({
+	query: "",
+	values: {},
+	used,
+	update: vi.fn(),
+	debounceUpdate: vi.fn(),
+	cancelDebounce: vi.fn(),
+});
 
 const defaultProps = {
 	error: undefined,

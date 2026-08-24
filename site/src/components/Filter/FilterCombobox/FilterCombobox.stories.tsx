@@ -157,10 +157,6 @@ const FilterComboboxHarness = ({
 	);
 };
 
-/** The popup renders under document.body; scope queries there to find it. */
-const bodyOf = (canvasElement: HTMLElement) =>
-	within(canvasElement.ownerDocument.body);
-
 export const Default: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
@@ -200,7 +196,7 @@ export const OpenFilterMenu: Story = {
 	render: () => <FilterComboboxHarness />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -221,7 +217,7 @@ export const FocusShowsCategories: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -238,7 +234,7 @@ export const TypeFacetPrefix: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -256,7 +252,7 @@ export const TypeaheadMatchingCategories: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -276,7 +272,7 @@ export const TabCompletesTopCategory: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -297,7 +293,7 @@ export const EnterCommitsHighlightedCategory: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -343,7 +339,7 @@ export const LiveResourcePreviews: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -365,7 +361,7 @@ export const PreservesChipInsertionOrder: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -433,7 +429,7 @@ export const CrossCategoryValueSuggestions: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -462,7 +458,7 @@ export const AttributesCommitBooleanChips: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Toggle filters" }),
@@ -500,7 +496,7 @@ export const DismissOnEscape: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -523,7 +519,7 @@ export const DismissOnOutsideClick: Story = {
 	render: () => <FilterComboboxHarness initialQuery="owner:me" />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -567,7 +563,7 @@ export const CategoryOptionsErrorRetry: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -612,7 +608,7 @@ export const TypeaheadErrorRetry: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -656,7 +652,7 @@ export const PreviewErrorNamesPreview: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});
@@ -689,7 +685,7 @@ export const CategoryEmptyState: Story = {
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = bodyOf(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const input = canvas.getByRole("combobox", {
 			name: "Search and filter…",
 		});

@@ -1,4 +1,5 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
+import { useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -37,10 +38,11 @@ type FilterComboboxProps = Readonly<{
 	categories: readonly FilterCategory[];
 	placeholder?: string;
 	className?: string;
-	/** Marks the input invalid (e.g. the server rejected the filter query). */
-	invalid?: boolean;
-	/** Id of the visible error message, linked from the input when invalid. */
-	errorId?: string;
+	/**
+	 * Error to surface below the input (e.g. the server rejected the filter
+	 * query). When set, the input is marked invalid and linked to the message.
+	 */
+	errorMessage?: string;
 	/** Debounced free-text resource previews (e.g. matching workspaces). */
 	getSearchResults?: (query: string) => Promise<SearchResult[]>;
 	onSearchResultSelect?: (result: SearchResult) => void;
@@ -53,8 +55,7 @@ export function FilterCombobox({
 	categories,
 	placeholder = "Search and filter…",
 	className,
-	invalid = false,
-	errorId,
+	errorMessage,
 	getSearchResults,
 	onSearchResultSelect,
 	searchResultsLabel = "Results",
@@ -83,128 +84,142 @@ export function FilterCombobox({
 		onSearchResultSelect,
 	});
 
+	const errorId = useId();
+	const invalid = errorMessage !== undefined;
+
 	return (
-		<FilterComboboxRoot
-			open={open}
-			onDismiss={actions.dismiss}
-			value={chipValues}
-			onRemoveValue={actions.removeChip}
-			inputValue={inputValue}
-			onInputValueChange={actions.onInputValueChange}
-			onItemHighlighted={actions.onItemHighlighted}
-			label={placeholder}
-		>
-			<FilterComboboxInputGroup className={className}>
-				<InputGroupAddon className="min-h-10">
-					<SearchIcon aria-hidden className="size-icon-sm" />
-				</InputGroupAddon>
-				<FilterComboboxChips>
-					<FilterComboboxValue>
-						{(selected: string[]) => (
-							<>
-								{selected.map((token) => (
-									<FilterComboboxChip key={token} value={token}>
-										{token}
-									</FilterComboboxChip>
-								))}
-								{activeCategory && committedFreeText.length > 0 && (
-									<Badge
-										variant="outline"
-										size="md"
-										data-slot="combobox-chip-search"
-										className="font-medium"
-									>
-										{committedFreeText}
-									</Badge>
-								)}
-								{/* Decorative draft prefix: the live region already announces
+		<>
+			<FilterComboboxRoot
+				open={open}
+				onDismiss={actions.dismiss}
+				value={chipValues}
+				onRemoveValue={actions.removeChip}
+				inputValue={inputValue}
+				onInputValueChange={actions.onInputValueChange}
+				onItemHighlighted={actions.onItemHighlighted}
+				label={placeholder}
+			>
+				<FilterComboboxInputGroup className={className}>
+					<InputGroupAddon className="min-h-10">
+						<SearchIcon aria-hidden className="size-icon-sm" />
+					</InputGroupAddon>
+					<FilterComboboxChips>
+						<FilterComboboxValue>
+							{(selected: string[]) => (
+								<>
+									{selected.map((token) => (
+										<FilterComboboxChip key={token} value={token}>
+											{token}
+										</FilterComboboxChip>
+									))}
+									{activeCategory && committedFreeText.length > 0 && (
+										<Badge
+											variant="outline"
+											size="md"
+											data-slot="combobox-chip-search"
+											className="font-medium"
+										>
+											{committedFreeText}
+										</Badge>
+									)}
+									{/* Decorative draft prefix: the live region already announces
 								    "Filtering by <category>", so this stays hidden. */}
-								{activeCategory && (
-									<Badge
-										variant="dashed"
-										size="md"
-										data-slot="combobox-chip-draft"
-										className="font-medium"
-										aria-hidden
-									>
-										{/* A single-key category previews its chip prefix
+									{activeCategory && (
+										<Badge
+											variant="dashed"
+											size="md"
+											data-slot="combobox-chip-draft"
+											className="font-medium"
+											aria-hidden
+										>
+											{/* A single-key category previews its chip prefix
 										    (e.g. `status:`); a multi-key one (Attributes
 										    commits `outdated:true`, etc.) shows its label. */}
-										{activeCategory.chipKeys &&
-										!activeCategory.chipKeys.includes(activeCategory.key)
-											? activeCategory.label
-											: `${activeCategory.key}:`}
-									</Badge>
-								)}
-								<FilterComboboxChipsInput
-									ref={actions.setInputRef}
-									aria-label={placeholder}
-									aria-invalid={invalid || undefined}
-									aria-errormessage={invalid ? errorId : undefined}
-									placeholder={
-										selected.length > 0 || activeCategory ? "" : placeholder
-									}
-									onFocus={actions.onInputFocus}
-									onKeyDown={actions.onInputKeyDown}
-								/>
-							</>
-						)}
-					</FilterComboboxValue>
-				</FilterComboboxChips>
-				<InputGroupAddon
-					align="inline-end"
-					className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
-				>
-					<InputGroupButton
-						type="button"
-						variant="subtle"
-						aria-label="Toggle filters"
-						aria-expanded={open}
-						aria-haspopup="listbox"
-						className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
-						onMouseDown={(event) => {
-							// Prevent the button from taking focus on pointer open.
-							// toggleFilterMenu focuses the combobox input next so
-							// aria-activedescendant keyboard navigation still works.
-							event.preventDefault();
-						}}
-						onClick={actions.toggleMenu}
+											{activeCategory.chipKeys &&
+											!activeCategory.chipKeys.includes(activeCategory.key)
+												? activeCategory.label
+												: `${activeCategory.key}:`}
+										</Badge>
+									)}
+									<FilterComboboxChipsInput
+										ref={actions.setInputRef}
+										aria-label={placeholder}
+										aria-invalid={invalid || undefined}
+										aria-errormessage={invalid ? errorId : undefined}
+										placeholder={
+											selected.length > 0 || activeCategory ? "" : placeholder
+										}
+										onFocus={actions.onInputFocus}
+										onKeyDown={actions.onInputKeyDown}
+									/>
+								</>
+							)}
+						</FilterComboboxValue>
+					</FilterComboboxChips>
+					<InputGroupAddon
+						align="inline-end"
+						className="w-10 items-center self-stretch border-0 border-l border-solid border-border p-0"
 					>
-						<ListFilterIcon aria-hidden className="size-icon-sm" />
-					</InputGroupButton>
-				</InputGroupAddon>
-			</FilterComboboxInputGroup>
-			<FilterComboboxContent>
-				{/* Keep mounted so polite status announcements stay consistent. */}
-				<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
-				{typeahead.active ? (
-					<TypeaheadList
-						listedCategories={listedCategories}
-						valueSuggestions={valueSuggestions}
-						searchResults={searchResults}
-						searchResultsLabel={searchResultsLabel}
-						showSearchSection={typeahead.showSearchResults}
-						typeaheadLoading={typeahead.loading}
-						typeaheadError={typeahead.error}
-						typeaheadErrorLabel={typeahead.errorLabel}
-						onSelectCategory={actions.selectCategory}
-						onSelectSuggestion={actions.selectValueSuggestion}
-						onSelectSearchResult={actions.selectSearchResult}
-						onRetry={actions.retryTypeahead}
-					/>
-				) : (
-					<CategoryOptionsList
-						activeCategory={activeCategory}
-						activeCategoryKey={activeCategoryKey}
-						activeOptions={activeOptions}
-						activeOptionsLoading={activeOptionsLoading}
-						activeOptionsError={activeOptionsError}
-						retryActiveOptions={actions.retryActiveOptions}
-						onSelectOption={actions.selectCategoryOption}
-					/>
-				)}
-			</FilterComboboxContent>
-		</FilterComboboxRoot>
+						<InputGroupButton
+							type="button"
+							variant="subtle"
+							aria-label="Toggle filters"
+							aria-expanded={open}
+							aria-haspopup="listbox"
+							className="min-h-10 w-10 min-w-10 shrink-0 rounded-none rounded-r-md px-0 [&>svg]:p-0"
+							onMouseDown={(event) => {
+								// Prevent the button from taking focus on pointer open.
+								// toggleFilterMenu focuses the combobox input next so
+								// aria-activedescendant keyboard navigation still works.
+								event.preventDefault();
+							}}
+							onClick={actions.toggleMenu}
+						>
+							<ListFilterIcon aria-hidden className="size-icon-sm" />
+						</InputGroupButton>
+					</InputGroupAddon>
+				</FilterComboboxInputGroup>
+				<FilterComboboxContent>
+					{/* Keep mounted so polite status announcements stay consistent. */}
+					<FilterComboboxStatus>{statusMessage}</FilterComboboxStatus>
+					{typeahead.active ? (
+						<TypeaheadList
+							listedCategories={listedCategories}
+							valueSuggestions={valueSuggestions}
+							searchResults={searchResults}
+							searchResultsLabel={searchResultsLabel}
+							showSearchSection={typeahead.showSearchResults}
+							typeaheadLoading={typeahead.loading}
+							typeaheadError={typeahead.error}
+							typeaheadErrorLabel={typeahead.errorLabel}
+							onSelectCategory={actions.selectCategory}
+							onSelectSuggestion={actions.selectValueSuggestion}
+							onSelectSearchResult={actions.selectSearchResult}
+							onRetry={actions.retryTypeahead}
+						/>
+					) : (
+						<CategoryOptionsList
+							activeCategory={activeCategory}
+							activeCategoryKey={activeCategoryKey}
+							activeOptions={activeOptions}
+							activeOptionsLoading={activeOptionsLoading}
+							activeOptionsError={activeOptionsError}
+							retryActiveOptions={actions.retryActiveOptions}
+							onSelectOption={actions.selectCategoryOption}
+						/>
+					)}
+				</FilterComboboxContent>
+			</FilterComboboxRoot>
+			{invalid && (
+				<span
+					id={errorId}
+					role="alert"
+					className="text-sm text-content-destructive"
+				>
+					{errorMessage}
+				</span>
+			)}
+		</>
 	);
 }
 

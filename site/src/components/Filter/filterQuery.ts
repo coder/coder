@@ -21,7 +21,7 @@ export const parseFilterQuery = (filterQuery: string): FilterValues => {
 
 // Values containing spaces or colons must be quoted: the backend query
 // parser splits unquoted elements on ':' and rejects more than one colon.
-const needsQuotes = (value: string): boolean =>
+export const needsQuotes = (value: string): boolean =>
 	value.includes(" ") || value.includes(":");
 
 export const stringifyFilter = (filterValue: FilterValues): string => {

@@ -106,6 +106,53 @@ const reducer = (state: State, action: Action): State => {
 	}
 };
 
+type StatusMessageInput = {
+	activeCategoryLabel: string | undefined;
+	activeOptionsLoading: boolean;
+	activeOptionsError: boolean;
+	activeOptionsEmpty: boolean;
+	typeaheadLoading: boolean;
+	typeaheadError: boolean;
+	typeaheadErrorLabel: string;
+	typeaheadEmpty: boolean;
+};
+
+// Live-region text for each terminal state so screen readers hear loading,
+// failures, and empty results rather than silence.
+const deriveStatusMessage = ({
+	activeCategoryLabel,
+	activeOptionsLoading,
+	activeOptionsError,
+	activeOptionsEmpty,
+	typeaheadLoading,
+	typeaheadError,
+	typeaheadErrorLabel,
+	typeaheadEmpty,
+}: StatusMessageInput): string => {
+	if (activeCategoryLabel !== undefined) {
+		if (activeOptionsLoading) {
+			return `Loading ${activeCategoryLabel} options`;
+		}
+		if (activeOptionsError) {
+			return `Couldn't load ${activeCategoryLabel} options`;
+		}
+		if (activeOptionsEmpty) {
+			return `No ${activeCategoryLabel} matches`;
+		}
+		return `Filtering by ${activeCategoryLabel}`;
+	}
+	if (typeaheadLoading) {
+		return "Loading suggestions";
+	}
+	if (typeaheadError) {
+		return typeaheadErrorLabel;
+	}
+	if (typeaheadEmpty) {
+		return "No filters found";
+	}
+	return "";
+};
+
 type UseFilterComboboxOptions = {
 	value: string;
 	onChange: (query: string) => void;
@@ -150,20 +197,12 @@ export const useFilterCombobox = ({
 	const prevChipKeysRef = useRef(chipKeys);
 	const highlightedItemRef = useRef<string | null>(null);
 	const inputRef = useRef<HTMLInputElement | null>(null);
-	const onChangeRef = useRef(onChange);
-	onChangeRef.current = onChange;
-	const onSearchResultSelectRef = useRef(onSearchResultSelect);
-	onSearchResultSelectRef.current = onSearchResultSelect;
-	const categoriesRef = useRef(categories);
-	categoriesRef.current = categories;
-	const getSearchResultsRef = useRef(getSearchResults);
-	getSearchResultsRef.current = getSearchResults;
 	const hasSearchResultsLoader = Boolean(getSearchResults);
 
 	const { debounced: debouncedOnChange, cancelDebounce } = useDebouncedFunction(
 		(query: string) => {
 			lastEmittedRef.current = query;
-			onChangeRef.current(query);
+			onChange(query);
 		},
 		SEARCH_DEBOUNCE_MS,
 	);
@@ -172,7 +211,7 @@ export const useFilterCombobox = ({
 		if (immediate) {
 			cancelDebounce();
 			lastEmittedRef.current = query;
-			onChangeRef.current(query);
+			onChange(query);
 			return;
 		}
 		debouncedOnChange(query);
@@ -231,7 +270,7 @@ export const useFilterCombobox = ({
 			debouncedActiveOptionsQuery,
 		),
 		queryFn: () => {
-			const category = categoriesRef.current.find(
+			const category = categories.find(
 				(entry) => entry.key === activeCategoryKey,
 			);
 			if (!category) {
@@ -317,11 +356,10 @@ export const useFilterCombobox = ({
 	const searchResultsQuery = useQuery({
 		queryKey: filterComboboxSearchResultsKey(debouncedTypeaheadQuery),
 		queryFn: () => {
-			const loader = getSearchResultsRef.current;
-			if (!loader) {
+			if (!getSearchResults) {
 				return Promise.resolve([] as SearchResult[]);
 			}
-			return loader(debouncedTypeaheadQuery);
+			return getSearchResults(debouncedTypeaheadQuery);
 		},
 		enabled:
 			hasSearchResultsLoader &&
@@ -382,22 +420,16 @@ export const useFilterCombobox = ({
 
 	// Announce a live-region message for each terminal state so screen readers
 	// hear loading, failures, and empty results rather than silence.
-	let statusMessage = "";
-	if (activeCategory) {
-		statusMessage = activeOptionsLoading
-			? `Loading ${activeCategory.label} options`
-			: activeOptionsError
-				? `Couldn't load ${activeCategory.label} options`
-				: activeOptionsEmpty
-					? `No ${activeCategory.label} matches`
-					: `Filtering by ${activeCategory.label}`;
-	} else if (typeaheadLoading) {
-		statusMessage = "Loading suggestions";
-	} else if (typeaheadError) {
-		statusMessage = typeaheadErrorLabel;
-	} else if (typeaheadEmpty) {
-		statusMessage = "No filters found";
-	}
+	const statusMessage = deriveStatusMessage({
+		activeCategoryLabel: activeCategory?.label,
+		activeOptionsLoading,
+		activeOptionsError,
+		activeOptionsEmpty,
+		typeaheadLoading,
+		typeaheadError,
+		typeaheadErrorLabel,
+		typeaheadEmpty,
+	});
 
 	// Refetch both typeahead sources so one retry covers a failed suggestion
 	// lookup and a failed workspace preview.
@@ -439,7 +471,7 @@ export const useFilterCombobox = ({
 	};
 
 	const selectSearchResult = (result: SearchResult) => {
-		onSearchResultSelectRef.current?.(result);
+		onSearchResultSelect?.(result);
 		dispatch({ type: "close", input: "keep" });
 	};
 

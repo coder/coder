@@ -149,21 +149,13 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 				categories={categories}
 				placeholder="Search and filter workspaces…"
 				className="max-w-lg"
-				invalid={showValidationError}
-				errorId="workspaces-filter-error"
+				errorMessage={
+					showValidationError ? getValidationErrorMessage(error) : undefined
+				}
 				getSearchResults={getSearchResults}
 				onSearchResultSelect={onSearchResultSelect}
 				searchResultsLabel="Jump to workspace"
 			/>
-			{showValidationError && (
-				<span
-					id="workspaces-filter-error"
-					role="alert"
-					className="text-sm text-content-destructive"
-				>
-					{getValidationErrorMessage(error)}
-				</span>
-			)}
 		</div>
 	);
 };
