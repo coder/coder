@@ -163,7 +163,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 	};
 
 	return (
-		<div className="flex items-center gap-2" data-testid="workspace-actions">
+		<div
+			className="flex flex-wrap items-center justify-end gap-2"
+			data-testid="workspace-actions"
+		>
 			{/* Restarting must be handled separately, because it otherwise would appear as stopping */}
 			{isUpdating
 				? buttonMapping.updating
@@ -175,11 +178,14 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 			{canCancel && <CancelButton handleAction={handleCancel} />}
 
-			<FavoriteButton
-				workspaceID={workspace.id}
-				isFavorite={workspace.favorite}
-				onToggle={handleToggleFavorite}
-			/>
+			{/* Only the owner can favorite a workspace. */}
+			{user.id === workspace.owner_id && (
+				<FavoriteButton
+					workspaceID={workspace.id}
+					isFavorite={workspace.favorite}
+					onToggle={handleToggleFavorite}
+				/>
+			)}
 
 			{permissions.shareWorkspace && (
 				<ShareButton

@@ -1,9 +1,9 @@
-import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
 import {
@@ -39,23 +39,20 @@ export const EditFilesTool: React.FC<{
 		EDIT_FILES_AUTO_DISPLAY_STATE,
 	);
 
-	let label: string;
+	let verb = "Edited";
 	if (isRunning) {
-		if (files.length === 1) {
-			label = `Editing ${getPathBasename(files[0].path)}…`;
-		} else if (files.length > 1) {
-			label = `Editing ${files.length} files…`;
-		} else {
-			label = "Editing files…";
-		}
-	} else if (files.length === 1) {
-		const filename = getPathBasename(files[0].path);
-		label = `Edited ${filename}`;
-	} else if (files.length > 1) {
-		label = `Edited ${files.length} files`;
-	} else {
-		label = "Edited files";
+		verb = "Editing";
+	} else if (isError) {
+		verb = "Failed to edit";
 	}
+	let subject = "files";
+	if (files.length === 1) {
+		subject = getPathBasename(files[0].path);
+	} else if (files.length > 1) {
+		subject = `${files.length} files`;
+	}
+	const label = isRunning ? `${verb} ${subject}…` : `${verb} ${subject}`;
+	const errorDetail = isError ? errorMessage?.trim() : undefined;
 
 	return (
 		<ToolCall.Root
@@ -64,11 +61,16 @@ export const EditFilesTool: React.FC<{
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || "Failed to edit files"}
-			hasContent={hasDiffs}
+			hasContent={hasDiffs || Boolean(errorDetail)}
 			defaultView={displayState}
 		>
 			<ToolCall.Header iconName="edit_files" label={label} />
 			<ToolCall.Content>
+				{errorDetail && (
+					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+						{errorDetail}
+					</pre>
+				)}
 				<div className="mt-1.5 space-y-1.5">
 					{diffs.map((diff, i) =>
 						diff ? (
@@ -81,6 +83,8 @@ export const EditFilesTool: React.FC<{
 										? "max-h-[80vh]"
 										: "max-h-64"
 								}
+								viewportTabIndex={0}
+								viewportAriaLabel={`Diff of ${files[i].path}`}
 								scrollBarClassName="w-1.5"
 							>
 								<FileDiff

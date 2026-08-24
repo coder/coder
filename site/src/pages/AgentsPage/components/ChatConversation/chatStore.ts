@@ -1,20 +1,9 @@
+import isEqual from "lodash/isEqual";
 import { useSyncExternalStore } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	type ChatDetailError,
-	chatDetailErrorsEqual,
-} from "../../utils/usageLimitMessage";
+import { type ChatDetailError, chatDetailErrorsEqual } from "./chatError";
 import { applyMessagePartToStreamState } from "./streamState";
 import type { ReconnectState, RetryState, StreamState } from "./types";
-
-const byMessageCreatedAt = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): number => {
-	return (
-		new Date(left.created_at).getTime() - new Date(right.created_at).getTime()
-	);
-};
 
 const buildMessageMap = (
 	messages: readonly TypesGen.ChatMessage[],
@@ -24,12 +13,12 @@ const buildMessageMap = (
 const buildOrderedMessageIDs = (
 	messages: readonly TypesGen.ChatMessage[],
 ): readonly number[] => {
-	const sorted = [...messages];
-	sorted.sort(byMessageCreatedAt);
-	// Deduplicate by ID. The input can contain duplicate IDs when
-	// cross-page duplication occurs in the React Query cache (e.g.
-	// upsertCacheMessages writes to page 0 while the same message
-	// still exists in a later page). The Map-based messagesByID
+	// created_at is shared across an insert batch, so only id tracks append order.
+	const sorted = messages.toSorted((left, right) => left.id - right.id);
+	// Deduplicate by ID as a defense against duplicate IDs in the
+	// input. Cache upserts fan the same fresh value out to every
+	// page containing an ID, so cross-page duplicates in the React
+	// Query cache are value-identical. The Map-based messagesByID
 	// already deduplicates, but orderedMessageIDs must match.
 	const seen = new Set<number>();
 	const orderedMessageIDs: number[] = [];
@@ -65,43 +54,12 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-const jsonValuesEqual = (left: unknown, right: unknown): boolean => {
-	if (left === right) {
-		return true;
-	}
-	try {
-		return JSON.stringify(left) === JSON.stringify(right);
-	} catch {
-		return false;
-	}
-};
-
-export const chatMessagesEqualByValue = (
-	left: TypesGen.ChatMessage,
-	right: TypesGen.ChatMessage,
-): boolean =>
-	left.id === right.id &&
-	left.chat_id === right.chat_id &&
-	left.model_config_id === right.model_config_id &&
-	left.created_at === right.created_at &&
-	left.role === right.role &&
-	jsonValuesEqual(left.content, right.content) &&
-	jsonValuesEqual(left.usage, right.usage);
-
 export const chatQueuedMessagesEqualByID = (
 	left: readonly TypesGen.ChatQueuedMessage[],
 	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean => {
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index]?.id !== right[index]?.id) {
-			return false;
-		}
-	}
-	return true;
-};
+): boolean =>
+	left.length === right.length &&
+	left.every((message, index) => message.id === right[index].id);
 
 const retryStatesEqual = (
 	left: RetryState | null,
@@ -118,7 +76,6 @@ const retryStatesEqual = (
 		left.error === right.error &&
 		left.kind === right.kind &&
 		left.provider === right.provider &&
-		left.delayMs === right.delayMs &&
 		left.retryingAt === right.retryingAt
 	);
 };
@@ -142,8 +99,7 @@ const reconnectStatesEqual = (
 
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean =>
-	status === "running" || status === "pending" || status === "interrupting";
+): boolean => status === "running" || status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -159,6 +115,9 @@ export type ChatStoreState = {
 	// the running-case promote, where the backend reorders the
 	// queued message to the front before auto-promoting it.
 	suppressedQueuedMessageIDs: ReadonlySet<number>;
+	// IDs confirmed deleted from the queue because the send response
+	// contained their promoted user rows.
+	promotedQueuedMessageIDs: ReadonlySet<number>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 };
 
@@ -186,7 +145,28 @@ export type ChatStore = {
 	applyAuthoritativeQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
 	) => void;
+	// Advances when an accepted snapshot or active-chat change invalidates an
+	// in-flight convergence request. Discarded snapshots do not advance it.
+	getQueueConvergenceFence: () => number;
+	// Applies a promotion refetch only while the chat and fence still match.
+	// Clears that ID's markers and returns the filtered queue for cache mirroring.
+	applyPromoteRefetchQueuedMessages: (
+		chatID: string,
+		promotedID: number,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		baselineFence: number,
+	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
+	markQueuedMessagePromoted: (id: number) => void;
+	// Distinguishes a tail still in flight from one the server listed and later removed.
+	hasObservedQueuedMessageID: (id: number) => boolean;
+	setActiveChatID: (chatID: string | null) => void;
+	getActiveChatID: () => string | null;
+	// Counts server-reported status events, including repeats of the
+	// current value, so a caller can tell that the server spoke during a
+	// request even when the status did not change.
+	getServerChatStatusVersion: () => number;
+	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
@@ -216,11 +196,18 @@ const createInitialState = (): ChatStoreState => ({
 	reconnectState: null,
 	queuedMessages: [],
 	suppressedQueuedMessageIDs: new Set(),
+	promotedQueuedMessageIDs: new Set(),
 	subagentStatusOverrides: new Map(),
 });
 
 export const createChatStore = (): ChatStore => {
 	let state = createInitialState();
+	// Bookkeeping, deliberately outside the rendered state so observing a
+	// server event cannot trigger a re-render.
+	let observedQueuedMessageIDs = new Set<number>();
+	let queueConvergenceFence = 0;
+	let serverChatStatusVersion = 0;
+	let activeChatID: string | null = null;
 	const listeners = new Set<() => void>();
 
 	const emit = (): void => {
@@ -302,7 +289,7 @@ export const createChatStore = (): ChatStore => {
 		// concurrent state change (TOCTOU).
 		const existing = state.messagesByID.get(message.id);
 		const isDuplicate = state.messagesByID.has(message.id);
-		if (existing && chatMessagesEqualByValue(existing, message)) {
+		if (existing && isEqual(existing, message)) {
 			return { isDuplicate, changed: false };
 		}
 
@@ -311,7 +298,7 @@ export const createChatStore = (): ChatStore => {
 			// Re-check inside the updater: another call may have
 			// already applied this exact message.
 			const curExisting = current.messagesByID.get(message.id);
-			if (curExisting && chatMessagesEqualByValue(curExisting, message)) {
+			if (curExisting && isEqual(curExisting, message)) {
 				return current;
 			}
 
@@ -349,7 +336,7 @@ export const createChatStore = (): ChatStore => {
 			for (const message of messages) {
 				const map = nextMessagesByID ?? current.messagesByID;
 				const existing = map.get(message.id);
-				if (existing && chatMessagesEqualByValue(existing, message)) {
+				if (existing && isEqual(existing, message)) {
 					continue;
 				}
 				// Lazily copy the map on first actual change.
@@ -423,6 +410,20 @@ export const createChatStore = (): ChatStore => {
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
 			const incoming = queuedMessages ?? [];
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			// A snapshot containing a confirmed promoted ID predates its queue
+			// deletion. Applying it would also drop newer queued messages, and
+			// counting it would discard the fresher refetch racing it.
+			if (
+				incoming.some((message) =>
+					state.promotedQueuedMessageIDs.has(message.id),
+				)
+			) {
+				return;
+			}
+			queueConvergenceFence++;
 			setState((current) => {
 				let nextSuppressed = current.suppressedQueuedMessageIDs;
 				if (current.suppressedQueuedMessageIDs.size > 0) {
@@ -450,16 +451,65 @@ export const createChatStore = (): ChatStore => {
 				);
 				const sameSuppressed =
 					nextSuppressed === current.suppressedQueuedMessageIDs;
-				if (sameQueue && sameSuppressed) {
+				const nextPromoted =
+					current.promotedQueuedMessageIDs.size === 0
+						? current.promotedQueuedMessageIDs
+						: new Set<number>();
+				const samePromoted = nextPromoted === current.promotedQueuedMessageIDs;
+				if (sameQueue && sameSuppressed && samePromoted) {
 					return current;
 				}
 				return {
 					...current,
 					queuedMessages: sameQueue ? current.queuedMessages : filtered,
 					suppressedQueuedMessageIDs: nextSuppressed,
+					promotedQueuedMessageIDs: nextPromoted,
 				};
 			});
 		},
+		getQueueConvergenceFence: () => queueConvergenceFence,
+		applyPromoteRefetchQueuedMessages: (
+			chatID,
+			promotedID,
+			queuedMessages,
+			baselineFence,
+		) => {
+			// The fence covers ordering, including navigation. This identity check
+			// additionally keeps a response that names another chat out of the
+			// shared store even if its caller captured the fence incorrectly.
+			if (activeChatID !== chatID) {
+				return undefined;
+			}
+			if (queueConvergenceFence !== baselineFence) {
+				return undefined;
+			}
+			const incoming = queuedMessages ?? [];
+			queueConvergenceFence++;
+			for (const message of incoming) {
+				observedQueuedMessageIDs.add(message.id);
+			}
+			const suppressed = new Set(state.suppressedQueuedMessageIDs);
+			suppressed.delete(promotedID);
+			const promoted = new Set(state.promotedQueuedMessageIDs);
+			promoted.delete(promotedID);
+			const applied =
+				suppressed.size === 0
+					? incoming
+					: incoming.filter((message) => !suppressed.has(message.id));
+			setState((current) => ({
+				...current,
+				queuedMessages: chatQueuedMessagesEqualByID(
+					current.queuedMessages,
+					applied,
+				)
+					? current.queuedMessages
+					: applied,
+				suppressedQueuedMessageIDs: suppressed,
+				promotedQueuedMessageIDs: promoted,
+			}));
+			return applied;
+		},
+		hasObservedQueuedMessageID: (id) => observedQueuedMessageIDs.has(id),
 		suppressQueuedMessageID: (id) => {
 			setState((current) => {
 				if (current.suppressedQueuedMessageIDs.has(id)) {
@@ -470,25 +520,82 @@ export const createChatStore = (): ChatStore => {
 				return { ...current, suppressedQueuedMessageIDs: next };
 			});
 		},
-		unsuppressQueuedMessageID: (id) => {
+		markQueuedMessagePromoted: (id) => {
 			setState((current) => {
-				if (!current.suppressedQueuedMessageIDs.has(id)) {
+				if (
+					current.suppressedQueuedMessageIDs.has(id) &&
+					current.promotedQueuedMessageIDs.has(id)
+				) {
 					return current;
 				}
-				const next = new Set(current.suppressedQueuedMessageIDs);
-				next.delete(id);
-				return { ...current, suppressedQueuedMessageIDs: next };
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.add(id);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.add(id);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
+			});
+		},
+		unsuppressQueuedMessageID: (id) => {
+			setState((current) => {
+				if (
+					!current.suppressedQueuedMessageIDs.has(id) &&
+					!current.promotedQueuedMessageIDs.has(id)
+				) {
+					return current;
+				}
+				const suppressed = new Set(current.suppressedQueuedMessageIDs);
+				suppressed.delete(id);
+				const promoted = new Set(current.promotedQueuedMessageIDs);
+				promoted.delete(id);
+				return {
+					...current,
+					suppressedQueuedMessageIDs: suppressed,
+					promotedQueuedMessageIDs: promoted,
+				};
 			});
 		},
 		clearSuppressedQueuedMessageIDs: () => {
+			observedQueuedMessageIDs = new Set();
 			setState((current) => {
-				if (current.suppressedQueuedMessageIDs.size === 0) {
+				if (
+					current.suppressedQueuedMessageIDs.size === 0 &&
+					current.promotedQueuedMessageIDs.size === 0
+				) {
 					return current;
 				}
-				return { ...current, suppressedQueuedMessageIDs: new Set() };
+				return {
+					...current,
+					suppressedQueuedMessageIDs: new Set(),
+					promotedQueuedMessageIDs: new Set(),
+				};
 			});
 		},
 		setChatStatus: (status) => {
+			if (state.chatStatus === status) {
+				return;
+			}
+			setState((current) => ({
+				...current,
+				chatStatus: status,
+			}));
+		},
+		setActiveChatID: (chatID) => {
+			if (activeChatID === chatID) {
+				return;
+			}
+			activeChatID = chatID;
+			// Leaving a chat strands any convergence request issued for it, so a
+			// later return to the same chat cannot revive one.
+			queueConvergenceFence++;
+		},
+		getActiveChatID: () => activeChatID,
+		getServerChatStatusVersion: () => serverChatStatusVersion,
+		applyServerChatStatus: (status) => {
+			serverChatStatusVersion++;
 			if (state.chatStatus === status) {
 				return;
 			}
@@ -663,25 +770,13 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
 	// Show the Thinking indicator when the store has no stream
-	// data yet and the conversation is waiting for an assistant
-	// response. For "running" status we use the existing broad
-	// check (any non-assistant latest message). For "pending" we
-	// restrict to the case where the latest message is explicitly
-	// a user message — this covers the fresh-send flow (user just
-	// submitted and the server hasn't started streaming yet) while
-	// avoiding a spurious indicator during multi-turn tool-call
-	// cycles, where the latest durable message is a tool result
-	// and the assistant response is still being assembled.
+	// data yet, the chat is running, and the conversation is
+	// waiting for an assistant response (any non-assistant latest
+	// message).
 	if (state.streamState !== null || !latestMessageNeedsAssistantResponse) {
 		return false;
 	}
-	if (state.chatStatus === "running") {
-		return true;
-	}
-	if (state.chatStatus === "pending" && latestMessage?.role === "user") {
-		return true;
-	}
-	return false;
+	return state.chatStatus === "running";
 };
 
 export const useChatSelector = <T>(

@@ -47,6 +47,7 @@ const parsed = (
 	tools: [],
 	blocks: [],
 	sources: [],
+	hookNotices: [],
 	...overrides,
 });
 
@@ -465,13 +466,13 @@ describe("buildDisplayMessages", () => {
 		]);
 	});
 
-	it("returns a single read_file-only message unchanged", () => {
-		const readFile = readFileMessage(1, "read-1");
-
-		const result = buildDisplayMessages([readFile]);
+	it("keys a single read_file-only message like a merged group", () => {
+		const result = buildDisplayMessages([readFileMessage(1, "read-1")]);
 
 		expect(result).toHaveLength(1);
-		expect(result[0]).toBe(readFile);
+		expect(result[0].message.id).toBe(1);
+		expect(result[0].mergedFrom).toEqual([1]);
+		expect(result[0].parsed.blocks).toEqual([{ type: "tool", id: "read-1" }]);
 	});
 
 	it("collapses read_file-only assistant messages across hidden tool results", () => {

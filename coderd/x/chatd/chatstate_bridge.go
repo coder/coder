@@ -1,8 +1,6 @@
 package chatd
 
 import (
-	"database/sql"
-
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
@@ -29,7 +27,7 @@ func systemMessage(rawContent pqtype.NullRawMessage, modelConfigID uuid.UUID) ch
 	}
 }
 
-func userMessageWithAPIKeyID(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID, apiKeyID string, reasoningEffort *string) chatstate.Message {
+func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID, reasoningEffort *string) chatstate.Message {
 	var effort database.NullChatReasoningEffort
 	if reasoningEffort != nil && *reasoningEffort != "" {
 		effort = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*reasoningEffort), Valid: true}
@@ -42,7 +40,6 @@ func userMessageWithAPIKeyID(rawContent pqtype.NullRawMessage, modelConfigID, cr
 		ReasoningEffort: effort,
 		CreatedBy:       uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		ContentVersion:  chatprompt.CurrentContentVersion,
-		APIKeyID:        sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

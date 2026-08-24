@@ -114,7 +114,7 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_abc",
 						Name:      "get_weather",
-						Arguments: "",
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: ""},
 					},
 				},
 			},
@@ -138,13 +138,13 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_1",
 						Name:      "get_weather",
-						Arguments: `{"location": "NYC"}`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"location": "NYC"}`},
 					},
 					{
 						Type:      "function_call",
 						CallID:    "call_2",
 						Name:      "bad_json_args",
-						Arguments: `{"bad": args`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"bad": args`},
 					},
 					{
 						Type: "message",
@@ -161,7 +161,7 @@ func TestRecordToolUsage(t *testing.T) {
 						Type:      "function_call",
 						CallID:    "call_4",
 						Name:      "calculate",
-						Arguments: `{"a": 1, "b": 2}`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"a": 1, "b": 2}`},
 					},
 				},
 			},
@@ -211,7 +211,7 @@ func TestRecordToolUsage(t *testing.T) {
 						ID:        "fc_item_1",
 						CallID:    "call_both",
 						Name:      "get_weather",
-						Arguments: `{"location": "NYC"}`,
+						Arguments: oairesponses.ResponseOutputItemUnionArguments{OfString: `{"location": "NYC"}`},
 					},
 				},
 			},
@@ -526,18 +526,18 @@ func TestMarkKeyOnError(t *testing.T) {
 			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth failure: mark permanent.
-			name:           "401_marks_permanent",
+			// Auth failure: temporary cooldown so the key recovers.
+			name:           "401_marks_temporary",
 			err:            &openai.Error{StatusCode: http.StatusUnauthorized, Response: &http.Response{StatusCode: http.StatusUnauthorized}},
 			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth forbidden: mark permanent.
-			name:           "403_marks_permanent",
+			// Forbidden is per-request, not key-specific.
+			name:           "403_does_not_mark",
 			err:            &openai.Error{StatusCode: http.StatusForbidden, Response: &http.Response{StatusCode: http.StatusForbidden}},
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedReturn: false,
+			expectedState:  keypool.KeyStateValid,
 		},
 		{
 			// Server errors are not key-specific.

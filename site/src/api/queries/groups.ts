@@ -1,15 +1,16 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import {
-	API,
-	type GroupMembersResponseWithAICostControl,
-	type GroupWithAICostControl,
-} from "#/api/api";
+import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
 	Group,
 	GroupAIBudget,
+	GroupMembersAISpend,
+	GroupMembersResponse,
 	GroupRequest,
+	OrganizationGroupsAISpend,
+	PaginatedGroupsRequest,
+	PaginatedGroupsResponse,
 	PatchGroupRequest,
 	UsersRequest,
 } from "#/api/typesGenerated";
@@ -38,8 +39,92 @@ export const groupsByOrganization = (organization: string) => {
 	return {
 		queryKey: getGroupsByOrganizationQueryKey(organization),
 		queryFn: () => API.getGroupsByOrganization(organization),
-	} satisfies UseQueryOptions<GroupWithAICostControl[]>;
+	} satisfies UseQueryOptions<Group[]>;
 };
+
+const getOrganizationGroupsAISpendQueryKey = (
+	organization: string,
+	groupIds: readonly string[],
+) => [
+	...getGroupsByOrganizationQueryKey(organization),
+	"aiSpend",
+	[...groupIds].sort(),
+];
+
+export const organizationGroupsAISpend = (
+	organization: string,
+	groupIds: readonly string[],
+) => {
+	return {
+		queryKey: getOrganizationGroupsAISpendQueryKey(organization, groupIds),
+		queryFn: () => API.getOrganizationGroupsAISpend(organization, groupIds),
+	} satisfies UseQueryOptions<OrganizationGroupsAISpend>;
+};
+
+export const getGroupMembersAISpendQueryKey = (
+	groupId: string,
+	userIds: readonly string[],
+) => ["group", groupId, "members", "aiSpend", [...userIds].sort()];
+
+const isGroupMembersAISpendQueryKey = (
+	queryKey: readonly unknown[],
+	userId: string,
+): boolean =>
+	queryKey[0] === "group" &&
+	queryKey[2] === "members" &&
+	queryKey[3] === "aiSpend" &&
+	Array.isArray(queryKey[4]) &&
+	queryKey[4].includes(userId);
+
+export const invalidateGroupMembersAISpend = (
+	queryClient: QueryClient,
+	userId: string,
+) =>
+	queryClient.invalidateQueries({
+		queryKey: ["group"],
+		predicate: (query) => isGroupMembersAISpendQueryKey(query.queryKey, userId),
+	});
+
+export const groupMembersAISpend = (
+	groupId: string,
+	userIds: readonly string[],
+) => {
+	return {
+		queryKey: getGroupMembersAISpendQueryKey(groupId, userIds),
+		queryFn: () => API.getGroupMembersAISpend(groupId, userIds),
+	} satisfies UseQueryOptions<GroupMembersAISpend>;
+};
+
+const getPaginatedGroupsByOrganizationQueryKey = (
+	organization: string,
+	req?: PaginatedGroupsRequest,
+) => {
+	// Nested under the org groups key so create/patch/delete invalidations,
+	// which target ["organization", org, "groups"], also cover this list.
+	const base = [...getGroupsByOrganizationQueryKey(organization), "paginated"];
+	return req ? [...base, req] : base;
+};
+
+export function paginatedGroupsByOrganization(
+	organization: string,
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<PaginatedGroupsResponse, PaginatedGroupsRequest> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get("filter") ?? ""),
+			};
+		},
+
+		queryKey: ({ payload }) =>
+			getPaginatedGroupsByOrganizationQueryKey(organization, payload),
+		queryFn: ({ payload }) =>
+			API.getOrganizationPaginatedGroups(organization, payload),
+	};
+}
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"organization",
@@ -97,10 +182,7 @@ export function groupMembers(
 	organization: string,
 	groupName: string,
 	searchParams: URLSearchParams,
-): UsePaginatedQueryOptions<
-	GroupMembersResponseWithAICostControl,
-	UsersRequest
-> {
+): UsePaginatedQueryOptions<GroupMembersResponse, UsersRequest> {
 	return {
 		searchParams,
 		queryPayload: ({ limit, offset }) => {
@@ -118,6 +200,33 @@ export function groupMembers(
 	};
 }
 
+export const getGroupMemberAvatarsQueryKey = (
+	organization: string,
+	groupName: string,
+	limit: number,
+) => [...getGroupMembersQueryKey(organization, groupName), "avatars", limit];
+
+/** Number of member avatars previewed per group row in list views. */
+export const GROUP_MEMBER_AVATAR_LIMIT = 5;
+
+/**
+ * A capped page of a group's members for avatar previews in list views. The
+ * paginated groups endpoint no longer returns rosters, so rows fetch a small
+ * preview lazily. Nests under the group members key so membership mutations
+ * invalidate it.
+ */
+export const groupMemberAvatars = (
+	organization: string,
+	groupName: string,
+	limit: number,
+): UseQueryOptions<GroupMembersResponse> => {
+	return {
+		queryKey: getGroupMemberAvatarsQueryKey(organization, groupName, limit),
+		queryFn: ({ signal }) =>
+			API.getGroupMembers(organization, groupName, { limit }, signal),
+	};
+};
+
 export type GroupsByUserId = Readonly<Map<string, readonly Group[]>>;
 
 export function groupsByUserId() {
@@ -131,11 +240,7 @@ export function groupsByUserIdInOrganization(organization: string) {
 	return {
 		...groupsByOrganization(organization),
 		select: selectGroupsByUserId,
-	} satisfies UseQueryOptions<
-		GroupWithAICostControl[],
-		unknown,
-		GroupsByUserId
-	>;
+	} satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
 
 function selectGroupsByUserId(groups: Group[]): GroupsByUserId {

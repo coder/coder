@@ -23,6 +23,7 @@ coderd/database/unique_constraint.go linguist-generated=true
 coderd/database/foreign_key_constraint.go linguist-generated=true
 coderd/database/check_constraint.go linguist-generated=true
 
+agent/proto/*.pb.go linguist-generated=true
 peerbroker/proto/*.go linguist-generated=true
 provisionerd/proto/*.go linguist-generated=true
 provisionerd/proto/version.go linguist-generated=false
@@ -36,3 +37,7 @@ site/e2e/provisionerGenerated.ts linguist-generated=true
 site/src/api/countriesGenerated.tsx linguist-generated=true
 site/src/api/rbacresourcesGenerated.tsx linguist-generated=true
 site/src/api/typesGenerated.ts linguist-generated=true
+
+# AI Gateway prices
+coderd/aibridge/prices/data/prices.json linguist-generated=true
+site/src/pages/AgentsPage/components/ChatModelAdminPanel/knownModels/knownModelsGenerated.json linguist-generated=true

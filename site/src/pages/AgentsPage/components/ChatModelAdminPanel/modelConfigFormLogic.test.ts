@@ -236,33 +236,6 @@ describe("extractModelConfigFormState", () => {
 		expect(result.frequencyPenalty).toBe("0.3");
 	});
 
-	it("extracts pricing fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
-			model_config: {
-				cost: {
-					input_price_per_million_tokens: "0.15",
-					output_price_per_million_tokens: "0.6",
-					cache_read_price_per_million_tokens: "0.03",
-					cache_write_price_per_million_tokens: "0.3",
-				},
-			},
-		};
-		const result = extractModelConfigFormState(model);
-		expect(deepGet(result, ["cost", "inputPricePerMillionTokens"])).toBe(
-			"0.15",
-		);
-		expect(deepGet(result, ["cost", "outputPricePerMillionTokens"])).toBe(
-			"0.6",
-		);
-		expect(deepGet(result, ["cost", "cacheReadPricePerMillionTokens"])).toBe(
-			"0.03",
-		);
-		expect(deepGet(result, ["cost", "cacheWritePricePerMillionTokens"])).toBe(
-			"0.3",
-		);
-	});
-
 	it("extracts reasoning effort bounds", () => {
 		const model: TypesGen.ChatModelConfig = {
 			...baseChatModelConfig,
@@ -322,6 +295,22 @@ describe("extractModelConfigFormState", () => {
 		expect(deepGet(anthropic, ["thinking", "budgetTokens"])).toBe("1024");
 		expect(anthropic.sendReasoning).toBe("true");
 		expect(anthropic.disableParallelToolUse).toBe("false");
+	});
+
+	it("extracts Anthropic 1M context window option", () => {
+		const model: TypesGen.ChatModelConfig = {
+			...baseChatModelConfig,
+			model_config: {
+				provider_options: {
+					anthropic: {
+						context_1m_enabled: true,
+					},
+				},
+			},
+		};
+		const result = extractModelConfigFormState(model);
+		const anthropic = result.anthropic as Record<string, unknown>;
+		expect(anthropic.context1mEnabled).toBe("true");
 	});
 
 	it("extracts Google provider options with safety settings", () => {
@@ -653,41 +642,6 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 
-	describe("pricing fields", () => {
-		it("builds config with valid pricing fields", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({
-					cost: {
-						inputPricePerMillionTokens: "0.15",
-						outputPricePerMillionTokens: "0.6",
-						cacheReadPricePerMillionTokens: "0.03",
-						cacheWritePricePerMillionTokens: "0.3",
-					},
-				}),
-			);
-			expect(result.fieldErrors).toEqual({});
-			expect(result.modelConfig).toMatchObject({
-				cost: {
-					input_price_per_million_tokens: "0.15",
-					output_price_per_million_tokens: "0.6",
-					cache_read_price_per_million_tokens: "0.03",
-					cache_write_price_per_million_tokens: "0.3",
-				},
-			});
-		});
-
-		it("reports error for negative pricing fields", () => {
-			const result = buildModelConfigFromForm(
-				"openai",
-				formWith({ cost: { inputPricePerMillionTokens: "-0.5" } }),
-			);
-			expect(result.fieldErrors["cost.inputPricePerMillionTokens"]).toContain(
-				"must be zero or greater",
-			);
-			expect(result.modelConfig).toBeUndefined();
-		});
-	});
 	describe("OpenAI / Azure provider", () => {
 		it("builds OpenAI provider options with text verbosity", () => {
 			const result = buildModelConfigFromForm(
@@ -832,6 +786,17 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
 				send_reasoning: true,
+			});
+		});
+
+		it("builds Anthropic options with 1M context window enabled", () => {
+			const result = buildModelConfigFromForm(
+				"anthropic",
+				formWith({ anthropic: { context1mEnabled: "true" } }),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options?.anthropic).toEqual({
+				context_1m_enabled: true,
 			});
 		});
 
@@ -1333,5 +1298,28 @@ describe("isFieldConflictDisabled", () => {
 	it("does not disable when the sibling value is the empty array sentinel '[]'", () => {
 		const reader = makeReader({ field_a: "", field_b: "[]" });
 		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
+	});
+});
+
+describe("provider-scoped general fields", () => {
+	const form = formWith({ openaiConfig: { useResponsesApi: "true" } });
+
+	it("serializes a scoped general field for its provider", () => {
+		const result = buildModelConfigFromForm("openai", form);
+		expect(result.modelConfig?.openai_config).toEqual({
+			use_responses_api: true,
+		});
+	});
+
+	it("omits a scoped general field for another provider", () => {
+		const result = buildModelConfigFromForm("anthropic", form);
+		expect(result.modelConfig).toBeUndefined();
+	});
+
+	// azure resolves to the openai option schema, so scoping must gate on the
+	// raw provider type.
+	it("omits a scoped general field for an aliased provider", () => {
+		const result = buildModelConfigFromForm("azure", form);
+		expect(result.modelConfig).toBeUndefined();
 	});
 });

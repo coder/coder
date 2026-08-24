@@ -1,0 +1,67 @@
+# Coder.GerundHeading - flag titles and headings whose first word ends in
+# -ing (a gerund or present participle used as a verb form, e.g.,
+# "Installing", "Configuring", "Setting").
+#
+# Prefer the imperative for task headings ("Install Coder") and the noun for
+# concept headings ("Installation"). The full policy, including the exception
+# categories mirrored below, lives in the style guide:
+# docs/.style/style-guide/capitalization-and-punctuation.md#no-gerund-leading-headings
+#
+# Implementation: a heading-scoped existence rule with an anchored regex.
+# Vale's POS-tagging `sequence` rules are sentence-scoped and never reach
+# heading text, so Google's and Microsoft's heading rules use the same
+# existence+regex approach. The trade-off is a small exceptions list for
+# -ing words that are not verb forms.
+#
+# The exceptions fall into two groups:
+#   1. Words that end in -ing but are not gerunds at all (Bring, String).
+#   2. -ing words that name a feature, category, or attribute and read
+#      correctly as a heading lead (Logging, Monitoring, Networking,
+#      Troubleshooting). These match the style guide's Exceptions section.
+extends: existence
+message: "Heading starts with an -ing word ('%s'); prefer the imperative ('Install') or the noun ('Installation'). See capitalization-and-punctuation.md#no-gerund-leading-headings."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/capitalization-and-punctuation.md#no-gerund-leading-headings
+level: warning
+scope: heading
+nonword: false
+exceptions:
+  # Not gerunds (verb-base or non-verb nouns).
+  - Bring
+  - King
+  - Ring
+  - Sing
+  - Spring
+  - Sting
+  - String
+  - Thing
+  - Wing
+  # Feature, category, or attribute nouns that read correctly as a heading
+  # lead. Mirrors the style guide's "Exceptions" section.
+  - Autoscaling
+  - Billing
+  - Breaking
+  - Caching
+  - Contributing
+  - Formatting
+  - Guiding
+  - Heading
+  - Licensing
+  - Logging
+  - Monitoring
+  - Naming
+  - Networking
+  - Ordering
+  - Pricing
+  - Provisioning
+  - Reading
+  - Rendering
+  - Routing
+  - Scaling
+  - Scheduling
+  - Styling
+  - Tracing
+  - Trailing
+  - Troubleshooting
+  - Versioning
+tokens:
+  - '^[A-Z][a-z]+ing\b'

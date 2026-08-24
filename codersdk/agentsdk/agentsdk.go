@@ -85,7 +85,7 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	}
 
 	var gitSSHKey GitSSHKey
-	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
+	return gitSSHKey, codersdk.ReadBodyAsJSON(res, &gitSSHKey)
 }
 
 type Metadata struct {
@@ -356,6 +356,19 @@ func (c *Client) ConnectRPC210WithRole(ctx context.Context, role string) (
 	proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 10), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC211WithRole returns a dRPC client to the Agent API v2.11, which
+// reports per-app session counts on Stats. Pass role "agent" for workspace
+// agents to enable connection monitoring.
+func (c *Client) ConnectRPC211WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient211, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 11), role)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -716,7 +729,7 @@ func (c *Client) PostLogSource(ctx context.Context, req PostLogSourceRequest) (c
 		return codersdk.WorkspaceAgentLogSource{}, codersdk.ReadBodyAsError(res)
 	}
 	var logSource codersdk.WorkspaceAgentLogSource
-	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
+	return logSource, codersdk.ReadBodyAsJSON(res, &logSource)
 }
 
 type ExternalAuthResponse struct {
@@ -787,7 +800,7 @@ func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (Ext
 	}
 
 	var authResp ExternalAuthResponse
-	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
+	return authResp, codersdk.ReadBodyAsJSON(res, &authResp)
 }
 
 // LogsNotifyChannel returns the channel name responsible for notifying
@@ -1016,5 +1029,5 @@ func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResp
 	}
 
 	var resp RefreshChatContextResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
 }

@@ -17,11 +17,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
 import {
 	Select,
 	SelectContent,
@@ -38,6 +33,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { getGroupSubtitle } from "#/modules/groups";
 import {
@@ -225,11 +221,7 @@ export const TemplatePermissionsPageView: FC<
 	onRemoveGroup,
 }) => {
 	return (
-		<>
-			<PageHeader className="pt-0">
-				<PageHeaderTitle>Permissions</PageHeaderTitle>
-			</PageHeader>
-
+		<div className="flex flex-col gap-12">
 			<div className="flex flex-col gap-2.5">
 				{canUpdatePermissions && (
 					<AddTemplateUserOrGroup
@@ -265,7 +257,7 @@ export const TemplatePermissionsPageView: FC<
 					</TableBody>
 				</Table>
 			</div>
-		</>
+		</div>
 	);
 };
 
@@ -298,14 +290,10 @@ const MembersTableBody: FC<MembersTableBodyProps> = ({
 		templateACL.users.length === 0 && templateACL.group.length === 0;
 	if (isEmpty) {
 		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState
-						message="No members yet"
-						description="Add a member using the controls above"
-					/>
-				</TableCell>
-			</TableRow>
+			<TableEmpty
+				message="No members yet"
+				description="Add a member using the controls above"
+			/>
 		);
 	}
 

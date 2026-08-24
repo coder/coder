@@ -40,8 +40,7 @@ export const canViewAnyOrganization = (
 ): permissions is Permissions => {
 	return (
 		permissions !== undefined &&
-		(permissions.viewAnyMembers ||
-			permissions.editAnyGroups ||
+		(permissions.editAnyGroups ||
 			permissions.assignAnyRoles ||
 			permissions.viewAnyIdpSyncSettings ||
 			permissions.editAnySettings)

@@ -34,7 +34,7 @@ To use startup dependencies in your templates, you must:
 Here's a simple example of a script that depends on another unit completing
 first:
 
-```bash
+```sh
 #!/bin/bash
 UNIT_NAME="my-setup"
 
@@ -59,7 +59,7 @@ own work.
 If your unit depends on multiple other units, you can declare all dependencies
 before starting:
 
-```bash
+```sh
 #!/bin/bash
 UNIT_NAME="my-app"
 DEPENDENCIES="git-clone,env-setup,database-migration"
@@ -91,13 +91,13 @@ coder exp sync complete "$UNIT_NAME"
 
 Use `coder exp sync list` to see all registered units and their current state:
 
-```bash
+```sh
 coder exp sync list
 ```
 
 Example output:
 
-```bash
+```sh
 UNIT           STATUS     READY
 git-clone      completed  true
 env-setup      started    true
@@ -126,7 +126,7 @@ Once you're satisfied, [promote the new template version](../../../reference/cli
 Not all workspaces will have the Coder CLI available in `$PATH`. Check for availability of the Coder CLI before using
 sync commands:
 
-```bash
+```sh
 if command -v coder > /dev/null 2>&1; then
   coder exp sync start "$UNIT_NAME"
 else
@@ -139,7 +139,7 @@ fi
 Units **must** call `coder exp sync complete` to unblock dependent units. Use `trap` to ensure
 completion even if your script exits early or encounters errors:
 
-```bash
+```sh
 
 SYNC_STARTED=0
 if coder exp sync start "$UNIT_NAME"; then
@@ -173,7 +173,7 @@ ensure that your unit does not conflict with others.
 
 Add comments explaining why dependencies exist:
 
-```hcl
+```tf
 resource "coder_script" "ide_setup" {
   # Depends on git-clone because we need .vscode/extensions.json
   # Depends on env-setup because we need $NODE_PATH configured
@@ -189,7 +189,7 @@ resource "coder_script" "ide_setup" {
 
 The Coder Agent detects and rejects circular dependencies, but they indicate a design problem:
 
-```bash
+```sh
 # This will fail
 coder exp sync want "unit-a" "unit-b"
 coder exp sync want "unit-b" "unit-a"
@@ -224,7 +224,7 @@ Upon timeout, the command will exit with an error code and print `timeout waitin
 
 You can adjust this timeout as necessary for long-running operations:
 
-```bash
+```sh
 coder exp sync start "long-operation" --timeout 10m
 ```
 

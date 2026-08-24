@@ -1,5 +1,41 @@
-import { describe, expect, it } from "vitest";
-import { formatReasoningEffort, pickReasoningEffort } from "./reasoningEffort";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	formatReasoningEffort,
+	getReasoningEffortForModel,
+	pickReasoningEffort,
+	saveReasoningEffortForModel,
+} from "./reasoningEffort";
+
+describe("reasoning effort storage", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("stores the latest effort independently for each model", () => {
+		saveReasoningEffortForModel("model-a", "high");
+		saveReasoningEffortForModel("model-b", "medium");
+		saveReasoningEffortForModel("model-a", "low");
+
+		expect(getReasoningEffortForModel("model-a")).toBe("low");
+		expect(getReasoningEffortForModel("model-b")).toBe("medium");
+	});
+
+	it("handles unavailable storage", () => {
+		vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+			throw new DOMException("Storage unavailable", "SecurityError");
+		});
+		expect(getReasoningEffortForModel("model-a")).toBeUndefined();
+
+		vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+			throw new DOMException("Storage full", "QuotaExceededError");
+		});
+		expect(() => saveReasoningEffortForModel("model-a", "high")).not.toThrow();
+	});
+});
 
 describe("formatReasoningEffort", () => {
 	it("formats xhigh", () => {

@@ -1,15 +1,12 @@
-import dayjs from "dayjs";
 import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
-import { Link } from "react-router";
-import { chatUsageLimitStatus } from "#/api/queries/chats";
+import { meAISpend } from "#/api/queries/users";
 import { workspaceQuota } from "#/api/queries/workspaceQuota";
 import { workspaces } from "#/api/queries/workspaces";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
@@ -25,12 +22,11 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import {
 	clampPercentage,
+	formatSpendPeriodLabel,
 	getSeverity,
-	severityRingClassName,
-	severityTextClassName,
 	type UsageSeverity,
 	usageProgressPercentage,
 } from "#/utils/budget";
@@ -48,17 +44,19 @@ type UsageSectionData = {
 	hoverLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
-	severity?: UsageSeverity;
+	severity: UsageSeverity;
 };
 
 const numberFormatter = new Intl.NumberFormat("en-US");
 
 export const UsageIndicator: FC = () => {
-	const { data: chatUsage, isError: isChatUsageError } = useQuery(
-		chatUsageLimitStatus(),
-	);
 	const { user } = useAuthenticated();
 	const { organizations } = useDashboard();
+	const aiSpendAvailable = Boolean(useFeatureVisibility().aibridge);
+	const { data: aiSpend, isError: isAISpendError } = useQuery({
+		...meAISpend(),
+		enabled: aiSpendAvailable,
+	});
 	const organizationName = getDefaultOrganizationName(organizations);
 	const username = user.username;
 	const { data: quota, isError: isQuotaError } = useQuery({
@@ -77,18 +75,26 @@ export const UsageIndicator: FC = () => {
 	});
 	const sections: UsageSectionData[] = [];
 
-	if (!isChatUsageError && chatUsage?.is_limited) {
-		const spendLimit = chatUsage.spend_limit_micros ?? 0;
-		const currentSpend = chatUsage.current_spend;
-		const periodLabel = getUsageLimitPeriodLabel(chatUsage.period);
-		const exceeded = spendLimit > 0 && currentSpend >= spendLimit;
+	if (
+		aiSpendAvailable &&
+		!isAISpendError &&
+		aiSpend &&
+		aiSpend.effective_budget !== null
+	) {
+		const spendLimit = aiSpend.effective_budget.spend_limit_micros;
+		const currentSpend = aiSpend.current_spend_micros;
+		// The gateway blocks once spend >= limit, so a zero budget is
+		// always exhausted.
+		const exceeded = currentSpend >= spendLimit;
 
 		sections.push({
-			id: "ai-usage",
-			title: `${periodLabel} usage`,
-			progressLabel: `${periodLabel} spend usage`,
-			percent: usageProgressPercentage(currentSpend, spendLimit),
-			severity: getSeverity(currentSpend, spendLimit),
+			id: "ai-spend",
+			title: "AI spend",
+			progressLabel: "AI spend usage",
+			percent: exceeded
+				? 100
+				: usageProgressPercentage(currentSpend, spendLimit),
+			severity: exceeded ? "exceeded" : getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
 			detail: (
@@ -102,9 +108,10 @@ export const UsageIndicator: FC = () => {
 					)}
 				</>
 			),
-			secondaryDetail: chatUsage.period_end
-				? `Resets ${dayjs(chatUsage.period_end).format("MMM D, YYYY")}`
-				: undefined,
+			secondaryDetail: formatSpendPeriodLabel(
+				aiSpend.period_start,
+				aiSpend.period_end,
+			),
 		});
 	}
 
@@ -169,12 +176,6 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 						<UsageSection section={section} />
 					</Fragment>
 				))}
-
-				<DropdownMenuSeparator />
-
-				<DropdownMenuItem asChild>
-					<Link to="/agents/analytics">View usage</Link>
-				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -182,6 +183,18 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 
 const RING_SIZE = 28;
 const RING_STROKE = 1;
+
+const severityTextClasses = {
+	normal: "text-content-secondary",
+	warning: "text-content-warning",
+	exceeded: "text-content-destructive",
+} as const satisfies Record<UsageSeverity, string>;
+
+const severityRingClasses = {
+	normal: "stroke-content-secondary",
+	warning: "stroke-content-warning",
+	exceeded: "stroke-content-destructive",
+} as const satisfies Record<UsageSeverity, string>;
 
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
@@ -233,13 +246,13 @@ const UsageRingProgress: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				progressClassName={severityRingClassName(severity)}
+				progressClassName={severityRingClasses[severity]}
 			/>
 			<span
 				aria-hidden="true"
 				className={cn(
 					"absolute inset-0 flex items-center justify-center",
-					severityTextClassName(severity),
+					severityTextClasses[severity],
 				)}
 			>
 				{icon}
@@ -260,7 +273,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				<span
 					className={cn(
 						"shrink-0 text-xs",
-						severityTextClassName(section.severity),
+						severityTextClasses[section.severity],
 					)}
 				>
 					{roundedPercent}%

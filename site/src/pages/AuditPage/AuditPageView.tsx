@@ -1,6 +1,5 @@
 import type { ComponentProps, FC } from "react";
 import type { AuditLog } from "#/api/typesGenerated";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -11,15 +10,13 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableRow,
-} from "#/components/Table/Table";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
+import { Table, TableBody } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
 import { AuditHelpPopover } from "./AuditHelpPopover";
@@ -33,6 +30,7 @@ interface AuditPageViewProps {
 	filterProps: ComponentProps<typeof AuditFilter>;
 	auditsQuery: PaginationResult;
 	showOrgDetails: boolean;
+	permissions: Permissions;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -43,6 +41,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 	filterProps,
 	auditsQuery: paginationResult,
 	showOrgDetails,
+	permissions,
 }) => {
 	const isLoading =
 		(auditLogs === undefined || paginationResult.totalRecords === undefined) &&
@@ -52,7 +51,11 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 
 	return (
 		<Margins className="pb-12">
-			<PageHeader>
+			<PageHeader
+				actions={
+					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+				}
+			>
 				<PageHeaderTitle>
 					<div className="flex flex-row gap-2 items-center">
 						<span>Audit</span>
@@ -85,10 +88,16 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					</PaginationContainer>
 				</>
 			) : (
-				<PaywallPremium
+				<PremiumPaywall
+					source="audit_log"
 					message="Audit logs"
-					description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/security/audit-logs")}
+					description="See exactly who changed what and when, with every workspace, template, and user action logged for compliance and incident response."
+					features={[
+						"Configurable retention & auto-purge",
+						"API export to Splunk, Datadog & more",
+						"Meets SOC 2 & HIPAA audit requirements",
+					]}
+					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}
 		</Margins>
@@ -114,13 +123,7 @@ const AuditTableBody: FC<AuditTableBodyProps> = ({
 }) => {
 	// An error renders as an empty table.
 	if (error) {
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message="An error occurred while loading audit logs" />
-				</TableCell>
-			</TableRow>
-		);
+		return <TableEmpty message="An error occurred while loading audit logs" />;
 	}
 	if (isLoading) {
 		return <TableLoader />;
@@ -129,13 +132,7 @@ const AuditTableBody: FC<AuditTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No audit logs available on this page"
 			: "No audit logs available";
-		return (
-			<TableRow>
-				<TableCell colSpan={999}>
-					<EmptyState message={emptyMessage} />
-				</TableCell>
-			</TableRow>
-		);
+		return <TableEmpty message={emptyMessage} />;
 	}
 	if (!auditLogs) {
 		return null;

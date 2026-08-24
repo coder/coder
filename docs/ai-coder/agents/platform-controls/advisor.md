@@ -6,13 +6,13 @@
 
 ## Enable the experiment
 
-```shell
+```sh
 coder server --experiments=chat-advisor
 ```
 
 Or set the environment variable:
 
-```shell
+```sh
 CODER_EXPERIMENTS=chat-advisor
 ```
 
@@ -37,12 +37,12 @@ Once the experiment is enabled, configure the advisor under **AI Settings** >
 | Max uses per turn | `0` (unlimited)      | Caps how many times the root agent can call the advisor in a single chat turn. Must be a non-negative integer.          |
 | Max output tokens | `0` (server default) | Caps the advisor model's response length. `0` uses the server default of 16,384 tokens. Must be a non-negative integer. |
 | Advisor model     | Use chat model       | Optional dedicated chat model config for the advisor. When unset, the advisor reuses the root agent's model.            |
+| Reasoning effort  | Model default        | Overrides the selected advisor model's reasoning effort. Available only when the model supports selectable effort.      |
 
-The advisor is not available in plan mode or to subagents. Failed advisor
-invocations refund the per-turn budget, and advisor calls are not metered
-against the root chat's usage limit.
+The advisor is not available in plan mode or to subagents.
+Failed advisor invocations refund the per-turn budget.
 
 The same configuration is available at:
 
-- `GET /api/experimental/chats/config/advisor`
-- `PUT /api/experimental/chats/config/advisor`
+- `GET /api/v2/chats/config/advisor`
+- `PUT /api/v2/chats/config/advisor`

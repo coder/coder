@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -72,7 +71,6 @@ func createWorkspaceBoundParentChat(
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
-		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent-with-context",
 		ModelConfigID:      model.ID,
 		WorkspaceID:        uuid.NullUUID{UUID: ws.ID, Valid: true},
@@ -114,7 +112,6 @@ func TestSpawnComputerUseAgentInheritsPinnedContext(t *testing.T) {
 	// (OpenAI only) that was cached before the Anthropic provider was inserted.
 	server.configCache.InvalidateProviders()
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, db, parentChat.OwnerID))
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)

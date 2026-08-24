@@ -247,6 +247,9 @@ coderd_api_request_latencies_seconds{method="",path=""} 0
 # HELP coderd_api_requests_processed_total The total number of processed API requests
 # TYPE coderd_api_requests_processed_total counter
 coderd_api_requests_processed_total{code="",method="",path=""} 0
+# HELP coderd_api_requests_too_large_total The total number of API requests answered 413, by the reason they were rejected. A sustained rate of reason=\"request_body\" on one route is more often a limit set too tight for a legitimate payload than an attempt to exhaust memory. reason=\"other\" counts 413s raised for reasons unrelated to the size of the request body, such as agent log storage overflow or an archive that is too large once expanded.
+# TYPE coderd_api_requests_too_large_total counter
+coderd_api_requests_too_large_total{method="",path="",reason=""} 0
 # HELP coderd_api_total_user_count The total number of registered users, partitioned by status.
 # TYPE coderd_api_total_user_count gauge
 coderd_api_total_user_count{status=""} 0
@@ -271,12 +274,45 @@ coderd_build_info{version="",revision=""} 0
 # HELP coderd_chat_auto_archive_records_archived_total Total number of chats archived by the auto-archive job (counting both roots and cascaded children).
 # TYPE coderd_chat_auto_archive_records_archived_total counter
 coderd_chat_auto_archive_records_archived_total 0
+# HELP coderd_chatd_agents_active Deployment-wide number of chats holding a concurrent-agent capacity slot. Every replica reports the same database-derived value; aggregate with max, not sum.
+# TYPE coderd_chatd_agents_active gauge
+coderd_chatd_agents_active{pool=""} 0
+# HELP coderd_chatd_agents_queued_for_capacity Deployment-wide number of chats waiting for a concurrent-agent capacity slot. Every replica reports the same database-derived value; aggregate with max, not sum.
+# TYPE coderd_chatd_agents_queued_for_capacity gauge
+coderd_chatd_agents_queued_for_capacity{pool=""} 0
 # HELP coderd_chatd_chats Number of chats being processed, by state.
 # TYPE coderd_chatd_chats gauge
 coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
+# HELP coderd_chatd_find_tools_activations_total Total deferred tool activations returned by find_tools.
+# TYPE coderd_chatd_find_tools_activations_total counter
+coderd_chatd_find_tools_activations_total 0
+# HELP coderd_chatd_find_tools_calls_total Total find_tools calls.
+# TYPE coderd_chatd_find_tools_calls_total counter
+coderd_chatd_find_tools_calls_total 0
+# HELP coderd_chatd_find_tools_empty_total Total find_tools calls with no matches.
+# TYPE coderd_chatd_find_tools_empty_total counter
+coderd_chatd_find_tools_empty_total 0
+# HELP coderd_chatd_find_tools_match_count Number of matches returned by find_tools calls.
+# TYPE coderd_chatd_find_tools_match_count histogram
+coderd_chatd_find_tools_match_count 0
+# HELP coderd_chatd_hook_context_size_bytes Lifecycle hook model context response size in bytes.
+# TYPE coderd_chatd_hook_context_size_bytes histogram
+coderd_chatd_hook_context_size_bytes{event=""} 0
+# HELP coderd_chatd_hook_decisions_total Total lifecycle hook permission decisions by event and decision.
+# TYPE coderd_chatd_hook_decisions_total counter
+coderd_chatd_hook_decisions_total{event="",decision=""} 0
+# HELP coderd_chatd_hook_dispatch_seconds Lifecycle hook dispatch duration in seconds.
+# TYPE coderd_chatd_hook_dispatch_seconds histogram
+coderd_chatd_hook_dispatch_seconds{event=""} 0
+# HELP coderd_chatd_hook_dispatches_total Total lifecycle hook dispatches by event and result.
+# TYPE coderd_chatd_hook_dispatches_total counter
+coderd_chatd_hook_dispatches_total{event="",result=""} 0
+# HELP coderd_chatd_hook_input_overrides_total Total lifecycle hook input overrides by event.
+# TYPE coderd_chatd_hook_input_overrides_total counter
+coderd_chatd_hook_input_overrides_total{event=""} 0
 # HELP coderd_chatd_message_count Number of messages in the prompt per LLM request.
 # TYPE coderd_chatd_message_count histogram
 coderd_chatd_message_count{provider="",model=""} 0
@@ -316,6 +352,9 @@ coderd_db_tx_duration_seconds{success="",tx_id=""} 0
 # HELP coderd_db_tx_executions_count Total count of transactions executed. 'retries' is expected to be 0 for a successful transaction.
 # TYPE coderd_db_tx_executions_count counter
 coderd_db_tx_executions_count{success="",retries="",tx_id=""} 0
+# HELP coderd_dbpurge_chat_search_rows_backfilled_total Total number of chat message rows whose search_tsv was backfilled.
+# TYPE coderd_dbpurge_chat_search_rows_backfilled_total counter
+coderd_dbpurge_chat_search_rows_backfilled_total 0
 # HELP coderd_dbpurge_iteration_duration_seconds Duration of each dbpurge iteration in seconds.
 # TYPE coderd_dbpurge_iteration_duration_seconds histogram
 coderd_dbpurge_iteration_duration_seconds{success=""} 0
@@ -385,6 +424,9 @@ coderd_oauth2_external_requests_rate_limit_reset_in_seconds{name="",resource=""}
 # HELP coderd_oauth2_external_requests_rate_limit_used The number of requests made in this interval.
 # TYPE coderd_oauth2_external_requests_rate_limit_used gauge
 coderd_oauth2_external_requests_rate_limit_used{name="",resource=""} 0
+# HELP coderd_oauth2_external_requests_rate_limited_total The total number of api calls to external oauth2 providers that returned a rate-limited response (a 429, or a 403 with rate-limit headers).
+# TYPE coderd_oauth2_external_requests_rate_limited_total counter
+coderd_oauth2_external_requests_rate_limited_total{name="",source="",status_code=""} 0
 # HELP coderd_oauth2_external_requests_total The total number of api calls made to external oauth2 providers. 'status_code' will be 0 if the request failed with no response.
 # TYPE coderd_oauth2_external_requests_total counter
 coderd_oauth2_external_requests_total{name="",source="",status_code=""} 0

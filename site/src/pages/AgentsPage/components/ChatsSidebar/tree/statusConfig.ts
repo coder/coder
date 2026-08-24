@@ -14,21 +14,39 @@ import type { Chat, ChatDiffStatus, ChatStatus } from "#/api/typesGenerated";
 type ChatIconConfig = {
 	icon: LucideIcon;
 	className: string;
+	label: string;
 };
 
 const statusConfig = {
-	waiting: { icon: CheckIcon, className: "text-content-secondary" },
-	pending: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	running: { icon: Loader2Icon, className: "text-content-link animate-spin" },
-	paused: { icon: PauseIcon, className: "text-content-warning" },
-	interrupting: { icon: PauseIcon, className: "text-content-warning" },
-	requires_action: { icon: PauseIcon, className: "text-content-warning" },
-	error: { icon: AlertTriangleIcon, className: "text-content-destructive" },
-	completed: { icon: CheckIcon, className: "text-content-secondary" },
-} as const;
+	waiting: {
+		icon: CheckIcon,
+		className: "text-content-secondary",
+		label: "Idle",
+	},
+	running: {
+		icon: Loader2Icon,
+		className: "text-content-link animate-spin",
+		label: "Working",
+	},
+	interrupting: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Interrupting",
+	},
+	requires_action: {
+		icon: PauseIcon,
+		className: "text-content-warning",
+		label: "Requires action",
+	},
+	error: {
+		icon: AlertTriangleIcon,
+		className: "text-content-destructive",
+		label: "Error",
+	},
+} as const satisfies Record<ChatStatus, ChatIconConfig>;
 
 const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
-	return statusConfig[status] ?? statusConfig.completed;
+	return statusConfig[status] ?? statusConfig.waiting;
 };
 
 const getPRIconConfig = (
@@ -39,21 +57,31 @@ const getPRIconConfig = (
 		return undefined;
 	}
 	if (state === "merged") {
-		return { icon: GitMergeIcon, className: "text-git-merged-bright" };
+		return {
+			icon: GitMergeIcon,
+			className: "text-git-merged-bright",
+			label: "Pull request merged",
+		};
 	}
 	if (state === "closed") {
 		return {
 			icon: GitPullRequestClosedIcon,
 			className: "text-git-deleted-bright",
+			label: "Pull request closed",
 		};
 	}
 	if (diffStatus?.pull_request_draft) {
 		return {
 			icon: GitPullRequestDraftIcon,
 			className: "text-content-secondary",
+			label: "Draft pull request",
 		};
 	}
-	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
+	return {
+		icon: GitPullRequestArrowIcon,
+		className: "text-git-added-bright",
+		label: "Pull request open",
+	};
 };
 
 const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
@@ -61,30 +89,26 @@ const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 };
 
 /**
- * Returns the icon and styling that represents a chat's current state.
+ * Returns the icons and styling that represent a chat's current state.
  *
- * Combines `getStatusConfig` and `getPRIconConfig`: when the chat is in a
- * settled state (`waiting` or `completed`) and has a linked PR, the PR icon
- * takes precedence so list rows surface the merge / closed / draft state
- * instead of the generic status icon.
+ * The status icon always reflects the chat status.
  */
 export const getChatDisplayConfig = (
 	chat: Chat,
 ): {
 	icon: LucideIcon;
 	className: string;
+	label: string;
+	prIcon: ChatIconConfig | undefined;
 	diffStatus: ChatDiffStatus | undefined;
 } => {
 	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
-	const config = prConfig ?? baseConfig;
+	const config = getStatusConfig(chat.status);
 	return {
 		icon: config.icon,
 		className: config.className,
+		label: config.label,
+		prIcon: getPRIconConfig(diffStatus),
 		diffStatus,
 	};
 };

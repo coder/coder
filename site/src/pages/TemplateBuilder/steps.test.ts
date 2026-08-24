@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	findNextVisibleIndex,
 	findPrevVisibleIndex,
+	furthestAllowedIndex,
 	nearestVisible,
 	stepModuleSettingsRequired,
 	WIZARD_STEPS,
@@ -230,5 +231,23 @@ describe("nearestVisible", () => {
 		};
 		// Index 1 (base-parameters) is skipped, nearest backward is 0 (base-infra).
 		expect(nearestVisible(1, allSkippable)).toBe(0);
+	});
+});
+
+describe("furthestAllowedIndex", () => {
+	it("returns 0 when no base is selected", () => {
+		expect(furthestAllowedIndex(initialWizardState)).toBe(0);
+	});
+
+	it("returns the last step index when a base is selected", () => {
+		const withBase = stateWith({
+			selectedBase: {
+				id: "docker",
+				name: "Docker",
+				hasParameters: false,
+				hasPrerequisites: false,
+			},
+		});
+		expect(furthestAllowedIndex(withBase)).toBe(WIZARD_STEPS.length - 1);
 	});
 });

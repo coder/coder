@@ -15,13 +15,13 @@ are several ways to extend/automate Coder:
 
 Generate a token on your Coder deployment by visiting:
 
-```shell
+```sh
 https://coder.example.com/settings/tokens
 ```
 
 List your workspaces
 
-```shell
+```sh
 # CLI
 coder ls \
   --url https://coder.example.com \
@@ -68,7 +68,7 @@ activity.
   this to show Kubernetes events, such as image pulls or ResourceQuota
   restrictions.
 
-  ```shell
+  ```sh
   curl -X PATCH https://coder.example.com/api/v2/workspaceagents/me/logs \
   -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
   -d "{
@@ -86,7 +86,7 @@ activity.
   Keep a workspace "active," even if there is not an open connection (e.g. for a
   long-running machine learning job).
 
-  ```shell
+  ```sh
   #!/bin/bash
   # Send workspace activity as long as the job is still running
 

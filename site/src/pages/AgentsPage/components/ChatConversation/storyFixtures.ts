@@ -12,10 +12,43 @@ import type {
 	StreamState,
 } from "./types";
 
-type StoryStreamRenderState = {
+export type StoryStreamRenderState = {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
+};
+
+/**
+ * Generate a long conversation so the scroll container overflows in
+ * transcript-scrolling stories.
+ */
+export const buildLongConversation = (
+	chatId: string,
+	count: number,
+): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		const turn = Math.ceil(i / 2);
+		messages.push({
+			id: i,
+			chat_id: chatId,
+			created_at: new Date(Date.now() - (count - i) * 60_000).toISOString(),
+			role,
+			content: [
+				{
+					type: "text",
+					text:
+						role === "user"
+							? `Question ${turn}: Can you explain concept ${turn} in detail?`
+							: `Sure! Here is a detailed explanation of concept ${turn}. `.repeat(
+									4,
+								),
+				},
+			],
+		});
+	}
+	return messages;
 };
 
 const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
@@ -25,6 +58,7 @@ const DEFAULT_LIVE_STATUS_PARAMS: DeriveLiveStatusParams = {
 	streamError: null,
 	persistedError: null,
 	isAwaitingFirstStreamChunk: false,
+	chatStatus: null,
 };
 
 export const buildLiveStatus = (
@@ -56,7 +90,7 @@ export const buildStreamRenderState = (
 /**
  * Pinned clock for stories that render countdown timers. Stories
  * should mock `Date.now` to return this value so the countdowns
- * are deterministic across Chromatic snapshots.
+ * are deterministic across snapshot tests.
  *
  * Set to midnight UTC on the same day as the fixture deadlines,
  * giving reconnect a 1s countdown and retry a 2s countdown.
@@ -79,17 +113,9 @@ export const buildRetryState = (
 	error: "Anthropic returned an unexpected error.",
 	kind: "generic",
 	provider: "anthropic",
-	delayMs: 2000,
 	retryingAt: "2026-03-10T00:00:02.000Z",
 	...overrides,
 });
-
-export const textResponseStreamParts = [
-	{
-		type: "text",
-		text: "Storybook streamed answer.",
-	},
-] satisfies readonly TypesGen.ChatMessagePart[];
 
 export const pinFixtureClock = () => {
 	const real = Date.now;

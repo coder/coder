@@ -43,8 +43,19 @@ interface ModelSelectorProps {
 	options: readonly ModelSelectorOption[];
 	value: string;
 	onValueChange: (value: string) => void;
+	/**
+	 * When set, the trigger's accessible name is this contextual label followed
+	 * by the selected model's display name or the placeholder.
+	 */
+	triggerAriaLabel?: string;
 	disabled?: boolean;
 	placeholder?: string;
+	/**
+	 * When set, renders an option above the model list that selects the
+	 * empty value, letting users unset the model without a separate
+	 * clear control.
+	 */
+	unsetLabel?: string;
 	emptyMessage?: string;
 	formatProviderLabel?: (provider: string) => string;
 	className?: string;
@@ -57,7 +68,7 @@ interface ModelSelectorProps {
 	onReasoningEffortChange?: (value: string) => void;
 }
 
-const formatContextLimit = (tokens: number): string => {
+export const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
 		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
@@ -86,8 +97,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
 	onValueChange,
+	triggerAriaLabel,
 	disabled = false,
 	placeholder = "Select model",
+	unsetLabel,
 	emptyMessage = "No models found.",
 	formatProviderLabel = defaultFormatProviderLabel,
 	className,
@@ -108,7 +121,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		setOpen(nextOpen);
 	};
 	const selectedModel = options.find((option) => option.id === value);
-	const isDisabled = disabled || options.length === 0;
+	const triggerLabel = selectedModel?.displayName ?? placeholder;
+	// With an unset option the selector stays usable even when no model
+	// options exist, so a saved override can still be switched back.
+	const isDisabled = disabled || (options.length === 0 && !unsetLabel);
 	const query = search.trim().toLowerCase();
 	const optionsByProvider = (() => {
 		const grouped = new Map<string, ModelSelectorOption[]>();
@@ -135,7 +151,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild disabled={isDisabled}>
 				<Button
-					aria-label={selectedModel ? selectedModel.displayName : placeholder}
+					aria-label={
+						triggerAriaLabel
+							? `${triggerAriaLabel}, ${triggerLabel}`
+							: triggerLabel
+					}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					disabled={isDisabled}
@@ -143,15 +163,27 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-8 min-w-0 shrink justify-start gap-0.5 border-0 bg-transparent px-1 text-xs font-medium shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 md:gap-1.5 [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">
-						{selectedModel ? selectedModel.displayName : placeholder}
+					<span className="flex min-w-0 items-center gap-1">
+						{selectedModel && (
+							<span
+								className="flex shrink-0 items-center"
+								data-testid="model-selector-trigger-icon"
+							>
+								<ProviderIcon
+									provider={selectedModel.provider}
+									icon={selectedModel.providerIcon}
+									className="size-3 shrink-0"
+								/>
+							</span>
+						)}
+						<span className="truncate">{triggerLabel}</span>
 					</span>
-					<ChevronDownIcon open={open} className="size-icon-sm" />
+					<ChevronDownIcon open={open} />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -196,6 +228,32 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
+						{unsetLabel &&
+							(!query || unsetLabel.toLowerCase().includes(query)) && (
+								<CommandGroup className="p-1">
+									<CommandItem
+										value="__unset__"
+										onSelect={() => {
+											onValueChange("");
+											handleOpenChange(false);
+										}}
+										className={cn(
+											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
+											!value && "bg-surface-secondary",
+										)}
+									>
+										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+											{unsetLabel}
+										</span>
+										<CheckIcon
+											className={cn(
+												"ml-auto size-4 shrink-0",
+												value && "opacity-0",
+											)}
+										/>
+									</CommandItem>
+								</CommandGroup>
+							)}
 						{optionsByProvider.map(([providerKey, providerOptions], index) => {
 							const firstOption = providerOptions[0];
 							const providerLabel = getProviderLabel(
@@ -228,7 +286,13 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 											isSelected={option.id === value}
 											onSelect={() => {
 												onValueChange(option.id);
-												handleOpenChange(false);
+												setSearch("");
+												if (
+													!option.reasoningEfforts?.length ||
+													!onReasoningEffortChange
+												) {
+													handleOpenChange(false);
+												}
 											}}
 										/>
 									))}

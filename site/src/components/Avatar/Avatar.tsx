@@ -9,9 +9,9 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
-import { useTheme } from "@emotion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Avatar as AvatarPrimitive } from "radix-ui";
+import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
 
@@ -75,7 +75,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 	children,
 	...props
 }) => {
-	const theme = useTheme();
+	const { externalImages } = useAppearance();
 
 	return (
 		<AvatarPrimitive.Root
@@ -86,7 +86,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 				src={src}
 				alt={alt}
 				className="aspect-square size-full object-contain"
-				style={getExternalImageStylesFromUrl(theme.externalImages, src)}
+				style={getExternalImageStylesFromUrl(externalImages, src)}
 			/>
 			{fallback && (
 				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">

@@ -244,8 +244,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				</TabsList>
 			</Tabs>
 
-			{/* 420px accounts for navbar, page header, card padding, search, tabs, and nav controls */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 				{visibleModules.length ? (
 					visibleModules.map((m) => (
 						<ModuleCard
@@ -261,7 +260,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 				) : (
 					<div className="col-span-full my-12 flex flex-col items-center gap-1 text-content-secondary">
 						<SearchIcon />
-						<p className="m-0 text-sm font-normal">
+						<p className="m-0 text-xs font-normal">
 							{doesBaseTemplateHaveModules
 								? "No module matched your search"
 								: "No modules available for this base template"}

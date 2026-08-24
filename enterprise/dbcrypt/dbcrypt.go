@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 )
 
 // testValue is the value that is stored in dbcrypt_keys.test.
@@ -242,6 +243,20 @@ func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid
 	return links, nil
 }
 
+func (db *dbCrypt) AcquireExternalAuthLinkRefreshLease(ctx context.Context, params database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
+	link, err := db.Store.AcquireExternalAuthLinkRefreshLease(ctx, params)
+	if err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	return link, nil
+}
+
 func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -260,54 +275,6 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
-}
-
-func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
-	// The SQL query uses an optimistic lock:
-	//   WHERE oauth_refresh_token = @old_oauth_refresh_token
-	// The caller supplies the plaintext old token (since dbcrypt
-	// decrypts on read), but the DB stores the encrypted value.
-	// Because AES-GCM is non-deterministic, we cannot simply
-	// re-encrypt the old token — the ciphertext would differ.
-	// Instead, read the current row from the inner (raw) store
-	// and use the actual encrypted value for the WHERE clause.
-	if params.OldOauthRefreshToken != "" && db.ciphers != nil && db.primaryCipherDigest != "" {
-		raw, err := db.Store.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-			ProviderID: params.ProviderID,
-			UserID:     params.UserID,
-		})
-		if err != nil {
-			return err
-		}
-		// Decrypt the stored token so we can compare with the
-		// caller-supplied plaintext.
-		decrypted := raw.OAuthRefreshToken
-		if err := db.decryptField(&decrypted, raw.OAuthRefreshTokenKeyID); err != nil {
-			return err
-		}
-		if decrypted != params.OldOauthRefreshToken {
-			// The token has changed since the caller read it;
-			// the optimistic lock should fail (no rows updated).
-			// Return nil to match the :exec semantics of the SQL
-			// query, which silently updates zero rows.
-			return nil
-		}
-		// Use the raw encrypted value so the WHERE clause matches.
-		params.OldOauthRefreshToken = raw.OAuthRefreshToken
-	}
-
-	// We would normally use a sql.NullString here, but sqlc does not want to make
-	// a params struct with a nullable string.
-	var digest sql.NullString
-	if params.OAuthRefreshTokenKeyID != "" {
-		digest.String = params.OAuthRefreshTokenKeyID
-		digest.Valid = true
-	}
-	if err := db.encryptField(&params.OAuthRefreshToken, &digest); err != nil {
-		return err
-	}
-
-	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
 }
 
 func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
@@ -713,8 +680,8 @@ func (db *dbCrypt) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (da
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (database.MCPServerConfig, error) {
-	cfg, err := db.Store.GetMCPServerConfigBySlug(ctx, slug)
+func (db *dbCrypt) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByIDForUpdate(ctx, id)
 	if err != nil {
 		return database.MCPServerConfig{}, err
 	}
@@ -724,8 +691,19 @@ func (db *dbCrypt) GetMCPServerConfigBySlug(ctx context.Context, slug string) (d
 	return cfg, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigs(ctx)
+func (db *dbCrypt) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg database.GetMCPServerConfigByOrganizationAndSlugParams) (database.MCPServerConfig, error) {
+	cfg, err := db.Store.GetMCPServerConfigByOrganizationAndSlug(ctx, arg)
+	if err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	if err := db.decryptMCPServerConfig(&cfg); err != nil {
+		return database.MCPServerConfig{}, err
+	}
+	return cfg, nil
+}
+
+func (db *dbCrypt) GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -737,8 +715,8 @@ func (db *dbCrypt) GetMCPServerConfigs(ctx context.Context) ([]database.MCPServe
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetMCPServerConfigsByIDs(ctx, ids)
+func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg database.GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -750,8 +728,8 @@ func (db *dbCrypt) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetEnabledMCPServerConfigs(ctx)
+func (db *dbCrypt) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetEnabledMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -763,8 +741,21 @@ func (db *dbCrypt) GetEnabledMCPServerConfigs(ctx context.Context) ([]database.M
 	return cfgs, nil
 }
 
-func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MCPServerConfig, error) {
-	cfgs, err := db.Store.GetForcedMCPServerConfigs(ctx)
+func (db *dbCrypt) GetAuthorizedMCPServerConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetAuthorizedMCPServerConfigs(ctx, organizationID, prepared)
+	if err != nil {
+		return nil, err
+	}
+	for i := range cfgs {
+		if err := db.decryptMCPServerConfig(&cfgs[i]); err != nil {
+			return nil, err
+		}
+	}
+	return cfgs, nil
+}
+
+func (db *dbCrypt) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
+	cfgs, err := db.Store.GetForcedMCPServerConfigsByOrganization(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -778,6 +769,31 @@ func (db *dbCrypt) GetForcedMCPServerConfigs(ctx context.Context) ([]database.MC
 
 func (db *dbCrypt) GetMCPServerUserToken(ctx context.Context, arg database.GetMCPServerUserTokenParams) (database.MCPServerUserToken, error) {
 	tok, err := db.Store.GetMCPServerUserToken(ctx, arg)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
+func (db *dbCrypt) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (database.MCPServerUserToken, error) {
+	tok, err := db.Store.GetMCPServerUserTokenByID(ctx, id)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
+func (db *dbCrypt) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, params database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
+	// The query clears the encrypted token fields, so nothing needs
+	// encrypting; decrypt the returned row for consistency with the
+	// other accessors (a no-op for the cleared fields).
+	tok, err := db.Store.MarkMCPServerUserTokenRefreshFailure(ctx, params)
 	if err != nil {
 		return database.MCPServerUserToken{}, err
 	}
@@ -867,6 +883,28 @@ func (db *dbCrypt) UpsertMCPServerUserToken(ctx context.Context, params database
 	}
 
 	tok, err := db.Store.UpsertMCPServerUserToken(ctx, params)
+	if err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if err := db.decryptMCPServerUserToken(&tok); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	return tok, nil
+}
+
+func (db *dbCrypt) UpdateMCPServerUserTokenFromRefresh(ctx context.Context, params database.UpdateMCPServerUserTokenFromRefreshParams) (database.MCPServerUserToken, error) {
+	if strings.TrimSpace(params.AccessToken) == "" {
+		params.AccessTokenKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.AccessToken, &params.AccessTokenKeyID); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+	if strings.TrimSpace(params.RefreshToken) == "" {
+		params.RefreshTokenKeyID = sql.NullString{}
+	} else if err := db.encryptField(&params.RefreshToken, &params.RefreshTokenKeyID); err != nil {
+		return database.MCPServerUserToken{}, err
+	}
+
+	tok, err := db.Store.UpdateMCPServerUserTokenFromRefresh(ctx, params)
 	if err != nil {
 		return database.MCPServerUserToken{}, err
 	}

@@ -121,3 +121,17 @@ export function nearestVisible(
 	}
 	return 0;
 }
+
+/**
+ * Returns the highest step index the user can reach given the current
+ * wizard state. Steps past base-infra require a selected base template;
+ * without one the wizard cannot advance beyond the first step.
+ */
+export function furthestAllowedIndex(
+	state: TemplateBuilderWizardState,
+): number {
+	if (!state.selectedBase) {
+		return 0;
+	}
+	return WIZARD_STEPS.length - 1;
+}

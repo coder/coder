@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -17,16 +16,18 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
@@ -96,7 +97,7 @@ Guidelines:
 
 type waitAgentArgs struct {
 	ChatID         string `json:"chat_id"`
-	TimeoutSeconds *int   `json:"timeout_seconds,omitempty"`
+	TimeoutSeconds *int   `json:"timeout_seconds,omitempty" description:"Defaults to 5 minutes."`
 }
 
 type messageAgentArgs struct {
@@ -113,6 +114,8 @@ type listAgentsArgs struct {
 	Limit  *int `json:"limit,omitempty"`
 	Offset *int `json:"offset,omitempty"`
 }
+
+type listSubagentModelsArgs struct{}
 
 func subagentModelOverrideLogLabel(
 	overrideContext codersdk.ChatModelOverrideContext,
@@ -184,6 +187,7 @@ func modelOverrideErrorLabel(overrideContext string) string {
 // resolveConfiguredModelOverride returns ok when a usable override is
 // resolved. In hard failure mode, ok is also true for configured but unusable
 // overrides so callers can distinguish them from unset or malformed values.
+// The normalized provider name is only meaningful for a usable override.
 func (p *Server) resolveConfiguredModelOverride(
 	ctx context.Context,
 	overrideContext string,
@@ -192,7 +196,7 @@ func (p *Server) resolveConfiguredModelOverride(
 	resolveModelConfig modelOverrideConfigResolver,
 	resolveProviderKeys modelOverrideProviderKeysResolver,
 	failureMode modelOverrideFailureMode,
-) (database.ChatModelConfig, *string, bool, error) {
+) (database.ChatModelConfig, string, *string, bool, error) {
 	parsed, ok := parseModelOverride(raw)
 	if !ok {
 		p.logger.Info(ctx,
@@ -200,10 +204,10 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("override_context", overrideContext),
 			slog.F("raw_model_config_id", strings.TrimSpace(raw)),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 	if parsed.modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	modelConfig, providerName, err := resolveModelConfig(
@@ -215,20 +219,20 @@ func (p *Server) resolveConfiguredModelOverride(
 			label := modelOverrideErrorLabel(overrideContext)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override is unavailable: %s",
 					label,
 					parsed.modelConfigID,
 				)
 			case errors.Is(err, errInvalidModelOverrideMetadata):
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"%s model override metadata is invalid for %s: %w",
 					label,
 					parsed.modelConfigID,
 					err,
 				)
 			default:
-				return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+				return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 					"resolve %s model override %s: %w",
 					label,
 					parsed.modelConfigID,
@@ -259,19 +263,19 @@ func (p *Server) resolveConfiguredModelOverride(
 				slog.Error(err),
 			)
 		}
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
 
 	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
-		return database.ChatModelConfig{}, nil, false, xerrors.Errorf(
+		return database.ChatModelConfig{}, "", nil, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
 			err,
 		)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
 		if failureMode == modelOverrideFailureModeHard {
-			return database.ChatModelConfig{}, parsed.reasoningEffort, true, xerrors.Errorf(
+			return database.ChatModelConfig{}, "", parsed.reasoningEffort, true, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				modelOverrideErrorLabel(overrideContext),
 				providerName,
@@ -284,9 +288,9 @@ func (p *Server) resolveConfiguredModelOverride(
 			slog.F("model_config_id", parsed.modelConfigID),
 			slog.F("provider", providerName),
 		)
-		return database.ChatModelConfig{}, nil, false, nil
+		return database.ChatModelConfig{}, "", nil, false, nil
 	}
-	return modelConfig, parsed.reasoningEffort, true, nil
+	return modelConfig, providerName, parsed.reasoningEffort, true, nil
 }
 
 func (p *Server) resolvePersonalSubagentModelConfigID(
@@ -415,38 +419,6 @@ func (p *Server) resolvePersonalModelOverride(
 	return modelConfig, true, nil
 }
 
-func withResolvedReasoningEffort(
-	modelConfig database.ChatModelConfig,
-	reasoningEffort *string,
-) database.ChatModelConfig {
-	if reasoningEffort == nil {
-		return modelConfig
-	}
-	callConfig := codersdk.ChatModelCallConfig{}
-	if len(modelConfig.Options) > 0 {
-		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
-			return modelConfig
-		}
-	}
-	resolvedEffort := chatprovider.ResolveReasoningEffort(
-		reasoningEffort,
-		callConfig.ReasoningEffort,
-	)
-	if resolvedEffort == nil {
-		return modelConfig
-	}
-	callConfig.ReasoningEffort = &codersdk.ChatModelReasoningEffortConfig{
-		Default: resolvedEffort,
-		Max:     resolvedEffort,
-	}
-	options, err := json.Marshal(callConfig)
-	if err != nil {
-		return modelConfig
-	}
-	modelConfig.Options = options
-	return modelConfig
-}
-
 func (p *Server) resolveSubagentModelConfigID(
 	ctx context.Context,
 	ownerID uuid.UUID,
@@ -483,7 +455,7 @@ func (p *Server) resolveSubagentModelConfigID(
 			err,
 		)
 	}
-	modelConfig, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, reasoningEffort, ok, err := p.resolveConfiguredModelOverride(
 		chatdCtx,
 		string(overrideContext),
 		raw,
@@ -543,6 +515,142 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	return database.ChatModelConfig{}, "", sql.ErrNoRows
 }
 
+func (p *Server) resolveExplicitSpawnOverrides(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	args spawnAgentArgs,
+) (*uuid.UUID, *string, error) {
+	var explicitModelConfigID *uuid.UUID
+	if raw := strings.TrimSpace(args.ModelConfigID); raw != "" {
+		modelConfigID, err := uuid.Parse(raw)
+		if err != nil {
+			return nil, nil, xerrors.New(
+				"invalid model_config_id: must be a valid UUID; use " +
+					listSubagentModelsToolName + " to see available models",
+			)
+		}
+		//nolint:gocritic // Chatd needs its scoped config and user-data access here.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(
+			chatdCtx,
+			modelConfigID,
+		)
+		if err != nil {
+			switch {
+			case errors.Is(err, sql.ErrNoRows):
+				return nil, nil, xerrors.New(
+					"model_config_id not found or is disabled; use " +
+						listSubagentModelsToolName + " to see available models",
+				)
+			case errors.Is(err, errInvalidModelOverrideMetadata):
+				return nil, nil, xerrors.Errorf(
+					"model_config_id metadata is invalid: %w",
+					err,
+				)
+			default:
+				p.logger.Warn(ctx, "failed to resolve spawn_agent model_config_id",
+					slog.F("model_config_id", modelConfigID),
+					slog.Error(err),
+				)
+				return nil, nil, xerrors.New("internal error looking up model config")
+			}
+		}
+		providerKeys, err := p.resolveUserProviderAPIKeys(
+			chatdCtx,
+			ownerID,
+			modelConfigAIProviderID(modelConfig),
+		)
+		if err != nil {
+			p.logger.Warn(ctx, "failed to resolve provider API keys for spawn_agent model_config_id",
+				slog.F("model_config_id", modelConfigID),
+				slog.Error(err),
+			)
+			return nil, nil, xerrors.New("internal error looking up model config")
+		}
+		if !userCanUseProviderKeys(providerKeys, providerName) {
+			return nil, nil, xerrors.Errorf(
+				"model_config_id credentials are unavailable for provider %q",
+				providerName,
+			)
+		}
+		explicitModelConfigID = &modelConfig.ID
+	}
+
+	var explicitReasoningEffort *string
+	if raw := strings.TrimSpace(args.ReasoningEffort); raw != "" {
+		effort := strings.ToLower(raw)
+		if !chatprovider.IsValidReasoningEffort(effort) {
+			return nil, nil, xerrors.Errorf(
+				"invalid reasoning_effort: must be one of %s",
+				strings.Join(codersdk.ChatModelReasoningEffortValues(), ", "),
+			)
+		}
+		explicitReasoningEffort = &effort
+	}
+
+	return explicitModelConfigID, explicitReasoningEffort, nil
+}
+
+func (p *Server) listSpawnableModelConfigs(
+	ctx context.Context,
+	ownerID uuid.UUID,
+) ([]map[string]any, error) {
+	//nolint:gocritic // Chatd needs its scoped config and user-data access here.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	rows, err := p.db.GetEnabledChatModelConfigs(chatdCtx)
+	if err != nil {
+		return nil, xerrors.Errorf("get enabled chat model configs: %w", err)
+	}
+	models := make([]map[string]any, 0, len(rows))
+	providerKeysByID := make(map[uuid.UUID]chatprovider.ProviderAPIKeys)
+	for _, row := range rows {
+		providerName := chatprovider.NormalizeProvider(row.Provider)
+		if providerName == "" {
+			continue
+		}
+		if _, _, err := chatprovider.ResolveModelWithProviderHint(
+			row.ChatModelConfig.Model,
+			providerName,
+		); err != nil {
+			continue
+		}
+		providerID := modelConfigAIProviderID(row.ChatModelConfig)
+		providerKeys, ok := providerKeysByID[providerID]
+		if !ok {
+			providerKeys, err = p.resolveUserProviderAPIKeys(
+				chatdCtx,
+				ownerID,
+				providerID,
+			)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve provider API keys: %w", err)
+			}
+			providerKeysByID[providerID] = providerKeys
+		}
+		if !userCanUseProviderKeys(providerKeys, providerName) {
+			continue
+		}
+		entry := map[string]any{
+			"model_config_id": row.ChatModelConfig.ID.String(),
+			"display_name":    row.ChatModelConfig.DisplayName,
+			"model":           row.ChatModelConfig.Model,
+			"provider":        providerName,
+			"context_limit":   row.ChatModelConfig.ContextLimit,
+			"is_default":      row.ChatModelConfig.IsDefault,
+		}
+		callConfig := codersdk.ChatModelCallConfig{}
+		if len(row.ChatModelConfig.Options) > 0 {
+			if err := json.Unmarshal(row.ChatModelConfig.Options, &callConfig); err == nil {
+				if efforts := chatprovider.SelectableReasoningEfforts(callConfig.ReasoningEffort); len(efforts) > 0 {
+					entry["reasoning_efforts"] = efforts
+				}
+			}
+		}
+		models = append(models, entry)
+	}
+	return models, nil
+}
+
 func (p *Server) subagentTools(
 	ctx context.Context,
 	currentChat func() database.Chat,
@@ -583,6 +691,24 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
+				if definition.id == subagentTypeComputerUse &&
+					(strings.TrimSpace(args.ModelConfigID) != "" ||
+						strings.TrimSpace(args.ReasoningEffort) != "") {
+					return fantasy.NewTextErrorResponse(
+						`model_config_id and reasoning_effort are not supported for type "` +
+							subagentTypeComputerUse + `"`,
+					), nil
+				}
+
+				explicitModelConfigID, explicitReasoningEffort, err := p.resolveExplicitSpawnOverrides(
+					ctx,
+					parent.OwnerID,
+					args,
+				)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
 				turnParent := currentChatSnapshot
 				if turnParent.ID == uuid.Nil {
 					turnParent = parent
@@ -594,10 +720,15 @@ func (p *Server) subagentTools(
 					parent,
 					turnParent,
 					currentModelConfigID,
+					explicitModelConfigID,
 					args.Prompt,
 				)
 				if err != nil {
 					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				if explicitReasoningEffort != nil {
+					options.reasoningEffortOverride = explicitReasoningEffort
 				}
 
 				childChat, err := p.createChildSubagentChatWithOptions(
@@ -608,6 +739,13 @@ func (p *Server) subagentTools(
 					options,
 				)
 				if err != nil {
+					// A failed hook dispatch must fail closed instead of
+					// degrading into a tool error the model can ignore.
+					if _, ok := errors.AsType[*dispatch.Error](err); ok {
+						return fantasy.ToolResponse{}, err
+					}
+					// chathooks.UserPromptDeniedError.Error() carries the user-facing
+					// denial message, so the model can adjust its prompt.
 					return fantasy.NewTextErrorResponse(err.Error()), nil
 				}
 
@@ -619,11 +757,44 @@ func (p *Server) subagentTools(
 			},
 		),
 		fantasy.NewAgentTool(
+			listSubagentModelsToolName,
+			"List the enabled model configurations available for "+
+				spawnAgentToolName+"'s model_config_id argument. Only models "+
+				"usable with the chat owner's credentials are returned. Each "+
+				"entry includes model_config_id, display_name, model, "+
+				"provider, context_limit, is_default, and reasoning_efforts "+
+				"(the values accepted by "+spawnAgentToolName+"'s "+
+				"reasoning_effort for that model).",
+			func(ctx context.Context, _ listSubagentModelsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				parent, err := p.loadSubagentSpawnParentChat(ctx, currentChat)
+				if err != nil {
+					return fantasy.NewTextErrorResponse(err.Error()), nil
+				}
+
+				models, err := p.listSpawnableModelConfigs(ctx, parent.OwnerID)
+				if err != nil {
+					p.logger.Warn(ctx, "failed to list spawnable model configs",
+						slog.F("chat_id", parent.ID),
+						slog.Error(err),
+					)
+					return fantasy.NewTextErrorResponse("internal error listing model configs"), nil
+				}
+
+				return toolJSONResponse(map[string]any{
+					"models": models,
+				}), nil
+			},
+		),
+		fantasy.NewAgentTool(
 			"wait_agent",
-			"Wait until a spawned child agent finishes its task. "+
-				"Returns the agent's response and status. A timeout is not "+
-				"a failure: the agent is still running. Call wait_agent again "+
-				"or use list_agents to check its status.",
+			"Wait for a spawned child agent to finish and return its response "+
+				"and status. Returns immediately when the agent finishes, even if "+
+				"a longer timeout is set. A timeout does not stop the agent; call "+
+				"wait_agent again or use list_agents to check its status.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -735,17 +906,29 @@ func (p *Server) subagentTools(
 					}
 					if errStatus, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
 						errChat := errStatus.chat
-						lastError := subagentLastErrorMessage(errChat.LastError)
+						decoded, lastError := subagentLastError(errChat.LastError)
 						if lastError == "" {
 							lastError = errStatus.reason
 						}
-						return toolJSONResponse(withSubagentType(map[string]any{
+						payload := map[string]any{
 							"chat_id":    errChat.ID.String(),
 							"title":      errChat.Title,
 							"status":     string(errChat.Status),
 							"last_error": lastError,
 							"report":     errStatus.report,
-						}, errChat)), nil
+						}
+						if decoded != nil {
+							kind := decoded.Kind
+							if kind == "" {
+								kind = codersdk.ChatErrorKindGeneric
+							}
+							payload["last_error_kind"] = string(kind)
+							payload["last_error_retryable"] = decoded.Retryable
+							if decoded.Detail != "" {
+								payload["last_error_detail"] = decoded.Detail
+							}
+						}
+						return toolJSONResponse(withSubagentType(payload, errChat)), nil
 					}
 					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
@@ -800,8 +983,7 @@ func (p *Server) subagentTools(
 
 				interrupted := false
 				if args.Interrupt && targetChatInfo != nil {
-					interrupted = targetChatInfo.Status == database.ChatStatusRunning ||
-						targetChatInfo.Status == database.ChatStatusPending
+					interrupted = targetChatInfo.Status == database.ChatStatusRunning
 				}
 				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id":     targetChat.ID.String(),
@@ -862,8 +1044,8 @@ func (p *Server) subagentTools(
 				"sort order is best-effort: an agent's position may shift "+
 				"if its updated_at changes between calls. Each "+
 				"agent has chat_id, title, type, status, created_at, "+
-				"updated_at. Status: pending/running = working, "+
-				"interrupting = transient, waiting/completed = idle, "+
+				"updated_at. Status: running = working, "+
+				"interrupting = transient, waiting = idle, "+
 				"error = stopped on error.",
 			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
@@ -949,7 +1131,6 @@ func (p *Server) loadSubagentSpawnParentChat(
 	if err := validateSubagentSpawnParent(parent); err != nil {
 		return database.Chat{}, err
 	}
-
 	return parent, nil
 }
 
@@ -992,7 +1173,7 @@ func (p *Server) resolveExploreToolSnapshot(
 ) ([]uuid.UUID, error) {
 	inheritedMCPServerIDs := []uuid.UUID{}
 	if len(parent.MCPServerIDs) > 0 {
-		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+		configs, err := enabledMCPServerConfigsForChatOrg(ctx, p.db, parent.OrganizationID, parent.MCPServerIDs)
 		if err != nil {
 			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
 		}
@@ -1024,23 +1205,6 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
-func (*Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
-	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-	if !ok || apiKeyID == "" {
-		return "", xerrors.New("active turn API key ID is required for subagent messages")
-	}
-	return apiKeyID, nil
-}
-
-func (p *Server) createChildSubagentChat(
-	ctx context.Context,
-	parent database.Chat,
-	prompt string,
-	title string,
-) (database.Chat, error) {
-	return p.createChildSubagentChatWithOptions(ctx, parent, prompt, title, childSubagentChatOptions{})
-}
-
 func (p *Server) createChildSubagentChatWithOptions(
 	ctx context.Context,
 	parent database.Chat,
@@ -1058,9 +1222,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 
 	title = strings.TrimSpace(title)
-	if title == "" {
-		title = subagentFallbackChatTitle(prompt)
-	}
 
 	rootChatID := parent.ID
 	if parent.RootChatID.Valid {
@@ -1074,11 +1235,6 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
-	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
 	childPlanMode := parent.PlanMode
 	if opts.planModeOverride != nil {
 		childPlanMode = *opts.planModeOverride
@@ -1096,7 +1252,7 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
-	childSystemPrompt := SanitizePromptText(opts.systemPrompt)
+	childSystemPrompt := codersdk.SanitizePromptText(opts.systemPrompt)
 	// Resolve the deployment prompt before opening the transaction so
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
@@ -1105,8 +1261,37 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// strip the root-only orchestration guidance from their prompt.
 	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
-	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
-		return database.Chat{}, limitErr
+	// Review before persistence so spawned chats cannot bypass prompt policy.
+	childChatID := uuid.New()
+	var promptResult *chathooks.Result
+	if p.hooks.Enabled() {
+		mintedTurnID := uuid.New()
+		promptMessage, err := chathooks.UserPromptMessage([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+		if err != nil {
+			return database.Chat{}, err
+		}
+		promptResult, err = p.hooks.Trigger(ctx, chathooks.Chat{
+			ID:           childChatID,
+			OwnerID:      parent.OwnerID,
+			WorkspaceID:  parent.WorkspaceID,
+			ParentChatID: uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
+			TurnID:       &mintedTurnID,
+		}, promptMessage, agenthooks.EventUserPromptSubmit, dispatch.CapacityClassGeneration)
+		if err != nil {
+			return database.Chat{}, chathooks.UserPromptDenial(err)
+		}
+		override, overridden, overrideErr := chathooks.UserPromptOverride(promptResult)
+		if overrideErr != nil {
+			return database.Chat{}, overrideErr
+		}
+		if overridden {
+			// The overridden prompt also feeds the fallback title below.
+			prompt = override
+		}
+	}
+	if title == "" {
+		title = subagentFallbackChatTitle(prompt)
 	}
 
 	workspaceAwareness := workspaceDetachedNoCreateAwareness
@@ -1119,7 +1304,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+	childUserParts := []codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)}
+	childUserParts = append(childUserParts, chathooks.UserPromptParts(promptResult)...)
+	userContent, err := chatprompt.MarshalParts(childUserParts)
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
@@ -1149,13 +1336,13 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// workspace context the same way a top-level chat does: pinned from the
 	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
 	// parent's context is not copied into child history.
-	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID, opts.reasoningEffortOverride))
+	initialMessages = append(initialMessages, userMessage(userContent, modelConfigID, parent.OwnerID, opts.reasoningEffortOverride))
 
 	publisher := p.pubsub
 	if publisher == nil {
 		publisher = dbpubsub.NewInMemory()
 	}
-	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+	result, err := chatstate.CreateChatWithID(ctx, p.db, publisher, childChatID, chatstate.CreateChatInput{
 		OrganizationID:    parent.OrganizationID,
 		OwnerID:           parent.OwnerID,
 		WorkspaceID:       parent.WorkspaceID,
@@ -1218,16 +1405,10 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
-	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
-	if err != nil {
-		return database.Chat{}, err
-	}
-
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -1336,18 +1517,35 @@ func handleSubagentDone(
 	return chat, report, nil
 }
 
-// subagentLastErrorMessage extracts the normalized, user-facing message
-// from a chat's last_error payload, falling back to the raw JSON when the
-// payload is not a recognized ChatError.
-func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
+// subagentGenericErrorMessage matches the normalized fallback that
+// chaterror and db2sdk emit for unclassifiable failures. It carries no
+// actionable information, so a provider detail replaces it entirely.
+const subagentGenericErrorMessage = "The chat request failed unexpectedly."
+
+// subagentLastError decodes a chat's last_error payload and builds the
+// message surfaced to the parent model, preferring the actionable
+// provider detail. The content mirrors what the chat UI renders from
+// the same payload. An unrecognized payload yields an empty message so
+// the caller falls back to its own status reason instead of exposing
+// raw stored bytes.
+func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) {
 	if !raw.Valid {
-		return ""
+		return nil, ""
 	}
 	var payload codersdk.ChatError
-	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
-		return payload.Message
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return nil, ""
 	}
-	return string(raw.RawMessage)
+	switch {
+	case payload.Message == "" && payload.Detail == "":
+		return nil, ""
+	case payload.Detail == "":
+		return &payload, payload.Message
+	case payload.Message == "" || payload.Message == subagentGenericErrorMessage:
+		return &payload, payload.Detail
+	default:
+		return &payload, payload.Message + " (" + payload.Detail + ")"
+	}
 }
 
 // waitAgentSuccessResponse stops and stores the recording (if active) and
@@ -1434,8 +1632,7 @@ func (p *Server) checkSubagentCompletion(
 	// waiting (no queued messages) or running (queued messages).
 	// Treat it as not-done so the agent settles before
 	// classification, avoiding stale partial output.
-	if chat.Status == database.ChatStatusPending ||
-		chat.Status == database.ChatStatusRunning ||
+	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting {
 		return chat, "", false, nil
 	}
@@ -1460,13 +1657,6 @@ func latestSubagentAssistantMessage(
 	if err != nil {
 		return "", xerrors.Errorf("get chat messages: %w", err)
 	}
-
-	sort.Slice(messages, func(i, j int) bool {
-		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
-			return messages[i].ID < messages[j].ID
-		}
-		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
-	})
 
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]

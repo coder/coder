@@ -78,6 +78,12 @@ export const Default: Story = {
 		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
+		// Each badge announces provider + model (the icon itself is decorative).
+		expect(canvas.getByLabelText("OpenAI GPT-4o")).toBeInTheDocument();
+		expect(
+			canvas.getByLabelText("Anthropic Claude Sonnet"),
+		).toBeInTheDocument();
+
 		// No footer visible when nothing is dirty
 		expect(
 			canvas.queryByRole("button", { name: /Save/i }),

@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -86,7 +85,7 @@ func (c *Client) CreateWorkspaceProxy(ctx context.Context, req CreateWorkspacePr
 		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
 	var resp UpdateWorkspaceProxyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[WorkspaceProxy], error) {
@@ -104,7 +103,7 @@ func (c *Client) WorkspaceProxies(ctx context.Context) (RegionsResponse[Workspac
 	}
 
 	var proxies RegionsResponse[WorkspaceProxy]
-	return proxies, json.NewDecoder(res.Body).Decode(&proxies)
+	return proxies, ReadBodyAsJSON(res, &proxies)
 }
 
 type PatchWorkspaceProxy struct {
@@ -129,7 +128,7 @@ func (c *Client) PatchWorkspaceProxy(ctx context.Context, req PatchWorkspaceProx
 		return UpdateWorkspaceProxyResponse{}, ReadBodyAsError(res)
 	}
 	var resp UpdateWorkspaceProxyResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) DeleteWorkspaceProxyByName(ctx context.Context, name string) error {
@@ -168,7 +167,7 @@ func (c *Client) WorkspaceProxyByName(ctx context.Context, name string) (Workspa
 	}
 
 	var resp WorkspaceProxy
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 func (c *Client) WorkspaceProxyByID(ctx context.Context, id uuid.UUID) (WorkspaceProxy, error) {
@@ -217,5 +216,5 @@ func (c *Client) Regions(ctx context.Context) ([]Region, error) {
 	}
 
 	var regions RegionsResponse[Region]
-	return regions.Regions, json.NewDecoder(res.Body).Decode(&regions)
+	return regions.Regions, ReadBodyAsJSON(res, &regions)
 }

@@ -168,7 +168,7 @@ AI GATEWAY OPTIONS:
           this option seeds provider configuration at startup only exactly once.
           It will not be used in service runtime. The AWS Bedrock API region to
           use. Constructs a base URL to use for the AWS Bedrock API in the form
-          of 'https://bedrock-runtime.<region>.amazonaws.com'.
+          of `https://bedrock-runtime.<region>.amazonaws.com`.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
           Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
@@ -258,6 +258,11 @@ AI GATEWAY PROXY OPTIONS:
           Path to the TLS private key file for the AI Gateway Proxy listener.
           Must be set together with AI Gateway Proxy TLS Certificate File.
 
+      --ai-gateway-proxy-target string, $CODER_AI_GATEWAY_PROXY_TARGET
+          Base URL of the AI Gateway to forward intercepted requests to.
+          Defaults to the embedded AI Gateway address at the Coder access URL
+          plus /api/v2/ai-gateway.
+
       --ai-gateway-proxy-upstream string, $CODER_AI_GATEWAY_PROXY_UPSTREAM
           URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
           requests through. Format: http://[user:pass@]host:port or
@@ -284,9 +289,6 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
           The upgrade message to display to users when a client/server mismatch
           is detected. By default it instructs users to update using 'curl -L
           https://coder.com/install.sh | sh'.
-
-      --hide-ai-tasks bool, $CODER_HIDE_AI_TASKS (default: false)
-          Hide AI tasks from the dashboard.
 
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
@@ -725,7 +727,7 @@ OAUTH2 / GITHUB OPTIONS:
 
       --oauth2-github-allowed-teams string-array, $CODER_OAUTH2_GITHUB_ALLOWED_TEAMS
           Teams inside organizations the user must be a member of to Login with
-          GitHub. Structured as: <organization-name>/<team-slug>.
+          GitHub. Structured as: `<organization-name>/<team-slug>`.
 
       --oauth2-github-client-id string, $CODER_OAUTH2_GITHUB_CLIENT_ID
           Client ID for Login with GitHub.
@@ -801,6 +803,12 @@ OIDC OPTIONS:
 
       --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
           OIDC claim field to use as the name.
+
+      --oidc-redirect-url url, $CODER_OIDC_REDIRECT_URL
+          Optional override of the default redirect url which uses the
+          deployment's access url. Useful in situations where a deployment has
+          more than 1 domain. Using this setting can also break OIDC, so use
+          with caution.
 
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This

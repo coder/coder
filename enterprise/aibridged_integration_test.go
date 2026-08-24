@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
@@ -18,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/aibridgetest"
@@ -66,33 +69,19 @@ func TestIntegration(t *testing.T) {
 	tracer := tp.Tracer(t.Name())
 	defer func() { _ = tp.Shutdown(t.Context()) }()
 
-	// Create mock MCP server.
-	var mcpTokenReceived string
+	var mcpTokenReceived atomic.Pointer[string]
+	mcpHandler := sdkmcp.NewStreamableHTTPHandler(func(*http.Request) *sdkmcp.Server {
+		return sdkmcp.NewServer(&sdkmcp.Implementation{
+			Name:    "test-mcp-server",
+			Version: "1.0.0",
+		}, nil)
+	}, &sdkmcp.StreamableHTTPOptions{Stateless: true})
 	mockMCPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Logf("Mock MCP server received request: %s %s", r.Method, r.URL.Path)
-
-		if r.Method == http.MethodPost && r.URL.Path == "/" {
-			// Mark that init was called.
-			mcpTokenReceived = r.Header.Get("Authorization")
-			t.Log("MCP init request received")
-
-			// Return a basic MCP init response.
-			w.Header().Set("Content-Type", "application/json")
-			w.Header().Set("Mcp-Session-Id", "test-session-123")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{
-				"jsonrpc": "2.0",
-				"id": 1,
-				"result": {
-					"protocolVersion": "2024-11-05",
-					"capabilities": {},
-					"serverInfo": {
-						"name": "test-mcp-server",
-						"version": "1.0.0"
-					}
-				}
-			}`))
+		if auth := r.Header.Get("Authorization"); auth != "" {
+			mcpTokenReceived.Store(&auth)
 		}
+		mcpHandler.ServeHTTP(w, r)
 	}))
 	t.Cleanup(mockMCPServer.Close)
 	t.Logf("Mock MCP server running at: %s", mockMCPServer.URL)
@@ -162,6 +151,7 @@ func TestIntegration(t *testing.T) {
 					Type:                     "mock",
 					DisplayName:              "Mock",
 					MCPURL:                   mockMCPServer.URL,
+					RefreshGroup:             new(singleflight.Group),
 				},
 			},
 		},
@@ -290,7 +280,9 @@ func TestIntegration(t *testing.T) {
 	require.False(t, tools[0].Injected)
 
 	// Then: the MCP server was initialized.
-	require.Contains(t, mcpTokenReceived, authLink.OAuthAccessToken, "mock MCP server not requested")
+	gotMCPToken := mcpTokenReceived.Load()
+	require.NotNil(t, gotMCPToken, "mock MCP server not requested")
+	require.Contains(t, *gotMCPToken, authLink.OAuthAccessToken)
 
 	// Then: verify tracing spans were recorded.
 	spans := sr.Ended()

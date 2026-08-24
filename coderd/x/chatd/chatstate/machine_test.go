@@ -2,7 +2,6 @@ package chatstate_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"slices"
 	"sync"
@@ -34,13 +33,6 @@ type testFixture struct {
 	User   database.User
 	Org    database.Organization
 	Model  database.ChatModelConfig
-	APIKey database.APIKey
-}
-
-// apiKeyID returns the fixture API key wrapped for the chatstate
-// inputs that require a non-null api_key_id (for example EditMessage).
-func (f *testFixture) apiKeyID() sql.NullString {
-	return sql.NullString{String: f.APIKey.ID, Valid: true}
 }
 
 func newTestFixture(t *testing.T) *testFixture {
@@ -60,7 +52,6 @@ func newTestFixture(t *testing.T) *testFixture {
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		IsDefault: true,
 	})
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
 	pub := newRecordingPubsub()
 	return &testFixture{
 		DB:     db,
@@ -69,7 +60,6 @@ func newTestFixture(t *testing.T) *testFixture {
 		User:   user,
 		Org:    org,
 		Model:  model,
-		APIKey: apiKey,
 	}
 }
 

@@ -32,14 +32,28 @@ test("adjust user theme preference", async ({ page }) => {
 
 	await page.goto("/settings/appearance", { waitUntil: "domcontentloaded" });
 
-	await page.getByRole("combobox", { name: /theme mode/i }).click();
-	await page.getByRole("option", { name: /single theme/i }).click();
+	// Precondition: the theme mode must start on "Single theme" so that picking
+	// a single theme below takes effect immediately. A fresh member defaults to
+	// single mode; assert it so the test fails loudly if that default changes.
+	await expect(
+		page.getByRole("combobox", { name: /theme mode/i }),
+	).toContainText("Single theme");
 
 	const singleThemeGroup = page.getByRole("group", { name: "Theme" });
 	await expect(singleThemeGroup).toBeVisible();
 	await singleThemeGroup.getByText("Light default", { exact: true }).click();
 
 	await expectLightThemeClasses(page);
+
+	// The theme is saved optimistically, so the DOM turns light before the
+	// preference is persisted. The form shows a spinner while the save is in
+	// flight; wait for it to clear so the save has completed (and was not
+	// canceled by navigation) before the hard reload. Asserting the optimistic
+	// class first guarantees the spinner is already showing if a save started,
+	// and a repeat run that is already light simply never shows it.
+	await expect(
+		page.getByRole("status", { name: "Saving theme preference" }),
+	).toBeHidden();
 
 	await page.goto("/", { waitUntil: "domcontentloaded" });
 

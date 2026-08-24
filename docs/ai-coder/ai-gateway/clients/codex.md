@@ -1,9 +1,8 @@
 # Codex CLI
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../../ai-governance.md), which is
+> included with a Premium license.
 
 Codex CLI can be configured to use AI Gateway by setting up a custom model provider.
 
@@ -23,7 +22,7 @@ wire_api = "responses"
 
 To authenticate with AI Gateway, get your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** and set it in your environment:
 
-```bash
+```sh
 export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
@@ -46,7 +45,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 
 Set both environment variables:
 
-```bash
+```sh
 # Your personal OpenAI API key, forwarded to OpenAI.
 export OPENAI_API_KEY="<your-openai-api-key>"
 
@@ -79,7 +78,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 
 Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
 
-```bash
+```sh
 # Your Coder API token, used for authentication with AI Gateway.
 export CODER_API_TOKEN="<your-coder-api-token>"
 
@@ -99,9 +98,9 @@ For the centralized API key flow, set `enable_ai_gateway`:
 ```tf
 module "codex" {
   source            = "registry.coder.com/coder-labs/codex/coder"
-  version           = "~> 5.0"
+  version           = "~> 5.3"
   agent_id          = coder_agent.main.id
-  workdir           = "/path/to/project"  # Set to your project directory
+  workdir           = "/path/to/project" # Set to your project directory
   enable_ai_gateway = true
 }
 ```
@@ -120,7 +119,7 @@ resource "coder_env" "coder_api_token" {
 
 module "codex" {
   source   = "registry.coder.com/coder-labs/codex/coder"
-  version  = "~> 5.0"
+  version  = "~> 5.3"
   agent_id = coder_agent.main.id
   workdir  = "/path/to/project" # Set to your project directory
 
@@ -150,7 +149,7 @@ Responses API. AI Gateway does not support WebSocket transport, so each
 request attempts a WebSocket connection and retries up to 5 times before
 falling back to HTTPS. When this happens you will see:
 
-```text
+```txt
 Falling back from WebSockets to HTTPS transport.
 ```
 

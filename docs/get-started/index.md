@@ -127,7 +127,7 @@ Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
    or create a `.wslconfig` file in the `%USERPROFILE%` directory
    with the following contents
 
-   ```text
+   ```txt
    [wsl2]
    kernelCommandLine=cgroup_no_v1=all
    ```
@@ -176,7 +176,7 @@ is installed.
    [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
    package manager to install Coder:
 
-   ```powershell
+   ```ps1
    winget install Coder.Coder
    ```
 
@@ -199,6 +199,8 @@ viewing the page, locate the web UI URL in Coder logs in your terminal. It looks
 like `https://<CUSTOM-STRING>.<TUNNEL>.try.coder.app`. It's one of the first
 lines of output, so you might have to scroll up to find it.
 
+This section includes some of the quicker ways to install Coder. For more detailed options, visit the [Install](../install/index.md) page.
+
 ## Step 3: Initial setup
 
 1. Create your admin account:
@@ -218,7 +220,8 @@ lines of output, so you might have to scroll up to find it.
 Templates define what's in your development environment. The template builder
 guides you through creating one without writing any Terraform.
 
-1. Select **Templates** > **New Template**. The template builder opens.
+1. Coder opens the template builder after initial setup.
+   To open it again later, select **Templates** > **New Template**.
 
 1. Select the **Docker** base template from the list.
 
@@ -339,7 +342,7 @@ Now that you have your own workspace running, you can [customize your template](
 
 When creating a workspace from a Docker template, you may see an error like:
 
-```text
+```txt
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
@@ -420,7 +423,7 @@ In that case, point Coder at the socket with the `DOCKER_HOST` environment varia
 
 ### Can't start Coder server: Address already in use
 
-```text
+```txt
 Encountered an error running "coder server", see "coder server --help" for more information
 error: configure http(s): listen tcp 127.0.0.1:3000: bind: address already in use
 ```
@@ -474,13 +477,13 @@ then start the server again.
 
 1. Identify the process using port 3000 in PowerShell:
 
-   ```powershell
+   ```ps1
    Get-NetTCPConnection -LocalPort 3000 | Select-Object OwningProcess
    ```
 
 1. Stop the process using the PID from the previous command:
 
-   ```powershell
+   ```ps1
    Stop-Process -Id <PID>
    ```
 

@@ -54,15 +54,16 @@ type Story = StoryObj<typeof OrganizationMembersPageView>;
 
 export const Default: Story = {};
 
-export const WithAIAddonColumn: Story = {
+export const Loading: Story = {
 	args: {
-		showAISeatColumn: true,
+		members: undefined,
 	},
 };
 
 export const NoMembers: Story = {
 	args: {
 		members: [],
+		membersQuery: { ...mockSuccessResult, totalRecords: 0 },
 	},
 };
 

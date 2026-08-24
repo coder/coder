@@ -1,6 +1,5 @@
 import {
 	ArrowLeftIcon,
-	BarChart3Icon,
 	BellIcon,
 	BellOffIcon,
 	EllipsisIcon,
@@ -27,17 +26,16 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
-import type { AgentsOutletContext } from "../AgentsPageView";
+import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
-	 *  and hides the settings/analytics nav buttons. */
+	 *  and hides the mobile actions menu. */
 	mobileBack?: { to: To; label: string };
 	chimeEnabled?: boolean;
 	onToggleChime?: () => void;
@@ -54,7 +52,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	onToggleNotifications,
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
-		useOutletContext<AgentsOutletContext>();
+		useOutletContext<AgentsPageOutletContext>();
 	const location = useLocation();
 
 	const [internalChimeEnabled, setInternalChimeEnabled] =
@@ -133,7 +131,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					<NavLink to="/workspaces" className="inline-flex">
 						<ProductLogo className="size-6" />
 					</NavLink>
-					<FeatureStageBadge contentType="beta" size="xs" />
 				</div>
 			)}
 			{isSidebarCollapsed && (
@@ -175,14 +172,6 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							>
 								<SettingsIcon className="size-icon-sm" />
 								Settings
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuItem asChild>
-							<Link
-								to={{ pathname: "/agents/analytics", search: location.search }}
-							>
-								<BarChart3Icon className="size-icon-sm" />
-								Analytics
 							</Link>
 						</DropdownMenuItem>
 						<DropdownMenuItem

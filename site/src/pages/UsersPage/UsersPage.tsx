@@ -15,17 +15,16 @@ import {
 	updateRoles,
 } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useFilter } from "#/components/Filter/Filter";
 import { useStatusFilterMenu } from "#/components/Filter/UsersFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
-import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
-import { generateRandomString } from "#/utils/random";
+import { generateRandomBase64String } from "#/utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { UsersPageView } from "./UsersPageView";
 
@@ -33,7 +32,6 @@ const UsersPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { entitlements } = useDashboard();
-	const showAISeatColumn = shouldShowAISeatColumn(entitlements);
 
 	const groupsByUserIdQuery = useQuery(groupsByUserId());
 
@@ -113,7 +111,6 @@ const UsersPage: React.FC = () => {
 				}}
 				usersQuery={usersQuery}
 				groupsByUserId={groupsByUserIdQuery.data}
-				showAISeatColumn={showAISeatColumn}
 				onEditUserRoles={setUserToEditRoles}
 				isUpdatingUserRoles={updateUserRolesMutation.isPending}
 				onResetUserPassword={(user) => {
@@ -122,7 +119,7 @@ const UsersPage: React.FC = () => {
 						newPassword:
 							process.env.STORYBOOK === "true"
 								? "hello-storybook"
-								: generateRandomString(12),
+								: generateRandomBase64String(12),
 					});
 				}}
 				onSuspendUser={setUserToSuspend}

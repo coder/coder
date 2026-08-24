@@ -156,7 +156,7 @@ func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	require.Equal(t, call.input.RunnerID, latest.RunnerID.UUID)
 }
 
-func TestWorker_DrainsMultipleRunnableChatsOnWake(t *testing.T) {
+func TestWorker_AcquisitionBatchSizeLimitsSuccessfulAcquisitions(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	first := f.createRunningChat(t)
@@ -165,12 +165,14 @@ func TestWorker_DrainsMultipleRunnableChatsOnWake(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.AcquisitionBatchSize = 1
-	startWorker(t, opts)
+	worker := startWorker(t, opts)
 
 	want := map[uuid.UUID]bool{first.ID: true, second.ID: true, third.ID: true}
 	for range 3 {
 		call := starter.waitCall(t, taskKindGeneration, uuid.Nil)
 		delete(want, call.input.ChatID)
+		starter.assertNoCall(t)
+		worker.Wake()
 	}
 	require.Empty(t, want)
 }

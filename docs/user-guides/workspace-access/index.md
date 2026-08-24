@@ -26,7 +26,7 @@ customization options, keyboard shortcuts, and troubleshooting guides.
 
 ## SSH
 
-### Through with the CLI
+### Through the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
 deployment's [networking configuration](../../admin/infrastructure/index.md))
@@ -38,7 +38,7 @@ coder ssh my-workspace
 
 Or, you can configure plain SSH on your client below.
 
-> [!Note]
+> [!NOTE]
 > The `coder ssh` command does not have full parity with the standard
 > SSH command. For users who need the full functionality of SSH, use the
 > configuration method below.
@@ -95,20 +95,20 @@ each user to simplify the setup process.
 
 1. Use your terminal to authenticate the CLI with Coder web UI and your workspaces:
 
-   ```bash
+   ```sh
    coder login <accessURL>
    ```
 
 1. Access Coder via SSH:
 
-   ```shell
+   ```sh
    coder config-ssh
    ```
 
 1. Run `coder config-ssh --dry-run` if you'd like to see the changes that will be
    before you proceed:
 
-   ```shell
+   ```sh
    coder config-ssh --dry-run
    ```
 
@@ -149,10 +149,10 @@ Cursor connects using the Coder extension.
 
 Read more about [using Cursor with your workspace](./cursor.md).
 
-## Windsurf
+## Devin Desktop
 
-[Windsurf](./windsurf.md) is Codeium's code editor designed for AI-assisted development.
-Windsurf connects using the Coder extension.
+[Devin Desktop](./devin-desktop.md) (formerly Windsurf, formerly Codeium) is Cognition's AI-powered code editor designed for AI-assisted development.
+Devin Desktop connects using the Coder extension.
 
 ## Antigravity
 
@@ -174,7 +174,6 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
-- [JetBrains Fleet](./jetbrains/fleet.md)
 
 Read our [docs on JetBrains](./jetbrains/index.md) for more information
 on connecting your JetBrains IDEs.
@@ -228,7 +227,7 @@ services or preview environments.
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through
-the CLI with `coder port forward`. Read more in the
+the CLI with `coder port-forward`. Read more in the
 [docs on workspace ports](./port-forwarding.md).
 
 ![Open Ports window](../../images/networking/listeningports.png)

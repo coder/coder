@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	spawnAgentToolName = "spawn_agent"
+	spawnAgentToolName         = "spawn_agent"
+	listSubagentModelsToolName = "list_subagent_models"
 
 	subagentTypeGeneral     = "general"
 	subagentTypeExplore     = "explore"
@@ -38,16 +39,18 @@ const (
 )
 
 type spawnAgentArgs struct {
-	Type   string `json:"type"`
-	Prompt string `json:"prompt"`
-	Title  string `json:"title,omitempty"`
+	Type            string `json:"type"`
+	Prompt          string `json:"prompt"`
+	Title           string `json:"title,omitempty"`
+	ModelConfigID   string `json:"model_config_id,omitempty" description:"Optional model config UUID from list_subagent_models. Runs the child on that model instead of the configured default. Not supported for type 'computer_use'."`
+	ReasoningEffort string `json:"reasoning_effort,omitempty" description:"Optional reasoning effort for the child: none, minimal, low, medium, high, xhigh, or max. Clamped to the selected model's supported range. Not supported for type 'computer_use'."`
 }
 
 type subagentDefinition struct {
 	id                string
 	description       string
 	unavailableReason func(context.Context, *Server, database.Chat) string
-	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, string) (childSubagentChatOptions, error)
+	buildOptions      func(context.Context, *Server, database.Chat, database.Chat, uuid.UUID, *uuid.UUID, string) (childSubagentChatOptions, error)
 }
 
 func allSubagentDefinitions() []subagentDefinition {
@@ -55,7 +58,10 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeGeneral,
 			description: "substantial delegated research, analysis, reasoning, review, planning support, and implementation",
-			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, _ string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, parent database.Chat, _ database.Chat, _ uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				if explicitModelConfigID != nil {
+					return childSubagentChatOptions{modelConfigIDOverride: explicitModelConfigID}, nil
+				}
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
@@ -75,17 +81,24 @@ func allSubagentDefinitions() []subagentDefinition {
 		{
 			id:          subagentTypeExplore,
 			description: "narrow repository-local read-only code discovery and code tracing",
-			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, _ string) (childSubagentChatOptions, error) {
-				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
-					ctx,
-					turnParent.OwnerID,
-					codersdk.ChatModelOverrideContextExplore,
-				)
-				if err != nil {
-					return childSubagentChatOptions{}, err
-				}
-				if modelConfigID == uuid.Nil {
-					modelConfigID = currentModelConfigID
+			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, turnParent database.Chat, currentModelConfigID uuid.UUID, explicitModelConfigID *uuid.UUID, _ string) (childSubagentChatOptions, error) {
+				modelConfigID := currentModelConfigID
+				var reasoningEffort *string
+				if explicitModelConfigID != nil {
+					modelConfigID = *explicitModelConfigID
+				} else {
+					resolvedModelConfigID, resolvedReasoningEffort, err := p.resolveSubagentModelConfigID(
+						ctx,
+						turnParent.OwnerID,
+						codersdk.ChatModelOverrideContextExplore,
+					)
+					if err != nil {
+						return childSubagentChatOptions{}, err
+					}
+					if resolvedModelConfigID != uuid.Nil {
+						modelConfigID = resolvedModelConfigID
+					}
+					reasoningEffort = resolvedReasoningEffort
 				}
 				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
 					ctx,
@@ -129,16 +142,16 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, _ *uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, provider)
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, string(provider))
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				if !userCanUseProviderKeys(providerKeys, provider) {
+				if !userCanUseProviderKeys(providerKeys, string(provider)) {
 					return childSubagentChatOptions{}, xerrors.Errorf(
 						`API key for computer-use provider %q is not configured`,
 						provider,
@@ -301,11 +314,16 @@ func buildSpawnAgentDescription(
 		"subagents modify the same files they will conflict with each other, " +
 		"so ensure parallel subagent tasks are independent. The child agent " +
 		"receives the same workspace tools but cannot spawn its own subagents. " +
+		"You may optionally set model_config_id (a model config UUID from " +
+		listSubagentModelsToolName + ") to run the child on a specific model " +
+		"instead of the configured default, and reasoning_effort to pin the " +
+		"child's reasoning effort; both apply only to type \"" +
+		subagentTypeGeneral + "\" and type \"" + subagentTypeExplore + "\". " +
 		"After spawning, use wait_agent to retrieve the result. Agents persist " +
 		"after completion; reuse an agent via message_agent for follow-up work " +
 		"when it already has relevant context. Spawned agents are your " +
-		"responsibility: do not abandon one in a working state (pending or " +
-		"running); retrieve its result, redirect it with message_agent, or stop " +
+		"responsibility: do not abandon one in a working state (running); " +
+		"retrieve its result, redirect it with message_agent, or stop " +
 		"it with interrupt_agent."
 	if currentChat.PlanMode.Valid && currentChat.PlanMode.ChatPlanMode == database.ChatPlanModePlan {
 		description += " During plan mode, type=\"" + subagentTypeGeneral +

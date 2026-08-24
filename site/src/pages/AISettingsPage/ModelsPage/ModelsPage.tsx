@@ -1,10 +1,7 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import {
-	chatModelConfigs,
-	chatModels,
-	chatProviderConfigs,
-} from "#/api/queries/chats";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import { chatModelConfigs, chatModels } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";

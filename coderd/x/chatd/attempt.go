@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -43,14 +44,18 @@ type pendingDynamicToolCall struct {
 	Args       string
 }
 
-// compactionOutcome contains a generated context summary.
+// compactionOutcome contains a generated context summary. It must stay
+// field-compatible with chatloop.CompactionResult; generateCompaction
+// converts between the two directly.
 type compactionOutcome struct {
 	SystemSummary    string
 	SummaryReport    string
+	Source           chatloop.CompactionSource
 	ThresholdPercent int32
 	UsagePercent     float64
 	ContextTokens    int64
 	ContextLimit     int64
+	Runtime          time.Duration
 }
 
 type compactionStatus int

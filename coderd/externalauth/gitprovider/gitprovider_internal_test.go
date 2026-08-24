@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/quartz"
 )
@@ -112,13 +113,85 @@ func TestParseRetryAfter(t *testing.T) {
 		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
 		assert.Equal(t, 60*time.Second, d)
 	})
+}
 
-	t.Run("NilClock", func(t *testing.T) {
+func TestResponseCacheStore(t *testing.T) {
+	t.Parallel()
+
+	// Stores the same key twice using a buffer the caller mutates
+	// between stores, and verifies load returns the bodies passed at
+	// store time rather than the mutated buffer.
+	t.Run("UpdateReplacesBody", func(t *testing.T) {
 		t.Parallel()
-		h := http.Header{}
-		h.Set("Retry-After", "1")
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", nil)
-		assert.Equal(t, time.Second, d)
+
+		cache := newResponseCache(4)
+		const key = "k"
+
+		buf := []byte(`{"v":1}`)
+		cache.store(key, `"etag-1"`, buf)
+		// Mutate the caller's buffer: the cache must hold its own copy.
+		for i := range buf {
+			buf[i] = 'X'
+		}
+
+		etag, body, ok := cache.load(key)
+		require.True(t, ok)
+		assert.Equal(t, `"etag-1"`, etag)
+		assert.Equal(t, `{"v":1}`, string(body))
+
+		// Reuse the same buffer for a second store of the same key.
+		buf = append(buf[:0], `{"v":2}`...)
+		cache.store(key, `"etag-2"`, buf)
+		for i := range buf {
+			buf[i] = 'Y'
+		}
+
+		etag, body, ok = cache.load(key)
+		require.True(t, ok)
+		assert.Equal(t, `"etag-2"`, etag)
+		assert.Equal(t, `{"v":2}`, string(body))
+	})
+
+	// Fills the cache past maxSize and verifies the
+	// least-recently-used entry is evicted, not merely the
+	// oldest-inserted one.
+	t.Run("EvictsLeastRecentlyUsed", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(2)
+		cache.store("a", `"etag-a"`, []byte(`{"k":"a"}`))
+		cache.store("b", `"etag-b"`, []byte(`{"k":"b"}`))
+		// Access "a" so "b" becomes the least-recently-used entry.
+		_, _, ok := cache.load("a")
+		require.True(t, ok)
+		// This third store exceeds maxSize and must evict "b",
+		// not the older "a".
+		cache.store("c", `"etag-c"`, []byte(`{"k":"c"}`))
+
+		_, _, ok = cache.load("b")
+		assert.False(t, ok, "least-recently-used entry must be evicted")
+
+		etag, body, ok := cache.load("a")
+		require.True(t, ok, "recently-accessed entry must survive eviction")
+		assert.Equal(t, `"etag-a"`, etag)
+		assert.Equal(t, `{"k":"a"}`, string(body))
+
+		etag, body, ok = cache.load("c")
+		require.True(t, ok)
+		assert.Equal(t, `"etag-c"`, etag)
+		assert.Equal(t, `{"k":"c"}`, string(body))
+	})
+
+	// Bodies larger than maxCachedBodyBytes are not stored, so a
+	// single oversized response cannot unbound the cache.
+	t.Run("OversizedBodyNotStored", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(4)
+		cache.store("big", `"etag-big"`, make([]byte, maxCachedBodyBytes+1))
+
+		_, _, ok := cache.load("big")
+		assert.False(t, ok, "bodies exceeding maxCachedBodyBytes must not be cached")
 	})
 }
 

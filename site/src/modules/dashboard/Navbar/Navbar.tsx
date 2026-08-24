@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import { useQuery } from "react-query";
 import { buildInfo } from "#/api/queries/buildInfo";
 import type { LinkConfig } from "#/api/typesGenerated";
@@ -10,7 +9,7 @@ import { canViewDeploymentSettings } from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
-export const Navbar: FC = () => {
+export const Navbar: React.FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const { appearance, canViewOrganizationSettings } = useDashboard();
@@ -30,7 +29,11 @@ export const Navbar: FC = () => {
 	const canViewAISettings =
 		permissions.viewAnyAIProvider ||
 		permissions.viewAIGatewayKeys ||
-		permissions.editDeploymentConfig;
+		permissions.editDeploymentConfig ||
+		permissions.viewAnyMCPServerConfigs ||
+		permissions.createAnyMCPServerConfig ||
+		permissions.updateAnyMCPServerConfig ||
+		permissions.deleteAnyMCPServerConfig;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -45,13 +48,15 @@ export const Navbar: FC = () => {
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
 			onSignOut={signOut}
-			canViewDeployment={canViewDeployment}
-			canViewOrganizations={canViewOrganizations}
-			canViewHealth={canViewHealth}
-			canViewAuditLog={canViewAuditLog}
-			canViewConnectionLog={canViewConnectionLog}
-			canViewAIBridge={canViewAIBridge}
-			canViewAISettings={canViewAISettings}
+			adminPermissions={{
+				canViewDeployment,
+				canViewOrganizations,
+				canViewAISettings,
+				canViewAuditLog,
+				canViewConnectionLog,
+				canViewAIBridge,
+				canViewHealth,
+			}}
 			canCreateChat={canCreateChat}
 			proxyContextValue={proxyContextValue}
 		/>

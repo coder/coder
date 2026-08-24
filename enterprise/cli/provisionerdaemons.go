@@ -5,7 +5,7 @@ import (
 )
 
 func (r *RootCmd) provisionerDaemons() *serpent.Command {
-	cmd := r.RootCmd.Provisioners()
+	cmd := r.Provisioners()
 	cmd.AddSubcommands(
 		r.provisionerDaemonStart(),
 		r.provisionerKeys(),

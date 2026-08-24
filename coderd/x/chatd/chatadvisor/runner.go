@@ -2,6 +2,7 @@ package chatadvisor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -39,20 +40,21 @@ func (rt *Runtime) RunAdvisor(
 	if !rt.tryAcquire() {
 		return AdvisorResult{
 			Type:          ResultTypeLimitReached,
+			Advice:        LimitReachedAdvice,
 			RemainingUses: 0,
 		}, nil
 	}
 
 	// resetProviderOptionsForNestedCall mutates its argument; give it a
 	// clone so the Runtime's stored options stay unchanged across calls.
-	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
-	resetProviderOptionsForNestedCall(nestedProviderOptions)
+	nestedCall := rt.cfg.CallTemplate
+	nestedCall.ProviderOptions = cloneProviderOptions(rt.cfg.CallTemplate.ProviderOptions)
+	resetProviderOptionsForNestedCall(nestedCall.ProviderOptions)
 
 	assistantOpts := chatloop.GenerateAssistantOptions{
-		Model:           rt.cfg.Model,
-		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
-		ModelConfig:     rt.cfg.ModelConfig,
-		ProviderOptions: nestedProviderOptions,
+		Model:        rt.cfg.Model,
+		Messages:     BuildAdvisorMessages(question, conversationSnapshot),
+		CallTemplate: nestedCall,
 	}
 	if opts != nil && opts.OnAdviceDelta != nil {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
@@ -92,8 +94,11 @@ func (rt *Runtime) RunAdvisor(
 		// as not consuming a use.
 		rt.release()
 		return AdvisorResult{
-			Type:          ResultTypeError,
-			Error:         "advisor produced no text output",
+			Type: ResultTypeError,
+			Error: fmt.Sprintf(
+				"advisor produced no text output (%s)",
+				describeTextlessOutcome(outcome),
+			),
 			RemainingUses: rt.RemainingUses(),
 		}, nil
 	}
@@ -120,4 +125,46 @@ func extractAdvisorText(step chatloop.PersistedStep) string {
 		parts = append(parts, trimmed)
 	}
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+// describeTextlessOutcome summarizes a step that yielded no usable advice
+// text so the error pinpoints the failure mode. A reasoning-only step means
+// the model spent its turn deciding on an action (such as a tool call it
+// cannot perform in this tool-less run) without answering; a length finish
+// means the output was truncated before any text was produced.
+func describeTextlessOutcome(outcome chatloop.AssistantOutcome) string {
+	var text, reasoning, toolCalls, other int
+	for _, content := range outcome.Step.Content {
+		switch content.(type) {
+		case fantasy.TextContent:
+			text++
+		case fantasy.ReasoningContent:
+			reasoning++
+		case fantasy.ToolCallContent:
+			toolCalls++
+		default:
+			other++
+		}
+	}
+	if len(outcome.ToolCalls) > toolCalls {
+		toolCalls = len(outcome.ToolCalls)
+	}
+
+	kinds := make([]string, 0, 4)
+	appendKind := func(name string, count int) {
+		if count > 0 {
+			kinds = append(kinds, fmt.Sprintf("%s=%d", name, count))
+		}
+	}
+	// Text parts can only reach here blank, so label them accordingly.
+	appendKind("blank_text", text)
+	appendKind("reasoning", reasoning)
+	appendKind("tool_call", toolCalls)
+	appendKind("other", other)
+
+	summary := "none"
+	if len(kinds) > 0 {
+		summary = strings.Join(kinds, ", ")
+	}
+	return fmt.Sprintf("finish_reason=%s; parts: %s", outcome.FinishReason, summary)
 }

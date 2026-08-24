@@ -287,6 +287,62 @@ func TestPostLogin(t *testing.T) {
 		require.NotContains(t, apiErr.Message, string(codersdk.LoginTypeOIDC))
 	})
 
+	// Regression: the legacy `login_type = 'none'` migration converts these
+	// accounts to password auth, but they have no password hash. Converting
+	// login type must never let someone authenticate with an empty or guessed
+	// password.
+	t.Run("ConvertedNoneUserHasNoUsablePassword", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// A legacy machine user was created with login_type 'none' and no
+		// password. dbgen.User substitutes a random hash for an empty one, so
+		// clear it explicitly to match the real account.
+		noneUser := dbgen.User(t, db, database.User{
+			Email:     "legacy-machine-user@coder.com",
+			LoginType: database.LoginTypeNone,
+		})
+		//nolint:gocritic // Test setup requires a system context to clear the hash.
+		err := db.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             noneUser.ID,
+			HashedPassword: []byte{},
+		})
+		require.NoError(t, err)
+
+		// Apply the migration's conversion: login_type 'none' -> 'password'.
+		//nolint:gocritic // Test setup requires a system context to convert the login type.
+		_, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+			NewLoginType: database.LoginTypePassword,
+			UserID:       noneUser.ID,
+		})
+		require.NoError(t, err)
+
+		// Neither an empty password nor a guessed one may authenticate. An empty
+		// password is rejected by request validation (400); a non-empty guess
+		// fails the hash comparison against the empty stored hash (401). Both must
+		// deny access.
+		cases := []struct {
+			name       string
+			password   string
+			wantStatus int
+		}{
+			{"EmptyPassword", "", http.StatusBadRequest},
+			{"GuessedPassword", "hunter2", http.StatusUnauthorized},
+		}
+		for _, tc := range cases {
+			anonClient := codersdk.New(client.URL)
+			_, err := anonClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+				Email:    noneUser.Email,
+				Password: tc.password,
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr, "%s must not authenticate", tc.name)
+			require.Equal(t, tc.wantStatus, apiErr.StatusCode(), "%s", tc.name)
+		}
+	})
+
 	t.Run("Suspended", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -687,6 +743,7 @@ func TestNotifyDeletedUser(t *testing.T) {
 		require.Equal(t, user.Username, notifyEnq.Sent()[1].Labels["deleted_account_name"])
 		require.Equal(t, user.Name, notifyEnq.Sent()[1].Labels["deleted_account_user_name"])
 		require.Equal(t, firstUser.Name, notifyEnq.Sent()[1].Labels["initiator"])
+		require.Equal(t, "user", notifyEnq.Sent()[1].Labels["account_type"])
 	})
 
 	t.Run("UserAdminNotified", func(t *testing.T) {
@@ -952,18 +1009,17 @@ func TestPostUsers(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+		_, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
 			OrganizationIDs: []uuid.UUID{first.OrganizationID},
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "",
 			UserLoginType:   codersdk.LoginTypeNone,
 		})
-		require.NoError(t, err)
-
-		found, err := client.User(ctx, user.ID.String())
-		require.NoError(t, err)
-		require.Equal(t, found.LoginType, codersdk.LoginTypeNone)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "service account")
 	})
 
 	t.Run("CreateOIDCLoginType", func(t *testing.T) {
@@ -1076,6 +1132,7 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Equal(t, firstUser.UserID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, sent[0].Labels["created_account_name"])
+		require.Equal(t, "user", sent[0].Labels["account_type"])
 
 		require.IsType(t, map[string]any{}, sent[0].Data["user"])
 		userData := sent[0].Data["user"].(map[string]any)
@@ -3189,11 +3246,7 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 	require.Equalf(t, onlyUsernames(page.Users), onlyUsernames(allUsers[:limit]), "first page, limit=%d", limit)
 	count += len(page.Users)
 
-	for {
-		if len(page.Users) == 0 {
-			break
-		}
-
+	for len(page.Users) != 0 {
 		afterCursor := page.Users[len(page.Users)-1].ID
 		// Assert each page is the next expected page
 		// This is using a cursor, and only works if all users created_at

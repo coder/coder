@@ -6,29 +6,32 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { updateOrganization } from "#/api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "#/api/queries/roles";
 import type { Role } from "#/api/typesGenerated";
-import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { CustomRolesPageView } from "./CustomRolesPageView";
 
 const CustomRolesPage: FC = () => {
+	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const { custom_roles: isCustomRolesEnabled } = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
 	const { organization, organizationPermissions } = useOrganizationSettings();
-	const { experiments, entitlements } = useDashboard();
-	const defaultRolesEnabled = experiments.includes("minimum-implicit-member");
+	const { entitlements } = useDashboard();
 	const defaultRolesEntitled =
 		entitlements.features.multiple_organizations.enabled;
 
@@ -79,14 +82,16 @@ const CustomRolesPage: FC = () => {
 			<RequirePermission
 				isFeatureVisible={organizationPermissions?.viewOrgRoles ?? false}
 			>
-				<div className="flex flex-row gap-4 items-baseline justify-between">
-					<SettingsHeader>
-						<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
-						<SettingsHeaderDescription>
-							Manage roles for this organization.
-						</SettingsHeaderDescription>
-					</SettingsHeader>
-				</div>
+				<SettingsHeader
+					actions={
+						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
+					}
+				>
+					<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Manage roles for this organization.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 
 				<CustomRolesPageView
 					organization={organization}
@@ -98,7 +103,7 @@ const CustomRolesPage: FC = () => {
 					canDeleteOrgRole={organizationPermissions?.deleteOrgRoles ?? false}
 					canEditDefaultRoles={organizationPermissions?.editSettings ?? false}
 					isCustomRolesEnabled={isCustomRolesEnabled}
-					defaultRolesEnabled={defaultRolesEnabled}
+					permissions={permissions}
 					defaultRolesEntitled={defaultRolesEntitled}
 					availableOrgRoles={organizationRolesQuery.data}
 					isUpdatingDefaultRoles={updateOrganizationMutation.isPending}

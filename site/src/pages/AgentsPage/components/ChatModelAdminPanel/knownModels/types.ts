@@ -1,9 +1,3 @@
-export type KnownModelSourceMetadata = {
-	sourceName: "models.dev";
-	sourceRetrievedAt: string;
-	lastUpdated: string;
-};
-
 export type KnownModel = {
 	provider: string;
 	modelIdentifier: string;
@@ -24,5 +18,4 @@ export type KnownModel = {
 	outputCost?: number;
 	cacheReadCost?: number;
 	cacheWriteCost?: number;
-	sourceMetadata: KnownModelSourceMetadata;
 };

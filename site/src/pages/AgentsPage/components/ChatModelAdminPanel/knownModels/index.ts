@@ -1,14 +1,20 @@
 import { normalizeProvider } from "#/modules/aiModels/helpers";
-import { anthropicKnownModels } from "./anthropic";
-import { openAIKnownModels } from "./openai";
-import type { KnownModel, KnownModelSourceMetadata } from "./types";
+import knownModelsGenerated from "./knownModelsGenerated.json";
+import type { KnownModel } from "./types";
 
-export type { KnownModel, KnownModelSourceMetadata };
+export type { KnownModel };
 
-const knownModelsByProvider = {
-	anthropic: anthropicKnownModels,
-	openai: openAIKnownModels,
-} as const satisfies Record<string, readonly KnownModel[]>;
+// knownModelsGenerated.json is produced by `make gen/aibridge-prices` from
+// models.dev joined with the editorial curation in
+// scripts/aibridgepricesgen/curation.json. Do not edit it manually. JSON
+// imports widen literal types (e.g. reasoningEffort becomes string), so this
+// cast is the single typed boundary; knownModelsGenerated.test.ts validates
+// shape and enum values for every entry. The keyof cast preserves the
+// literal provider-key union so isKnownProvider narrows usefully.
+const knownModelsByProvider = knownModelsGenerated as Record<
+	keyof typeof knownModelsGenerated,
+	readonly KnownModel[]
+>;
 
 type KnownProvider = keyof typeof knownModelsByProvider;
 
@@ -93,4 +99,25 @@ export const formatContextBadge = (contextLimit: number): string => {
 		return `${formatCompactNumber(contextLimit / 1_000)}K context`;
 	}
 	return `${formatCompactNumber(contextLimit / 1_000_000)}M context`;
+};
+
+export const formatPricePerMillionTokens = (
+	value: number,
+): { belowThreshold: boolean; value: string } => {
+	if (!Number.isFinite(value)) {
+		throw new Error("price must be a finite number");
+	}
+	if (Number.isInteger(value)) {
+		return { belowThreshold: false, value: String(value) };
+	}
+	// A positive price too small to show at four decimals would otherwise
+	// render as $0.00 and read as free, so show it as a threshold instead.
+	if (value > 0 && value < 0.0001) {
+		return { belowThreshold: true, value: "0.0001" };
+	}
+	// Keep two decimals so cents read as cents (0.10, not 0.1). Keep up to
+	// four so sub-cent prices stay visible (0.075, 0.0036).
+	const [whole, decimals = ""] = value.toFixed(4).split(".");
+	const trimmed = decimals.slice(0, 2) + decimals.slice(2).replace(/0+$/, "");
+	return { belowThreshold: false, value: `${whole}.${trimmed}` };
 };

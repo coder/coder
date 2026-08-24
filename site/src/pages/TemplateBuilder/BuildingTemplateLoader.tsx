@@ -6,8 +6,8 @@ import {
 	PackageIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { motion } from "motion/react";
-import type { FC } from "react";
+import { MotionConfigContext, motion } from "motion/react";
+import { type FC, useContext } from "react";
 
 type FloatingIcon = {
 	name: string;
@@ -29,10 +29,15 @@ const ICONS: FloatingIcon[] = [
 
 /**
  * Full-area animated loader displayed while the template builder compose
- * API call is in flight. Shows floating icon boxes, a progress bar, and
- * an animated "Building your template..." label.
+ * API call is in flight. Shows floating icon boxes, an indeterminate progress
+ * bar that fills once and holds, and an animated "Building your template..."
+ * label.
  */
 export const BuildingTemplateLoader: FC = () => {
+	// skipAnimations jumps to each loop's final keyframe, which is
+	// blank here (icons offscreen, dots faded), so hold a visible frame.
+	const { skipAnimations = false } = useContext(MotionConfigContext);
+
 	return (
 		<div
 			className="relative flex flex-col items-center justify-end w-full min-h-[480px] overflow-hidden"
@@ -44,15 +49,19 @@ export const BuildingTemplateLoader: FC = () => {
 				{ICONS.map(({ name, icon: Icon, x, y, delay }) => (
 					<motion.div
 						key={name}
-						className="absolute rounded-md border border-solid border-border bg-surface-secondary p-3"
+						className="absolute flex size-12 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary"
 						style={{
 							left: `calc(50% + ${x}%)`,
 							top: `calc(50% + ${y}%)`,
 						}}
-						animate={{
-							y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
-							opacity: [0, 1, 1, 0, 0, 0],
-						}}
+						animate={
+							skipAnimations
+								? { y: "0vh", opacity: 1 }
+								: {
+										y: ["-100vh", "0vh", "0vh", "0vh", "-100vh", "-100vh"],
+										opacity: [0, 1, 1, 0, 0, 0],
+									}
+						}
 						transition={{
 							duration: 7,
 							delay,
@@ -61,7 +70,7 @@ export const BuildingTemplateLoader: FC = () => {
 							times: [0, 0.25, 0.55, 0.7, 0.8, 1],
 						}}
 					>
-						<Icon className="size-6 text-content-primary" />
+						<Icon className="size-6 shrink-0 text-content-primary" />
 					</motion.div>
 				))}
 			</div>
@@ -74,11 +83,10 @@ export const BuildingTemplateLoader: FC = () => {
 						<motion.div
 							className="h-full rounded bg-highlight-sky"
 							initial={{ width: "0%" }}
-							animate={{ width: "100%" }}
+							animate={{ width: "90%" }}
 							transition={{
-								duration: 5,
-								ease: "easeInOut",
-								repeat: Number.POSITIVE_INFINITY,
+								duration: 9,
+								ease: "easeOut",
 							}}
 						/>
 					</div>
@@ -89,7 +97,9 @@ export const BuildingTemplateLoader: FC = () => {
 					<span>Building your template</span>
 					<span className="inline-flex gap-0.5">
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								repeat: Number.POSITIVE_INFINITY,
@@ -99,7 +109,9 @@ export const BuildingTemplateLoader: FC = () => {
 							.
 						</motion.span>
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								delay: 0.2,
@@ -110,7 +122,9 @@ export const BuildingTemplateLoader: FC = () => {
 							.
 						</motion.span>
 						<motion.span
-							animate={{ opacity: [0, 1, 1, 0] }}
+							animate={
+								skipAnimations ? { opacity: 1 } : { opacity: [0, 1, 1, 0] }
+							}
 							transition={{
 								duration: 1.5,
 								delay: 0.4,

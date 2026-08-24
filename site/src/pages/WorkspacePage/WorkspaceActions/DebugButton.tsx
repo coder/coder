@@ -32,7 +32,6 @@ export const DebugButton: FC<DebugButtonProps> = ({
 			<BuildParametersPopover
 				label="Debug with build parameters"
 				workspace={workspace}
-				onSubmit={handleAction}
 			/>
 		</div>
 	);

@@ -14,22 +14,23 @@ import (
 type ResourceType string
 
 const (
-	ResourceTypeTemplate              ResourceType = "template"
-	ResourceTypeTemplateVersion       ResourceType = "template_version"
-	ResourceTypeUser                  ResourceType = "user"
-	ResourceTypeWorkspace             ResourceType = "workspace"
-	ResourceTypeWorkspaceBuild        ResourceType = "workspace_build"
-	ResourceTypeGitSSHKey             ResourceType = "git_ssh_key"
-	ResourceTypeAPIKey                ResourceType = "api_key"
-	ResourceTypeGroup                 ResourceType = "group"
-	ResourceTypeLicense               ResourceType = "license"
-	ResourceTypeConvertLogin          ResourceType = "convert_login"
-	ResourceTypeHealthSettings        ResourceType = "health_settings"
-	ResourceTypeNotificationsSettings ResourceType = "notifications_settings"
-	ResourceTypePrebuildsSettings     ResourceType = "prebuilds_settings"
-	ResourceTypeWorkspaceProxy        ResourceType = "workspace_proxy"
-	ResourceTypeOrganization          ResourceType = "organization"
-	ResourceTypeOAuth2ProviderApp     ResourceType = "oauth2_provider_app"
+	ResourceTypeTemplate               ResourceType = "template"
+	ResourceTypeTemplateVersion        ResourceType = "template_version"
+	ResourceTypeUser                   ResourceType = "user"
+	ResourceTypeWorkspace              ResourceType = "workspace"
+	ResourceTypeWorkspaceBuild         ResourceType = "workspace_build"
+	ResourceTypeGitSSHKey              ResourceType = "git_ssh_key"
+	ResourceTypeAPIKey                 ResourceType = "api_key"
+	ResourceTypeGroup                  ResourceType = "group"
+	ResourceTypeLicense                ResourceType = "license"
+	ResourceTypeConvertLogin           ResourceType = "convert_login"
+	ResourceTypeHealthSettings         ResourceType = "health_settings"
+	ResourceTypeNotificationsSettings  ResourceType = "notifications_settings"
+	ResourceTypePrebuildsSettings      ResourceType = "prebuilds_settings"
+	ResourceTypeOAuth2ProviderSettings ResourceType = "oauth2_provider_settings"
+	ResourceTypeWorkspaceProxy         ResourceType = "workspace_proxy"
+	ResourceTypeOrganization           ResourceType = "organization"
+	ResourceTypeOAuth2ProviderApp      ResourceType = "oauth2_provider_app"
 	// nolint:gosec // This is not a secret.
 	ResourceTypeOAuth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
 	ResourceTypeCustomRole                  ResourceType = "custom_role"
@@ -43,17 +44,19 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp         ResourceType = "workspace_app"
-	ResourceTypeTask                 ResourceType = "task"
-	ResourceTypeAISeat               ResourceType = "ai_seat"
-	ResourceTypeAIProvider           ResourceType = "ai_provider"
-	ResourceTypeAIProviderKey        ResourceType = "ai_provider_key"
-	ResourceTypeAIGatewayKey         ResourceType = "ai_gateway_key"
-	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
-	ResourceTypeUserAIBudgetOverride ResourceType = "user_ai_budget_override"
-	ResourceTypeChat                 ResourceType = "chat"
-	ResourceTypeUserSecret           ResourceType = "user_secret"
-	ResourceTypeUserSkill            ResourceType = "user_skill"
+	ResourceTypeWorkspaceApp            ResourceType = "workspace_app"
+	ResourceTypeTask                    ResourceType = "task"
+	ResourceTypeAISeat                  ResourceType = "ai_seat"
+	ResourceTypeAIProvider              ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey           ResourceType = "ai_provider_key"
+	ResourceTypeAIGatewayKey            ResourceType = "ai_gateway_key"
+	ResourceTypeGroupAIBudget           ResourceType = "group_ai_budget"
+	ResourceTypeUserAIBudgetOverride    ResourceType = "user_ai_budget_override"
+	ResourceTypeChat                    ResourceType = "chat"
+	ResourceTypeMCPServerConfig         ResourceType = "mcp_server_config"
+	ResourceTypeUserSecret              ResourceType = "user_secret"
+	ResourceTypeUserSkill               ResourceType = "user_skill"
+	ResourceTypeChatInstructionSettings ResourceType = "chat_instruction_settings"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -90,6 +93,8 @@ func (r ResourceType) FriendlyString() string {
 		return "notifications_settings"
 	case ResourceTypePrebuildsSettings:
 		return "prebuilds_settings"
+	case ResourceTypeOAuth2ProviderSettings:
+		return "oauth2 provider settings"
 	case ResourceTypeOAuth2ProviderApp:
 		return "oauth2 app"
 	case ResourceTypeOAuth2ProviderAppSecret:
@@ -126,10 +131,14 @@ func (r ResourceType) FriendlyString() string {
 		return "user ai budget override"
 	case ResourceTypeChat:
 		return "chat"
+	case ResourceTypeMCPServerConfig:
+		return "mcp server config"
 	case ResourceTypeUserSecret:
 		return "user secret"
 	case ResourceTypeUserSkill:
 		return "user skill"
+	case ResourceTypeChatInstructionSettings:
+		return "chat instruction settings"
 	default:
 		return "unknown"
 	}
@@ -252,7 +261,7 @@ type CreateTestAuditLogRequest struct {
 
 // AuditLogs retrieves audit logs from the given page.
 func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.asRequestOption(), func(r *http.Request) {
 		q := r.URL.Query()
 		var params []string
 		if req.SearchQuery != "" {
@@ -271,7 +280,7 @@ func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogR
 	}
 
 	var logRes AuditLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
+	err = ReadBodyAsJSON(res, &logRes)
 	if err != nil {
 		return AuditLogResponse{}, err
 	}

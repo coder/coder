@@ -151,7 +151,7 @@ Database migrations are managed with
 
 To add new migrations, use the following command:
 
-```shell
+```sh
 ./coderd/database/migrations/create_migration.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
@@ -188,7 +188,7 @@ migration of multiple features or complex configurations.
 
 To add a new partial fixture, run the following command:
 
-```shell
+```sh
 ./coderd/database/migrations/create_fixture.sh my fixture
 /home/coder/src/coder/coderd/database/migrations/testdata/fixtures/000070_my_fixture.up.sql
 ```
@@ -201,7 +201,7 @@ To create a full dump, run a fully fledged Coder deployment and use it to
 generate data in the database. Then shut down the deployment and take a snapshot
 of the database.
 
-```shell
+```sh
 mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
 pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
 ```
@@ -212,7 +212,7 @@ emails, OAuth tokens and other secrets. Then commit the dump to the project.
 To find out what the latest migration for a version of Coder is, use the
 following command:
 
-```shell
+```sh
 git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
 ```
 

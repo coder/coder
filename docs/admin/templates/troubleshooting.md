@@ -132,7 +132,7 @@ what's going on.
 
 Here's a short example of an informative startup script:
 
-```shell
+```sh
 echo "Running startup script..."
 echo "Run: long-running-command"
 /path/to/long-running-command
@@ -184,7 +184,7 @@ Refer to [Cannot connect to the Docker daemon](../../install/docker.md#cannot-co
 
 When you query `ContainerMemory` and encounter the error:
 
-```shell
+```sh
 open /sys/fs/cgroup/memory.max: no such file or directory
 ```
 
@@ -204,19 +204,19 @@ This error mostly affects Raspberry Pi OS, but might also affect older Debian-ba
 
 1. Add cgroup entries to `cmdline.txt` in `/boot/firmware` (or `/boot/` on older Pi OS releases):
 
-   ```text
+   ```txt
    cgroup_memory=1 cgroup_enable=memory
    ```
 
    You can use `sed` to add it to the file for you:
 
-   ```bash
+   ```sh
    sudo sed -i '$s/$/ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
    ```
 
 1. Reboot:
 
-   ```bash
+   ```sh
    sudo reboot
    ```
 

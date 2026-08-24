@@ -1,6 +1,7 @@
 import type { FormikContextType } from "formik";
 import { type FC, useId } from "react";
 import { Button } from "#/components/Button/Button";
+import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
@@ -14,7 +15,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { IconPickerField } from "./IconPickerField";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
@@ -30,7 +30,8 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
-	onCancel: () => void;
+	canSelectUserOIDC: boolean;
+	onCancel?: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
 	showAuth: boolean;
@@ -45,6 +46,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	isDisabled,
 	canSubmit,
 	isEditing,
+	canSelectUserOIDC,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -150,11 +152,17 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							/>
 						</Field>
 						<Field label="Icon" htmlFor={`${formId}-icon`}>
-							<IconPickerField
+							<IconField
 								id={`${formId}-icon`}
 								value={form.values.iconURL}
 								placeholder="file location"
-								onChange={(value) => void form.setFieldValue("iconURL", value)}
+								label={null}
+								onChange={(event) =>
+									void form.setFieldValue("iconURL", event.target.value)
+								}
+								onPickEmoji={(value) =>
+									void form.setFieldValue("iconURL", value)
+								}
 								disabled={isDisabled}
 							/>
 						</Field>
@@ -172,6 +180,7 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							form={form}
 							formId={formId}
 							disabled={isDisabled}
+							canSelectUserOIDC={canSelectUserOIDC}
 						/>
 					</CollapsibleSection>
 
@@ -192,14 +201,16 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 				</div>
 
 				<div className="flex justify-end gap-4">
-					<Button
-						variant="outline"
-						type="button"
-						onClick={onCancel}
-						disabled={isDisabled}
-					>
-						Cancel
-					</Button>
+					{onCancel && (
+						<Button
+							variant="outline"
+							type="button"
+							onClick={onCancel}
+							disabled={isDisabled}
+						>
+							Cancel
+						</Button>
+					)}
 					<Button disabled={!canSubmit} type="submit">
 						<Spinner loading={isSaving} />
 						{isEditing ? "Update server" : "Add server"}

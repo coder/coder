@@ -9,14 +9,14 @@ Nothing under this directory is published to
 | Path                    | Purpose                                                             |
 |-------------------------|---------------------------------------------------------------------|
 | `content-guidelines.md` | Canonical content rules: what belongs in `docs/`, what doesn't, why |
-| `style-guide.md`        | Canonical prose style guide for `docs/`                             |
+| `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
 See [`content-guidelines.md`](content-guidelines.md) for the canonical
 rules on what content belongs in `docs/` and what should be routed
 elsewhere (blog, changelog, Support KB, etc.).
 
-See [`style-guide.md`](style-guide.md) for the prose style guide. The
+See [`style-guide/`](style-guide/README.md) for the prose style guide. The
 `styles/Coder/` directory holds the custom Vale rules that enforce parts
 of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at
 `docs/.style/styles/`.
@@ -25,8 +25,10 @@ of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at
 
 The leading dot mirrors the `.github/`, `.vscode/`, and `.claude/`
 convention already used in this repo for tooling-internal directories.
-Vale and the structural Markdown linters still pick it up; coder.com's
-docs site does not.
+The structural Markdown linters and Vale still pick it up (except the style
+guide's own prose under `style-guide/`, which is exempt); coder.com's docs
+site does not. Refer to "What does not run against this directory" below for
+that exemption.
 
 ## How exclusion from coder.com works
 
@@ -56,9 +58,12 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale lints the entire `docs/**/*.md` set, including `docs/.style/style-guide/`.
-  Refer to the repo-root `.vale.ini` for the active configuration.
-  Run `make lint/prose` locally to reproduce.
+- Vale (`make lint/prose`) lints everything here except the style guide's own
+  prose under `style-guide/`: the landing page, `content-guidelines.md`, the
+  annotation demo (whose `Coder.Demo*` rules are meant to fire), and the Coder
+  rule docs. Refer to the repo-root `.vale.ini` for the active configuration,
+  and to "What does not run against this directory" below for the one
+  exemption.
 
 ## What does not run against this directory
 
@@ -71,6 +76,22 @@ directory from the surgical-reindex payload on mixed commits.
   so `.style`-only PRs produce no preview comment. The selection logic also
   skips `.style` files when picking the preview target on mixed PRs. See
   `.github/workflows/docs-preview.yaml`.
+- Vale's `Coder` rules on the style guide's own prose under
+  `docs/.style/style-guide/`. The guide deliberately contains the constructs
+  the rules ban, such as Don't examples and banned terms named in headings and
+  prose, so the repo-root `.vale.ini` clears `BasedOnStyles` for
+  `docs/.style/style-guide/**`. Nothing else under `docs/.style/` is exempt:
+  the landing page, `content-guidelines.md`, the annotation demo, and the Coder
+  rule docs are all linted. Zero-baseline is therefore measured over `docs/`
+  excluding `docs/.style/style-guide/`.
+  The exemption applies only when the path resolves to
+  `docs/.style/style-guide/...` from the working directory, which is what
+  `make lint/prose` and CI pass (repo-root-relative `docs/...`). Other
+  invocation forms bypass the glob and still flag the guide's intentional
+  examples: absolute paths (what editors and LSP integrations pass) and
+  subdirectory-relative paths (for example `vale .style/style-guide/...` run
+  from `docs/`). Treat those in-editor and subdirectory findings on the guide
+  as expected.
 
 ## Editing the content guidelines
 
@@ -86,7 +107,9 @@ Follow-up PRs add each rule and the matching style-guide section together.
 ## Adding a Vale rule
 
 Each rule in the repo-root `.vale.ini` ships clean: zero baseline
-findings against the current `docs/` corpus.
+findings against the current `docs/` corpus, excluding
+`docs/.style/style-guide/`, which is exempt because the style guide
+demonstrates the violations the rules ban.
 The PR that adds a rule is the rule's complete unit:
 
 1. **Cleanup commit**: fix every existing-content violation of the new

@@ -1,7 +1,8 @@
 # Provider Configuration
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 Providers are deployment-scoped and managed from the dashboard or the
 [AI Providers API](../../reference/api/aiproviders.md). See
@@ -36,6 +37,9 @@ handling, and how to monitor providers.
 After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
 from the environment on the next restart.
+
+Seeding is a `coderd` operation.
+A [standalone gateway](./standalone.md) ignores the deprecated provider variables and fetches provider configuration from `coderd`.
 
 ## Provider types
 
@@ -86,10 +90,42 @@ to have restricted permissions at the time of writing (June 2026).
 Bedrock providers serve Anthropic models hosted on AWS and authenticate
 with AWS credentials rather than a registered API key. Configure:
 
-- A **region** (or a full base URL when routing through a proxy or a
-  non-standard endpoint that does not follow the
-  `https://bedrock-runtime.<region>.amazonaws.com` format).
-- The **model** and **small fast model** identifiers.
+- A **protocol**, either `InvokeModel` or `Mantle`. It determines the
+  endpoint format and which of the fields below apply. See
+  [InvokeModel](#invokemodel) and [Mantle](#mantle).
+- An **endpoint** in the format the protocol requires:
+  `https://bedrock-runtime.<region>.amazonaws.com` for InvokeModel or
+  `https://bedrock-mantle.<region>.api.aws/anthropic` for Mantle. The AWS
+  region is read from the endpoint host.
+- The **model** and **small fast model** identifiers, for InvokeModel
+  only. Mantle providers do not set them; the client chooses the model on
+  each request and AI Gateway forwards it upstream.
+
+#### InvokeModel
+
+The legacy Bedrock runtime API. AI Gateway translates each request into
+Bedrock's InvokeModel format and sends it to
+`https://bedrock-runtime.<region>.amazonaws.com`. Still supported, but
+Mantle is recommended for new deployments.
+
+#### Mantle
+
+The newer Anthropic-compatible Bedrock endpoint, recommended by AWS for new
+deployments. AI Gateway serves Anthropic models through the native Messages
+API, forwarding the request body **unchanged** and only applying AWS SigV4
+signing with the provider's base identity.
+
+To route Claude Code through a Mantle provider, run it in mantle mode with
+client-side signing disabled so the gateway signs centrally:
+
+```sh
+export CLAUDE_CODE_USE_MANTLE=1
+export CLAUDE_CODE_SKIP_MANTLE_AUTH=1
+export ANTHROPIC_BEDROCK_MANTLE_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/<provider-name>"
+export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
+```
+
+#### AWS credentials
 
 Do not attach API keys to a Bedrock provider.
 
@@ -109,9 +145,9 @@ AI Gateway resolves AWS credentials one of three ways:
   that role before calling Bedrock, signing requests with the resulting
   temporary credentials. This works on top of either of the above base
   identities and supports cross-account Bedrock access. See
-  [Assuming an IAM role](#assuming-an-iam-role).
+  [IAM role assumption](#iam-role-assumption).
 
-#### Obtaining static Bedrock credentials
+#### Static Bedrock credentials
 
 When you cannot use the default credential chain, create a dedicated IAM
 user and generate a static access key:
@@ -138,7 +174,7 @@ user and generate a static access key:
    [AI Providers API](../../reference/api/aiproviders.md), along with the
    region (or base URL) and model identifiers.
 
-#### Assuming an IAM role
+#### IAM role assumption
 
 Set the optional **Role ARN** field to have the gateway assume an IAM
 role before calling Bedrock. The base identity (static credentials or the
@@ -244,7 +280,7 @@ an API key.
 ## Provider lifecycle
 
 Every provider carries an explicit status, surfaced through the
-[`provider_info`](./monitoring.md#provider-metrics) metric and the API:
+[`provider_info`](./monitoring.md#prometheus-metrics) metric and the API:
 
 | Status     | Meaning                                                                       | Effect on requests                               |
 |------------|-------------------------------------------------------------------------------|--------------------------------------------------|
@@ -266,12 +302,12 @@ attempt and each successful reload, exposed as Prometheus metrics:
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
 the same pair under the `coder_ai_gateway_proxy_` prefix.
+Each [standalone gateway](./standalone.md) replica reloads providers independently and replaces only its own provider snapshot.
+If a reload fails, that replica retains its previous provider snapshot and continues serving from it.
 
-A growing gap between the attempt and success timestamps means reloads
-are firing but failing to apply. Alert on that gap rather than on a
-single failure, which may resolve on the next change. See
-[Monitoring](./monitoring.md#provider-metrics) for the full metric list
-and sample alert queries.
+A growing gap between the attempt and success timestamps means reloads are firing but failing to apply.
+Alert on that gap rather than on a single failure, which may resolve on the next change.
+Refer to [Monitoring](./monitoring.md#prometheus-metrics) for the full metric list and sample alert queries.
 
 ## Key failover
 
@@ -290,18 +326,18 @@ a maximum of **5 keys**.
 ### Failover behavior
 
 Every request starts with the first key in the list. If a key is rate-limited
-or returns an authentication error, AI Gateway automatically retries the request
-with the next available key.
-
-> [!WARNING]
-> A key that fails with an authentication error (`401 Unauthorized` or
-> `403 Forbidden`) is permanently disabled and will not be used again until the
-> server is restarted or the provider configuration is reloaded.
+(`429 Too Many Requests`) or fails authentication (`401 Unauthorized`), AI
+Gateway puts that key on a temporary cooldown and retries the request with the
+next available key. Keys recover automatically when the cooldown elapses, so
+failover stays transparent to end users. Any other response, including a
+`403 Forbidden`, is returned to the caller unchanged.
 
 If all keys in the pool are exhausted, AI Gateway returns:
 
-- `429 Too Many Requests` when at least one key is rate-limited, with a `Retry-After` header set to the shortest cooldown across all keys.
-- `502 Bad Gateway` when every key has failed permanently.
+- `429 Too Many Requests` when at least one key is rate-limited, with a `Retry-After`
+header set to the shortest cooldown across all keys.
+- `502 Bad Gateway` when every key is in an authentication-failure cooldown.
+The keys still recover automatically once their cooldowns elapse, so no `Retry-After` is sent.
 
 ## Bring Your Own Key
 

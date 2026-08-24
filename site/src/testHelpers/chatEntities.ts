@@ -18,8 +18,9 @@ export const MockChat: Chat = {
 	owner_name: MockUserOwner.name,
 	last_model_config_id: "model-config-1",
 	title: "Agent",
-	status: "completed",
+	status: "waiting",
 	last_turn_summary: null,
+	summary: null,
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	archived: false,
@@ -91,6 +92,7 @@ export const MockChatContextDirty: ChatContext = {
 
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
+	organization_id: "00000000-0000-4000-8000-000000000001",
 	display_name: "MCP Server",
 	slug: "mcp-server",
 	description: "",

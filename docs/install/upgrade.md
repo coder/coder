@@ -19,13 +19,13 @@ of [install](../install/index.md).
 1. If you installed Coder using the `install.sh` script, re-run the below command
    on the host:
 
-   ```shell
+   ```sh
    curl -L https://coder.com/install.sh | sh
    ```
 
 1. If you're running Coder as a system service, you can restart it with `systemctl`:
 
-   ```shell
+   ```sh
    systemctl daemon-reload
    systemctl restart coder
    ```
@@ -39,20 +39,20 @@ of [install](../install/index.md).
 If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
 
-```shell
+```sh
 docker-compose pull coder && docker-compose up -d coder
 ```
 
 ### Kubernetes
 
 See
-[Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
+[Upgrade Coder via Helm](../install/kubernetes.md#upgrade-coder-via-helm).
 
 ### Coder AMI on AWS
 
 1. Run the Coder installation script on the host:
 
-   ```shell
+   ```sh
    curl -L https://coder.com/install.sh | sh
    ```
 
@@ -61,7 +61,7 @@ See
 
 1. Restart the Coder system process with `systemctl`:
 
-   ```shell
+   ```sh
    systemctl daemon-reload
    systemctl restart coder
    ```
@@ -72,7 +72,7 @@ Download the latest Windows installer or binary from
 [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade
 from Winget.
 
-```pwsh
+```ps1
 winget install Coder.Coder
 ```
 

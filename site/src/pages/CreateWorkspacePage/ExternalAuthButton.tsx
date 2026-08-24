@@ -17,6 +17,11 @@ interface ExternalAuthButtonProps {
 	isLoading: boolean;
 	onStartPolling: () => void;
 	error?: unknown;
+	/**
+	 * Users can only connect external auth for themselves. An admin creating a
+	 * workspace for someone else should just be shown the status.
+	 */
+	canAuthenticate?: boolean;
 }
 
 export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
@@ -25,6 +30,7 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 	isLoading,
 	onStartPolling,
 	error,
+	canAuthenticate = true,
 }) => {
 	return (
 		<div className="flex items-center gap-2 border border-border border-solid rounded-md p-3 justify-between">
@@ -52,37 +58,47 @@ export const ExternalAuthButton: FC<ExternalAuthButtonProps> = ({
 							Authenticated
 						</p>
 					</>
-				) : (
-					<Button
-						variant="default"
-						size="sm"
-						disabled={isLoading || auth.authenticated}
-						onClick={() => {
-							window.open(
-								auth.authenticate_url,
-								"_blank",
-								"width=900,height=600",
-							);
-							onStartPolling();
-						}}
-					>
-						<Spinner loading={isLoading} />
-						Login with {auth.display_name}
-					</Button>
-				)}
+				) : canAuthenticate ? (
+					<>
+						<Button
+							variant="default"
+							size="sm"
+							disabled={isLoading || auth.authenticated}
+							onClick={() => {
+								window.open(
+									auth.authenticate_url,
+									"_blank",
+									"width=900,height=600",
+								);
+								onStartPolling();
+							}}
+						>
+							<Spinner loading={isLoading} />
+							Login with {auth.display_name}
+						</Button>
 
-				{displayRetry && !auth.authenticated && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button variant="outline" size="icon" onClick={onStartPolling}>
-								<RedoIcon />
-								<span className="sr-only">Refresh external auth</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							Retry login with {auth.display_name}
-						</TooltipContent>
-					</Tooltip>
+						{displayRetry && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										variant="outline"
+										size="icon"
+										onClick={onStartPolling}
+									>
+										<RedoIcon />
+										<span className="sr-only">Refresh external auth</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>
+									Retry login with {auth.display_name}
+								</TooltipContent>
+							</Tooltip>
+						)}
+					</>
+				) : (
+					<p className="text-xs font-semibold text-content-secondary m-0">
+						Not connected
+					</p>
 				)}
 			</span>
 		</div>

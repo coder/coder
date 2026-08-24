@@ -1,9 +1,8 @@
 # MCP
 
 > [!NOTE]
-> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
-> As of Coder v2.32, deployments without the add-on will not be able to
-> access AI Gateway.
+> AI Gateway is part of [AI Governance](../ai-governance.md), which is
+> included with a Premium license.
 
 <!-- -->
 
@@ -20,13 +19,13 @@ AI Gateway can connect to MCP servers and inject tools automatically, enabling y
 > [!NOTE]
 > Only MCP servers which support OAuth2 Authorization are supported currently.
 >
-> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
+> [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
 AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
-```bash
+```sh
 CODER_EXTERNAL_AUTH_0_TYPE=github
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=...
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
@@ -34,11 +33,11 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
-See the diagram in [Implementation Details](./reference.md#implementation-details) for more information.
+Refer to the diagram in [Embedded gateway](./reference.md#embedded-gateway) for more information.
 
 You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
 
-```env
+```dotenv
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_ALLOW_REGEX=(.+_gist.*)
 CODER_EXTERNAL_AUTH_0_MCP_TOOL_DENY_REGEX=(create_gist)
 ```
@@ -64,7 +63,13 @@ AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MC
 
 ## Tool Injection
 
-If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Gateway has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client; all it sees is the result of this loop. See [Implementation Details](./reference.md#implementation-details).
+If a model decides to invoke a tool with a `bmcp_` prefix and AI Gateway has a connection to the related MCP server, AI Gateway invokes the tool.
+AI Gateway passes the tool result back to the upstream AI provider, and this loop continues until the model has all required data.
+These inner loops are not relayed back to the client.
+The client only sees the result of the loop.
+Injected MCP works with both embedded and standalone gateways.
+Control connection provides each standalone replica with the required configuration and access tokens.
+Refer to [Deployment topologies](./reference.md#deployment-topologies) for more information.
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 

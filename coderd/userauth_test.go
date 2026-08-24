@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +40,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
@@ -137,6 +139,37 @@ func TestUserLogin(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+	// Login is reachable without credentials, so it is the endpoint where an
+	// unbounded body costs the most. The payload here carries valid credentials
+	// and is padded with a field the request type ignores, so a server that read
+	// the whole body would answer 201 with a session token. A 413 and no cookie
+	// is therefore evidence the body was cut off before authentication ran.
+	t.Run("BodyTooLarge", func(t *testing.T) {
+		t.Parallel()
+		_, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		body := fmt.Sprintf(`{"email":%q,"password":%q,"padding":%q}`,
+			anotherUser.Email, "SomeSecurePassword!",
+			strings.Repeat("a", httpapi.DefaultMaxRequestBodyBytes))
+		require.Greater(t, len(body), httpapi.DefaultMaxRequestBodyBytes)
+
+		unauthenticated := codersdk.New(client.URL)
+		res, err := unauthenticated.Request(ctx, http.MethodPost, "/api/v2/users/login", strings.NewReader(body))
+		require.NoError(t, err)
+		defer res.Body.Close()
+
+		require.Equal(t, http.StatusRequestEntityTooLarge, res.StatusCode)
+		for _, cookie := range res.Cookies() {
+			require.NotEqual(t, codersdk.SessionTokenCookie, cookie.Name, "no session may be issued")
+		}
+
+		var apiResp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&apiResp))
+		require.Equal(t, "Request body too large.", apiResp.Message)
+		require.Contains(t, apiResp.Detail, strconv.Itoa(httpapi.DefaultMaxRequestBodyBytes))
+	})
+
 	t.Run("UserDeleted", func(t *testing.T) {
 		t.Parallel()
 		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
@@ -153,13 +186,19 @@ func TestUserLogin(t *testing.T) {
 
 	t.Run("LoginTypeNone", func(t *testing.T) {
 		t.Parallel()
-		anotherClient, anotherUser := coderdtest.CreateAnotherUserMutators(t, client, user.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
-			r.Password = ""
-			r.UserLoginType = codersdk.LoginTypeNone
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		noneUser := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeNone,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: first.OrganizationID,
+			UserID:         noneUser.ID,
 		})
 
-		_, err := anotherClient.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
-			Email:    anotherUser.Email,
+		_, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
+			Email:    noneUser.Email,
 			Password: "SomeSecurePassword!",
 		})
 		require.Error(t, err)

@@ -25,11 +25,11 @@ Navigate to the **Agents** page, open **Settings**, and select the
 Set the value to `0` to disable debug data retention entirely. The maximum value
 is `3650` days.
 
-Use the experimental admin API to read or update the value:
+Use the admin API to read or update the value:
 
-```text
-GET  /api/experimental/chats/config/debug-retention-days
-PUT  /api/experimental/chats/config/debug-retention-days
+```txt
+GET  /api/v2/chats/config/debug-retention-days
+PUT  /api/v2/chats/config/debug-retention-days
 ```
 
 ## Interaction with conversation retention

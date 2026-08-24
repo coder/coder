@@ -43,14 +43,14 @@ prevent the new pod from acquiring necessary locks.
      when the upgrade starts. This momentarily ensures no application access to
      the database, allowing migrations to acquire locks immediately:
 
-     ```shell
+     ```sh
      kubectl scale deployment coder --replicas=0
      ```
 
    - **Scale to one** if you prefer to minimize downtime. This keeps one pod
      running but eliminates contention from multiple replicas:
 
-     ```shell
+     ```sh
      kubectl scale deployment coder --replicas=1
      ```
 
@@ -82,7 +82,7 @@ killing the pod prematurely.
 To confirm whether Kubernetes is killing pods due to liveness probe failures,
 check the Kubernetes events and pod logs:
 
-```shell
+```sh
 # Check events for the Coder deployment
 kubectl get events --field-selector involvedObject.name=coder -n <namespace>
 
@@ -98,7 +98,7 @@ liveness probe, will be restarted`.
 If you have liveness probes enabled and experience issues during upgrades,
 disable them before upgrading:
 
-```shell
+```sh
 kubectl edit deployment coder
 ```
 
@@ -135,7 +135,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 1. **Scale to zero:** Scale the Coder deployment to 0 to stop all application
    activity.
 
-   ```shell
+   ```sh
    kubectl scale deployment coder --replicas=0
    ```
 

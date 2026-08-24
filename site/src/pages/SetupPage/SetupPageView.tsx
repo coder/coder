@@ -1,6 +1,6 @@
 import { isAxiosError } from "axios";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC, ReactNode } from "react";
+import type { FC } from "react";
 import * as Yup from "yup";
 import { countries } from "#/api/countriesGenerated";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -10,19 +10,17 @@ import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { FormField } from "#/components/FormField/FormField";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import { Label } from "#/components/Label/Label";
 import { PasswordField } from "#/components/PasswordField/PasswordField";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+import { SelectItem } from "#/components/Select/Select";
+import { SelectField } from "#/components/SelectField/SelectField";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
+import { PrivacyPolicyNotice } from "#/modules/licenses/PrivacyPolicyNotice";
 import {
-	type FormHelpers,
+	CONTACT_SALES_LINK,
+	numberOfDevelopersOptions,
+	trialInfoValidationSchema,
+} from "#/modules/licenses/trialLicense";
+import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
@@ -54,94 +52,13 @@ const validationSchema = Yup.object({
 	trial: Yup.bool(),
 	trial_info: Yup.object().when("trial", {
 		is: true,
-		then: (schema) =>
-			schema.shape({
-				first_name: Yup.string().required("Please enter your first name."),
-				last_name: Yup.string().required("Please enter your last name."),
-				phone_number: Yup.string().required("Please enter your phone number."),
-				job_title: Yup.string().required("Please enter your job title."),
-				company_name: Yup.string().required("Please enter your company name."),
-				country: Yup.string().required("Please select your country."),
-				developers: Yup.string().required(
-					"Please select the number of developers in your company.",
-				),
-			}),
+		then: () => trialInfoValidationSchema,
 	}),
 	onboarding_info: Yup.object().shape({
 		newsletter_marketing: Yup.bool(),
 		newsletter_releases: Yup.bool(),
 	}),
 });
-
-// Keep in sync with cli/login.go (developerBuckets).
-const numberOfDevelopersOptions = [
-	"1 - 50",
-	"51 - 100",
-	"101 - 200",
-	"201 - 500",
-	"501 - 1000",
-	"1001 - 2500",
-	"2500+",
-];
-
-const Field: FC<{
-	label: string;
-	id: string;
-	error?: boolean;
-	helperText?: ReactNode;
-	className?: string;
-	children: ReactNode;
-}> = ({ label, id, error, helperText, className, children }) => (
-	<div className={cn("flex flex-col gap-2", className)}>
-		<Label htmlFor={id}>{label}</Label>
-		{children}
-		{helperText && (
-			<span
-				className={cn(
-					"text-xs text-left",
-					error ? "text-content-destructive" : "text-content-secondary",
-				)}
-			>
-				{helperText}
-			</span>
-		)}
-	</div>
-);
-
-type SelectFieldProps = FormHelpers & {
-	label: string;
-	className?: string;
-	onValueChange: (value: string) => void;
-	placeholder?: string;
-	children: ReactNode;
-};
-
-const SelectField: FC<SelectFieldProps> = ({
-	label,
-	id,
-	error,
-	helperText,
-	className,
-	value,
-	onValueChange,
-	placeholder,
-	children,
-}) => (
-	<Field
-		label={label}
-		id={id}
-		error={error}
-		helperText={helperText}
-		className={className}
-	>
-		<Select value={String(value ?? "")} onValueChange={onValueChange}>
-			<SelectTrigger id={id}>
-				<SelectValue placeholder={placeholder} />
-			</SelectTrigger>
-			<SelectContent>{children}</SelectContent>
-		</Select>
-	</Field>
-);
 
 interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
@@ -193,9 +110,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 			<div className="flex flex-col w-full max-w-[500px] px-4">
 				<header className="mb-8">
 					<ProductLogo />
-					<h1 className="text-2xl font-normal mt-4 mb-0">
-						Welcome to <strong>Coder</strong>
-					</h1>
+					<h1 className="text-2xl font-semibold mt-4 mb-0">Welcome to Coder</h1>
 					<p className="mt-3 mb-0 text-sm text-content-secondary font-normal">
 						Set up your admin account and start building secure, reproducible
 						dev environments.
@@ -206,7 +121,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 					{authMethods?.github.enabled && (
 						<>
 							<Button className="w-full" asChild type="submit" size="lg">
-								<a href="/api/v2/users/oauth2/github/callback">
+								<a
+									href={`/api/v2/users/oauth2/github/callback?redirect=${encodeURIComponent(
+										"/templates/new/builder",
+									)}`}
+								>
 									<ExternalImage src="/icon/github.svg?blackWithColor" />
 									GitHub
 								</a>
@@ -229,13 +148,15 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						onChange={onChangeTrimmed(form, (email) => {
 							form.setFieldValue("username", usernameFromEmail(email));
 						})}
+						disabled={isLoading}
 					/>
 
 					{/* Password */}
 					<PasswordField
-						field={getFieldHelpers("password")}
 						label="Password"
+						field={getFieldHelpers("password")}
 						autoComplete="new-password"
+						disabled={isLoading}
 					/>
 
 					{/* Premium trial toggle */}
@@ -252,10 +173,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							}
 							data-testid="trial"
 							className="mt-0.5"
+							disabled={isLoading}
 						/>
 						<div className="flex flex-col items-start gap-0.5">
 							<span className="text-sm font-semibold">
-								Start a 30-day trial of Premium
+								Start an unlimited 30-day Coder trial
 							</span>
 							<span className="text-xs text-content-secondary leading-relaxed">
 								Get access to high availability, template RBAC, audit logging,
@@ -279,10 +201,12 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								<FormField
 									label="First name"
 									field={getFieldHelpers("trial_info.first_name")}
+									disabled={isLoading}
 								/>
 								<FormField
 									label="Last name"
 									field={getFieldHelpers("trial_info.last_name")}
+									disabled={isLoading}
 								/>
 							</div>
 
@@ -290,14 +214,16 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								<FormField
 									label="Company"
 									field={getFieldHelpers("trial_info.company_name")}
+									disabled={isLoading}
 								/>
 								<SelectField
 									label="Number of developers"
-									{...getFieldHelpers("trial_info.developers")}
-									onValueChange={(value: string) =>
+									field={getFieldHelpers("trial_info.developers")}
+									onValueChange={(value) =>
 										form.setFieldValue("trial_info.developers", value)
 									}
 									placeholder="Select..."
+									disabled={isLoading}
 								>
 									{numberOfDevelopersOptions.map((opt) => (
 										<SelectItem key={opt} value={opt}>
@@ -309,20 +235,23 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 							<FormField
 								label="Job title"
 								field={getFieldHelpers("trial_info.job_title")}
+								disabled={isLoading}
 							/>
 
 							<div className="grid grid-cols-2 gap-3">
 								<FormField
 									label="Phone number"
 									field={getFieldHelpers("trial_info.phone_number")}
+									disabled={isLoading}
 								/>
 								<SelectField
 									label="Country"
-									{...getFieldHelpers("trial_info.country")}
-									onValueChange={(value: string) =>
+									field={getFieldHelpers("trial_info.country")}
+									onValueChange={(value) =>
 										form.setFieldValue("trial_info.country", value)
 									}
 									placeholder="Select..."
+									disabled={isLoading}
 								>
 									{countries.map((c) => (
 										<SelectItem key={c.name} value={c.name}>
@@ -354,6 +283,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									)
 								}
 								data-testid="onboarding_info.newsletter_releases"
+								disabled={isLoading}
 							/>
 							<div className="flex flex-col text-sm">
 								<span className="font-medium">Release notes & updates</span>
@@ -379,6 +309,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									)
 								}
 								data-testid="onboarding_info.newsletter_marketing"
+								disabled={isLoading}
 							/>
 							<div className="flex flex-col text-sm">
 								<span className="font-medium">Monthly Coder newsletter</span>
@@ -390,17 +321,8 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 
 						{/* Privacy policy notice */}
 						<p className="text-xs text-content-secondary leading-relaxed">
-							Subscribe for the latest product and news updates from Coder. The
-							information you provide will be treated in accordance with the{" "}
-							<a
-								href="https://coder.com/legal/privacy-policy"
-								target="_blank"
-								rel="noreferrer"
-								className="text-content-link hover:underline"
-							>
-								Coder Privacy Policy
-							</a>
-							.
+							Subscribe for the latest product and news updates from Coder.{" "}
+							<PrivacyPolicyNotice /> Opt-out at any time.
 						</p>
 					</div>
 
@@ -415,7 +337,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									<a
 										target="_blank"
 										rel="noreferrer"
-										href="https://coder.com/contact/sales"
+										href={CONTACT_SALES_LINK}
 										className="text-content-link hover:underline"
 									>
 										Contact Sales

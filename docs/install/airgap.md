@@ -14,7 +14,7 @@ air-gapped with Kubernetes or Docker.
 | Telemetry                 | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                                                                  |
 | Update check              | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                                                           |
 | License validation        | License keys are validated locally using cryptographic signatures. No outbound connection to Coder is required                                                                                                                                                     | No changes needed. See [offline license validation](../admin/licensing/index.md#offline-license-validation)                                                                                                                                                                                          |
-| AI Governance Usage Count | By default, deployments with the [AI Governance Add On](../ai-coder/ai-governance.md) report usage data                                                                                                                                                            | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
+| AI Governance Usage Count | By default, deployments with [AI Governance](../ai-coder/ai-governance.md) report usage data                                                                                                                                                                       | [Contact us](https://coder.com/contact) to request a license with usage reporting off.                                                                                                                                                                                                               |
 
 ## Air-gapped container images
 
@@ -39,7 +39,7 @@ following:
 
 Here's an example Dockerfile:
 
-```Dockerfile
+```dockerfile
 FROM ghcr.io/coder/coder:latest
 
 USER root
@@ -147,13 +147,13 @@ filesystem mirror without re-building the image.
 
 First, create an empty plugins directory:
 
-```shell
+```sh
 mkdir $HOME/plugins
 ```
 
 Next, add a volume mount to compose.yaml:
 
-```shell
+```sh
 vim compose.yaml
 ```
 

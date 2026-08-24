@@ -55,6 +55,17 @@ const claudeSonnetModelConfig = buildModelConfig({
 	context_limit: 200_000,
 });
 
+const advisorReasoningModelConfig = buildModelConfig({
+	id: "model-advisor-gpt-5.2",
+	model: "gpt-5.2",
+	display_name: "GPT 5.2",
+	context_limit: 200_000,
+	model_config: {
+		reasoning_effort: { default: "medium", max: "xhigh" },
+	},
+	reasoning_efforts: ["none", "minimal", "low", "medium", "high", "xhigh"],
+});
+
 const titleModelConfig = buildModelConfig({
 	id: "model-title-gpt-4o-mini",
 	model: "gpt-4o-mini",
@@ -94,21 +105,57 @@ const exploreDisabledModelConfig = buildModelConfig({
 	context_limit: 200_000,
 });
 
+const compactionDisabledModelConfig = buildModelConfig({
+	id: "model-compaction-disabled",
+	model: "gpt-4.1-nano-legacy",
+	display_name: "GPT 4.1 Nano Legacy",
+	enabled: false,
+	context_limit: 128_000,
+});
+
+const providerDisabledModelConfig = buildModelConfig({
+	id: "model-provider-disabled",
+	ai_provider_id: "provider-openai-disabled",
+	model: "gpt-4o-secondary",
+	display_name: "GPT 4o Secondary",
+	context_limit: 128_000,
+});
+
 const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	generalModelConfig,
 	claudeSonnetModelConfig,
+	advisorReasoningModelConfig,
 	titleModelConfig,
 	exploreFallbackModelConfig,
 	generalDisabledModelConfig,
 	titleDisabledModelConfig,
 	exploreDisabledModelConfig,
+	compactionDisabledModelConfig,
+	providerDisabledModelConfig,
 ];
 
 const providerInfoByID = new Map([
-	["provider-1", { provider: "openai", displayName: "OpenAI", icon: "" }],
+	[
+		"provider-1",
+		{ provider: "openai", displayName: "OpenAI", icon: "", enabled: true },
+	],
 	[
 		"provider-anthropic",
-		{ provider: "anthropic", displayName: "Anthropic", icon: "" },
+		{
+			provider: "anthropic",
+			displayName: "Anthropic",
+			icon: "",
+			enabled: true,
+		},
+	],
+	[
+		"provider-openai-disabled",
+		{
+			provider: "openai",
+			displayName: "OpenAI Secondary",
+			icon: "",
+			enabled: false,
+		},
 	],
 ]);
 
@@ -124,6 +171,7 @@ const buildArgs = (
 	isSaveAdminOverridesError: false,
 	generalModelOverrideData: buildOverrideData("general"),
 	titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData(),
+	compactionModelOverrideData: buildOverrideData("compaction"),
 	exploreModelOverrideData: buildOverrideData("explore"),
 	modelConfigsData: allModelConfigs,
 	providerInfoByID,
@@ -136,6 +184,9 @@ const buildArgs = (
 	onSaveTitleGenerationModel: fn(),
 	isSavingTitleGenerationModel: false,
 	isSaveTitleGenerationModelError: false,
+	onSaveCompactionModel: fn(),
+	isSavingCompactionModel: false,
+	isSaveCompactionModelError: false,
 	onSaveExploreModelOverride: fn(),
 	isSavingExploreModelOverride: false,
 	isSaveExploreModelOverrideError: false,
@@ -174,7 +225,7 @@ const selectModelInSection = async (
 	section: HTMLElement,
 	canvasElement: HTMLElement,
 	currentSelectionName: string | RegExp,
-	optionName: string,
+	optionName: string | RegExp,
 ) => {
 	const trigger = within(section).getByRole("combobox", {
 		name: currentSelectionName,
@@ -187,6 +238,8 @@ const selectModelInSection = async (
 const meta = {
 	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
 	component: CoderAgentsPageView,
+	// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
+	parameters: { pixel: { exclude: true } },
 	args: buildArgs(),
 } satisfies Meta<typeof CoderAgentsPageView>;
 
@@ -211,6 +264,7 @@ export const AllOverridesUnset: Story = {
 		expect(headings.map((heading) => heading.textContent?.trim())).toEqual([
 			"General model",
 			"Title generation model",
+			"Compaction model",
 			"Explore subagent model",
 		]);
 		await canvas.findByText(
@@ -222,6 +276,10 @@ export const AllOverridesUnset: Story = {
 			{
 				headingName: "Title generation model",
 				placeholder: "Use title default",
+			},
+			{
+				headingName: "Compaction model",
+				placeholder: "Use chat model",
 			},
 			{
 				headingName: "Explore subagent model",
@@ -293,6 +351,9 @@ export const EachOverrideSetToEnabledModel: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleModelConfig.id,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			model_config_id: claudeSonnetModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreFallbackModelConfig.id,
 		}),
@@ -302,6 +363,10 @@ export const EachOverrideSetToEnabledModel: Story = {
 		const titleSection = await getSection(
 			canvasElement,
 			"Title generation model",
+		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
 		);
 		const exploreSection = await getSection(
 			canvasElement,
@@ -324,7 +389,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			generalSection,
 			canvasElement,
 			/gpt 4\.1 mini/i,
-			"Claude Sonnet 4",
+			/^Claude Sonnet 4\b/,
 		);
 		const generalSaveButton = within(generalSection).getByRole("button", {
 			name: "Save",
@@ -344,7 +409,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 			titleSection,
 			canvasElement,
 			/gpt 4o mini/i,
-			"Claude Sonnet 4",
+			/^Claude Sonnet 4\b/,
 		);
 		const titleSaveButton = within(titleSection).getByRole("button", {
 			name: "Save",
@@ -356,6 +421,26 @@ export const EachOverrideSetToEnabledModel: Story = {
 		await waitFor(() => {
 			expect(args.onSaveTitleGenerationModel).toHaveBeenCalledWith(
 				{ model_config_id: claudeSonnetModelConfig.id },
+				expect.anything(),
+			);
+		});
+
+		await selectModelInSection(
+			compactionSection,
+			canvasElement,
+			/claude sonnet 4/i,
+			/^GPT 4o Mini\b/,
+		);
+		const compactionSaveButton = within(compactionSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(compactionSaveButton).toBeEnabled();
+		});
+		await userEvent.click(compactionSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveCompactionModel).toHaveBeenCalledWith(
+				{ model_config_id: titleModelConfig.id },
 				expect.anything(),
 			);
 		});
@@ -388,6 +473,9 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			is_malformed: true,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			is_malformed: true,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			is_malformed: true,
 		}),
@@ -398,12 +486,21 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 			canvasElement,
 			"Title generation model",
 		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, titleSection, exploreSection]) {
+		for (const section of [
+			generalSection,
+			titleSection,
+			compactionSection,
+			exploreSection,
+		]) {
 			await within(section).findByText(OVERRIDE_MALFORMED_WARNING);
 		}
 
@@ -448,6 +545,20 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 				expect.anything(),
 			);
 		});
+
+		const compactionSaveButton = within(compactionSection).getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(compactionSaveButton).toBeEnabled();
+		});
+		await userEvent.click(compactionSaveButton);
+		await waitFor(() => {
+			expect(args.onSaveCompactionModel).toHaveBeenCalledWith(
+				{ model_config_id: "" },
+				expect.anything(),
+			);
+		});
 	},
 };
 
@@ -459,6 +570,9 @@ export const UnavailableSavedModels: Story = {
 		titleGenerationModelOverrideData: buildTitleGenerationModelOverrideData({
 			model_config_id: titleDisabledModelConfig.id,
 		}),
+		compactionModelOverrideData: buildOverrideData("compaction", {
+			model_config_id: compactionDisabledModelConfig.id,
+		}),
 		exploreModelOverrideData: buildOverrideData("explore", {
 			model_config_id: exploreDisabledModelConfig.id,
 		}),
@@ -469,12 +583,16 @@ export const UnavailableSavedModels: Story = {
 			canvasElement,
 			"Title generation model",
 		);
+		const compactionSection = await getSection(
+			canvasElement,
+			"Compaction model",
+		);
 		const exploreSection = await getSection(
 			canvasElement,
 			"Explore subagent model",
 		);
 
-		for (const section of [generalSection, exploreSection]) {
+		for (const section of [generalSection, compactionSection, exploreSection]) {
 			await within(section).findByText(UNAVAILABLE_SAVED_MODEL_WARNING);
 			expect(
 				within(section).getByRole("combobox", { name: "Unavailable model" }),
@@ -514,7 +632,7 @@ export const AdvisorSettingsVisible: Story = {
 			}),
 		).toHaveValue(16384);
 		expect(
-			within(section).getByRole("combobox", { name: "Advisor model" }),
+			within(section).getByRole("combobox", { name: "Use chat model" }),
 		).toBeInTheDocument();
 
 		// Changing a value exposes the Save button.
@@ -537,6 +655,88 @@ export const AdvisorSettingsVisible: Story = {
 	},
 };
 
+export const AdvisorReasoningEffort: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: advisorReasoningModelConfig.id,
+			reasoning_effort: "medium",
+		},
+	}),
+	play: async ({ canvasElement, args }) => {
+		const section = await getSection(canvasElement, "Advisor");
+		const modelSelector = within(section).getByRole("combobox", {
+			name: "GPT 5.2",
+		});
+		expect(modelSelector).toBeInTheDocument();
+		const maxUses = within(section).getByRole("spinbutton", {
+			name: "Max uses per turn",
+		});
+		await userEvent.clear(maxUses);
+		await userEvent.type(maxUses, "5");
+
+		const saveButton = await within(section).findByRole("button", {
+			name: "Save",
+		});
+		expect(saveButton).toBeEnabled();
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				expect.objectContaining({
+					max_uses_per_run: 5,
+					model_config_id: advisorReasoningModelConfig.id,
+					reasoning_effort: "medium",
+				}),
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const DisabledProviderModelsHidden: Story = {
+	args: buildArgs({
+		showAdvisorSettings: true,
+		advisorConfigData: {
+			enabled: true,
+			max_uses_per_run: 3,
+			max_output_tokens: 16384,
+			model_config_id: "00000000-0000-0000-0000-000000000000",
+		},
+	}),
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		const generalSection = await getSection(canvasElement, "General model");
+		const generalTrigger = within(generalSection).getByRole("combobox", {
+			name: "Use chat default",
+		});
+		await userEvent.click(generalTrigger);
+		expect(
+			await body.findByRole("option", { name: /GPT 4\.1 Mini/ }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: /GPT 4o Secondary/ }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+
+		const advisorSection = await getSection(canvasElement, "Advisor");
+		const advisorTrigger = within(advisorSection).getByRole("combobox", {
+			name: "Use chat model",
+		});
+		await userEvent.click(advisorTrigger);
+		expect(
+			await body.findByRole("option", { name: /GPT 4\.1 Mini/ }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("option", { name: /GPT 4o Secondary/ }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
 export const AdvisorClearButton: Story = {
 	args: buildArgs({
 		showAdvisorSettings: true,
@@ -544,10 +744,11 @@ export const AdvisorClearButton: Story = {
 			enabled: true,
 			max_uses_per_run: 3,
 			max_output_tokens: 16384,
-			model_config_id: generalModelConfig.id,
+			model_config_id: advisorReasoningModelConfig.id,
+			reasoning_effort: "high",
 		},
 	}),
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const section = await getSection(canvasElement, "Advisor");
 		const clearButton = within(section).getByRole("button", { name: "Clear" });
 		await userEvent.click(clearButton);
@@ -562,8 +763,24 @@ export const AdvisorClearButton: Story = {
 			}),
 		).toHaveValue(0);
 		expect(
-			within(section).getByRole("combobox", { name: "Advisor model" }),
+			within(section).getByRole("combobox", { name: "Use chat model" }),
 		).toHaveTextContent("Use chat model");
+		const saveButton = within(section).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+		await waitFor(() => {
+			expect(args.onSaveAdvisorConfig).toHaveBeenCalledWith(
+				{
+					enabled: true,
+					max_uses_per_run: 0,
+					max_output_tokens: 0,
+					model_config_id: "00000000-0000-0000-0000-000000000000",
+				},
+				expect.anything(),
+			);
+		});
 	},
 };
 

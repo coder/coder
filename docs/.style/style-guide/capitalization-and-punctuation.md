@@ -13,7 +13,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Do**:
 
-```markdown
+```md
 # Configure your workspace
 ## Set up SSH access
 ### Connect through JetBrains Toolbox
@@ -21,7 +21,7 @@ This rule covers H1 through H6 and matches the way the heading reads aloud.
 
 **Don't**:
 
-```markdown
+```md
 # Configure Your Workspace
 ## Set Up SSH Access
 ### Connect Through JetBrains Toolbox
@@ -38,7 +38,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Do**:
 
-```markdown
+```md
 ## Install Coder
 ## Installation
 ## Configure your workspace
@@ -47,7 +47,7 @@ Reserve gerund-leading headings for the rare case where neither alternative read
 
 **Don't**:
 
-```markdown
+```md
 ## Installing Coder
 ## Configuring your workspace
 ```
@@ -80,7 +80,7 @@ The rule has scoped exceptions:
 
 **Do**:
 
-```markdown
+```md
 ## What's a workspace
 ## Quick reference
 ## What does the `panic!` macro do?
@@ -89,7 +89,7 @@ The rule has scoped exceptions:
 
 **Don't**:
 
-```markdown
+```md
 ## What's a workspace?
 ## Quick reference!
 ## Workspaces are great!
@@ -108,8 +108,8 @@ Both ignore characters inside backticks.*
 ## No em-dashes or en-dashes
 
 Em-dashes (&mdash;, U+2014), en-dashes (&ndash;, U+2013), and the ASCII `--` fallback are banned in prose.
-Em-dashes typically set off a parenthetical aside or a break in thought.
-Replace them with commas (for a tight aside), parentheses (for a clearly secondary aside), or a period and a new sentence (for a thought that stands on its own).
+Em-dashes set off a parenthetical aside or a break in thought.
+Replace them with commas (for a tight aside), parentheses (for a distinctly secondary aside), or a period and a new sentence (for a thought that stands on its own).
 
 **Do**:
 
@@ -129,6 +129,8 @@ Replace them with commas (for a tight aside), parentheses (for a clearly seconda
 *Enforced by `scripts/check_emdash.sh` (existing CI script) and `Coder.EmDash` (planned).*
 
 ## Commas
+
+The following rules cover the comma cases that recur in the Coder docs.
 
 ### Comma after an introductory element
 
@@ -194,7 +196,7 @@ Use a comma before the conjunction in a list of three or more items.
 
 Place commas and periods inside closing quotation marks.
 Semicolons and colons stay outside.
-This is the United States convention and matches the dominant style of the surrounding tech-docs ecosystem.
+This placement is the United States convention and matches the dominant style of the surrounding tech-docs ecosystem.
 
 **Do**:
 
@@ -209,7 +211,7 @@ This is the United States convention and matches the dominant style of the surro
 ## Semicolons sparingly
 
 Prefer two sentences.
-A semicolon joins two complete thoughts when they're tightly related and a period would lose the connection, but in technical prose two sentences almost always read more clearly.
+A semicolon joins two complete thoughts when they're tightly related and a period would lose the connection, but in technical prose two sentences read more clearly.
 
 **Do**:
 
@@ -254,7 +256,7 @@ In code blocks, terse reference material, and tables where space matters, the hy
 
 *Enforced by `Google.Ranges`.*
 
-## Related
+## Learn more
 
 - [Style guide landing page](./README.md)
 - [Accessibility and inclusion](./accessibility-and-inclusion.md)

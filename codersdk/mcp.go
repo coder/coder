@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,31 +12,52 @@ import (
 // MCPServerOAuth2ConnectURL returns the URL the user should visit to
 // start the OAuth2 flow for an MCP server. The frontend opens this
 // in a new window/popup.
-func (c *Client) MCPServerOAuth2ConnectURL(id uuid.UUID) string {
-	return fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/connect", c.URL.String(), id)
+func (c *Client) MCPServerOAuth2ConnectURL(organizationID, id uuid.UUID) string {
+	return fmt.Sprintf("%s/api/experimental/organizations/%s/mcp-servers/%s/oauth2/connect", c.URL.String(), organizationID, id)
+}
+
+// MCPServerOAuth2DisconnectResponse reports whether the removed token
+// was also revoked at the OAuth provider.
+type MCPServerOAuth2DisconnectResponse struct {
+	TokenRevoked         bool   `json:"token_revoked"`
+	TokenRevocationError string `json:"token_revocation_error,omitempty"`
 }
 
 // MCPServerOAuth2Disconnect removes the user's OAuth2 token for an
-// MCP server.
+// MCP server. Use MCPServerOAuth2DisconnectWithResponse for the
+// provider revocation outcome.
 func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) error {
+	_, err := c.MCPServerOAuth2DisconnectWithResponse(ctx, id)
+	return err
+}
+
+// MCPServerOAuth2DisconnectWithResponse removes the user's OAuth2
+// token for an MCP server and reports the provider revocation outcome.
+func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", id), nil)
 	if err != nil {
-		return err
+		return MCPServerOAuth2DisconnectResponse{}, err
 	}
 	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
+	// Servers from before provider revocation respond 204 without a body.
+	if res.StatusCode == http.StatusNoContent {
+		return MCPServerOAuth2DisconnectResponse{}, nil
 	}
-	return nil
+	if res.StatusCode != http.StatusOK {
+		return MCPServerOAuth2DisconnectResponse{}, ReadBodyAsError(res)
+	}
+	var resp MCPServerOAuth2DisconnectResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // MCPServerConfig represents an admin-configured MCP server.
 type MCPServerConfig struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	DisplayName string    `json:"display_name"`
-	Slug        string    `json:"slug"`
-	Description string    `json:"description"`
-	IconURL     string    `json:"icon_url"`
+	ID             uuid.UUID `json:"id" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
+	DisplayName    string    `json:"display_name"`
+	Slug           string    `json:"slug"`
+	Description    string    `json:"description"`
+	IconURL        string    `json:"icon_url"`
 
 	Transport string `json:"transport"` // "streamable_http" or "sse"
 	URL       string `json:"url"`
@@ -45,11 +65,12 @@ type MCPServerConfig struct {
 	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 
 	// OAuth2 fields (only populated for admins).
-	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
-	HasOAuth2Secret bool   `json:"has_oauth2_secret"`
-	OAuth2AuthURL   string `json:"oauth2_auth_url,omitempty"`
-	OAuth2TokenURL  string `json:"oauth2_token_url,omitempty"`
-	OAuth2Scopes    string `json:"oauth2_scopes,omitempty"`
+	OAuth2ClientID      string `json:"oauth2_client_id,omitempty"`
+	HasOAuth2Secret     bool   `json:"has_oauth2_secret"`
+	OAuth2AuthURL       string `json:"oauth2_auth_url,omitempty"`
+	OAuth2TokenURL      string `json:"oauth2_token_url,omitempty"`
+	OAuth2RevocationURL string `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Scopes        string `json:"oauth2_scopes,omitempty"`
 
 	// API key fields (only populated for admins).
 	APIKeyHeader string `json:"api_key_header,omitempty"`
@@ -81,6 +102,44 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
+// MCPServerConfigRole is a role a user or group holds in an MCP server
+// config's access control list.
+type MCPServerConfigRole string
+
+const (
+	MCPServerConfigRoleRead MCPServerConfigRole = "read"
+	// MCPServerConfigRoleDeleted removes the principal's ACL entry when
+	// used in an update request.
+	MCPServerConfigRoleDeleted MCPServerConfigRole = ""
+)
+
+// MCPServerConfigACL is the resolved access control list of an MCP server
+// config.
+type MCPServerConfigACL struct {
+	Users  []MCPServerConfigUser  `json:"users"`
+	Groups []MCPServerConfigGroup `json:"groups"`
+}
+
+// MCPServerConfigUser is a user entry in an MCP server config ACL.
+type MCPServerConfigUser struct {
+	MinimalUser
+	Role MCPServerConfigRole `json:"role" enums:"read"`
+}
+
+// MCPServerConfigGroup is a group entry in an MCP server config ACL.
+type MCPServerConfigGroup struct {
+	Group
+	Role MCPServerConfigRole `json:"role" enums:"read"`
+}
+
+// UpdateMCPServerConfigACLRequest is a sparse update of an MCP server
+// config ACL: only the listed principals change, and
+// MCPServerConfigRoleDeleted removes an entry.
+type UpdateMCPServerConfigACLRequest struct {
+	UserRoles  map[string]MCPServerConfigRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]MCPServerConfigRole `json:"group_roles,omitempty"`
+}
+
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
 type CreateMCPServerConfigRequest struct {
 	DisplayName string `json:"display_name" validate:"required"`
@@ -91,15 +150,18 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       string            `json:"api_key_header,omitempty"`
-	APIKeyValue        string            `json:"api_key_value,omitempty"`
-	CustomHeaders      map[string]string `json:"custom_headers,omitempty"`
+	AuthType           string `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL is the provider's RFC 7009 revocation
+	// endpoint; auto-populated by OAuth2 discovery when omitted.
+	OAuth2RevocationURL string            `json:"oauth2_revocation_url,omitempty" validate:"omitempty,url"`
+	OAuth2Scopes        string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        string            `json:"api_key_header,omitempty"`
+	APIKeyValue         string            `json:"api_key_value,omitempty"`
+	CustomHeaders       map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
@@ -124,15 +186,18 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
-	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
-	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
-	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
-	OAuth2TokenURL     *string            `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
-	OAuth2Scopes       *string            `json:"oauth2_scopes,omitempty"`
-	APIKeyHeader       *string            `json:"api_key_header,omitempty"`
-	APIKeyValue        *string            `json:"api_key_value,omitempty"`
-	CustomHeaders      *map[string]string `json:"custom_headers,omitempty"`
+	AuthType           *string `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
+	OAuth2ClientID     *string `json:"oauth2_client_id,omitempty"`
+	OAuth2ClientSecret *string `json:"oauth2_client_secret,omitempty"`
+	OAuth2AuthURL      *string `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
+	OAuth2TokenURL     *string `json:"oauth2_token_url,omitempty" validate:"omitempty,url"`
+	// OAuth2RevocationURL is validated in the handler because a
+	// validate tag would reject the pointer to "" that clears it.
+	OAuth2RevocationURL *string            `json:"oauth2_revocation_url,omitempty"`
+	OAuth2Scopes        *string            `json:"oauth2_scopes,omitempty"`
+	APIKeyHeader        *string            `json:"api_key_header,omitempty"`
+	APIKeyValue         *string            `json:"api_key_value,omitempty"`
+	CustomHeaders       *map[string]string `json:"custom_headers,omitempty"`
 
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
@@ -147,8 +212,8 @@ type UpdateMCPServerConfigRequest struct {
 	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
 }
 
-func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/experimental/mcp/servers", nil)
+func (c *Client) MCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", organizationID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -157,11 +222,11 @@ func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error
 		return nil, ReadBodyAsError(res)
 	}
 	var configs []MCPServerConfig
-	return configs, json.NewDecoder(res.Body).Decode(&configs)
+	return configs, ReadBodyAsJSON(res, &configs)
 }
 
-func (c *Client) MCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/mcp/servers/%s", id), nil)
+func (c *Client) MCPServerConfigByID(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), nil)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -170,11 +235,39 @@ func (c *Client) MCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServ
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
-func (c *Client) CreateMCPServerConfig(ctx context.Context, req CreateMCPServerConfigRequest) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/experimental/mcp/servers", req)
+// MCPServerConfigACL returns the resolved ACL of an MCP server config.
+func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfigACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), nil)
+	if err != nil {
+		return MCPServerConfigACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MCPServerConfigACL{}, ReadBodyAsError(res)
+	}
+	var acl MCPServerConfigACL
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
+// UpdateMCPServerConfigACL applies a sparse ACL update to an MCP server
+// config.
+func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func (c *Client) CreateMCPServerConfig(ctx context.Context, organizationID uuid.UUID, req CreateMCPServerConfigRequest) (MCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", organizationID), req)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -183,11 +276,11 @@ func (c *Client) CreateMCPServerConfig(ctx context.Context, req CreateMCPServerC
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
-func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req UpdateMCPServerConfigRequest) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/mcp/servers/%s", id), req)
+func (c *Client) UpdateMCPServerConfig(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigRequest) (MCPServerConfig, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), req)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -196,11 +289,11 @@ func (c *Client) UpdateMCPServerConfig(ctx context.Context, id uuid.UUID, req Up
 		return MCPServerConfig{}, ReadBodyAsError(res)
 	}
 	var config MCPServerConfig
-	return config, json.NewDecoder(res.Body).Decode(&config)
+	return config, ReadBodyAsJSON(res, &config)
 }
 
-func (c *Client) DeleteMCPServerConfig(ctx context.Context, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s", id), nil)
+func (c *Client) DeleteMCPServerConfig(ctx context.Context, organizationID, id uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), nil)
 	if err != nil {
 		return err
 	}

@@ -41,7 +41,7 @@ The VPN extension routes only Coder traffic—your other internet activity remai
 
 #### Homebrew (Recommended)
 
-```shell
+```sh
 brew install --cask coder/coder/coder-desktop
 ```
 
@@ -67,7 +67,7 @@ Coder Desktop requires VPN extension permissions:
 
 #### WinGet (Recommended)
 
-```shell
+```sh
 winget install Coder.CoderDesktop
 ```
 
@@ -96,13 +96,13 @@ Once connected, test access to your workspaces:
 
 ### SSH Connection
 
-```shell
+```sh
 ssh your-workspace.coder
 ```
 
 ### Ping Test
 
-```shell
+```sh
 # macOS
 ping6 -c 3 your-workspace.coder
 
@@ -130,7 +130,7 @@ Administrators can disable the built-in auto-updater to manage updates through t
 
 Set the `disableUpdater` preference to `true` using the `defaults` command:
 
-```shell
+```sh
 defaults write com.coder.Coder-Desktop disableUpdater -bool true
 ```
 
@@ -140,7 +140,7 @@ Organization administrators can also enforce this setting across managed devices
 
 Set the `Updater:Enable` registry value to `0` under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\App`:
 
-```powershell
+```ps1
 New-Item -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Force
 New-ItemProperty -Path "HKLM:\SOFTWARE\Coder Desktop\App" -Name "Updater:Enable" -Value 0 -PropertyType DWord -Force
 ```
@@ -169,7 +169,121 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
-### Collecting Logs
+### Recover from a stale tunnel
+
+If the menu bar or tray shows **Coder Connect** as enabled but workspaces are
+unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot
+list the workspace directory), the embedded tunnel may be in a stale state.
+Restart the helper components first.
+If that doesn't resolve the issue, reboot your computer.
+
+<div class="tabs">
+
+#### macOS
+
+Run the following commands in a terminal.
+These steps leave the app and helper daemon installed.
+They only restart the running tunnel and flush DNS caches.
+
+1. Stop the Coder VPN configuration:
+
+    ```shell
+    vpn_name=$(scutil --nc list | grep "com.coder.Coder-Desktop" | awk -F'"' '{print $2}' | tail -n1)
+    if [ -n "$vpn_name" ]; then scutil --nc stop "$vpn_name"; fi
+    ```
+
+2. Quit the Coder Desktop app:
+
+    ```shell
+    osascript -e 'tell application id "com.coder.Coder-Desktop" to quit'
+    ```
+
+3. Restart the helper daemon in place:
+
+    ```shell
+    sudo launchctl kickstart -k system/com.coder.Coder-Desktop.Helper
+    ```
+
+    > [!WARNING]
+    > Do not use `launchctl bootout` here. `bootout` removes the daemon from
+    > launchd's system domain entirely, and relaunching the app does not
+    > re-bootstrap it. Use `kickstart -k` to restart it in place.
+
+4. Flush DNS caches:
+
+    ```shell
+    sudo dscacheutil -flushcache
+    sudo killall -HUP mDNSResponder
+    ```
+
+5. Confirm the stale tunnel is gone (the command should print nothing):
+
+    ```shell
+    scutil --nc list | grep "com.coder.Coder-Desktop"
+    ```
+
+6. Relaunch **Coder Desktop** from your `/Applications` folder and toggle **Coder Connect** back on.
+
+To verify the tunnel is healthy after relaunching, query the built-in sentinel
+hostname against Coder Desktop's embedded DNS server:
+
+```shell
+dig @fd60:627a:a42b::53 AAAA is.coder--connect--enabled--right--now.coder +short
+dscacheutil -q host -a name is.coder--connect--enabled--right--now.coder
+```
+
+Both commands should return an `fd60:627a:a42b::/48` address.
+If `dig` returns nothing or `dscacheutil` reports no entries, Coder Connect is not publishing DNS.
+[Collect logs](#collect-logs) and file an issue.
+
+#### Windows
+
+Run the following in an **elevated PowerShell** session.
+The service restart clears the embedded DNS state.
+The NRPT and adapter checks confirm the system routing policy is intact.
+
+1. Stop the app and the VPN service:
+
+    ```ps1
+    Get-Process -Name "Coder Desktop" -ErrorAction SilentlyContinue | Stop-Process -Force
+    Stop-Service -Name "Coder Desktop" -Force
+    ```
+
+2. Flush DNS caches:
+
+    ```ps1
+    ipconfig /flushdns
+    Clear-DnsClientCache
+    ```
+
+3. Start the service again and relaunch the app:
+
+    ```ps1
+    Start-Service -Name "Coder Desktop"
+    Start-Process "C:\Program Files\Coder Desktop\CoderDesktop.exe"
+    ```
+
+4. After re-enabling Coder Connect in the tray, verify the NRPT rule and the Wintun adapter exist:
+
+    ```ps1
+    Get-DnsClientNrptRule | Where-Object { $_.Namespace -like "*.coder" }
+    Get-NetAdapter | Where-Object { $_.InterfaceDescription -like "*Wintun*" }
+    ```
+
+    If either command returns nothing while Coder Connect shows as enabled,
+    the tunnel did not finish coming up. Disable and re-enable the toggle, or
+    repeat the steps above.
+
+> [!NOTE]
+> `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver;
+> restarting the service is what clears its internal cache. If you are running
+> a network filtering agent (for example, Zscaler), it may shadow `.coder`
+> lookups even after the tunnel comes back. Check with your IT team if DNS
+> still fails after a clean restart.
+
+</div>
+
+### Collect logs
 
 When reporting an issue, attach the relevant log files so we can diagnose it faster.
 
@@ -181,16 +295,29 @@ Coder Desktop and its network extension write to the Apple [unified logging syst
 
 1. Export the unified logs for the last hour with the `log` command:
 
-    ```shell
-    log show --predicate 'subsystem == "com.coder.Coder-Desktop"' \
+    ```sh
+    log show --predicate 'subsystem BEGINSWITH "com.coder.Coder-Desktop"' \
       --info --debug --last 1h > ~/Desktop/coder-desktop.log
     ```
 
-    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred. You can also view the same logs interactively in **Console.app** by filtering on the `com.coder.Coder-Desktop` subsystem.
+    The `BEGINSWITH` predicate captures the app, the helper daemon, and the
+    network extension, which all log under subsystems prefixed with
+    `com.coder.Coder-Desktop`. Adjust `--last` (e.g. `30m`, `2h`, `1d`) to
+    cover the time the issue occurred.
+
+    You can stream the logs live while reproducing an issue:
+
+    ```shell
+    log stream --predicate 'subsystem BEGINSWITH "com.coder.Coder-Desktop"' --info --debug
+    ```
+
+    You can also view the same logs interactively in **Console.app** by
+    filtering on `subsystem:com.coder.Coder-Desktop` with Info and Debug
+    messages enabled.
 
 2. If you're using file sync, also collect the Mutagen daemon log:
 
-    ```shell
+    ```sh
     ~/Library/Application\ Support/Coder\ Desktop/Mutagen/daemon.log
     ```
 
@@ -202,19 +329,19 @@ Coder Desktop has three components that write logs: the app (UI), the VPN servic
 
 1. App log (daily rolling):
 
-    ```powershell
+    ```ps1
     %LOCALAPPDATA%\CoderDesktop\app.log
     ```
 
 2. VPN service log (default install path):
 
-    ```powershell
+    ```ps1
     C:\Program Files\Coder Desktop\coder-desktop-service.log
     ```
 
 3. File sync (Mutagen) daemon log, if you use file sync:
 
-    ```powershell
+    ```ps1
     %LOCALAPPDATA%\CoderDesktop\mutagen\daemon.log
     ```
 

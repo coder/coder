@@ -20,18 +20,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -39,6 +42,24 @@ import (
 
 func TestMain(m *testing.M) {
 	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
+
+func TestConvertTemplateAgentsAllowed(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name    string
+		allowed bool
+	}{
+		{name: "Allowed", allowed: true},
+		{name: "Disallowed", allowed: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := telemetry.ConvertTemplate(database.Template{AgentsAllowed: tt.allowed})
+			require.Equal(t, tt.allowed, got.AgentsAllowed)
+		})
+	}
 }
 
 func TestTelemetry(t *testing.T) {
@@ -292,10 +313,14 @@ func TestTelemetry(t *testing.T) {
 		clock := quartz.NewMock(t)
 		clock.Set(now)
 
-		_, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
+		deployment, snapshot := collectSnapshot(ctx, t, db, func(opts telemetry.Options) telemetry.Options {
 			opts.Clock = clock
 			return opts
 		})
+		var agentsExperiments map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal(deployment.AgentsExperiments, &agentsExperiments))
+		require.Contains(t, agentsExperiments, "virtual_desktop")
+		require.Contains(t, agentsExperiments, "advisor")
 		require.Len(t, snapshot.ProvisionerJobs, 2)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 2)
@@ -313,8 +338,13 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-		// We create one item manually above. The other is TelemetryEnabled, created by the snapshotter.
-		require.Len(t, snapshot.TelemetryItems, 2)
+		telemetryItemKeys := slice.Convert(snapshot.TelemetryItems, func(item telemetry.TelemetryItem) string {
+			return item.Key
+		})
+		require.ElementsMatch(t, []string{
+			string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+			string(telemetry.TelemetryItemKeyTelemetryEnabled),
+		}, telemetryItemKeys)
 		require.Len(t, snapshot.WorkspaceAgentMemoryResourceMonitors, 1)
 		require.Len(t, snapshot.WorkspaceAgentVolumeResourceMonitors, 1)
 		wsa := snapshot.WorkspaceAgents[1]
@@ -1681,7 +1711,7 @@ func TestChatsTelemetry(t *testing.T) {
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg2.ID,
 		Title:             "Child Chat",
-		Status:            database.ChatStatusCompleted,
+		Status:            database.ChatStatusWaiting,
 		ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
 	})
@@ -1707,7 +1737,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 100, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 50, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 1000, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             rootChat.ID,
@@ -1720,7 +1749,6 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 10, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 25, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:    sql.NullInt64{Int64: 2000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 500, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-1", Valid: true},
 	})
@@ -1734,7 +1762,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 150, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 30, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 1500, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             rootChat.ID,
@@ -1747,7 +1774,6 @@ func TestChatsTelemetry(t *testing.T) {
 		ReasoningTokens:    sql.NullInt64{Int64: 20, Valid: true},
 		CacheReadTokens:    sql.NullInt64{Int64: 40, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:    sql.NullInt64{Int64: 3000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 800, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-2", Valid: true},
 	})
@@ -1771,7 +1797,6 @@ func TestChatsTelemetry(t *testing.T) {
 		TotalTokens:         sql.NullInt64{Int64: 500, Valid: true},
 		CacheCreationTokens: sql.NullInt64{Int64: 100, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 128000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 5000, Valid: true},
 	})
 	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:             childChat.ID,
@@ -1785,7 +1810,6 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheReadTokens:    sql.NullInt64{Int64: 75, Valid: true},
 		ContextLimit:       sql.NullInt64{Int64: 128000, Valid: true},
 		Compressed:         true,
-		TotalCostMicros:    sql.NullInt64{Int64: 8000, Valid: true},
 		RuntimeMs:          sql.NullInt64{Int64: 1200, Valid: true},
 		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
 	})
@@ -1805,7 +1829,6 @@ func TestChatsTelemetry(t *testing.T) {
 		CacheCreationTokens: sql.NullInt64{Int64: 999999, Valid: true},
 		CacheReadTokens:     sql.NullInt64{Int64: 999999, Valid: true},
 		ContextLimit:        sql.NullInt64{Int64: 200000, Valid: true},
-		TotalCostMicros:     sql.NullInt64{Int64: 999999, Valid: true},
 		RuntimeMs:           sql.NullInt64{Int64: 999999, Valid: true},
 	})
 	err = db.SoftDeleteChatMessageByID(ctx, poisonMsg.ID)
@@ -1852,7 +1875,7 @@ func TestChatsTelemetry(t *testing.T) {
 	require.NotNil(t, foundChild.RootChatID)
 	assert.Equal(t, rootChat.ID, *foundChild.RootChatID)
 	assert.Nil(t, foundChild.WorkspaceID)
-	assert.Equal(t, "completed", foundChild.Status)
+	assert.Equal(t, "waiting", foundChild.Status)
 	assert.Equal(t, modelCfg2.ID, foundChild.LastModelConfigID)
 	assert.Nil(t, foundChild.Mode)
 	assert.False(t, foundChild.Archived)
@@ -1881,7 +1904,6 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(30), rootSummary.TotalReasoningTokens)     // 0+10+0+20+0
 	assert.Equal(t, int64(80), rootSummary.TotalCacheCreationTokens) // 50+0+30+0+0
 	assert.Equal(t, int64(65), rootSummary.TotalCacheReadTokens)     // 0+25+0+40+0
-	assert.Equal(t, int64(7500), rootSummary.TotalCostMicros)        // 1000+2000+1500+3000+0
 	assert.Equal(t, int64(1400), rootSummary.TotalRuntimeMs)         // 0+500+0+800+100
 	assert.Equal(t, int64(1), rootSummary.DistinctModelCount)
 	assert.Equal(t, int64(0), rootSummary.CompressedMessageCount)
@@ -1899,7 +1921,6 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(0), childSummary.SystemMessageCount)
 	assert.Equal(t, int64(100), childSummary.TotalCacheCreationTokens) // 100+0
 	assert.Equal(t, int64(75), childSummary.TotalCacheReadTokens)      // 0+75
-	assert.Equal(t, int64(13000), childSummary.TotalCostMicros)        // 5000+8000
 	assert.Equal(t, int64(1200), childSummary.TotalRuntimeMs)          // 0+1200
 	assert.Equal(t, int64(1), childSummary.DistinctModelCount)
 	assert.Equal(t, int64(1), childSummary.CompressedMessageCount)
@@ -1969,7 +1990,7 @@ func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             "Chat " + state,
-			Status:            database.ChatStatusCompleted,
+			Status:            database.ChatStatusWaiting,
 		})
 		now := dbtime.Now()
 		_, chatErr := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
@@ -2091,6 +2112,10 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, func(p *database.CreateUserSecretParams) {
 			p.EnvName = ""
 			p.FilePath = ""
+			// A target-less secret must be disabled to satisfy the
+			// user_secrets_enabled_requires_target constraint. Disabled
+			// secrets are still counted in the telemetry breakdown.
+			p.Enabled = false
 		})
 
 		_, snap := collectSnapshot(ctx, t, db, nil)
@@ -2137,9 +2162,12 @@ func TestUserSecretsTelemetry(t *testing.T) {
 					// Clear EnvName and FilePath so the unique
 					// (user_id, env_name) and (user_id, file_path)
 					// indexes don't collide across multiple secrets
-					// for the same user.
+					// for the same user. Target-less secrets must be
+					// disabled to satisfy the
+					// user_secrets_enabled_requires_target constraint.
 					p.EnvName = ""
 					p.FilePath = ""
+					p.Enabled = false
 				})
 			}
 		}
@@ -2249,6 +2277,9 @@ func TestUserSecretsTelemetry(t *testing.T) {
 		}, func(p *database.CreateUserSecretParams) {
 			p.EnvName = ""
 			p.FilePath = ""
+			// Target-less secrets must be disabled to satisfy the
+			// user_secrets_enabled_requires_target constraint.
+			p.Enabled = false
 		})
 
 		clock := quartz.NewMock(t)
@@ -2281,5 +2312,230 @@ func TestUserSecretsTelemetry(t *testing.T) {
 			return opts
 		})
 		require.Nil(t, snap2.UserSecretsSummary)
+	})
+}
+
+func TestCollectAgentsVirtualDesktop(t *testing.T) {
+	t.Parallel()
+
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsVirtualDesktopTelemetry {
+		t.Helper()
+		var payload telemetry.AgentsVirtualDesktopTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsVirtualDesktop(context.Background(), opts), &payload))
+		return payload
+	}
+
+	t.Run("Default", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.False(t, payload.Enabled)
+		require.EqualValues(t, codersdk.ChatComputerUseProviderAnthropic, payload.ComputerUse.Provider)
+		require.Equal(t, "default", payload.ComputerUse.ProviderSource)
+	})
+
+	t.Run("Configured", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("openai", nil)
+
+		payload := collect(t, telemetry.Options{
+			Database:    db,
+			Logger:      testutil.Logger(t),
+			Experiments: codersdk.Experiments{codersdk.ExperimentChatVirtualDesktop},
+		})
+		require.True(t, payload.Enabled)
+		require.Equal(t, "openai", payload.ComputerUse.Provider)
+		require.Equal(t, "configured", payload.ComputerUse.ProviderSource)
+	})
+
+	t.Run("QueryError", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("", sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.ComputerUse.ProviderSource)
+	})
+}
+
+func TestCollectAgentsAdvisor(t *testing.T) {
+	t.Parallel()
+
+	collect := func(t *testing.T, opts telemetry.Options) telemetry.AgentsAdvisorTelemetry {
+		t.Helper()
+		var payload telemetry.AgentsAdvisorTelemetry
+		require.NoError(t, json.Unmarshal(telemetry.CollectAgentsAdvisor(context.Background(), opts), &payload))
+		return payload
+	}
+	marshalConfig := func(t *testing.T, cfg codersdk.AdvisorConfig) string {
+		t.Helper()
+		raw, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		return string(raw)
+	}
+
+	t.Run("ReuseChatModel", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.False(t, payload.Enabled)
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+	})
+
+	t.Run("ModelOverride", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		providerID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{
+			Enabled:         true,
+			MaxUsesPerRun:   7,
+			MaxOutputTokens: 2048,
+			ModelConfigID:   modelID,
+		}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
+			Model:        "gpt-6-preview",
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}, nil)
+		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
+			Type: database.AIProviderTypeOpenai,
+		}, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		// Stored enabled is ignored; the chat-advisor experiment gates it.
+		require.False(t, payload.Enabled)
+		require.Equal(t, 7, payload.MaxUsesPerRun)
+		require.Equal(t, int64(2048), payload.MaxOutputTokens)
+		require.Equal(t, string(database.AIProviderTypeOpenai), payload.Provider)
+		require.Equal(t, "gpt-6-preview", payload.Model)
+	})
+
+	t.Run("ExperimentEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+
+		payload := collect(t, telemetry.Options{
+			Database:    db,
+			Logger:      testutil.Logger(t),
+			Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor},
+		})
+		require.True(t, payload.Enabled)
+	})
+
+	t.Run("MalformedJSON", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("PartialParse", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": 42, "model_config_id": "not-a-uuid"}`, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ClampsNegativeLimits", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(`{"max_uses_per_run": -3, "max_output_tokens": -99}`, nil)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Zero(t, payload.MaxUsesPerRun)
+		require.Zero(t, payload.MaxOutputTokens)
+	})
+
+	t.Run("InactiveModelConfig", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
+			Return(database.ChatModelConfig{}, sql.ErrNoRows)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+	})
+
+	t.Run("ConfigFetchError", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ModelResolveError", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
+			Return(database.ChatModelConfig{}, sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+	})
+
+	t.Run("ProviderResolveError", func(t *testing.T) {
+		t.Parallel()
+
+		modelID := uuid.New()
+		providerID := uuid.New()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
+			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
+		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
+			Model:        "gpt-6-preview",
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}, nil)
+		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).
+			Return(database.AIProvider{}, sql.ErrConnDone)
+
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		// The provider is unknown, but the already-resolved model still ships.
+		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
+		require.Equal(t, "gpt-6-preview", payload.Model)
 	})
 }

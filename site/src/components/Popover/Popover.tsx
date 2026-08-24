@@ -11,8 +11,6 @@ export type PopoverContentProps = React.ComponentPropsWithRef<
 	disablePortal?: boolean;
 };
 
-export type PopoverTriggerProps = PopoverPrimitive.PopoverTriggerProps;
-
 export const Popover = PopoverPrimitive.Root;
 
 export const PopoverTrigger = PopoverPrimitive.Trigger;

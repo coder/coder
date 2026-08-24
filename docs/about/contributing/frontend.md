@@ -153,7 +153,7 @@ Typically, each API endpoint corresponds to its own `Request` and `Response`
 types. However, some endpoints require additional parameters for successful
 execution. Here's an illustrative example:"
 
-```ts
+```tsx
 export const getAgentListeningPorts = async (
     agentID: string,
 ): Promise<TypesGen.ListeningPortsResponse> => {
@@ -167,7 +167,7 @@ export const getAgentListeningPorts = async (
 Sometimes, a frontend operation can have multiple API calls which can be wrapped
 as a single function.
 
-```ts
+```tsx
 export const updateWorkspaceVersion = async (
     workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
@@ -181,14 +181,6 @@ export const updateWorkspaceVersion = async (
 Components should be atomic, reusable and free of business logic. Modules are
 similar to components except that they can be more complex and can contain
 business logic specific to the product.
-
-### MUI
-
-The codebase is currently using MUI v5. Please see the
-[official documentation](https://mui.com/material-ui/getting-started/). In
-general, favor building a custom component via MUI instead of plain React/HTML,
-as MUI's suite of components is thoroughly battle-tested and accessible right
-out of the box.
 
 ### Structure
 
@@ -246,7 +238,10 @@ new conventions, but all new components should follow these guidelines.
 
 ## Styling
 
-We use [Emotion](https://emotion.sh/) to handle CSS styles.
+We use [Tailwind CSS](https://tailwindcss.com/) to handle CSS styles. Reusable UI
+primitives come from [shadcn/ui](https://ui.shadcn.com/) components in
+`site/src/components`. Use the `cn` helper from `#/utils/cn` to compose and
+conditionally apply classes.
 
 ## Forms
 
@@ -274,7 +269,7 @@ You can either run `scripts/remote_playwright.sh` from `coder/coder` on your
 local machine, or execute the following command if you don't have the repo
 available:
 
-```bash
+```sh
 bash <(curl -sSL https://raw.githubusercontent.com/coder/coder/main/scripts/remote_playwright.sh) [workspace]
 ```
 

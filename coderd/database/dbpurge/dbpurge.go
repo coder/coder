@@ -51,6 +51,12 @@ const (
 	// Chat debug run deletions can cascade into steps with large JSONB
 	// payloads, so they use the same conservative batch size.
 	chatDebugRunsBatchSize = 1000
+	// Chat search tsvector backfill is capped at 5 batches of 10k
+	// rows per tick. Benchmarks on a dogfood-class machine (EPYC 9454P)
+	// with containerized Postgres were measured to take ~800ms per batch.
+	// This is considered acceptable but may need dialing in later.
+	chatSearchBackfillBatchSize  = 10000
+	chatSearchBackfillMaxBatches = 5
 )
 
 type Option func(*instance)
@@ -59,6 +65,14 @@ type Option func(*instance)
 // quartz.NewReal().
 func WithClock(clk quartz.Clock) Option {
 	return func(i *instance) { i.clk = clk }
+}
+
+// WithChatSearchBackfillLimits overrides backfill batch size and cap. For tests.
+func WithChatSearchBackfillLimits(batchSize int32, maxBatches int) Option {
+	return func(i *instance) {
+		i.chatSearchBackfillBatchSize = batchSize
+		i.chatSearchBackfillMaxBatches = maxBatches
+	}
 }
 
 // New creates a new periodically purging database instance.
@@ -87,14 +101,25 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 	}, []string{"record_type"})
 	reg.MustRegister(recordsPurged)
 
+	chatSearchRowsBackfilled := prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "coderd",
+		Subsystem: "dbpurge",
+		Name:      "chat_search_rows_backfilled_total",
+		Help:      "Total number of chat message rows whose search_tsv was backfilled.",
+	})
+	reg.MustRegister(chatSearchRowsBackfilled)
+
 	inst := &instance{
-		cancel:            cancelFunc,
-		closed:            closed,
-		logger:            logger,
-		vals:              vals,
-		clk:               quartz.NewReal(),
-		iterationDuration: iterationDuration,
-		recordsPurged:     recordsPurged,
+		cancel:                       cancelFunc,
+		closed:                       closed,
+		logger:                       logger,
+		vals:                         vals,
+		clk:                          quartz.NewReal(),
+		iterationDuration:            iterationDuration,
+		recordsPurged:                recordsPurged,
+		chatSearchRowsBackfilled:     chatSearchRowsBackfilled,
+		chatSearchBackfillBatchSize:  chatSearchBackfillBatchSize,
+		chatSearchBackfillMaxBatches: chatSearchBackfillMaxBatches,
 	}
 	for _, opt := range opts {
 		opt(inst)
@@ -310,6 +335,25 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		// Backfill search_tsv tsvector on chat_messages in batches. Doing this here because it's
+		// potentially too much for a regular migration, especially on larger deployments:
+		// - Each row with search_tsv = NULL is present in idx_chat_messages_search_tsv_pending.
+		// - Content of chat_messages is not changed after insert.
+		// - Rows that are soft-deleted are no longer part of the index.
+		// NOTE: This should not remain in dbpurge and should be adjusted when the "DBOps" gets
+		//   implemented.
+		var backfilledChatSearchRows int64
+		for range i.chatSearchBackfillMaxBatches {
+			n, err := tx.BackfillChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)
+			if err != nil {
+				return xerrors.Errorf("backfill chat_messages.search_tsv: %w", err)
+			}
+			backfilledChatSearchRows += n
+			if n < int64(i.chatSearchBackfillBatchSize) {
+				break
+			}
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -322,6 +366,7 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
 			slog.F("chat_debug_runs", purgedChatDebugRuns),
+			slog.F("chat_search_rows_backfilled", backfilledChatSearchRows),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
@@ -337,6 +382,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
 			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+		}
+		if i.chatSearchRowsBackfilled != nil {
+			i.chatSearchRowsBackfilled.Add(float64(backfilledChatSearchRows))
 		}
 
 		// chatConfigErr is returned after the tx, so do not record this
@@ -362,13 +410,16 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 }
 
 type instance struct {
-	cancel            context.CancelFunc
-	closed            chan struct{}
-	logger            slog.Logger
-	vals              *codersdk.DeploymentValues
-	clk               quartz.Clock
-	iterationDuration *prometheus.HistogramVec
-	recordsPurged     *prometheus.CounterVec
+	cancel                       context.CancelFunc
+	closed                       chan struct{}
+	logger                       slog.Logger
+	vals                         *codersdk.DeploymentValues
+	clk                          quartz.Clock
+	iterationDuration            *prometheus.HistogramVec
+	recordsPurged                *prometheus.CounterVec
+	chatSearchRowsBackfilled     prometheus.Counter
+	chatSearchBackfillBatchSize  int32
+	chatSearchBackfillMaxBatches int
 }
 
 func (i *instance) Close() error {

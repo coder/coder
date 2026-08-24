@@ -55,7 +55,7 @@ helm install postgresql bitnami/postgresql \
 
 The cluster-internal DB URL for the above database is:
 
-```shell
+```sh
 postgres://coder:coder@postgresql.coder.svc.cluster.local:5432/coder?sslmode=disable
 ```
 
@@ -75,7 +75,7 @@ kubectl create secret generic coder-db-url -n coder \
 
 ## 4. Install Coder with Helm
 
-```shell
+```sh
 helm repo add coder-v2 https://helm.coder.com/v2
 ```
 
@@ -131,22 +131,22 @@ We support two release channels: mainline and stable - read the
   - **Chart Registry**
     <!-- autoversion(mainline): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.34.0
+        --version 2.35.3
     ```
 
   - **OCI Registry**
 
     <!-- autoversion(mainline): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.34.0
+        --version 2.35.3
     ```
 
 - **Stable** Coder release:
@@ -155,7 +155,7 @@ We support two release channels: mainline and stable - read the
 
     <!-- autoversion(stable): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
@@ -166,7 +166,7 @@ We support two release channels: mainline and stable - read the
 
     <!-- autoversion(stable): "--version [version]" -->
 
-    ```shell
+    ```sh
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
@@ -185,17 +185,23 @@ If you do not have a domain, you should set `CODER_ACCESS_URL` to this URL in
 the Helm chart and upgrade Coder (see below). This allows workspaces to connect
 to the proper Coder URL.
 
-## Upgrading Coder via Helm
+## Upgrade Coder via Helm
 
 To upgrade Coder in the future or change values, you can run the following
 command:
 
-```shell
+```sh
 helm repo update
 helm upgrade coder coder-v2/coder \
   --namespace coder \
   -f values.yaml
 ```
+
+## Standalone AI gateway chart
+
+Coder also publishes a chart, `oci://ghcr.io/coder/chart/coder-ai-gateway`, that runs [AI Gateway](../ai-coder/ai-gateway/index.md) as its own Deployment alongside the control plane.
+Use it when you want to scale AI traffic independently of `coderd`.
+For installation and configuration, refer to [Deploy AI Gateway as a standalone service](../ai-coder/ai-gateway/standalone.md) and the [AI Gateway Helm chart README](../../helm/ai-gateway/README.md).
 
 ## Coder Observability Chart
 

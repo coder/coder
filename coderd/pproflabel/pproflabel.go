@@ -38,6 +38,7 @@ const (
 	// ServiceWorkspaceBuildOrchestrator fulfills workspace build
 	// orchestrations once their parent build reaches a terminal state.
 	ServiceWorkspaceBuildOrchestrator = "workspace-build-orchestrator"
+	ServiceUsageEventGenerator        = "usage-event-generator"
 
 	RequestTypeTag = "coder_request_type"
 )

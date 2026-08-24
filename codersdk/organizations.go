@@ -229,6 +229,10 @@ type CreateTemplateRequest struct {
 
 	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
 	CORSBehavior *CORSBehavior `json:"cors_behavior"`
+
+	// AgentsAllowed controls whether Coder Agents can create workspaces using
+	// this template. Defaults to true.
+	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
@@ -270,7 +274,7 @@ func (c *Client) OrganizationByName(ctx context.Context, name string) (Organizat
 	}
 
 	var organization Organization
-	return organization, json.NewDecoder(res.Body).Decode(&organization)
+	return organization, ReadBodyAsJSON(res, &organization)
 }
 
 func (c *Client) Organizations(ctx context.Context) ([]Organization, error) {
@@ -285,7 +289,7 @@ func (c *Client) Organizations(ctx context.Context) ([]Organization, error) {
 	}
 
 	var organizations []Organization
-	return organizations, json.NewDecoder(res.Body).Decode(&organizations)
+	return organizations, ReadBodyAsJSON(res, &organizations)
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -307,7 +311,7 @@ func (c *Client) CreateOrganization(ctx context.Context, req CreateOrganizationR
 	}
 
 	var org Organization
-	return org, json.NewDecoder(res.Body).Decode(&org)
+	return org, ReadBodyAsJSON(res, &org)
 }
 
 // UpdateOrganization will update information about the corresponding organization, based on
@@ -324,7 +328,7 @@ func (c *Client) UpdateOrganization(ctx context.Context, orgID string, req Updat
 	}
 
 	var organization Organization
-	return organization, json.NewDecoder(res.Body).Decode(&organization)
+	return organization, ReadBodyAsJSON(res, &organization)
 }
 
 // DeleteOrganization will remove the corresponding organization from the deployment, based on
@@ -360,7 +364,7 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	}
 
 	var daemons []ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+	return daemons, ReadBodyAsJSON(res, &daemons)
 }
 
 type OrganizationProvisionerDaemonsOptions struct {
@@ -413,7 +417,7 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 	}
 
 	var daemons []ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+	return daemons, ReadBodyAsJSON(res, &daemons)
 }
 
 type OrganizationProvisionerJobsOptions struct {
@@ -462,7 +466,7 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 	}
 
 	var jobs []ProvisionerJob
-	return jobs, json.NewDecoder(res.Body).Decode(&jobs)
+	return jobs, ReadBodyAsJSON(res, &jobs)
 }
 
 func (c *Client) OrganizationProvisionerJob(ctx context.Context, organizationID, jobID uuid.UUID) (job ProvisionerJob, err error) {
@@ -478,7 +482,7 @@ func (c *Client) OrganizationProvisionerJob(ctx context.Context, organizationID,
 	if res.StatusCode != http.StatusOK {
 		return job, ReadBodyAsError(res)
 	}
-	return job, json.NewDecoder(res.Body).Decode(&job)
+	return job, ReadBodyAsJSON(res, &job)
 }
 
 func joinSlice[T ~string](s []T) string {
@@ -514,7 +518,7 @@ func (c *Client) CreateTemplateVersion(ctx context.Context, organizationID uuid.
 	}
 
 	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organizationID uuid.UUID, templateName, versionName string) (TemplateVersion, error) {
@@ -532,7 +536,7 @@ func (c *Client) TemplateVersionByOrganizationAndName(ctx context.Context, organ
 	}
 
 	var templateVersion TemplateVersion
-	return templateVersion, json.NewDecoder(res.Body).Decode(&templateVersion)
+	return templateVersion, ReadBodyAsJSON(res, &templateVersion)
 }
 
 // CreateTemplate creates a new template inside an organization.
@@ -551,7 +555,7 @@ func (c *Client) CreateTemplate(ctx context.Context, organizationID uuid.UUID, r
 	}
 
 	var template Template
-	return template, json.NewDecoder(res.Body).Decode(&template)
+	return template, ReadBodyAsJSON(res, &template)
 }
 
 // TemplatesByOrganization lists all templates inside of an organization.
@@ -570,7 +574,7 @@ func (c *Client) TemplatesByOrganization(ctx context.Context, organizationID uui
 	}
 
 	var templates []Template
-	return templates, json.NewDecoder(res.Body).Decode(&templates)
+	return templates, ReadBodyAsJSON(res, &templates)
 }
 
 type TemplateFilter struct {
@@ -631,7 +635,7 @@ func (c *Client) Templates(ctx context.Context, filter TemplateFilter) ([]Templa
 	}
 
 	var templates []Template
-	return templates, json.NewDecoder(res.Body).Decode(&templates)
+	return templates, ReadBodyAsJSON(res, &templates)
 }
 
 // TemplateByName finds a template inside the organization provided with a case-insensitive name.
@@ -653,7 +657,7 @@ func (c *Client) TemplateByName(ctx context.Context, organizationID uuid.UUID, n
 	}
 
 	var template Template
-	return template, json.NewDecoder(res.Body).Decode(&template)
+	return template, ReadBodyAsJSON(res, &template)
 }
 
 // CreateWorkspace creates a new workspace for the template specified.
@@ -676,5 +680,5 @@ func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request C
 	}
 
 	var workspace Workspace
-	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+	return workspace, ReadBodyAsJSON(res, &workspace)
 }

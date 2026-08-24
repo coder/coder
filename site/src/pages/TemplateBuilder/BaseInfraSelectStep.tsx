@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderBases } from "#/api/queries/templateBuilder";
-import type { TemplateBuilderBase } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -9,23 +8,11 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { TemplateCard } from "./TemplateCard";
-import type { SelectedBaseMeta } from "./wizardState";
+import { type SelectedBaseMeta, toSelectedBaseMeta } from "./wizardState";
 
 interface BaseInfraSelectStepProps {
 	selectedBaseId: string | null;
 	onSelectBase: (base: SelectedBaseMeta) => void;
-}
-
-function toSelectedBaseMeta(base: TemplateBuilderBase): SelectedBaseMeta {
-	return {
-		id: base.id,
-		name: base.name,
-		iconUrl: base.icon,
-		os: base.os,
-		hasParameters:
-			base.variables?.length > 0 && base.variables?.some((v) => !v.sensitive),
-		hasPrerequisites: Boolean(base.prerequisites?.length),
-	};
 }
 
 function detailsUrl(baseId: string): string {
@@ -55,8 +42,7 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 				Select your infrastructure foundation.
 			</TemplateBuilderSubtitle>
 
-			{/* 420px accounts for navbar, page header, card padding, tab bar, and nav controls */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[calc(100vh-420px)] overflow-y-auto">
+			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 				{bases.map((base) => (
 					<TemplateCard
 						key={base.id}

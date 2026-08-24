@@ -25,11 +25,11 @@ function getRightPanelState(): { open: boolean; width: number } {
 }
 
 /**
- * Skeleton shown while the AgentsPage chunk is loading. Mimics the
+ * Skeleton shown while the AgentsPageLayout chunk is loading. Mimics the
  * sidebar + empty main area layout so the user sees structure
  * immediately instead of a fullscreen spinner.
  */
-export const AgentsPageSkeleton: FC = () => {
+export const AgentsPageLayoutSkeleton: FC = () => {
 	const [leftSidebarWidth] = useState(() => loadPersistedLeftSidebarWidth());
 
 	return (
@@ -142,7 +142,7 @@ const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 		<div
 			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
-			<div className="rounded-2xl border border-border-default/80 bg-surface-secondary/45 p-1 shadow-sm">
+			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-sm">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
 					<Skeleton className="h-6 w-24 rounded" />

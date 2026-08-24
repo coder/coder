@@ -1,4 +1,4 @@
-import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
@@ -51,6 +51,7 @@ interface WorkspacesPageViewProps {
 	templatesFetchStatus: TemplateQuery["status"];
 	templates: TemplateQuery["data"];
 	canCreateTemplate: boolean;
+	canCreateWorkspace: boolean;
 	canChangeVersions: boolean;
 	onActionSuccess: () => Promise<void>;
 	onActionError: (error: unknown) => void;
@@ -75,6 +76,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
+	canCreateWorkspace,
 	canChangeVersions,
 	onActionSuccess,
 	onActionError,
@@ -89,12 +91,14 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 		<Margins className="pb-12">
 			<PageHeader
 				actions={
-					<WorkspacesButton
-						templates={templates}
-						templatesFetchStatus={templatesFetchStatus}
-					>
-						New workspace
-					</WorkspacesButton>
+					canCreateWorkspace && (
+						<WorkspacesButton
+							templates={templates}
+							templatesFetchStatus={templatesFetchStatus}
+						>
+							New workspace
+						</WorkspacesButton>
+					)
 				}
 			>
 				<PageHeaderTitle>
@@ -167,7 +171,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								</DropdownMenuItem>
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>
-									<CloudIcon
+									<RotateCcwIcon
 										className="size-icon-sm"
 										data-testid="bulk-action-update"
 									/>{" "}
@@ -212,6 +216,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 			) : (
 				<WorkspacesTable
 					canCreateTemplate={canCreateTemplate}
+					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
 					isUsingFilter={filterState.filter.used}
 					checkedWorkspaces={checkedWorkspaces}
