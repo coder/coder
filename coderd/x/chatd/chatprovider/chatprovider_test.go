@@ -760,6 +760,39 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 			}}},
 		},
 		{
+			name: "ProviderWithoutConfiguredModelUsesEmptyArray",
+			configuredProviders: []chatprovider.ConfiguredProvider{
+				configuredProvider(fantasyanthropic.Name, "sk-anthropic"),
+				configuredProvider(fantasyopenai.Name, "sk-openai"),
+			},
+			configuredModels: []chatprovider.ConfiguredModel{{
+				Provider: fantasyanthropic.Name,
+				Model:    "claude-3-5-sonnet",
+			}},
+			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
+				fantasyanthropic.Name: {Available: true},
+				fantasyopenai.Name:    {Available: true},
+			},
+			enabledProviders: enabledProviders(fantasyanthropic.Name, fantasyopenai.Name),
+			want: codersdk.ChatModelAvailabilityResponse{Providers: []codersdk.ChatModelProvider{
+				{
+					Provider:  fantasyanthropic.Name,
+					Available: true,
+					Models: []codersdk.ChatModelCatalogEntry{{
+						ID:          fantasyanthropic.Name + ":claude-3-5-sonnet",
+						Provider:    fantasyanthropic.Name,
+						Model:       "claude-3-5-sonnet",
+						DisplayName: "claude-3-5-sonnet",
+					}},
+				},
+				{
+					Provider:  fantasyopenai.Name,
+					Available: true,
+					Models:    []codersdk.ChatModelCatalogEntry{},
+				},
+			}},
+		},
+		{
 			name: "MissingAvailabilityDefaultsToMissingAPIKey",
 			configuredProviders: []chatprovider.ConfiguredProvider{
 				configuredProvider(fantasyopenai.Name, "sk-central"),
@@ -797,6 +830,42 @@ func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestListConfiguredModels_EmptyModelsJSON(t *testing.T) {
+	t.Parallel()
+
+	catalog := chatprovider.NewModelCatalog()
+	response, ok := catalog.ListConfiguredModels(
+		[]chatprovider.ConfiguredProvider{
+			{ProviderID: uuid.New(), Provider: fantasyanthropic.Name, APIKey: "anthropic-key"},
+			{ProviderID: uuid.New(), Provider: fantasyopenai.Name, APIKey: "openai-key"},
+		},
+		[]chatprovider.ConfiguredModel{{Provider: fantasyanthropic.Name, Model: "claude-3-5-sonnet"}},
+		map[string]chatprovider.ProviderAvailability{
+			fantasyanthropic.Name: {Available: true},
+			fantasyopenai.Name:    {Available: true},
+		},
+		map[string]struct{}{fantasyanthropic.Name: {}, fantasyopenai.Name: {}},
+	)
+	require.True(t, ok)
+
+	encoded, err := json.Marshal(response)
+	require.NoError(t, err)
+	var wire struct {
+		Providers []struct {
+			Provider string          `json:"provider"`
+			Models   json.RawMessage `json:"models"`
+		} `json:"providers"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	for _, provider := range wire.Providers {
+		if provider.Provider == fantasyopenai.Name {
+			require.JSONEq(t, `[]`, string(provider.Models))
+			return
+		}
+	}
+	t.Fatal("openai provider not found")
 }
 
 func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {

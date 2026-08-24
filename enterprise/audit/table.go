@@ -35,6 +35,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatModelConfig":               {codersdk.AuditActionWrite},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -501,6 +502,26 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runner_id":                   ActionIgnore, // Internal ownership identifier.
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
+	},
+	&database.ChatModelConfig{}: {
+		"id":                    ActionIgnore, // Conveyed by resource_id.
+		"model":                 ActionTrack,
+		"display_name":          ActionTrack,
+		"created_by":            ActionTrack,
+		"updated_by":            ActionTrack,
+		"enabled":               ActionTrack,
+		"is_default":            ActionTrack,
+		"deleted":               ActionTrack,
+		"deleted_at":            ActionIgnore,
+		"created_at":            ActionIgnore,
+		"updated_at":            ActionIgnore,
+		"context_limit":         ActionTrack,
+		"compression_threshold": ActionTrack,
+		"options":               ActionTrack,
+		"ai_provider_id":        ActionTrack,
+		"organization_id":       ActionIgnore,
+		"group_acl":             ActionTrack,
+		"user_acl":              ActionTrack,
 	},
 	&database.MCPServerConfig{}: {
 		"id":                          ActionIgnore, // Conveyed by resource_id, not useful in a diff.
