@@ -184,6 +184,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
 		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
+		DisableUserSecretFilePath: api.DeploymentValues.DisableUserSecretFilePath.Value(),
 		DerpMapUpdateFrequency:    api.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,

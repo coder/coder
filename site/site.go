@@ -84,6 +84,11 @@ type Options struct {
 	Logger            slog.Logger
 	AITasksEnabled    bool
 	AIGatewayEnabled  bool
+	// UserSecretFilePathEnabled reports whether users may target a
+	// workspace file path when creating secrets. It is the positive form
+	// of the deployment's disable option so the dashboard reads a
+	// capability rather than a prohibition.
+	UserSecretFilePathEnabled bool
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -269,8 +274,10 @@ type htmlState struct {
 
 	AITasksEnabled   string
 	AIGatewayEnabled string
-	Permissions      string
-	Organizations    string
+	// UserSecretFilePathEnabled is a JSON boolean rather than a struct.
+	UserSecretFilePathEnabled string
+	Permissions               string
+	Organizations             string
 }
 
 type csrfState struct {
@@ -526,6 +533,12 @@ func (h *Handler) populateHTMLState(
 		data, err := json.Marshal(h.opts.AIGatewayEnabled)
 		if err == nil {
 			state.AIGatewayEnabled = html.EscapeString(string(data))
+		}
+	})
+	wg.Go(func() {
+		data, err := json.Marshal(h.opts.UserSecretFilePathEnabled)
+		if err == nil {
+			state.UserSecretFilePathEnabled = html.EscapeString(string(data))
 		}
 	})
 	wg.Go(func() {

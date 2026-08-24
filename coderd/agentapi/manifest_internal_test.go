@@ -7,8 +7,101 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
+
+func Test_dbUserSecretsToProto(t *testing.T) {
+	t.Parallel()
+
+	// One row per injection shape, reused by every case so the
+	// expectations below differ only by policy.
+	var (
+		envOnly    = database.UserSecret{Name: "env-only", EnvName: "ENV_ONLY", Value: "env-val", Enabled: true}
+		fileOnly   = database.UserSecret{Name: "file-only", FilePath: "~/.ssh/id_rsa", Value: "file-val", Enabled: true}
+		dualTarget = database.UserSecret{Name: "dual", EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: "dual-val", Enabled: true}
+		// A disabled row is never injected regardless of policy. Its
+		// file target proves the policy is not what filters it out.
+		disabled = database.UserSecret{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"}
+	)
+
+	secrets := []database.UserSecret{envOnly, fileOnly, dualTarget, disabled}
+
+	cases := []struct {
+		name                      string
+		disableUserSecretFilePath bool
+		expected                  []*agentproto.WorkspaceSecret
+	}{
+		{
+			name:                      "PolicyOff",
+			disableUserSecretFilePath: false,
+			expected: []*agentproto.WorkspaceSecret{
+				{EnvName: "ENV_ONLY", FilePath: "", Value: []byte("env-val")},
+				{EnvName: "", FilePath: "~/.ssh/id_rsa", Value: []byte("file-val")},
+				{EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: []byte("dual-val")},
+			},
+		},
+		{
+			name:                      "PolicyOn",
+			disableUserSecretFilePath: true,
+			expected: []*agentproto.WorkspaceSecret{
+				// Env-only is untouched by the policy.
+				{EnvName: "ENV_ONLY", FilePath: "", Value: []byte("env-val")},
+				// The dual-target secret keeps its env injection and
+				// loses only the file target.
+				{EnvName: "DUAL_ENV", FilePath: "", Value: []byte("dual-val")},
+				// The file-only secret is dropped entirely so its
+				// plaintext value is never transmitted.
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			policy := userSecretFilePathAllowed
+			if c.disableUserSecretFilePath {
+				policy = userSecretFilePathBlocked
+			}
+			got := dbUserSecretsToProto(secrets, policy)
+			require.Len(t, got, len(c.expected))
+			for i, want := range c.expected {
+				require.Equal(t, want.EnvName, got[i].EnvName, "secret %d env_name", i)
+				require.Equal(t, want.FilePath, got[i].FilePath, "secret %d file_path", i)
+				require.Equal(t, want.Value, got[i].Value, "secret %d value", i)
+			}
+		})
+	}
+
+	t.Run("PolicyOnDoesNotTransmitFileOnlyValues", func(t *testing.T) {
+		t.Parallel()
+
+		// Guards the plaintext contract directly: no part of a file-only
+		// secret may reach the manifest under the policy.
+		for _, secret := range dbUserSecretsToProto(secrets, userSecretFilePathBlocked) {
+			require.NotEqual(t, []byte("file-val"), secret.Value)
+			require.Empty(t, secret.FilePath)
+		}
+	})
+
+	t.Run("PolicyOffRestoresStoredTargets", func(t *testing.T) {
+		t.Parallel()
+
+		// The policy only filters the outbound manifest, so turning it
+		// back off yields the stored targets again on the next fetch
+		// without any change to the rows.
+		before := dbUserSecretsToProto(secrets, userSecretFilePathAllowed)
+		_ = dbUserSecretsToProto(secrets, userSecretFilePathBlocked)
+		after := dbUserSecretsToProto(secrets, userSecretFilePathAllowed)
+
+		require.Equal(t, before, after)
+		require.Len(t, after, 3)
+		require.Equal(t, "~/.ssh/id_rsa", after[1].FilePath)
+		require.Equal(t, "/etc/dual", after[2].FilePath)
+	})
+}
 
 func Test_vscodeProxyURI(t *testing.T) {
 	t.Parallel()

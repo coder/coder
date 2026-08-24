@@ -477,6 +477,57 @@ func TestOrganizationsMetadata(t *testing.T) {
 	assert.NotContains(t, memberOrgIDs, deletedOrg.ID)
 }
 
+func TestUserSecretFilePathEnabledMetadata(t *testing.T) {
+	t.Parallel()
+
+	// The dashboard reads this as a positive capability, so the
+	// metadata is the negation of the deployment's disable option.
+	for _, tc := range []struct {
+		name     string
+		enabled  bool
+		expected string
+	}{
+		{name: "Enabled", enabled: true, expected: "true"},
+		{name: "Disabled", enabled: false, expected: "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// GIVEN: a site handler configured with the capability and a
+			// template that renders only that metadata value.
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte("{{ .UserSecretFilePathEnabled }}"),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			handler, err := site.New(&site.Options{
+				Telemetry:                 telemetry.NewNoop(),
+				Database:                  db,
+				SiteFS:                    siteFS,
+				UserSecretFilePathEnabled: tc.enabled,
+			})
+			require.NoError(t, err)
+
+			user := dbgen.User(t, db, database.User{})
+			_, token := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				ExpiresAt: time.Now().Add(time.Hour),
+			})
+
+			// WHEN: an authenticated user loads the page.
+			r := httptest.NewRequest("GET", "/", nil)
+			r.Header.Set(codersdk.SessionTokenHeader, token)
+			rw := httptest.NewRecorder()
+			handler.ServeHTTP(rw, r)
+
+			// THEN: the metadata renders as a JSON boolean.
+			require.Equal(t, http.StatusOK, rw.Code)
+			require.Equal(t, tc.expected, strings.TrimSpace(rw.Body.String()))
+		})
+	}
+}
+
 func TestCaching(t *testing.T) {
 	t.Parallel()
 

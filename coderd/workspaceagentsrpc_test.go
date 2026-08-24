@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -168,6 +169,60 @@ func TestAgentAPI_LargeManifest(t *testing.T) {
 			require.Len(t, manifest.Scripts[0].Script, n)
 		})
 	}
+}
+
+func TestWorkspaceAgentRPCUserSecretFilePathDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	deploymentValues := coderdtest.DeploymentValues(t)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: deploymentValues,
+	})
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name:    "env-only",
+		Value:   "env-value",
+		EnvName: "ENV_ONLY",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name:     "file-only",
+		Value:    "file-value",
+		FilePath: "~/.file-only",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name:     "dual-target",
+		Value:    "dual-value",
+		EnvName:  "DUAL_TARGET",
+		FilePath: "~/.dual-target",
+	})
+	require.NoError(t, err)
+
+	deploymentValues.DisableUserSecretFilePath = true
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: owner.OrganizationID,
+		OwnerID:        owner.UserID,
+	}).WithAgent().Do()
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(workspace.AgentToken))
+	conn, err := agentClient.ConnectRPC(ctx)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	manifest, err := agentproto.NewDRPCAgentClient(conn).GetManifest(ctx, &agentproto.GetManifestRequest{})
+	require.NoError(t, err)
+	require.Len(t, manifest.Secrets, 2)
+	secretsByEnv := make(map[string]*agentproto.WorkspaceSecret, len(manifest.Secrets))
+	for _, secret := range manifest.Secrets {
+		secretsByEnv[secret.EnvName] = secret
+		require.Empty(t, secret.FilePath)
+		require.NotEqual(t, []byte("file-value"), secret.Value)
+	}
+	require.Equal(t, []byte("env-value"), secretsByEnv["ENV_ONLY"].Value)
+	require.Equal(t, []byte("dual-value"), secretsByEnv["DUAL_TARGET"].Value)
 }
 
 func TestWorkspaceAgentRPCRole(t *testing.T) {

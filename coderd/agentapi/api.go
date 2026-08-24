@@ -102,6 +102,7 @@ type Options struct {
 	AgentStatsRefreshInterval time.Duration
 	DisableDirectConnections  bool
 	DerpForceWebSockets       bool
+	DisableUserSecretFilePath bool
 	DerpMapUpdateFrequency    time.Duration
 	ExternalAuthConfigs       []*externalauth.Config
 	Experiments               codersdk.Experiments
@@ -120,15 +121,16 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.ManifestAPI = &ManifestAPI{
-		AccessURL:                opts.AccessURL,
-		AppHostname:              opts.AppHostname,
-		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
-		DisableDirectConnections: opts.DisableDirectConnections,
-		DerpForceWebSockets:      opts.DerpForceWebSockets,
-		AgentFn:                  api.agent,
-		Database:                 opts.Database,
-		DerpMapFn:                opts.DerpMapFn,
-		WorkspaceID:              opts.WorkspaceID,
+		AccessURL:                 opts.AccessURL,
+		AppHostname:               opts.AppHostname,
+		ExternalAuthConfigs:       opts.ExternalAuthConfigs,
+		DisableDirectConnections:  opts.DisableDirectConnections,
+		DerpForceWebSockets:       opts.DerpForceWebSockets,
+		DisableUserSecretFilePath: opts.DisableUserSecretFilePath,
+		AgentFn:                   api.agent,
+		Database:                  opts.Database,
+		DerpMapFn:                 opts.DerpMapFn,
+		WorkspaceID:               opts.WorkspaceID,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated

@@ -496,6 +496,69 @@ func TestGetManifest(t *testing.T) {
 		require.Equal(t, []byte("both-val"), got.Secrets[2].Value)
 	})
 
+	t.Run("SecretsFilePathDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+
+		api := &agentapi.ManifestAPI{
+			AccessURL:   &url.URL{Scheme: "https", Host: "example.com"},
+			AppHostname: "*--apps.example.com",
+			ExternalAuthConfigs: []*externalauth.Config{
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitHub)},
+				{Type: "some-provider"},
+				{Type: string(codersdk.EnhancedExternalAuthProviderGitLab)},
+			},
+			DisableDirectConnections:  true,
+			DerpForceWebSockets:       true,
+			DisableUserSecretFilePath: true,
+
+			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return childAgent, nil },
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
+		}
+
+		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceApp{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentScriptsByAgentIDs(gomock.Any(), []uuid.UUID{childAgent.ID}).Return([]database.GetWorkspaceAgentScriptsByAgentIDsRow{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentMetadata(gomock.Any(), database.GetWorkspaceAgentMetadataParams{
+			WorkspaceAgentID: childAgent.ID,
+			Keys:             nil,
+		}).Return([]database.WorkspaceAgentMetadatum{}, nil)
+		mDB.EXPECT().GetWorkspaceAgentDevcontainersByAgentID(gomock.Any(), childAgent.ID).Return([]database.WorkspaceAgentDevcontainer{}, nil)
+		mDB.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil)
+
+		mDB.EXPECT().ListUserSecretsWithValues(gomock.Any(), workspace.OwnerID).Return([]database.UserSecret{
+			{EnvName: "GITHUB_TOKEN", FilePath: "", Value: "ghp_xxxx", Enabled: true},
+			{EnvName: "", FilePath: "~/.ssh/id_rsa", Value: "private-key", Enabled: true},
+			{EnvName: "BOTH_ENV", FilePath: "/etc/both", Value: "both-val", Enabled: true},
+			{EnvName: "DISABLED_ENV", FilePath: "", Value: "disabled-val", Enabled: false},
+		}, nil)
+
+		got, err := api.GetManifest(context.Background(), &agentproto.GetManifestRequest{})
+		require.NoError(t, err)
+
+		// The disabled secret is filtered out as always, and the
+		// file-only secret is dropped because its sole injection
+		// target is disallowed.
+		require.Len(t, got.Secrets, 2)
+		require.Equal(t, "GITHUB_TOKEN", got.Secrets[0].EnvName)
+		require.Equal(t, "", got.Secrets[0].FilePath)
+		require.Equal(t, []byte("ghp_xxxx"), got.Secrets[0].Value)
+
+		// The dual-target secret keeps env injection with the file
+		// target cleared.
+		require.Equal(t, "BOTH_ENV", got.Secrets[1].EnvName)
+		require.Equal(t, "", got.Secrets[1].FilePath)
+		require.Equal(t, []byte("both-val"), got.Secrets[1].Value)
+
+		// The file-only secret's plaintext value must not be
+		// transmitted at all.
+		for _, secret := range got.Secrets {
+			require.NotEqual(t, []byte("private-key"), secret.Value)
+		}
+	})
+
 	t.Run("NoAppHostname", func(t *testing.T) {
 		t.Parallel()
 
