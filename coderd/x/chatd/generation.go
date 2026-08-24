@@ -824,6 +824,30 @@ func (s *taskStarter) admitStepToolCalls(
 	return preflight, nil
 }
 
+// bufferToolBillingRecorder implements chatloop.ToolBillingRecorder by
+// stamping tool starts and completions on the attempt's buffer episode.
+// It translates dispatch-order indexes back to unresolved-call positions
+// so rejected gaps and duplicate tool-call IDs remain distinct.
+type bufferToolBillingRecorder struct {
+	allowedIndexes []int
+	recordStart    func(callIndex int, startedAt time.Time)
+	recordComplete func(callIndex int, completedAt time.Time)
+}
+
+func (r *bufferToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordStart(r.allowedIndexes[dispatchIndex], startedAt)
+}
+
+func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
+}
+
 func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -863,22 +887,12 @@ func (s *taskStarter) executeLocalTools(
 	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
-		var onToolStart func(int, time.Time)
-		var onToolComplete func(int, time.Time)
+		var billingRecorder chatloop.ToolBillingRecorder
 		if !exclusiveRejected {
-			// Translate dispatch-order callbacks back to unresolved-call
-			// positions so rejected gaps and duplicate IDs remain distinct.
-			onToolStart = func(dispatchIndex int, startedAt time.Time) {
-				if dispatchIndex < 0 || dispatchIndex >= len(allowedIndexes) {
-					return
-				}
-				attempt.recordToolStart(allowedIndexes[dispatchIndex], startedAt)
-			}
-			onToolComplete = func(dispatchIndex int, completedAt time.Time) {
-				if dispatchIndex < 0 || dispatchIndex >= len(allowedIndexes) {
-					return
-				}
-				attempt.recordToolCompletion(allowedIndexes[dispatchIndex], completedAt)
+			billingRecorder = &bufferToolBillingRecorder{
+				allowedIndexes: allowedIndexes,
+				recordStart:    attempt.recordToolStart,
+				recordComplete: attempt.recordToolCompletion,
 			}
 		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
@@ -895,8 +909,7 @@ func (s *taskStarter) executeLocalTools(
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
-			OnToolStart:        onToolStart,
-			OnToolComplete:     onToolComplete,
+			BillingRecorder:    billingRecorder,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
