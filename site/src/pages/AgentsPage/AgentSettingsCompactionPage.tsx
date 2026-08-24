@@ -47,7 +47,7 @@ const AgentSettingsCompactionPage: FC = () => {
 				new Map(
 					organizations.map((organization) => [
 						organization.id,
-						organization.display_name,
+						organization.display_name || organization.name,
 					]),
 				)
 			}

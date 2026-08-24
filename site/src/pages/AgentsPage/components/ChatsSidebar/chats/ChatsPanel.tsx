@@ -67,6 +67,7 @@ interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
+	readonly isLoadingModelConfigs: boolean;
 	readonly onArchiveAgent: (chatId: string) => void;
 	readonly onUnarchiveAgent: (chatId: string) => void;
 	readonly onArchiveAndDeleteWorkspace: (
@@ -102,6 +103,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	chats,
 	chatErrorReasons,
 	modelConfigs,
+	isLoadingModelConfigs,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -294,6 +296,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 		normalizedSearch: "",
 		expandedById,
 		modelConfigs,
+		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,

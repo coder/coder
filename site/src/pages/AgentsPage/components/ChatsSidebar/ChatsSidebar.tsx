@@ -15,6 +15,7 @@ interface ChatsSidebarProps {
 	chats: readonly Chat[];
 	chatErrorReasons: Record<string, string>;
 	modelConfigs: readonly ChatModel[];
+	isLoadingModelConfigs?: boolean;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -56,6 +57,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		chats,
 		chatErrorReasons,
 		modelConfigs,
+		isLoadingModelConfigs = false,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -121,6 +123,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
+				isLoadingModelConfigs={isLoadingModelConfigs}
 				onArchiveAgent={onArchiveAgent}
 				onUnarchiveAgent={onUnarchiveAgent}
 				onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}

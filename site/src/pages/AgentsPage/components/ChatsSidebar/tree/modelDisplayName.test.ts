@@ -18,6 +18,10 @@ describe("getModelDisplayName", () => {
 		).toBe("Default model");
 	});
 
+	it("defers the unavailable fallback while models are loading", () => {
+		expect(getModelDisplayName("foreign-model", [], true)).toBeUndefined();
+	});
+
 	it("shows Unavailable model for an unknown non-empty historical ID", () => {
 		expect(getModelDisplayName("foreign-model", [])).toBe("Unavailable model");
 	});

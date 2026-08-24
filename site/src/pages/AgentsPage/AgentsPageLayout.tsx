@@ -754,6 +754,7 @@ const AgentsPageLayout: FC = () => {
 						currentUserId={user.id}
 						chatErrorReasons={sidebarChatErrorReasons}
 						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
 						onArchiveAgent={requestArchiveAgent}
 						onUnarchiveAgent={requestUnarchiveAgent}
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}

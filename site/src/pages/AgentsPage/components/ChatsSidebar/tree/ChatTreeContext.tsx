@@ -9,6 +9,7 @@ export interface ChatTreeContextValue {
 	readonly normalizedSearch: string;
 	readonly expandedById: Record<string, boolean>;
 	readonly modelConfigs: readonly ChatModel[];
+	readonly isLoadingModelConfigs: boolean;
 	readonly chatErrorReasons: Record<string, string>;
 	readonly activeChatId: string | undefined;
 	readonly isArchiving: boolean;

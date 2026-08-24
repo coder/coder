@@ -581,6 +581,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{mcpServersQuery.data === undefined &&
+						mcpServersQuery.error != null && (
+							<ErrorAlert error={mcpServersQuery.error} />
+						)}
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}

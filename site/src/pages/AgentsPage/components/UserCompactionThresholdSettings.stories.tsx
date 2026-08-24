@@ -9,6 +9,12 @@ import {
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
+const organizationWithEmptyDisplayName = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+	display_name: "",
+};
+
 const mockModels: TypesGen.ChatModel[] = [
 	{
 		...MockChatModel,
@@ -82,9 +88,15 @@ export const Default: Story = {
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
 		// Each badge announces provider + model (the icon itself is decorative).
-		expect(canvas.getByLabelText("OpenAI GPT-4o")).toBeInTheDocument();
 		expect(
-			canvas.getByLabelText("Anthropic Claude Sonnet"),
+			canvas.getByLabelText(
+				`OpenAI GPT-4o in ${MockDefaultOrganization.display_name}`,
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByLabelText(
+				`Anthropic Claude Sonnet in ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeInTheDocument();
 
 		// No footer visible when nothing is dirty
@@ -99,6 +111,35 @@ export const Default: Story = {
 				canvas.getByRole("button", { name: /Save 1 change/i }),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
+	args: {
+		organizationNameByID: new Map<string, string>([
+			[
+				organizationWithEmptyDisplayName.id,
+				organizationWithEmptyDisplayName.display_name ||
+					organizationWithEmptyDisplayName.name,
+			],
+		]),
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getAllByText(organizationWithEmptyDisplayName.name).length,
+		).toBeGreaterThan(0);
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${organizationWithEmptyDisplayName.name}`,
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("button", {
+				name: `Reset GPT-4o for ${organizationWithEmptyDisplayName.name} to default`,
+			}),
+		).toBeVisible();
 	},
 };
 

@@ -5,6 +5,7 @@ import { asString } from "../../ChatElements/runtimeTypeUtils";
 export const getModelDisplayName = (
 	lastModelConfigID: Chat["last_model_config_id"] | undefined,
 	modelConfigs: readonly ChatModel[],
+	isLoadingModelConfigs = false,
 ) => {
 	if (isUnsetModelRef(lastModelConfigID)) {
 		return "Default model";
@@ -15,7 +16,7 @@ export const getModelDisplayName = (
 		(config) => config.id === normalizedModelConfigID,
 	);
 	if (!modelConfig) {
-		return "Unavailable model";
+		return isLoadingModelConfigs ? undefined : "Unavailable model";
 	}
 
 	const displayName = asString(modelConfig.display_name).trim();

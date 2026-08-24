@@ -2083,10 +2083,9 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 			throw new Error("query client was not captured by the story decorator");
 		}
 		await capturedQueryClient.refetchQueries();
-		const matches = await canvas.findAllByText(
-			/failed to refresh mcp servers/i,
-		);
-		expect(matches.length).toBeGreaterThan(0);
+		expect(
+			canvas.queryByText(/failed to refresh mcp servers/i),
+		).not.toBeInTheDocument();
 		expect(send).toBeEnabled();
 	},
 };

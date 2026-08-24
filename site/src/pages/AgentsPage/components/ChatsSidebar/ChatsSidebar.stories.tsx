@@ -144,6 +144,48 @@ const ChatsSidebarWithKeybindings = (
 	);
 };
 
+const ChatsSidebarWithDeferredModels = (
+	args: ComponentProps<typeof ChatsSidebar>,
+) => {
+	const [modelsResolved, setModelsResolved] = useState(false);
+
+	useEffect(() => {
+		const timeoutID = window.setTimeout(() => setModelsResolved(true), 500);
+		return () => window.clearTimeout(timeoutID);
+	}, []);
+
+	return (
+		<ChatsSidebar
+			{...args}
+			modelConfigs={modelsResolved ? defaultModelConfigs : []}
+			isLoadingModelConfigs={!modelsResolved}
+		/>
+	);
+};
+
+export const ModelNameWaitsForModelsToLoad: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-models-loading",
+				title: "Chat loaded before models",
+			}),
+		],
+	},
+	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Chat loaded before models")).toBeVisible();
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+
+		await waitFor(() => expect(canvas.getByText("GPT-4o")).toBeVisible(), {
+			timeout: 3000,
+		});
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+	},
+};
+
 export const UnavailableHistoricalModel: Story = {
 	args: {
 		chats: [
