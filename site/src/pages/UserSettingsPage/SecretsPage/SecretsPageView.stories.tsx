@@ -9,6 +9,7 @@ import {
 } from "#/api/typesGenerated";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockDisabledFileOnlyUserSecret,
 	MockImportedUserSecrets,
 	MockUserSecrets,
 	mockApiError,
@@ -929,5 +930,359 @@ export const ToggleEnabledDisabledForTargetlessSecret: Story = {
 		});
 		await expect(toggle).not.toBeChecked();
 		await expect(toggle).toBeDisabled();
+	},
+};
+
+const FILE_PATH_DISABLED_NOTICE =
+	/Your deployment administrator disabled file path secrets/;
+const fileOnlySecret = findVisibleSecretByName("config-json");
+const dualTargetSecret = findVisibleSecretByName("SERVICE_API_KEY");
+const filePathDisabledSecrets = [
+	...visibleSecrets,
+	MockDisabledFileOnlyUserSecret,
+];
+
+export const FilePathEnabled: Story = {
+	args: {
+		filePathEnabled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await expect(canvas.queryByText(FILE_PATH_DISABLED_NOTICE)).toBeNull();
+		const fileOnlyRow = within(
+			canvas.getByRole("row", { name: new RegExp(fileOnlySecret.name) }),
+		);
+		await expect(fileOnlyRow.getByText("file")).toBeVisible();
+		await expect(
+			fileOnlyRow.queryByText("Saved, not written to workspaces"),
+		).toBeNull();
+		await expect(canvas.getByText("env var + file")).toBeVisible();
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await expect(dialog.getByLabelText("File path")).toBeEnabled();
+	},
+};
+
+export const FilePathFallsBackToEnabledWithoutMetadata: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		// No `filePathEnabled` arg stands in for a deployment that does not
+		// report the setting, which must keep file paths available.
+		await expect(canvas.queryByText(FILE_PATH_DISABLED_NOTICE)).toBeNull();
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await expect(dialog.getByLabelText("File path")).toBeEnabled();
+	},
+};
+
+export const FilePathDisabledSecretsTable: Story = {
+	args: {
+		filePathEnabled: false,
+		secrets: filePathDisabledSecrets,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByText(FILE_PATH_DISABLED_NOTICE)).toBeVisible();
+
+		const dualTargetRow = within(
+			canvas.getByRole("row", { name: new RegExp(dualTargetSecret.name) }),
+		);
+		await expect(dualTargetRow.getByText("env var")).toBeVisible();
+		await expect(
+			dualTargetRow.getByText(dualTargetSecret.file_path),
+		).toBeVisible();
+		await expect(
+			dualTargetRow.getByRole("switch", {
+				name: `Toggle secret ${dualTargetSecret.name}`,
+			}),
+		).toBeChecked();
+
+		const fileOnlyRow = within(
+			canvas.getByRole("row", { name: new RegExp(fileOnlySecret.name) }),
+		);
+		await expect(fileOnlyRow.getByText("not injected")).toBeVisible();
+		await expect(fileOnlyRow.getByText(fileOnlySecret.file_path)).toBeVisible();
+		await expect(
+			fileOnlyRow.getByText("Saved, not written to workspaces"),
+		).toBeVisible();
+
+		await expect(canvas.queryByText("env var + file")).toBeNull();
+		await expect(canvas.queryByText("file")).toBeNull();
+	},
+};
+
+const filePathDisabledCreateSecret = fn<
+	(request: CreateUserSecretRequest) => Promise<UserSecret>
+>(async (request) => createSecretFromRequest(request));
+
+export const FilePathDisabledAddSecretOmitsFileTarget: Story = {
+	args: {
+		filePathEnabled: false,
+		onCreateSecret: filePathDisabledCreateSecret,
+	},
+	beforeEach: () => {
+		filePathDisabledCreateSecret.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await expect(dialog.queryByLabelText("File path")).toBeNull();
+		await expect(dialog.queryByText("File path")).toBeNull();
+		await expect(dialog.getByLabelText("Environment variable")).toBeRequired();
+
+		await user.type(dialog.getByLabelText("Name"), "example-secret");
+		await user.type(
+			dialog.getByLabelText("Environment variable"),
+			"EXAMPLE_SECRET",
+		);
+		await user.type(dialog.getByLabelText("Value"), PLACEHOLDER_INPUT);
+		await user.click(dialog.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(filePathDisabledCreateSecret).toHaveBeenCalledTimes(1),
+		);
+		expect(filePathDisabledCreateSecret).toHaveBeenCalledWith({
+			name: "example-secret",
+			env_name: "EXAMPLE_SECRET",
+			value: PLACEHOLDER_INPUT,
+		});
+		await waitForDialogToClose(body);
+	},
+};
+
+const filePathDisabledKeepStoredPath = fn<
+	(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
+>(async (name) => findVisibleSecretByName(name));
+
+export const FilePathDisabledKeepsStoredPathOnUnrelatedEdit: Story = {
+	args: {
+		filePathEnabled: false,
+		onUpdateSecret: filePathDisabledKeepStoredPath,
+	},
+	beforeEach: () => {
+		filePathDisabledKeepStoredPath.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${fileOnlySecret.name}`,
+			}),
+		);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret" }),
+		);
+
+		const dialog = within(await body.findByRole("dialog"));
+		await expect(dialog.queryByLabelText("File path")).toBeNull();
+		await waitFor(() =>
+			expect(dialog.getByText(fileOnlySecret.file_path)).toBeVisible(),
+		);
+		expect(dialog.getByText(FILE_PATH_DISABLED_NOTICE)).toBeVisible();
+		expect(
+			dialog.getByText(
+				"Environment variable delivery remains available while file path delivery is disabled.",
+			),
+		).toBeVisible();
+
+		const description = dialog.getByLabelText("Description");
+		await user.clear(description);
+		await user.type(description, "Still stored, not written");
+		await user.click(dialog.getByRole("button", { name: "Update" }));
+
+		await waitFor(() =>
+			expect(filePathDisabledKeepStoredPath).toHaveBeenCalledTimes(1),
+		);
+		expect(filePathDisabledKeepStoredPath).toHaveBeenCalledWith(
+			fileOnlySecret.name,
+			{ description: "Still stored, not written" },
+		);
+		await waitForDialogToClose(body);
+	},
+};
+
+const filePathDisabledRemoveStoredPath = fn<
+	(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
+>(async (name) => findVisibleSecretByName(name));
+
+export const FilePathDisabledRemovesStoredPath: Story = {
+	args: {
+		filePathEnabled: false,
+		onUpdateSecret: filePathDisabledRemoveStoredPath,
+	},
+	beforeEach: () => {
+		filePathDisabledRemoveStoredPath.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${fileOnlySecret.name}`,
+			}),
+		);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret" }),
+		);
+
+		const dialog = within(await body.findByRole("dialog"));
+		const updateButton = dialog.getByRole("button", { name: "Update" });
+		await expect(updateButton).toBeDisabled();
+
+		await user.click(dialog.getByRole("button", { name: "Remove file path" }));
+		await expect(
+			dialog.getByText(
+				"File path will be removed when you update. If this enabled secret has no environment variable, the same update will disable it.",
+			),
+		).toBeVisible();
+		await expect(updateButton).toBeEnabled();
+
+		await user.click(dialog.getByRole("button", { name: "Keep file path" }));
+		await expect(updateButton).toBeDisabled();
+
+		await user.click(dialog.getByRole("button", { name: "Remove file path" }));
+		await user.click(updateButton);
+
+		await waitFor(() =>
+			expect(filePathDisabledRemoveStoredPath).toHaveBeenCalledTimes(1),
+		);
+		expect(filePathDisabledRemoveStoredPath).toHaveBeenCalledWith(
+			fileOnlySecret.name,
+			{ file_path: "", enabled: false },
+		);
+		await waitForDialogToClose(body);
+	},
+};
+
+const filePathDisabledToggleSecret = fn<
+	(secret: UserSecret, enabled: boolean) => Promise<void>
+>(async () => {});
+
+export const FilePathDisabledBlocksEnablingFileOnlySecret: Story = {
+	args: {
+		filePathEnabled: false,
+		secrets: filePathDisabledSecrets,
+		onToggleSecretEnabled: filePathDisabledToggleSecret,
+	},
+	beforeEach: () => {
+		filePathDisabledToggleSecret.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		const toggle = canvas.getByRole("switch", {
+			name: `Toggle secret ${MockDisabledFileOnlyUserSecret.name}`,
+		});
+		await expect(toggle).not.toBeChecked();
+		await expect(toggle).toBeDisabled();
+
+		await user.click(toggle);
+		expect(filePathDisabledToggleSecret).not.toHaveBeenCalled();
+
+		await user.hover(toggle);
+		await waitFor(() => {
+			const [tooltip] = body.getAllByText(
+				"Add an environment variable before enabling this secret. Your deployment administrator disabled file path secrets.",
+			);
+			expect(tooltip).toBeVisible();
+		});
+	},
+};
+
+const filePathDisabledAddEnvName = fn<
+	(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
+>(async () => MockDisabledFileOnlyUserSecret);
+
+export const FilePathDisabledAddsEnvNameToFileOnlySecret: Story = {
+	args: {
+		filePathEnabled: false,
+		secrets: filePathDisabledSecrets,
+		onUpdateSecret: filePathDisabledAddEnvName,
+	},
+	beforeEach: () => {
+		filePathDisabledAddEnvName.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${MockDisabledFileOnlyUserSecret.name}`,
+			}),
+		);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret" }),
+		);
+
+		const dialog = within(await body.findByRole("dialog"));
+		const envField = dialog.getByLabelText("Environment variable");
+		await user.click(envField);
+		await user.type(envField, "LEGACY_KUBECONFIG");
+		await waitFor(() => expect(envField).toHaveValue("LEGACY_KUBECONFIG"));
+		await user.click(dialog.getByRole("button", { name: "Update" }));
+
+		await waitFor(() =>
+			expect(filePathDisabledAddEnvName).toHaveBeenCalledTimes(1),
+		);
+		expect(filePathDisabledAddEnvName).toHaveBeenCalledWith(
+			MockDisabledFileOnlyUserSecret.name,
+			{ env_name: "LEGACY_KUBECONFIG" },
+		);
+		await waitForDialogToClose(body);
+	},
+};
+
+const filePathDisabledDeleteSecret = fn<(secret: UserSecret) => void>();
+
+export const FilePathDisabledDeletesFileOnlySecret: Story = {
+	args: {
+		filePathEnabled: false,
+		secrets: filePathDisabledSecrets,
+		onDeleteSecret: filePathDisabledDeleteSecret,
+	},
+	beforeEach: () => {
+		filePathDisabledDeleteSecret.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${MockDisabledFileOnlyUserSecret.name}`,
+			}),
+		);
+		await user.click(await body.findByRole("menuitem", { name: "Delete" }));
+		await user.click(await body.findByRole("button", { name: "Delete" }));
+
+		await waitFor(() =>
+			expect(filePathDisabledDeleteSecret).toHaveBeenCalledTimes(1),
+		);
+		expect(filePathDisabledDeleteSecret).toHaveBeenCalledWith(
+			MockDisabledFileOnlyUserSecret,
+		);
+		await waitForDialogToClose(body);
 	},
 };

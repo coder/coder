@@ -627,6 +627,20 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+// A file-only secret that its owner disabled. While a deployment blocks
+// file-path secrets it stays ineligible for enabling until it gains an
+// environment variable target.
+export const MockDisabledFileOnlyUserSecret: TypesGen.UserSecret = {
+	id: "secret-file-only-disabled",
+	name: "legacy-kubeconfig",
+	description: "Written to a workspace file before file paths were disabled.",
+	env_name: "",
+	file_path: "~/.kube/config",
+	enabled: false,
+	created_at: "2026-04-27T16:30:00Z",
+	updated_at: "2026-05-03T20:30:00Z",
+};
+
 export const MockImportedUserSecret: TypesGen.UserSecret = {
 	id: "imported-database-url",
 	name: "DATABASE_URL",
@@ -650,6 +664,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 
 export const MockAITasksEnabled: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
+export const MockUserSecretFilePathEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
 	organization_id: MockOrganization.id,

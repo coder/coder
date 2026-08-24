@@ -5,6 +5,7 @@ import {
 	buildImportSuccessMessage,
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
+	getSecretInjectionSummary,
 	mapSecretApiErrorToFormErrors,
 	secretsFileFormatFromFilename,
 } from "./secretForm";
@@ -90,6 +91,7 @@ describe("getCreateSecretRequiredFieldErrors", () => {
 			getCreateSecretRequiredFieldErrors({
 				name: "",
 				value: "",
+				env_name: "",
 			}),
 		).toEqual({
 			name: "Name is required.",
@@ -102,10 +104,40 @@ describe("getCreateSecretRequiredFieldErrors", () => {
 			getCreateSecretRequiredFieldErrors({
 				name: "   ",
 				value: "some value",
+				env_name: "",
 			}),
 		).toEqual({
 			name: "Name is required.",
 		});
+	});
+
+	it("requires an environment variable when file path delivery is disabled", () => {
+		expect(
+			getCreateSecretRequiredFieldErrors(
+				{
+					name: "service-token",
+					value: "some value",
+					env_name: "",
+				},
+				false,
+			),
+		).toEqual({
+			env_name:
+				"Environment variable is required when file path delivery is disabled.",
+		});
+	});
+
+	it("accepts an environment variable when file path delivery is disabled", () => {
+		expect(
+			getCreateSecretRequiredFieldErrors(
+				{
+					name: "service-token",
+					value: "some value",
+					env_name: "SERVICE_TOKEN",
+				},
+				false,
+			),
+		).toEqual({});
 	});
 });
 
@@ -171,6 +203,146 @@ describe("payload builders", () => {
 			),
 		).toEqual({
 			value: "",
+		});
+	});
+
+	it("omits a stored file path that the form leaves untouched", () => {
+		expect(
+			buildUpdateUserSecretRequest(existingSecrets[1], {
+				name: "service-key",
+				value: "",
+				description: "Updated description",
+				env_name: "SERVICE_API_KEY",
+				file_path: "~/.config/service/key",
+			}),
+		).toEqual({
+			description: "Updated description",
+		});
+	});
+
+	it("disables an enabled file-only secret when its blocked path is removed", () => {
+		const secret = {
+			...existingSecrets[1],
+			env_name: "",
+			file_path: "~/.config/service/key",
+			enabled: true,
+		};
+
+		expect(
+			buildUpdateUserSecretRequest(
+				secret,
+				{
+					name: secret.name,
+					value: "",
+					description: secret.description,
+					env_name: "",
+					file_path: "",
+				},
+				{ filePathEnabled: false },
+			),
+		).toEqual({
+			file_path: "",
+			enabled: false,
+		});
+	});
+
+	it("keeps enabled intent when adding env and removing a blocked path", () => {
+		const secret = {
+			...existingSecrets[1],
+			env_name: "",
+			file_path: "~/.config/service/key",
+			enabled: true,
+		};
+
+		expect(
+			buildUpdateUserSecretRequest(
+				secret,
+				{
+					name: secret.name,
+					value: "",
+					description: secret.description,
+					env_name: "SERVICE_API_KEY",
+					file_path: "",
+				},
+				{ filePathEnabled: false },
+			),
+		).toEqual({
+			env_name: "SERVICE_API_KEY",
+			file_path: "",
+		});
+	});
+});
+
+describe("getSecretInjectionSummary", () => {
+	it("describes every target while file paths are allowed", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: "~/.config/service/key" },
+				true,
+			),
+		).toEqual({
+			injectsEnv: true,
+			injectsFile: true,
+			hasBlockedFilePath: false,
+			canEnable: true,
+			typeLabel: "env var + file",
+		});
+	});
+
+	it("keeps the environment variable of a dual-target secret effective", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "SERVICE_TOKEN", file_path: "~/.config/service/key" },
+				false,
+			),
+		).toEqual({
+			injectsEnv: true,
+			injectsFile: false,
+			hasBlockedFilePath: true,
+			canEnable: true,
+			typeLabel: "env var",
+		});
+	});
+
+	it("reports a file-only secret as ineffective while file paths are blocked", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "", file_path: "~/.config/service/key" },
+				false,
+			),
+		).toEqual({
+			injectsEnv: false,
+			injectsFile: false,
+			hasBlockedFilePath: true,
+			canEnable: false,
+			typeLabel: "not injected",
+		});
+	});
+
+	it("reports a file-only secret as a file target while file paths are allowed", () => {
+		expect(
+			getSecretInjectionSummary(
+				{ env_name: "", file_path: "~/.config/service/key" },
+				true,
+			),
+		).toEqual({
+			injectsEnv: false,
+			injectsFile: true,
+			hasBlockedFilePath: false,
+			canEnable: true,
+			typeLabel: "file",
+		});
+	});
+
+	it("reports a target-less secret as not injected", () => {
+		expect(
+			getSecretInjectionSummary({ env_name: "", file_path: "" }, false),
+		).toEqual({
+			injectsEnv: false,
+			injectsFile: false,
+			hasBlockedFilePath: false,
+			canEnable: false,
+			typeLabel: "not injected",
 		});
 	});
 });

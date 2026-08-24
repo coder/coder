@@ -44,6 +44,7 @@ import {
 type SecretDialogProps = {
 	open: boolean;
 	secret?: UserSecret;
+	filePathEnabled: boolean;
 	isSubmitting: boolean;
 	returnFocusElement?: HTMLElement | null;
 	onClose: () => void;
@@ -71,6 +72,7 @@ export const SAVED_SECRET_VALUE_DISPLAY = "••••••••••••�
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
 	secret,
+	filePathEnabled,
 	isSubmitting,
 	returnFocusElement,
 	onClose,
@@ -98,13 +100,14 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		enableReinitialize: true,
 		validateOnMount: true,
 		validate: (values) =>
-			isEdit ? {} : getCreateSecretRequiredFieldErrors(values),
+			isEdit ? {} : getCreateSecretRequiredFieldErrors(values, filePathEnabled),
 		onSubmit: async (values, helpers) => {
 			helpers.setStatus(undefined);
 			try {
 				if (secret) {
 					const request = buildUpdateUserSecretRequest(secret, values, {
 						clearValue: clearValueRequested,
+						filePathEnabled,
 					});
 					await onUpdateSecret(secret.name, request);
 				} else {
@@ -179,6 +182,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	const request = secret
 		? buildUpdateUserSecretRequest(secret, form.values, {
 				clearValue: clearValueRequested,
+				filePathEnabled,
 			})
 		: undefined;
 	const hasUpdate = request ? Object.keys(request).length > 0 : false;
@@ -230,9 +234,26 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 						<>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
+								filePathEnabled={filePathEnabled}
 								disableName
 								showValue={false}
 							/>
+							{!filePathEnabled && secret.file_path !== "" && (
+								<BlockedFilePathField
+									storedFilePath={secret.file_path}
+									isRemoved={form.values.file_path === ""}
+									onRemove={() => {
+										void form.setFieldValue("file_path", "", false);
+									}}
+									onRestore={() => {
+										void form.setFieldValue(
+											"file_path",
+											secret.file_path,
+											false,
+										);
+									}}
+								/>
+							)}
 							<SecretValueField
 								key={`${secret.name}-${open}`}
 								field={getFieldHelpers("value", {
@@ -282,6 +303,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 							</div>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
+								filePathEnabled={filePathEnabled}
 								showRequiredLabels
 								showValue
 							/>
@@ -306,6 +328,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 
 type SecretFieldsProps = {
 	getFieldHelpers: ReturnType<typeof getFormHelpers<SecretFormValues>>;
+	filePathEnabled: boolean;
 	disableName?: boolean;
 	showRequiredLabels?: boolean;
 	showValue: boolean;
@@ -313,10 +336,18 @@ type SecretFieldsProps = {
 
 const SecretFields: FC<SecretFieldsProps> = ({
 	getFieldHelpers,
+	filePathEnabled,
 	disableName,
 	showRequiredLabels,
 	showValue,
 }) => {
+	const envNameRequired = Boolean(showRequiredLabels && !filePathEnabled);
+	const envNameHelperText = envNameRequired
+		? "Required. File path delivery is disabled, so the secret needs an environment variable target."
+		: filePathEnabled
+			? "Optional. Exposes the secret as an environment variable with this name in your workspace."
+			: "Environment variable delivery remains available while file path delivery is disabled.";
+
 	return (
 		<>
 			<FormField
@@ -343,30 +374,38 @@ const SecretFields: FC<SecretFieldsProps> = ({
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
-					helperText:
-						"Optional. Exposes the secret as an environment variable with this name in your workspace.",
+					helperText: envNameHelperText,
 				})}
-				label="Environment variable"
+				label={
+					envNameRequired ? (
+						<RequiredFieldLabel>Environment variable</RequiredFieldLabel>
+					) : (
+						"Environment variable"
+					)
+				}
 				placeholder="SERVICE_TOKEN"
 				autoComplete="off"
 				className="placeholder:text-content-disabled"
+				aria-required={envNameRequired}
 				data-lpignore="true"
 				data-1p-ignore="true"
 				data-form-type="other"
 			/>
-			<FormField
-				field={getFieldHelpers("file_path", {
-					helperText:
-						"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
-				})}
-				label="File path"
-				placeholder="~/api-key.txt"
-				autoComplete="off"
-				className="placeholder:text-content-disabled"
-				data-lpignore="true"
-				data-1p-ignore="true"
-				data-form-type="other"
-			/>
+			{filePathEnabled && (
+				<FormField
+					field={getFieldHelpers("file_path", {
+						helperText:
+							"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
+					})}
+					label="File path"
+					placeholder="~/api-key.txt"
+					autoComplete="off"
+					className="placeholder:text-content-disabled"
+					data-lpignore="true"
+					data-1p-ignore="true"
+					data-form-type="other"
+				/>
+			)}
 			{showValue && (
 				<SecretValueField
 					field={getFieldHelpers("value")}
@@ -375,6 +414,52 @@ const SecretFields: FC<SecretFieldsProps> = ({
 				/>
 			)}
 		</>
+	);
+};
+
+type BlockedFilePathFieldProps = {
+	storedFilePath: string;
+	isRemoved: boolean;
+	onRemove: () => void;
+	onRestore: () => void;
+};
+
+const BlockedFilePathField: FC<BlockedFilePathFieldProps> = ({
+	storedFilePath,
+	isRemoved,
+	onRemove,
+	onRestore,
+}) => {
+	return (
+		<div className="flex flex-col gap-2">
+			<span className="text-sm font-medium text-content-primary">
+				File path
+			</span>
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+				<span
+					className={cn(
+						"flex-1 font-mono text-sm text-content-secondary",
+						isRemoved && "line-through",
+					)}
+				>
+					{storedFilePath}
+				</span>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="shrink-0"
+					onClick={isRemoved ? onRestore : onRemove}
+				>
+					{isRemoved ? "Keep file path" : "Remove file path"}
+				</Button>
+			</div>
+			<span className="text-xs text-content-secondary">
+				{isRemoved
+					? "File path will be removed when you update. If this enabled secret has no environment variable, the same update will disable it."
+					: "Your deployment administrator disabled file path secrets. This path stays saved but is not written to your workspaces, and it takes effect again if file path secrets are enabled."}
+			</span>
+		</div>
 	);
 };
 

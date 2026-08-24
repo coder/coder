@@ -19,6 +19,9 @@ import { SecretsTable } from "./SecretsTable";
 
 type SecretsPageViewProps = {
 	secrets?: readonly UserSecret[];
+	// Undefined when the deployment does not report the setting, which the page
+	// treats as file paths being allowed.
+	filePathEnabled?: boolean;
 	isLoading: boolean;
 	hasLoaded: boolean;
 	isCreating: boolean;
@@ -46,6 +49,7 @@ type SecretDialogState =
 
 export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	secrets = [],
+	filePathEnabled = true,
 	isLoading,
 	hasLoaded,
 	isCreating,
@@ -106,15 +110,16 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			>
 				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Secrets with an environment variable or file path are injected into
-					workspaces you own when they start. Each environment variable and file
-					path must be unique.
+					{filePathEnabled
+						? "Secrets with an environment variable or file path are injected into workspaces you own when they start. Each environment variable and file path must be unique."
+						: "Secrets with an environment variable are injected into workspaces you own when they start. Each environment variable must be unique. Your deployment administrator disabled file path secrets, so saved file paths stay stored but are not written to your workspaces, and they take effect again if file path secrets are enabled."}
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			<SecretDialog
 				open={dialogState.open}
 				secret={dialogSecret}
+				filePathEnabled={filePathEnabled}
 				isSubmitting={isCreating || isUpdating}
 				returnFocusElement={secretDialogReturnFocusElement.current}
 				onClose={closeSecretDialog}
@@ -128,6 +133,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<section className="flex flex-col gap-4">
 				<SecretsTable
 					secrets={secrets}
+					filePathEnabled={filePathEnabled}
 					isLoading={isLoading}
 					hasLoaded={hasLoadedSecrets}
 					isDeleting={isDeleting}

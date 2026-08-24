@@ -33,6 +33,7 @@ type AvailableMetadata = Readonly<{
 	"build-info": BuildInfoResponse;
 	"ai-tasks-enabled": boolean;
 	"ai-gateway-enabled": boolean;
+	"user-secret-file-path-enabled": boolean;
 	permissions: Permissions;
 	organizations: Organization[];
 }>;
@@ -98,6 +99,9 @@ export class MetadataManager implements MetadataManagerApi {
 			regions: this.registerRegionValue(),
 			"ai-tasks-enabled": this.registerValue<boolean>("ai-tasks-enabled"),
 			"ai-gateway-enabled": this.registerValue<boolean>("ai-gateway-enabled"),
+			"user-secret-file-path-enabled": this.registerValue<boolean>(
+				"user-secret-file-path-enabled",
+			),
 			permissions: this.registerValue<Permissions>("permissions"),
 			organizations: this.registerValue<Organization[]>("organizations"),
 		};
@@ -255,4 +259,13 @@ export const useEmbeddedMetadata = makeUseEmbeddedMetadata(
 export function useAIGatewayEnabled(): boolean {
 	const { metadata } = useEmbeddedMetadata();
 	return metadata["ai-gateway-enabled"].value ?? true;
+}
+
+// Mirrors the deployment setting that lets administrators block file-path user
+// secrets. A missing value means the page is served by Vite, Storybook, a test
+// runner, or a server that predates the setting, none of which block file
+// paths, so those environments fall back to allowing them.
+export function useUserSecretFilePathEnabled(): boolean {
+	const { metadata } = useEmbeddedMetadata();
+	return metadata["user-secret-file-path-enabled"].value ?? true;
 }
