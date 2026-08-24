@@ -467,6 +467,7 @@ SELECT
 	visible_users.username AS user_username,
 	visible_users.name AS user_name,
 	visible_users.avatar_url AS user_avatar_url,
+	visible_users.email AS user_email,
 	sr.providers::text[] AS providers,
 	sr.models::text[] AS models,
 	COALESCE(sr.client, '')::varchar(64) AS client,

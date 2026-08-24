@@ -262,12 +262,13 @@ func MinimalUser(user database.User) codersdk.MinimalUser {
 	}
 }
 
-func MinimalUserFromVisibleUser(user database.VisibleUser) codersdk.MinimalUser {
+func MinimalUserFromAIBridgeRow(row database.ListAIBridgeSessionsRow) codersdk.MinimalUser {
 	return codersdk.MinimalUser{
-		ID:        user.ID,
-		Username:  user.Username,
-		Name:      user.Name,
-		AvatarURL: user.AvatarURL,
+		ID:        row.UserID,
+		Username:  row.UserUsername,
+		Name:      row.UserName,
+		Email:     row.UserEmail,
+		AvatarURL: row.UserAvatarUrl,
 	}
 }
 
@@ -1112,13 +1113,8 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
-		ID: row.SessionID,
-		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
-			ID:        row.UserID,
-			Username:  row.UserUsername,
-			Name:      row.UserName,
-			AvatarURL: row.UserAvatarUrl,
-		}),
+		ID:           row.SessionID,
+		Initiator:    MinimalUserFromAIBridgeRow(row),
 		Providers:    row.Providers,
 		Models:       row.Models,
 		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
@@ -1237,13 +1233,8 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 	sessionTokenMeta := aggregateTokenMetadata(p.TokenUsages)
 
 	resp := codersdk.AIBridgeSessionThreadsResponse{
-		ID: session.SessionID,
-		Initiator: MinimalUserFromVisibleUser(database.VisibleUser{
-			ID:        session.UserID,
-			Username:  session.UserUsername,
-			Name:      session.UserName,
-			AvatarURL: session.UserAvatarUrl,
-		}),
+		ID:            session.SessionID,
+		Initiator:     MinimalUserFromAIBridgeRow(session),
 		Providers:     session.Providers,
 		Models:        session.Models,
 		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: session.Metadata, Valid: len(session.Metadata) > 0}),

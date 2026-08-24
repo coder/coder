@@ -6094,7 +6094,7 @@ type TemplateUsageStat struct {
 	AppUsageMins StringMapOfInt `db:"app_usage_mins" json:"app_usage_mins"`
 }
 
-// Joins in the username + avatar url of the created by user.
+// Joins in the username, name, avatar url, and email of the created by user.
 type TemplateVersion struct {
 	ID                    uuid.UUID       `db:"id" json:"id"`
 	TemplateID            uuid.NullUUID   `db:"template_id" json:"template_id"`
@@ -6114,6 +6114,7 @@ type TemplateVersion struct {
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName         string          `db:"created_by_name" json:"created_by_name"`
+	CreatedByEmail        string          `db:"created_by_email" json:"created_by_email"`
 }
 
 type TemplateVersionParameter struct {
@@ -6382,6 +6383,7 @@ type VisibleUser struct {
 	Username  string    `db:"username" json:"username"`
 	Name      string    `db:"name" json:"name"`
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
+	Email     string    `db:"email" json:"email"`
 }
 
 type WebpushSubscription struct {
