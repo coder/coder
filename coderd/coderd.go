@@ -1439,7 +1439,7 @@ func New(options *Options) *API {
 		r.Route("/organizations/{organization}/chats/model-overrides", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractChatModelOrganizationParam(options.Database),
+				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			r.Get("/", api.getOrganizationChatModelOverrides)
 			r.Put("/{context}", api.putOrganizationChatModelOverride)
