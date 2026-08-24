@@ -74,6 +74,16 @@ const meta: Meta<typeof OrganizationModelsLayout> = {
 				key: organizationsPermissions([MockOrganization2.id]).queryKey,
 				data: { [MockOrganization2.id]: MockOrganizationPermissions },
 			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					MockOrganization2.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[MockOrganization2.id]: MockOrganizationPermissions,
+				},
+			},
 		],
 	},
 };
@@ -184,6 +194,15 @@ export const InvalidRequestedOrganizationDeniesAdd: Story = {
 					[MockDefaultOrganization.id]: MockOrganizationPermissions,
 				},
 			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					MockOrganization2.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -257,6 +276,16 @@ export const DuplicateDisplayNamesAreDisambiguated: Story = {
 				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
 				data: {
 					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
+			{
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					duplicateNameOrganization.id,
+				]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[duplicateNameOrganization.id]: MockOrganizationPermissions,
 				},
 			},
 		],
@@ -367,6 +396,7 @@ export const NoReadableOrganizationIsNotFound: Story = {
 			isAxiosError: true,
 			response: { status: 403 },
 		});
+		spyOn(API, "checkAuthorization").mockResolvedValue({});
 	},
 	parameters: { queries: [] },
 	play: async ({ canvasElement }) => {
