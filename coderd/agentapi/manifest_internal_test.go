@@ -7,8 +7,59 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 )
+
+func Test_dbUserSecretsToProto(t *testing.T) {
+	t.Parallel()
+
+	secrets := []database.UserSecret{
+		{Name: "env-only", EnvName: "ENV_ONLY", Value: "env-val", Enabled: true},
+		{Name: "file-only", FilePath: "~/.ssh/id_rsa", Value: "file-val", Enabled: true},
+		{Name: "dual", EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: "dual-val", Enabled: true},
+		{Name: "disabled", EnvName: "DISABLED_ENV", FilePath: "/etc/disabled", Value: "disabled-val"},
+	}
+
+	cases := []struct {
+		name     string
+		policy   userSecretFilePathPolicy
+		expected []*agentproto.WorkspaceSecret
+	}{
+		{
+			name:   "PolicyOff",
+			policy: userSecretFilePathAllowed,
+			expected: []*agentproto.WorkspaceSecret{
+				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
+				{FilePath: "~/.ssh/id_rsa", Value: []byte("file-val")},
+				{EnvName: "DUAL_ENV", FilePath: "/etc/dual", Value: []byte("dual-val")},
+			},
+		},
+		{
+			name:   "PolicyOn",
+			policy: userSecretFilePathBlocked,
+			expected: []*agentproto.WorkspaceSecret{
+				{EnvName: "ENV_ONLY", Value: []byte("env-val")},
+				{EnvName: "DUAL_ENV", Value: []byte("dual-val")},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := dbUserSecretsToProto(secrets, c.policy)
+			require.Len(t, got, len(c.expected))
+			for i, want := range c.expected {
+				require.Equal(t, want.EnvName, got[i].EnvName, "secret %d env_name", i)
+				require.Equal(t, want.FilePath, got[i].FilePath, "secret %d file_path", i)
+				require.Equal(t, want.Value, got[i].Value, "secret %d value", i)
+			}
+		})
+	}
+}
 
 func Test_vscodeProxyURI(t *testing.T) {
 	t.Parallel()
