@@ -61,7 +61,7 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, assistantMessage(input.modelConfigID, contentVersion, assistantContent, input.step))
 	}
 
-	for i, toolResult := range toolResults {
+	for _, toolResult := range toolResults {
 		part := chatprompt.PartFromContentWithLogger(context.Background(), input.logger, toolResult)
 		applyToolMetadata(&part, input.toolNameToConfigID)
 		if part.ToolCallID != "" && input.step.ToolResultCreatedAt != nil {
@@ -73,12 +73,17 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content)
-		// Usage sums runtime_ms across rows, so store the batch once.
-		if i == 0 {
-			msg.RuntimeMs = nullInt64IfNonZero(input.step.BatchRuntime.Milliseconds())
-		}
-		messages = append(messages, msg)
+		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+	}
+
+	// Usage sums runtime_ms across rows, so the batch window is billed
+	// once on a dedicated record instead of an arbitrary member row.
+	stamp, ok, err := batchUsageMessage(input.modelConfigID, contentVersion, input.step.BatchRuntime, input.step.BatchBilledCalls)
+	if err != nil {
+		return stepMessagesForCommit{}, err
+	}
+	if ok {
+		messages = append(messages, stamp)
 	}
 
 	// Usage sums runtime_ms across rows, so the batch window is billed
