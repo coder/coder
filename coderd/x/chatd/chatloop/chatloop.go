@@ -513,11 +513,21 @@ func wrapProviderStreamError(provider string, err error) error {
 
 // hasUserVisibleContent reports whether any content part carries output the
 // user can see. Reasoning parts do not count: they stream transiently and are
-// not a substitute for a response.
+// not a substitute for a response. Text parts count only when non-blank:
+// providers can emit empty text blocks (TextStart/TextEnd with no payload),
+// which would otherwise dodge the no-output guards.
 func hasUserVisibleContent(content []fantasy.Content) bool {
 	for _, part := range content {
-		switch part.(type) {
+		switch value := part.(type) {
 		case fantasy.ReasoningContent, *fantasy.ReasoningContent:
+		case fantasy.TextContent:
+			if strings.TrimSpace(value.Text) != "" {
+				return true
+			}
+		case *fantasy.TextContent:
+			if value != nil && strings.TrimSpace(value.Text) != "" {
+				return true
+			}
 		default:
 			return true
 		}

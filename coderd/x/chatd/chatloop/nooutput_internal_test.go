@@ -110,6 +110,29 @@ func TestGenerateAssistant_SilentNoOutputFinish(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("EmptyTextWithUnknownFinishErrors", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := generate(t, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonUnknown},
+		})
+		require.ErrorIs(t, err, ErrNoModelOutput)
+	})
+
+	t.Run("WhitespaceTextWithUnknownFinishErrors", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, err := generate(t, []fantasy.StreamPart{
+			{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "  \n"},
+			{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+			{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonUnknown},
+		})
+		require.ErrorIs(t, err, ErrNoModelOutput)
+	})
+
 	t.Run("UnknownFinishWithTextCompletes", func(t *testing.T) {
 		t.Parallel()
 
