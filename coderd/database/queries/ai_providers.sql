@@ -39,6 +39,24 @@ WHERE
 ORDER BY
     name ASC;
 
+-- name: GetAIProviderCatalog :many
+-- Returns only non-secret provider metadata safe to expose to any
+-- authenticated user: no base_url, no settings, and no key material by
+-- construction. Disabled providers are included so clients can render
+-- availability; soft-deleted providers are excluded.
+SELECT
+    type,
+    name,
+    display_name,
+    icon,
+    enabled
+FROM
+    ai_providers
+WHERE
+    NOT deleted
+ORDER BY
+    name ASC;
+
 -- name: InsertAIProvider :one
 INSERT INTO ai_providers (
     id,

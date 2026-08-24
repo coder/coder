@@ -660,6 +660,62 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
+const getAIProviderCatalog = `-- name: GetAIProviderCatalog :many
+SELECT
+    type,
+    name,
+    display_name,
+    icon,
+    enabled
+FROM
+    ai_providers
+WHERE
+    NOT deleted
+ORDER BY
+    name ASC
+`
+
+type GetAIProviderCatalogRow struct {
+	Type        AIProviderType `db:"type" json:"type"`
+	Name        string         `db:"name" json:"name"`
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Icon        string         `db:"icon" json:"icon"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+}
+
+// Returns only non-secret provider metadata safe to expose to any
+// authenticated user: no base_url, no settings, and no key material by
+// construction. Disabled providers are included so clients can render
+// availability; soft-deleted providers are excluded.
+func (q *sqlQuerier) GetAIProviderCatalog(ctx context.Context) ([]GetAIProviderCatalogRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderCatalog)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIProviderCatalogRow
+	for rows.Next() {
+		var i GetAIProviderCatalogRow
+		if err := rows.Scan(
+			&i.Type,
+			&i.Name,
+			&i.DisplayName,
+			&i.Icon,
+			&i.Enabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at, icon

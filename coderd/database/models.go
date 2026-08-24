@@ -529,6 +529,8 @@ const (
 	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
 	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	ApiKeyScopeAIProviderCatalog                   APIKeyScope = "ai_provider_catalog:*"
+	ApiKeyScopeAIProviderCatalogRead               APIKeyScope = "ai_provider_catalog:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -809,7 +811,9 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeMcpServerConfigRead,
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
-		ApiKeyScopeMcpServerConfigShare:
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeAIProviderCatalog,
+		ApiKeyScopeAIProviderCatalogRead:
 		return true
 	}
 	return false
@@ -1059,6 +1063,8 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeMcpServerConfigUpdate,
 		ApiKeyScopeMcpServerConfigDelete,
 		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeAIProviderCatalog,
+		ApiKeyScopeAIProviderCatalogRead,
 	}
 }
 

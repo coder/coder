@@ -34,6 +34,12 @@ func aiProvidersHandler(api *API, middlewares ...func(http.Handler) http.Handler
 		r.Use(middlewares...)
 		r.Get("/", api.aiProvidersList)
 		r.Post("/", api.aiProvidersCreate)
+		// The non-secret catalog is readable by any authenticated user,
+		// unlike the owner-only routes around it. It is registered as a
+		// static segment, which chi prefers over the /{idOrName} param
+		// route below; a provider literally named "catalog" is shadowed
+		// for lookup by name and must be fetched by ID.
+		r.Get("/catalog", api.aiProviderCatalog)
 		r.Route("/{idOrName}", func(r chi.Router) {
 			r.Get("/", api.aiProvidersGet)
 			r.Patch("/", api.aiProvidersUpdate)
@@ -91,6 +97,50 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, sdk)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, out)
+}
+
+// @Summary Get the AI provider catalog
+// @ID get-the-ai-provider-catalog
+// @Security CoderSessionToken
+// @Produce json
+// @Tags AI Providers
+// @Success 200 {array} codersdk.AIProviderCatalogEntry
+// @Router /api/v2/ai/providers/catalog [get]
+func (api *API) aiProviderCatalog(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	rows, err := api.Database.GetAIProviderCatalog(ctx)
+	if dbauthz.IsNotAuthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "list AI provider catalog", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing the AI provider catalog.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	out := make([]codersdk.AIProviderCatalogEntry, 0, len(rows))
+	for _, row := range rows {
+		entry, err := db2sdk.AIProviderCatalogEntry(row)
+		if err != nil {
+			// Fail loudly instead of silently omitting the provider:
+			// a partial catalog would recreate the discovery gaps this
+			// endpoint exists to fix. Only reachable when a stored
+			// provider type has no dialect mapping, which is a bug.
+			api.Logger.Error(ctx, "convert AI provider catalog entry", slog.F("provider_name", row.Name), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error converting AI provider catalog entry.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		out = append(out, entry)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
 }

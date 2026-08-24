@@ -1,0 +1,3 @@
+-- Enum values cannot be removed safely from api_key_scope, so the
+-- ai_provider_catalog values remain on downgrade. They are inert while
+-- nothing references them.

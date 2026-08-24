@@ -48,6 +48,60 @@ const (
 	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
+// AIProviderDialect identifies the wire protocol an API client must
+// speak when calling a provider through the AI Gateway. It is derived
+// from AIProviderType; several provider types share one dialect.
+type AIProviderDialect string
+
+const (
+	// AIProviderDialectOpenAI serves OpenAI-style /chat/completions and
+	// /responses requests.
+	AIProviderDialectOpenAI AIProviderDialect = "openai"
+	// AIProviderDialectAnthropic serves Anthropic-style /v1/messages
+	// requests.
+	AIProviderDialectAnthropic AIProviderDialect = "anthropic"
+	// AIProviderDialectCopilot serves GitHub Copilot requests, which
+	// accept OpenAI-style /chat/completions and /responses as well as
+	// Anthropic-style /v1/messages.
+	AIProviderDialectCopilot AIProviderDialect = "copilot"
+)
+
+// Dialect maps a provider type to the wire dialect the AI Gateway
+// serves for it. It is the single source of truth shared by the
+// aibridged provider constructor (cli buildProvider) and the provider
+// catalog endpoint so the two cannot drift.
+func (t AIProviderType) Dialect() (AIProviderDialect, error) {
+	switch t {
+	case AIProviderTypeOpenAI,
+		AIProviderTypeAzure,
+		AIProviderTypeGoogle,
+		AIProviderTypeOpenAICompat,
+		AIProviderTypeOpenrouter,
+		AIProviderTypeVercel:
+		return AIProviderDialectOpenAI, nil
+	case AIProviderTypeAnthropic, AIProviderTypeBedrock:
+		return AIProviderDialectAnthropic, nil
+	case AIProviderTypeCopilot:
+		return AIProviderDialectCopilot, nil
+	default:
+		return "", xerrors.Errorf("no gateway dialect for provider type %q", t)
+	}
+}
+
+// GatewayRoutePrefix returns the path prefix, relative to the AI
+// Gateway root (/api/v2/ai-gateway), under which a provider instance
+// with the given name is mounted. It mirrors the RoutePrefix methods of
+// the aibridge provider implementations (asserted by a test in cli):
+// the OpenAI dialect bakes /v1 into the prefix to match the default
+// OpenAI base URL, while the Anthropic and Copilot dialects expect the
+// version segment in the request path (for example /v1/messages).
+func (d AIProviderDialect) GatewayRoutePrefix(name string) string {
+	if d == AIProviderDialectOpenAI {
+		return "/" + name + "/v1"
+	}
+	return "/" + name
+}
+
 // AgentsUnsupportedProviderType is an AIProviderType the Coder Agents harness
 // cannot use. Declaring these as an enum exposes the generated
 // AgentsUnsupportedProviderTypes list to the frontend, which labels these
@@ -530,6 +584,44 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 		}
 	}
 	return validations
+}
+
+// AIProviderCatalogEntry describes one configured AI provider with
+// only the non-secret metadata an API client needs to call it through
+// the AI Gateway. It intentionally carries no key material, no
+// upstream base URL, and no type-specific settings.
+type AIProviderCatalogEntry struct {
+	Type        AIProviderType `json:"type"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"display_name"`
+	Icon        string         `json:"icon"`
+	Enabled     bool           `json:"enabled"`
+	// Dialect is the wire protocol the AI Gateway serves for this
+	// provider.
+	Dialect AIProviderDialect `json:"dialect"`
+	// GatewayPath is the base path, relative to the deployment access
+	// URL, that a client should use to reach this provider through the
+	// AI Gateway, for example /api/v2/ai-gateway/openai/v1. The OpenAI
+	// dialect includes the /v1 suffix; the Anthropic and Copilot
+	// dialects expect the version segment in the request path (for
+	// example /v1/messages).
+	GatewayPath string `json:"gateway_path"`
+}
+
+// AIProviderCatalog lists the non-secret catalog of all (non-deleted)
+// AI providers. Unlike AIProviders, it is readable by any
+// authenticated user.
+func (c *Client) AIProviderCatalog(ctx context.Context) ([]AIProviderCatalogEntry, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai/providers/catalog", nil)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var entries []AIProviderCatalogEntry
+	return entries, ReadBodyAsJSON(res, &entries)
 }
 
 // AIProviders lists all (non-deleted) AI providers.

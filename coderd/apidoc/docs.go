@@ -2445,6 +2445,34 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai/providers/catalog": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "Get the AI provider catalog",
+                "operationId": "get-the-ai-provider-catalog",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIProviderCatalogEntry"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai/providers/{idOrName}": {
             "get": {
                 "produces": [
@@ -16361,6 +16389,38 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIProviderCatalogEntry": {
+            "type": "object",
+            "properties": {
+                "dialect": {
+                    "description": "Dialect is the wire protocol the AI Gateway serves for this\nprovider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderDialect"
+                        }
+                    ]
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "gateway_path": {
+                    "description": "GatewayPath is the base path, relative to the deployment access\nURL, that a client should use to reach this provider through the\nAI Gateway, for example /api/v2/ai-gateway/openai/v1. The OpenAI\ndialect includes the /v1 suffix; the Anthropic and Copilot\ndialects expect the version segment in the request path (for\nexample /v1/messages).",
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
+                }
+            }
+        },
         "codersdk.AIProviderConfig": {
             "type": "object",
             "properties": {
@@ -16386,6 +16446,19 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AIProviderDialect": {
+            "type": "string",
+            "enum": [
+                "openai",
+                "anthropic",
+                "copilot"
+            ],
+            "x-enum-varnames": [
+                "AIProviderDialectOpenAI",
+                "AIProviderDialectAnthropic",
+                "AIProviderDialectCopilot"
+            ]
         },
         "codersdk.AIProviderKey": {
             "type": "object",
@@ -16554,6 +16627,8 @@ const docTemplate = `{
                 "ai_provider:delete",
                 "ai_provider:read",
                 "ai_provider:update",
+                "ai_provider_catalog:*",
+                "ai_provider_catalog:read",
                 "ai_seat:*",
                 "ai_seat:create",
                 "ai_seat:read",
@@ -16800,6 +16875,8 @@ const docTemplate = `{
                 "APIKeyScopeAiProviderDelete",
                 "APIKeyScopeAiProviderRead",
                 "APIKeyScopeAiProviderUpdate",
+                "APIKeyScopeAiProviderCatalogAll",
+                "APIKeyScopeAiProviderCatalogRead",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",
                 "APIKeyScopeAiSeatRead",
@@ -24623,6 +24700,7 @@ const docTemplate = `{
                 "ai_gateway_key",
                 "ai_model_price",
                 "ai_provider",
+                "ai_provider_catalog",
                 "ai_seat",
                 "aibridge_interception",
                 "api_key",
@@ -24677,6 +24755,7 @@ const docTemplate = `{
                 "ResourceAIGatewayKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",
+                "ResourceAIProviderCatalog",
                 "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",

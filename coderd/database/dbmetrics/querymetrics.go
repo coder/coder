@@ -1184,6 +1184,14 @@ func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string)
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIProviderCatalog(ctx context.Context) ([]database.GetAIProviderCatalogRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderCatalog(ctx)
+	m.queryLatencies.WithLabelValues("GetAIProviderCatalog").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderCatalog").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderKeyByID(ctx, id)

@@ -338,6 +338,11 @@ type sqlcQuerier interface {
 	// between validation and writing the model config reference.
 	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	// Returns only non-secret provider metadata safe to expose to any
+	// authenticated user: no base_url, no settings, and no key material by
+	// construction. Disabled providers are included so clients can render
+	// availability; soft-deleted providers are excluded.
+	GetAIProviderCatalog(ctx context.Context) ([]GetAIProviderCatalogRow, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns the provider IDs that have at least one provider-scoped key.
 	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)
