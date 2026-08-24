@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -214,7 +213,24 @@ func RevokeAllKeys(ctx context.Context, db database.Store, agentID uuid.UUID) er
 	return nil
 }
 
-// MintKey creates a token-login API key for an AI agent identity.
+// MintKey issues an AI agent's api_key credential through the credential
+// ledger, which mirrors it into api_keys in the same transaction.
+//
+// **The ledger is where the credential is recorded and api_keys is the copy.**
+// Authentication still reads api_keys, so nothing about verifying this key
+// changes; what changes is that the credential an agent actually presents now
+// exists in the record. See "Issuance can move to the journal before
+// authentication moves" in poc_audit/rewrite_rbac.md.
+//
+// **The actor is the agent's owner**, which is what creating the agent records
+// and for the same reason: the owner is the party the credential lets act.
+// Nobody commands this minting as such, a build or a sandbox creation reaching
+// it as a consequence, so naming the owner is the closest true attribution
+// available until an actor kind exists for the party that does.
+//
+// The profile is validated first and is stricter than the general api key
+// generator on every axis: it requires scopes and an allow list rather than
+// defaulting them, rejects the broad scopes, and refuses a wildcard.
 func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile) (database.APIKey, string, error) {
 	if agentUserID == uuid.Nil {
 		return database.APIKey{}, "", xerrors.New("AI agent user ID must be non-nil")
@@ -224,29 +240,42 @@ func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, prof
 	if err != nil {
 		return database.APIKey{}, "", err
 	}
-	if _, err := Resolve(ctx, db, agentUserID); err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("resolve AI agent before minting key: %w", err)
-	}
-
-	params, token, err := apikey.Generate(apikey.CreateParams{
-		UserID:          agentUserID,
-		LoginType:       database.LoginTypeToken,
-		DefaultLifetime: keyLifetime,
-		Scopes:          profile.Scopes,
-		AllowList:       profile.AllowList,
-		TokenName:       profile.TokenName,
-	})
+	resolved, err := Resolve(ctx, db, agentUserID)
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("generate AI agent API key: %w", err)
+		return database.APIKey{}, "", xerrors.Errorf("resolve AI agent before minting key: %w", err)
 	}
 
 	// Key minting is internal and limited by the validated profile.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
-	key, err := db.InsertAPIKey(systemCtx, params)
+
+	issued, err := entity.IssueCredential(systemCtx, db, entity.IssueCredentialParams{
+		Holder: entity.Ref{Type: entity.TypeAIAgent, ID: agentUserID},
+		Type:   entity.CredentialTypeAPIKey,
+		Actor:  entity.Ref{Type: entity.TypeUser, ID: resolved.Ledger.OwnerID},
+		APIKey: &entity.APIKeyCredential{
+			TokenName:      profile.TokenName,
+			Scopes:         profile.Scopes,
+			AllowList:      profile.AllowList,
+			MirrorLifetime: keyLifetime,
+		},
+	})
 	if err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("insert AI agent API key: %w", err)
+		return database.APIKey{}, "", xerrors.Errorf("issue AI agent credential: %w", err)
 	}
-	return key, token, nil
+
+	// The mirrored row, read back rather than assembled here, so that what
+	// callers receive is what the table holds. The ledger is the index: it
+	// knows which key id the credential was mirrored under, where a lookup by
+	// token name would fail for a profile that has no name.
+	mirrored, err := db.GetCredentialAPIKeyByID(systemCtx, issued.ID)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("read the credential's key id: %w", err)
+	}
+	key, err := db.GetAPIKeyByID(systemCtx, mirrored.KeyID)
+	if err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("read back the mirrored AI agent API key: %w", err)
+	}
+	return key, issued.Authenticator, nil
 }
 
 // Resolve loads authoritative AI agent metadata and its human owner.

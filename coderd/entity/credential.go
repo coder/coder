@@ -135,6 +135,21 @@ type APIKeyCredential struct {
 	// poc_audit/rewrite_rbac.md.
 	Scopes    database.APIKeyScopes
 	AllowList database.AllowList
+
+	// MirrorLifetime is how long the mirrored api_keys row says the credential
+	// lasts. Zero means the mirror's stand-in for never.
+	//
+	// **A cheat, and named to say so.** The ledger records no expiry for a
+	// credential, expiry having been raised and deliberately left unsettled.
+	// This field is read by the mirror and by nothing else: it is not folded,
+	// not journaled, and no ledger row holds it. It exists so that an issuer
+	// which already expires its keys keeps doing so when it is routed through
+	// here, rather than being silently converted into one that does not.
+	//
+	// **It preserves function until expiry gets a proper treatment, which
+	// supersedes it.** When the model holds expiry, the fact moves to the
+	// ledger and this field goes.
+	MirrorLifetime time.Duration
 }
 
 // IssuedCredential is what issuing produced.
@@ -315,6 +330,11 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 				return xerrors.Errorf("post the api_key: %w", err)
 			}
 
+			mirrorExpiry := apiKeyMirrorNoExpiry
+			if params.APIKey.MirrorLifetime > 0 {
+				mirrorExpiry = effective.Add(params.APIKey.MirrorLifetime)
+			}
+
 			// The mirror, in the transaction that posted the credential.
 			// api_keys is what authenticates a request today, so a credential
 			// the ledger holds and that table does not is one the system will
@@ -331,8 +351,8 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 				HolderID:        database.HolderID(params.Holder.ID),
 				HolderType:      mirrorHolder,
 				LastUsed:        time.Unix(0, 0).UTC(),
-				ExpiresAt:       apiKeyMirrorNoExpiry,
-				LifetimeSeconds: int64(apiKeyMirrorNoExpiry.Sub(effective).Seconds()),
+				ExpiresAt:       mirrorExpiry,
+				LifetimeSeconds: int64(mirrorExpiry.Sub(effective).Seconds()),
 				CreatedAt:       effective,
 				UpdatedAt:       effective,
 				// A key minted on request rather than obtained by logging in.

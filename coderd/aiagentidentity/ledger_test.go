@@ -3,6 +3,7 @@ package aiagentidentity_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -246,4 +248,65 @@ func TestOwnershipChangeRetiresTheAgentInTheLedger(t *testing.T) {
 	// Resolution reads the ledger, so the retired agent no longer resolves.
 	_, err = aiagentidentity.Resolve(ctx, db, original.ID)
 	require.ErrorIs(t, err, aiagentidentity.ErrAIAgentDeleted)
+}
+
+// TestMintedKeyIsInTheLedger asserts that the credential an AI agent actually
+// presents is recorded, which until now it was not: the ledger held a password
+// credential nobody presents and knew nothing of the api_key every request
+// carries.
+//
+// It also asserts the expiry, because preserving it is the whole reason the
+// mirror takes a lifetime. Routing minting through the ledger without that
+// would have turned a token that expires in a day into one that never does.
+func TestMintedKeyIsInTheLedger(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+
+	chatID := uuid.New()
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.ID,
+		OrganizationID: organization.ID,
+		OriginType:     entity.CreationSiteTypeChat,
+		OriginID:       chatID,
+	})
+	require.NoError(t, err)
+
+	before := dbtime.Now()
+	key, token, err := aiagentidentity.MintKey(ctx, db, agentUser.ID,
+		aiagentidentity.ChatAgentProfile(chatID))
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+
+	// The mirrored row and the ledger's record of it are the same credential.
+	mirrored, err := db.GetCredentialAPIKeyByKeyID(ctx, key.ID)
+	require.NoError(t, err, "the ledger holds the credential the agent presents")
+
+	row, err := db.GetCredentialLedgerRowByID(ctx, mirrored.ID)
+	require.NoError(t, err)
+	require.Equal(t, string(entity.TypeAIAgent), row.HolderType)
+	require.Equal(t, agentUser.ID, row.HolderID)
+	require.Equal(t, entity.CredentialTypeAPIKey, row.CredentialType)
+	require.Equal(t, entity.CredentialStateValid, row.State)
+
+	// The issuance is attributed to the owner, which is what creation records.
+	entries, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+		database.GetCredentialLifecycleJournalEntriesBySubjectParams{
+			Subject: mirrored.ID,
+			Limit:   2,
+		})
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Equal(t, owner.ID, entries[0].Actor)
+
+	// The 24 hour lifetime survives the move. A mirror that wrote its
+	// stand-in for never would pass every other assertion here.
+	require.WithinRange(t, key.ExpiresAt, before.Add(23*time.Hour), dbtime.Now().Add(25*time.Hour))
 }

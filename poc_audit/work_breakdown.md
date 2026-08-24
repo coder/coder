@@ -1437,7 +1437,7 @@ then the key it is carried on names its holder.
 
 ### Status
 
-Milestone 1 complete, 2026-08-23. The rest not started.
+Milestones 1 and 2 complete, 2026-08-23. Milestones 3 and 4 not started.
 
 ### What forces the work
 
@@ -1493,17 +1493,49 @@ OAuth2 provider.
 
 ### Milestone 2: issuance moves
 
-`MintKey` calls `apikey.Generate` and `InsertAPIKey` itself. It calls
-`IssueCredential` with `Type: CredentialTypeAPIKey` instead, and the mirror
-keeps `api_keys` correct behind it.
+**Done, 2026-08-23.** `MintKey` issues through `IssueCredential` with
+`Type: CredentialTypeAPIKey`, and the mirror keeps `api_keys` correct behind it.
+The credential every AI agent request carries is in the ledger for the first
+time.
 
 **Authentication is untouched.** It reads `api_keys`, splits a token and
 compares a digest, and knows nothing of any ledger. See "Issuance can move to
 the journal before authentication moves" in `rewrite_rbac.md`, which is the
-position this milestone exists to realise.
+position this milestone realises.
 
-**This is the first time the mirror runs.** Whether it is right is currently
-attested by tests alone.
+**Nothing is lost by dropping `apikey.Generate` from this path.** It defaults an
+empty scope set and allow list and validates scopes; `validateProfile` is
+stricter on all three, requiring both rather than defaulting them, rejecting the
+broad scopes, and refusing a wildcard.
+
+**The actor is the agent's owner**, which is what creation records and for the
+same reason. Nobody commands this minting as such, a build or a sandbox creation
+reaching it as a consequence, so the owner is the closest true attribution until
+an actor kind exists for the party that does.
+
+**The mirrored row is read back through the ledger**, which knows the key id the
+credential was mirrored under. Reading it back by token name would fail for a
+profile that has none, and `validateProfile` does not require one.
+
+### The expiry cheat this milestone required
+
+**`MintKey` expires an AI agent's key after 24 hours and the ledger holds no
+expiry at all**, its mirror writing a stand-in for never. Routing minting
+through the ledger unchanged would have converted every AI agent credential from
+a token that expires in a day into one that never does, silently and with every
+test still passing.
+
+`APIKeyCredential` therefore gained `MirrorLifetime`, read by the mirror and by
+nothing else: not folded, not journaled, and held by no ledger row.
+
+**It preserves function until expiry gets a proper treatment, which supersedes
+it.** Expiry was raised and deliberately left unsettled; when the model holds
+it, the fact moves to the ledger and the field goes. Eric, 2026-08-23.
+
+The acceptance test asserts the 24 hours survive, and was checked against its
+absence: with the lifetime removed the key expires in 9998 and the assertion
+fails. Every other assertion in that test passes either way, which is what makes
+the check worth having.
 
 ### Milestone 3: endings move
 
