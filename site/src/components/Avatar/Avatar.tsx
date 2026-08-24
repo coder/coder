@@ -85,9 +85,9 @@ export const Avatar: React.FC<AvatarProps> = ({
 
 	// Built-in emoji avatars are glyphs rather than photos, so they need an
 	// inset to avoid rendering edge to edge. The icon variant's padding is too
-	// tight at smaller sizes for emojis, so they get a proportional inset of
-	// roughly 20% per side instead.
-	const isBuiltInEmoji = !variant && src?.startsWith("/emojis/");
+	// tight at smaller sizes for emojis, so regardless of variant they get a
+	// proportional inset of roughly 20% per side keyed by size.
+	const isBuiltInEmoji = src?.startsWith("/emojis/");
 
 	return (
 		<AvatarPrimitive.Root
