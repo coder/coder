@@ -1,6 +1,9 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
-import { entitlementsQueryKey } from "./entitlements";
+import {
+	deploymentCapabilitiesQueryKey,
+	entitlementDetailsQueryKey,
+} from "./entitlements";
 
 export const licensesKey = ["licenses"] as const;
 
@@ -13,7 +16,10 @@ export const createTrialLicense = (queryClient: QueryClient) => ({
 	mutationFn: API.createTrialLicense,
 	onSuccess: async () => {
 		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: entitlementsQueryKey }),
+			queryClient.invalidateQueries({
+				queryKey: deploymentCapabilitiesQueryKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: entitlementDetailsQueryKey }),
 			queryClient.invalidateQueries({ queryKey: licensesKey }),
 		]);
 	},

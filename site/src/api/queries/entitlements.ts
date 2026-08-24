@@ -1,26 +1,39 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
-import type { Entitlements } from "#/api/typesGenerated";
+import type {
+	DeploymentCapabilities,
+	Entitlements,
+} from "#/api/typesGenerated";
 import type { MetadataState } from "#/hooks/useEmbeddedMetadata";
 import { cachedQuery } from "./util";
 
-export const entitlementsQueryKey = ["entitlements"] as const;
+export const deploymentCapabilitiesQueryKey = [
+	"deployment-capabilities",
+] as const;
+export const entitlementDetailsQueryKey = ["entitlements", "details"] as const;
 
-export const entitlements = (metadata: MetadataState<Entitlements>) => {
-	return cachedQuery({
+export const deploymentCapabilities = (
+	metadata: MetadataState<DeploymentCapabilities>,
+) =>
+	cachedQuery({
 		metadata,
-		queryKey: entitlementsQueryKey,
-		queryFn: () => API.getEntitlements(),
+		queryKey: deploymentCapabilitiesQueryKey,
+		queryFn: () => API.getDeploymentCapabilities(),
 	});
-};
 
-export const refreshEntitlements = (queryClient: QueryClient) => {
-	return {
-		mutationFn: API.refreshEntitlements,
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({
-				queryKey: entitlementsQueryKey,
-			});
-		},
-	};
-};
+export const entitlementDetails = () => ({
+	queryKey: entitlementDetailsQueryKey,
+	queryFn: (): Promise<Entitlements> => API.getEntitlements(),
+});
+
+export const refreshEntitlements = (queryClient: QueryClient) => ({
+	mutationFn: API.refreshEntitlements,
+	onSuccess: async () => {
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: deploymentCapabilitiesQueryKey,
+			}),
+			queryClient.invalidateQueries({ queryKey: entitlementDetailsQueryKey }),
+		]);
+	},
+});

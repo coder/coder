@@ -129,6 +129,17 @@ func (l *Set) AsJSON() json.RawMessage {
 	return b
 }
 
+// AsCapabilitiesJSON returns the public capability projection without exposing
+// the entitlements for mutation.
+func (l *Set) AsCapabilitiesJSON() json.RawMessage {
+	l.entitlementsMu.RLock()
+	capabilities := l.entitlements.Capabilities()
+	l.entitlementsMu.RUnlock()
+
+	b, _ := json.Marshal(capabilities)
+	return b
+}
+
 func (l *Set) Modify(do func(entitlements *codersdk.Entitlements)) {
 	l.entitlementsMu.Lock()
 	defer l.entitlementsMu.Unlock()

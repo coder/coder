@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import {
 	MockDefaultOrganization,
-	MockEntitlementsWithMultiOrg,
+	MockDeploymentCapabilitiesWithMultiOrg,
 	MockOrganization2,
 } from "#/testHelpers/entities";
 import {
@@ -35,8 +35,8 @@ const renderPage = async () => {
 describe("OrganizationRedirect", () => {
 	it("has no editable organizations", async () => {
 		server.use(
-			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			http.get("/api/v2/deployment/capabilities", () => {
+				return HttpResponse.json(MockDeploymentCapabilitiesWithMultiOrg);
 			}),
 			http.get("/api/v2/organizations", () => {
 				return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);
@@ -51,8 +51,8 @@ describe("OrganizationRedirect", () => {
 
 	it("redirects to default organization", async () => {
 		server.use(
-			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			http.get("/api/v2/deployment/capabilities", () => {
+				return HttpResponse.json(MockDeploymentCapabilitiesWithMultiOrg);
 			}),
 			http.get("/api/v2/organizations", () => {
 				// Default always preferred regardless of order.
@@ -78,8 +78,8 @@ describe("OrganizationRedirect", () => {
 
 	it("redirects to non-default organization", async () => {
 		server.use(
-			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlementsWithMultiOrg);
+			http.get("/api/v2/deployment/capabilities", () => {
+				return HttpResponse.json(MockDeploymentCapabilitiesWithMultiOrg);
 			}),
 			http.get("/api/v2/organizations", () => {
 				return HttpResponse.json([MockDefaultOrganization, MockOrganization2]);

@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import {
-	MockEntitlementsWithScheduling,
+	MockDeploymentCapabilitiesWithScheduling,
 	MockTemplate,
 } from "#/testHelpers/entities";
 import {
@@ -121,8 +121,8 @@ function waitForWithCutoff(callback: () => void | Promise<void>) {
 
 describe("TemplateSchedulePage", () => {
 	beforeEach(() => {
-		vi.spyOn(API, "getEntitlements").mockResolvedValue(
-			MockEntitlementsWithScheduling,
+		vi.spyOn(API, "getDeploymentCapabilities").mockResolvedValue(
+			MockDeploymentCapabilitiesWithScheduling,
 		);
 	});
 

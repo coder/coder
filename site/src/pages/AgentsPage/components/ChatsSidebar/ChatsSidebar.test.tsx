@@ -15,7 +15,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockDefaultOrganization,
-	MockEntitlements,
+	MockDeploymentCapabilities,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
@@ -67,7 +67,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 });
 
 const dashboardValue = {
-	entitlements: MockEntitlements,
+	entitlements: MockDeploymentCapabilities,
 	experiments: [] as TypesGen.Experiment[],
 	appearance: MockAppearanceConfig,
 	buildInfo: MockBuildInfo,

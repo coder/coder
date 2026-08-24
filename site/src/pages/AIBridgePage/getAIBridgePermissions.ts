@@ -1,4 +1,4 @@
-import type { Entitlements } from "#/api/typesGenerated";
+import type { DeploymentCapabilities } from "#/api/typesGenerated";
 import type { Permissions } from "#/modules/permissions";
 
 // Users are allowed to view their own request logs via the API,
@@ -6,7 +6,7 @@ import type { Permissions } from "#/modules/permissions";
 // the user has the `viewAnyAIBridgeInterception` permission. (as it's
 // defined in the Admin settings dropdown).
 export const getAIBridgePermissions = (
-	entitlements: Entitlements,
+	entitlements: DeploymentCapabilities,
 	permissions: Permissions,
 ) => {
 	// the user is entitled if they have either "entitled" or "grace_period"
