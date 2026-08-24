@@ -2464,6 +2464,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	reportPremiumFunnelEvent = async (
+		req: TypesGen.PremiumFunnelEventRequest,
+	): Promise<void> => {
+		await this.axios.post("/api/v2/deployment/premium-funnel-events", req);
+	};
+
 	getReplicas = async (): Promise<TypesGen.Replica[]> => {
 		const response = await this.axios.get("/api/v2/replicas");
 		return response.data;
@@ -2618,6 +2624,13 @@ class ApiMethods {
 		data: TypesGen.AddLicenseRequest,
 	): Promise<TypesGen.AddLicenseRequest> => {
 		const response = await this.axios.post("/api/v2/licenses", data);
+		return response.data;
+	};
+
+	createTrialLicense = async (
+		data: TypesGen.CreateTrialLicenseRequest,
+	): Promise<TypesGen.License> => {
+		const response = await this.axios.post("/api/v2/licenses/trial", data);
 		return response.data;
 	};
 

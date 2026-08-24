@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, userEvent, within } from "storybook/test";
 import { MockPermissions, mockApiError } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const meta: Meta<typeof CreateOrganizationPageView> = {
@@ -35,8 +36,8 @@ export const NotEntitled: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("link", { name: "Learn more about premium" }),
-		).toBeVisible();
+			canvas.getByRole("link", { name: /Read the docs/ }),
+		).toHaveAttribute("href", docs("/admin/users/organizations"));
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 	},

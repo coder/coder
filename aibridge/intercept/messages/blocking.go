@@ -56,7 +56,7 @@ func (i *BlockingInterception) Setup(logger slog.Logger, rec recorder.Recorder, 
 }
 
 func (i *BlockingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, false)
+	return i.baseTraceAttributes(r, false)
 }
 
 func (*BlockingInterception) Streaming() bool {

@@ -158,6 +158,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 export const ForMCPDeleteOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
@@ -205,6 +206,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 export const ForMCPCreateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {

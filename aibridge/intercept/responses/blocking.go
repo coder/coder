@@ -55,7 +55,7 @@ func (*BlockingResponsesInterceptor) Streaming() bool {
 }
 
 func (i *BlockingResponsesInterceptor) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.responsesInterceptionBase.baseTraceAttributes(r, false)
+	return i.baseTraceAttributes(r, false)
 }
 
 func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *http.Request) (outErr error) {

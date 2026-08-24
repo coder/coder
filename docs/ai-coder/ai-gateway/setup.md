@@ -1,7 +1,7 @@
 # Setup
 
 By default, AI Gateway runs inside the Coder control plane (`coderd`) and requires no separate compute.
-In embedded mode, `coderd` runs the Gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.
+In embedded mode, `coderd` runs the gateway in memory and brokers traffic to your configured AI providers on behalf of authenticated users.
 
 If AI traffic needs dedicated compute, independent scaling, or a separate network endpoint, you can [deploy AI Gateway as a standalone service](./standalone.md).
 
@@ -15,7 +15,7 @@ If AI traffic needs dedicated compute, independent scaling, or a separate networ
 ## Activation
 
 The AI Gateway feature must be enabled in the Coder deployment configuration before
-embedded or standalone Gateway instances can serve authenticated traffic.
+embedded or standalone gateway instances can serve authenticated traffic.
 
 _AI Gateway is enabled by default as of v2.34._
 
@@ -28,7 +28,7 @@ coder server --ai-gateway-enabled=true
 
 A standalone process does not read `CODER_AI_GATEWAY_ENABLED` from its own environment.
 However, this setting must remain enabled on `coderd`.
-It is required for Gateway key management endpoints to work and for standalone replicas to connect to the control plane.
+It is required for gateway key management endpoints to work and for standalone replicas to connect to the control plane.
 
 ## Configure Providers
 
@@ -91,8 +91,7 @@ with `/var/lib/coder/ai-gateway-dumps` configured writes to
 Sensitive headers are redacted before dumps are written. Leave the value empty
 to disable dumping.
 
-Each [standalone Gateway](./standalone.md) replica accepts the same API dump
-settings and writes dumps to its own local disk.
+Each [standalone gateway](./standalone.md) replica accepts the same API dump settings and writes optional dumps to its own local disk.
 
 > [!WARNING]
 > API dumps are intended for short diagnostic sessions only. Dump files contain
@@ -149,7 +148,7 @@ ingestion, set `--log-json` to a file path or `/dev/stderr` so that records are
 emitted as JSON.
 
 This setting belongs to `coderd`.
-A [standalone Gateway](./standalone.md) does not consume it.
+A [standalone gateway](./standalone.md) does not consume it.
 
 Filter for AI Gateway records in your logging pipeline by matching on the
 `"interception log"` message. Each log line includes a `record_type` field that

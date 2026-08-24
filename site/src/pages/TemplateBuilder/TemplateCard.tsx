@@ -66,7 +66,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 					{official && (
 						<>
 							{" "}
-							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle" />
+							<BadgeCheckIcon className="size-4 text-highlight-sky align-middle inline-block" />
 						</>
 					)}
 				</h3>

@@ -38,9 +38,8 @@ After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
 from the environment on the next restart.
 
-Seeding is a `coderd` operation. A [standalone Gateway](./standalone.md)
-ignores the deprecated provider variables and fetches provider
-configuration from `coderd`.
+Seeding is a `coderd` operation.
+A [standalone gateway](./standalone.md) ignores the deprecated provider variables and fetches provider configuration from `coderd`.
 
 ## Provider types
 
@@ -146,9 +145,9 @@ AI Gateway resolves AWS credentials one of three ways:
   that role before calling Bedrock, signing requests with the resulting
   temporary credentials. This works on top of either of the above base
   identities and supports cross-account Bedrock access. See
-  [Assuming an IAM role](#assuming-an-iam-role).
+  [IAM role assumption](#iam-role-assumption).
 
-#### Obtaining static Bedrock credentials
+#### Static Bedrock credentials
 
 When you cannot use the default credential chain, create a dedicated IAM
 user and generate a static access key:
@@ -175,7 +174,7 @@ user and generate a static access key:
    [AI Providers API](../../reference/api/aiproviders.md), along with the
    region (or base URL) and model identifiers.
 
-#### Assuming an IAM role
+#### IAM role assumption
 
 Set the optional **Role ARN** field to have the gateway assume an IAM
 role before calling Bedrock. The base identity (static credentials or the
@@ -303,14 +302,12 @@ attempt and each successful reload, exposed as Prometheus metrics:
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
 the same pair under the `coder_ai_gateway_proxy_` prefix.
-Each [standalone Gateway](./standalone.md) replica reloads providers
-independently.
+Each [standalone gateway](./standalone.md) replica reloads providers independently and replaces only its own provider snapshot.
+If a reload fails, that replica retains its previous provider snapshot and continues serving from it.
 
-A growing gap between the attempt and success timestamps means reloads
-are firing but failing to apply. Alert on that gap rather than on a
-single failure, which may resolve on the next change. See
-[Monitoring](./monitoring.md#prometheus-metrics) for the full metric list
-and sample alert queries.
+A growing gap between the attempt and success timestamps means reloads are firing but failing to apply.
+Alert on that gap rather than on a single failure, which may resolve on the next change.
+Refer to [Monitoring](./monitoring.md#prometheus-metrics) for the full metric list and sample alert queries.
 
 ## Key failover
 
