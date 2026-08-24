@@ -17,6 +17,7 @@ Before you begin, confirm the following:
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
+- **Organization Admin** role, or the **Owner** role, in each organization where you configure models.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
   This role is granted **per organization**. Owners and organization admins can
   assign it from **Admin settings** > **Organizations** > _[your organization]_ >
@@ -26,9 +27,9 @@ Before you begin, confirm the following:
 ## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
-> Configuring providers, models, and system prompts requires the
-> **Owner** role (Coder administrator). Non-admin users cannot access the
-> admin Settings panel or modify deployment-level Agents configuration.
+> Configuring providers and system prompts requires the **Owner** role (Coder administrator).
+> Configuring models requires the **Owner** role, or the **Organization Admin** role in the organization that owns the models.
+> Other users cannot open the admin settings panel or change Agents configuration.
 
 To configure Coder Agents:
 
@@ -36,9 +37,15 @@ To configure Coder Agents:
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
+1. Select the organization that owns the models.
+   Coder shows the organization picker when you can access more than 1 organization.
 1. Click **Add** and configure at least one model with its identifier, display
    name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
+
+Each organization has its own model list and its own default model.
+Repeat the model steps in every organization that uses Coder Agents.
+Refer to [Organization scope](./platform-controls/organizations.md) for the settings that stay deployment-wide.
 
 Detailed instructions for each provider and model option are in the
 [Models](./models.md) documentation.
@@ -189,7 +196,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
+Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 

@@ -30,7 +30,7 @@ after repeated failures, or risk reduction before a destructive operation.
 ## Configuration
 
 Once the experiment is enabled, configure the advisor's runtime limits
-under **AI Settings** > **Coder Agents** > **Advisor**. These limits apply
+under **Admin settings** > **AI** > **Coder Agents** > **Advisor**. These limits apply
 deployment-wide.
 
 | Field             | Default              | Notes                                                                                                                   |
@@ -38,11 +38,9 @@ deployment-wide.
 | Max uses per turn | `0` (unlimited)      | Caps how many times the root agent can call the advisor in a single chat turn. Must be a non-negative integer.          |
 | Max output tokens | `0` (server default) | Caps the advisor model's response length. `0` uses the server default of 16,384 tokens. Must be a non-negative integer. |
 
-The advisor model and its reasoning effort are organization-scoped
-[model overrides](../models.md#model-overrides). Configure them on the
-**Defaults & overrides** tab under **AI Settings** > **Models** for the
-selected organization. When no override is set, the advisor reuses the
-root agent's model.
+The advisor model and its reasoning effort are organization-scoped [model overrides](../models.md#model-overrides).
+Configure them in the **Organization settings** section of **Admin settings** > **AI** > **Coder Agents** for the selected organization.
+When no override is set, the advisor reuses the root agent's model.
 
 The advisor is not available in plan mode or to subagents.
 Failed advisor invocations refund the per-turn budget.

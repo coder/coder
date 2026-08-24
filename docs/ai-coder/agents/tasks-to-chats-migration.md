@@ -47,21 +47,21 @@ Before mapping individual endpoints, understand the structural changes:
 
 The table below maps each Tasks API endpoint to its Chats API equivalent.
 
-| Operation         | Tasks API                                 | Chats API                                                 |
-|-------------------|-------------------------------------------|-----------------------------------------------------------|
-| List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                       |
-| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                      |
-| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                |
-| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/v2/chats/{chat}` with `{"archived": true}`    |
-| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/v2/chats/{chat}/messages`                      |
-| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/v2/chats/{chat}/messages/{message}`           |
-| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/v2/chats/{chat}/stream` (WebSocket)             |
-| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/v2/chats/{chat}/interrupt`                     |
-| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/v2/chats/{chat}/messages` (send a new message) |
-| Watch all         | n/a                                       | `GET /api/v2/chats/watch` (WebSocket)                     |
-| Get messages      | n/a                                       | `GET /api/v2/chats/{chat}/messages`                       |
-| List models       | n/a                                       | `GET /api/v2/chats/models`                                |
-| Upload file       | n/a                                       | `POST /api/v2/chats/files`                                |
+| Operation         | Tasks API                                 | Chats API                                                         |
+|-------------------|-------------------------------------------|-------------------------------------------------------------------|
+| List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                               |
+| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                              |
+| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                        |
+| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/v2/chats/{chat}` with `{"archived": true}`            |
+| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/v2/chats/{chat}/messages`                              |
+| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/v2/chats/{chat}/messages/{message}`                   |
+| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/v2/chats/{chat}/stream` (WebSocket)                     |
+| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/v2/chats/{chat}/interrupt`                             |
+| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/v2/chats/{chat}/messages` (send a new message)         |
+| Watch all         | n/a                                       | `GET /api/v2/chats/watch` (WebSocket)                             |
+| Get messages      | n/a                                       | `GET /api/v2/chats/{chat}/messages`                               |
+| List models       | n/a                                       | `GET /api/experimental/organizations/{organization}/chats/models` |
+| Upload file       | n/a                                       | `POST /api/v2/chats/files`                                        |
 
 ## Migration steps
 
@@ -74,8 +74,8 @@ configured once in the control plane:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to **Admin settings** > **AI** > **Models**, add at least one model,
-   and set it as the default.
+1. Navigate to **Admin settings** > **AI** > **Models**, select the organization
+   that owns the models, add at least one model, and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 
@@ -509,12 +509,12 @@ confirm the Chats API integration is working end-to-end.
 
 ### 1. Confirm LLM provider connectivity
 
-List available models to verify at least one provider is configured and
-reachable:
+List the available models in an organization to verify at least one provider is
+configured and reachable:
 
 ```sh
-curl -s https://coder.example.com/api/v2/chats/models \
-  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.[].display_name'
+curl -s https://coder.example.com/api/experimental/organizations/$CODER_ORGANIZATION/chats/models \
+  -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.models[].display_name'
 ```
 
 If this returns an empty list or an error, revisit
@@ -641,7 +641,8 @@ curl -s -X PATCH \
 
 Use this checklist to confirm each part of your integration:
 
-- [ ] At least one LLM model is configured and returned by `/chats/models`
+- [ ] At least one LLM model is configured in the organization and returned by
+      `/organizations/{organization}/chats/models`
 - [ ] `POST /chats` creates a chat and returns a valid `Chat` object
 - [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
 - [ ] Follow-up messages via `/chats/{chat}/messages` are accepted
@@ -656,21 +657,21 @@ Use this checklist to confirm each part of your integration:
 The Chats API includes capabilities that have no equivalent in the Tasks
 API:
 
-| Feature                              | Description                                                                    |
-|--------------------------------------|--------------------------------------------------------------------------------|
-| **WebSocket streaming**              | Real-time event stream via `GET /chats/{chat}/stream` instead of HTTP polling  |
-| **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user               |
-| **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process |
-| **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy             |
-| **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages           |
-| **Model selection**                  | `GET /chats/models` to discover models; override per-chat or per-message       |
-| **MCP server attachment**            | Attach MCP servers to a chat for tool augmentation                             |
-| **Labels**                           | Key-value metadata on chats for filtering (`label` query parameter)            |
-| **Sub-agents**                       | Agent can spawn child agents for parallel work                                 |
-| **Diff/PR tracking**                 | `GET /chats/{chat}/diff` returns change tracking and PR metadata               |
-| **Title generation**                 | `POST /chats/{chat}/title/propose` returns a suggested title                   |
-| **Pinning**                          | Pin and reorder chats via the `pin_order` field                                |
-| **Automatic workspace provisioning** | No workspace needed for Q&A. Provisioned only when the agent needs to act      |
+| Feature                              | Description                                                                                           |
+|--------------------------------------|-------------------------------------------------------------------------------------------------------|
+| **WebSocket streaming**              | Real-time event stream via `GET /chats/{chat}/stream` instead of HTTP polling                         |
+| **Watch all chats**                  | `GET /chats/watch` pushes events for all chats owned by the user                                      |
+| **Message editing**                  | `PATCH /chats/{chat}/messages/{message}` to edit a sent message and re-process                        |
+| **Message queuing**                  | Follow-up messages are automatically queued when the agent is busy                                    |
+| **File uploads**                     | Attach images via `POST /chats/files` and reference them in messages                                  |
+| **Model selection**                  | `GET /organizations/{organization}/chats/models` to discover models; override per-chat or per-message |
+| **MCP server attachment**            | Attach MCP servers to a chat for tool augmentation                                                    |
+| **Labels**                           | Key-value metadata on chats for filtering (`label` query parameter)                                   |
+| **Sub-agents**                       | Agent can spawn child agents for parallel work                                                        |
+| **Diff/PR tracking**                 | `GET /chats/{chat}/diff` returns change tracking and PR metadata                                      |
+| **Title generation**                 | `POST /chats/{chat}/title/propose` returns a suggested title                                          |
+| **Pinning**                          | Pin and reorder chats via the `pin_order` field                                                       |
+| **Automatic workspace provisioning** | No workspace needed for Q&A. Provisioned only when the agent needs to act                             |
 
 ## Response schema changes
 

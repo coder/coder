@@ -6,7 +6,7 @@ servers, and chats only offer servers from the chat's organization. Configured
 servers are injected into or offered to users during chat depending on the
 availability policy.
 
-This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
+This is an admin-only feature accessible at **Admin settings** > **AI** > **Coder Agents** > **MCP servers**
 (`/ai/settings/mcp-servers`). In multi-organization deployments, use the
 organization picker to choose which organization's servers to manage. The
 server list shows the picker when you can access more than one organization's
@@ -15,19 +15,19 @@ read-only field when only one organization is available.
 
 ## Add an MCP server
 
-1. Navigate to **AI Settings** > **Coder Agents** > **MCP servers**.
+1. Navigate to **Admin settings** > **AI** > **Coder Agents** > **MCP servers**.
 1. Click **Add**.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
 
 ### Identity
 
-| Field          | Required | Description                                                   |
-|----------------|----------|---------------------------------------------------------------|
-| `display_name` | Yes      | Human-readable name shown to users in chat.                   |
-| `slug`         | Yes      | URL-safe unique identifier, auto-generated from display name. |
-| `description`  | No       | Brief summary of what the server provides.                    |
-| `icon_url`     | No       | Emoji or image URL displayed alongside the server name.       |
+| Field          | Required | Description                                                                                       |
+|----------------|----------|---------------------------------------------------------------------------------------------------|
+| `display_name` | Yes      | Human-readable name shown to users in chat.                                                       |
+| `slug`         | Yes      | URL-safe identifier, auto-generated from display name. It must be unique within the organization. |
+| `description`  | No       | Brief summary of what the server provides.                                                        |
+| `icon_url`     | No       | Emoji or image URL displayed alongside the server name.                                           |
 
 ### Connection
 
@@ -189,6 +189,8 @@ such as API keys and client secrets are redacted in API responses.
 The **MCP servers** settings page is part of deployment settings, so opening it in the dashboard also requires permission to edit deployment configuration.
 Organization admins without that permission can manage servers through the API.
 Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
+
+Refer to [Organization scope](./organizations.md) for the permissions, the access lists, and the upgrade behavior of the whole Agents configuration.
 
 ### Access control
 
