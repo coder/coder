@@ -77,6 +77,26 @@ automatically updated on the next startup.
 
 ![Template update policies](../../../images/templates/update-policies.png)
 
+## Refresh template data
+
+Coder reads Terraform `data` sources once, when it imports a template version.
+Every workspace built from that version reuses those stored results.
+
+Refreshing imports the active version's source files again and publishes the result as the new active version.
+Use it to pick up changes to a `data` source, or to give an older version the metadata that [Dynamic Parameters](../extending-templates/dynamic-parameters.md) needs.
+
+To refresh a template's data:
+
+1. Navigate to the template, then select **Settings** > **Parameters**.
+1. Select **Refresh template data**, then confirm.
+
+The **Template data** section on that page shows which version is active and when Coder last imported it.
+
+New workspaces use the refreshed version as soon as the import finishes.
+Workspaces that are already running stay on their current version until you update them.
+
+Refreshing a template's data requires permission to update the template, which the [Template Admin](../../users/groups-roles.md#roles) role and above have.
+
 ## Delete templates
 
 You can delete a template using both the coder CLI and UI. Only
