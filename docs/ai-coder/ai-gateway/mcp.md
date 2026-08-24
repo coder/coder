@@ -33,7 +33,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=...
 CODER_EXTERNAL_AUTH_0_MCP_URL=https://api.githubcopilot.com/mcp/
 ```
 
-Refer to the diagram in [Embedded Gateway](./reference.md#embedded-gateway) for more information.
+Refer to the diagram in [Embedded gateway](./reference.md#embedded-gateway) for more information.
 
 You can also control which tools are injected by using an allow and/or a deny regular expression on the tool names:
 
@@ -63,7 +63,13 @@ AI Gateway marks automatically injected tools with a prefix `bmcp_` ("bridged MC
 
 ## Tool Injection
 
-If a model decides to invoke a tool and it has a `bmcp_` prefix and AI Gateway has a connection with the related MCP server, it will invoke the tool. The tool result will be passed back to the upstream AI provider, and this will loop until the model has all of its required data. These inner loops are not relayed back to the client. The client only sees the result of this loop. Refer to [Deployment topologies](./reference.md#deployment-topologies).
+If a model decides to invoke a tool with a `bmcp_` prefix and AI Gateway has a connection to the related MCP server, AI Gateway invokes the tool.
+AI Gateway passes the tool result back to the upstream AI provider, and this loop continues until the model has all required data.
+These inner loops are not relayed back to the client.
+The client only sees the result of the loop.
+Injected MCP works with both embedded and standalone gateways.
+Control connection provides each standalone replica with the required configuration and access tokens.
+Refer to [Deployment topologies](./reference.md#deployment-topologies) for more information.
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
