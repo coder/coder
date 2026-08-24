@@ -1,14 +1,19 @@
 package aibridge
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"io"
 	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -138,6 +143,201 @@ func TestPassthroughRoutes(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), tc.expectRespBody)
 		})
 	}
+}
+
+func TestPassthroughCopilotModelsResponse(t *testing.T) {
+	t.Parallel()
+
+	const modelsResponse = `{
+		"data": [
+			{
+				"id": "gpt-test",
+				"supported_endpoints": ["/chat/completions", "ws:/responses", "/responses", "ws:/responses"],
+				"unknown": {"preserved": true}
+			},
+			{
+				"id": "other-test"
+			}
+		],
+		"unknown_top_level": "preserved"
+	}`
+
+	tests := []struct {
+		name        string
+		provider    string
+		method      string
+		path        string
+		baseURLPath string
+		statusCode  int
+		body        string
+		gzip        bool
+		modified    bool
+	}{
+		{
+			name:       "copilot GET models",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodGet,
+			path:       "/models",
+			statusCode: http.StatusOK,
+			body:       modelsResponse,
+			modified:   true,
+		},
+		{
+			name:       "copilot GET models trailing slash",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodGet,
+			path:       "/models/",
+			statusCode: http.StatusOK,
+			body:       modelsResponse,
+			modified:   true,
+		},
+		{
+			name:        "copilot GET models with base path",
+			provider:    config.ProviderCopilot,
+			method:      http.MethodGet,
+			path:        "/models",
+			baseURLPath: "/v1",
+			statusCode:  http.StatusOK,
+			body:        modelsResponse,
+			modified:    true,
+		},
+		{
+			name:       "copilot GET compressed models",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodGet,
+			path:       "/models",
+			statusCode: http.StatusOK,
+			body:       modelsResponse,
+			gzip:       true,
+			modified:   true,
+		},
+		{
+			name:       "other provider",
+			provider:   config.ProviderOpenAI,
+			method:     http.MethodGet,
+			path:       "/models",
+			statusCode: http.StatusOK,
+			body:       modelsResponse,
+		},
+		{
+			name:       "copilot POST models",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodPost,
+			path:       "/models",
+			statusCode: http.StatusOK,
+			body:       modelsResponse,
+		},
+		{
+			name:       "copilot models error",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodGet,
+			path:       "/models",
+			statusCode: http.StatusForbidden,
+			body:       modelsResponse,
+		},
+		{
+			name:       "copilot malformed models",
+			provider:   config.ProviderCopilot,
+			method:     http.MethodGet,
+			path:       "/models",
+			statusCode: http.StatusOK,
+			body:       `{not JSON}`,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tc.baseURLPath+tc.path, r.URL.Path)
+				if tc.gzip {
+					w.Header().Set("Content-Encoding", "gzip")
+				}
+				w.WriteHeader(tc.statusCode)
+				if tc.gzip {
+					var body bytes.Buffer
+					writer := gzip.NewWriter(&body)
+					_, err := writer.Write([]byte(tc.body))
+					require.NoError(t, err)
+					require.NoError(t, writer.Close())
+					_, _ = w.Write(body.Bytes())
+					return
+				}
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			t.Cleanup(upstream.Close)
+
+			logger := slogtest.Make(t, nil)
+			prov := &testutil.MockProvider{NameStr: tc.provider, URL: upstream.URL + tc.baseURLPath}
+			handler := newPassthroughRouter(prov, logger, nil, testTracer)
+
+			req := httptest.NewRequest(tc.method, "http://proxy.example.test"+tc.path, nil)
+			if tc.gzip {
+				req.Header.Set("Accept-Encoding", "gzip")
+			}
+			resp := httptest.NewRecorder()
+			handler.ServeHTTP(resp, req)
+
+			assert.Equal(t, tc.statusCode, resp.Code)
+			if !tc.modified {
+				assert.Equal(t, tc.body, resp.Body.String())
+				return
+			}
+
+			var responseBody []byte
+			if resp.Header().Get("Content-Encoding") == "gzip" {
+				reader, err := gzip.NewReader(bytes.NewReader(resp.Body.Bytes()))
+				require.NoError(t, err)
+				responseBody, err = io.ReadAll(reader)
+				require.NoError(t, err)
+				require.NoError(t, reader.Close())
+			} else {
+				responseBody = resp.Body.Bytes()
+			}
+
+			var payload struct {
+				Data []struct {
+					ID                 string          `json:"id"`
+					SupportedEndpoints []string        `json:"supported_endpoints"`
+					Unknown            json.RawMessage `json:"unknown"`
+				} `json:"data"`
+				UnknownTopLevel string `json:"unknown_top_level"`
+			}
+			require.NoError(t, json.Unmarshal(responseBody, &payload))
+			require.Len(t, payload.Data, 2)
+			assert.Equal(t, []string{"/chat/completions", "/responses"}, payload.Data[0].SupportedEndpoints)
+			assert.JSONEq(t, `{"preserved": true}`, string(payload.Data[0].Unknown))
+			assert.Equal(t, "preserved", payload.UnknownTopLevel)
+			assert.Equal(t, strconv.Itoa(resp.Body.Len()), resp.Header().Get("Content-Length"))
+		})
+	}
+}
+
+type errorReadCloser struct {
+	closed bool
+}
+
+func (*errorReadCloser) Read(p []byte) (int, error) {
+	copy(p, "partial")
+	return len("partial"), io.ErrUnexpectedEOF
+}
+
+func (r *errorReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
+
+func TestFilterCopilotModelsResponseReadError(t *testing.T) {
+	t.Parallel()
+
+	body := &errorReadCloser{}
+	resp := &http.Response{Body: body, Header: http.Header{}}
+
+	err := filterCopilotModelsResponse(resp)
+
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	assert.True(t, body.closed)
 }
 
 func TestRewritePassthroughRequest(t *testing.T) {

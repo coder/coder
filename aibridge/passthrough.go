@@ -1,18 +1,27 @@
 package aibridge
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -50,6 +59,13 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			rewritePassthroughRequest(pr, provBaseURL)
 		},
+		ModifyResponse: func(resp *http.Response) error {
+			modelsPath := path.Join("/", provBaseURL.Path, "models")
+			if prov.Type() != config.ProviderCopilot || resp.Request.Method != http.MethodGet || strings.TrimSuffix(resp.Request.URL.Path, "/") != modelsPath || resp.StatusCode < 200 || resp.StatusCode >= 300 {
+				return nil
+			}
+			return filterCopilotModelsResponse(resp)
+		},
 		Transport: keypool.NewKeyFailoverTransport(
 			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 			prov.KeyFailoverConfig(logger),
@@ -74,6 +90,122 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 
 		proxy.ServeHTTP(w, r.WithContext(ctx))
 	}
+}
+
+func filterCopilotModelsResponse(resp *http.Response) error {
+	wireBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		_ = resp.Body.Close()
+		return xerrors.Errorf("read Copilot models response: %w", err)
+	}
+	_ = resp.Body.Close()
+
+	body := wireBody
+	contentEncoding := resp.Header.Get("Content-Encoding")
+	if contentEncoding == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(body))
+		if err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			return nil
+		}
+		decoded, err := io.ReadAll(reader)
+		_ = reader.Close()
+		if err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(body))
+			return nil
+		}
+		body = decoded
+	} else if contentEncoding != "" {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+
+	var models []json.RawMessage
+	if err := json.Unmarshal(payload["data"], &models); err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+
+	modified := false
+	for i, rawModel := range models {
+		var model map[string]json.RawMessage
+		if err := json.Unmarshal(rawModel, &model); err != nil {
+			continue
+		}
+
+		rawEndpoints, ok := model["supported_endpoints"]
+		if !ok {
+			continue
+		}
+		var endpoints []string
+		if err := json.Unmarshal(rawEndpoints, &endpoints); err != nil {
+			continue
+		}
+
+		filtered := endpoints[:0]
+		for _, endpoint := range endpoints {
+			if endpoint != "ws:/responses" {
+				filtered = append(filtered, endpoint)
+			}
+		}
+		if len(filtered) == len(endpoints) {
+			continue
+		}
+
+		model["supported_endpoints"], err = json.Marshal(filtered)
+		if err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+			return nil
+		}
+		models[i], err = json.Marshal(model)
+		if err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+			return nil
+		}
+		modified = true
+	}
+	if !modified {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+
+	payload["data"], err = json.Marshal(models)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+	body, err = json.Marshal(payload)
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+		return nil
+	}
+
+	if contentEncoding == "gzip" {
+		var compressed bytes.Buffer
+		writer := gzip.NewWriter(&compressed)
+		if _, err := writer.Write(body); err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+			return nil
+		}
+		if err := writer.Close(); err != nil {
+			resp.Body = io.NopCloser(bytes.NewReader(wireBody))
+			return nil
+		}
+		body = compressed.Bytes()
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	resp.ContentLength = int64(len(body))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	resp.Header.Del("Content-MD5")
+	resp.Header.Del("ETag")
+	return nil
 }
 
 // rewritePassthroughRequest configures the outbound request for the upstream and
