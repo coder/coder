@@ -42,11 +42,23 @@ import {
 	type ProviderState,
 } from "#/modules/aiModels/providerStates";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import { paginateItems } from "#/utils/paginateItems";
 import { ModelRow } from "./components/ModelRow";
 
 const MODELS_PAGE_SIZE = 10;
 const ALL_PROVIDERS_VALUE = "all";
+
+// Collapses provider names that differ only by capitalization onto one
+// canonical, capitalized label. Names that differ further (e.g. a numeric
+// suffix like "Anthropic 2") keep distinct labels and stay separate options.
+const canonicalProviderLabel = (label: string, provider: string): string => {
+	const normalized = label.trim().replace(/\s+/g, " ");
+	const brand = formatProviderLabel(provider);
+	return !normalized || normalized.toLowerCase() === brand.toLowerCase()
+		? brand
+		: `${normalized.charAt(0).toUpperCase()}${normalized.slice(1)}`;
+};
 
 const AddModelDropdown: FC<{
 	providerStates: readonly ProviderState[];
@@ -115,14 +127,37 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	const [providerFilter, setProviderFilter] =
 		useState<string>(ALL_PROVIDERS_VALUE);
 
-	const providerKeyByModelId = useMemo(() => {
+	// Filter models by canonical provider name so capitalization-only variants
+	// are treated as the same provider.
+	const providerFilterKeyByModelId = useMemo(() => {
 		const map = new Map<string, string>();
 		for (const providerState of providerStates) {
+			const key = canonicalProviderLabel(
+				providerState.label,
+				providerState.provider,
+			).toLowerCase();
 			for (const providerModel of providerState.models) {
-				map.set(providerModel.id, providerState.key);
+				map.set(providerModel.id, key);
 			}
 		}
 		return map;
+	}, [providerStates]);
+
+	// One option per canonical provider name, ordered alphabetically.
+	const providerFilterOptions = useMemo(() => {
+		const seen = new Set<string>();
+		const options: { value: string; label: string; provider: string }[] = [];
+		for (const providerState of providerStates) {
+			const label = canonicalProviderLabel(
+				providerState.label,
+				providerState.provider,
+			);
+			const value = label.toLowerCase();
+			if (seen.has(value)) continue;
+			seen.add(value);
+			options.push({ value, label, provider: providerState.provider });
+		}
+		return options.sort((a, b) => a.label.localeCompare(b.label));
 	}, [providerStates]);
 
 	const providerLabelByModelId = useMemo(() => {
@@ -163,7 +198,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		return models.filter((model) => {
 			if (
 				providerFilter !== ALL_PROVIDERS_VALUE &&
-				providerKeyByModelId.get(model.id) !== providerFilter
+				providerFilterKeyByModelId.get(model.id) !== providerFilter
 			) {
 				return false;
 			}
@@ -182,7 +217,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 	}, [
 		models,
 		providerFilter,
-		providerKeyByModelId,
+		providerFilterKeyByModelId,
 		providerLabelByModelId,
 		searchQuery,
 	]);
@@ -244,11 +279,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value={ALL_PROVIDERS_VALUE}>All providers</SelectItem>
-						{providerStates.map((providerState) => (
-							<SelectItem key={providerState.key} value={providerState.key}>
+						{providerFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
 								<span className="flex items-center gap-2">
-									<ProviderIcon provider={providerState.provider} />
-									{providerState.label}
+									<ProviderIcon provider={option.provider} />
+									{option.label}
 								</span>
 							</SelectItem>
 						))}

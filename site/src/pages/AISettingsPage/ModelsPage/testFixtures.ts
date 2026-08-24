@@ -82,6 +82,40 @@ export const MockAnthropicProviderState: ProviderState = {
 	models: [mockClaude],
 };
 
+// An Anthropic config whose name differs from "Anthropic" only by
+// capitalization. The provider filter must merge the two into one option.
+export const mockClaudeOpus: ChatModel = {
+	...mockClaude,
+	id: "model-claude-opus",
+	ai_provider_id: "prov-anthropic-lower",
+	model: "claude-opus-4-5",
+	display_name: "Claude Opus 4.5",
+};
+
+export const MockAnthropicLowercaseProviderState: ProviderState = {
+	...MockAnthropicProviderState,
+	key: "prov-anthropic-lower",
+	label: "anthropic",
+	models: [mockClaudeOpus],
+};
+
+// An Anthropic config whose name adds a number. A numeric suffix is more than
+// a capitalization change, so the filter keeps it as a separate option.
+export const mockClaudeHaiku: ChatModel = {
+	...mockClaude,
+	id: "model-claude-haiku",
+	ai_provider_id: "prov-anthropic-2",
+	model: "claude-haiku-4-5",
+	display_name: "Claude Haiku 4.5",
+};
+
+export const MockAnthropicSecondaryProviderState: ProviderState = {
+	...MockAnthropicProviderState,
+	key: "prov-anthropic-2",
+	label: "Anthropic 2",
+	models: [mockClaudeHaiku],
+};
+
 const MockGoogleProviderConfig: ChatProviderConfig = {
 	...MockOpenAIProviderConfig,
 	id: "prov-google",

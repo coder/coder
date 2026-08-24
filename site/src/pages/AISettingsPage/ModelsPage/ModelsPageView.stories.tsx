@@ -4,12 +4,16 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ChatModel } from "#/api/typesGenerated";
 import ModelsPageView from "./ModelsPageView";
 import {
+	MockAnthropicLowercaseProviderState,
 	MockAnthropicProviderState,
+	MockAnthropicSecondaryProviderState,
 	MockBedrockProviderState,
 	MockDisabledProviderState,
 	MockOpenAIProviderState,
 	mockBedrockClaude,
 	mockClaude,
+	mockClaudeHaiku,
+	mockClaudeOpus,
 	mockDisabledModel,
 	mockGPT5,
 	mockOrphanedModel,
@@ -112,6 +116,56 @@ export const FilterByProvider: Story = {
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
 		await expect(canvas.queryByText("GPT-5")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("GPT-4o mini")).not.toBeInTheDocument();
+	},
+};
+
+// Provider names that differ only by capitalization ("anthropic" vs
+// "Anthropic") collapse into a single "Anthropic" option. A name with a
+// numeric suffix ("Anthropic 2") is treated as a distinct provider and stays
+// separate.
+export const FilterMergesCaseVariantsButKeepsNumbered: Story = {
+	args: {
+		models: [mockGPT5, mockClaude, mockClaudeOpus, mockClaudeHaiku],
+		providerStates: [
+			MockOpenAIProviderState,
+			MockAnthropicProviderState,
+			MockAnthropicLowercaseProviderState,
+			MockAnthropicSecondaryProviderState,
+		],
+		providerTypeByID: new Map<string, string>([
+			["prov-openai", "openai"],
+			["prov-anthropic", "anthropic"],
+			["prov-anthropic-lower", "anthropic"],
+			["prov-anthropic-2", "anthropic"],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const providerFilter = canvas.getByRole("combobox", {
+			name: /filter by provider/i,
+		});
+		await userEvent.click(providerFilter);
+		const listbox = await within(document.body).findByRole("listbox");
+		// Case-only variants collapse to one "Anthropic" option...
+		await expect(
+			within(listbox).getAllByRole("option", { name: "Anthropic" }),
+		).toHaveLength(1);
+		// ...while the numbered variant stays as its own option.
+		await expect(
+			within(listbox).getByRole("option", { name: "Anthropic 2" }),
+		).toBeInTheDocument();
+
+		// Selecting "Anthropic" shows models from both case-variant configs but
+		// not the numbered "Anthropic 2" config.
+		await userEvent.click(
+			within(listbox).getByRole("option", { name: "Anthropic" }),
+		);
+		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
+		await expect(canvas.getByText("Claude Opus 4.5")).toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Claude Haiku 4.5"),
+		).not.toBeInTheDocument();
+		await expect(canvas.queryByText("GPT-5")).not.toBeInTheDocument();
 	},
 };
 
