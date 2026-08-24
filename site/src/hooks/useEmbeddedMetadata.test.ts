@@ -11,6 +11,7 @@ import {
 	MockPermissions,
 	MockUserAppearanceSettings,
 	MockUserOwner,
+	MockUserSecretFilePathEnabled,
 } from "#/testHelpers/entities";
 import {
 	DEFAULT_METADATA_KEY,
@@ -47,6 +48,7 @@ const mockDataForTags = {
 	regions: MockRegions,
 	"ai-tasks-enabled": MockAITasksEnabled,
 	"ai-gateway-enabled": MockAIGatewayEnabled,
+	"user-secret-file-path-enabled": MockUserSecretFilePathEnabled,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -85,6 +87,10 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"ai-gateway-enabled": {
+		available: false,
+		value: undefined,
+	},
+	"user-secret-file-path-enabled": {
 		available: false,
 		value: undefined,
 	},
@@ -134,6 +140,10 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"ai-gateway-enabled": {
 		available: true,
 		value: MockAIGatewayEnabled,
+	},
+	"user-secret-file-path-enabled": {
+		available: true,
+		value: MockUserSecretFilePathEnabled,
 	},
 	permissions: {
 		available: true,
