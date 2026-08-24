@@ -233,9 +233,9 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 										MCP server connections
 									</h4>
 									<ul className="m-0 list-none space-y-1 p-0 pt-1.5">
-										{summaryVm.mcpConnect.map((server) => (
+										{summaryVm.mcpConnect.map((server, index) => (
 											<li
-												key={server.slug}
+												key={`${server.slug}-${index}`}
 												className="flex min-w-0 items-center gap-2 text-xs"
 											>
 												<span className="shrink-0 font-medium text-content-primary">

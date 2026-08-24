@@ -730,6 +730,15 @@ const mcpConnectSummary = {
 			duration_ms: 10000,
 			error: "connect: context deadline exceeded",
 		},
+		// The same server reported again by a later generation
+		// step; entries accumulate across the turn's preparations.
+		{
+			config_id: "b8f9f3f2-4a3f-4f8a-9c5e-2f4f4be00002",
+			slug: "registry",
+			outcome: "connected",
+			duration_ms: 45,
+			tool_count: 3,
+		},
 	],
 };
 
@@ -771,13 +780,15 @@ export const RunWithMCPConnectSummary: Story = {
 		const mcp = within(section);
 		await waitFor(() => {
 			expect(mcp.getByText("linear")).toBeVisible();
-			expect(mcp.getByText("connected")).toBeVisible();
+			expect(mcp.getAllByText("connected")).toHaveLength(2);
 			expect(mcp.getByText("320ms")).toBeVisible();
 			expect(mcp.getByText("12 tools")).toBeVisible();
-			expect(mcp.getByText("registry")).toBeVisible();
+			expect(mcp.getAllByText("registry")).toHaveLength(2);
 			expect(mcp.getByText("timeout")).toBeVisible();
 			expect(mcp.getByText("10.0s")).toBeVisible();
 			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
+			expect(mcp.getByText("45ms")).toBeVisible();
+			expect(mcp.getByText("3 tools")).toBeVisible();
 		});
 	},
 };

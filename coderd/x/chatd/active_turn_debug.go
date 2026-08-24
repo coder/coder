@@ -9,6 +9,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 )
 
 type runnerDebugTurn struct {
@@ -57,6 +58,7 @@ func (d *runnerDebugTurn) Ensure(
 		return ctx
 	}
 	if d.created {
+		d.mergeMCPConnectSummariesLocked(debug)
 		return d.contextLocked(ctx)
 	}
 	if debug == nil || !debug.Enabled || debug.Service == nil ||
@@ -129,6 +131,24 @@ func (d *runnerDebugTurn) Context(ctx context.Context) context.Context {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.contextLocked(ctx)
+}
+
+// mergeMCPConnectSummariesLocked appends a later preparation's
+// per-server MCP connect outcomes to the seeded mcp_connect key.
+// chatd reconnects to every configured MCP server on each
+// generation step while the run is created only once, so without
+// this merge only the first preparation's outcomes would survive
+// to the finalized run and a server that degrades mid-turn would
+// still be reported as connected.
+func (d *runnerDebugTurn) mergeMCPConnectSummariesLocked(debug *generationDebug) {
+	if debug == nil || len(debug.MCPConnectSummaries) == 0 {
+		return
+	}
+	if d.seedSummary == nil {
+		d.seedSummary = make(map[string]any, 1)
+	}
+	existing, _ := d.seedSummary["mcp_connect"].([]mcpclient.ConnectSummary)
+	d.seedSummary["mcp_connect"] = append(existing, debug.MCPConnectSummaries...)
 }
 
 func (d *runnerDebugTurn) contextLocked(ctx context.Context) context.Context {
