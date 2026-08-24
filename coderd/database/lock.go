@@ -18,6 +18,7 @@ const (
 	LockIDAIProvidersEnvSeed
 	LockIDChatModelConfigWrites
 	LockIDChatCapacityAdmission
+	LockIDNotifyUnpricedAIModels
 )
 
 // Per-setting advisory lock IDs for the chat instruction settings. These

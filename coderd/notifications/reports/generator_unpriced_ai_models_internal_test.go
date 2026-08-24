@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -306,4 +307,36 @@ func modelsFromPayload(t *testing.T, data map[string]any) []map[string]any {
 	models, ok := data["models"].([]map[string]any)
 	require.True(t, ok, "models missing from report payload")
 	return models
+}
+
+func TestReportUnpricedAIModels_ConcurrentReplicas(t *testing.T) {
+	t.Parallel()
+
+	ctx, logger, db, _, notifEnq, clk := setup(t)
+	seedOwner(t, db)
+	initiator := dbgen.User(t, db, database.User{})
+	provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
+
+	checkIn(ctx, t, logger, db, notifEnq, clk)
+	clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
+	seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+
+	// When: two replicas tick at the same time. Each report holds its own
+	// lock, so this contends only with itself.
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runReport(ctx, logger, db, database.LockIDNotifyUnpricedAIModels, "unpriced AI models",
+				func(tx database.Store) error {
+					return reportUnpricedAIModels(ctx, logger, tx, notifEnq, clk)
+				})
+		}()
+	}
+	wg.Wait()
+
+	// Then: the advisory lock makes one of them skip, and the persisted
+	// timestamp stops the loser from reporting the same window afterwards.
+	require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 }

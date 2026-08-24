@@ -25,6 +25,27 @@ const (
 	delay = 15 * time.Minute
 )
 
+// runReport executes one report in its own transaction, guarded by its own
+// advisory lock so that only one replica generates it. A replica that cannot
+// take the lock skips this tick and tries again on the next one; how often a
+// report is actually sent is enforced by the report itself, against the
+// timestamp it persists.
+func runReport(ctx context.Context, logger slog.Logger, db database.Store, lockID int64, name string, report func(tx database.Store) error) {
+	if err := db.InTx(func(tx database.Store) error {
+		ok, err := tx.TryAcquireLock(ctx, lockID)
+		if err != nil {
+			return xerrors.Errorf("failed to acquire report lock: %w", err)
+		}
+		if !ok {
+			logger.Debug(ctx, "unable to acquire lock for generating periodic report, skipping", slog.F("report", name))
+			return nil
+		}
+		return report(tx)
+	}, nil); err != nil {
+		logger.Error(ctx, "failed to generate report", slog.F("report", name), slog.Error(err))
+	}
+}
+
 func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
@@ -37,38 +58,22 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 	ticker.Stop()
 	doTick := func(start time.Time) {
 		defer ticker.Reset(delay)
-		// Start a transaction to grab advisory lock, we don't want to run generator jobs at the same time (multiple replicas).
-		if err := db.InTx(func(tx database.Store) error {
-			// Acquire a lock to ensure that only one instance of the generator is running at a time.
-			ok, err := tx.TryAcquireLock(ctx, database.LockIDNotificationsReportGenerator)
-			if err != nil {
-				return xerrors.Errorf("failed to acquire report generator lock: %w", err)
-			}
-			if !ok {
-				logger.Debug(ctx, "unable to acquire lock for generating periodic reports, skipping")
-				return nil
-			}
 
-			err = reportFailedWorkspaceBuilds(ctx, logger, tx, enqueuer, clk)
-			if err != nil {
-				return xerrors.Errorf("unable to generate reports with failed workspace builds: %w", err)
-			}
+		// Reports are independent, so each runs in its own transaction under
+		// its own advisory lock. Sharing either would couple them: one
+		// report's failure would roll back another's generator log after its
+		// notifications were already enqueued, and a replica that lost the
+		// lock to one report would skip the rest.
+		runReport(ctx, logger, db, database.LockIDNotificationsReportGenerator, "failed workspace builds",
+			func(tx database.Store) error {
+				return reportFailedWorkspaceBuilds(ctx, logger, tx, enqueuer, clk)
+			})
+		runReport(ctx, logger, db, database.LockIDNotifyUnpricedAIModels, "unpriced AI models",
+			func(tx database.Store) error {
+				return reportUnpricedAIModels(ctx, logger, tx, enqueuer, clk)
+			})
 
-			// Reports are independent. A failure here is logged rather than
-			// returned, so it cannot roll back the transaction and discard the
-			// generator log written by the report above, which would make that
-			// report regenerate on the next tick.
-			if err := reportUnpricedAIModels(ctx, logger, tx, enqueuer, clk); err != nil {
-				logger.Error(ctx, "unable to generate report with unpriced AI models", slog.Error(err))
-			}
-
-			logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
-
-			return nil
-		}, nil); err != nil {
-			logger.Error(ctx, "failed to generate reports", slog.Error(err))
-			return
-		}
+		logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
 	}
 
 	go func() {
