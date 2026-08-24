@@ -103,12 +103,13 @@ export const CommunityUsageWithUnrelatedLicense: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Accumulated Agent Time")).toBeVisible();
+		await expect(canvas.getByText("Agent hours used")).toBeVisible();
 		await expect(canvas.getByText("10.3 hours")).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
-			"href",
-			"/deployment/premium",
-		);
+		await expect(
+			canvas.getByRole("link", {
+				name: "Upgrade for unlimited concurrent chats",
+			}),
+		).toHaveAttribute("href", "/deployment/premium");
 		await expect(canvas.getByText("5")).toBeVisible();
 	},
 };

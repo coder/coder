@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockAgentRuntimeHoursFeature } from "#/testHelpers/entities";
 import {
@@ -86,10 +86,21 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("heading", { name: "Usage" })).toBeVisible();
 		await expect(canvas.getByText("10.3 hours")).toBeVisible();
-		await expect(canvas.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
-			"href",
-			"/deployment/premium",
+		await expect(
+			canvas.getByRole("link", {
+				name: "Upgrade for unlimited concurrent chats",
+			}),
+		).toHaveAttribute("href", "/deployment/premium");
+		await userEvent.hover(
+			canvas.getByRole("button", {
+				name: "Max concurrent agents information",
+			}),
 		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Number of agents that can run at the same time.",
+			);
+		});
 		await expect(
 			canvas.getAllByRole("link", { name: "Defaults & overrides" })[0],
 		).toBeVisible();
@@ -160,7 +171,7 @@ export const LicensedFiniteAllocation: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("10.3 / 100 hours")).toBeVisible();
 		await expect(
-			canvas.getByRole("link", { name: "Manage license" }),
+			canvas.getByRole("link", { name: "View license" }),
 		).toHaveAttribute("href", "/deployment/licenses");
 	},
 };

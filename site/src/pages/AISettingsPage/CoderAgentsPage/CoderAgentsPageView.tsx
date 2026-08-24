@@ -1,8 +1,8 @@
+import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import { Link as RouterLink } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
@@ -10,6 +10,11 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import { docs } from "#/utils/docs";
@@ -57,6 +62,9 @@ export interface CoderAgentsPageViewProps {
 }
 
 const maxConcurrentAgents = 5;
+const concurrentAgentsTooltip =
+	"Number of agents that can run at the same time.";
+const concurrentAgentsHardLimitTooltip = `${concurrentAgentsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentAgents} (down from unlimited).`;
 
 const formatAgentHours = (actualMs: number | undefined): string => {
 	if (actualMs === undefined || !Number.isFinite(actualMs)) {
@@ -107,25 +115,20 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div>
 					<h2 className="m-0 text-base font-medium">Usage</h2>
-					<p className="m-0 mt-1 text-sm text-content-secondary">
-						Coder Agents runtime across this deployment.
-					</p>
+					<Link asChild showExternalIcon={false} size="lg" className="mt-1">
+						<RouterLink
+							to={
+								hasAgentRuntimeLicense === false
+									? "/deployment/premium"
+									: "/deployment/licenses"
+							}
+						>
+							{hasAgentRuntimeLicense === false
+								? "Upgrade for unlimited concurrent chats"
+								: "View license"}
+						</RouterLink>
+					</Link>
 				</div>
-				{!isLoading &&
-					!isUnavailable &&
-					hasAgentRuntimeLicense !== undefined && (
-						<Button asChild size="sm" variant="subtle">
-							<RouterLink
-								to={
-									hasAgentRuntimeLicense
-										? "/deployment/licenses"
-										: "/deployment/premium"
-								}
-							>
-								{hasAgentRuntimeLicense ? "Manage license" : "Upgrade"}
-							</RouterLink>
-						</Button>
-					)}
 			</div>
 
 			{isLoading ? (
@@ -142,29 +145,40 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 					<dl className="m-0 mt-5 grid gap-4 sm:grid-cols-2">
 						<div>
 							<dt className="text-xs font-medium text-content-secondary">
-								{hasAgentRuntimeLicense
-									? "Agent Time used"
-									: "Accumulated Agent Time"}
+								Agent hours used
 							</dt>
-							<dd className="m-0 mt-1 text-lg font-medium text-content-primary">
+							<dd className="m-0 mt-1 text-sm font-medium text-content-primary">
 								{hasAgentRuntimeLicense
 									? `${usedHours} / ${allocation} hours`
 									: `${usedHours} hours`}
 							</dd>
 						</div>
 						<div>
-							<dt className="text-xs font-medium text-content-secondary">
-								Max concurrent agents
+							<dt className="flex items-center gap-1 text-xs font-medium text-content-secondary">
+								<span>Max concurrent agents</span>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											aria-label="Max concurrent agents information"
+											className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+										>
+											<InfoIcon className="size-3" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top" className="max-w-xs">
+										{hardLimitReached
+											? concurrentAgentsHardLimitTooltip
+											: concurrentAgentsTooltip}
+									</TooltipContent>
+								</Tooltip>
 							</dt>
-							<dd className="m-0 mt-1 text-lg font-medium text-content-primary">
+							<dd className="m-0 mt-1 text-sm font-medium text-content-primary">
 								{concurrentAgents}
 							</dd>
 						</div>
 					</dl>
 					<p className="m-0 mt-4 text-sm text-content-secondary">
-						{hasAgentRuntimeLicense
-							? "Usage is measured for the current license period."
-							: "Usage is accumulated from retained data since tracking began."}{" "}
 						<Link href={docs("/ai-coder/agents/licensing-usage")}>
 							View usage documentation
 						</Link>
