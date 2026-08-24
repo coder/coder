@@ -2043,26 +2043,32 @@ func TestLicenseEntitlements(t *testing.T) {
 		},
 		{
 			// An enterprise license without the allocation claim does not
-			// grant the feature, so usage is never queried and nothing
-			// warns. Only premium licenses are grandfathered into a
-			// zero-hour allocation.
-			Name: "AgentRuntimeHours/NoClaimNoFeature",
+			// grant the feature, so it reports community-tier usage without
+			// an allocation or usage period. Only premium licenses are
+			// grandfathered into a zero-hour allocation.
+			Name: "AgentRuntimeHours/NoClaimUsesCommunityUsage",
 			Licenses: []*coderdenttest.LicenseOptions{
 				enterpriseLicense().UserLimit(100),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-					// Poison value: if the runtime block ever ran without the
-					// allocation claim, Actual would be set and the Nil
-					// assertion below would fail on the subtest's t.
-					return (9999 * time.Hour).Milliseconds(), nil
+					return (10*time.Hour + 18*time.Minute).Milliseconds(), nil
 				},
 			},
 			AssertEntitlements: func(t *testing.T, entitlements codersdk.Entitlements) {
 				assertNoErrors(t, entitlements)
 				assertNoWarnings(t, entitlements)
+				assert.True(t, entitlements.HasLicense)
 				feature := entitlements.Features[codersdk.FeatureAgentRuntimeHours]
-				assert.Nil(t, feature.Actual)
+				assert.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+				assert.False(t, feature.Enabled)
+				require.NotNil(t, feature.Actual)
+				assert.Equal(t, int64(10), *feature.Actual)
+				require.NotNil(t, feature.ActualMs)
+				assert.Equal(t, int64(37_080_000), *feature.ActualMs)
+				assert.Nil(t, feature.Limit)
+				assert.Nil(t, feature.SoftLimit)
+				assert.Nil(t, feature.HardLimit)
 				assert.Nil(t, feature.UsagePeriod)
 			},
 		},

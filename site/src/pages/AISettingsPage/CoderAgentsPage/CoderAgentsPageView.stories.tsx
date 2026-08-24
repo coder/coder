@@ -37,7 +37,7 @@ const licensedUnlimitedRuntimeFeature = {
 } satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
 
 const defaultArgs: CoderAgentsPageViewProps = {
-	hasLicense: false,
+	hasAgentRuntimeLicense: false,
 	agentRuntimeHoursFeature: communityRuntimeFeature,
 	isAgentRuntimeUsageLoading: false,
 	isAgentRuntimeUsageUnavailable: false,
@@ -119,7 +119,7 @@ export const WithoutAdvisor: Story = {
 
 export const UsageLoading: Story = {
 	args: {
-		hasLicense: undefined,
+		hasAgentRuntimeLicense: undefined,
 		agentRuntimeHoursFeature: undefined,
 		isAgentRuntimeUsageLoading: true,
 	},
@@ -136,7 +136,7 @@ export const UsageLoading: Story = {
 
 export const UsageUnavailable: Story = {
 	args: {
-		hasLicense: undefined,
+		hasAgentRuntimeLicense: undefined,
 		agentRuntimeHoursFeature: undefined,
 		isAgentRuntimeUsageUnavailable: true,
 	},
@@ -153,7 +153,7 @@ export const UsageUnavailable: Story = {
 
 export const LicensedFiniteAllocation: Story = {
 	args: {
-		hasLicense: true,
+		hasAgentRuntimeLicense: true,
 		agentRuntimeHoursFeature: licensedFiniteRuntimeFeature,
 	},
 	play: async ({ canvasElement }) => {
@@ -167,7 +167,7 @@ export const LicensedFiniteAllocation: Story = {
 
 export const LicensedUnlimitedAllocation: Story = {
 	args: {
-		hasLicense: true,
+		hasAgentRuntimeLicense: true,
 		agentRuntimeHoursFeature: licensedUnlimitedRuntimeFeature,
 	},
 	play: async ({ canvasElement }) => {

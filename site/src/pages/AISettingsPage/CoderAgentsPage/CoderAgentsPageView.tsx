@@ -20,7 +20,7 @@ import {
 import type { MutationCallbacks } from "./components/SubagentModelOverrideSettings";
 
 export interface CoderAgentsPageViewProps {
-	hasLicense?: boolean;
+	hasAgentRuntimeLicense?: boolean;
 	agentRuntimeHoursFeature?: TypesGen.Feature;
 	isAgentRuntimeUsageLoading: boolean;
 	isAgentRuntimeUsageUnavailable: boolean;
@@ -70,14 +70,14 @@ const formatAgentHours = (actualMs: number | undefined): string => {
 };
 
 type CoderAgentsUsageProps = {
-	hasLicense?: boolean;
+	hasAgentRuntimeLicense?: boolean;
 	feature?: TypesGen.Feature;
 	isLoading: boolean;
 	isUnavailable: boolean;
 };
 
 const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
-	hasLicense,
+	hasAgentRuntimeLicense,
 	feature,
 	isLoading,
 	isUnavailable,
@@ -89,7 +89,7 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 		feature.actual !== undefined &&
 		feature.actual >= feature.hard_limit;
 	const concurrentAgents =
-		hasLicense && feature?.enabled && !hardLimitReached
+		hasAgentRuntimeLicense && feature?.enabled && !hardLimitReached
 			? "Unlimited"
 			: maxConcurrentAgents.toLocaleString("en-US");
 	const allocation =
@@ -111,15 +111,21 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 						Coder Agents runtime across this deployment.
 					</p>
 				</div>
-				{!isLoading && !isUnavailable && hasLicense !== undefined && (
-					<Button asChild size="sm" variant="subtle">
-						<RouterLink
-							to={hasLicense ? "/deployment/licenses" : "/deployment/premium"}
-						>
-							{hasLicense ? "Manage license" : "Upgrade"}
-						</RouterLink>
-					</Button>
-				)}
+				{!isLoading &&
+					!isUnavailable &&
+					hasAgentRuntimeLicense !== undefined && (
+						<Button asChild size="sm" variant="subtle">
+							<RouterLink
+								to={
+									hasAgentRuntimeLicense
+										? "/deployment/licenses"
+										: "/deployment/premium"
+								}
+							>
+								{hasAgentRuntimeLicense ? "Manage license" : "Upgrade"}
+							</RouterLink>
+						</Button>
+					)}
 			</div>
 
 			{isLoading ? (
@@ -127,7 +133,7 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 					<Spinner size="sm" loading label="Loading Agent Time usage" />
 					<span>Loading Agent Time usage...</span>
 				</div>
-			) : isUnavailable || hasLicense === undefined ? (
+			) : isUnavailable || hasAgentRuntimeLicense === undefined ? (
 				<p role="status" className="m-0 mt-5 text-sm text-content-secondary">
 					Agent Time usage is unavailable.
 				</p>
@@ -136,10 +142,12 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 					<dl className="m-0 mt-5 grid gap-4 sm:grid-cols-2">
 						<div>
 							<dt className="text-xs font-medium text-content-secondary">
-								{hasLicense ? "Agent Time used" : "Accumulated Agent Time"}
+								{hasAgentRuntimeLicense
+									? "Agent Time used"
+									: "Accumulated Agent Time"}
 							</dt>
 							<dd className="m-0 mt-1 text-lg font-medium text-content-primary">
-								{hasLicense
+								{hasAgentRuntimeLicense
 									? `${usedHours} / ${allocation} hours`
 									: `${usedHours} hours`}
 							</dd>
@@ -154,7 +162,7 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 						</div>
 					</dl>
 					<p className="m-0 mt-4 text-sm text-content-secondary">
-						{hasLicense
+						{hasAgentRuntimeLicense
 							? "Usage is measured for the current license period."
 							: "Usage is accumulated from retained data since tracking began."}{" "}
 						<Link href={docs("/ai-coder/agents/licensing-usage")}>
@@ -168,7 +176,7 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 };
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
-	hasLicense,
+	hasAgentRuntimeLicense,
 	agentRuntimeHoursFeature,
 	isAgentRuntimeUsageLoading,
 	isAgentRuntimeUsageUnavailable,
@@ -208,7 +216,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 			</SettingsHeaderDescription>
 		</SettingsHeader>
 		<CoderAgentsUsage
-			hasLicense={hasLicense}
+			hasAgentRuntimeLicense={hasAgentRuntimeLicense}
 			feature={agentRuntimeHoursFeature}
 			isLoading={isAgentRuntimeUsageLoading}
 			isUnavailable={isAgentRuntimeUsageUnavailable}

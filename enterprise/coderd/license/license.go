@@ -797,9 +797,9 @@ func LicensesEntitlements(
 					entitlements.Warnings, actualHours, *runtimeHours.Limit, runtimeHours.SoftLimit)
 			}
 		}
-	} else if !entitlements.HasLicense && featureArguments.AgentRuntimeMsFn != nil {
-		// Community usage covers all retained events since tracking began. It
-		// intentionally has no synthetic usage period or allocation warnings.
+	} else if runtimeHours.UsagePeriod == nil && featureArguments.AgentRuntimeMsFn != nil {
+		// Community-tier usage covers all retained events since tracking began.
+		// It intentionally has no synthetic usage period or allocation warnings.
 		usageBounds := codersdk.UsagePeriod{
 			Start: time.Unix(0, 0).UTC(),
 			End:   now,

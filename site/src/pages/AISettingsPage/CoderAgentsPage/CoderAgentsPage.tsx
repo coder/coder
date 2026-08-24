@@ -9,6 +9,7 @@ import {
 	updateChatPersonalModelOverridesAdminSettings,
 } from "#/api/queries/chats";
 import { entitlementDetails } from "#/api/queries/entitlements";
+import { LicenseAgentRuntimeUsageUnavailableErrorText } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -46,19 +47,27 @@ const CoderAgentsPage: FC = () => {
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
 	);
+	const agentRuntimeHoursFeature =
+		entitlementDetailsQuery.data?.features.agent_runtime_hours;
+	const hasAgentRuntimeLicense = entitlementDetailsQuery.data
+		? agentRuntimeHoursFeature?.usage_period !== undefined
+		: undefined;
+	const isAgentRuntimeUsageUnavailable =
+		entitlementDetailsQuery.data?.errors.includes(
+			LicenseAgentRuntimeUsageUnavailableErrorText,
+		) === true ||
+		(entitlementDetailsQuery.data !== undefined &&
+			agentRuntimeHoursFeature?.actual_ms === undefined) ||
+		(entitlementDetailsQuery.isError && !entitlementDetailsQuery.data);
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
 			<CoderAgentsPageView
-				hasLicense={entitlementDetailsQuery.data?.has_license}
-				agentRuntimeHoursFeature={
-					entitlementDetailsQuery.data?.features.agent_runtime_hours
-				}
+				hasAgentRuntimeLicense={hasAgentRuntimeLicense}
+				agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 				isAgentRuntimeUsageLoading={entitlementDetailsQuery.isLoading}
-				isAgentRuntimeUsageUnavailable={
-					entitlementDetailsQuery.isError && !entitlementDetailsQuery.data
-				}
+				isAgentRuntimeUsageUnavailable={isAgentRuntimeUsageUnavailable}
 				adminOverridesData={personalOverridesQuery.data}
 				adminOverridesError={personalOverridesQuery.error}
 				onRetryAdminOverrides={() => void personalOverridesQuery.refetch()}
