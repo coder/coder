@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+	"encoding/base64"
 	"fmt"
 	"mime"
 	"mime/multipart"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/emersion/go-sasl"
 	smtp "github.com/emersion/go-smtp"
@@ -575,10 +577,26 @@ func (s *SMTPHandler) password() (string, error) {
 	return s.cfg.Auth.Password.String(), nil
 }
 
+const (
+	encodedWordPrefix = "=?utf-8?b?"
+	encodedWordSuffix = "?="
+	// RFC 2047 limits an encoded-word to 75 characters including its
+	// delimiters, and base64 expands three bytes to four characters.
+	encodedWordMaxBytes = (75 - len(encodedWordPrefix) - len(encodedWordSuffix)) / 4 * 3
+
+	// maxHeaderValueOctets is the longest value emitted on a single unfolded
+	// line. RFC 5322 caps a line at 998 octets; the rest of the budget covers
+	// the field name and its separator. A value longer than this is encoded so
+	// that encodeWords can fold it, which is the only reason length alone
+	// triggers encoding.
+	maxHeaderValueOctets = 900
+)
+
 // encodeHeaderValue prepares a rendered value for use as a header value. Line
-// breaks are folded to spaces so the value cannot terminate the header and inject
-// another, and non-ASCII content is Q-encoded per RFC 2047 rather than emitted as
-// raw 8-bit. Pure ASCII values are returned unchanged.
+// breaks are folded to spaces so the value cannot terminate the header and
+// inject another, and anything that must not reach the recipient's mail client
+// verbatim is emitted as RFC 2047 encoded-words. Plain ASCII values that are
+// short enough are returned unchanged.
 func encodeHeaderValue(value string) string {
 	if strings.ContainsAny(value, "\r\n") {
 		value = strings.Map(func(r rune) rune {
@@ -588,5 +606,55 @@ func encodeHeaderValue(value string) string {
 			return r
 		}, value)
 	}
+	// mime.WordEncoder handles the ordinary case, non-ASCII that has to be
+	// encoded rather than sent as raw 8-bit, and it chunks multi-byte runes
+	// correctly. Two cases it cannot handle:
+	//
+	//   - A forged encoded-word. "=?" is how one starts, and an untrusted value
+	//     can build one out of nothing but printable ASCII. WordEncoder returns
+	//     printable ASCII unchanged, so it would reach the recipient's mail
+	//     client intact and be decoded, letting the value choose the subject
+	//     line that gets displayed.
+	//   - An over-long value. WordEncoder joins its encoded-words with a space
+	//     rather than folding, so the header stays on one line however long it
+	//     grows, past RFC 5322's 998-octet limit.
+	//
+	// Both take the explicit path below. Everything else keeps the Q-encoding
+	// the rest of the pipeline already produces.
+	if strings.Contains(value, "=?") || len(value) > maxHeaderValueOctets {
+		return encodeWords(value)
+	}
 	return mime.QEncoding.Encode("utf-8", value)
+}
+
+// encodeWords emits value as RFC 2047 base64 encoded-words.
+//
+// mime.WordEncoder is not usable here: it returns printable-ASCII input
+// unchanged, and printable ASCII is exactly what a forged encoded-word is made
+// of. It also joins its words with a space, which leaves the header on one
+// line however long it grows. Joining with CRLF and a space instead both
+// concatenates the words per RFC 2047 and folds the header per RFC 5322.
+func encodeWords(value string) string {
+	var words []string
+	for len(value) > 0 {
+		n := encodedWordMaxBytes
+		if n >= len(value) {
+			n = len(value)
+		} else {
+			// Each encoded-word must decode on its own, so a multi-byte rune
+			// cannot straddle two of them.
+			for n > 0 && !utf8.RuneStart(value[n]) {
+				n--
+			}
+			if n == 0 {
+				// A single rune wider than the budget. Emit it whole rather
+				// than splitting it and producing something undecodable.
+				_, n = utf8.DecodeRuneInString(value)
+			}
+		}
+		words = append(words, encodedWordPrefix+
+			base64.StdEncoding.EncodeToString([]byte(value[:n]))+encodedWordSuffix)
+		value = value[n:]
+	}
+	return strings.Join(words, "\r\n ")
 }

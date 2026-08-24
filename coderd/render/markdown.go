@@ -113,10 +113,21 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// notificationExtensions omits Autolink so that a bare URL in an untrusted label
-// value cannot become a live anchor. Notification body templates link with
-// explicit [label](url) syntax, which Autolink does not affect.
-const notificationExtensions = (parser.CommonExtensions | parser.HardLineBreak) & ^parser.Autolink
+// notificationExtensions is an allowlist of the Markdown grammar notification
+// bodies actually use, rather than parser.CommonExtensions minus what has
+// caused trouble so far. Shipped templates use inline links, ** emphasis and
+// "- " bullet lists, all of which are core CommonMark and need no extension.
+//
+// What this deliberately leaves off, and why it matters: CommonExtensions also
+// enables Tables, DefinitionLists and MathJax, each of which an untrusted label
+// value can open. Turning them off removes those construct families outright
+// instead of adding another character to EscapeMarkdown's denylist. Autolink is
+// off for the original reason, so that a bare URL in a value cannot become a
+// live anchor.
+//
+// A template author who wants a table or a fenced block has to add the
+// extension here, and should expect to revisit EscapeMarkdown when they do.
+const notificationExtensions = parser.NoIntraEmphasis | parser.HardLineBreak
 
 func HTMLFromMarkdown(markdown string) string {
 	return renderHTML(markdown, parser.CommonExtensions|parser.HardLineBreak) // Added HardLineBreak.
@@ -129,14 +140,57 @@ func HTMLFromNotificationMarkdown(markdown string) string {
 	return renderHTML(markdown, notificationExtensions)
 }
 
-func renderHTML(markdown string, extensions parser.Extensions) string {
+// longestURLPath is the longest relative-path prefix parser.IsSafeURL compares a
+// link destination against. Derived from the library rather than hardcoded so a
+// dependency bump that adds a longer prefix keeps safeURL correct.
+var longestURLPath = func() int {
+	longest := 0
+	for _, p := range parser.Paths {
+		if len(p) > longest {
+			longest = len(p)
+		}
+	}
+	return longest
+}()
+
+// safeURL wraps parser.IsSafeURL, which slices a destination to each candidate
+// prefix length before checking the destination is that long. A destination
+// shorter than the longest prefix panics there if its backing array has no
+// spare capacity, which is what the empty destination in "[docs]()" produces.
+// Copying into a buffer with room for the longest prefix keeps the slice
+// expression in bounds; IsSafeURL's own length guards still decide the result.
+func safeURL(url []byte) bool {
+	if cap(url) < longestURLPath {
+		padded := make([]byte, len(url), longestURLPath)
+		copy(padded, url)
+		url = padded
+	}
+	return parser.IsSafeURL(url)
+}
+
+// renderHTML converts Markdown to HTML.
+//
+// Input is untrusted, so a parser or renderer panic is recovered and the source
+// is returned HTML-escaped: the notification still reaches its recipient,
+// showing Markdown source rather than rendered output, and no markup escapes.
+func renderHTML(markdown string, extensions parser.Extensions) (out string) {
+	defer func() {
+		if r := recover(); r != nil {
+			out = xhtml.EscapeString(markdown)
+		}
+	}()
+
 	p := parser.NewWithExtensions(extensions)
+	p.IsSafeURLOverride = safeURL
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
 		// Safelink restricts generated hrefs to trusted schemes, which keeps
 		// javascript: and data: out of rendered output.
 		Flags: html.CommonFlags | html.SkipHTML | html.Safelink,
 	})
+	// Safelink routes every destination through parser.IsSafeURL, which panics
+	// on a short one. The hook lives on the renderer, not on its options.
+	renderer.IsSafeURLOverride = safeURL
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }
 

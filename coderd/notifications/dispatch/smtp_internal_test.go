@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"html"
+	"mime"
 	"strings"
 	"testing"
 
@@ -157,6 +158,67 @@ func TestEncodeHeaderValue(t *testing.T) {
 			// header it is written into.
 			require.NotContains(t, got, "\r")
 			require.NotContains(t, got, "\n")
+		})
+	}
+}
+
+// TestEncodeHeaderValueEncodedWord covers a value that already looks like an
+// RFC 2047 encoded-word.
+//
+// mime.WordEncoder only encodes a value containing a byte outside printable
+// ASCII, and an encoded-word is nothing but printable ASCII, so a forged one
+// reaches the recipient's mail client intact and is decoded there. That hands
+// an untrusted value control of the subject line that gets displayed, which is
+// what this PR's header handling is supposed to prevent.
+func TestEncodeHeaderValueEncodedWord(t *testing.T) {
+	t.Parallel()
+
+	// Decodes to "URGENT: verify your account".
+	const forged = "=?utf-8?B?VVJHRU5UOiB2ZXJpZnkgeW91ciBhY2NvdW50?="
+	got := encodeHeaderValue(forged + " shared a chat with you")
+
+	// The forged word must not survive as something a client would decode.
+	require.NotContains(t, got, forged)
+
+	// And the real text must round-trip, so the fix costs no fidelity. A
+	// decoder is the right assertion here: the exact chunk boundaries are an
+	// implementation detail, but what the recipient sees is not.
+	decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+	require.NoError(t, err)
+	require.Equal(t, forged+" shared a chat with you", decoded)
+}
+
+// TestEncodeHeaderValueFolds covers RFC 5322's 998-octet line limit.
+// mime.WordEncoder separates its encoded-words with a space, so a long value
+// stays on one line however far past the limit it runs.
+func TestEncodeHeaderValueFolds(t *testing.T) {
+	t.Parallel()
+
+	for name, value := range map[string]string{
+		"non-ascii": strings.Repeat("é", 600),
+		"ascii":     strings.Repeat("a b ", 400),
+		// A rune that does not divide evenly into the per-word budget must not
+		// be split across two encoded-words: each has to decode on its own.
+		"multibyte": strings.Repeat("日本語", 400),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(value)
+			for _, line := range strings.Split(got, "\r\n") {
+				require.LessOrEqual(t, len(line), 998,
+					"a header line exceeds RFC 5322's limit: %d octets", len(line))
+			}
+			// Every CRLF must begin a folded continuation rather than end the
+			// header, or this is header injection instead of folding.
+			for _, after := range strings.Split(got, "\r\n")[1:] {
+				require.True(t, strings.HasPrefix(after, " "),
+					"a CRLF was not followed by folding whitespace: %q", got)
+			}
+
+			decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+			require.NoError(t, err)
+			require.Equal(t, value, decoded)
 		})
 	}
 }

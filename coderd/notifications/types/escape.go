@@ -33,6 +33,11 @@ func (p MessagePayload) EscapedForMarkdown() MessagePayload {
 // escapeValue walks a decoded JSON value and escapes its string leaves. Numbers,
 // booleans and nulls pass through unchanged so that template comparisons such as
 // `{{if gt $version.failed_count 1}}` keep working.
+//
+// Nested map keys are escaped as well as values. A key is content whenever a
+// template ranges over the map with two variables, as the resource replacements
+// body does with `{{range $resource, $paths := .Data.replacements}}`, and those
+// keys are Terraform resource addresses rather than identifiers.
 func escapeValue(v any) any {
 	switch t := v.(type) {
 	case string:
@@ -40,7 +45,7 @@ func escapeValue(v any) any {
 	case map[string]any:
 		out := make(map[string]any, len(t))
 		for k, vv := range t {
-			out[k] = escapeValue(vv)
+			out[render.EscapeMarkdown(k)] = escapeValue(vv)
 		}
 		return out
 	case []any:

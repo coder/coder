@@ -166,7 +166,12 @@ func TestEscapeMarkdown(t *testing.T) {
 			{name: "OrderedListMultiDigit", value: "Eve\n99. one\n100. two"},
 			{name: "OrderedListParen", value: "Eve\n1) one\n2) two"},
 			{name: "Blockquote", value: "Eve\n> quoted"},
-			{name: "Table", value: "a | b\n--- | ---\nc | d"},
+			// The notification renderer no longer enables the Tables
+			// extension, so no delimiter row forms a table here whatever the
+			// escaper does. The escaper's own handling of both delimiter-row
+			// spellings is covered non-vacuously by TestEscapeMarkdownColon,
+			// which renders under CommonExtensions.
+			{name: "Table", value: "a | b\n--- | ---\nc | d", inertRaw: true},
 			// The safelink policy rejects the scheme, so no anchor forms even
 			// unescaped. See TestEscapeMarkdownNoAutolink/SafelinkRejectsUnsafeSchemes.
 			{name: "JavascriptScheme", value: "[click](javascript:alert(1))", inertRaw: true},
@@ -294,17 +299,22 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("EmphasisIsNotEscaped", func(t *testing.T) {
 		t.Parallel()
 
-		// Away from a line's leading position, emphasis characters are left
-		// alone on purpose: they cannot carry a destination, and escaping "_"
-		// corrupts control values. Documenting the residual here so a future
-		// tightening is a deliberate choice.
-		require.Equal(t, "Eve *_`~", EscapeMarkdown("Eve *_`~"))
+		// Away from a line's leading position, "*" and "_" are left alone on
+		// purpose: they cannot carry a destination, and escaping "_" corrupts
+		// control values. Documenting the residual here so a future tightening
+		// is a deliberate choice.
+		//
+		// Backtick is not in that group. It reaches a fenced code block, whose
+		// info string gomarkdown writes into class="language-..." unescaped, so
+		// it can carry a destination after all. See TestEscapeMarkdownFenceInfo.
+		require.Equal(t, "Eve *_\\`~", EscapeMarkdown("Eve *_`~"))
 
 		// In leading position "*" and "_" open a bullet list or a thematic
-		// break, so the first one is escaped. Backtick and "~" stay as they are:
-		// they can only reach a code block, which carries no destination.
-		require.Equal(t, "\\*_`~", EscapeMarkdown("*_`~"))
-		require.Equal(t, "\\_*`~", EscapeMarkdown("_*`~"))
+		// break, so the first one is escaped. "~" stays as it is: the fold in
+		// EscapeMarkdown denies it the line-start position instead, because
+		// glamour does not honor "\~".
+		require.Equal(t, "\\*_\\`~", EscapeMarkdown("*_`~"))
+		require.Equal(t, "\\_*\\`~", EscapeMarkdown("_*`~"))
 	})
 }
 

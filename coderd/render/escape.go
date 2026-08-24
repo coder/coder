@@ -9,7 +9,15 @@ const (
 	// inlineCritical characters can produce a link, an image, an angle autolink,
 	// or forge an escape from anywhere in a value, so they are always escaped.
 	// None of them appears in a control label value such as "user_override".
-	inlineCritical = `\[]()!<`
+	//
+	// Backtick is here rather than in blockStart because a fence's info string
+	// is an HTML sink: gomarkdown writes it into class="language-..." without
+	// escaping, and html.SkipHTML does not apply because the node is a
+	// CodeBlock rather than an HTMLBlock. A value that closes the attribute and
+	// the tag injects live markup into the rendered email. Escaping only the
+	// leading backtick is not enough either, because the two that remain open
+	// an inline code span.
+	inlineCritical = "\\[]()!<`"
 
 	// blockStart characters carry structural meaning only as the first
 	// non-space character of a line, so they are escaped only there. Escaping
@@ -24,26 +32,51 @@ const (
 	leadingEmphasis = `*_`
 
 	// foldStart characters also carry meaning only at the start of a line, but
-	// neither renderer honors a backslash before them, so escaping would leave
-	// a literal backslash in the output. The preceding line break is replaced
-	// with a space instead, which denies them the line-start position.
-	foldStart = `=~`
+	// glamour does not honor a backslash before them, so escaping would leave a
+	// literal backslash in the plaintext part. The preceding line break is
+	// replaced with a space instead, which denies them the line-start position.
+	//
+	// ":" opens a definition list, and it also opens a GFM table delimiter row
+	// such as ":-- | --:". Escaping "|" does not close that second case,
+	// because a delimiter row's pipes are mid-line and "|" is escaped only in
+	// leading position.
+	foldStart = `=~:`
+
+	// maxLeadingSpaces is the widest indentation a line may keep. Four spaces
+	// open an indented code block, and there is no escape for a space, so the
+	// run is truncated instead. Three is the most CommonMark allows before a
+	// block marker while still treating it as indentation.
+	maxLeadingSpaces = 3
 )
 
 // EscapeMarkdown neutralizes Markdown structure in an untrusted value so that it
 // renders as literal text through both HTMLFromNotificationMarkdown and
 // PlaintextFromMarkdown.
 //
-// Emphasis characters ("*", "_" and backtick) are deliberately left alone away
-// from a line's leading position. They can only produce <em>, <strong>, <del> or
-// <code> there, never a link or a heading, and escaping "_" everywhere would
-// corrupt label values such as "user_override" that body templates compare with
-// `eq`. In leading position "*" and "_" do open a block construct, so they are
-// escaped, see leadingEmphasis.
+// Emphasis characters ("*" and "_") are deliberately left alone away from a
+// line's leading position. They can only produce <em>, <strong> or <del> there,
+// never a link or a heading, and escaping "_" everywhere would corrupt label
+// values such as "user_override" that body templates compare with `eq`. In
+// leading position they do open a block construct, so they are escaped, see
+// leadingEmphasis.
 //
 // Line breaks are preserved so multi-line values keep their shape. Other control
 // characters are dropped: they have no display value and are the carrier for
 // SMTP header injection.
+//
+// Two residuals this cannot reach, both because they depend on where the value
+// lands rather than on what it contains:
+//
+//   - A template that wraps the value in a code span. CommonMark does not
+//     process escapes inside one, so the backslashes emitted here render as
+//     literal text.
+//   - The value's own first line. Folding a fold-start line onto its
+//     predecessor only works for line breaks this function emitted, so a value
+//     beginning "===" is still a Setext underline for whatever the template put
+//     on the line above.
+//
+// Both close under placeholder substitution, which resolves after rendering and
+// therefore knows the destination context.
 func EscapeMarkdown(s string) string {
 	if s == "" {
 		return s
@@ -98,12 +131,15 @@ func isStrippable(r rune) bool {
 
 // escapeLine escapes every inlineCritical character in the line, plus a single
 // blockStart or leadingEmphasis character in leading position, plus the "."
-// that closes an ordered-list marker.
+// that closes an ordered-list marker. Leading indentation is truncated to
+// maxLeadingSpaces so the line cannot become an indented code block.
 func escapeLine(line string) string {
 	var b strings.Builder
 	b.Grow(len(line))
 
 	leading := true
+	// spaces counts the indentation emitted so far, to cap it.
+	spaces := 0
 	// digitRun reports whether the line so far is nothing but indentation and
 	// digits, which is the only position where "." opens an ordered list.
 	digitRun := false
@@ -113,8 +149,13 @@ func escapeLine(line string) string {
 			_ = b.WriteByte('\\')
 			_, _ = b.WriteRune(r)
 		case leading && r == ' ':
-			// Indentation keeps the next character in leading position.
-			_, _ = b.WriteRune(r)
+			// Indentation keeps the next character in leading position, but
+			// only the first maxLeadingSpaces of it are emitted: four spaces
+			// open an indented code block and a space cannot be escaped.
+			if spaces < maxLeadingSpaces {
+				_, _ = b.WriteRune(r)
+				spaces++
+			}
 			continue
 		case leading && r < 0x80 && strings.ContainsRune(blockStart+leadingEmphasis, r):
 			_ = b.WriteByte('\\')
