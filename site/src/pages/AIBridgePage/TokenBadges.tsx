@@ -11,14 +11,12 @@ import { JsonPrettyPrinter } from "./JsonPrettyPrinter";
 import { roundTokenDisplay } from "./utils";
 
 interface TokenBadgesProps {
-	size?: "xs" | "sm" | "md";
 	inputTokens: number;
 	outputTokens: number;
 	tokenUsageMetadata?: Record<string, unknown>;
 }
 
 export const TokenBadges: FC<TokenBadgesProps> = ({
-	size = "sm",
 	inputTokens,
 	outputTokens,
 	tokenUsageMetadata,
@@ -28,15 +26,15 @@ export const TokenBadges: FC<TokenBadgesProps> = ({
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<span>
-						<Badge className="gap-0 rounded-e-none" size={size}>
+						<Badge className="gap-0 rounded-e-none text-sm font-normal" size="md">
 							<ArrowDownIcon className="size-icon-lg flex-shrink-0" />
 							<span className="truncate min-w-0">
 								{roundTokenDisplay(inputTokens)}
 							</span>
 						</Badge>
 						<Badge
-							className="gap-0 bg-surface-tertiary rounded-s-none"
-							size={size}
+							className="gap-0 bg-surface-tertiary rounded-s-none text-sm font-normal"
+							size="md"
 						>
 							<ArrowUpIcon className="size-icon-lg flex-shrink-0" />
 							<span className="truncate min-w-0">
