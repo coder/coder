@@ -498,6 +498,8 @@ This endpoint uses `EditMessage(k, replacement)`:
 
 `EditMessage` clears queued messages, cancels or obsoletes active work without preserving partial output, clears pending dynamic-tool action if present, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 
+<!-- TODO(PR-28471): Document that EditMessage also persists a request-provided MCP server selection inside the same transaction, with the same Force On enforcement and explore-subagent snapshot immutability as SendMessage. -->
+
 Other input states are not supported.
 
 ### `DELETE /api/experimental/chats/{chat}/queue/{queuedMessage}`

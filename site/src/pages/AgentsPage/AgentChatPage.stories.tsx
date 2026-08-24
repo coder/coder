@@ -3744,8 +3744,7 @@ const mcpEditableUserMessage: TypesGen.ChatMessage = {
 
 /**
  * An MCP server toggled on while editing a message must ride along in
- * the edit request. The selection used to be silently dropped: the
- * picker displayed the toggle while the server kept the old set.
+ * the edit request.
  */
 export const EditAppliesMCPServerSelection: Story = {
 	parameters: {
