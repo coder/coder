@@ -272,11 +272,8 @@ func TestHealthSettings(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// given: a stubbed healthcheck, so this test does not depend on real
-		// DERP probe timing. The stub reports nothing as dismissed, so the
-		// assertions below verify that the dismissed flags are applied per
-		// request in formatHealthcheck rather than read from the cached report.
 		adminClient := coderdtest.New(t, &coderdtest.Options{
+			// Mocked to avoid depending on DERP probe timing.
 			HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
 				return &healthsdk.HealthcheckReport{Time: time.Now()}
 			},
