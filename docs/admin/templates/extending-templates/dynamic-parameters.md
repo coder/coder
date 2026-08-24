@@ -526,9 +526,6 @@ data "coder_parameter" "git_repo" {
 }
 
 data "coder_parameter" "cpu_cores" {
-  # Only show this parameter if the previous box is selected.
-  count = data.coder_parameter.show_cpu_cores.value ? 1 : 0
-
   name         = "cpu_cores"
   display_name = "CPU Cores"
   type         = "number"
