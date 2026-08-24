@@ -34,6 +34,8 @@ const meta: Meta<typeof ExternalAuthSettingsPageView> = {
 				},
 			],
 		},
+		isEntitled: false,
+		canViewPremium: true,
 	},
 };
 
@@ -44,13 +46,35 @@ export const Page: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const notice = canvas.getByRole("alert");
-		await expect(within(notice).getByText("Premium")).toBeVisible();
 		await expect(
-			within(notice).getByRole("link", {
-				name: "Read the External Authentication documentation",
-			}),
-		).toBeVisible();
+			canvas.getByRole("link", { name: "Start trial for free" }),
+		).toHaveAttribute("href", "/deployment/premium");
+	},
+};
+
+export const Entitled: Story = {
+	args: {
+		isEntitled: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const PaywallWithoutLicenseAccess: Story = {
+	args: {
+		canViewPremium: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 

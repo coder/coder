@@ -122,7 +122,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -339,7 +339,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -851,7 +851,7 @@ func createWorkspace(
 		workspace,
 		apiBuild,
 		template,
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
 	)
 	if err != nil {
@@ -1162,7 +1162,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		if !api.Options.AllowWorkspaceRenames && !template.AllowWorkspaceRenames {
+		if !api.AllowWorkspaceRenames && !template.AllowWorkspaceRenames {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Workspace renames are not enabled for this template.",
 			})
@@ -1601,7 +1601,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -2180,7 +2180,7 @@ func (api *API) watchWorkspace(
 			workspace,
 			data.builds[0],
 			data.templates[0],
-			api.Options.AllowWorkspaceRenames,
+			api.AllowWorkspaceRenames,
 			appStatus,
 		)
 		if err != nil {
@@ -2766,10 +2766,17 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	return workspaceData{
+<<<<<<< HEAD
 		templates:               templates,
 		appStatuses:             db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:                  apiBuilds,
 		deploymentAllowsRenames: api.Options.AllowWorkspaceRenames,
+=======
+		templates:    templates,
+		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
+		builds:       apiBuilds,
+		allowRenames: api.AllowWorkspaceRenames,
+>>>>>>> main
 	}, nil
 }
 

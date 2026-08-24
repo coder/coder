@@ -9,7 +9,7 @@ import (
 
 // ChatProvider is the fixture shape accepted by dbgen.ChatProvider.
 //
-//nolint:revive
+//nolint:revive,staticcheck // Field names match the legacy generated database models.
 type ChatProvider struct {
 	ID                         uuid.UUID
 	Provider                   string
@@ -29,7 +29,7 @@ type ChatProvider struct {
 // InsertChatProviderParams is the callback parameter shape accepted by
 // dbgen.ChatProvider.
 //
-//nolint:revive
+//nolint:revive,staticcheck // Field names match the legacy generated database parameters.
 type InsertChatProviderParams struct {
 	Provider                   string
 	DisplayName                string

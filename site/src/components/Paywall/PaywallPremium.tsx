@@ -56,6 +56,7 @@ const PaywallPremium = ({
 	canViewPremium,
 	className,
 	features = PREMIUM_FEATURES,
+	onCTAClick,
 	...props
 }: PaywallProps) => {
 	return (
@@ -71,7 +72,11 @@ const PaywallPremium = ({
 				<PaywallTitle>{PREMIUM_DEFAULT_HERO}</PaywallTitle>
 				<p className="mt-3 mb-0 text-sm">{DEFAULT_HERO_SUBTITLE}</p>
 				{canViewPremium ? (
-					<PaywallCTALink to={PREMIUM_PAGE_PATH} className="mt-6 mx-0">
+					<PaywallCTALink
+						to={PREMIUM_PAGE_PATH}
+						className="mt-6 mx-0"
+						onClick={onCTAClick}
+					>
 						Start trial for free
 					</PaywallCTALink>
 				) : (

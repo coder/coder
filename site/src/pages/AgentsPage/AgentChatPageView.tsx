@@ -16,6 +16,7 @@ import type {
 	ChatDiffStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -140,6 +141,8 @@ interface AgentChatPageViewProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	modelCatalogError?: unknown;
+	unavailableModelNotice?: string;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
 	canConfigureAgentSetup: boolean;
@@ -203,6 +206,7 @@ interface AgentChatPageViewProps {
 	isPinned?: boolean;
 	isChildChat?: boolean;
 	isArchivingThisChat?: boolean;
+	isArchiveBlocked?: boolean;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -335,6 +339,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	modelCatalogError,
+	unavailableModelNotice,
 	reasoningEffort,
 	onReasoningEffortChange,
 	canConfigureAgentSetup,
@@ -378,6 +384,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isPinned,
 	isChildChat,
 	isArchivingThisChat,
+	isArchiveBlocked,
 	hasMoreMessages,
 	isFetchingMoreMessages,
 	isHydratingMessages,
@@ -890,6 +897,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								isPinned={isPinned}
 								isChildChat={isChildChat}
 								isArchiving={isArchivingThisChat}
+								isArchiveBlocked={isArchiveBlocked}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
@@ -908,6 +916,20 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										: undefined
 								}
 							/>
+							{modelCatalogError != null && (
+								<ErrorAlert error={modelCatalogError} />
+							)}
+							{unavailableModelNotice && (
+								<div
+									role="status"
+									aria-label={unavailableModelNotice}
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									{unavailableModelNotice}
+								</div>
+							)}
 							{chatOwnerWarning && (
 								<div
 									role="status"
@@ -937,6 +959,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						</div>
 						<ChatPageTimeline
 							key={agentId}
+							organizationId={organizationId}
 							store={store}
 							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 							persistedError={persistedError}
