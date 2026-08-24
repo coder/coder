@@ -106,11 +106,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			{isOrganizationAccessLoading && !organization && <Loader />}
-			{organizationAccessError != null && !organization && (
-				<ErrorAlert error={organizationAccessError} />
-			)}
-			{organization && (
+			{isOrganizationAccessLoading ? (
+				<Loader label="Loading organization settings" />
+			) : organization ? (
 				<section
 					aria-labelledby="organization-agent-settings"
 					className="flex flex-col gap-6"
@@ -160,7 +158,9 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					)}
 					{organizationSettings}
 				</section>
-			)}
+			) : organizationAccessError != null ? (
+				<ErrorAlert error={organizationAccessError} />
+			) : null}
 
 			{canEditDeploymentConfig && (
 				<section

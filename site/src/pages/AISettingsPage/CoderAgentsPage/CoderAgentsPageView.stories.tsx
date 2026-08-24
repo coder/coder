@@ -124,6 +124,25 @@ export const OrganizationOnly: Story = {
 	},
 };
 
+export const OrganizationDiscoveryLoading: Story = {
+	args: { isOrganizationAccessLoading: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("status", { name: "Loading organization settings" }),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("heading", { name: "Organization settings" }),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Organization override controls"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("heading", { name: "Deployment settings" }),
+		).toBeVisible();
+	},
+};
+
 export const DeploymentOnly: Story = {
 	args: {
 		organization: undefined,
