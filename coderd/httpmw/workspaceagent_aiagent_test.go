@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -209,6 +210,11 @@ func TestWorkspaceAgentAIBindingLiveness(t *testing.T) {
 		t.Parallel()
 		fixture := newBoundWorkspaceAgentAIFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
+		// Revocation retires the agent in the ledger, which is what
+		// resolution reads, and marks the mirror to match.
+		require.NoError(t, entity.RetireAIAgent(dbauthz.AsSystemRestricted(ctx), fixture.db, fixture.aiAgent.UserID,
+			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
+			dbtime.Now()))
 		_, err := fixture.db.UpdateAIAgentDeleted(dbauthz.AsSystemRestricted(ctx), database.UpdateAIAgentDeletedParams{
 			UserID:  fixture.agentUser.ID,
 			Deleted: true,

@@ -41,10 +41,15 @@ type AIAgentActor struct {
 	OriginID    uuid.UUID
 }
 
-// ResolvedIdentity contains the authoritative AI agent metadata and users.
+// ResolvedIdentity contains the authoritative AI agent state and the users
+// rows still consulted alongside it.
+//
+// Ledger is the authority on the agent: who owns it, what it was created in,
+// and whether it is still live. AgentUser is the mirrored users row and is kept
+// only for the name and the status checks that have not yet moved.
 type ResolvedIdentity struct {
 	Actor     AIAgentActor
-	AIAgent   database.AIAgent
+	Ledger    database.AIAgentLedger
 	AgentUser database.User
 	OwnerUser database.User
 }
@@ -240,31 +245,36 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 		return ResolvedIdentity{}, ErrNotAIAgent
 	}
 
-	agent, err := db.GetAIAgentByUserID(systemCtx, agentUserID)
+	// The ledger, not ai_agents. The two agree, one being written from the
+	// other, and reading the authority is what lets the mirror go.
+	ledger, err := db.GetAIAgentLedgerRowByID(systemCtx, agentUserID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return ResolvedIdentity{}, ErrNotAIAgent
 		}
-		return ResolvedIdentity{}, xerrors.Errorf("get AI agent metadata: %w", err)
+		return ResolvedIdentity{}, xerrors.Errorf("get AI agent ledger row: %w", err)
 	}
-	if agent.Deleted {
+	// Anything but active is unusable, which today means retired. Dormant is in
+	// the state set and unreachable, and a dormant agent is not a live one
+	// either, so refusing everything but active stays right when it arrives.
+	if ledger.State != entity.AIAgentStateActive {
 		return ResolvedIdentity{}, ErrAIAgentDeleted
 	}
 
-	owner, err := db.GetUserByID(systemCtx, agent.OwnerUserID)
+	owner, err := db.GetUserByID(systemCtx, ledger.OwnerID)
 	if err != nil {
 		return ResolvedIdentity{}, xerrors.Errorf("get AI agent owner: %w", err)
 	}
 
 	actor := AIAgentActor{
-		AgentUserID: agent.UserID,
-		OwnerUserID: agent.OwnerUserID,
-		OriginType:  agent.OriginType,
-		OriginID:    agent.OriginID,
+		AgentUserID: ledger.ID,
+		OwnerUserID: ledger.OwnerID,
+		OriginType:  database.AIAgentOrigin(ledger.CreationSiteType),
+		OriginID:    ledger.CreationSiteID,
 	}
 	return ResolvedIdentity{
 		Actor:     actor,
-		AIAgent:   agent,
+		Ledger:    ledger,
 		AgentUser: agentUser,
 		OwnerUser: owner,
 	}, nil

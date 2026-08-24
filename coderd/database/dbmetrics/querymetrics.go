@@ -2761,6 +2761,14 @@ func (m queryMetricsStore) GetOrganizationsWithPrebuildStatus(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetOrphanedChatAIAgents(ctx)
+	m.queryLatencies.WithLabelValues("GetOrphanedChatAIAgents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetOrphanedChatAIAgents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetOverBudgetUsersPerGroup(ctx, periodStart)

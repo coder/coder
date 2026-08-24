@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -153,6 +154,11 @@ func TestAIAgentOwnerAndIdentityLiveness(t *testing.T) {
 		t.Parallel()
 		fixture := newAIAgentAuthFixture(t, nil)
 		ctx := testutil.Context(t, testutil.WaitShort)
+		// Revocation retires the agent in the ledger, which is what
+		// resolution reads, and marks the mirror to match.
+		require.NoError(t, entity.RetireAIAgent(ctx, fixture.db, fixture.agent.UserID,
+			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
+			dbtime.Now()))
 		_, err := fixture.db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
 			UserID:  fixture.agent.UserID,
 			Deleted: true,

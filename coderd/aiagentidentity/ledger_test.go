@@ -187,3 +187,64 @@ func TestConcurrentWorkspaceResolutionCreatesOneAgent(t *testing.T) {
 		workspace.ID).Scan(&ledgerRows))
 	require.Equal(t, 1, ledgerRows, "and one ledger row, no losing transaction having left one behind")
 }
+
+// TestOwnershipChangeRetiresTheAgentInTheLedger asserts that revoking an agent
+// reaches the ledger, which is what resolution reads. Before this the two
+// revocation paths wrote only the mirror, so a revoked agent still resolved as
+// live once resolution moved onto the ledger.
+//
+// The event is `kill` and the actor is the new owner, both of which are proof
+// of concept cheats: nobody ordered this agent's death, and the ownership
+// changed at some earlier moment that this resolution is merely noticing.
+func TestOwnershipChangeRetiresTheAgentInTheLedger(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	organization := dbgen.Organization(t, db, database.Organization{})
+	first := dbgen.User(t, db, database.User{})
+	second := dbgen.User(t, db, database.User{})
+	for _, u := range []database.User{first, second} {
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         u.ID,
+		})
+	}
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: organization.ID,
+		CreatedBy:      first.ID,
+	})
+	table := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: organization.ID,
+		OwnerID:        first.ID,
+		TemplateID:     template.ID,
+	})
+	workspace, err := db.GetWorkspaceByID(ctx, table.ID)
+	require.NoError(t, err)
+
+	original, err := aiagentidentity.ResolveWorkspaceOrigin(ctx, db, workspace)
+	require.NoError(t, err)
+
+	// No query changes a workspace's owner, and resolution compares the agent's
+	// owner against the workspace it is handed, so the change is presented the
+	// way the function reads it.
+	transferred := workspace
+	transferred.OwnerID = second.ID
+
+	replacement, err := aiagentidentity.ResolveWorkspaceOrigin(ctx, db, transferred)
+	require.NoError(t, err)
+	require.NotEqual(t, original.UserID, replacement.UserID, "a new owner gets a new agent")
+
+	retired, err := db.GetAIAgentLedgerRowByID(ctx, original.UserID)
+	require.NoError(t, err)
+	require.Equal(t, entity.AIAgentStateRetired, retired.State, "the old agent is retired in the ledger")
+
+	live, err := db.GetAIAgentLedgerRowByID(ctx, replacement.UserID)
+	require.NoError(t, err)
+	require.Equal(t, entity.AIAgentStateActive, live.State)
+	require.Equal(t, second.ID, live.OwnerID)
+
+	// Resolution reads the ledger, so the retired agent no longer resolves.
+	_, err = aiagentidentity.Resolve(ctx, db, original.UserID)
+	require.ErrorIs(t, err, aiagentidentity.ErrAIAgentDeleted)
+}

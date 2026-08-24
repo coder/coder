@@ -5130,6 +5130,21 @@ func (mr *MockStoreMockRecorder) GetOrganizationsWithPrebuildStatus(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationsWithPrebuildStatus", reflect.TypeOf((*MockStore)(nil).GetOrganizationsWithPrebuildStatus), ctx, arg)
 }
 
+// GetOrphanedChatAIAgents mocks base method.
+func (m *MockStore) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrphanedChatAIAgents", ctx)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrphanedChatAIAgents indicates an expected call of GetOrphanedChatAIAgents.
+func (mr *MockStoreMockRecorder) GetOrphanedChatAIAgents(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrphanedChatAIAgents", reflect.TypeOf((*MockStore)(nil).GetOrphanedChatAIAgents), ctx)
+}
+
 // GetOverBudgetUsersPerGroup mocks base method.
 func (m *MockStore) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
 	m.ctrl.T.Helper()

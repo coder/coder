@@ -1310,6 +1310,41 @@ func (q *sqlQuerier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.
 	return items, nil
 }
 
+const getOrphanedChatAIAgents = `-- name: GetOrphanedChatAIAgents :many
+SELECT user_id
+FROM ai_agents
+WHERE origin_type = 'chat'
+	AND deleted = false
+	AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agents.origin_id)
+`
+
+// Chat-origin AI agent identities whose chat no longer exists. Read before the
+// revocation below so that each one can be retired in the ledger through the
+// entity function, the ledger being a fold of its journal and not somewhere a
+// bulk statement may write directly.
+func (q *sqlQuerier) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getOrphanedChatAIAgents)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var user_id uuid.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIAgent = `-- name: InsertAIAgent :one
 INSERT INTO ai_agents (
 	user_id,

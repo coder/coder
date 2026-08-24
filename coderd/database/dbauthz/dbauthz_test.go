@@ -1672,6 +1672,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpdateChatACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionShare).Returns()
 	}))
+	s.Run("GetOrphanedChatAIAgents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetOrphanedChatAIAgents(gomock.Any()).Return([]uuid.UUID{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]uuid.UUID{})
+	}))
 	s.Run("LockWorkspaceByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
 		dbm.EXPECT().LockWorkspaceByID(gomock.Any(), id).Return(id, nil).AnyTimes()

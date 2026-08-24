@@ -4470,6 +4470,14 @@ func (q *querier) GetOrganizationsWithPrebuildStatus(ctx context.Context, arg da
 	return q.db.GetOrganizationsWithPrebuildStatus(ctx, arg)
 }
 
+// Read by the purge, which runs as the system and has no user to speak for.
+func (q *querier) GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetOrphanedChatAIAgents(ctx)
+}
+
 func (q *querier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]database.GetOverBudgetUsersPerGroupRow, error) {
 	// Aggregates over-budget user counts per group for cost-control metrics.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup.All()); err != nil {

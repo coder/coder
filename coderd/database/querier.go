@@ -776,6 +776,11 @@ type sqlcQuerier interface {
 	// GetOrganizationsWithPrebuildStatus returns organizations with prebuilds configured and their
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
+	// Chat-origin AI agent identities whose chat no longer exists. Read before the
+	// revocation below so that each one can be retired in the ledger through the
+	// entity function, the ledger being a fold of its journal and not somewhere a
+	// bulk statement may write directly.
+	GetOrphanedChatAIAgents(ctx context.Context) ([]uuid.UUID, error)
 	// Returns, per effective group, the number of users at or over their spend
 	// limit since period_start. Only users with an enforceable limit (override or
 	// budgeted group) count, and the unlimited Everyone fallback does not.

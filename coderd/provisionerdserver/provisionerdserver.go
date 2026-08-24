@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -659,7 +660,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
 			if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
-				if err := s.revokeAIAgentIdentityForWorkspace(ctx, workspace.ID); err != nil {
+				if err := s.revokeAIAgentIdentityForWorkspace(ctx, workspace.ID, workspace.OwnerID); err != nil {
 					s.Logger.Error(ctx, "failed to revoke AI agent identity on prebuild claim",
 						slog.Error(err), slog.F("workspace_id", workspace.ID))
 				}
@@ -3416,7 +3417,7 @@ func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace datab
 	return s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName)
 }
 
-func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspaceID uuid.UUID, killer uuid.UUID) error {
 	agent, err := s.Database.GetAIAgentByOrigin(ctx, database.GetAIAgentByOriginParams{
 		OriginType: database.AIAgentOriginWorkspace,
 		OriginID:   workspaceID,
@@ -3427,18 +3428,28 @@ func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspac
 	if err != nil {
 		return xerrors.Errorf("get AI agent by origin: %w", err)
 	}
-	return s.revokeAIAgentIdentity(ctx, agent)
+	return s.revokeAIAgentIdentity(ctx, agent, killer)
 }
 
-// revokeAIAgentIdentity revokes the identity's keys and marks it deleted.
-// Used when the workspace is deleted or its ownership changes.
-func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAgent) error {
+// revokeAIAgentIdentity retires the agent, revokes its keys and marks the
+// mirror deleted. Reached when a prebuild is claimed, the claim giving the
+// workspace an owner the previous agent was not sponsored by.
+//
+// **The event is `kill` and that is a proof of concept cheat.** Claiming a
+// prebuild is not an order to end this agent, so calling the claimant its
+// killer overstates what happened. The transition this wants does not exist on
+// the machine yet. Eric, 2026-08-23: use `kill` for now and record it.
+func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAgent, killer uuid.UUID) error {
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(agent.OriginID)
 	if err := s.deleteAIAgentSessionToken(ctx, agent, profile.TokenName); err != nil {
 		return err
 	}
 	//nolint:gocritic // Marking an internal AI agent deleted requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	if err := entity.RetireAIAgent(systemCtx, s.Database, agent.UserID, entity.EventAIAgentKill,
+		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {
+		return xerrors.Errorf("retire AI agent: %w", err)
+	}
 	if _, err := s.Database.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
 		UserID:  agent.UserID,
 		Deleted: true,

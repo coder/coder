@@ -84,6 +84,17 @@ SET deleted = @deleted
 WHERE user_id = @user_id
 RETURNING *;
 
+-- name: GetOrphanedChatAIAgents :many
+-- Chat-origin AI agent identities whose chat no longer exists. Read before the
+-- revocation below so that each one can be retired in the ledger through the
+-- entity function, the ledger being a fold of its journal and not somewhere a
+-- bulk statement may write directly.
+SELECT user_id
+FROM ai_agents
+WHERE origin_type = 'chat'
+	AND deleted = false
+	AND NOT EXISTS (SELECT 1 FROM chats WHERE chats.id = ai_agents.origin_id);
+
 -- name: RevokeOrphanedChatAIAgents :execrows
 -- Marks chat-origin AI agent identities deleted when their chat no longer
 -- exists (retention purge hard-deletes chats; ai_agents.origin_id has no

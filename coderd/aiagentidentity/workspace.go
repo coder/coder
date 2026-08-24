@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 )
 
@@ -40,7 +43,7 @@ func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace da
 		switch {
 		case err == nil:
 			if agent.OwnerUserID != workspace.OwnerID {
-				if err := revokeWorkspaceOrigin(ctx, tx, agent); err != nil {
+				if err := revokeWorkspaceOrigin(ctx, tx, agent, workspace.OwnerID); err != nil {
 					return xerrors.Errorf("revoke AI agent identity after ownership change: %w", err)
 				}
 				resolved, err = createWorkspaceOrigin(ctx, tx, workspace)
@@ -74,10 +77,18 @@ func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace dat
 	return agent, nil
 }
 
-// revokeWorkspaceOrigin drops the identity's workspace-pinned key and marks
-// the identity deleted. Revocation is a soft delete so audit history keeps
+// revokeWorkspaceOrigin retires the agent, drops its workspace-pinned key and
+// marks the mirror deleted. Revocation is a soft delete so audit history keeps
 // resolving the agent.
-func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent database.AIAgent) error {
+//
+// **The event is `kill` and that is a proof of concept cheat.** Nobody ordered
+// this agent's death. The workspace's owner changed at some earlier moment, and
+// this is the next resolution noticing, which makes it observed rather than
+// commanded. Modeling it properly needs a transition the machine does not have
+// and entities that are not modeled yet. Eric, 2026-08-23: use `kill` for now
+// and record it. `killer` is the workspace's current owner, being the party
+// whose acquisition of it ended the old sponsorship.
+func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent database.AIAgent, killer uuid.UUID) error {
 	profile := WorkspaceAgentIdentityProfile(agent.OriginID)
 	//nolint:gocritic // Managing internal AI agent identities requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
@@ -93,6 +104,10 @@ func revokeWorkspaceOrigin(ctx context.Context, db database.Store, agent databas
 	case errors.Is(err, sql.ErrNoRows):
 	default:
 		return xerrors.Errorf("get AI agent API key by name: %w", err)
+	}
+	if err := entity.RetireAIAgent(systemCtx, db, agent.UserID, entity.EventAIAgentKill,
+		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {
+		return xerrors.Errorf("retire AI agent: %w", err)
 	}
 	if _, err := db.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
 		UserID:  agent.UserID,

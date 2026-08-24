@@ -23,6 +23,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -310,6 +312,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
+		mDB.EXPECT().GetOrphanedChatAIAgents(gomock.Any()).Return([]uuid.UUID{}, nil).AnyTimes()
 		mDB.EXPECT().RevokeOrphanedChatAIAgents(gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
@@ -2592,6 +2595,51 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err, "chat should not be deleted when retention is disabled")
 				_, err = db.GetChatFileByID(ctx, oldFileID)
 				require.NoError(t, err, "chat file should not be deleted when retention is disabled")
+			},
+		},
+		{
+			// The sweep marks orphaned chat agents deleted in the mirror and
+			// deletes their keys. It must also retire them in the ledger, which
+			// is what resolution reads.
+			name: "OrphanedChatAIAgentRetiredInLedger",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t, testutil.WaitLong)
+				clk := quartz.NewMock(t)
+				clk.Set(now).MustWait(ctx)
+
+				db, _, _ := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				deps := setupChatDeps(t, db)
+				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
+
+				// Orphaned by construction: no chat has ever had this
+				// identifier, which is the state retention leaves behind
+				// because ai_agents.origin_id has no foreign key to chats.
+				_, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+					OwnerID:        deps.user.ID,
+					OrganizationID: deps.org.ID,
+					OriginType:     database.AIAgentOriginChat,
+					OriginID:       uuid.New(),
+				})
+				require.NoError(t, err)
+
+				before, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+				require.NoError(t, err)
+				require.Equal(t, entity.AIAgentStateActive, before.State)
+
+				done := awaitDoTick(ctx, t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+				defer closer.Close()
+				testutil.TryReceive(ctx, t, done)
+
+				after, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+				require.NoError(t, err)
+				require.Equal(t, entity.AIAgentStateRetired, after.State,
+					"the sweep retires an orphaned agent in the ledger")
+
+				mirrored, err := db.GetAIAgentByUserID(ctx, agent.UserID)
+				require.NoError(t, err)
+				require.True(t, mirrored.Deleted, "and marks the mirror to match")
 			},
 		},
 		{

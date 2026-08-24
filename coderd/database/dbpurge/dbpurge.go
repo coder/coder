@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -478,8 +479,34 @@ func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start ti
 		}
 
 		// Purged chats leave their AI agent identities behind
-		// (ai_agents.origin_id has no FK to chats): mark them deleted
-		// and revoke their API keys.
+		// (ai_agents.origin_id has no FK to chats): retire them in the
+		// ledger, mark them deleted and revoke their API keys.
+		//
+		// **The actor is the system actor and that is a proof of concept
+		// cheat.** Nobody noticed these agents were orphaned; a sweep did, and
+		// a sweep is not a party. Eric, 2026-08-23: this is custodian
+		// territory and the analysis is deferred. See phase 2b in the
+		// provisional plan for replacing the identity code, which is where the
+		// sweep gets modeled as a bulk operation rather than a loop.
+		//
+		// **The event is `kill`**, on the same footing as the other two
+		// revocation paths, though an orphaned agent is closer to the corpus's
+		// `lapse`: the thing it was made for ceased to exist.
+		//nolint:gocritic // Retiring an AI agent reads and writes the ledger,
+		// which the purge's own subject cannot do: it holds delete on the
+		// system resource and nothing else. Escalating for this block follows
+		// the AIBridged precedent above rather than widening that subject.
+		retireCtx := dbauthz.AsSystemRestricted(ctx)
+		orphans, err := tx.GetOrphanedChatAIAgents(retireCtx)
+		if err != nil {
+			return 0, 0, xerrors.Errorf("failed to find orphaned chat AI agents: %w", err)
+		}
+		for _, orphan := range orphans {
+			if err := entity.RetireAIAgent(retireCtx, tx, orphan, entity.EventAIAgentKill,
+				entity.SystemActor, dbtime.Now()); err != nil {
+				return 0, 0, xerrors.Errorf("failed to retire orphaned chat AI agent: %w", err)
+			}
+		}
 		if _, err := tx.RevokeOrphanedChatAIAgents(ctx); err != nil {
 			return 0, 0, xerrors.Errorf("failed to revoke orphaned chat AI agents: %w", err)
 		}

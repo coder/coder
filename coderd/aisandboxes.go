@@ -76,7 +76,7 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 	// identity, so its sandbox reuses that identity rather than minting a
 	// new one. An unbound parent means a human-declared sandbox, which is a
 	// human-to-AI boundary and resolves the workspace-origin identity.
-	var agent database.AIAgent
+	var aiAgentID uuid.UUID
 	if parentAgent.AIAgentID.Valid {
 		resolved, rerr := aiagentidentity.Resolve(systemCtx, api.Database, parentAgent.AIAgentID.UUID)
 		if rerr != nil {
@@ -87,9 +87,14 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 			})
 			return
 		}
-		agent = resolved.AIAgent
+		aiAgentID = resolved.Ledger.ID
 	} else {
-		agent, err = aiagentidentity.ResolveWorkspaceOrigin(systemCtx, api.Database, workspace)
+		origin, oerr := aiagentidentity.ResolveWorkspaceOrigin(systemCtx, api.Database, workspace)
+		if oerr != nil {
+			err = oerr
+		} else {
+			aiAgentID = origin.UserID
+		}
 		if err != nil {
 			httpapi.InternalServerError(rw, xerrors.Errorf("resolve workspace AI identity: %w", err))
 			return
@@ -150,7 +155,7 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 			// its credentials: the binding set here activates credential
 			// starvation for every enforcement point, before the row is
 			// ever observable.
-			AIAgentID:                uuid.NullUUID{UUID: agent.UserID, Valid: true},
+			AIAgentID:                uuid.NullUUID{UUID: aiAgentID, Valid: true},
 			Architecture:             parentAgent.Architecture,
 			OperatingSystem:          parentAgent.OperatingSystem,
 			Directory:                parentAgent.Directory,
@@ -175,7 +180,7 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 			WorkspaceID:       workspace.ID,
 			ParentAgentID:     parentAgent.ID,
 			ChildAgentID:      created.ID,
-			AIAgentID:         agent.UserID,
+			AIAgentID:         aiAgentID,
 			Name:              req.Name,
 			EgressEnforcement: string(req.EgressEnforcement),
 			CreatedAt:         now,
@@ -187,11 +192,11 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 			"workspace_id":       workspace.ID,
 			"parent_agent_id":    parentAgent.ID,
 			"child_agent_id":     created.ID,
-			"ai_agent_user_id":   agent.UserID,
+			"ai_agent_user_id":   aiAgentID,
 			"name":               req.Name,
 			"egress_enforcement": string(req.EgressEnforcement),
 		})
-		_, minted, err := aiagentidentity.MintKey(txCtx, tx, agent.UserID,
+		_, minted, err := aiagentidentity.MintKey(txCtx, tx, aiAgentID,
 			aiagentidentity.SandboxIdentityProfile(workspace.ID, sandboxID))
 		if err != nil {
 			return xerrors.Errorf("mint sandbox session token: %w", err)
@@ -208,7 +213,7 @@ func (api *API) postWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Requ
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.CreateAISandboxResponse{
 		ID:           sandboxID,
 		ChildAgentID: child.ID,
-		AIAgentID:    agent.UserID,
+		AIAgentID:    aiAgentID,
 		AgentToken:   child.AuthToken.String(),
 		SessionToken: token,
 	})
