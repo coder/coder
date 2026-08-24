@@ -181,6 +181,10 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 	chatConfigErr := errors.Join(chatRetentionErr, chatDebugRetentionErr)
 
+	// Set inside the transaction closure, applied to the instance only
+	// after the transaction commits.
+	var staleDrained bool
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	err := db.InTx(func(tx database.Store) error {
@@ -354,6 +358,38 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		// Rewrite vectors produced with a stale text search config (rows
+		// indexed before the switch to 'english', plus rows written by an
+		// old binary during a rolling upgrade). This backlog is finite:
+		// upgraded binaries always stamp search_tsv_config, so once the
+		// scan comes up short the queue can never refill and the query is
+		// skipped for the process lifetime. A pass returning fewer rows
+		// than the batch size proves the unindexed scan reached the end of
+		// the table, so latching on it avoids one extra full walk. If an
+		// old replica writes a stale row after the latch is set, the row
+		// stays correctly searchable via its recorded config (GetChats
+		// matches each vector with the config that produced it) and is
+		// rewritten after the next process restart re-runs one pass.
+		//
+		// staleDrained is committed to the instance only after the
+		// transaction succeeds; a rollback discards the batch updates, so
+		// latching inside the transaction could strand stale rows.
+		var reindexedChatSearchRows int64
+		if !i.chatSearchStaleDrained {
+			for range i.chatSearchBackfillMaxBatches {
+				n, err := tx.ReindexStaleChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)
+				if err != nil {
+					return xerrors.Errorf("reindex stale chat_messages.search_tsv: %w", err)
+				}
+				reindexedChatSearchRows += n
+				if n < int64(i.chatSearchBackfillBatchSize) {
+					staleDrained = true
+					break
+				}
+			}
+		}
+		backfilledChatSearchRows += reindexedChatSearchRows
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -399,6 +435,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	if err != nil {
 		return err
 	}
+	if staleDrained {
+		i.chatSearchStaleDrained = true
+	}
 
 	// Surface the deferred chat-config error so doTick records
 	// the failed iteration metric.
@@ -420,6 +459,10 @@ type instance struct {
 	chatSearchRowsBackfilled     prometheus.Counter
 	chatSearchBackfillBatchSize  int32
 	chatSearchBackfillMaxBatches int
+	// chatSearchStaleDrained latches off the stale-config reindex scan
+	// once it observes an empty (or final partial) pass. Only doTick's
+	// single goroutine touches it.
+	chatSearchStaleDrained bool
 }
 
 func (i *instance) Close() error {

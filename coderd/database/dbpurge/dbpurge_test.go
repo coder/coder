@@ -3093,7 +3093,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		var count int
 		err := rawDB.QueryRowContext(ctx, `
 			SELECT COUNT(*) FROM chat_messages
-			WHERE (search_tsv IS NULL OR search_tsv_config IS DISTINCT FROM 'english')
+			WHERE search_tsv IS NULL
 			  AND deleted = false
 			  AND visibility IN ('user', 'both')
 			  AND role IN ('user', 'assistant')`).Scan(&count)
@@ -3297,31 +3297,60 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 		deps := setupDeps(t, db)
 
-		msg := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+		countStale := func() int {
+			var count int
+			err := rawDB.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM chat_messages
+				WHERE search_tsv IS NOT NULL
+				  AND search_tsv_config IS DISTINCT FROM 'english'
+				  AND deleted = false
+				  AND visibility IN ('user', 'both')
+				  AND role IN ('user', 'assistant')`).Scan(&count)
+			require.NoError(t, err)
+			return count
+		}
+		makeStale := func(id int64) {
+			// Simulates a vector produced before the 'english' switch or by
+			// a binary that predates search_tsv_config (e.g. an old replica
+			// winning the dbpurge lock mid rolling upgrade).
+			_, err := rawDB.ExecContext(ctx, `
+				UPDATE chat_messages
+				SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+				    search_tsv_config = NULL
+				WHERE id = $1`, id)
+			require.NoError(t, err)
+		}
+
+		preexisting := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+		makeStale(preexisting.ID)
+		require.Equal(t, 1, countStale())
 
 		tick := awaitDoTicks(ctx, t, clk, 2)
 		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+
+		// The first tick rewrites the stale backlog with 'english' and
+		// latches off the stale scan for the process lifetime.
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+
+		// A stale row appearing after the latch (old replica racing the
+		// tail of a rolling upgrade) is intentionally not rewritten by
+		// this process; it stays correctly searchable via its recorded
+		// config until a restart re-runs one stale pass.
+		makeStale(preexisting.ID)
+		tick()
+		require.Equal(t, 1, countStale(), "stale scan must stay latched off after drain")
+		require.NoError(t, closer.Close())
+
+		// A new dbpurge instance (process restart) re-runs one stale pass
+		// and repairs the row.
+		tick = awaitDoTicks(ctx, t, clk, 1)
+		closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 		defer closer.Close()
-
 		tick()
-		requireTsvFor(ctx, t, rawDB, msg.ID, "refactoring the deployment")
-
-		// Simulate a binary that predates search_tsv_config (e.g. an old
-		// replica winning the dbpurge lock mid rolling upgrade): it writes
-		// a 'simple' vector and cannot stamp the config column. The row
-		// must re-enter the pending queue and be rewritten, not stay
-		// wrongly indexed forever.
-		_, err := rawDB.ExecContext(ctx, `
-			UPDATE chat_messages
-			SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
-			    search_tsv_config = NULL
-			WHERE id = $1`, msg.ID)
-		require.NoError(t, err)
-		require.Equal(t, 1, countPending(ctx, t, rawDB), "stale-config vector should be pending again")
-
-		tick()
-		requireTsvFor(ctx, t, rawDB, msg.ID, "refactoring the deployment")
-		require.Zero(t, countPending(ctx, t, rawDB))
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.

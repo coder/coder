@@ -5,14 +5,13 @@
 --
 -- The title expression indexes are rebuilt here; chats and
 -- chat_diff_statuses hold one row per chat, so the rebuild is cheap.
--- The stored chat_messages.search_tsv vectors are NOT rewritten here:
--- chat_messages can be large, and a full-table UPDATE inside the
--- migration transaction would rewrite every row, churn both partial
--- indexes, and hold the locks and WAL until the whole migration batch
--- commits. Instead the new search_tsv_config column records which
--- config produced each stored vector, the pending-queue index treats
--- any row whose config is not 'english' as pending, and the bounded
--- dbpurge sweep rewrites stale rows incrementally, newest first.
+-- chat_messages gets no index or data changes at all: a full-table
+-- UPDATE of search_tsv or a non-concurrent index rebuild would block
+-- message writes for the duration on large tables. Instead the new
+-- search_tsv_config column records which config produced each stored
+-- vector, and the bounded dbpurge sweep finds rows whose config is not
+-- 'english' with a self-terminating scan and rewrites them
+-- incrementally, newest first (see ReindexStaleChatMessagesSearchTsv).
 
 DROP INDEX idx_chats_title_fts;
 
@@ -29,19 +28,6 @@ COMMENT ON INDEX idx_chat_diff_statuses_pr_title_fts IS 'Used for full text sear
 ALTER TABLE chat_messages ADD COLUMN search_tsv_config text;
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means the vector is stale (produced by an unknown config) and the row is pending re-vectorization. Binaries that predate this column cannot set it, so vectors written by an old replica during a rolling upgrade stay pending and are rewritten by an upgraded replica''s sweep.';
-
--- A row is pending when it has never been vectorized (search_tsv IS
--- NULL) or when its stored vector was produced with a different config
--- (search_tsv_config IS DISTINCT FROM 'english'). All pre-existing
--- rows have search_tsv_config NULL, so the entire eligible backlog
--- re-enters this queue with no data movement; the index shrinks as the
--- sweep drains it.
-DROP INDEX idx_chat_messages_search_tsv_pending;
-
-CREATE INDEX idx_chat_messages_search_tsv_pending ON chat_messages USING btree (id DESC)
-WHERE (((search_tsv IS NULL) OR (search_tsv_config IS DISTINCT FROM 'english')) AND (deleted = false) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])) AND (role = ANY (ARRAY['user'::chat_message_role, 'assistant'::chat_message_role])));
-
-COMMENT ON INDEX idx_chat_messages_search_tsv_pending IS 'Partial index over chat_messages used for populating search_tsv in the background. Only defined over ''searchable'' rows of chat_messages whose search_tsv is NULL or was produced with a stale text search config.';
 
 -- The sweep now also writes search_tsv_config, so both chatd trigger
 -- functions must exclude it (alongside search_tsv) when deciding

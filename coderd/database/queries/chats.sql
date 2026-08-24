@@ -315,17 +315,14 @@ WHERE
     id = @id::bigint;
 
 -- name: BackfillChatMessagesSearchTsv :execrows
--- Backfills chat_messages.search_tsv for pending rows, newest first.
--- A row is pending when it has never been vectorized (search_tsv IS
--- NULL) or when its stored vector was produced with a stale text
--- search config (search_tsv_config IS DISTINCT FROM 'english'), e.g.
--- rows indexed before the switch to 'english' or rows written by an
--- old binary during a rolling upgrade. The WHERE clause must match
--- the predicate of idx_chat_messages_search_tsv_pending exactly so
--- the partial index serves this query.
+-- Backfills chat_messages.search_tsv for never-vectorized rows, newest
+-- first. The WHERE clause must match the predicate of
+-- idx_chat_messages_search_tsv_pending exactly so the partial index
+-- serves this query. Rows whose vector exists but was produced with a
+-- stale config are handled by ReindexStaleChatMessagesSearchTsv.
 WITH batch AS (
     SELECT id FROM chat_messages
-    WHERE (search_tsv IS NULL OR search_tsv_config IS DISTINCT FROM 'english')
+    WHERE search_tsv IS NULL
       AND deleted = false
       AND visibility IN ('user', 'both')
       AND role IN ('user', 'assistant')
@@ -334,8 +331,38 @@ WITH batch AS (
 )
 UPDATE chat_messages cm
 -- NULL means "pending", empty tsvector means "backfilled, no text".
--- search_tsv_config records the config that produced the vector and
--- is what drains the row from the pending queue.
+-- search_tsv_config records the config that produced the vector.
+SET search_tsv = COALESCE(
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
+FROM batch WHERE cm.id = batch.id;
+
+-- name: ReindexStaleChatMessagesSearchTsv :execrows
+-- Rewrites vectors produced with a stale text search config: rows
+-- indexed with 'simple' before migration 000585 and rows written by an
+-- old binary during a rolling upgrade (which cannot stamp
+-- search_tsv_config). This queue is deliberately unindexed. Stale rows
+-- are a one-time, shrinking backlog, so a permanent partial index (and
+-- its per-write maintenance) is not worth it, and rebuilding the
+-- pending index with a wider predicate in the migration would block
+-- message writes on large tables. ORDER BY id DESC with LIMIT walks
+-- the primary key backwards and terminates early while stale rows are
+-- dense, which is the entire drain; only the final near-empty pass
+-- costs a full walk, and the dbpurge caller stops calling this query
+-- for the process lifetime once a pass returns fewer rows than the
+-- batch size (proof the scan reached the end of the table).
+WITH batch AS (
+    SELECT id FROM chat_messages
+    WHERE search_tsv IS NOT NULL
+      AND search_tsv_config IS DISTINCT FROM 'english'
+      AND deleted = false
+      AND visibility IN ('user', 'both')
+      AND role IN ('user', 'assistant')
+    ORDER BY id DESC
+    LIMIT @batch_size::int
+)
+UPDATE chat_messages cm
 SET search_tsv = COALESCE(
         to_tsvector('english', chat_message_search_text(cm.content)),
         ''::tsvector),

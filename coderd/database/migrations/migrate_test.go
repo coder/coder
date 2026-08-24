@@ -2392,11 +2392,6 @@ const eligibilityPredicate = `deleted = false
 	AND visibility IN ('user', 'both')
 	AND role IN ('user', 'assistant')`
 
-// Pending-queue membership: never vectorized, or vectorized with a
-// stale text search config. Must match the predicate of
-// idx_chat_messages_search_tsv_pending.
-const pendingPredicate = `(search_tsv IS NULL OR search_tsv_config IS DISTINCT FROM 'english')`
-
 func TestMigration000543ChatSearchSchemaIndexes(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -2480,7 +2475,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	pendingIDs := func(ctx context.Context, limit int) []int64 {
 		rows, err := sqlDB.QueryContext(ctx, `
 			SELECT id FROM chat_messages
-			WHERE `+pendingPredicate+` AND `+eligibilityPredicate+`
+			WHERE search_tsv IS NULL AND `+eligibilityPredicate+`
 			ORDER BY id DESC
 			LIMIT $1`, limit)
 		require.NoError(t, err)
@@ -2518,8 +2513,7 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.Equal(t, []int64{eligibleNoText.ID, eligibleText.ID}, pendingIDs(ctx, 10))
 
 	// Sweep-style UPDATE. The '' sentinel (not NULL) marks no-text rows as
-	// swept; search_tsv_config records the config and is what drains rows
-	// from the queue.
+	// swept; search_tsv_config records the config that produced the vector.
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
 		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
@@ -2528,24 +2522,45 @@ func TestMigration000543ChatSearchSchemaBehavior(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, pendingIDs(ctx, 10), "swept rows must leave the queue, including no-text rows")
 
-	// A non-NULL vector with a stale config stays pending: this is how
-	// rows written by an old binary during a rolling upgrade (which
-	// cannot set search_tsv_config) re-enter the queue and self-heal.
+	// A non-NULL vector with a stale config is not in the NULL queue but
+	// must be found by the stale-reindex predicate: this is how rows
+	// written by an old binary during a rolling upgrade (which cannot set
+	// search_tsv_config) are eventually rewritten.
+	staleIDs := func(ctx context.Context, limit int) []int64 {
+		rows, err := sqlDB.QueryContext(ctx, `
+			SELECT id FROM chat_messages
+			WHERE search_tsv IS NOT NULL
+				AND search_tsv_config IS DISTINCT FROM 'english'
+				AND `+eligibilityPredicate+`
+			ORDER BY id DESC
+			LIMIT $1`, limit)
+		require.NoError(t, err)
+		defer rows.Close()
+		var ids []int64
+		for rows.Next() {
+			var id int64
+			require.NoError(t, rows.Scan(&id))
+			ids = append(ids, id)
+		}
+		require.NoError(t, rows.Err())
+		return ids
+	}
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
 		SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
 		    search_tsv_config = NULL
 		WHERE id = $1`, eligibleText.ID)
 	require.NoError(t, err)
-	require.Equal(t, []int64{eligibleText.ID}, pendingIDs(ctx, 10),
-		"stale-config vectors must re-enter the pending queue")
+	require.Empty(t, pendingIDs(ctx, 10), "stale rows must not enter the NULL queue")
+	require.Equal(t, []int64{eligibleText.ID}, staleIDs(ctx, 10),
+		"stale-config vectors must match the stale-reindex predicate")
 	_, err = sqlDB.ExecContext(ctx, `
 		UPDATE chat_messages
 		SET search_tsv = COALESCE(to_tsvector('english', chat_message_search_text(content)), ''::tsvector),
 		    search_tsv_config = 'english'
 		WHERE id = $1`, eligibleText.ID)
 	require.NoError(t, err)
-	require.Empty(t, pendingIDs(ctx, 10))
+	require.Empty(t, staleIDs(ctx, 10))
 
 	// Soft-deleting an unswept row removes it from the queue without a sweep.
 	unswept := newMsg(database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("unswept deploy row"))

@@ -69,17 +69,13 @@ type sqlcQuerier interface {
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
-	// Backfills chat_messages.search_tsv for pending rows, newest first.
-	// A row is pending when it has never been vectorized (search_tsv IS
-	// NULL) or when its stored vector was produced with a stale text
-	// search config (search_tsv_config IS DISTINCT FROM 'english'), e.g.
-	// rows indexed before the switch to 'english' or rows written by an
-	// old binary during a rolling upgrade. The WHERE clause must match
-	// the predicate of idx_chat_messages_search_tsv_pending exactly so
-	// the partial index serves this query.
+	// Backfills chat_messages.search_tsv for never-vectorized rows, newest
+	// first. The WHERE clause must match the predicate of
+	// idx_chat_messages_search_tsv_pending exactly so the partial index
+	// serves this query. Rows whose vector exists but was produced with a
+	// stale config are handled by ReindexStaleChatMessagesSearchTsv.
 	// NULL means "pending", empty tsvector means "backfilled, no text".
-	// search_tsv_config records the config that produced the vector and
-	// is what drains the row from the pending queue.
+	// search_tsv_config records the config that produced the vector.
 	BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	// Deletes heartbeat rows for the supplied (chat_id, runner_id) pairs.
@@ -1354,6 +1350,20 @@ type sqlcQuerier interface {
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	// Rewrites vectors produced with a stale text search config: rows
+	// indexed with 'simple' before migration 000585 and rows written by an
+	// old binary during a rolling upgrade (which cannot stamp
+	// search_tsv_config). This queue is deliberately unindexed. Stale rows
+	// are a one-time, shrinking backlog, so a permanent partial index (and
+	// its per-write maintenance) is not worth it, and rebuilding the
+	// pending index with a wider predicate in the migration would block
+	// message writes on large tables. ORDER BY id DESC with LIMIT walks
+	// the primary key backwards and terminates early while stale rows are
+	// dense, which is the entire drain; only the final near-empty pass
+	// costs a full walk, and the dbpurge caller stops calling this query
+	// for the process lifetime once a pass returns fewer rows than the
+	// batch size (proof the scan reached the end of the table).
+	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
