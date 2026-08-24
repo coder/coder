@@ -164,6 +164,21 @@ func TestSearchTools(t *testing.T) {
 		require.Len(t, result.Activated, 2,
 			"a server word beyond the word-inspection cap does not scope")
 	})
+	t.Run("empty auto-scope falls back to unscoped", func(t *testing.T) {
+		t.Parallel()
+		fallbackEntries := []FindToolCatalogEntry{
+			{Name: "search__web", Description: "Query the web", Server: "search"},
+			{Name: "tracker__find_issues", Description: "Search issues", Server: "tracker"},
+		}
+		result, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search issues"}}, SearchBudget{})
+		require.Len(t, result.Matches, 2,
+			"a server-name word that scopes to nothing relevant retries unscoped")
+		require.Equal(t, "tracker__find_issues", result.Matches[0].Name)
+
+		explicit, _ := SearchTools(fallbackEntries, FindToolsArgs{Queries: []string{"search: issues"}}, SearchBudget{})
+		require.Empty(t, explicit.Matches,
+			"an explicit scope that matches nothing does not fall back")
+	})
 	t.Run("server prefix scope", func(t *testing.T) {
 		t.Parallel()
 		scopedEntries := []FindToolCatalogEntry{
@@ -211,6 +226,16 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB status"}}, SearchBudget{})
 		require.Len(t, result.Activated, 2,
 			"a server word matching no exact-case name spans the case-colliding servers")
+
+		result, _ = SearchTools(caseEntries, FindToolsArgs{Queries: []string{"GITHUB github status"}}, SearchBudget{})
+		require.Equal(t, []string{"github__get_commit"}, result.Activated,
+			"an exact-case word refines a folded word from the same fold family")
+
+		spanEntries := append(slices.Clone(caseEntries),
+			FindToolCatalogEntry{Name: "ci__status", Description: "Pipeline status", Server: "ci"})
+		result, _ = SearchTools(spanEntries, FindToolsArgs{Queries: []string{"GitHub github status"}}, SearchBudget{})
+		require.Len(t, result.Activated, 2,
+			"distinct exact-case sibling words span their fold family, not the whole catalog")
 	})
 	t.Run("folded scopes with different byte lengths", func(t *testing.T) {
 		t.Parallel()
