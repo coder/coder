@@ -29,7 +29,7 @@ const OAuth2AppsSettingsPage: FC = () => {
 			<title>{pageTitle("OAuth2 applications")}</title>
 
 			<OAuth2AppsSettingsPageView
-				apps={appsQuery.data}
+				apps={appsQuery.data?.apps}
 				isLoadingApps={appsQuery.isLoading}
 				appsError={appsQuery.error}
 				canCreateApp={canCreateApp}

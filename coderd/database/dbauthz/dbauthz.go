@@ -4254,11 +4254,11 @@ func (q *querier) GetOAuth2ProviderAppTokenByPrefix(ctx context.Context, hashPre
 	return token, nil
 }
 
-func (q *querier) GetOAuth2ProviderApps(ctx context.Context) ([]database.OAuth2ProviderApp, error) {
+func (q *querier) GetOAuth2ProviderApps(ctx context.Context, arg database.GetOAuth2ProviderAppsParams) ([]database.GetOAuth2ProviderAppsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOauth2App); err != nil {
-		return []database.OAuth2ProviderApp{}, err
+		return []database.GetOAuth2ProviderAppsRow{}, err
 	}
-	return q.db.GetOAuth2ProviderApps(ctx)
+	return q.db.GetOAuth2ProviderApps(ctx, arg)
 }
 
 func (q *querier) GetOAuth2ProviderAppsByUserID(ctx context.Context, userID uuid.UUID) ([]database.GetOAuth2ProviderAppsByUserIDRow, error) {

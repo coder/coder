@@ -9783,6 +9783,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `client_secret_full` | string | false    |              |             |
 | `id`                 | string | false    |              |             |
 
+## codersdk.OAuth2ProviderAppsResponse
+
+```json
+{
+  "apps": [
+    {
+      "callback_url": "string",
+      "endpoints": {
+        "authorization": "string",
+        "device_authorization": "string",
+        "token": "string",
+        "token_revoke": "string"
+      },
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
+  "count": 0
+}
+```
+
+### Properties
+
+| Name    | Type                                                              | Required | Restrictions | Description |
+|---------|-------------------------------------------------------------------|----------|--------------|-------------|
+| `apps`  | array of [codersdk.OAuth2ProviderApp](#codersdkoauth2providerapp) | false    |              |             |
+| `count` | integer                                                           | false    |              |             |
+
 ## codersdk.OAuth2ProviderGrantType
 
 ```json

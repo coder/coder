@@ -1499,53 +1499,43 @@ curl -X GET http://coder-server:8080/api/v2/oauth2-provider/apps \
 
 ### Parameters
 
-| Name      | In    | Type   | Required | Description                                  |
-|-----------|-------|--------|----------|----------------------------------------------|
-| `user_id` | query | string | false    | Filter by applications authorized for a user |
+| Name       | In    | Type         | Required | Description                                                                               |
+|------------|-------|--------------|----------|-------------------------------------------------------------------------------------------|
+| `user_id`  | query | string       | false    | Filter by applications authorized for a user                                              |
+| `q`        | query | string       | false    | Search query filter. Bare terms match name or callback URL. Supports a search: qualifier. |
+| `limit`    | query | integer      | false    | Page limit                                                                                |
+| `offset`   | query | integer      | false    | Page offset                                                                               |
+| `after_id` | query | string(uuid) | false    | After ID for cursor pagination                                                            |
 
 ### Example responses
 
 > 200 Response
 
 ```json
-[
-  {
-    "callback_url": "string",
-    "endpoints": {
-      "authorization": "string",
-      "device_authorization": "string",
-      "token": "string",
-      "token_revoke": "string"
-    },
-    "icon": "string",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string"
-  }
-]
+{
+  "apps": [
+    {
+      "callback_url": "string",
+      "endpoints": {
+        "authorization": "string",
+        "device_authorization": "string",
+        "token": "string",
+        "token_revoke": "string"
+      },
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string"
+    }
+  ],
+  "count": 0
+}
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                      |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.OAuth2ProviderApp](schemas.md#codersdkoauth2providerapp) |
-
-<h3 id="get-oauth2-applications.-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                      | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                                             |
-|---------------------------|----------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`            | array                                                                | false    |              |                                                                                                                                                                                                         |
-| `» callback_url`          | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» endpoints`             | [codersdk.OAuth2AppEndpoints](schemas.md#codersdkoauth2appendpoints) | false    |              | Endpoints are included in the app response for easier discovery. The OAuth2 spec does not have a defined place to find these (for comparison, OIDC has a '/.well-known/openid-configuration' endpoint). |
-| `»» authorization`        | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `»» device_authorization` | string                                                               | false    |              | Device authorization is optional.                                                                                                                                                                       |
-| `»» token`                | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `»» token_revoke`         | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» icon`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
-| `» id`                    | string(uuid)                                                         | false    |              |                                                                                                                                                                                                         |
-| `» name`                  | string                                                               | false    |              |                                                                                                                                                                                                         |
+| Status | Meaning                                                 | Description | Schema                                                                               |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProviderAppsResponse](schemas.md#codersdkoauth2providerappsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

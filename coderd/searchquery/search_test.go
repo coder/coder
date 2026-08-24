@@ -1823,6 +1823,109 @@ func TestSearchChats(t *testing.T) {
 	}
 }
 
+func TestSearchOAuth2ProviderApps(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name                  string
+		Query                 string
+		Expected              database.GetOAuth2ProviderAppsParams
+		ExpectedErrorContains string
+	}{
+		{
+			Name:  "Empty",
+			Query: "",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "",
+			},
+		},
+		{
+			Name:  "BareTerm",
+			Query: "FooApp",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "fooapp",
+			},
+		},
+		{
+			Name:  "BareTermsJoined",
+			Query: "my app",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "my app",
+			},
+		},
+		{
+			Name:  "ExplicitSearch",
+			Query: "search:github",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "github",
+			},
+		},
+		{
+			Name:  "BareHTTPSURL",
+			Query: "https://example.com/callback",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
+			Name:  "URLNotFirstTerm",
+			Query: "foo https://foo.bar",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "foo https://foo.bar",
+			},
+		},
+		{
+			Name:  "BareHTTPURLWithPort",
+			Query: "http://127.0.0.1:3001",
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "http://127.0.0.1:3001",
+			},
+		},
+		{
+			Name:  "QuotedBareHTTPSURL",
+			Query: `"https://example.com/oauth/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/oauth/callback",
+			},
+		},
+		{
+			Name:  "ExplicitSearchQuotedURL",
+			Query: `search:"https://example.com/callback"`,
+			Expected: database.GetOAuth2ProviderAppsParams{
+				Search: "https://example.com/callback",
+			},
+		},
+		{
+			Name:                  "UnknownKey",
+			Query:                 "name:foo",
+			ExpectedErrorContains: `"name" is not a valid query param`,
+		},
+		{
+			Name:                  "ExtraColon",
+			Query:                 "search:a:b",
+			ExpectedErrorContains: "can only contain 1 ':'",
+		},
+	}
+
+	for _, c := range testCases {
+		t.Run(c.Name, func(t *testing.T) {
+			t.Parallel()
+			values, errs := searchquery.OAuth2ProviderApps(c.Query)
+			if c.ExpectedErrorContains != "" {
+				require.NotEmpty(t, errs, "expect some errors")
+				var s strings.Builder
+				for _, err := range errs {
+					_, _ = s.WriteString(fmt.Sprintf("%s: %s\n", err.Field, err.Detail))
+				}
+				require.Contains(t, s.String(), c.ExpectedErrorContains)
+			} else {
+				require.Empty(t, errs, "expected no error")
+				require.Equal(t, c.Expected, values, "expected values")
+			}
+		})
+	}
+}
+
 func TestSearchGroups(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {

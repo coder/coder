@@ -492,6 +492,60 @@ func AIBridgeClients(query string, page codersdk.Pagination) (database.ListAIBri
 	return filter, parser.Errors
 }
 
+// OAuth2ProviderApps converts a search query into GetOAuth2ProviderAppsParams.
+// Pagination fields (AfterID, LimitOpt, OffsetOpt) are left zero and should be
+// filled by the caller.
+//
+// Supported query parameters:
+//
+//   - search: string (matches application name or callback URL)
+//
+// Bare terms default to search. Callback URLs are a primary search target, so
+// if any term looks like an HTTP(S) URL the whole query is treated as a literal
+// search string. This keeps a pasted URL working no matter where it appears
+// (e.g. "foo https://foo.bar"), rather than its scheme/port being parsed as
+// key:value filter syntax. Additional keys can be added later without changing
+// the request shape.
+func OAuth2ProviderApps(query string) (database.GetOAuth2ProviderAppsParams, []codersdk.ValidationError) {
+	//nolint:exhaustruct // Pagination is set by the caller.
+	filter := database.GetOAuth2ProviderAppsParams{}
+	if strings.TrimSpace(query) == "" {
+		return filter, nil
+	}
+
+	if queryContainsURL(query) {
+		filter.Search = strings.ToLower(strings.Trim(strings.TrimSpace(query), `"`))
+		return filter, nil
+	}
+
+	query = strings.ToLower(query)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("search", term)
+		return nil
+	})
+	if len(errors) > 0 {
+		return filter, errors
+	}
+
+	parser := httpapi.NewQueryParamParser()
+	filter.Search = parser.String(values, "", "search")
+	parser.ErrorExcessParams(values)
+	return filter, parser.Errors
+}
+
+// queryContainsURL reports whether any space-delimited term in query looks like
+// an HTTP(S) URL. Such terms contain ':' and '//' that would otherwise be
+// mis-parsed as key:value filter syntax.
+func queryContainsURL(query string) bool {
+	for _, token := range splitQueryParameterByDelimiter(query, ' ', true) {
+		lower := strings.ToLower(strings.Trim(token, `"`))
+		if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+			return true
+		}
+	}
+	return false
+}
+
 // Tasks parses a search query for tasks.
 //
 // Supported query parameters:

@@ -1,5 +1,36 @@
 -- name: GetOAuth2ProviderApps :many
-SELECT * FROM oauth2_provider_apps ORDER BY (name, id) ASC;
+SELECT
+	*, COUNT(*) OVER() AS count
+FROM
+	oauth2_provider_apps
+WHERE
+	CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			(LOWER(name), id) > (
+				SELECT
+					LOWER(name), id
+				FROM
+					oauth2_provider_apps
+				WHERE
+					id = @after_id
+			)
+		)
+		ELSE true
+	END
+	AND CASE
+		WHEN @search :: text != '' THEN (
+			name ILIKE concat('%', @search, '%')
+			OR callback_url ILIKE concat('%', @search, '%')
+		)
+		ELSE true
+	END
+ORDER BY
+	LOWER(name) ASC, id ASC
+OFFSET @offset_opt
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF(@limit_opt :: int, 0);
 
 -- name: GetOAuth2ProviderAppByID :one
 SELECT * FROM oauth2_provider_apps WHERE id = $1;

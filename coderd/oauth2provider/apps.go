@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -23,38 +24,98 @@ import (
 func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		queryParams := r.URL.Query()
+		rawUserID := queryParams.Get("user_id")
 
-		rawUserID := r.URL.Query().Get("user_id")
-		if rawUserID == "" {
-			dbApps, err := db.GetOAuth2ProviderApps(ctx)
+		// The user-scoped listing does not support search or pagination. Reject
+		// those parameters explicitly instead of silently ignoring them, which
+		// would be a confusing footgun for API/SDK callers.
+		if rawUserID != "" {
+			var unsupported []codersdk.ValidationError
+			for _, param := range []string{"q", "limit", "offset", "after_id"} {
+				if queryParams.Get(param) != "" {
+					unsupported = append(unsupported, codersdk.ValidationError{
+						Field:  param,
+						Detail: fmt.Sprintf("%q is not supported when filtering by user_id.", param),
+					})
+				}
+			}
+			if len(unsupported) > 0 {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message:     "Query parameters have invalid values.",
+					Validations: unsupported,
+				})
+				return
+			}
+
+			userID, err := uuid.Parse(rawUserID)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid user UUID",
+					Detail:  fmt.Sprintf("queried user_id=%q", rawUserID),
+				})
+				return
+			}
+
+			userApps, err := db.GetOAuth2ProviderAppsByUserID(ctx, userID)
 			if err != nil {
 				httpapi.InternalServerError(rw, err)
 				return
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, db2sdk.OAuth2ProviderApps(accessURL, dbApps))
-			return
-		}
 
-		userID, err := uuid.Parse(rawUserID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid user UUID",
-				Detail:  fmt.Sprintf("queried user_id=%q", userID),
+			sdkApps := make([]codersdk.OAuth2ProviderApp, 0, len(userApps))
+			for _, app := range userApps {
+				sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(accessURL, app.OAuth2ProviderApp))
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppsResponse{
+				Apps:  sdkApps,
+				Count: len(sdkApps),
 			})
 			return
 		}
 
-		userApps, err := db.GetOAuth2ProviderAppsByUserID(ctx, userID)
+		// Global listing supports free-text search and pagination.
+		parser := httpapi.NewQueryParamParser()
+		// PositiveInt32 rejects values outside [0, math.MaxInt32] with a validation
+		// error, so these cannot silently truncate. Keeping them as int32 avoids a
+		// lossy int round-trip. A limit of 0 is interpreted by the SQL query as
+		// "no limit"; do not change this default.
+		afterID := parser.UUID(queryParams, uuid.Nil, "after_id")
+		limit := parser.PositiveInt32(queryParams, 0, "limit")
+		offset := parser.PositiveInt32(queryParams, 0, "offset")
+		if len(parser.Errors) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Query parameters have invalid values.",
+				Validations: parser.Errors,
+			})
+			return
+		}
+
+		filter, errs := searchquery.OAuth2ProviderApps(queryParams.Get("q"))
+		if len(errs) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid OAuth2 application search query.",
+				Validations: errs,
+			})
+			return
+		}
+		filter.AfterID = afterID
+		filter.LimitOpt = limit
+		filter.OffsetOpt = offset
+
+		dbApps, err := db.GetOAuth2ProviderApps(ctx, filter)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-
-		sdkApps := make([]codersdk.OAuth2ProviderApp, 0, len(userApps))
-		for _, app := range userApps {
-			sdkApps = append(sdkApps, db2sdk.OAuth2ProviderApp(accessURL, app.OAuth2ProviderApp))
+		count := 0
+		if len(dbApps) > 0 {
+			count = int(dbApps[0].Count)
 		}
-		httpapi.Write(ctx, rw, http.StatusOK, sdkApps)
+		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppsResponse{
+			Apps:  db2sdk.OAuth2ProviderAppsFromRows(accessURL, dbApps),
+			Count: count,
+		})
 	}
 }
 

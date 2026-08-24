@@ -5107,16 +5107,38 @@ const docTemplate = `{
                         "description": "Filter by applications authorized for a user",
                         "name": "user_id",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search query filter. Bare terms match name or callback URL. Supports a search: qualifier.",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "After ID for cursor pagination",
+                        "name": "after_id",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
-                            }
+                            "$ref": "#/definitions/codersdk.OAuth2ProviderAppsResponse"
                         }
                     }
                 },
@@ -22947,6 +22969,20 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.OAuth2ProviderAppsResponse": {
+            "type": "object",
+            "properties": {
+                "apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OAuth2ProviderApp"
+                    }
+                },
+                "count": {
+                    "type": "integer"
                 }
             }
         },

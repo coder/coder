@@ -67,6 +67,36 @@ curl -X POST \
   "$CODER_URL/api/v2/oauth2-provider/apps/$APP_ID/secrets"
 ```
 
+List applications. The endpoint supports free-text search with `q` (matching an
+application's name or callback URL) and pagination with `limit` and `offset`:
+
+```sh
+curl -X GET \
+  -H "Authorization: Bearer $CODER_SESSION_TOKEN" \
+  "$CODER_URL/api/v2/oauth2-provider/apps?q=github&limit=25&offset=0"
+```
+
+The response wraps the applications in an object with a total `count`:
+
+```json
+{
+  "apps": [
+    {
+      "id": "...",
+      "name": "My Application",
+      "callback_url": "https://myapp.example.com/callback"
+    }
+  ],
+  "count": 1
+}
+```
+
+> [!IMPORTANT]
+> Listing applications returns this `{ "apps": [...], "count": N }` object rather
+> than a bare array. Update any scripts or SDK callers that expect a top-level
+> array. The `q`, `limit`, `offset`, and `after_id` parameters apply only to the
+> global listing; they are rejected when combined with `user_id`.
+
 ## Dynamic Client Registration
 
 Dynamic Client Registration ([RFC 7591](https://datatracker.ietf.org/doc/html/rfc7591)) lets a client register itself against `/oauth2/register` instead of an admin creating the application manually. It's **disabled by default**; an owner must turn it on before any client can self-register.

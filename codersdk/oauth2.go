@@ -35,29 +35,40 @@ type OAuth2AppEndpoints struct {
 }
 
 type OAuth2ProviderAppFilter struct {
-	UserID uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	UserID      uuid.UUID `json:"user_id,omitempty" format:"uuid"`
+	SearchQuery string    `json:"q,omitempty"`
+	Pagination
+}
+
+type OAuth2ProviderAppsResponse struct {
+	Apps  []OAuth2ProviderApp `json:"apps"`
+	Count int                 `json:"count"`
 }
 
 // OAuth2ProviderApps returns the applications configured to authenticate using
 // Coder as an OAuth2 provider.
-func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) ([]OAuth2ProviderApp, error) {
+func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) (OAuth2ProviderAppsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil,
+		filter.Pagination.asRequestOption(),
 		func(r *http.Request) {
+			q := r.URL.Query()
 			if filter.UserID != uuid.Nil {
-				q := r.URL.Query()
 				q.Set("user_id", filter.UserID.String())
-				r.URL.RawQuery = q.Encode()
 			}
+			if filter.SearchQuery != "" {
+				q.Set("q", filter.SearchQuery)
+			}
+			r.URL.RawQuery = q.Encode()
 		})
 	if err != nil {
-		return []OAuth2ProviderApp{}, err
+		return OAuth2ProviderAppsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return []OAuth2ProviderApp{}, ReadBodyAsError(res)
+		return OAuth2ProviderAppsResponse{}, ReadBodyAsError(res)
 	}
-	var apps []OAuth2ProviderApp
-	return apps, ReadBodyAsJSON(res, &apps)
+	var resp OAuth2ProviderAppsResponse
+	return resp, ReadBodyAsJSON(res, &resp)
 }
 
 // OAuth2ProviderApp returns an application configured to authenticate using
