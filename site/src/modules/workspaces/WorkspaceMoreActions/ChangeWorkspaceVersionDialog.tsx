@@ -104,14 +104,6 @@ export const ChangeWorkspaceVersionDialog: FC<
 											className="w-full min-w-0 pl-3.5"
 										/>
 									</ComboboxTrigger>
-									{/*
-									 * disablePortal renders the popover in place instead
-									 * of portalling to document.body. The dialog is still
-									 * an MUI Dialog (z-index: 1300) on release/2.36, so a
-									 * body portal lands behind it. Keeping the popover
-									 * inside the dialog also keeps it in the focus trap
-									 * (DEVEX-780).
-									 */}
 									<ComboboxContent
 										disablePortal
 										className="max-w-none min-w-[min(100%,320px)]"
