@@ -49,7 +49,7 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 			</TableCell>
 			<TableCell className="w-12">
 				{onClick && (
-					<ChevronRightIcon className="size-5 text-content-primary" />
+					<ChevronRightIcon className="size-icon-sm text-content-primary" />
 				)}
 			</TableCell>
 		</TableRow>

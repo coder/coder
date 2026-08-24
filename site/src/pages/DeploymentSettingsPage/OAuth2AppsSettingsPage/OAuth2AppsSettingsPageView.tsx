@@ -262,7 +262,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 				<div className="flex justify-end items-center pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-md text-content-primary flex-shrink-0"
+						className="size-icon-sm text-content-primary flex-shrink-0"
 					/>
 				</div>
 			</TableCell>
