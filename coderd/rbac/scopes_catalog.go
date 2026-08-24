@@ -142,20 +142,21 @@ func CanonicalScopeName(name ScopeName) ScopeName {
 // `coder:all` and `coder:application_connect` spellings, the curated low-level
 // resource:action names, and the curated composite coder:* scopes.
 //
-// Every name returned is canonical, so the list omits the bare `all` and
-// `application_connect` aliases IsExternalScope also accepts. A caller matching
-// a client-supplied name against this list must run it through
-// CanonicalScopeName first, or reject a spelling the same package calls public.
+// Apart from the bare `all` and `application_connect` aliases, this is exactly
+// the set IsExternalScope accepts, so a name missing here is a name ingress
+// rejects. Every name returned is canonical, so a caller matching a
+// client-supplied name against this list must run it through CanonicalScopeName
+// first, or reject a spelling the same package calls public.
 func ExternalScopeNames() []string {
 	names := make([]string, 0, len(externalLowLevel)+len(externalComposite)+2)
 	names = append(names, string(ScopeAll))
 	names = append(names, string(ScopeApplicationConnect))
 
-	// curated low-level names, filtered for validity
+	// curated low-level names. Listed unfiltered: IsExternalScope accepts every
+	// key in this map, so filtering here would hide an unparsable entry from
+	// the callers that check this list while ingress still admitted it.
 	for name := range externalLowLevel {
-		if _, _, ok := parseLowLevelScope(name); ok {
-			names = append(names, string(name))
-		}
+		names = append(names, string(name))
 	}
 
 	// curated composite names

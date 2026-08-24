@@ -278,9 +278,9 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 // the handler and then fails inside apikey.Generate. The rbac package cannot
 // check this itself, since database imports rbac and not the other way around.
 //
-// ExternalScopeNames omits the bare aliases, so CanonicalScopeName is a no-op
-// here today and is kept because that list is documented as canonical rather
-// than guaranteed to be. New aliases are still covered: TestScopeAliases
+// ExternalScopeNames is the set the handler accepts, less the bare aliases, so
+// CanonicalScopeName is a no-op here today. It is kept so an alias added to the
+// list later is still checked against the enum; TestScopeAliases separately
 // requires every alias to point at a name on this list.
 func TestExternalScopesAreStorable(t *testing.T) {
 	t.Parallel()
