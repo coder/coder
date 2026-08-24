@@ -4341,9 +4341,7 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 
 // chatInstructionSettingsLockTimeout bounds how long a request waits for the
 // per-setting advisory lock. The only other holders are sibling requests
-// holding it for a single upsert, so a short bound cannot strand a waiter:
-// on expiry the request falls back to the unaudited write path instead of
-// hanging until the client deadline.
+// holding it for a single upsert.
 const chatInstructionSettingsLockTimeout = 5 * time.Second
 
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -4388,12 +4386,7 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		noChange    bool
-		oldCaptured bool
-		oldReadErr  error
-		lockErr     error
-	)
+	var noChange bool
 	// The per-setting advisory lock serializes the audit change-detection
 	// with the write: two concurrent identical PUTs both still succeed,
 	// but the second transaction's comparison sees the first's committed
@@ -4403,20 +4396,13 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	defer lockCancel()
 	err := api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionSystemPrompt); err != nil {
-			lockErr = err
 			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
 		}
 
-		// Old capture is best effort: it runs after the lock but before
-		// the write, so abandoning the transaction on its error costs
-		// nothing and the handler writes directly below with no entry.
-		// The lock keeps the captured baseline serialized with the write.
-		oldConfig, oldErr := tx.GetChatSystemPromptConfig(ctx)
-		if oldErr != nil {
-			oldReadErr = oldErr
-			return oldErr
+		oldConfig, err := tx.GetChatSystemPromptConfig(ctx)
+		if err != nil {
+			return err
 		}
-		oldCaptured = true
 		aReq.Old.SystemPrompt = oldConfig.ChatSystemPrompt
 		aReq.Old.IncludeDefaultSystemPromptSet = oldConfig.IncludeDefaultSystemPromptSet
 		aReq.Old.IncludeDefaultSystemPrompt = oldConfig.IncludeDefaultSystemPrompt
@@ -4462,47 +4448,13 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		auditSetupErr := lockErr
-		if auditSetupErr == nil {
-			auditSetupErr = oldReadErr
-		}
-		if auditSetupErr != nil {
-			// The audit-added lock wait or Old capture failed before
-			// anything was written, so the transaction was abandoned at
-			// no cost: write directly exactly as main does, emit no
-			// entry, and warn.
-			api.Logger.Warn(ctx, "audit change detection failed, writing chat system prompt without an audit entry",
-				slog.Error(auditSetupErr))
-			commitAudit(false)
-			if mainErr := api.Database.InTx(func(tx database.Store) error {
-				if err := tx.UpsertChatSystemPrompt(ctx, sanitizedPrompt); err != nil {
-					return err
-				}
-				if req.IncludeDefaultSystemPrompt != nil {
-					return tx.UpsertChatIncludeDefaultSystemPrompt(ctx, *req.IncludeDefaultSystemPrompt)
-				}
-				return nil
-			}, nil); mainErr != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error updating chat system prompt configuration.",
-					Detail:  mainErr.Error(),
-				})
-				return
-			}
-			rw.WriteHeader(http.StatusNoContent)
-			return
-		}
-		// This endpoint was transactional on main, so begin, write,
-		// commit and rollback errors all surface exactly as main's. The
-		// advisory lock is audit-added, so its failure falls back above
-		// instead of surfacing.
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error updating chat system prompt configuration.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-	if oldCaptured && noChange {
+	if noChange {
 		// Stage the no-op decision until after the transaction commits,
 		// so a commit failure cannot suppress an attempt row.
 		commitAudit(false)
@@ -4576,38 +4528,21 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// This endpoint was not transactional on main, so the audited
-	// transaction's lock, begin, commit and rollback failures run the
-	// direct write instead, matching main's non-transactional behavior.
-	// Only a failure of the write itself surfaces the transaction error
-	// (the raw write error, as main produced).
-	var (
-		noChange    bool
-		oldCaptured bool
-		oldReadErr  error
-	)
+	var noChange bool
 	lockCtx, lockCancel := context.WithTimeout(ctx, chatInstructionSettingsLockTimeout)
 	defer lockCancel()
-	var writeErr error
 	err := api.Database.InTx(func(tx database.Store) error {
 		if err := tx.AcquireLock(lockCtx, database.LockIDChatInstructionPlanMode); err != nil {
 			return xerrors.Errorf("acquire chat instruction setting write lock: %w", err)
 		}
 
-		// Old capture is best effort: it runs after the lock but before
-		// the write, so abandoning the transaction on its error costs
-		// nothing and the handler writes directly below with no entry;
-		// see putChatSystemPrompt for why New is derived from the write.
-		oldInstructions, oldErr := tx.GetChatPlanModeInstructions(ctx)
-		if oldErr != nil {
-			oldReadErr = oldErr
-			return oldErr
+		oldInstructions, err := tx.GetChatPlanModeInstructions(ctx)
+		if err != nil {
+			return err
 		}
-		oldCaptured = true
 		aReq.Old.PlanModeInstructions = oldInstructions
 
 		if err := tx.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); err != nil {
-			writeErr = err
 			return err
 		}
 		aReq.New.PlanModeInstructions = sanitizedInstructions
@@ -4615,51 +4550,13 @@ func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 		return nil
 	}, nil)
 	if err != nil {
-		// Log the full InTx error first: the response below derives from
-		// the write error alone, so a rollback failure layered on it
-		// would otherwise vanish from response, audit row and logs
-		// simultaneously.
-		api.Logger.Warn(ctx, "plan mode instructions update transaction failed",
-			slog.Error(err))
-		if oldReadErr != nil {
-			// The Old capture failed before anything was written: fall
-			// through to the direct write below with no entry.
-			oldCaptured = false
-		} else if writeErr != nil {
-			// The write itself failed: respond with the raw error
-			// exactly as the endpoint did before the audit wiring
-			// existed.
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error updating plan mode instructions.",
-				Detail:  writeErr.Error(),
-			})
-			return
-		}
-		// Only the audit-added transaction machinery failed (lock,
-		// begin, commit, rollback, or the Old read), not the write.
-		// Main's non-transactional behavior is authoritative: run the
-		// direct upsert and derive the response from that.
-		if mainErr := api.Database.UpsertChatPlanModeInstructions(ctx, sanitizedInstructions); mainErr != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error updating plan mode instructions.",
-				Detail:  mainErr.Error(),
-			})
-			return
-		}
-		if !oldCaptured {
-			// The lock wait or Old capture failed, so the write landed
-			// through the direct path with no baseline: no entry, warn,
-			// and finish with the success response. A commit failure
-			// keeps oldCaptured true and deliberately falls through so
-			// the attempt row with its real diff survives.
-			api.Logger.Warn(ctx, "audit change detection failed, writing plan mode instructions without an audit entry",
-				slog.Error(err))
-			commitAudit(false)
-			rw.WriteHeader(http.StatusNoContent)
-			return
-		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating plan mode instructions.",
+			Detail:  err.Error(),
+		})
+		return
 	}
-	if oldCaptured && noChange {
+	if noChange {
 		// Stage the no-op decision until after the transaction commits,
 		// so a commit failure cannot suppress an attempt row.
 		commitAudit(false)
