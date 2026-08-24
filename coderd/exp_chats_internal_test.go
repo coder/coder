@@ -522,8 +522,17 @@ func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 	t.Parallel()
 
+	// canceledCtx returns a context whose Err reports context.Canceled,
+	// mirroring a request whose caller disconnected.
+	canceledCtx := func() context.Context {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+
 	tests := []struct {
 		name        string
+		ctx         context.Context
 		err         error
 		wantWrote   bool
 		wantStatus  int
@@ -533,22 +542,37 @@ func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 			// The deadline error is wrapped several layers deep by the
 			// title pipeline, so the handler must match with errors.Is.
 			name:        "DeadlineExceededMapsTo504",
+			ctx:         context.Background(),
 			err:         xerrors.Errorf("generate manual title: %w", context.DeadlineExceeded),
 			wantWrote:   true,
 			wantStatus:  http.StatusGatewayTimeout,
 			wantMessage: "Title generation timed out. Try again or rename manually.",
 		},
 		{
-			name:        "CanceledMapsTo499",
+			// The caller disconnected, so ctx.Err() confirms the cancel
+			// and the handler reports a client-closed request.
+			name:        "CanceledWithCanceledCtxMapsTo499",
+			ctx:         canceledCtx(),
 			err:         xerrors.Errorf("generate manual title: %w", context.Canceled),
 			wantWrote:   true,
 			wantStatus:  statusClientClosedRequest,
 			wantMessage: "Title generation was canceled.",
 		},
 		{
+			// A provider error can wrap context.Canceled (e.g. an
+			// upstream 401) while the request context is still active.
+			// Without a live cancel this must fall through to the 500
+			// path instead of a misleading 499.
+			name:      "CanceledWithLiveCtxFallsThrough",
+			ctx:       context.Background(),
+			err:       xerrors.Errorf("provider auth failed: %w", context.Canceled),
+			wantWrote: false,
+		},
+		{
 			// Unrelated errors must fall through so the handler keeps
 			// its existing 500 surface for genuine failures.
 			name:      "UnrelatedErrorFallsThrough",
+			ctx:       context.Background(),
 			err:       xerrors.New("something else"),
 			wantWrote: false,
 		},
@@ -559,7 +583,7 @@ func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
 			t.Parallel()
 
 			rw := httptest.NewRecorder()
-			wrote := maybeWriteManualTitleTimeoutErr(context.Background(), rw, tt.err)
+			wrote := maybeWriteManualTitleTimeoutErr(tt.ctx, rw, tt.err)
 			require.Equal(t, tt.wantWrote, wrote)
 			if !tt.wantWrote {
 				require.Equal(t, http.StatusOK, rw.Code, "must not write a response when err is unrelated")

@@ -158,9 +158,15 @@ const statusClientClosedRequest = 499
 // deadline; when it expires (or the caller disconnects) the error
 // bubbles up wrapped, so match with errors.Is. Returns true when a
 // response was written.
+//
+// The 499 branch additionally requires the request context itself to be
+// canceled. A provider error can wrap context.Canceled (for example an
+// upstream 401) while the caller context is still active; without the
+// ctx.Err() guard such a provider failure would be misreported as a
+// client-closed request instead of surfacing through the 500 path.
 func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
 	switch {
-	case errors.Is(err, context.Canceled):
+	case errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled):
 		httpapi.Write(ctx, rw, statusClientClosedRequest, codersdk.Response{
 			Message: "Title generation was canceled.",
 		})
