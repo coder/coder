@@ -9942,6 +9942,21 @@ func (mr *MockStoreMockRecorder) OIDCClaimFields(ctx, organizationID any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OIDCClaimFields", reflect.TypeOf((*MockStore)(nil).OIDCClaimFields), ctx, organizationID)
 }
 
+// OccupyChatTree mocks base method.
+func (m *MockStore) OccupyChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OccupyChatTree", ctx, chatID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OccupyChatTree indicates an expected call of OccupyChatTree.
+func (mr *MockStoreMockRecorder) OccupyChatTree(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OccupyChatTree", reflect.TypeOf((*MockStore)(nil).OccupyChatTree), ctx, chatID)
+}
+
 // OrganizationMembers mocks base method.
 func (m *MockStore) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	m.ctrl.T.Helper()
@@ -13163,6 +13178,21 @@ func (m *MockStore) UsageEventExistsByID(ctx context.Context, id string) (bool, 
 func (mr *MockStoreMockRecorder) UsageEventExistsByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UsageEventExistsByID", reflect.TypeOf((*MockStore)(nil).UsageEventExistsByID), ctx, id)
+}
+
+// VacateChatTree mocks base method.
+func (m *MockStore) VacateChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "VacateChatTree", ctx, chatID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// VacateChatTree indicates an expected call of VacateChatTree.
+func (mr *MockStoreMockRecorder) VacateChatTree(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "VacateChatTree", reflect.TypeOf((*MockStore)(nil).VacateChatTree), ctx, chatID)
 }
 
 // ValidateGroupIDs mocks base method.

@@ -5281,6 +5281,14 @@ func (m queryMetricsStore) OIDCClaimFields(ctx context.Context, organizationID u
 	return r0, r1
 }
 
+func (m queryMetricsStore) OccupyChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.OccupyChatTree(ctx, chatID)
+	m.queryLatencies.WithLabelValues("OccupyChatTree").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "OccupyChatTree").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.OrganizationMembers(ctx, arg)
@@ -7038,6 +7046,14 @@ func (m queryMetricsStore) UsageEventExistsByID(ctx context.Context, id string) 
 	r0, r1 := m.s.UsageEventExistsByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UsageEventExistsByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UsageEventExistsByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) VacateChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.VacateChatTree(ctx, chatID)
+	m.queryLatencies.WithLabelValues("VacateChatTree").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "VacateChatTree").Inc()
 	return r0, r1
 }
 

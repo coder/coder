@@ -22,7 +22,7 @@ VALUES
 -- What a creation carried. Line zero, this being the only line, and the only
 -- line table this journal has until `transfer` gives it a second shape.
 INSERT INTO
-	ai_agent_lifecycle_journal_create (entry_id, line, origin_type, origin_id)
+	ai_agent_lifecycle_journal_create (entry_id, line, creation_site_type, creation_site_id)
 VALUES
 	($1, $2, $3, $4) RETURNING *;
 
@@ -38,18 +38,22 @@ ORDER BY
 	line;
 
 -- name: InsertAIAgentLedgerRow :one
+-- creation_time is the effective date of the entry this row is posted from, so
+-- the caller passes the same value it gave that entry rather than a second
+-- reading of the clock.
 INSERT INTO
 	ai_agent_ledger (
 		id,
 		owner_type,
 		owner_id,
-		origin_type,
-		origin_id,
+		creation_site_type,
+		creation_site_id,
 		state,
-		posting_reference
+		posting_reference,
+		creation_time
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: GetAIAgentLedgerRowByID :one
 SELECT

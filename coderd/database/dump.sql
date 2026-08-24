@@ -1501,17 +1501,20 @@ CREATE TABLE ai_agent_ledger (
     owner_id uuid NOT NULL,
     state text NOT NULL,
     posting_reference bigint NOT NULL,
-    origin_type text NOT NULL,
-    origin_id uuid NOT NULL,
-    CONSTRAINT ai_agent_ledger_origin_type CHECK ((origin_type = ANY (ARRAY['chat'::text, 'workspace'::text]))),
+    creation_site_type text NOT NULL,
+    creation_site_id uuid NOT NULL,
+    creation_time timestamp with time zone NOT NULL,
+    CONSTRAINT ai_agent_ledger_creation_site_type CHECK ((creation_site_type = ANY (ARRAY['chat'::text, 'workspace'::text]))),
     CONSTRAINT ai_agent_ledger_state CHECK ((state = ANY (ARRAY['active'::text, 'dormant'::text, 'retired'::text])))
 );
 
-COMMENT ON TABLE ai_agent_ledger IS 'Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.';
+COMMENT ON TABLE ai_agent_ledger IS 'Current state of each AI agent identity. Two absences are deliberate. There is no workspace or sandbox reference, because an AI agent''s identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session.';
 
 COMMENT ON COLUMN ai_agent_ledger.state IS 'dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.';
 
-COMMENT ON COLUMN ai_agent_ledger.origin_type IS 'What kind of thing this AI agent was first embodied in, folded from its creation entry. Not the current embodiment: an AI agent that moved would keep the origin it was created in, and nothing moves one today.';
+COMMENT ON COLUMN ai_agent_ledger.creation_site_type IS 'What kind of thing this AI agent was created in, folded from its creation entry. Not where the agent now is: an agent that moved would keep the site it was created in, and nothing moves one today.';
+
+COMMENT ON COLUMN ai_agent_ledger.creation_time IS 'When this AI agent came into being, folded from the effective date of its creation entry.';
 
 CREATE TABLE ai_agent_lifecycle_journal (
     entry_id bigint NOT NULL,
@@ -1530,15 +1533,15 @@ COMMENT ON COLUMN ai_agent_lifecycle_journal.effective_date IS 'When the event o
 CREATE TABLE ai_agent_lifecycle_journal_create (
     entry_id bigint NOT NULL,
     line smallint NOT NULL,
-    origin_type text NOT NULL,
-    origin_id uuid NOT NULL,
-    CONSTRAINT ai_agent_lifecycle_journal_create_line_non_negative CHECK ((line >= 0)),
-    CONSTRAINT ai_agent_lifecycle_journal_create_origin_type CHECK ((origin_type = ANY (ARRAY['chat'::text, 'workspace'::text])))
+    creation_site_type text NOT NULL,
+    creation_site_id uuid NOT NULL,
+    CONSTRAINT ai_agent_lifecycle_journal_create_creation_site_type CHECK ((creation_site_type = ANY (ARRAY['chat'::text, 'workspace'::text]))),
+    CONSTRAINT ai_agent_lifecycle_journal_create_line_non_negative CHECK ((line >= 0))
 );
 
 COMMENT ON TABLE ai_agent_lifecycle_journal_create IS 'What a creation of an AI agent carried. A line table of the AI agent journal, joined by entry identifier.';
 
-COMMENT ON COLUMN ai_agent_lifecycle_journal_create.origin_type IS 'What kind of thing the AI agent was first embodied in. A pair with origin_id, because the thing can be of more than one kind and no single table holds them all.';
+COMMENT ON COLUMN ai_agent_lifecycle_journal_create.creation_site_type IS 'What kind of thing the AI agent was created in. A pair with creation_site_id, because the thing can be of more than one kind and no single table holds them all.';
 
 CREATE SEQUENCE ai_agent_lifecycle_journal_entry_seq
     START WITH 1
@@ -1681,7 +1684,7 @@ COMMENT ON COLUMN ai_sandbox_sessions.reporter_agent_id IS 'Workspace agent that
 
 COMMENT ON COLUMN ai_sandbox_sessions.confined_agent_id IS 'AI-bound workspace agent being confined: equals reporter_agent_id for an AI-designated workspace, or the sandboxed child agent. Not a foreign key; retained after agent deletion.';
 
-COMMENT ON COLUMN ai_sandbox_sessions.ai_agent_id IS 'AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.';
+COMMENT ON COLUMN ai_sandbox_sessions.ai_agent_id IS 'AI agent identity snapshot. Not a foreign key; retained after the identity is retired or cleaned up.';
 
 COMMENT ON COLUMN ai_sandbox_sessions.sponsor_user_id IS 'Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.';
 
@@ -1697,6 +1700,7 @@ CREATE TABLE ai_sandboxes (
     egress_enforcement text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    occupancy_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT ai_sandboxes_egress_enforcement_check CHECK ((egress_enforcement = ANY (ARRAY['forced'::text, 'advisory'::text, 'none'::text])))
 );
 
@@ -1705,6 +1709,8 @@ COMMENT ON TABLE ai_sandboxes IS 'Lifecycle records for AI sandboxes created by 
 COMMENT ON COLUMN ai_sandboxes.name IS 'Declaration name, unique per parent agent while not deleted, so a restarted parent reconciles to the existing sandbox instead of creating a duplicate.';
 
 COMMENT ON COLUMN ai_sandboxes.egress_enforcement IS 'Admin attestation of routing coverage declared for this sandbox. Recorded, not verified.';
+
+COMMENT ON COLUMN ai_sandboxes.occupancy_count IS 'How many AI agents this sandbox holds. Distinct from deleted: a soft deleted sandbox is gone and an unoccupied one is empty, and today they coincide because nothing empties a sandbox without deleting it.';
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
@@ -2312,9 +2318,11 @@ CREATE TABLE chats (
     compaction_requested_at timestamp with time zone,
     summary text,
     summary_generated_at timestamp with time zone,
+    occupancy_count integer DEFAULT 0 NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
+    CONSTRAINT chats_occupancy_only_on_root_chats CHECK (((root_chat_id IS NULL) OR (occupancy_count = 0))),
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
@@ -2336,6 +2344,8 @@ COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the p
 COMMENT ON COLUMN chats.last_reasoning_effort IS 'Stores the most recent message effort once per-turn selection is wired.';
 
 COMMENT ON COLUMN chats.compaction_requested_at IS 'Set when the chat owner manually requests a context compaction. One-shot signal: consumed by the compaction commit and cleared whenever the chat leaves running.';
+
+COMMENT ON COLUMN chats.occupancy_count IS 'How many live AI agents this chat tree holds, on the root chat because the tree has no row of its own. Zero on a non-root chat by constraint: the count is meaningless there and a value would read as a second tree.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2436,7 +2446,8 @@ CREATE VIEW chats_expanded AS
     c.context_dirty_since,
     c.context_dirty_resources,
     c.context_error,
-    c.compaction_requested_at
+    c.compaction_requested_at,
+    c.occupancy_count
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -5046,9 +5057,9 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
-CREATE INDEX ai_agent_ledger_origin_idx ON ai_agent_ledger USING btree (origin_type, origin_id);
+CREATE INDEX ai_agent_ledger_creation_site_idx ON ai_agent_ledger USING btree (creation_site_type, creation_site_id);
 
-COMMENT ON INDEX ai_agent_ledger_origin_idx IS 'For asking which AI agents were created in a given workspace or chat, which is a forensic question rather than one live operation asks.';
+COMMENT ON INDEX ai_agent_ledger_creation_site_idx IS 'For asking which AI agents were created in a given workspace or chat tree, which is a forensic question rather than one live operation asks.';
 
 CREATE INDEX ai_agent_ledger_owner_idx ON ai_agent_ledger USING btree (owner_type, owner_id);
 
@@ -5091,8 +5102,6 @@ CREATE INDEX credential_use_journal_subject_idx ON credential_use_journal USING 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
-
-CREATE UNIQUE INDEX idx_ai_agents_origin ON ai_agents USING btree (origin_type, origin_id) WHERE (NOT deleted);
 
 CREATE INDEX idx_ai_agents_owner ON ai_agents USING btree (owner_user_id);
 
@@ -5565,7 +5574,7 @@ ALTER TABLE ONLY ai_providers
     ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY ai_sandboxes
-    ADD CONSTRAINT ai_sandboxes_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
+    ADD CONSTRAINT ai_sandboxes_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agent_ledger(id);
 
 ALTER TABLE ONLY ai_sandboxes
     ADD CONSTRAINT ai_sandboxes_child_agent_id_fkey FOREIGN KEY (child_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
@@ -5961,7 +5970,7 @@ ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
-    ADD CONSTRAINT workspace_agents_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
+    ADD CONSTRAINT workspace_agents_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agent_ledger(id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
@@ -6033,7 +6042,7 @@ ALTER TABLE ONLY workspace_resources
     ADD CONSTRAINT workspace_resources_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspaces
-    ADD CONSTRAINT workspaces_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agents(user_id);
+    ADD CONSTRAINT workspaces_ai_agent_id_fkey FOREIGN KEY (ai_agent_id) REFERENCES ai_agent_ledger(id);
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE RESTRICT;

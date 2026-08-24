@@ -338,8 +338,23 @@ func TestAISandboxLifecycleDelete(t *testing.T) {
 	err = otherClient.DeleteAISandbox(ctx, created.ID)
 	requireAISandboxLifecycleStatus(t, err, http.StatusNotFound)
 
+	// Created occupied, so that emptying the sandbox is a fact of its own
+	// rather than something a reader has to infer from `deleted`.
+	live, err := fixture.db.GetAISandboxByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+	require.NoError(t, err)
+	require.False(t, live.Deleted)
+	require.EqualValues(t, 1, live.OccupancyCount, "a live sandbox holds its agent")
+
 	err = fixture.agentClient.DeleteAISandbox(ctx, created.ID)
 	require.NoError(t, err)
+
+	// Destroyed and empty are two facts. They coincide today, and recording
+	// both is what says which is which when something empties a sandbox
+	// without destroying it.
+	destroyed, err := fixture.db.GetAISandboxByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+	require.NoError(t, err)
+	require.True(t, destroyed.Deleted)
+	require.EqualValues(t, 0, destroyed.OccupancyCount, "destroying a sandbox vacates it")
 
 	childClient := agentsdk.New(fixture.client.URL, agentsdk.WithFixedToken(created.AgentToken))
 	_, err = childClient.AIEgressPolicy(ctx)

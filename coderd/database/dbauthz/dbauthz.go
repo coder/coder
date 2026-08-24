@@ -7345,6 +7345,19 @@ func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID)
 	return q.db.OIDCClaimFields(ctx, organizationID)
 }
 
+// Occupancy is a property of the chat tree, so the check is an update of the
+// chat the caller named. Resolving that to the tree's root is the query's job.
+func (q *querier) OccupyChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.OccupyChatTree(ctx, chatID)
+}
+
 func (q *querier) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
 }
@@ -9664,6 +9677,18 @@ func (q *querier) UsageEventExistsByID(ctx context.Context, id string) (bool, er
 		return false, err
 	}
 	return q.db.UsageEventExistsByID(ctx, id)
+}
+
+// The counterpart of OccupyChatTree, and authorized the same way.
+func (q *querier) VacateChatTree(ctx context.Context, chatID uuid.UUID) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, chatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.VacateChatTree(ctx, chatID)
 }
 
 func (q *querier) ValidateGroupIDs(ctx context.Context, groupIDs []uuid.UUID) (database.ValidateGroupIDsRow, error) {

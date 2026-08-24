@@ -6,10 +6,10 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
-	CheckAIAgentLedgerOriginType                               CheckConstraint = "ai_agent_ledger_origin_type"                                  // ai_agent_ledger
+	CheckAIAgentLedgerCreationSiteType                         CheckConstraint = "ai_agent_ledger_creation_site_type"                           // ai_agent_ledger
 	CheckAIAgentLedgerState                                    CheckConstraint = "ai_agent_ledger_state"                                        // ai_agent_ledger
+	CheckAIAgentLifecycleJournalCreateCreationSiteType         CheckConstraint = "ai_agent_lifecycle_journal_create_creation_site_type"         // ai_agent_lifecycle_journal_create
 	CheckAIAgentLifecycleJournalCreateLineNonNegative          CheckConstraint = "ai_agent_lifecycle_journal_create_line_non_negative"          // ai_agent_lifecycle_journal_create
-	CheckAIAgentLifecycleJournalCreateOriginType               CheckConstraint = "ai_agent_lifecycle_journal_create_origin_type"                // ai_agent_lifecycle_journal_create
 	CheckAIGatewayKeysHashedSecretCheck                        CheckConstraint = "ai_gateway_keys_hashed_secret_check"                          // ai_gateway_keys
 	CheckAIGatewayKeysNameCheck                                CheckConstraint = "ai_gateway_keys_name_check"                                   // ai_gateway_keys
 	CheckAIGatewayKeysSecretPrefixCheck                        CheckConstraint = "ai_gateway_keys_secret_prefix_check"                          // ai_gateway_keys
@@ -47,6 +47,7 @@ const (
 	CheckChatAclOnlyOnRootChats                                CheckConstraint = "chat_acl_only_on_root_chats"                                  // chats
 	CheckChatGroupAclNotNullJsonb                              CheckConstraint = "chat_group_acl_not_null_jsonb"                                // chats
 	CheckChatUserAclNotNullJsonb                               CheckConstraint = "chat_user_acl_not_null_jsonb"                                 // chats
+	CheckChatsOccupancyOnlyOnRootChats                         CheckConstraint = "chats_occupancy_only_on_root_chats"                           // chats
 	CheckChatsPinOrderArchivedCheck                            CheckConstraint = "chats_pin_order_archived_check"                               // chats
 	CheckChatsPinOrderParentCheck                              CheckConstraint = "chats_pin_order_parent_check"                                 // chats
 	CheckOneTimePasscodeSet                                    CheckConstraint = "one_time_passcode_set"                                        // users

@@ -31,8 +31,8 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		owner := dbgen.User(t, db, database.User{RBACRoles: roles})
 		created, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
-			Owner:  entity.Ref{Type: entity.TypeUser, ID: owner.ID},
-			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
+			Owner:        entity.Ref{Type: entity.TypeUser, ID: owner.ID},
+			CreationSite: entity.CreationSite{Type: entity.CreationSiteTypeWorkspace, ID: uuid.New()},
 		})
 		require.NoError(t, err)
 		return created, owner
@@ -66,7 +66,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		row, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 		require.NoError(t, err)
 		require.Equal(t,
-			entity.DisplayName(entity.OriginType(row.OriginType), agent.ID),
+			entity.DisplayName(entity.CreationSiteType(row.CreationSiteType), agent.ID),
 			subject.FriendlyName)
 
 		owners, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ScopeAll)

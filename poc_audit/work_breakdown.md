@@ -1068,8 +1068,36 @@ agents moves to the container it is really about.
 
 ### Status
 
-Not started. First of the work replacing the AI identity code, and the largest
-piece of data model change in it.
+Complete, 2026-08-23, in one increment rather than milestones.
+
+**Three things went differently from the plan.**
+
+**`aiagentidentity.Create` keeps its name and composes the two steps inside
+itself**, rather than splitting into `MirrorAIAgent` at the call site. Nineteen
+call sites, almost all tests, would each have had to name the owner and the
+creation site twice, in two vocabularies. The function is deleted whole in
+phase 3, so the split would have been scaffolding for scaffolding. The two
+steps are named and commented where they are, which keeps what the split was
+for.
+
+**The username retry loop is gone now rather than in phase 3.** It could not
+survive joining the caller's transaction: a unique violation aborts a
+transaction, so a retry inside one cannot succeed. The name is derived from the
+ledger's identifier instead, half of it, the whole not fitting a username.
+Collision is not defended against and Eric accepted that for the proof of
+concept.
+
+**The ledger gains a creation time, reversing an absence its own table comment
+argued for.** That comment said a second copy could disagree with the first.
+The argument holds equally against every other column there, all of which are
+folds, so folding one more is the consistent move and the absence was the
+inconsistent one. The comment is rewritten to claim two absences.
+
+**Deleted agents are not backfilled.** There is no actor to attribute a legacy
+retirement to: the system actor is superseded and nothing new is to use it, and
+naming the owner would say the owner ended an agent the orphan sweep ended. A
+referent still pointing at a deleted agent fails the new foreign keys loudly
+rather than being papered over. Nothing in the fixtures does.
 
 ### What forces the work
 

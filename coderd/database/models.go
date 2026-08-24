@@ -4808,7 +4808,7 @@ type AIAgent struct {
 	Deleted     bool          `db:"deleted" json:"deleted"`
 }
 
-// Current state of each AI agent identity. Three absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session. There is no creation time, because the journal records when this row came to exist and a second copy could disagree with the first.
+// Current state of each AI agent identity. Two absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session.
 type AIAgentLedger struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	OwnerType string    `db:"owner_type" json:"owner_type"`
@@ -4816,9 +4816,11 @@ type AIAgentLedger struct {
 	// dormant is reserved for future use and is unreachable in the machine the proof of concept implements, which has active and retired only. It is in the enum now so that supporting reconstitution later costs no migration, which means code switching exhaustively over these values must handle a state that cannot occur.
 	State            string `db:"state" json:"state"`
 	PostingReference int64  `db:"posting_reference" json:"posting_reference"`
-	// What kind of thing this AI agent was first embodied in, folded from its creation entry. Not the current embodiment: an AI agent that moved would keep the origin it was created in, and nothing moves one today.
-	OriginType string    `db:"origin_type" json:"origin_type"`
-	OriginID   uuid.UUID `db:"origin_id" json:"origin_id"`
+	// What kind of thing this AI agent was created in, folded from its creation entry. Not where the agent now is: an agent that moved would keep the site it was created in, and nothing moves one today.
+	CreationSiteType string    `db:"creation_site_type" json:"creation_site_type"`
+	CreationSiteID   uuid.UUID `db:"creation_site_id" json:"creation_site_id"`
+	// When this AI agent came into being, folded from the effective date of its creation entry.
+	CreationTime time.Time `db:"creation_time" json:"creation_time"`
 }
 
 // Journal of persistent state changes to AI agents, in the normalized form: this is the entry table. Line tables join to it per shape of operation. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.
@@ -4837,9 +4839,9 @@ type AIAgentLifecycleJournal struct {
 type AIAgentLifecycleJournalCreate struct {
 	EntryID int64 `db:"entry_id" json:"entry_id"`
 	Line    int16 `db:"line" json:"line"`
-	// What kind of thing the AI agent was first embodied in. A pair with origin_id, because the thing can be of more than one kind and no single table holds them all.
-	OriginType string    `db:"origin_type" json:"origin_type"`
-	OriginID   uuid.UUID `db:"origin_id" json:"origin_id"`
+	// What kind of thing the AI agent was created in. A pair with creation_site_id, because the thing can be of more than one kind and no single table holds them all.
+	CreationSiteType string    `db:"creation_site_type" json:"creation_site_type"`
+	CreationSiteID   uuid.UUID `db:"creation_site_id" json:"creation_site_id"`
 }
 
 // Audit log of requests intercepted by AI Bridge
@@ -5006,6 +5008,8 @@ type AISandbox struct {
 	EgressEnforcement string    `db:"egress_enforcement" json:"egress_enforcement"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 	Deleted           bool      `db:"deleted" json:"deleted"`
+	// How many AI agents this sandbox holds. Distinct from deleted: a soft deleted sandbox is gone and an unoccupied one is empty, and today they coincide because nothing empties a sandbox without deleting it.
+	OccupancyCount int32 `db:"occupancy_count" json:"occupancy_count"`
 }
 
 // Egress policy decisions observed by the supervisor-owned proxy for AI-bound execution. Attribution columns are server-resolved snapshots without foreign keys so audit history survives identity cleanup.
@@ -5033,7 +5037,7 @@ type AISandboxSession struct {
 	ReporterAgentID uuid.UUID `db:"reporter_agent_id" json:"reporter_agent_id"`
 	// AI-bound workspace agent being confined: equals reporter_agent_id for an AI-designated workspace, or the sandboxed child agent. Not a foreign key; retained after agent deletion.
 	ConfinedAgentID uuid.UUID `db:"confined_agent_id" json:"confined_agent_id"`
-	// AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.
+	// AI agent identity snapshot. Not a foreign key; retained after the identity is retired or cleaned up.
 	AIAgentID uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
 	// Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.
 	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
@@ -5238,6 +5242,7 @@ type Chat struct {
 	ContextDirtyResources    pqtype.NullRawMessage   `db:"context_dirty_resources" json:"context_dirty_resources"`
 	ContextError             string                  `db:"context_error" json:"context_error"`
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
+	OccupancyCount           int32                   `db:"occupancy_count" json:"occupancy_count"`
 }
 
 // Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
@@ -5463,6 +5468,8 @@ type ChatTable struct {
 	CompactionRequestedAt sql.NullTime   `db:"compaction_requested_at" json:"compaction_requested_at"`
 	Summary               sql.NullString `db:"summary" json:"summary"`
 	SummaryGeneratedAt    sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
+	// How many live AI agents this chat tree holds, on the root chat because the tree has no row of its own. Zero on a non-root chat by constraint: the count is meaningless there and a value would read as a second tree.
+	OccupancyCount int32 `db:"occupancy_count" json:"occupancy_count"`
 }
 
 type ChatUsageLimitConfig struct {

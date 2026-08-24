@@ -584,10 +584,10 @@ func (s *MethodTestSuite) TestAIAgentLifecycle() {
 	}))
 	s.Run("InsertAIAgentLifecycleJournalCreateLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertAIAgentLifecycleJournalCreateLineParams{
-			EntryID:    1,
-			Line:       0,
-			OriginType: "workspace",
-			OriginID:   uuid.New(),
+			EntryID:          1,
+			Line:             0,
+			CreationSiteType: "workspace",
+			CreationSiteID:   uuid.New(),
 		}
 		dbm.EXPECT().InsertAIAgentLifecycleJournalCreateLine(gomock.Any(), arg).Return(database.AIAgentLifecycleJournalCreate{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
@@ -602,10 +602,11 @@ func (s *MethodTestSuite) TestAIAgentLifecycle() {
 			ID:               uuid.New(),
 			OwnerType:        "user",
 			OwnerID:          uuid.New(),
-			OriginType:       "workspace",
-			OriginID:         uuid.New(),
+			CreationSiteType: "workspace",
+			CreationSiteID:   uuid.New(),
 			State:            "active",
 			PostingReference: 1,
+			CreationTime:     dbtime.Now(),
 		}
 		dbm.EXPECT().InsertAIAgentLedgerRow(gomock.Any(), arg).Return(database.AIAgentLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
@@ -1670,6 +1671,18 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatACLByID(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionShare).Returns()
+	}))
+	s.Run("OccupyChatTree", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().OccupyChatTree(gomock.Any(), chat.ID).Return(int64(1), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("VacateChatTree", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().VacateChatTree(gomock.Any(), chat.ID).Return(int64(1), nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("LockChatAndBumpSnapshotVersion", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

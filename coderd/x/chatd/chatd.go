@@ -1362,6 +1362,16 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			if err != nil {
 				return err
 			}
+			// The tree admits one live agent. A second is refused here rather
+			// than by a unique index over agents, the limit being a fact about
+			// the container. Zero rows affected is the refusal.
+			occupied, err := tx.OccupyChatTree(ctx, chatID)
+			if err != nil {
+				return xerrors.Errorf("occupy chat tree: %w", err)
+			}
+			if occupied == 0 {
+				return xerrors.Errorf("chat tree %s already has a live AI agent", chatID)
+			}
 			_, agent, err := aiagentidentity.Create(ctx, tx, aiagentidentity.CreateParams{
 				OwnerID:        opts.OwnerID,
 				OrganizationID: opts.OrganizationID,

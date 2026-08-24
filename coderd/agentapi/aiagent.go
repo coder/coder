@@ -45,11 +45,11 @@ func (a *AIAgentAPI) CreateAIAgent(ctx context.Context, _ *agentproto.CreateAIAg
 
 	created, err := entity.CreateAIAgent(systemCtx, a.Database, entity.CreateAIAgentParams{
 		Owner: entity.Ref{Type: entity.TypeUser, ID: a.OwnerID},
-		// This route embodies an AI agent in a workspace, so the origin is
-		// stated here rather than carried on the wire. Like the owner, it is
-		// resolved from the authenticated connection rather than claimed by
+		// This route creates an AI agent in a workspace, so the creation site
+		// is stated here rather than carried on the wire. Like the owner, it
+		// is resolved from the authenticated connection rather than claimed by
 		// the caller.
-		Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: a.WorkspaceID},
+		CreationSite: entity.CreationSite{Type: entity.CreationSiteTypeWorkspace, ID: a.WorkspaceID},
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create AI agent: %w", err)

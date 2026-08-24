@@ -73,8 +73,8 @@ func TestCredentialFoundations(t *testing.T) {
 		// is what the test is about: the server has to authenticate a party it
 		// cannot look up in users.
 		agent, err := entity.CreateAIAgent(systemCtx, db, entity.CreateAIAgentParams{
-			Owner:  entity.Ref{Type: entity.TypeUser, ID: owner.UserID},
-			Origin: entity.Origin{Type: entity.OriginTypeWorkspace, ID: uuid.New()},
+			Owner:        entity.Ref{Type: entity.TypeUser, ID: owner.UserID},
+			CreationSite: entity.CreationSite{Type: entity.CreationSiteTypeWorkspace, ID: uuid.New()},
 		})
 		require.NoError(t, err)
 

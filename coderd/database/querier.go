@@ -1156,6 +1156,9 @@ type sqlcQuerier interface {
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
 	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
+	// creation_time is the effective date of the entry this row is posted from, so
+	// the caller passes the same value it gave that entry rather than a second
+	// reading of the clock.
 	InsertAIAgentLedgerRow(ctx context.Context, arg InsertAIAgentLedgerRowParams) (AIAgentLedger, error)
 	// What a creation carried. Line zero, this being the only line, and the only
 	// line table this journal has until `transfer` gives it a second shape.
@@ -1455,6 +1458,20 @@ type sqlcQuerier interface {
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
 	OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error)
+	// Admits one live AI agent to a chat tree, refusing a second.
+	//
+	// The container is the tree, not the chat: a sub-chat resolves to its root's
+	// agent, so one agent has always served a whole tree. The tree is an entity
+	// with no data structure of its own, and the root chat's identifier stands in
+	// for an identifier the tree does not have, which is why the count lives in the
+	// root chat's row. This comment can migrate to corpus.
+	//
+	// Zero rows affected means occupied, and is the refusal. Enforcement is here
+	// rather than in a constraint so that the posting code can see it: a constraint
+	// that can refuse a posting makes the fold partial, per "A ledger constraint
+	// that can refuse a posting is the wrong mechanism" in
+	// poc_audit/implementation_patterns.md.
+	OccupyChatTree(ctx context.Context, chatID uuid.UUID) (int64, error)
 	// Arguments are optional with uuid.Nil to ignore.
 	//  - Use just 'organization_id' to get all members of an org
 	//  - Use just 'user_id' to get all orgs a user is a member of
@@ -1510,8 +1527,13 @@ type sqlcQuerier interface {
 	// identity (the designation is server-authoritative and must be stable
 	// across rebuilds). See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
 	SetWorkspaceAIAgentID(ctx context.Context, arg SetWorkspaceAIAgentIDParams) (WorkspaceTable, error)
-	// Marks a sandbox destroyed. The child agent row is soft-deleted and its
-	// keys revoked separately so the record survives for correlation.
+	// Marks a sandbox destroyed and vacates it. The child agent row is
+	// soft-deleted and its keys revoked separately so the record survives for
+	// correlation.
+	//
+	// Destroyed and empty are two facts, and they coincide only because nothing
+	// empties a sandbox without destroying it. Writing both says which is which
+	// rather than leaving `deleted` to stand for two things.
 	SoftDeleteAISandbox(ctx context.Context, id uuid.UUID) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
@@ -1881,6 +1903,9 @@ type sqlcQuerier interface {
 	// the updated_at is older than stale interval.
 	UpsertWorkspaceAppAuditSession(ctx context.Context, arg UpsertWorkspaceAppAuditSessionParams) (bool, error)
 	UsageEventExistsByID(ctx context.Context, id string) (bool, error)
+	// Removes the live AI agent from a chat tree, so that the tree can admit
+	// another. Zero rows affected means it was already empty.
+	VacateChatTree(ctx context.Context, chatID uuid.UUID) (int64, error)
 	ValidateGroupIDs(ctx context.Context, groupIds []uuid.UUID) (ValidateGroupIDsRow, error)
 	ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (ValidateUserIDsRow, error)
 }

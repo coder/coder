@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -13,11 +14,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
-	"github.com/coder/coder/v2/cryptorand"
 )
-
-const usernameAttempts = 5
 
 var (
 	// ErrNotAIAgent means the user is not backed by a live AI agent identity.
@@ -63,7 +62,19 @@ func ActorFromContext(ctx context.Context) (AIAgentActor, bool) {
 	return actor, ok
 }
 
-// Create inserts an AI agent user and its authoritative metadata atomically.
+// Create creates an AI agent and mirrors it into the tables the identity code
+// reads.
+//
+// **The ledger mints and these two rows follow.** entity.CreateAIAgent names
+// the agent; the users row and the ai_agents row are written under the
+// identifier it returns, so there is one identifier for one agent rather than
+// two spaces to reconcile. Every column referring to an AI agent therefore
+// resolves against the ledger, which is what lets those references carry a
+// foreign key to it.
+//
+// The mirror is an interim and is one way. Nothing here reports divergence,
+// and nothing should come to rely on these rows being the authority. Later work
+// deletes the mirror rather than untangling it.
 func Create(ctx context.Context, db database.Store, params CreateParams) (database.User, database.AIAgent, error) {
 	if params.OwnerID == uuid.Nil {
 		return database.User{}, database.AIAgent{}, xerrors.New("owner ID must be non-nil")
@@ -82,78 +93,97 @@ func Create(ctx context.Context, db database.Store, params CreateParams) (databa
 		createdUser  database.User
 		createdAgent database.AIAgent
 	)
-	userID := uuid.New()
 	// Identity creation is an internal operation with explicit owner checks.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
 
-	for attempt := range usernameAttempts {
-		username, err := username(params.OriginType)
+	err := db.InTx(func(tx database.Store) error {
+		owner, err := tx.GetUserByID(systemCtx, params.OwnerID)
 		if err != nil {
-			return database.User{}, database.AIAgent{}, err
+			return xerrors.Errorf("get AI agent owner: %w", err)
+		}
+		if owner.Kind != database.UserKindHuman {
+			return xerrors.Errorf("AI agent owner %s is not a human user", params.OwnerID)
 		}
 
-		err = db.InTx(func(tx database.Store) error {
-			owner, err := tx.GetUserByID(systemCtx, params.OwnerID)
-			if err != nil {
-				return xerrors.Errorf("get AI agent owner: %w", err)
-			}
-			if owner.Kind != database.UserKindHuman {
-				return xerrors.Errorf("AI agent owner %s is not a human user", params.OwnerID)
-			}
-
-			members, err := tx.OrganizationMembers(systemCtx, database.OrganizationMembersParams{
-				OrganizationID: params.OrganizationID,
-				UserID:         params.OwnerID,
-				IncludeSystem:  true,
-				GithubUserID:   0,
-			})
-			if err != nil {
-				return xerrors.Errorf("get AI agent owner organization membership: %w", err)
-			}
-			if len(members) != 1 {
-				return xerrors.Errorf("AI agent owner %s is not a member of organization %s", params.OwnerID, params.OrganizationID)
-			}
-
-			now := dbtime.Now()
-			createdUser, err = tx.InsertAIAgentUser(systemCtx, database.InsertAIAgentUserParams{
-				ID:        userID,
-				Username:  username,
-				CreatedAt: now,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert AI agent user: %w", err)
-			}
-
-			createdAgent, err = tx.InsertAIAgent(systemCtx, database.InsertAIAgentParams{
-				UserID:      userID,
-				OwnerUserID: params.OwnerID,
-				OriginType:  params.OriginType,
-				OriginID:    params.OriginID,
-				CreatedAt:   now,
-			})
-			if err != nil {
-				return xerrors.Errorf("insert AI agent metadata: %w", err)
-			}
-			rewrite2026augustlog.AIAgentCreated(ctx, rewrite2026augustlog.F{
-				"ai_agent_user_id": createdAgent.UserID,
-				"owner_user_id":    createdAgent.OwnerUserID,
-				"origin_type":      createdAgent.OriginType,
-				"origin_id":        createdAgent.OriginID,
-			})
-			return nil
-		}, nil)
-		if err == nil {
-			return createdUser, createdAgent, nil
+		members, err := tx.OrganizationMembers(systemCtx, database.OrganizationMembersParams{
+			OrganizationID: params.OrganizationID,
+			UserID:         params.OwnerID,
+			IncludeSystem:  true,
+			GithubUserID:   0,
+		})
+		if err != nil {
+			return xerrors.Errorf("get AI agent owner organization membership: %w", err)
 		}
-		if !database.IsUniqueViolation(err, database.UniqueIndexUsersUsername, database.UniqueUsersUsernameLowerIndex) {
-			return database.User{}, database.AIAgent{}, err
+		if len(members) != 1 {
+			return xerrors.Errorf("AI agent owner %s is not a member of organization %s", params.OwnerID, params.OrganizationID)
 		}
-		if attempt == usernameAttempts-1 {
-			return database.User{}, database.AIAgent{}, xerrors.Errorf("generate unique AI agent username after %d attempts: %w", usernameAttempts, err)
+
+		created, err := entity.CreateAIAgent(systemCtx, tx, entity.CreateAIAgentParams{
+			Owner:        entity.Ref{Type: entity.TypeUser, ID: params.OwnerID},
+			CreationSite: creationSite(params),
+		})
+		if err != nil {
+			return xerrors.Errorf("create AI agent: %w", err)
 		}
+
+		createdUser, createdAgent, err = mirror(systemCtx, tx, created.ID, params)
+		return err
+	}, nil)
+	if err != nil {
+		return database.User{}, database.AIAgent{}, err
+	}
+	return createdUser, createdAgent, nil
+}
+
+// creationSite restates the identity code's origin pair in the model's terms.
+// The two name the same thing; only the word differs, and this is the one place
+// that has to know both.
+func creationSite(params CreateParams) entity.CreationSite {
+	site := entity.CreationSite{ID: params.OriginID}
+	switch params.OriginType {
+	case database.AIAgentOriginChat:
+		site.Type = entity.CreationSiteTypeChat
+	case database.AIAgentOriginWorkspace:
+		site.Type = entity.CreationSiteTypeWorkspace
+	}
+	return site
+}
+
+// mirror writes the users row and the ai_agents row for an AI agent the ledger
+// has already named.
+func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateParams) (database.User, database.AIAgent, error) {
+	name, err := username(params.OriginType, id)
+	if err != nil {
+		return database.User{}, database.AIAgent{}, err
 	}
 
-	panic("unreachable")
+	now := dbtime.Now()
+	createdUser, err := tx.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
+		ID:        id,
+		Username:  name,
+		CreatedAt: now,
+	})
+	if err != nil {
+		return database.User{}, database.AIAgent{}, xerrors.Errorf("insert AI agent user: %w", err)
+	}
+
+	createdAgent, err := tx.InsertAIAgent(ctx, database.InsertAIAgentParams{
+		UserID:      id,
+		OwnerUserID: params.OwnerID,
+		OriginType:  params.OriginType,
+		OriginID:    params.OriginID,
+		CreatedAt:   now,
+	})
+	if err != nil {
+		return database.User{}, database.AIAgent{}, xerrors.Errorf("insert AI agent metadata: %w", err)
+	}
+	rewrite2026augustlog.AIAgentCreated(ctx, rewrite2026augustlog.F{
+		"ai_agent_user_id": createdAgent.UserID,
+		"owner_user_id":    createdAgent.OwnerUserID,
+		"origin_type":      createdAgent.OriginType,
+		"origin_id":        createdAgent.OriginID,
+	})
+	return createdUser, createdAgent, nil
 }
 
 // MintKey creates a token-login API key for an AI agent identity.
@@ -240,12 +270,18 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 	}, nil
 }
 
-func username(origin database.AIAgentOrigin) (string, error) {
-	suffix, err := cryptorand.HexString(8)
-	if err != nil {
-		return "", xerrors.Errorf("generate AI agent username suffix: %w", err)
-	}
-
+// username derives the mirrored users row's name from the identifier the ledger
+// minted, so that a name is a rendering of an identity rather than a value with
+// a life of its own. Deriving it also removes the collision retry the previous
+// random name needed, which could not have survived joining the caller's
+// transaction: a unique violation aborts a transaction, so a retry inside one
+// cannot succeed.
+//
+// Half the identifier, the whole of it not fitting the 32 character limit on a
+// username. Collision is not defended against. Two agents would have to share
+// 64 bits for it to arise.
+func username(origin database.AIAgentOrigin, id uuid.UUID) (string, error) {
+	suffix := strings.ReplaceAll(id.String(), "-", "")[:16]
 	switch origin {
 	case database.AIAgentOriginChat:
 		return "ai-chat-" + suffix, nil

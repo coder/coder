@@ -1068,12 +1068,12 @@ func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUI
 	// matching compares it against what a workspace records, so the two have to
 	// name the agent the same way, which is part of rewriting the identity code
 	// rather than something this function can arrange.
-	name := entity.DisplayName(entity.OriginType(agent.OriginType), agent.ID)
+	name := entity.DisplayName(entity.CreationSiteType(agent.CreationSiteType), agent.ID)
 	attribution := aiagentidentity.AIAgentActor{
 		AgentUserID: agent.ID,
 		OwnerUserID: agent.OwnerID,
-		OriginType:  database.AIAgentOrigin(agent.OriginType),
-		OriginID:    agent.OriginID,
+		OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+		OriginID:    agent.CreationSiteID,
 	}
 	return subject.AsAIAgent(agent.ID, name), status, attribution, nil
 }
