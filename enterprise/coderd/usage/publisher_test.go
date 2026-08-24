@@ -110,6 +110,9 @@ func TestIntegration(t *testing.T) {
 	require.GreaterOrEqual(t, tickerCall.Duration, 5*time.Minute)
 	require.LessOrEqual(t, tickerCall.Duration, 17*time.Minute)
 	require.NoError(t, testutil.RequireReceive(ctx, t, startErr))
+	require.Equal(t, 3, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
+	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
+	require.InDelta(t, 2, float64(promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil)), 1)
 
 	// Set up a trap for the ticker.Reset call.
 	tickerResetTrap := clock.Trap().TickerReset()
@@ -162,7 +165,6 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
-	// The result counters should reflect the verdicts from the first publish.
 	resultLabels := func(result string) prometheus.Labels {
 		return prometheus.Labels{
 			"result":     result,
@@ -173,13 +175,10 @@ func TestIntegration(t *testing.T) {
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("rejected_temporarily")))
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("rejected_permanently")))
 	require.Equal(t, 0, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_send_errors_total", nil))
-	// Only the temporarily rejected event is still pending. The event
-	// inserted 31 days ago will never be published and counts as expired.
+	// Only the temporary rejection remains pending; the 31-day-old event is expired.
 	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
 	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
-	// The pending event was inserted 1 second before the final event, which
-	// was inserted right before the ticker started counting down the initial
-	// delay.
+	// The oldest pending event predates the publish tick by one second.
 	wantOldestAge := tickerCall.Duration + time.Second
 	require.InDelta(t, wantOldestAge.Seconds(), float64(promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil)), 1)
 
@@ -206,8 +205,7 @@ func TestIntegration(t *testing.T) {
 	// The publisher should have published the events again.
 	require.Equal(t, 2, calls)
 
-	// The previously rejected event was accepted this time, so the backlog
-	// gauges should drop to zero. The expired event remains forever.
+	// The retry clears the pending backlog but does not change expired events.
 	require.Equal(t, 2, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", resultLabels("accepted")))
 	require.Equal(t, 0, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
 	require.Equal(t, 0, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending_oldest_age_seconds", nil))
@@ -239,8 +237,6 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 	// Configure the deployment manually.
 	deploymentID := uuid.New()
 	db.EXPECT().GetDeploymentID(gomock.Any()).Return(deploymentID.String(), nil).Times(1)
-	// The publisher refreshes the backlog gauges after every publish attempt.
-	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	var calls int
 	ingestURL := fakeServer(t, tallymanHandler(t, deploymentID.String(), "", func(req usagetypes.TallymanV1IngestRequest) any {
@@ -427,12 +423,11 @@ func TestPublisherMissingEvents(t *testing.T) {
 		},
 	}
 	db.EXPECT().SelectUsageEventsForPublishing(gomock.Any(), gomock.Any()).Return(events, nil).Times(1)
-	// The publisher refreshes the backlog gauges after every publish attempt.
 	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{
 		PendingCount:           1,
 		OldestPendingCreatedAt: now.Add(-2 * time.Hour),
 		ExpiredCount:           3,
-	}, nil).AnyTimes()
+	}, nil).Times(2)
 	db.EXPECT().UpdateUsageEventsPostPublish(gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx context.Context, params database.UpdateUsageEventsPostPublishParams) error {
 			assert.Equal(t, []string{events[0].ID}, params.IDs)
@@ -463,13 +458,11 @@ func TestPublisherMissingEvents(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
-	// The event missing from the response should be counted as temporarily
-	// rejected.
+	// Missing events are treated as temporary rejections.
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_results_total", prometheus.Labels{
 		"result":     "rejected_temporarily",
 		"event_type": string(usagetypes.UsageEventTypeDCManagedAgentsV1),
 	}))
-	// The gauges should match the mocked stats.
 	require.Equal(t, 1, promhelp.GaugeValue(t, reg, "coderd_usage_events_pending", nil))
 	require.Equal(t, 3, promhelp.GaugeValue(t, reg, "coderd_usage_events_expired", nil))
 	wantOldestAge := 2*time.Hour + tickerCall.Duration
@@ -602,8 +595,6 @@ func TestPublisherLicenseSelection(t *testing.T) {
 			return nil
 		},
 	).Times(1)
-	// The publisher refreshes the backlog gauges after every publish attempt.
-	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	// Tick and wait for the reset call.
 	tickerResetTrap := clock.Trap().TickerReset()
@@ -642,6 +633,7 @@ func TestPublisherTallymanError(t *testing.T) {
 		usage.PublisherWithPrometheusRegisterer(reg),
 	)
 	defer publisher.Close()
+	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).Times(2)
 
 	// Start the publisher with a trap.
 	tickerTrap := clock.Trap().NewTicker()
@@ -674,8 +666,6 @@ func TestPublisherTallymanError(t *testing.T) {
 			return nil
 		},
 	).Times(1)
-	// The publisher refreshes the backlog gauges after every publish attempt.
-	db.EXPECT().GetUsageEventsStats(gomock.Any(), gomock.Any()).Return(database.GetUsageEventsStatsRow{}, nil).AnyTimes()
 
 	// Tick and wait for the reset call.
 	tickerResetTrap := clock.Trap().TickerReset()
@@ -686,8 +676,7 @@ func TestPublisherTallymanError(t *testing.T) {
 	// The publisher should have published the events once.
 	require.Equal(t, 1, calls)
 
-	// The failed request should count as a send error, and no per-event
-	// results should be counted since Tallyman never returned a verdict.
+	// Request failures do not produce per-event results.
 	require.Equal(t, 1, promhelp.CounterValue(t, reg, "coderd_usage_events_publish_send_errors_total", nil))
 	require.NoError(t, promhelp.Compare(reg, "", "coderd_usage_events_publish_results_total"))
 }

@@ -98,16 +98,10 @@ WHERE
     AND cardinality(@ids::text[]) = cardinality(@set_published_ats::boolean[]);
 
 -- name: GetUsageEventsStats :one
--- Read-only stats about unpublished usage events, used for Prometheus metrics
--- in the usage publisher. Events older than 30 days will never be published
--- (Tallyman would permanently reject them), so they are counted separately as
--- "expired".
 SELECT
-    -- The parentheses around @now::timestamptz are necessary to avoid sqlc
-    -- from generating an extra argument.
+    -- Parentheses prevent sqlc from generating duplicate parameters.
     (COUNT(*) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
-    -- COALESCE to the Go zero time value when there are no pending events so
-    -- sqlc generates a non-nullable time.Time.
+    -- The zero value keeps the generated field non-nullable.
     COALESCE(MIN(created_at) FILTER (WHERE created_at > (@now::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
     (COUNT(*) FILTER (WHERE created_at <= (@now::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
 FROM

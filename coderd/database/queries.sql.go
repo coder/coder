@@ -29359,11 +29359,9 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 
 const getUsageEventsStats = `-- name: GetUsageEventsStats :one
 SELECT
-    -- The parentheses around @now::timestamptz are necessary to avoid sqlc
-    -- from generating an extra argument.
+    -- Parentheses prevent sqlc from generating duplicate parameters.
     (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
-    -- COALESCE to the Go zero time value when there are no pending events so
-    -- sqlc generates a non-nullable time.Time.
+    -- The zero value keeps the generated field non-nullable.
     COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
     (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
 FROM
@@ -29378,10 +29376,6 @@ type GetUsageEventsStatsRow struct {
 	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
 }
 
-// Read-only stats about unpublished usage events, used for Prometheus metrics
-// in the usage publisher. Events older than 30 days will never be published
-// (Tallyman would permanently reject them), so they are counted separately as
-// "expired".
 func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
 	var i GetUsageEventsStatsRow
