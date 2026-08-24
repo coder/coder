@@ -483,7 +483,7 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		if (activeCategory) {
+		if (mode === "category") {
 			dispatch({ type: "typeInCategory", value: nextValue });
 			return;
 		}

@@ -113,18 +113,19 @@ export function FilterCombobox({
 										size="md"
 										data-slot="combobox-chip-search"
 										className="font-medium"
-										aria-label={`Name search: ${committedFreeText}`}
 									>
 										{committedFreeText}
 									</Badge>
 								)}
+								{/* Decorative draft prefix: the live region already announces
+								    "Filtering by <category>", so this stays hidden. */}
 								{activeCategory && (
 									<Badge
 										variant="dashed"
 										size="md"
 										data-slot="combobox-chip-draft"
 										className="font-medium"
-										aria-label={`Filtering by ${activeCategory.label}`}
+										aria-hidden
 									>
 										{/* A single-key category previews its chip prefix
 										    (e.g. `status:`); a multi-key one (Attributes
