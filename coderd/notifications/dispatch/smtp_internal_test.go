@@ -163,13 +163,9 @@ func TestEncodeHeaderValue(t *testing.T) {
 }
 
 // TestEncodeHeaderValueEncodedWord covers a value that already looks like an
-// RFC 2047 encoded-word.
-//
-// mime.WordEncoder only encodes a value containing a byte outside printable
-// ASCII, and an encoded-word is nothing but printable ASCII, so a forged one
-// reaches the recipient's mail client intact and is decoded there. That hands
-// an untrusted value control of the subject line that gets displayed, which is
-// what this PR's header handling is supposed to prevent.
+// RFC 2047 encoded-word. mime.WordEncoder only encodes non-ASCII, and an
+// encoded-word is pure printable ASCII, so a forged one would reach the
+// recipient's client intact and be decoded there.
 func TestEncodeHeaderValueEncodedWord(t *testing.T) {
 	t.Parallel()
 

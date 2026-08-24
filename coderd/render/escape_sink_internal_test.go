@@ -15,22 +15,18 @@ func suspendedBody(value string) string {
 	return "The account belongs to **" + value + "** and it was suspended by **rob**."
 }
 
-// TestEscapeMarkdownFenceInfo covers the sink that made backtick inlineCritical.
-//
-// gomarkdown writes a fenced block's info string into class="language-..."
-// without escaping (html/renderer.go, appendLanguageAttr). html.SkipHTML does
-// not apply because the node is a CodeBlock rather than an HTMLBlock, so a "in
-// the info string closes the attribute and a > closes the tag. That makes the
-// info string a live HTML sink, which is why backtick cannot be treated as an
-// emphasis character that "carries no destination".
+// TestEscapeMarkdownFenceInfo covers the sink that made backtick inlineCritical:
+// gomarkdown writes a fence's info string into class="language-..." unescaped
+// (html/renderer.go, appendLanguageAttr), and SkipHTML does not apply to a
+// CodeBlock node, so a `"` closes the attribute and a `>` closes the tag.
 func TestEscapeMarkdownFenceInfo(t *testing.T) {
 	t.Parallel()
 
 	const info = `"><a/href="https://attacker.example/login">Click here`
 
-	// The payload needs a line after the closing fence. Without one the
-	// template's trailing text lands on the closing fence's line, the fence
-	// stops being a fence, and the case passes for the wrong reason.
+	// Each payload needs a line after the closing fence, or the template's
+	// trailing text lands on it, the fence stops being one, and the case passes
+	// for the wrong reason.
 	for name, value := range map[string]string{
 		"Anchor":  "Eve\n\n```" + info + "\nhidden\n```\nmore",
 		"Image":   "Eve\n\n```\"><img/src=x/onerror=alert(1)>\nhidden\n```\nmore",
@@ -55,18 +51,13 @@ func TestEscapeMarkdownFenceInfo(t *testing.T) {
 		"vacuous test: the payload no longer reaches the info-string sink even unescaped")
 }
 
-// TestEscapeMarkdownColon covers ":", which opens a definition list and also a
-// GFM table delimiter row. Escaping "|" does not reach the table case, because
-// a delimiter row's pipes are mid-line and "|" is escaped only in leading
-// position. ":" is folded rather than escaped because glamour does not honor
-// "\:", which would leak a backslash into the plaintext part.
+// TestEscapeMarkdownColon covers ":", which opens a definition list and a GFM
+// delimiter row that escaping "|" cannot reach, its pipes being mid-line.
 //
-// Rendered under parser.CommonExtensions rather than notificationExtensions on
-// purpose. Both spellings are also dead because notificationExtensions no
-// longer enables Tables or DefinitionLists, so rendering through the shipped
-// config would pass whether or not the escaper does anything. Asserting against
-// the permissive config keeps this a test of EscapeMarkdown, and keeps the two
-// defenses independent: re-enabling either extension must not reopen the gap.
+// Rendered under CommonExtensions, not notificationExtensions, on purpose: the
+// allowlist already kills both constructs, so the shipped config would pass
+// whether or not the escaper did anything. This keeps the two defenses
+// independent.
 func TestEscapeMarkdownColon(t *testing.T) {
 	t.Parallel()
 
@@ -102,9 +93,9 @@ func TestEscapeMarkdownColon(t *testing.T) {
 	}
 }
 
-// TestNotificationExtensionsDropUnusedGrammar pins the allowlist. Each
-// construct below is reachable from an untrusted value and used by no shipped
-// template, so the parser should not recognize it at all.
+// TestNotificationExtensionsDropUnusedGrammar pins the allowlist: each
+// construct is openable from an untrusted value and used by no shipped
+// template.
 func TestNotificationExtensionsDropUnusedGrammar(t *testing.T) {
 	t.Parallel()
 
@@ -136,9 +127,8 @@ func TestNotificationExtensionsDropUnusedGrammar(t *testing.T) {
 	}
 }
 
-// TestEscapeMarkdownIndentedCode covers the one block construct with no escape:
-// four leading spaces open an indented code block and a space cannot be
-// backslash-escaped, so the run is truncated to maxLeadingSpaces instead.
+// TestEscapeMarkdownIndentedCode covers the one construct with no escape: a
+// space cannot be backslash-escaped, so the run is truncated instead.
 func TestEscapeMarkdownIndentedCode(t *testing.T) {
 	t.Parallel()
 
@@ -165,9 +155,7 @@ func TestEscapeMarkdownIndentedCode(t *testing.T) {
 }
 
 // TestEscapeMarkdownEmptyLinkDestination covers the panic html.Safelink
-// introduced. parser.IsSafeURL slices a destination to each candidate prefix
-// length before checking the destination is that long, so an empty destination
-// with no spare capacity reads out of range.
+// introduced: parser.IsSafeURL slices a destination before bounds-checking it.
 func TestEscapeMarkdownEmptyLinkDestination(t *testing.T) {
 	t.Parallel()
 
@@ -197,23 +185,13 @@ func TestEscapeMarkdownEmptyLinkDestination(t *testing.T) {
 }
 
 // TestEscapeMarkdownLeadingFoldConstruct covers a value whose own first line is
-// a fold construct.
+// a fold construct, which the fold cannot reach and escaping must handle. A
+// title beginning "~~~" is an unterminated fence swallowing the trusted text
+// into an empty code block; "===" beneath a text line underlines it into an
+// <h1>.
 //
-// The fold can only remove a line break EscapeMarkdown emitted, and the first
-// line has none in front of it, so the template decides where it lands. Two
-// consequences, both closed here by escaping instead:
-//
-//   - A title template that begins with a label puts the value at the start of
-//     the document. A value of "~~~" makes the whole title an unterminated
-//     tilde fence whose info string is the trusted text, and glamour renders an
-//     empty code block, so the Subject, <title> and heading all come out blank.
-//   - A body template that puts a value at a line start beneath a text line
-//     lets "===" underline the trusted line into an <h1>. No shipped template
-//     does this today.
-//
-// The cost is a visible backslash: neither renderer honors "\=" or "\~". That is
-// why isLeadingFoldConstruct is exact rather than approximate, and why the
-// untouched cases below matter as much as the neutralized ones.
+// Escaping costs a visible backslash, so the untouched cases below matter as
+// much as the neutralized ones.
 func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
 	t.Parallel()
 
@@ -261,21 +239,17 @@ func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
 }
 
 // TestEscapeMarkdownResiduals pins the one gap EscapeMarkdown cannot close, so
-// that closing it later is a deliberate change rather than an accident, and so
-// the limit stays visible next to the function that has it.
+// that closing it later is deliberate rather than accidental.
 func TestEscapeMarkdownResiduals(t *testing.T) {
 	t.Parallel()
 
 	t.Run("CodeSpanSwallowsEscapes", func(t *testing.T) {
 		t.Parallel()
 
-		// CommonMark does not process escapes inside a code span, so a template
-		// that wraps the value in backticks renders our backslashes literally.
-		// The workspace out-of-disk body does this with `{{$volume.path}}`.
-		//
-		// Unlike the fold constructs above, there is no lever here at all: the
-		// escaper cannot see that its output lands inside a code span, so it
-		// cannot choose not to escape. Only resolving after rendering can.
+		// CommonMark does not process escapes inside a code span, and the
+		// workspace out-of-disk body wraps a value in one. Unlike a fold
+		// construct there is no lever: the escaper cannot see the sink, so it
+		// cannot choose not to escape.
 		html := HTMLFromNotificationMarkdown("The volume `" + EscapeMarkdown("config[0]") + "` is full.")
 		require.Contains(t, html, `config\[0\]`,
 			"if this no longer leaks, the residual is closed and this test should become an assertion that it stays closed")
@@ -283,9 +257,9 @@ func TestEscapeMarkdownResiduals(t *testing.T) {
 }
 
 // TestEscapeMarkdownNoStrayBackslash asserts the escaper's own invariant across
-// every interpolation position a shipped template provides, not just the
-// mid-paragraph one. The assertion already existed; the positions did not, and
-// that is why the code-span residual above went unnoticed.
+// every interpolation position a shipped template provides. The assertion
+// already existed; only the mid-paragraph position did, which is how the
+// code-span residual went unnoticed.
 func TestEscapeMarkdownNoStrayBackslash(t *testing.T) {
 	t.Parallel()
 

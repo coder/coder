@@ -34,10 +34,9 @@ func (p MessagePayload) EscapedForMarkdown() MessagePayload {
 // booleans and nulls pass through unchanged so that template comparisons such as
 // `{{if gt $version.failed_count 1}}` keep working.
 //
-// Nested map keys are escaped as well as values. A key is content whenever a
-// template ranges over the map with two variables, as the resource replacements
-// body does with `{{range $resource, $paths := .Data.replacements}}`, and those
-// keys are Terraform resource addresses rather than identifiers.
+// Nested keys are escaped too: a key is content whenever a template ranges with
+// two variables, as `{{range $resource, $paths := .Data.replacements}}` does
+// over Terraform resource addresses.
 func escapeValue(v any) any {
 	switch t := v.(type) {
 	case string:

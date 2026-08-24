@@ -8,15 +8,11 @@ import "strings"
 const (
 	// inlineCritical characters can produce a link, an image, an angle autolink,
 	// or forge an escape from anywhere in a value, so they are always escaped.
-	// None of them appears in a control label value such as "user_override".
 	//
-	// Backtick is here rather than in blockStart because a fence's info string
-	// is an HTML sink: gomarkdown writes it into class="language-..." without
-	// escaping, and html.SkipHTML does not apply because the node is a
-	// CodeBlock rather than an HTMLBlock. A value that closes the attribute and
-	// the tag injects live markup into the rendered email. Escaping only the
-	// leading backtick is not enough either, because the two that remain open
-	// an inline code span.
+	// Backtick is here, not in blockStart, because a fence's info string is an
+	// HTML sink: gomarkdown writes it into class="language-..." unescaped, and
+	// SkipHTML does not apply to a CodeBlock node. Escaping only the leading
+	// backtick would leave two, which open an inline code span.
 	inlineCritical = "\\[]()!<`"
 
 	// blockStart characters carry structural meaning only as the first
@@ -33,19 +29,15 @@ const (
 
 	// foldStart characters also carry meaning only at the start of a line, but
 	// glamour does not honor a backslash before them, so escaping would leave a
-	// literal backslash in the plaintext part. The preceding line break is
-	// replaced with a space instead, which denies them the line-start position.
+	// literal backslash in the plaintext part. The preceding line break becomes
+	// a space instead, denying them the line-start position.
 	//
-	// ":" opens a definition list, and it also opens a GFM table delimiter row
-	// such as ":-- | --:". Escaping "|" does not close that second case,
-	// because a delimiter row's pipes are mid-line and "|" is escaped only in
-	// leading position.
+	// ":" is here for the GFM delimiter row ":-- | --:" as well as definition
+	// lists. Escaping "|" does not reach that row: its pipes are mid-line.
 	foldStart = `=~:`
 
-	// maxLeadingSpaces is the widest indentation a line may keep. Four spaces
-	// open an indented code block, and there is no escape for a space, so the
-	// run is truncated instead. Three is the most CommonMark allows before a
-	// block marker while still treating it as indentation.
+	// maxLeadingSpaces is the widest indentation a line may keep, since four
+	// spaces open an indented code block and a space cannot be escaped.
 	maxLeadingSpaces = 3
 )
 
@@ -53,23 +45,17 @@ const (
 // renders as literal text through both HTMLFromNotificationMarkdown and
 // PlaintextFromMarkdown.
 //
-// Emphasis characters ("*" and "_") are deliberately left alone away from a
-// line's leading position. They can only produce <em>, <strong> or <del> there,
-// never a link or a heading, and escaping "_" everywhere would corrupt label
-// values such as "user_override" that body templates compare with `eq`. In
-// leading position they do open a block construct, so they are escaped, see
-// leadingEmphasis.
+// Away from leading position "*" and "_" are left alone: they cannot carry a
+// destination, and escaping "_" would corrupt label values such as
+// "user_override" that body templates compare with `eq`.
 //
 // Line breaks are preserved so multi-line values keep their shape. Other control
-// characters are dropped: they have no display value and are the carrier for
-// SMTP header injection.
+// characters are dropped, being the carrier for SMTP header injection.
 //
-// One residual this cannot reach, because it depends on where the value lands
-// rather than on what it contains: a template that wraps the value in a code
-// span. CommonMark does not process escapes inside one, so the backslashes
-// emitted here render as literal text. It closes under placeholder
-// substitution, which resolves after rendering and therefore knows the
-// destination context.
+// Known residual: a template that wraps the value in a code span. CommonMark
+// does not process escapes inside one, so the backslashes emitted here reach
+// the reader. Nothing here can detect that, since the sink is decided after
+// this runs.
 func EscapeMarkdown(s string) string {
 	if s == "" {
 		return s
@@ -90,8 +76,7 @@ func EscapeMarkdown(s string) string {
 			}
 		}
 		// The first line has no line break of ours in front of it, so the fold
-		// cannot reach it and the template decides where it lands. Escaping is
-		// the only lever left there. See isLeadingFoldConstruct.
+		// cannot reach it and escaping is the only lever left.
 		_, _ = b.WriteString(escapeLine(line, i == 0 && isLeadingFoldConstruct(line)))
 	}
 	return b.String()
@@ -125,19 +110,17 @@ func isStrippable(r rune) bool {
 	return r != '\n' && (r < 0x20 || r == 0x7f)
 }
 
-// escapeLine escapes every inlineCritical character in the line, plus a single
-// blockStart or leadingEmphasis character in leading position, plus the "."
-// that closes an ordered-list marker. Leading indentation is truncated to
-// maxLeadingSpaces so the line cannot become an indented code block.
-// escapeFold, when set, additionally escapes a "=" or "~" in leading position.
-// Only EscapeMarkdown's first line passes it, and only when that line really is
-// a fold construct.
+// escapeLine escapes every inlineCritical character, plus a single blockStart
+// or leadingEmphasis character in leading position, plus the "." that closes an
+// ordered-list marker, and truncates indentation to maxLeadingSpaces.
+//
+// escapeFold additionally escapes a leading "=" or "~". Only EscapeMarkdown's
+// first line passes it, and only when that line really is a fold construct.
 func escapeLine(line string, escapeFold bool) string {
 	var b strings.Builder
 	b.Grow(len(line))
 
 	leading := true
-	// spaces counts the indentation emitted so far, to cap it.
 	spaces := 0
 	// digitRun reports whether the line so far is nothing but indentation and
 	// digits, which is the only position where "." opens an ordered list.
@@ -148,9 +131,7 @@ func escapeLine(line string, escapeFold bool) string {
 			_ = b.WriteByte('\\')
 			_, _ = b.WriteRune(r)
 		case leading && r == ' ':
-			// Indentation keeps the next character in leading position, but
-			// only the first maxLeadingSpaces of it are emitted: four spaces
-			// open an indented code block and a space cannot be escaped.
+			// Indentation keeps the next character in leading position.
 			if spaces < maxLeadingSpaces {
 				_, _ = b.WriteRune(r)
 				spaces++
@@ -187,12 +168,11 @@ func closesMarker(line string, i int) bool {
 }
 
 // opensFoldConstruct reports whether a line's first non-space character is a
-// foldStart character, meaning the line could act as a Setext underline, open a
-// tilde-fenced code block, or open a definition list.
+// foldStart character.
 //
-// Approximate on purpose. It only decides whether to join the line to the one
-// before it, and dropping a line break from a value that was not going to open
-// anything costs nothing.
+// Approximate on purpose: it only decides whether to join the line to the one
+// before it, and dropping a line break costs nothing. Contrast
+// isLeadingFoldConstruct, where being wrong is visible.
 func opensFoldConstruct(line string) bool {
 	t := strings.TrimLeft(line, " ")
 	if t == "" {
@@ -202,23 +182,16 @@ func opensFoldConstruct(line string) bool {
 }
 
 // isLeadingFoldConstruct reports whether a line is itself a tilde fence opener
-// or a Setext "=" underline, as opposed to merely starting with one of those
+// or a Setext "=" underline, rather than merely starting with one of those
 // characters.
 //
-// This governs escaping rather than folding, so it has to be exact. Neither
-// renderer honors "\=" or "\~", so the backslash reaches the reader, and paying
-// that on "=> next" or a display name of "~tilde" would be worse than the
-// construct it prevents. On a real fence it is the better trade: an unterminated
-// "~~~" at the start of a title template swallows the trusted text into an empty
-// code block, and the Subject, <title> and heading all render empty.
+// Exact, because it governs escaping and the backslash is visible: "=> next"
+// must not acquire one, while "~~~" must, since an unterminated fence at the
+// start of a title renders the Subject, <title> and heading empty.
 //
-// Indentation is ignored because escapeLine truncates it to maxLeadingSpaces,
-// which still leaves the line eligible to open a block.
-//
-// ":" is absent deliberately. It is in foldStart for the definition list and
-// table cases, but those need a preceding line, which a first line does not
-// have when the value opens the document. Escaping it here would leak a
-// backslash for no reachable gain.
+// Indentation is ignored: escapeLine truncates it to maxLeadingSpaces, which
+// still leaves the line able to open a block. ":" is excluded because a
+// definition list or table needs a preceding line that a first line lacks.
 func isLeadingFoldConstruct(line string) bool {
 	t := strings.TrimLeft(line, " ")
 	if strings.HasPrefix(t, "~~~") {

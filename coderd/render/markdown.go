@@ -113,20 +113,13 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// notificationExtensions is an allowlist of the Markdown grammar notification
-// bodies actually use, rather than parser.CommonExtensions minus what has
-// caused trouble so far. Shipped templates use inline links, ** emphasis and
-// "- " bullet lists, all of which are core CommonMark and need no extension.
+// notificationExtensions is an allowlist rather than CommonExtensions minus
+// what has caused trouble. Shipped templates use inline links, ** emphasis and
+// "- " bullet lists, all core CommonMark needing no extension, so Tables,
+// DefinitionLists, MathJax and Autolink are simply absent. Each of those is
+// openable from an untrusted label value.
 //
-// What this deliberately leaves off, and why it matters: CommonExtensions also
-// enables Tables, DefinitionLists and MathJax, each of which an untrusted label
-// value can open. Turning them off removes those construct families outright
-// instead of adding another character to EscapeMarkdown's denylist. Autolink is
-// off for the original reason, so that a bare URL in a value cannot become a
-// live anchor.
-//
-// A template author who wants a table or a fenced block has to add the
-// extension here, and should expect to revisit EscapeMarkdown when they do.
+// Adding one back means revisiting EscapeMarkdown.
 const notificationExtensions = parser.NoIntraEmphasis | parser.HardLineBreak
 
 func HTMLFromMarkdown(markdown string) string {
@@ -140,9 +133,9 @@ func HTMLFromNotificationMarkdown(markdown string) string {
 	return renderHTML(markdown, notificationExtensions)
 }
 
-// longestURLPath is the longest relative-path prefix parser.IsSafeURL compares a
-// link destination against. Derived from the library rather than hardcoded so a
-// dependency bump that adds a longer prefix keeps safeURL correct.
+// longestURLPath is the longest relative-path prefix parser.IsSafeURL compares
+// against. Derived rather than hardcoded so a dependency bump that adds a
+// longer prefix keeps safeURL correct.
 var longestURLPath = func() int {
 	longest := 0
 	for _, p := range parser.Paths {
@@ -154,11 +147,10 @@ var longestURLPath = func() int {
 }()
 
 // safeURL wraps parser.IsSafeURL, which slices a destination to each candidate
-// prefix length before checking the destination is that long. A destination
-// shorter than the longest prefix panics there if its backing array has no
-// spare capacity, which is what the empty destination in "[docs]()" produces.
-// Copying into a buffer with room for the longest prefix keeps the slice
-// expression in bounds; IsSafeURL's own length guards still decide the result.
+// prefix length before checking it is that long, and so panics on a short
+// destination with no spare capacity, as "[docs]()" produces. Padding the
+// capacity keeps the slice in bounds; IsSafeURL's own guards still decide the
+// result.
 func safeURL(url []byte) bool {
 	if cap(url) < longestURLPath {
 		padded := make([]byte, len(url), longestURLPath)
@@ -168,11 +160,9 @@ func safeURL(url []byte) bool {
 	return parser.IsSafeURL(url)
 }
 
-// renderHTML converts Markdown to HTML.
-//
-// Input is untrusted, so a parser or renderer panic is recovered and the source
-// is returned HTML-escaped: the notification still reaches its recipient,
-// showing Markdown source rather than rendered output, and no markup escapes.
+// renderHTML converts Markdown to HTML. Input is untrusted, so a panic is
+// recovered and the source returned HTML-escaped: the notification still
+// arrives, showing Markdown source, and no markup escapes.
 func renderHTML(markdown string, extensions parser.Extensions) (out string) {
 	defer func() {
 		if r := recover(); r != nil {

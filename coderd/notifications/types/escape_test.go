@@ -101,15 +101,9 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("EscapesNestedMapKeys", func(t *testing.T) {
 		t.Parallel()
 
-		// A nested key is content, not an identifier, whenever a template
-		// ranges over the map with two variables. The resource replacements
-		// body does exactly that:
-		//
-		//   {{range $resource, $paths := .Data.replacements -}}
-		//   - _{{ $resource }}_  was replaced due to changes to _{{ $paths }}_
-		//
-		// and those keys are Terraform resource addresses from provisioner
-		// output, so an unescaped one renders a live anchor in the email.
+		// A nested key is content whenever a template ranges with two
+		// variables, as the resource replacements body does over Terraform
+		// resource addresses. An unescaped one renders a live anchor.
 		payload := types.MessagePayload{
 			Data: map[string]any{
 				"replacements": map[string]any{
