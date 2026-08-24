@@ -33,6 +33,9 @@ type stepData struct {
 
 	// BatchRuntime is the local-tool batch window. Model steps use Runtime.
 	BatchRuntime time.Duration
+	// BatchBilledCalls counts the calls whose intervals produced
+	// BatchRuntime. Audit metadata for the batch usage record.
+	BatchBilledCalls int
 
 	ToolCallCreatedAt    map[string]time.Time
 	ToolResultCreatedAt  map[string]time.Time
