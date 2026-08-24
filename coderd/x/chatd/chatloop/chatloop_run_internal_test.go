@@ -951,8 +951,6 @@ func TestExecuteToolsNotifiesStepToolCallObservers(t *testing.T) {
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
 		nil,
-		nil,
-		nil,
 	)
 
 	require.Equal(t, []string{"observer_tool", "other_tool", "denied_tool"}, observedNames,
@@ -1024,8 +1022,6 @@ func TestExecuteToolsNotifiesStepToolResultObservers(t *testing.T) {
 		defaultToolResultBytes,
 		map[string]string{"observer_alias": "observer_tool"},
 		time.Time{},
-		nil,
-		nil,
 		nil,
 	)
 
@@ -1105,15 +1101,13 @@ func TestExecuteToolsReconcilesResultsBeforeSerialCalls(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
-		nil,
-		nil,
 	)
 
 	require.True(t, notified)
 	require.Equal(t, []string{"failing_tool"}, erroredAtRun,
 		"a serial tool must see settled sibling outcomes before it executes")
 	require.Len(t, results, 2)
-	require.Equal(t, "1", results[0].ToolCallID, "results keep original call order")
+	require.Equal(t, "1", results[0].content.ToolCallID, "results keep original call order")
 }
 
 func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
@@ -1175,8 +1169,6 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 		nil,
 		time.Time{},
 		nil,
-		nil,
-		nil,
 	)
 
 	require.Equal(t, []string{"a:start", "a:end", "b:start", "b:end", "c:start", "c:end"}, events,
@@ -1189,8 +1181,120 @@ func TestExecuteToolsSerialToolCallOrder(t *testing.T) {
 	}
 	require.Len(t, results, len(calls))
 	for i, tc := range calls {
-		require.Equal(t, tc.ToolCallID, results[i].ToolCallID, "results keep original call order")
+		require.Equal(t, tc.ToolCallID, results[i].content.ToolCallID, "results keep original call order")
 	}
+}
+
+type timingEvent struct {
+	dispatchIndex int
+	at            time.Time
+}
+
+// liveToolBillingRecorder is a test ToolBillingRecorder that publishes
+// start and completion timestamps as they happen.
+type liveToolBillingRecorder struct {
+	started   chan timingEvent
+	completed chan timingEvent
+}
+
+func (r liveToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	r.started <- timingEvent{dispatchIndex: dispatchIndex, at: startedAt}
+}
+
+func (r liveToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	r.completed <- timingEvent{dispatchIndex: dispatchIndex, at: completedAt}
+}
+
+func TestExecuteToolsReturnsExecutionIntervals(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	started := make(chan timingEvent, 3)
+	completed := make(chan timingEvent, 3)
+
+	slowGo := make(chan struct{})
+	fastGo := make(chan struct{})
+	blocking := func(name string, release <-chan struct{}) fantasy.AgentTool {
+		return fantasy.NewAgentTool(
+			name,
+			"waits for the test to release it",
+			func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				<-release
+				return fantasy.NewTextResponse("ok"), nil
+			},
+		)
+	}
+	slow := blocking("slow_tool", slowGo)
+	fast := blocking("fast_tool", fastGo)
+	serial := serialMarkerTool{AgentTool: fantasy.NewAgentTool(
+		"serial_tool",
+		"runs after concurrent tools",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			return fantasy.NewTextResponse("ok"), nil
+		},
+	)}
+	calls := []fantasy.ToolCallContent{
+		{ToolCallID: "slow", ToolName: "slow_tool", Input: "{}"},
+		{ToolCallID: "fast", ToolName: "fast_tool", Input: "{}"},
+		{ToolCallID: "serial", ToolName: "serial_tool", Input: "{}"},
+	}
+	batchStart := time.Date(2024, time.January, 1, 0, 0, 0, 0, time.UTC)
+	resultsCh := make(chan []toolExecutionResult, 1)
+	go func() {
+		resultsCh <- executeTools(
+			ctx,
+			quartz.NewReal(),
+			[]fantasy.AgentTool{slow, fast, serial},
+			nil,
+			nil,
+			nil,
+			calls,
+			nil,
+			NewMetrics(prometheus.NewRegistry()),
+			slog.Make(),
+			"fake", "fake-model",
+			map[string]bool{},
+			defaultToolResultBytes,
+			nil,
+			batchStart,
+			liveToolBillingRecorder{started: started, completed: completed},
+		)
+	}()
+
+	startByIndex := make([]time.Time, len(calls))
+	for range 2 {
+		event := testutil.RequireReceive(ctx, t, started)
+		startByIndex[event.dispatchIndex] = event.at
+	}
+
+	close(fastGo)
+	fastCompleted := testutil.RequireReceive(ctx, t, completed)
+	require.Equal(t, 1, fastCompleted.dispatchIndex)
+
+	close(slowGo)
+	slowCompleted := testutil.RequireReceive(ctx, t, completed)
+	require.Equal(t, 0, slowCompleted.dispatchIndex)
+
+	serialStarted := testutil.RequireReceive(ctx, t, started)
+	require.Equal(t, 2, serialStarted.dispatchIndex)
+	startByIndex[serialStarted.dispatchIndex] = serialStarted.at
+	serialCompleted := testutil.RequireReceive(ctx, t, completed)
+	require.Equal(t, 2, serialCompleted.dispatchIndex)
+
+	endByIndex := []time.Time{slowCompleted.at, fastCompleted.at, serialCompleted.at}
+	results := testutil.RequireReceive(ctx, t, resultsCh)
+	require.Len(t, results, len(calls))
+	for i, call := range calls {
+		require.Equal(t, call.ToolCallID, results[i].content.ToolCallID,
+			"results keep dispatch order when calls complete out of order")
+		require.Equal(t, startByIndex[i], results[i].interval.Start)
+		require.Equal(t, endByIndex[i], results[i].interval.End)
+	}
+	require.Equal(t, batchStart, results[0].interval.Start)
+	require.Equal(t, batchStart, results[1].interval.Start)
+	require.NotEqual(t, batchStart, results[2].interval.Start)
+	require.False(t, results[2].interval.Start.Before(slowCompleted.at),
+		"serial execution starts only after concurrent calls settle")
 }
 
 func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
