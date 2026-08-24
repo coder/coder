@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, within } from "storybook/test";
+import { entitlementDetailsQueryKey } from "#/api/queries/entitlements";
 import { MockEntitlements, MockLicenseResponse } from "#/testHelpers/entities";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
@@ -33,7 +34,7 @@ const withBaseQueries = ({
 	licenses?: typeof MockLicenseResponse | unknown[];
 }) => ({
 	queries: [
-		{ key: ["entitlements"], data: entitlements },
+		{ key: entitlementDetailsQueryKey, data: entitlements },
 		{ key: ["licenses"], data: licenses },
 		USER_STATUS_COUNTS_QUERY,
 	],

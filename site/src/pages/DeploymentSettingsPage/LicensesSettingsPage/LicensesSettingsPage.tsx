@@ -4,10 +4,12 @@ import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { entitlements, refreshEntitlements } from "#/api/queries/entitlements";
+import {
+	entitlementDetails,
+	refreshEntitlements,
+} from "#/api/queries/entitlements";
 import { insightsUserStatusCounts } from "#/api/queries/insights";
 import { licenses, licensesKey } from "#/api/queries/licenses";
-import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { pageTitle } from "#/utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 
@@ -17,8 +19,7 @@ const LicensesSettingsPage: FC = () => {
 	const success = searchParams.get("success");
 	const [confettiOn, setConfettiOn] = useState(false);
 
-	const { metadata } = useEmbeddedMetadata();
-	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+	const entitlementsQuery = useQuery(entitlementDetails());
 
 	const { data: userStatusCount } = useQuery(insightsUserStatusCounts());
 

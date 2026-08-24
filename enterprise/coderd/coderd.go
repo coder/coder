@@ -350,7 +350,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Get("/entitlements", api.serveEntitlements)
+		r.With(apiKeyMiddleware).Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
 		r.Group(func(r chi.Router) {
 			r.Use(apiKeyMiddleware)

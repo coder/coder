@@ -5,7 +5,7 @@ import {
 	MockAITasksEnabled,
 	MockAppearanceConfig,
 	MockBuildInfo,
-	MockEntitlements,
+	MockDeploymentCapabilities,
 	MockExperiments,
 	MockOrganization,
 	MockPermissions,
@@ -40,7 +40,7 @@ const MockRegions: readonly Region[] = [];
 const mockDataForTags = {
 	appearance: MockAppearanceConfig,
 	"build-info": MockBuildInfo,
-	entitlements: MockEntitlements,
+	"deployment-capabilities": MockDeploymentCapabilities,
 	experiments: MockExperiments,
 	user: MockUserOwner,
 	userAppearance: MockUserAppearanceSettings,
@@ -60,7 +60,7 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		available: false,
 		value: undefined,
 	},
-	entitlements: {
+	"deployment-capabilities": {
 		available: false,
 		value: undefined,
 	},
@@ -107,9 +107,9 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 		available: true,
 		value: MockBuildInfo,
 	},
-	entitlements: {
+	"deployment-capabilities": {
 		available: true,
-		value: MockEntitlements,
+		value: MockDeploymentCapabilities,
 	},
 	experiments: {
 		available: true,
@@ -275,7 +275,7 @@ describe(useEmbeddedMetadata.name, () => {
 
 	it("Will not notify subscribers if you try deleting a metadata value that does not exist (or has already been deleted)", () => {
 		const key = "giraffe";
-		const tagToDelete: MetadataKey = "entitlements";
+		const tagToDelete: MetadataKey = "deployment-capabilities";
 
 		const cleanupTags = seedInitialMetadata(key);
 		const { result } = renderMetadataHook(key);

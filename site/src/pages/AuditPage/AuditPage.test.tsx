@@ -13,7 +13,7 @@ import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import {
 	MockAuditLog,
 	MockAuditLog2,
-	MockEntitlementsWithAuditLog,
+	MockDeploymentCapabilitiesWithAuditLog,
 } from "#/testHelpers/entities";
 import {
 	renderWithAuth,
@@ -59,8 +59,8 @@ describe("AuditPage", () => {
 
 		// Mock the entitlements
 		server.use(
-			http.get("/api/v2/entitlements", () => {
-				return HttpResponse.json(MockEntitlementsWithAuditLog);
+			http.get("/api/v2/deployment/capabilities", () => {
+				return HttpResponse.json(MockDeploymentCapabilitiesWithAuditLog);
 			}),
 		);
 	});

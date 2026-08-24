@@ -172,6 +172,22 @@ export const withDefaultFeatures = (
 	return fs as TypesGen.Entitlements["features"];
 };
 
+export const withDefaultCapabilities = (
+	capabilities: Partial<TypesGen.DeploymentCapabilities["features"]>,
+): TypesGen.DeploymentCapabilities["features"] => {
+	for (const feature of TypesGen.FeatureNames) {
+		if (capabilities[feature] !== undefined) {
+			continue;
+		}
+		capabilities[feature] = {
+			enabled: false,
+			entitlement: "not_entitled",
+			usable: false,
+		};
+	}
+	return capabilities as TypesGen.DeploymentCapabilities["features"];
+};
+
 type WatchBuildLogsByTemplateVersionIdOptions = {
 	after?: number;
 	onMessage: (log: TypesGen.ProvisionerJobLog) => void;
@@ -1849,6 +1865,14 @@ class ApiMethods {
 	refreshEntitlements = async (): Promise<void> => {
 		await this.axios.post("/api/v2/licenses/refresh-entitlements");
 	};
+
+	getDeploymentCapabilities =
+		async (): Promise<TypesGen.DeploymentCapabilities> => {
+			const response = await this.axios.get<TypesGen.DeploymentCapabilities>(
+				"/api/v2/deployment/capabilities",
+			);
+			return response.data;
+		};
 
 	getEntitlements = async (): Promise<TypesGen.Entitlements> => {
 		try {

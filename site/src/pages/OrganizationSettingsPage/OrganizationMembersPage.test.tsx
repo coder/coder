@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import type { SlimRole } from "#/api/typesGenerated";
 import {
-	MockEntitlementsWithMultiOrg,
+	MockDeploymentCapabilitiesWithMultiOrg,
 	MockOrganization,
 	MockOrganizationAuditorRole,
 	MockOrganizationPermissions,
@@ -20,8 +20,8 @@ vi.spyOn(console, "error").mockImplementation(() => {});
 
 beforeEach(() => {
 	server.use(
-		http.get("/api/v2/entitlements", () => {
-			return HttpResponse.json(MockEntitlementsWithMultiOrg);
+		http.get("/api/v2/deployment/capabilities", () => {
+			return HttpResponse.json(MockDeploymentCapabilitiesWithMultiOrg);
 		}),
 		http.post("/api/v2/authcheck", async () => {
 			return HttpResponse.json(
