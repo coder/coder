@@ -47,10 +47,9 @@ before they see the PR.
 - **FE3 (reuse/scope)**: For each new component, hook, or helper, search
   `site/src/components/` and sibling folders for an existing equivalent.
   Flag near-duplicates, hand-assembled versions of wrapped primitives, dead
-  branches, and unrelated changes bundled into the diff. Flag every newly
-  introduced React hook, shared or local: each needs explicit maintainer
-  approval and a PR-description callout, and several new single-use hooks in
-  one diff is a FAIL (generalize or inline them).
+  branches, and unrelated changes bundled into the diff. Flag new React hooks
+  that an existing hook, a plain function, or component state could replace;
+  several new single-use hooks in one diff is a FAIL.
 - **FE4 (comments)**: Read every comment line the diff adds or edits. Flag
   any comment that restates the identifier, assertion, or control flow.
   Verify surviving comments are factually correct.

@@ -56,7 +56,6 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Match errors by code or HTTP status, not message text.
 - Match patterns in the same file before introducing a new convention.
 - Avoid single-use wrappers, aliases, constants, and hooks that add navigation without adding meaning.
-- Do not introduce a new React hook when an existing hook, a plain function, or component state can express the logic.
 - Use JSX shorthand for boolean props whose value is `true`.
 
 ## Accessibility and robustness
@@ -75,7 +74,6 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 - Assert observable behavior with semantic queries. Do not assert Tailwind classes or implementation details.
 - Use `data-testid` only when an element has no suitable role or accessible name.
 - Do not depend on smooth scrolling in tests. Use instant behavior or control the scroll position directly.
-- Never replace browser globals with `Object.defineProperty` in tests or stories. Stub globals with `vi.stubGlobal` in unit tests and mock existing globals with `spyOn` from `storybook/test` in stories.
 - Keep stories current when components change.
 
 ## Performance
