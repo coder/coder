@@ -49,8 +49,7 @@ const avatarVariants = cva(
 				variant: "icon",
 				className: "p-[3px]",
 			},
-			// Emojis are glyphs rather than photos or full-bleed icons, so they
-			// get a proportional inset of roughly 20% per side.
+			// Emojis get a proportional inset of roughly 20% per side.
 			{
 				size: "lg",
 				variant: "emoji",
@@ -95,9 +94,8 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
-	// Built-in emoji sources always use the emoji variant so they render
-	// consistently at every call site, including those that pass the icon
-	// variant for data-dependent sources that may be an icon or an emoji.
+	// Built-in emojis always use the emoji variant, even when a caller
+	// passes another one.
 	const resolvedVariant = src?.startsWith("/emojis/") ? "emoji" : variant;
 
 	return (
