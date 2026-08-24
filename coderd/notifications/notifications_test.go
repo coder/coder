@@ -1635,6 +1635,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 						{"provider": "openrouter", "model": "z-ai/glm-5.4"},
 					},
 					"total_count": 15.0,
+					"truncated":   true,
 				},
 			},
 		},

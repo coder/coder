@@ -42,6 +42,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Equal(t, []map[string]any{
 			{"provider": "anthropic", "model": "claude-opus-4-8"},
 		}, modelsFromPayload(t, sent[0].Data))
+		require.EqualValues(t, 1, sent[0].Data["total_count"])
+		require.Equal(t, false, sent[0].Data["truncated"])
 	})
 
 	t.Run("ReportsOnlyOncePerFrequency", func(t *testing.T) {
@@ -198,6 +200,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Len(t, models, unpricedAIModelsLimit)
 		require.Equal(t, "most-used-model", models[0]["model"])
 		require.EqualValues(t, unpricedAIModelsLimit+overflow, sent[0].Data["total_count"])
+		require.Equal(t, true, sent[0].Data["truncated"])
 	})
 
 	t.Run("NothingToReport_AdvancesWindow", func(t *testing.T) {

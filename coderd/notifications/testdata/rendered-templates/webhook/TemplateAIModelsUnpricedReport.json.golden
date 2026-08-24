@@ -27,7 +27,8 @@
         }
       ],
       "report_frequency": "week",
-      "total_count": 15
+      "total_count": 15,
+      "truncated": true
     },
     "targets": null
   },

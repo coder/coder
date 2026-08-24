@@ -427,12 +427,10 @@ func buildDataForReportUnpricedAIModels(unpriced []database.GetUnpricedAIModelsS
 		})
 	}
 
-	data := map[string]any{
+	return map[string]any{
 		"report_frequency": unpricedAIModelsReportFrequencyLabel,
 		"models":           models,
+		"total_count":      len(unpriced),
+		"truncated":        len(unpriced) > len(models),
 	}
-	if len(unpriced) > len(models) {
-		data["total_count"] = len(unpriced)
-	}
-	return data
 }

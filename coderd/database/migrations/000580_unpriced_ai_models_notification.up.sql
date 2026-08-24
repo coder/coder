@@ -18,7 +18,7 @@ VALUES (
 {{range $model := .Data.models}}
 * {{$model.provider}}/{{$model.model}}
 {{- end}}
-{{if .Data.total_count}}
+{{if .Data.truncated}}
 {{len .Data.models}} of {{.Data.total_count}} models with no price are shown, ordered by usage.
 {{end}}
 Every Coder release ships with prices for most models, so only the models above need one: see [how spend is calculated](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated) and [how to configure prices](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-model-prices). Prices are not retroactive, so usage recorded before you set a price stays unpriced.$$,
