@@ -1890,19 +1890,19 @@ func (mr *MockStoreMockRecorder) GetAIAgentLifecycleJournalCreateLines(ctx, entr
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentLifecycleJournalCreateLines", reflect.TypeOf((*MockStore)(nil).GetAIAgentLifecycleJournalCreateLines), ctx, entryID)
 }
 
-// GetAIAgentsByOwnerID mocks base method.
-func (m *MockStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
+// GetAIAgentsByOwner mocks base method.
+func (m *MockStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIAgentsByOwnerID", ctx, ownerUserID)
-	ret0, _ := ret[0].([]database.GetAIAgentsByOwnerIDRow)
+	ret := m.ctrl.Call(m, "GetAIAgentsByOwner", ctx, ownerID)
+	ret0, _ := ret[0].([]database.GetAIAgentsByOwnerRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAIAgentsByOwnerID indicates an expected call of GetAIAgentsByOwnerID.
-func (mr *MockStoreMockRecorder) GetAIAgentsByOwnerID(ctx, ownerUserID any) *gomock.Call {
+// GetAIAgentsByOwner indicates an expected call of GetAIAgentsByOwner.
+func (mr *MockStoreMockRecorder) GetAIAgentsByOwner(ctx, ownerID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAIAgentsByOwnerID), ctx, ownerUserID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIAgentsByOwner", reflect.TypeOf((*MockStore)(nil).GetAIAgentsByOwner), ctx, ownerID)
 }
 
 // GetAIBridgeChatCost mocks base method.
@@ -10464,21 +10464,6 @@ func (m *MockStore) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 func (mr *MockStoreMockRecorder) UnsetDefaultChatModelConfigs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnsetDefaultChatModelConfigs", reflect.TypeOf((*MockStore)(nil).UnsetDefaultChatModelConfigs), ctx)
-}
-
-// UpdateAIAgentDeleted mocks base method.
-func (m *MockStore) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAIAgentDeleted", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateAIAgentDeleted indicates an expected call of UpdateAIAgentDeleted.
-func (mr *MockStoreMockRecorder) UpdateAIAgentDeleted(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIAgentDeleted", reflect.TypeOf((*MockStore)(nil).UpdateAIAgentDeleted), ctx, arg)
 }
 
 // UpdateAIBridgeInterceptionEnded mocks base method.

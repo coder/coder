@@ -11,6 +11,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -45,11 +47,9 @@ func TestAIAgentVisibilityAndListing(t *testing.T) {
 	require.Equal(t, codersdk.AIAgentOriginWorkspace, agents[0].OriginType)
 	require.False(t, agents[0].Deleted)
 
-	_, err = db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
-		UserID:  agentUser.ID,
-		Deleted: true,
-	})
-	require.NoError(t, err)
+	// Retirement in the ledger is what the endpoint reports as deleted.
+	require.NoError(t, entity.RetireAIAgent(ctx, db, agentUser.ID, entity.EventAIAgentKill,
+		entity.Ref{Type: entity.TypeUser, ID: first.UserID}, dbtime.Now()))
 	agents, err = client.AIAgentsByUser(ctx, codersdk.Me)
 	require.NoError(t, err)
 	require.Len(t, agents, 1)

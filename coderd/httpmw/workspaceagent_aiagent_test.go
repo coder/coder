@@ -211,15 +211,10 @@ func TestWorkspaceAgentAIBindingLiveness(t *testing.T) {
 		fixture := newBoundWorkspaceAgentAIFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		// Revocation retires the agent in the ledger, which is what
-		// resolution reads, and marks the mirror to match.
+		// resolution reads.
 		require.NoError(t, entity.RetireAIAgent(dbauthz.AsSystemRestricted(ctx), fixture.db, fixture.aiAgent.UserID,
 			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
 			dbtime.Now()))
-		_, err := fixture.db.UpdateAIAgentDeleted(dbauthz.AsSystemRestricted(ctx), database.UpdateAIAgentDeletedParams{
-			UserID:  fixture.agentUser.ID,
-			Deleted: true,
-		})
-		require.NoError(t, err)
 		require.Equal(t, http.StatusUnauthorized, serveWorkspaceAgent(t, fixture, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 			t.Fatal("deleted AI identity reached handler")
 		})))

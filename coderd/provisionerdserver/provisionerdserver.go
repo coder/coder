@@ -3450,14 +3450,6 @@ func (s *server) revokeAIAgentIdentity(ctx context.Context, agent database.AIAge
 		entity.Ref{Type: entity.TypeUser, ID: killer}, dbtime.Now()); err != nil {
 		return xerrors.Errorf("retire AI agent: %w", err)
 	}
-	// The mirror's `deleted` is written only because the AI agents endpoint
-	// still reports it. Retirement above is the fact; this is the copy.
-	if _, err := s.Database.UpdateAIAgentDeleted(systemCtx, database.UpdateAIAgentDeletedParams{
-		UserID:  agent.ID,
-		Deleted: true,
-	}); err != nil {
-		return xerrors.Errorf("mark AI agent deleted: %w", err)
-	}
 	rewrite2026augustlog.AIAgentRevoked(ctx, rewrite2026augustlog.F{
 		"ai_agent_user_id": agent.ID,
 		"owner_user_id":    agent.OwnerID,

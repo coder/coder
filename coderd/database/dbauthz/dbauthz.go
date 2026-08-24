@@ -2807,11 +2807,15 @@ func (q *querier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, ent
 	return q.db.GetAIAgentLifecycleJournalCreateLines(ctx, entryID)
 }
 
-func (q *querier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerUserID)); err != nil {
+// A user reading their own agents, not the system reading anyone's. The other
+// ledger reads authorize on the system resource because they serve internal
+// resolution; this one serves a request scoped to a principal and keeps the
+// personal-read boundary the query it replaces had.
+func (q *querier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerID)); err != nil {
 		return nil, err
 	}
-	return q.db.GetAIAgentsByOwnerID(ctx, ownerUserID)
+	return q.db.GetAIAgentsByOwner(ctx, ownerID)
 }
 
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
@@ -7659,13 +7663,6 @@ func (q *querier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
 		return err
 	}
 	return q.db.UnsetDefaultChatModelConfigs(ctx)
-}
-
-func (q *querier) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUserObject(arg.UserID)); err != nil {
-		return database.AIAgent{}, err
-	}
-	return q.db.UpdateAIAgentDeleted(ctx, arg)
 }
 
 func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

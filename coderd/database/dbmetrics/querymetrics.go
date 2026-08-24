@@ -1097,11 +1097,11 @@ func (m queryMetricsStore) GetAIAgentLifecycleJournalCreateLines(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]database.GetAIAgentsByOwnerIDRow, error) {
+func (m queryMetricsStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIAgentsByOwnerID(ctx, ownerUserID)
-	m.queryLatencies.WithLabelValues("GetAIAgentsByOwnerID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentsByOwnerID").Inc()
+	r0, r1 := m.s.GetAIAgentsByOwner(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetAIAgentsByOwner").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIAgentsByOwner").Inc()
 	return r0, r1
 }
 
@@ -5551,14 +5551,6 @@ func (m queryMetricsStore) UnsetDefaultChatModelConfigs(ctx context.Context) err
 	m.queryLatencies.WithLabelValues("UnsetDefaultChatModelConfigs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnsetDefaultChatModelConfigs").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpdateAIAgentDeleted(ctx context.Context, arg database.UpdateAIAgentDeletedParams) (database.AIAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateAIAgentDeleted(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateAIAgentDeleted").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIAgentDeleted").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg database.UpdateAIBridgeInterceptionEndedParams) (database.AIBridgeInterception, error) {

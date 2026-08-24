@@ -308,7 +308,12 @@ type sqlcQuerier interface {
 	GetAIAgentLifecycleEntriesBySubject(ctx context.Context, arg GetAIAgentLifecycleEntriesBySubjectParams) ([]AIAgentLifecycleJournal, error)
 	// The lines of one creation entry, ordered as they were written.
 	GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]AIAgentLifecycleJournalCreate, error)
-	GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error)
+	// The AI agents a principal owns, newest first.
+	//
+	// Joined to users only for the mirrored username, which is the one thing the
+	// ledger does not hold. The join goes when the mirror does, the name being
+	// derived from the identifier either way.
+	GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]GetAIAgentsByOwnerRow, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -1629,7 +1634,6 @@ type sqlcQuerier interface {
 	UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error)
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
-	UpdateAIAgentDeleted(ctx context.Context, arg UpdateAIAgentDeletedParams) (AIAgent, error)
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API

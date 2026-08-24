@@ -46,21 +46,6 @@ INSERT INTO ai_agents (
 )
 RETURNING *;
 
--- name: GetAIAgentsByOwnerID :many
-SELECT
-	sqlc.embed(ai_agents),
-	users.username
-FROM ai_agents
-INNER JOIN users ON users.id = ai_agents.user_id
-WHERE ai_agents.owner_user_id = @owner_user_id
-ORDER BY ai_agents.created_at DESC;
-
--- name: UpdateAIAgentDeleted :one
-UPDATE ai_agents
-SET deleted = @deleted
-WHERE user_id = @user_id
-RETURNING *;
-
 -- name: GetOrphanedChatAIAgents :many
 -- Chat-origin AI agent identities whose chat no longer exists. Read before the
 -- revocation below so that each one can be retired in the ledger through the

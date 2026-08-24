@@ -1003,6 +1003,62 @@ func (q *sqlQuerier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, 
 	return items, nil
 }
 
+const getAIAgentsByOwner = `-- name: GetAIAgentsByOwner :many
+SELECT
+	ai_agent_ledger.id, ai_agent_ledger.owner_type, ai_agent_ledger.owner_id, ai_agent_ledger.state, ai_agent_ledger.posting_reference, ai_agent_ledger.creation_site_type, ai_agent_ledger.creation_site_id, ai_agent_ledger.creation_time,
+	users.username
+FROM
+	ai_agent_ledger
+	INNER JOIN users ON users.id = ai_agent_ledger.id
+WHERE
+	ai_agent_ledger.owner_id = $1
+ORDER BY
+	ai_agent_ledger.creation_time DESC
+`
+
+type GetAIAgentsByOwnerRow struct {
+	AIAgentLedger AIAgentLedger `db:"aiagent_ledger" json:"aiagent_ledger"`
+	Username      string        `db:"username" json:"username"`
+}
+
+// The AI agents a principal owns, newest first.
+//
+// Joined to users only for the mirrored username, which is the one thing the
+// ledger does not hold. The join goes when the mirror does, the name being
+// derived from the identifier either way.
+func (q *sqlQuerier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]GetAIAgentsByOwnerRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAIAgentsByOwner, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAIAgentsByOwnerRow
+	for rows.Next() {
+		var i GetAIAgentsByOwnerRow
+		if err := rows.Scan(
+			&i.AIAgentLedger.ID,
+			&i.AIAgentLedger.OwnerType,
+			&i.AIAgentLedger.OwnerID,
+			&i.AIAgentLedger.State,
+			&i.AIAgentLedger.PostingReference,
+			&i.AIAgentLedger.CreationSiteType,
+			&i.AIAgentLedger.CreationSiteID,
+			&i.AIAgentLedger.CreationTime,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLatestAIAgentByCreationSite = `-- name: GetLatestAIAgentByCreationSite :one
 SELECT
 	id, owner_type, owner_id, state, posting_reference, creation_site_type, creation_site_id, creation_time
@@ -1264,52 +1320,6 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 	return i, err
 }
 
-const getAIAgentsByOwnerID = `-- name: GetAIAgentsByOwnerID :many
-SELECT
-	ai_agents.user_id, ai_agents.owner_user_id, ai_agents.origin_type, ai_agents.origin_id, ai_agents.created_at, ai_agents.deleted,
-	users.username
-FROM ai_agents
-INNER JOIN users ON users.id = ai_agents.user_id
-WHERE ai_agents.owner_user_id = $1
-ORDER BY ai_agents.created_at DESC
-`
-
-type GetAIAgentsByOwnerIDRow struct {
-	AIAgent  AIAgent `db:"aiagent" json:"aiagent"`
-	Username string  `db:"username" json:"username"`
-}
-
-func (q *sqlQuerier) GetAIAgentsByOwnerID(ctx context.Context, ownerUserID uuid.UUID) ([]GetAIAgentsByOwnerIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAIAgentsByOwnerID, ownerUserID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAIAgentsByOwnerIDRow
-	for rows.Next() {
-		var i GetAIAgentsByOwnerIDRow
-		if err := rows.Scan(
-			&i.AIAgent.UserID,
-			&i.AIAgent.OwnerUserID,
-			&i.AIAgent.OriginType,
-			&i.AIAgent.OriginID,
-			&i.AIAgent.CreatedAt,
-			&i.AIAgent.Deleted,
-			&i.Username,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getOrphanedChatAIAgents = `-- name: GetOrphanedChatAIAgents :many
 SELECT user_id
 FROM ai_agents
@@ -1480,32 +1490,6 @@ func (q *sqlQuerier) RevokeOrphanedChatAIAgents(ctx context.Context) (int64, err
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const updateAIAgentDeleted = `-- name: UpdateAIAgentDeleted :one
-UPDATE ai_agents
-SET deleted = $1
-WHERE user_id = $2
-RETURNING user_id, owner_user_id, origin_type, origin_id, created_at, deleted
-`
-
-type UpdateAIAgentDeletedParams struct {
-	Deleted bool      `db:"deleted" json:"deleted"`
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) UpdateAIAgentDeleted(ctx context.Context, arg UpdateAIAgentDeletedParams) (AIAgent, error) {
-	row := q.db.QueryRowContext(ctx, updateAIAgentDeleted, arg.Deleted, arg.UserID)
-	var i AIAgent
-	err := row.Scan(
-		&i.UserID,
-		&i.OwnerUserID,
-		&i.OriginType,
-		&i.OriginID,
-		&i.CreatedAt,
-		&i.Deleted,
-	)
-	return i, err
 }
 
 const calculateAIBridgeInterceptionsTelemetrySummary = `-- name: CalculateAIBridgeInterceptionsTelemetrySummary :one

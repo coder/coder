@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -157,10 +156,12 @@ func creationSite(params CreateParams) entity.CreationSite {
 // mirror writes the users row and the ai_agents row for an AI agent the ledger
 // has already named.
 func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateParams) (database.User, database.AIAgent, error) {
-	name, err := username(params.OriginType, id)
-	if err != nil {
-		return database.User{}, database.AIAgent{}, err
-	}
+	// One derivation, so the mirrored username and the name the authorizer
+	// carries as a friendly name cannot drift apart. It exceeds the 32
+	// character limit codersdk.NameValid states, which nothing enforces here:
+	// the column is plain text, and an AI agent never logs in or is renamed,
+	// which are the only paths that validate.
+	name := entity.DisplayName(creationSite(params).Type, id)
 
 	now := dbtime.Now()
 	createdUser, err := tx.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
@@ -278,26 +279,4 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 		AgentUser: agentUser,
 		OwnerUser: owner,
 	}, nil
-}
-
-// username derives the mirrored users row's name from the identifier the ledger
-// minted, so that a name is a rendering of an identity rather than a value with
-// a life of its own. Deriving it also removes the collision retry the previous
-// random name needed, which could not have survived joining the caller's
-// transaction: a unique violation aborts a transaction, so a retry inside one
-// cannot succeed.
-//
-// Half the identifier, the whole of it not fitting the 32 character limit on a
-// username. Collision is not defended against. Two agents would have to share
-// 64 bits for it to arise.
-func username(origin database.AIAgentOrigin, id uuid.UUID) (string, error) {
-	suffix := strings.ReplaceAll(id.String(), "-", "")[:16]
-	switch origin {
-	case database.AIAgentOriginChat:
-		return "ai-chat-" + suffix, nil
-	case database.AIAgentOriginWorkspace:
-		return "ai-ws-" + suffix, nil
-	default:
-		return "", xerrors.Errorf("unsupported AI agent origin %q", origin)
-	}
 }

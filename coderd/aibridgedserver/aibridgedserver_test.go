@@ -321,17 +321,9 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 		{
 			name: "AI agent identity retired",
 			mutate: func(ctx context.Context, db database.Store, owner, agentUser database.User) error {
-				// Retirement in the ledger is what authorization reads. The
-				// mirror is written beside it, as revocation does.
-				if err := entity.RetireAIAgent(ctx, db, agentUser.ID, entity.EventAIAgentKill,
-					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, dbtime.Now()); err != nil {
-					return err
-				}
-				_, err := db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
-					Deleted: true,
-					UserID:  agentUser.ID,
-				})
-				return err
+				// Retirement in the ledger is what authorization reads.
+				return entity.RetireAIAgent(ctx, db, agentUser.ID, entity.EventAIAgentKill,
+					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, dbtime.Now())
 			},
 			wantErr: aibridgedserver.ErrInvalidAIAgent,
 		},

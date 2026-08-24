@@ -155,15 +155,10 @@ func TestAIAgentOwnerAndIdentityLiveness(t *testing.T) {
 		fixture := newAIAgentAuthFixture(t, nil)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		// Revocation retires the agent in the ledger, which is what
-		// resolution reads, and marks the mirror to match.
+		// resolution reads.
 		require.NoError(t, entity.RetireAIAgent(ctx, fixture.db, fixture.agent.UserID,
 			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
 			dbtime.Now()))
-		_, err := fixture.db.UpdateAIAgentDeleted(ctx, database.UpdateAIAgentDeletedParams{
-			UserID:  fixture.agent.UserID,
-			Deleted: true,
-		})
-		require.NoError(t, err)
 		require.Equal(t, http.StatusUnauthorized, serveAIAgentKey(t, fixture.db, fixture.token, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 			t.Fatal("deleted identity request reached handler")
 		})))

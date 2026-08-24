@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -793,7 +794,7 @@ func (api *API) aiAgentsByUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
 
-	rows, err := api.Database.GetAIAgentsByOwnerID(ctx, user.ID)
+	rows, err := api.Database.GetAIAgentsByOwner(ctx, user.ID)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -806,12 +807,15 @@ func (api *API) aiAgentsByUser(rw http.ResponseWriter, r *http.Request) {
 	agents := make([]codersdk.AIAgent, 0, len(rows))
 	for _, row := range rows {
 		agents = append(agents, codersdk.AIAgent{
-			ID:         row.AIAgent.UserID,
+			ID:         row.AIAgentLedger.ID,
 			Username:   row.Username,
-			OriginType: codersdk.AIAgentOrigin(row.AIAgent.OriginType),
-			OriginID:   row.AIAgent.OriginID,
-			CreatedAt:  row.AIAgent.CreatedAt,
-			Deleted:    row.AIAgent.Deleted,
+			OriginType: codersdk.AIAgentOrigin(row.AIAgentLedger.CreationSiteType),
+			OriginID:   row.AIAgentLedger.CreationSiteID,
+			CreatedAt:  row.AIAgentLedger.CreationTime,
+			// The response says deleted because that is the word the public
+			// type uses. The ledger's word is retired, and the two mean the
+			// same thing about the same agent.
+			Deleted: row.AIAgentLedger.State != entity.AIAgentStateActive,
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, agents)
