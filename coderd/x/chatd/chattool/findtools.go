@@ -88,7 +88,7 @@ type FindToolsOptions struct {
 type FindToolsArgs struct {
 	Queries []string `json:"queries,omitempty" description:"Task or capability keywords, matched against tool names, descriptions, parameters, and server metadata. Prefer a few specific keywords over sentences."`
 	Names   []string `json:"names,omitempty" description:"Exact cataloged tool names to activate directly."`
-	Limit   int      `json:"limit,omitempty" description:"Maximum keyword matches to return and activate (default 10, max 20)."`
+	Limit   int      `json:"limit,omitempty" description:"Cap on total tools returned and activated per call (default 10, max 20). Exact names are always included and may exceed it."`
 }
 
 type FindToolsMatch struct {
@@ -558,6 +558,13 @@ func parseFindToolsQueries(entries []FindToolCatalogEntry, queries []string) []s
 // intended scope is ambiguous.
 func autoScopeFindToolsQuery(servers []string, query string) scopedFindToolsQuery {
 	words := strings.Fields(query)
+	// Query text is model output, so inspect only as many words as the
+	// per-query token cap; the nested server scan stays bounded like
+	// scoring. The unscoped fallback still tokenizes the full query,
+	// which applies the same cap itself.
+	if len(words) > findToolsMaxQueryTokens {
+		words = words[:findToolsMaxQueryTokens]
+	}
 	scopeIndex := -1
 	var scope scopedFindToolsQuery
 	for i, word := range words {
@@ -694,7 +701,7 @@ func (t findToolsEntryTokens) score(token string) int {
 }
 
 func buildFindToolsDescription(entries []FindToolCatalogEntry, catalogTokenBudget float64) string {
-	const usage = "The MCP tools cataloged below exist but are deferred: they stay out of your tool list until activated. Search them by keyword, activate exact tool names, or scope a query to one server with a \"server: terms\" prefix; matches activate and become callable on the next step. Calling a cataloged tool directly by name is allowed and auto-loads its schema, but search first for unfamiliar tools. At most limit tools are returned and activated per call (default 10, max 20); exact names always activate, up to 20 per call. Narrow the query or raise limit for more.\n\n"
+	const usage = "The MCP tools cataloged below are deferred: not in your tool list until activated. Search by keyword, activate exact tool names, or scope with a \"server: terms\" prefix; matches activate and become callable on the next step. Direct calls to cataloged tools also work, but search first for unfamiliar tools. limit caps total results per call (default 10, max 20); exact names bypass it but still spend the shared schema budget. Narrow the query or raise limit for more.\n\n"
 	budget := float64(findToolsCatalogTokens)
 	if catalogTokenBudget > 0 && catalogTokenBudget < budget {
 		budget = catalogTokenBudget

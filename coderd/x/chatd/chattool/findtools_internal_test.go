@@ -154,6 +154,11 @@ func TestSearchTools(t *testing.T) {
 		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{"linear github issue"}}, SearchBudget{})
 		require.Len(t, result.Activated, 3,
 			"words naming two servers leave the query unscoped")
+
+		overflowScope := strings.Repeat("issue ", findToolsMaxQueryTokens) + "linear"
+		result, _ = SearchTools(autoEntries, FindToolsArgs{Queries: []string{overflowScope}}, SearchBudget{})
+		require.Len(t, result.Activated, 2,
+			"a server word beyond the word-inspection cap does not scope")
 	})
 	t.Run("server prefix scope", func(t *testing.T) {
 		t.Parallel()
