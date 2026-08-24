@@ -54,8 +54,8 @@ reference; the rest can use plain values. See the next example.
 
 ### Example: Appending to PATH
 
-Multiple `coder_env` resources can each add directories to `PATH`. Reference
-`$PATH` in one of them to keep the host's original directories:
+Multiple `coder_env` resources can each add directories to `PATH`.
+Reference `$PATH` in one of them to keep the host's original directories:
 
 ```tf
 resource "coder_agent" "dev" {
