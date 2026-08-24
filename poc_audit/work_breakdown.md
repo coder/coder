@@ -1325,3 +1325,105 @@ by it.** `MintKey` writes `api_keys` directly and never reaches the credential
 ledger, so the credential an agent actually uses is absent from the ledger while
 the inert one is in it. WP4 moved our own issuance onto the ledger and this path
 was never ours. It is Phase 3's to close.
+
+## WP10. The AI agent ledger becomes the only AI agent
+
+### Summary
+
+Every reader of `ai_agents` moves to the ledger, retirement is recorded rather
+than flagged, and the table is dropped.
+
+### Status
+
+Complete, 2026-08-23, in six commits after WP9: `cdc7819a57`, `e379c05dd4`,
+`1033c5f9df`, `de105359b2`, `171d1905c7`, `3404685fb3`.
+
+**Written after the fact, and not after the decision.** Eric named removing
+`ai_agents` as the goal while the work was still several steps away, and chose
+each step toward it: retire `Resolve` first, then the write of the mirror's
+flag, then the by-creation-site readers, then the sweep. So this package records
+a direction that was set, rather than one inferred from what happened to get
+done.
+
+What was not known in advance is that it is one package. WP9 ended with the
+table reduced to a mirror and this looked like several; it turned out to be one
+shape applied six times, and is recorded as one.
+
+### What forces the work
+
+WP9 left the ledger authoritative and the mirror still read by eight queries.
+While anything reads the mirror, two records describe one agent and only one of
+them is maintained by the entity functions.
+
+### What was done
+
+**Resolution reads the ledger.** `aiagentidentity.Resolve` returns the ledger
+row in place of the mirror's, and checks `state` where it checked `deleted`.
+
+**Retirement was moved first, because it had to be.** Resolution moved and
+revoked agents began authenticating, all three revocation paths having written
+only the mirror. See "A fact's writes move to its new home before its reads do"
+in `implementation_patterns.md`.
+
+**Two by-creation-site queries** carry the readers that looked an agent up by
+what it was created in: one for the live agent of a site, one for the latest
+whatever its state, the second being what tells a chat tree that never had an
+agent from one whose agent is gone.
+
+**The AI agents endpoint** reads a by-owner ledger query joined to `users` for
+the username, and reports `state != active` as `deleted`. Its response is
+unchanged in every field.
+
+**The sweep reads the ledger** and takes its idempotency from `state = 'active'`
+rather than from the mirror's flag. Key revocation became a delete by holder,
+which works because `api_keys.holder_id` is deliberately not a foreign key.
+
+**The table and the `ai_agent_origin` enum are dropped**, migration 000589, with
+no data carried across: every row was written by code that exists only on this
+branch.
+
+### Acceptance tests
+
+**A concurrent resolution of one workspace yields one agent.** Eight racers,
+and without the workspace row lock all eight create their own, every run.
+
+**A retired agent does not resolve, and does not authenticate.** Asserted for
+each of the three revocation paths.
+
+**The sweep retires an orphan in the ledger and revokes its keys**, through a
+real purge run rather than against the queries.
+
+**The endpoint's response is unchanged**, which its existing test asserts field
+by field.
+
+Each of the two tests written for this had its negative control run: removing
+the behaviour makes the assertion it exists for fail.
+
+### PoC cheats
+
+**The event is `kill` at all three revocation paths**, which overstates every
+one of them. An ownership change is noticed lazily by the next resolution, a
+prebuild claim is not an order to end the previous agent, and an orphaned agent
+is the corpus's `lapse` almost by definition. Eric, 2026-08-23: use `kill` and
+record it.
+
+**The sweep's actor is `SystemActor`**, whose own comment says nothing new
+should use it. Eric: this sounds like custodian territory and the analysis is
+deferred. It is the third use WP6 has to undo.
+
+**The derived username is 42 characters**, over the 32 `codersdk.NameValid`
+states. Nothing enforces it: the column is plain text and the paths that
+validate are a user-supplied rename and OIDC login, neither of which an AI agent
+reaches. The name is now one derivation shared with the authorizer's friendly
+name, which is what the length buys.
+
+### What this package does not do
+
+**It does not remove the agent's `users` row.** Six places route on
+`users.kind = 'ai_agent'`, and the mirrored username is read by the endpoint and
+by the authorizer. Removing it means collapsing the two agent paths in
+`httpmw/apikey.go`, which means `MintKey` minting with
+`holder_type = 'ai_agent'`, after which the subject is built from the ledger
+identity rather than from the owner's roles and decoration. **That is a change
+to what an AI agent is authorized to do**, and is held pending a security
+finding Eric has not yet released.

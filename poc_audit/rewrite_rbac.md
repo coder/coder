@@ -823,6 +823,73 @@ its shape. Nobody would defend that loop on its merits. It exists because a name
 had to be unique, the name had to be unique because it was a username, and it
 was a username because an AI agent had to be a user.
 
+**Realised on 2026-08-23**, and earlier than planned, because it could not
+survive the change that preceded it. Once creation joined the caller's
+transaction, a unique violation aborted that transaction and an in-transaction
+retry could not succeed. The name is derived from the minted identifier
+instead. The loop did not have to be argued out; it stopped being possible.
+
+### A mirror can be retired one reader at a time
+
+Observed on 2026-08-23, replacing the AI identity code's `ai_agents` table with
+the AI agent ledger. **The table went in seven commits, each one green, with the
+mirror present throughout and no cutover.**
+
+What made that possible was reversing the authority rather than the storage.
+The ledger began minting the identifier and the legacy rows were written under
+it, so the two identifier spaces became one. From there every reader could move
+on its own schedule, because both places answered the same question about the
+same thing, and each move was a change of one call site rather than a step in a
+migration.
+
+**The alternative shape is a cutover**, where the readers move together because
+until they do the identifiers disagree. That is one large change that is either
+right or broken, and it cannot be committed in pieces.
+
+**The cost of the mirror is that it is silent about divergence**, which is real
+and was recorded as an interim each time it was relied on. It was survivable
+here because the mirror was one way and short lived. A mirror kept for longer
+than a few increments stops being a bridge and becomes a second source of truth.
+
+### An ending stops being a boolean and gains an actor
+
+Revoking an AI agent set `deleted = true` on the mirror. Three paths did it:
+a workspace's owner changing, a prebuild being claimed, and the orphan sweep
+finding an agent whose chat retention had purged.
+
+**None of the three recorded who, or when, or which of them it was.** A reader
+finding `deleted` could not tell a swept orphan from a revoked identity, and had
+no date for either beyond the row's unchanged `created_at`.
+
+All three now post a retirement to the journal with an actor and an effective
+date. That is the general benefit the audit work is for, arriving in a place
+nobody set out to improve: the change was made because resolution had moved and
+would otherwise have read a stale answer, and the recordable ending came with
+it.
+
+**Two proof of concept cheats sit inside this**, both recorded at the call sites.
+The event is `kill` at all three, which overstates what happened, none of them
+being an order to end the agent. The sweep's actor is the system actor, which
+Eric named as custodian territory with the analysis deferred. Neither cheat
+would have been visible while the fact was a boolean, because a boolean has
+nowhere to put an actor and so never raises the question.
+
+### Cost: the work runs in the opposite order to the plan
+
+Three times on 2026-08-23 an increment turned out to depend on one that had been
+scheduled after it. Creation had to move before the referents, retirement before
+resolution, and the readers of a flag before its writer. Each was found by
+starting the work and hitting the wall, not by reading the plan again.
+
+**The cause is general and is recorded in `implementation_patterns.md` under
+"A fact's writes move to its new home before its reads do".** The plan is
+written from the goal backwards, and the goal is always a read.
+
+The cost to estimation is that a plan for work of this shape should be expected
+to reverse locally, and the reversals are not visible until the middle of it.
+The cost to the work itself was small, each discovery being a redirection rather
+than a rewrite, but only because the increments were small enough to redirect.
+
 ### Cost: last use has to move off the credential row
 
 **Extra, and smaller than it first appeared.** This entry is amended: it

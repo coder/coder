@@ -737,6 +737,36 @@ one set is worse than either representation alone.
 already recorded as users stay there. Going from one identity table to two is
 where nearly all the work is, and going from two to three afterwards is small.
 
+### A fact's writes move to its new home before its reads do
+
+When a fact is held in two places and one of them is to become authoritative,
+the writes move first. Moving a read first makes the new home authoritative for
+a value nothing maintains there, and **the failure is silent**: the read
+succeeds, and returns an answer that was true when the old home was last
+written.
+
+Three instances on 2026-08-23, each discovered by doing it in the other order.
+
+- **Creation before referents.** Repointing a column at the ledger while the
+  identity code still minted the identifier fails on the next thing created.
+  The ledger had to mint first.
+- **Retirement before resolution.** Resolution moved to the ledger and revoked
+  agents began authenticating, revocation having written only the mirror. The
+  test caught it; nothing else would have.
+- **Readers before the writer.** Removing the write of a boolean is safe only
+  once nothing filters on it. Two lookups still did, and would have started
+  returning ended things as live.
+
+**The order is not the order the work is naturally described in.** Each of these
+was planned the other way round, because a plan is written from the goal
+backwards and the goal is always the read: what should this now answer. The
+dependency runs the other way, and only the middle of the work shows it.
+
+**What makes it silent is that both homes are populated.** A missing row raises;
+a stale row does not. So the test that catches this is not a test of the new
+home but of an ending: retire the thing and assert it is refused. A test that
+only creates and reads passes throughout.
+
 ## Findings
 
 ### The existing journal carries one date, not two
