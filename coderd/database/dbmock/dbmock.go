@@ -7814,21 +7814,6 @@ func (mr *MockStoreMockRecorder) IncrementUserAIDailySpend(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementUserAIDailySpend", reflect.TypeOf((*MockStore)(nil).IncrementUserAIDailySpend), ctx, arg)
 }
 
-// InsertAIAgent mocks base method.
-func (m *MockStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIAgent", ctx, arg)
-	ret0, _ := ret[0].(database.AIAgent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertAIAgent indicates an expected call of InsertAIAgent.
-func (mr *MockStoreMockRecorder) InsertAIAgent(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgent", reflect.TypeOf((*MockStore)(nil).InsertAIAgent), ctx, arg)
-}
-
 // InsertAIAgentLedgerRow mocks base method.
 func (m *MockStore) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
 	m.ctrl.T.Helper()

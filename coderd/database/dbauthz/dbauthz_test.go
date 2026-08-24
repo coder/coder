@@ -442,13 +442,6 @@ func (s *MethodTestSuite) TestAIAgents() {
 		check.Args(owner).Asserts(rbac.ResourceUserObject(owner), policy.ActionReadPersonal).Returns([]database.GetAIAgentsByOwnerRow{})
 	}))
 
-	s.Run("InsertAIAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.InsertAIAgentParams{})
-		agent := testutil.Fake(s.T(), faker, database.AIAgent{UserID: arg.UserID})
-		dbm.EXPECT().InsertAIAgent(gomock.Any(), arg).Return(agent, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUser, policy.ActionCreate).Returns(agent)
-	}))
-
 	s.Run("InsertAIAgentUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := testutil.Fake(s.T(), faker, database.InsertAIAgentUserParams{})
 		user := testutil.Fake(s.T(), faker, database.User{ID: arg.ID})

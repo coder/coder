@@ -28,7 +28,7 @@ var (
 type CreateParams struct {
 	OwnerID        uuid.UUID
 	OrganizationID uuid.UUID
-	OriginType     database.AIAgentOrigin
+	OriginType     entity.CreationSiteType
 	OriginID       uuid.UUID
 }
 
@@ -36,7 +36,7 @@ type CreateParams struct {
 type AIAgentActor struct {
 	AgentUserID uuid.UUID
 	OwnerUserID uuid.UUID
-	OriginType  database.AIAgentOrigin
+	OriginType  entity.CreationSiteType
 	OriginID    uuid.UUID
 }
 
@@ -79,24 +79,21 @@ func ActorFromContext(ctx context.Context) (AIAgentActor, bool) {
 // The mirror is an interim and is one way. Nothing here reports divergence,
 // and nothing should come to rely on these rows being the authority. Later work
 // deletes the mirror rather than untangling it.
-func Create(ctx context.Context, db database.Store, params CreateParams) (database.User, database.AIAgent, error) {
+func Create(ctx context.Context, db database.Store, params CreateParams) (database.User, error) {
 	if params.OwnerID == uuid.Nil {
-		return database.User{}, database.AIAgent{}, xerrors.New("owner ID must be non-nil")
+		return database.User{}, xerrors.New("owner ID must be non-nil")
 	}
 	if params.OrganizationID == uuid.Nil {
-		return database.User{}, database.AIAgent{}, xerrors.New("organization ID must be non-nil")
+		return database.User{}, xerrors.New("organization ID must be non-nil")
 	}
 	if params.OriginID == uuid.Nil {
-		return database.User{}, database.AIAgent{}, xerrors.New("origin ID must be non-nil")
+		return database.User{}, xerrors.New("origin ID must be non-nil")
 	}
 	if !params.OriginType.Valid() {
-		return database.User{}, database.AIAgent{}, xerrors.Errorf("invalid AI agent origin type %q", params.OriginType)
+		return database.User{}, xerrors.Errorf("invalid AI agent origin type %q", params.OriginType)
 	}
 
-	var (
-		createdUser  database.User
-		createdAgent database.AIAgent
-	)
+	var createdUser database.User
 	// Identity creation is an internal operation with explicit owner checks.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
 
@@ -130,32 +127,26 @@ func Create(ctx context.Context, db database.Store, params CreateParams) (databa
 			return xerrors.Errorf("create AI agent: %w", err)
 		}
 
-		createdUser, createdAgent, err = mirror(systemCtx, tx, created.ID, params)
+		createdUser, err = mirror(systemCtx, tx, created.ID, params)
 		return err
 	}, nil)
 	if err != nil {
-		return database.User{}, database.AIAgent{}, err
+		return database.User{}, err
 	}
-	return createdUser, createdAgent, nil
+	return createdUser, nil
 }
 
-// creationSite restates the identity code's origin pair in the model's terms.
-// The two name the same thing; only the word differs, and this is the one place
-// that has to know both.
+// creationSite reads the params as the pair the model calls a creation site.
 func creationSite(params CreateParams) entity.CreationSite {
-	site := entity.CreationSite{ID: params.OriginID}
-	switch params.OriginType {
-	case database.AIAgentOriginChat:
-		site.Type = entity.CreationSiteTypeChat
-	case database.AIAgentOriginWorkspace:
-		site.Type = entity.CreationSiteTypeWorkspace
-	}
-	return site
+	return entity.CreationSite{Type: params.OriginType, ID: params.OriginID}
 }
 
-// mirror writes the users row and the ai_agents row for an AI agent the ledger
-// has already named.
-func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateParams) (database.User, database.AIAgent, error) {
+// mirror writes the users row for an AI agent the ledger has already named.
+//
+// It is all that is left of the mirror. The ai_agents row went when nothing
+// read it; this row survives because six places still route on
+// users.kind = 'ai_agent' and because the username is read from it.
+func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateParams) (database.User, error) {
 	// One derivation, so the mirrored username and the name the authorizer
 	// carries as a friendly name cannot drift apart. It exceeds the 32
 	// character limit codersdk.NameValid states, which nothing enforces here:
@@ -170,26 +161,16 @@ func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateP
 		CreatedAt: now,
 	})
 	if err != nil {
-		return database.User{}, database.AIAgent{}, xerrors.Errorf("insert AI agent user: %w", err)
+		return database.User{}, xerrors.Errorf("insert AI agent user: %w", err)
 	}
 
-	createdAgent, err := tx.InsertAIAgent(ctx, database.InsertAIAgentParams{
-		UserID:      id,
-		OwnerUserID: params.OwnerID,
-		OriginType:  params.OriginType,
-		OriginID:    params.OriginID,
-		CreatedAt:   now,
-	})
-	if err != nil {
-		return database.User{}, database.AIAgent{}, xerrors.Errorf("insert AI agent metadata: %w", err)
-	}
 	rewrite2026augustlog.AIAgentCreated(ctx, rewrite2026augustlog.F{
-		"ai_agent_user_id": createdAgent.UserID,
-		"owner_user_id":    createdAgent.OwnerUserID,
-		"origin_type":      createdAgent.OriginType,
-		"origin_id":        createdAgent.OriginID,
+		"ai_agent_user_id": id,
+		"owner_user_id":    params.OwnerID,
+		"origin_type":      params.OriginType,
+		"origin_id":        params.OriginID,
 	})
-	return createdUser, createdAgent, nil
+	return createdUser, nil
 }
 
 // MintKey creates a token-login API key for an AI agent identity.
@@ -270,7 +251,7 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 	actor := AIAgentActor{
 		AgentUserID: ledger.ID,
 		OwnerUserID: ledger.OwnerID,
-		OriginType:  database.AIAgentOrigin(ledger.CreationSiteType),
+		OriginType:  entity.CreationSiteType(ledger.CreationSiteType),
 		OriginID:    ledger.CreationSiteID,
 	}
 	return ResolvedIdentity{

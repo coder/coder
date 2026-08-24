@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -1653,10 +1654,10 @@ func TestSubAgentAPI(t *testing.T) {
 				UserID:         user.ID,
 				OrganizationID: org.ID,
 			})
-			_, aiAgent, err := aiagentidentity.Create(dbauthz.AsSystemRestricted(ctx), db, aiagentidentity.CreateParams{ //nolint:gocritic // Test setup.
+			aiAgentUser, err := aiagentidentity.Create(dbauthz.AsSystemRestricted(ctx), db, aiagentidentity.CreateParams{ //nolint:gocritic // Test setup.
 				OwnerID:        user.ID,
 				OrganizationID: org.ID,
-				OriginType:     database.AIAgentOriginWorkspace,
+				OriginType:     entity.CreationSiteTypeWorkspace,
 				OriginID:       workspace.ID,
 			})
 			require.NoError(t, err)
@@ -1665,7 +1666,7 @@ func TestSubAgentAPI(t *testing.T) {
 				WorkspaceID:       workspace.ID,
 				ParentAgentID:     agent.ID,
 				ChildAgentID:      sandboxChild.ID,
-				AIAgentID:         aiAgent.UserID,
+				AIAgentID:         aiAgentUser.ID,
 				Name:              "sandbox-child",
 				EgressEnforcement: string(codersdk.AISandboxEgressEnforcementForced),
 				CreatedAt:         dbtime.Now(),

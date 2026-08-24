@@ -4169,14 +4169,6 @@ func (m queryMetricsStore) IncrementUserAIDailySpend(ctx context.Context, arg da
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertAIAgent(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIAgent").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgent").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIAgentLedgerRow(ctx, arg)

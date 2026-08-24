@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -241,10 +242,10 @@ func TestAIEgressPolicyAgentBoundForbidden(t *testing.T) {
 	unbound := newAgent(t)
 	bound := newAgent(t)
 
-	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        user.UserID,
 		OrganizationID: user.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       uuid.New(),
 	})
 	require.NoError(t, err)

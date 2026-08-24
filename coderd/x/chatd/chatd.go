@@ -1373,16 +1373,16 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			if occupied == 0 {
 				return xerrors.Errorf("chat tree %s already has a live AI agent", chatID)
 			}
-			_, agent, err := aiagentidentity.Create(ctx, tx, aiagentidentity.CreateParams{
+			agentUser, err := aiagentidentity.Create(ctx, tx, aiagentidentity.CreateParams{
 				OwnerID:        opts.OwnerID,
 				OrganizationID: opts.OrganizationID,
-				OriginType:     database.AIAgentOriginChat,
+				OriginType:     entity.CreationSiteTypeChat,
 				OriginID:       chatID,
 			})
 			if err != nil {
 				return xerrors.Errorf("create chat AI agent identity: %w", err)
 			}
-			if _, _, err := aiagentidentity.MintKey(ctx, tx, agent.UserID, aiagentidentity.ChatAgentProfile(chatID)); err != nil {
+			if _, _, err := aiagentidentity.MintKey(ctx, tx, agentUser.ID, aiagentidentity.ChatAgentProfile(chatID)); err != nil {
 				return xerrors.Errorf("mint chat AI agent key: %w", err)
 			}
 			return nil
@@ -3914,7 +3914,7 @@ func (p *Server) chatAIAgentActor(ctx context.Context, chat database.Chat) (aiag
 	return aiagentidentity.AIAgentActor{
 		AgentUserID: agent.ID,
 		OwnerUserID: agent.OwnerID,
-		OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+		OriginType:  entity.CreationSiteType(agent.CreationSiteType),
 		OriginID:    agent.CreationSiteID,
 	}, true, nil
 }

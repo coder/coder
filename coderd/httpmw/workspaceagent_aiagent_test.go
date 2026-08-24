@@ -35,7 +35,7 @@ type workspaceAgentAIFixture struct {
 	workspace database.WorkspaceTable
 	agent     database.WorkspaceAgent
 	agentUser database.User
-	aiAgent   database.AIAgent
+	siteID    uuid.UUID
 }
 
 func newWorkspaceAgentAIFixture(t *testing.T) workspaceAgentAIFixture {
@@ -97,11 +97,12 @@ func newBoundWorkspaceAgentAIFixture(t *testing.T) workspaceAgentAIFixture {
 
 	fixture := newWorkspaceAgentAIFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
-	agentUser, aiAgent, err := aiagentidentity.Create(ctx, fixture.db, aiagentidentity.CreateParams{
+	siteID := uuid.New()
+	agentUser, err := aiagentidentity.Create(ctx, fixture.db, aiagentidentity.CreateParams{
 		OwnerID:        fixture.owner.ID,
 		OrganizationID: fixture.workspace.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
-		OriginID:       uuid.New(),
+		OriginType:     entity.CreationSiteTypeWorkspace,
+		OriginID:       siteID,
 	})
 	require.NoError(t, err)
 	_, err = fixture.db.UpdateWorkspaceAgentAIAgentID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAgentAIAgentIDParams{
@@ -110,7 +111,7 @@ func newBoundWorkspaceAgentAIFixture(t *testing.T) workspaceAgentAIFixture {
 	})
 	require.NoError(t, err)
 	fixture.agentUser = agentUser
-	fixture.aiAgent = aiAgent
+	fixture.siteID = siteID
 	return fixture
 }
 
@@ -141,8 +142,8 @@ func TestWorkspaceAgentAIBinding(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, fixture.agentUser.ID, actor.AgentUserID)
 			require.Equal(t, fixture.owner.ID, actor.OwnerUserID)
-			require.Equal(t, fixture.aiAgent.OriginType, actor.OriginType)
-			require.Equal(t, fixture.aiAgent.OriginID, actor.OriginID)
+			require.Equal(t, entity.CreationSiteTypeWorkspace, actor.OriginType)
+			require.Equal(t, fixture.siteID, actor.OriginID)
 			rw.WriteHeader(http.StatusNoContent)
 		}))
 		require.Equal(t, http.StatusNoContent, status)
@@ -212,7 +213,7 @@ func TestWorkspaceAgentAIBindingLiveness(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		// Revocation retires the agent in the ledger, which is what
 		// resolution reads.
-		require.NoError(t, entity.RetireAIAgent(dbauthz.AsSystemRestricted(ctx), fixture.db, fixture.aiAgent.UserID,
+		require.NoError(t, entity.RetireAIAgent(dbauthz.AsSystemRestricted(ctx), fixture.db, fixture.agentUser.ID,
 			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
 			dbtime.Now()))
 		require.Equal(t, http.StatusUnauthorized, serveWorkspaceAgent(t, fixture, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

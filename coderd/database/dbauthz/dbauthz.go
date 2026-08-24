@@ -6083,13 +6083,6 @@ func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.In
 	return q.db.IncrementUserAIDailySpend(ctx, arg)
 }
 
-func (q *querier) InsertAIAgent(ctx context.Context, arg database.InsertAIAgentParams) (database.AIAgent, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
-		return database.AIAgent{}, err
-	}
-	return q.db.InsertAIAgent(ctx, arg)
-}
-
 func (q *querier) InsertAIAgentLedgerRow(ctx context.Context, arg database.InsertAIAgentLedgerRowParams) (database.AIAgentLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.AIAgentLedger{}, err

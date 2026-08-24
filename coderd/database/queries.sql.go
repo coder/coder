@@ -1361,53 +1361,6 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 	return i, err
 }
 
-const insertAIAgent = `-- name: InsertAIAgent :one
-INSERT INTO ai_agents (
-	user_id,
-	owner_user_id,
-	origin_type,
-	origin_id,
-	created_at,
-	deleted
-) VALUES (
-	$1,
-	$2,
-	$3,
-	$4,
-	$5,
-	false
-)
-RETURNING user_id, owner_user_id, origin_type, origin_id, created_at, deleted
-`
-
-type InsertAIAgentParams struct {
-	UserID      uuid.UUID     `db:"user_id" json:"user_id"`
-	OwnerUserID uuid.UUID     `db:"owner_user_id" json:"owner_user_id"`
-	OriginType  AIAgentOrigin `db:"origin_type" json:"origin_type"`
-	OriginID    uuid.UUID     `db:"origin_id" json:"origin_id"`
-	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error) {
-	row := q.db.QueryRowContext(ctx, insertAIAgent,
-		arg.UserID,
-		arg.OwnerUserID,
-		arg.OriginType,
-		arg.OriginID,
-		arg.CreatedAt,
-	)
-	var i AIAgent
-	err := row.Scan(
-		&i.UserID,
-		&i.OwnerUserID,
-		&i.OriginType,
-		&i.OriginID,
-		&i.CreatedAt,
-		&i.Deleted,
-	)
-	return i, err
-}
-
 const insertAIAgentUser = `-- name: InsertAIAgentUser :one
 INSERT INTO users (
 	id,

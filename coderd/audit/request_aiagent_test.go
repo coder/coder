@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -24,7 +25,7 @@ func TestAIAgentAuditAttribution(t *testing.T) {
 	actor := aiagentidentity.AIAgentActor{
 		AgentUserID: agentUserID,
 		OwnerUserID: ownerUserID,
-		OriginType:  database.AIAgentOriginChat,
+		OriginType:  entity.CreationSiteTypeChat,
 		OriginID:    uuid.New(),
 	}
 

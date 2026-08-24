@@ -28,7 +28,6 @@ type aiAgentAuthFixture struct {
 	db        database.Store
 	owner     database.User
 	agentUser database.User
-	agent     database.AIAgent
 	token     string
 }
 
@@ -44,10 +43,10 @@ func newAIAgentAuthFixture(t *testing.T, ownerRoles []string) aiAgentAuthFixture
 		UserID:         owner.ID,
 	})
 	originID := uuid.New()
-	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: organization.ID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       originID,
 	})
 	require.NoError(t, err)
@@ -57,7 +56,6 @@ func newAIAgentAuthFixture(t *testing.T, ownerRoles []string) aiAgentAuthFixture
 		db:        db,
 		owner:     owner,
 		agentUser: agentUser,
-		agent:     agent,
 		token:     token,
 	}
 }
@@ -156,7 +154,7 @@ func TestAIAgentOwnerAndIdentityLiveness(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		// Revocation retires the agent in the ledger, which is what
 		// resolution reads.
-		require.NoError(t, entity.RetireAIAgent(ctx, fixture.db, fixture.agent.UserID,
+		require.NoError(t, entity.RetireAIAgent(ctx, fixture.db, fixture.agentUser.ID,
 			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: fixture.owner.ID},
 			dbtime.Now()))
 		require.Equal(t, http.StatusUnauthorized, serveAIAgentKey(t, fixture.db, fixture.token, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

@@ -2614,15 +2614,15 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				// Orphaned by construction: no chat has ever had this
 				// identifier, which is the state retention leaves behind
 				// because ai_agents.origin_id has no foreign key to chats.
-				_, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+				agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 					OwnerID:        deps.user.ID,
 					OrganizationID: deps.org.ID,
-					OriginType:     database.AIAgentOriginChat,
+					OriginType:     entity.CreationSiteTypeChat,
 					OriginID:       uuid.New(),
 				})
 				require.NoError(t, err)
 
-				before, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+				before, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 				require.NoError(t, err)
 				require.Equal(t, entity.AIAgentStateActive, before.State)
 
@@ -2631,12 +2631,12 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
-				after, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+				after, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 				require.NoError(t, err)
 				require.Equal(t, entity.AIAgentStateRetired, after.State,
 					"the sweep retires an orphaned agent in the ledger")
 
-				mirrored, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+				mirrored, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 				require.NoError(t, err)
 				require.True(t, mirrored.State != entity.AIAgentStateActive, "and marks the mirror to match")
 			},

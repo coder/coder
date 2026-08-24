@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -527,10 +528,10 @@ func TestAPIKey_AIAgentTargetsForbidden(t *testing.T) {
 		Pubsub:   pubsub,
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
-	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       uuid.New(),
 	})
 	require.NoError(t, err)

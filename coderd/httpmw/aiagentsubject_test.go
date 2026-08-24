@@ -59,7 +59,7 @@ func TestAIAgentRBACSubject(t *testing.T) {
 		// attribution are used apart and there is no reason to read twice.
 		require.Equal(t, agent.ID, attribution.AgentUserID)
 		require.Equal(t, owner.ID, attribution.OwnerUserID)
-		require.Equal(t, database.AIAgentOriginWorkspace, attribution.OriginType)
+		require.Equal(t, entity.CreationSiteTypeWorkspace, attribution.OriginType)
 
 		// The name is computed, so it must match what the function computes
 		// rather than anything stored.

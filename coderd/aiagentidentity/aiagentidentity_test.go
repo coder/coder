@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/testutil"
@@ -28,41 +29,43 @@ func TestCreateAndMintKey(t *testing.T) {
 	})
 
 	originID := uuid.New()
-	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: organization.ID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       originID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
-	require.Equal(t, database.LoginTypeNone, agentUser.LoginType)
-	require.Empty(t, agentUser.Email)
-	require.False(t, agentUser.IsServiceAccount)
-	require.Equal(t, database.UserStatusActive, agentUser.Status)
-	require.Equal(t, owner.ID, agent.OwnerUserID)
-	require.Equal(t, originID, agent.OriginID)
+	require.Equal(t, database.UserKindAIAgent, agent.Kind)
+	require.Equal(t, database.LoginTypeNone, agent.LoginType)
+	require.Empty(t, agent.Email)
+	require.False(t, agent.IsServiceAccount)
+	require.Equal(t, database.UserStatusActive, agent.Status)
+	ledger, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
+	require.NoError(t, err)
+	require.Equal(t, owner.ID, ledger.OwnerID)
+	require.Equal(t, originID, ledger.CreationSiteID)
 
-	memberships, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{agentUser.ID})
+	memberships, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{agent.ID})
 	require.NoError(t, err)
 	require.Empty(t, memberships)
 
 	profile := aiagentidentity.ChatAgentProfile(originID)
-	key, token, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, profile)
+	key, token, err := aiagentidentity.MintKey(ctx, db, agent.ID, profile)
 	require.NoError(t, err)
 	require.True(t, aiagentidentity.APIKeyMatchesBuiltInProfile(key))
 	require.NotEmpty(t, token)
-	require.Equal(t, agentUser.ID, key.HolderID.AsUserIDUnchecked())
+	require.Equal(t, agent.ID, key.HolderID.AsUserIDUnchecked())
 	require.Equal(t, database.LoginTypeToken, key.LoginType)
 	require.NotEmpty(t, key.Scopes)
 	require.NotEmpty(t, key.AllowList)
 	require.False(t, key.Scopes.Has(database.ApiKeyScopeCoderApikeysmanageSelf))
 	require.False(t, key.Scopes.Has(database.ApiKeyScopeCoderTemplatesauthor))
 
-	resolved, err := aiagentidentity.Resolve(ctx, db, agentUser.ID)
+	resolved, err := aiagentidentity.Resolve(ctx, db, agent.ID)
 	require.NoError(t, err)
 	require.Equal(t, owner.ID, resolved.Actor.OwnerUserID)
-	require.Equal(t, agentUser.ID, resolved.Actor.AgentUserID)
+	require.Equal(t, agent.ID, resolved.Actor.AgentUserID)
 
 	profileTests := []struct {
 		name         string
@@ -128,7 +131,7 @@ func TestCreateAndMintKey(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			key, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, tt.profile)
+			key, _, err := aiagentidentity.MintKey(ctx, db, agent.ID, tt.profile)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -145,10 +148,10 @@ func TestCreateAndMintKey(t *testing.T) {
 		AllowList: database.AllowList{rbac.AllowListAll()},
 	}))
 
-	_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{})
+	_, _, err = aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.Profile{})
 	require.ErrorContains(t, err, "at least one scope")
 
-	_, _, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
+	_, _, err = aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.Profile{
 		Scopes: database.APIKeyScopes{database.ApiKeyScopeApiKeyCreate},
 		AllowList: database.AllowList{
 			rbac.AllowListAll(),
@@ -168,7 +171,7 @@ func TestCreateAndMintKey(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			_, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.Profile{
+			_, _, err := aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.Profile{
 				Scopes:    database.APIKeyScopes{forbidden},
 				AllowList: database.AllowList{rbac.AllowListAll()},
 			})
@@ -185,10 +188,10 @@ func TestCreateRequiresOwnerOrganizationMembership(t *testing.T) {
 	owner := dbgen.User(t, db, database.User{})
 	organization := dbgen.Organization(t, db, database.Organization{})
 
-	_, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	_, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: organization.ID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       uuid.New(),
 	})
 	require.ErrorContains(t, err, "not a member")

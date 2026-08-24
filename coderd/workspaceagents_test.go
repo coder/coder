@@ -54,6 +54,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/prebuilds"
@@ -3798,10 +3799,10 @@ func TestWorkspaceAgentAIBindingCredentialStarvation(t *testing.T) {
 	unbound := newWorkspaceAgent(t)
 	bound := newWorkspaceAgent(t)
 
-	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       uuid.New(),
 	})
 	require.NoError(t, err)
@@ -3911,18 +3912,18 @@ func TestWorkspaceAgentAIDesignationCredentialStarvation(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 	chatID := uuid.New()
-	_, chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       chatID,
 	})
 	require.NoError(t, err)
 	actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
-		AgentUserID: chatAgent.UserID,
-		OwnerUserID: chatAgent.OwnerUserID,
-		OriginType:  chatAgent.OriginType,
-		OriginID:    chatAgent.OriginID,
+		AgentUserID: chatAgent.ID,
+		OwnerUserID: owner.UserID,
+		OriginType:  entity.CreationSiteTypeChat,
+		OriginID:    chatID,
 	})
 
 	workspace, err := coderd.ChatCreateWorkspace(api, actorCtx, owner.UserID, codersdk.CreateWorkspaceRequest{
@@ -3938,7 +3939,7 @@ func TestWorkspaceAgentAIDesignationCredentialStarvation(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, agents, 1)
-	require.Equal(t, uuid.NullUUID{UUID: chatAgent.UserID, Valid: true}, agents[0].AIAgentID)
+	require.Equal(t, uuid.NullUUID{UUID: chatAgent.ID, Valid: true}, agents[0].AIAgentID)
 
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 	conn, err := agentClient.ConnectRPC(ctx)

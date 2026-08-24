@@ -28,21 +28,3 @@ INSERT INTO users (
 )
 RETURNING *;
 
--- name: InsertAIAgent :one
-INSERT INTO ai_agents (
-	user_id,
-	owner_user_id,
-	origin_type,
-	origin_id,
-	created_at,
-	deleted
-) VALUES (
-	@user_id,
-	@owner_user_id,
-	@origin_type,
-	@origin_id,
-	@created_at,
-	false
-)
-RETURNING *;
-

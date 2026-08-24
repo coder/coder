@@ -16,64 +16,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-type AIAgentOrigin string
-
-const (
-	AIAgentOriginChat      AIAgentOrigin = "chat"
-	AIAgentOriginWorkspace AIAgentOrigin = "workspace"
-)
-
-func (e *AIAgentOrigin) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AIAgentOrigin(s)
-	case string:
-		*e = AIAgentOrigin(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AIAgentOrigin: %T", src)
-	}
-	return nil
-}
-
-type NullAIAgentOrigin struct {
-	AIAgentOrigin AIAgentOrigin `json:"ai_agent_origin"`
-	Valid         bool          `json:"valid"` // Valid is true if AIAgentOrigin is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAIAgentOrigin) Scan(value interface{}) error {
-	if value == nil {
-		ns.AIAgentOrigin, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AIAgentOrigin.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAIAgentOrigin) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AIAgentOrigin), nil
-}
-
-func (e AIAgentOrigin) Valid() bool {
-	switch e {
-	case AIAgentOriginChat,
-		AIAgentOriginWorkspace:
-		return true
-	}
-	return false
-}
-
-func AllAIAgentOriginValues() []AIAgentOrigin {
-	return []AIAgentOrigin{
-		AIAgentOriginChat,
-		AIAgentOriginWorkspace,
-	}
-}
-
 type AIBridgeInterceptionErrorType string
 
 const (
@@ -4797,15 +4739,6 @@ func AllWorkspaceTransitionValues() []WorkspaceTransition {
 		WorkspaceTransitionStop,
 		WorkspaceTransitionDelete,
 	}
-}
-
-type AIAgent struct {
-	UserID      uuid.UUID     `db:"user_id" json:"user_id"`
-	OwnerUserID uuid.UUID     `db:"owner_user_id" json:"owner_user_id"`
-	OriginType  AIAgentOrigin `db:"origin_type" json:"origin_type"`
-	OriginID    uuid.UUID     `db:"origin_id" json:"origin_id"`
-	CreatedAt   time.Time     `db:"created_at" json:"created_at"`
-	Deleted     bool          `db:"deleted" json:"deleted"`
 }
 
 // Current state of each AI agent identity. Two absences are deliberate. There is no workspace or sandbox reference, because an AI agent's identity is independent of where it runs and may outlive any particular sandbox. There is no execution state, because an identity and a run of it are different things, and a schema merging them forecloses reconstituting an AI agent from a previous session.

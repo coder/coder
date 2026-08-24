@@ -1072,7 +1072,7 @@ func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUI
 	attribution := aiagentidentity.AIAgentActor{
 		AgentUserID: agent.ID,
 		OwnerUserID: agent.OwnerID,
-		OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+		OriginType:  entity.CreationSiteType(agent.CreationSiteType),
 		OriginID:    agent.CreationSiteID,
 	}
 	return subject.AsAIAgent(agent.ID, name), status, attribution, nil

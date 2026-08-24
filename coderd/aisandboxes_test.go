@@ -55,14 +55,14 @@ func newAISandboxLifecycleFixture(t *testing.T, options *coderdtest.Options) aiS
 	}
 }
 
-func bindAISandboxLifecycleParent(t *testing.T, fixture aiSandboxLifecycleFixture) database.AIAgent {
+func bindAISandboxLifecycleParent(t *testing.T, fixture aiSandboxLifecycleFixture) database.User {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	agentUser, agent, err := aiagentidentity.Create(ctx, fixture.db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, fixture.db, aiagentidentity.CreateParams{
 		OwnerID:        fixture.owner.UserID,
 		OrganizationID: fixture.owner.OrganizationID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       uuid.New(),
 	})
 	require.NoError(t, err)
@@ -71,7 +71,7 @@ func bindAISandboxLifecycleParent(t *testing.T, fixture aiSandboxLifecycleFixtur
 		AIAgentID: uuid.NullUUID{UUID: agentUser.ID, Valid: true},
 	})
 	require.NoError(t, err)
-	return agent
+	return agentUser
 }
 
 func requireAISandboxLifecycleStatus(t *testing.T, err error, status int) *codersdk.Error {
@@ -145,11 +145,11 @@ func TestAISandboxLifecycleCreateBoundParent(t *testing.T) {
 		EgressEnforcement: codersdk.AISandboxEgressEnforcementAdvisory,
 	})
 	require.NoError(t, err)
-	require.Equal(t, parentIdentity.UserID, created.AIAgentID)
+	require.Equal(t, parentIdentity.ID, created.AIAgentID)
 
 	child, err := fixture.db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), created.ChildAgentID)
 	require.NoError(t, err)
-	require.Equal(t, uuid.NullUUID{UUID: parentIdentity.UserID, Valid: true}, child.AIAgentID)
+	require.Equal(t, uuid.NullUUID{UUID: parentIdentity.ID, Valid: true}, child.AIAgentID)
 
 	_, err = fixture.db.GetLiveAIAgentByCreationSite(dbauthz.AsSystemRestricted(ctx), database.GetLiveAIAgentByCreationSiteParams{
 		CreationSiteType: string(entity.CreationSiteTypeWorkspace),

@@ -15,10 +15,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestTheLedgerIsTheIdentity asserts that every question ai_agents answers, the
-// ledger answers for the same agent under the same identifier. That identity of
-// identifiers is what lets the columns referring to an AI agent carry a foreign
-// key to the ledger.
+// TestTheLedgerIsTheIdentity asserts that the ledger answers owner, creation
+// site, creation time and state for the agent the identity code created, under
+// the same identifier. That identity of identifiers is what lets the columns
+// referring to an AI agent carry a foreign key to the ledger.
 func TestTheLedgerIsTheIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -32,19 +32,18 @@ func TestTheLedgerIsTheIdentity(t *testing.T) {
 	})
 
 	site := uuid.New()
-	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: organization.ID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       site,
 	})
 	require.NoError(t, err)
 
-	row, err := db.GetAIAgentLedgerRowByID(ctx, agent.UserID)
+	row, err := db.GetAIAgentLedgerRowByID(ctx, agentUser.ID)
 	require.NoError(t, err, "the ledger holds the agent the identity code created")
 
-	require.Equal(t, agent.UserID, row.ID, "one identifier, not two")
-	require.Equal(t, agentUser.ID, row.ID)
+	require.Equal(t, agentUser.ID, row.ID, "one identifier, not two")
 	require.Equal(t, string(entity.TypeUser), row.OwnerType)
 	require.Equal(t, owner.ID, row.OwnerID)
 	require.Equal(t, string(entity.CreationSiteTypeWorkspace), row.CreationSiteType)
@@ -55,7 +54,7 @@ func TestTheLedgerIsTheIdentity(t *testing.T) {
 	// The creation time is the effective date of the entry it was folded from,
 	// not a second reading of the clock.
 	entries, err := db.GetAIAgentLifecycleEntriesBySubject(ctx, database.GetAIAgentLifecycleEntriesBySubjectParams{
-		Subject: agent.UserID,
+		Subject: agentUser.ID,
 		Limit:   2,
 	})
 	require.NoError(t, err)
@@ -177,7 +176,7 @@ func TestConcurrentWorkspaceResolutionCreatesOneAgent(t *testing.T) {
 
 	var live int
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		"SELECT count(*) FROM ai_agents WHERE origin_type = 'workspace' AND origin_id = $1 AND NOT deleted",
+		"SELECT count(*) FROM ai_agent_ledger WHERE creation_site_type = 'workspace' AND creation_site_id = $1 AND state = 'active'",
 		workspace.ID).Scan(&live))
 	require.Equal(t, 1, live, "the workspace has one live agent")
 

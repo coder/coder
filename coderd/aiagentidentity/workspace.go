@@ -65,17 +65,17 @@ func ResolveWorkspaceOrigin(ctx context.Context, db database.Store, workspace da
 }
 
 func createWorkspaceOrigin(ctx context.Context, db database.Store, workspace database.Workspace) (database.AIAgentLedger, error) {
-	_, agent, err := Create(ctx, db, CreateParams{
+	agentUser, err := Create(ctx, db, CreateParams{
 		OwnerID:        workspace.OwnerID,
 		OrganizationID: workspace.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       workspace.ID,
 	})
 	if err != nil {
 		return database.AIAgentLedger{}, xerrors.Errorf("create workspace AI agent identity: %w", err)
 	}
 	//nolint:gocritic // Reading back what Create just wrote requires system access.
-	return db.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), agent.UserID)
+	return db.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), agentUser.ID)
 }
 
 // revokeWorkspaceOrigin retires the agent, drops its workspace-pinned key and

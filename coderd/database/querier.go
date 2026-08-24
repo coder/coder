@@ -1175,7 +1175,6 @@ type sqlcQuerier interface {
 	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
 	// The day parameter is normalized to its UTC calendar day before storage.
 	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
-	InsertAIAgent(ctx context.Context, arg InsertAIAgentParams) (AIAgent, error)
 	// creation_time is the effective date of the entry this row is posted from, so
 	// the caller passes the same value it gave that entry rather than a second
 	// reading of the clock.

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -88,18 +89,18 @@ func TestPlatformToolsUseAIAgentSubject(t *testing.T) {
 		AgentsAllowed:   true,
 	})
 
-	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: org.ID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       chatID,
 	})
 	require.NoError(t, err)
 	actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
 		AgentUserID: agentUser.ID,
 		OwnerUserID: owner.ID,
-		OriginType:  agent.OriginType,
-		OriginID:    agent.OriginID,
+		OriginType:  entity.CreationSiteTypeChat,
+		OriginID:    chatID,
 	})
 
 	tests := []struct {

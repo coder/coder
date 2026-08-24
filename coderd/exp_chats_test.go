@@ -443,7 +443,7 @@ func TestPostChats(t *testing.T) {
 		actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
 			AgentUserID: agent.ID,
 			OwnerUserID: agent.OwnerID,
-			OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+			OriginType:  entity.CreationSiteType(agent.CreationSiteType),
 			OriginID:    agent.CreationSiteID,
 		})
 		subject, actingUserID, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
@@ -462,7 +462,7 @@ func TestPostChats(t *testing.T) {
 		wrongCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
 			AgentUserID: agent.ID,
 			OwnerUserID: uuid.New(),
-			OriginType:  database.AIAgentOrigin(agent.CreationSiteType),
+			OriginType:  entity.CreationSiteType(agent.CreationSiteType),
 			OriginID:    agent.CreationSiteID,
 		})
 		_, _, err = coderd.ChatToolSubject(api, wrongCtx, member.ID)
@@ -15704,18 +15704,18 @@ func TestChatCreateWorkspace_AIDesignation(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 	chatID := uuid.New()
-	_, chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	chatAgent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        user.UserID,
 		OrganizationID: user.OrganizationID,
-		OriginType:     database.AIAgentOriginChat,
+		OriginType:     entity.CreationSiteTypeChat,
 		OriginID:       chatID,
 	})
 	require.NoError(t, err)
 	actorCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
-		AgentUserID: chatAgent.UserID,
-		OwnerUserID: chatAgent.OwnerUserID,
-		OriginType:  chatAgent.OriginType,
-		OriginID:    chatAgent.OriginID,
+		AgentUserID: chatAgent.ID,
+		OwnerUserID: user.UserID,
+		OriginType:  entity.CreationSiteTypeChat,
+		OriginID:    chatID,
 	})
 
 	created, err := coderd.ChatCreateWorkspace(api, actorCtx, user.UserID, codersdk.CreateWorkspaceRequest{
@@ -15726,7 +15726,7 @@ func TestChatCreateWorkspace_AIDesignation(t *testing.T) {
 
 	workspace, err := db.GetWorkspaceByID(dbauthz.AsSystemRestricted(ctx), created.ID)
 	require.NoError(t, err)
-	require.Equal(t, uuid.NullUUID{UUID: chatAgent.UserID, Valid: true}, workspace.AIAgentID)
+	require.Equal(t, uuid.NullUUID{UUID: chatAgent.ID, Valid: true}, workspace.AIAgentID)
 
 	_, err = db.GetLiveAIAgentByCreationSite(dbauthz.AsSystemRestricted(ctx), database.GetLiveAIAgentByCreationSiteParams{
 		CreationSiteType: string(entity.CreationSiteTypeWorkspace),

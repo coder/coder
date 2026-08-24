@@ -9,7 +9,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/entity"
@@ -25,10 +24,10 @@ func TestAIAgentVisibilityAndListing(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{Database: db})
 	first := coderdtest.CreateFirstUser(t, client)
 
-	agentUser, _, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        first.UserID,
 		OrganizationID: first.OrganizationID,
-		OriginType:     database.AIAgentOriginWorkspace,
+		OriginType:     entity.CreationSiteTypeWorkspace,
 		OriginID:       uuid.New(),
 	})
 	require.NoError(t, err)

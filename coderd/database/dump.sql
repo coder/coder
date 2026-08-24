@@ -10,11 +10,6 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
-CREATE TYPE ai_agent_origin AS ENUM (
-    'chat',
-    'workspace'
-);
-
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -1549,15 +1544,6 @@ CREATE SEQUENCE ai_agent_lifecycle_journal_entry_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
-
-CREATE TABLE ai_agents (
-    user_id uuid NOT NULL,
-    owner_user_id uuid NOT NULL,
-    origin_type ai_agent_origin NOT NULL,
-    origin_id uuid NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    deleted boolean DEFAULT false NOT NULL
-);
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -4601,9 +4587,6 @@ ALTER TABLE ONLY ai_agent_lifecycle_journal_create
 ALTER TABLE ONLY ai_agent_lifecycle_journal
     ADD CONSTRAINT ai_agent_lifecycle_journal_pkey PRIMARY KEY (entry_id);
 
-ALTER TABLE ONLY ai_agents
-    ADD CONSTRAINT ai_agents_pkey PRIMARY KEY (user_id);
-
 ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
@@ -5103,8 +5086,6 @@ CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (cr
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
 
-CREATE INDEX idx_ai_agents_owner ON ai_agents USING btree (owner_user_id);
-
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
@@ -5557,12 +5538,6 @@ forward without requiring a migration to clean up historical data.';
 
 ALTER TABLE ONLY ai_agent_lifecycle_journal_create
     ADD CONSTRAINT ai_agent_lifecycle_journal_create_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES ai_agent_lifecycle_journal(entry_id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY ai_agents
-    ADD CONSTRAINT ai_agents_owner_user_id_fkey FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY ai_agents
-    ADD CONSTRAINT ai_agents_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);

@@ -261,25 +261,26 @@ func TestAIAgentInterceptionLineage(t *testing.T) {
 		UserID:         owner.ID,
 	})
 
-	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+	chatID := uuid.New()
+	agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 		OwnerID:        owner.ID,
 		OrganizationID: organization.ID,
-		OriginType:     database.AIAgentOriginChat,
-		OriginID:       uuid.New(),
+		OriginType:     entity.CreationSiteTypeChat,
+		OriginID:       chatID,
 	})
 	require.NoError(t, err)
-	key, _, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(agent.OriginID))
+	key, _, err := aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.ChatAgentProfile(chatID))
 	require.NoError(t, err)
 
 	interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-		InitiatorID: agentUser.ID,
+		InitiatorID: agent.ID,
 		APIKeyID:    sql.NullString{String: key.ID, Valid: true},
 		Provider:    "openai",
 		Model:       "gpt-4",
 	}, nil)
 
 	// Attribution: the interception records the agent user, not the human.
-	require.Equal(t, agentUser.ID, interception.InitiatorID)
+	require.Equal(t, agent.ID, interception.InitiatorID)
 
 	// Lineage: the sponsoring human is recoverable via the ai_agents row.
 	resolvedAgent, err := db.GetAIAgentLedgerRowByID(ctx, interception.InitiatorID)
@@ -320,9 +321,9 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 		},
 		{
 			name: "AI agent identity retired",
-			mutate: func(ctx context.Context, db database.Store, owner, agentUser database.User) error {
+			mutate: func(ctx context.Context, db database.Store, owner, agent database.User) error {
 				// Retirement in the ledger is what authorization reads.
-				return entity.RetireAIAgent(ctx, db, agentUser.ID, entity.EventAIAgentKill,
+				return entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentKill,
 					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, dbtime.Now())
 			},
 			wantErr: aibridgedserver.ErrInvalidAIAgent,
@@ -348,35 +349,35 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 			})
 
 			var (
-				agentUser database.User
-				token     string
-				err       error
+				agent database.User
+				token string
+				err   error
 			)
 			if tt.missingIdentity {
-				agentUser, err = db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
+				agent, err = db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
 					ID:        uuid.New(),
 					Username:  testutil.GetRandomName(t),
 					CreatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
 				_, token = dbgen.APIKey(t, db, database.APIKey{
-					HolderID:  database.HolderID(agentUser.ID),
+					HolderID:  database.HolderID(agent.ID),
 					LoginType: database.LoginTypeToken,
 				})
 			} else {
-				agentUser, _, err = aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+				agent, err = aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 					OwnerID:        owner.ID,
 					OrganizationID: organization.ID,
-					OriginType:     database.AIAgentOriginChat,
+					OriginType:     entity.CreationSiteTypeChat,
 					OriginID:       uuid.New(),
 				})
 				require.NoError(t, err)
-				_, token, err = aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(uuid.New()))
+				_, token, err = aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.ChatAgentProfile(uuid.New()))
 				require.NoError(t, err)
 			}
 
 			if tt.mutate != nil {
-				require.NoError(t, tt.mutate(ctx, db, owner, agentUser))
+				require.NoError(t, tt.mutate(ctx, db, owner, agent))
 			}
 
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
@@ -398,8 +399,8 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, agentUser.ID.String(), resp.GetOwnerId())
-			require.Equal(t, agentUser.Username, resp.GetUsername())
+			require.Equal(t, agent.ID.String(), resp.GetOwnerId())
+			require.Equal(t, agent.Username, resp.GetUsername())
 		})
 	}
 }
