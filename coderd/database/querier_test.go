@@ -18368,15 +18368,13 @@ func TestGetChatsSearch(t *testing.T) {
 		want   []uuid.UUID
 	}{
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
-		{"Title/CaseInsensitiveSubstring", database.GetChatsParams{Search: "PIPELINE ALPHA"}, []uuid.UUID{titleChat.ID}},
-		// Titles match by substring, so reordered words and non-substrings
-		// do not match.
-		{"Title/ReorderedWordsNoMatch", database.GetChatsParams{Search: "alpha deploy"}, nil},
-		{"Title/NonSubstringNoMatch", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
-		// Substring matching covers partial words without any stemming.
-		{"Title/PartialWordMatch", database.GetChatsParams{Search: "pipel"}, []uuid.UUID{titleChat.ID, archivedChat.ID}},
+		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
+		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Titles keep the 'simple' config, which does not stem, so
+		// inflected query forms only match message bodies.
+		{"Title/NoStemming", database.GetChatsParams{Search: "deploying pipelines"}, nil},
 		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
-		{"PRTitle/PartialWordMatch", database.GetChatsParams{Search: "authenticat"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/NoStemming", database.GetChatsParams{Search: "authenticating"}, nil},
 		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
 		// The 'english' config stems both sides, so inflected query forms
 		// match the stored words.

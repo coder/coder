@@ -5,14 +5,14 @@
 -- time.
 --
 -- Only chat_messages.search_tsv is affected; title and pull request
--- title matching uses ILIKE and no index changes. chat_messages gets
--- no index or data changes at all: a full-table UPDATE of search_tsv
--- or a non-concurrent index rebuild would block message writes for
--- the duration on large tables. Instead the new search_tsv_config
--- column records which config produced each stored vector, and the
--- bounded dbpurge sweep finds rows whose config is not 'english' with
--- a self-terminating scan and rewrites them incrementally, newest
--- first (see ReindexStaleChatMessagesSearchTsv).
+-- title matching keeps its existing 'simple' behavior and indexes.
+-- chat_messages gets no index or data changes at all: a full-table
+-- UPDATE of search_tsv or a non-concurrent index rebuild would block
+-- message writes for the duration on large tables. Instead the new
+-- search_tsv_config column records which config produced each stored
+-- vector, and the bounded dbpurge sweep finds rows whose config is
+-- not 'english' with a self-terminating scan and rewrites them
+-- incrementally, newest first (see ReindexStaleChatMessagesSearchTsv).
 
 ALTER TABLE chat_messages ADD COLUMN search_tsv_config text;
 
