@@ -282,11 +282,12 @@ an API key.
 Every provider carries an explicit status, surfaced through the
 [`provider_info`](./monitoring.md#prometheus-metrics) metric and the API:
 
-| Status     | Meaning                                                                       | Effect on requests                               |
-|------------|-------------------------------------------------------------------------------|--------------------------------------------------|
-| `enabled`  | Configuration is valid and the provider is serving traffic                    | Requests are proxied to the upstream             |
-| `disabled` | The provider exists but has been turned off                                   | Requests are rejected with a non-retryable error |
-| `error`    | The provider is enabled but cannot be built (missing credentials, bad config) | Requests fail; the error is surfaced in metrics  |
+| Status           | Meaning                                                                                                                                                             | Effect on requests                                                                                                             |
+|------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`        | Configuration is valid and the provider is serving traffic                                                                                                          | Requests are proxied to the upstream                                                                                           |
+| `disabled`       | The provider exists but has been turned off                                                                                                                         | Requests are rejected with a non-retryable error                                                                               |
+| `error`          | The provider is enabled but cannot be built (missing credentials, bad config)                                                                                       | Requests fail; the error is surfaced in metrics                                                                                |
+| `proxy_excluded` | Another enabled provider already claims this hostname; the AI Gateway Proxy routes traffic to the first claimant (by database name sort order, `ORDER BY name ASC`) | Proxy-routed requests go to the first claimant; direct routing (`/api/v2/ai-gateway/{name}/...`) still works for this provider |
 
 Disabling a provider does not delete it, its credentials, or its
 historical interception data. Re-enabling restores it to service.

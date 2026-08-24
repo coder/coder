@@ -1225,6 +1225,11 @@ title: Schemas
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "settings": {},
+  "status": {
+    "warnings": [
+      "string"
+    ]
+  },
   "type": "openai",
   "updated_at": "2019-08-24T14:15:22Z"
 }
@@ -1232,19 +1237,20 @@ title: Schemas
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description |
-|----------------|------------------------------------------------------------|----------|--------------|-------------|
-| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |             |
-| `base_url`     | string                                                     | false    |              |             |
-| `created_at`   | string                                                     | false    |              |             |
-| `display_name` | string                                                     | false    |              |             |
-| `enabled`      | boolean                                                    | false    |              |             |
-| `icon`         | string                                                     | false    |              |             |
-| `id`           | string                                                     | false    |              |             |
-| `name`         | string                                                     | false    |              |             |
-| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
-| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
-| `updated_at`   | string                                                     | false    |              |             |
+| Name           | Type                                                       | Required | Restrictions | Description                                            |
+|----------------|------------------------------------------------------------|----------|--------------|--------------------------------------------------------|
+| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |                                                        |
+| `base_url`     | string                                                     | false    |              |                                                        |
+| `created_at`   | string                                                     | false    |              |                                                        |
+| `display_name` | string                                                     | false    |              |                                                        |
+| `enabled`      | boolean                                                    | false    |              |                                                        |
+| `icon`         | string                                                     | false    |              |                                                        |
+| `id`           | string                                                     | false    |              |                                                        |
+| `name`         | string                                                     | false    |              |                                                        |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |                                                        |
+| `status`       | [codersdk.AIProviderStatus](#codersdkaiproviderstatus)     | false    |              | Status carries runtime routing status; nil when empty. |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |                                                        |
+| `updated_at`   | string                                                     | false    |              |                                                        |
 
 ## codersdk.AIProviderConfig
 
@@ -1313,6 +1319,22 @@ title: Schemas
 ### Properties
 
 None
+
+## codersdk.AIProviderStatus
+
+```json
+{
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type            | Required | Restrictions | Description |
+|------------|-----------------|----------|--------------|-------------|
+| `warnings` | array of string | false    |              |             |
 
 ## codersdk.AIProviderType
 

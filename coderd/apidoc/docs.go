@@ -16844,6 +16844,14 @@ const docTemplate = `{
                 "settings": {
                     "$ref": "#/definitions/codersdk.AIProviderSettings"
                 },
+                "status": {
+                    "description": "Status carries runtime routing status; nil when empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIProviderStatus"
+                        }
+                    ]
+                },
                 "type": {
                     "$ref": "#/definitions/codersdk.AIProviderType"
                 },
@@ -16909,6 +16917,17 @@ const docTemplate = `{
         },
         "codersdk.AIProviderSettings": {
             "type": "object"
+        },
+        "codersdk.AIProviderStatus": {
+            "type": "object",
+            "properties": {
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.AIProviderType": {
             "type": "string",
