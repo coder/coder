@@ -18,6 +18,13 @@ SUBCOMMANDS:
                                 PostgreSQL deployment.
 
 OPTIONS:
+      --allow-workspace-renames bool, $CODER_ALLOW_WORKSPACE_RENAMES (default: false)
+          Allow users to rename their workspaces. WARNING: Renaming a workspace
+          can cause Terraform resources that depend on the workspace name to be
+          destroyed and recreated, potentially causing data loss. Only enable
+          this if your templates do not use workspace names in resource
+          identifiers, or if you understand the risks.
+
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
@@ -49,12 +56,10 @@ OPTIONS:
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
-      --disable-workspace-agent-context-sync bool, $CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC
-          Stop persisting workspace agent context snapshots (instructions,
-          skills, and MCP state used for pinned chat context). When set, coderd
-          rejects agent context pushes as unimplemented and agents stop sending
-          them; chats cannot pin workspace context. Use this to shed the
-          database write load of context sync on large deployments.
+      --user-secrets-disable-file-path bool, $CODER_USER_SECRETS_DISABLE_FILE_PATH
+          Disable Coder-managed file path delivery for user secrets. Stored
+          paths remain until users clear them and resume if this setting is
+          turned off.
 
       --disable-workspace-sharing bool, $CODER_DISABLE_WORKSPACE_SHARING
           Disable workspace sharing. Workspace ACL checking is disabled and only
@@ -447,13 +452,6 @@ INTROSPECTION / PPROF OPTIONS:
 
       --pprof-enable bool, $CODER_PPROF_ENABLE
           Serve pprof metrics on the address defined by pprof address.
-
-MCP OPTIONS: 
-      --mcp-allowed-private-cidrs string-array, $CODER_MCP_ALLOWED_PRIVATE_CIDRS
-          MCP server destinations in private or reserved IP ranges are blocked
-          by default for SSRF protection. This applies to OAuth2 discovery,
-          OAuth2 token and revocation exchanges, and runtime MCP connections
-          from coderd. This option exempts specific CIDRs.
 
 NETWORKING OPTIONS: 
       --access-url url, $CODER_ACCESS_URL
@@ -928,10 +926,8 @@ TEMPLATE BUILDER OPTIONS:
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
       --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
-          The module registry host the template builder uses for module source
-          paths (for example, "registry.coder.com" or "mirror.internal:8443").
-          An http(s):// scheme and trailing slash are stripped; a path, query,
-          fragment, or credentials is rejected.
+          The base URL of the module registry used by the template builder for
+          module source paths.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid

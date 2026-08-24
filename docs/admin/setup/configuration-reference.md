@@ -22,6 +22,15 @@ Deprecated options are listed at the end of each section.
 
 ## General
 
+### Allow workspace renames
+
+Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
+
+- Environment variable: `CODER_ALLOW_WORKSPACE_RENAMES`
+- CLI flag: [`--allow-workspace-renames`](../../reference/cli/server.md#--allow-workspace-renames)
+- YAML key: `allowWorkspaceRenames`
+- Default value: `false`
+
 ### Cache directory
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
@@ -73,13 +82,13 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
-### Disable workspace agent context sync
+### Disable user secret file path
 
-Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+Disable Coder-managed file path delivery for user secrets. Stored paths remain until users clear them and resume if this setting is turned off.
 
-- Environment variable: `CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC`
-- CLI flag: [`--disable-workspace-agent-context-sync`](../../reference/cli/server.md#--disable-workspace-agent-context-sync)
-- YAML key: `disableWorkspaceAgentContextSync`
+- Environment variable: `CODER_USER_SECRETS_DISABLE_FILE_PATH`
+- CLI flag: [`--user-secrets-disable-file-path`](../../reference/cli/server.md#--user-secrets-disable-file-path)
+- YAML key: `userSecretsDisableFilePath`
 
 ### Disable workspace sharing
 
@@ -839,16 +848,6 @@ Serve pprof metrics on the address defined by pprof address.
 - Environment variable: `CODER_PPROF_ENABLE`
 - CLI flag: [`--pprof-enable`](../../reference/cli/server.md#--pprof-enable)
 - YAML key: `introspection.pprof.enable`
-
-## MCP
-
-### Allowed private CIDRs
-
-MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
-
-- Environment variable: `CODER_MCP_ALLOWED_PRIVATE_CIDRS`
-- CLI flag: [`--mcp-allowed-private-cidrs`](../../reference/cli/server.md#--mcp-allowed-private-cidrs)
-- YAML key: `mcp.allowed_private_cidrs`
 
 ## Networking
 
@@ -1807,7 +1806,7 @@ Disable the template builder feature for guided template creation. When disabled
 
 ### Registry URL
 
-The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
+The base URL of the module registry used by the template builder for module source paths.
 
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server.md#--template-builder-registry-url)

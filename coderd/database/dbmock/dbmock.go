@@ -6494,6 +6494,21 @@ func (mr *MockStoreMockRecorder) GetUserSecretByUserIDAndName(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).GetUserSecretByUserIDAndName), ctx, arg)
 }
 
+// GetUserSecretByUserIDAndNameForUpdate mocks base method.
+func (m *MockStore) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserSecretByUserIDAndNameForUpdate", ctx, arg)
+	ret0, _ := ret[0].(database.UserSecret)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserSecretByUserIDAndNameForUpdate indicates an expected call of GetUserSecretByUserIDAndNameForUpdate.
+func (mr *MockStoreMockRecorder) GetUserSecretByUserIDAndNameForUpdate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretByUserIDAndNameForUpdate", reflect.TypeOf((*MockStore)(nil).GetUserSecretByUserIDAndNameForUpdate), ctx, arg)
+}
+
 // GetUserSecretsTelemetrySummary mocks base method.
 func (m *MockStore) GetUserSecretsTelemetrySummary(ctx context.Context) (database.GetUserSecretsTelemetrySummaryRow, error) {
 	m.ctrl.T.Helper()

@@ -17,21 +17,16 @@ type UserSecret struct {
 	Description string    `json:"description"`
 	EnvName     string    `json:"env_name"`
 	FilePath    string    `json:"file_path"`
-	// Enabled controls whether the secret is injected into workspaces.
-	// Disabled secrets remain visible and editable, but are not added
-	// to the agent manifest, so they are not exposed as environment
-	// variables or written to secret files.
+	// Enabled is stored intent. Deployment policy may block a stored target.
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 }
 
 // CreateUserSecretRequest is the payload for creating a new user
-// secret. Name and Value are required. An enabled secret must have at
-// least one of EnvName or FilePath non-empty so it has an injection
-// target; to keep a secret without injecting it, set Enabled to false.
-// All other fields are optional and default to empty string. Enabled
-// defaults to true when omitted.
+// secret. Name and Value are required. An enabled secret requires an
+// effective target; deployment policy may reject FilePath and require EnvName.
+// Enabled defaults to true.
 type CreateUserSecretRequest struct {
 	Name        string `json:"name"`
 	Value       string `json:"value"`
@@ -43,10 +38,8 @@ type CreateUserSecretRequest struct {
 
 // UpdateUserSecretRequest is the payload for partially updating a
 // user secret. At least one field must be non-nil. Pointer fields
-// distinguish "not sent" (nil) from "set to empty string" (pointer
-// to empty string). If the post-update row is enabled it must still
-// have at least one of EnvName or FilePath non-empty; clearing both
-// targets is only allowed when the secret is (or becomes) disabled.
+// distinguish "not sent" from "set empty". An enabled post-update row
+// requires an effective target; deployment policy may require EnvName.
 type UpdateUserSecretRequest struct {
 	Value       *string `json:"value,omitempty"`
 	Description *string `json:"description,omitempty"`

@@ -1886,6 +1886,23 @@ func TestUserSecrets(t *testing.T) {
 		require.Equal(t, rawBefore.ValueKeyID, rawAfter.ValueKeyID)
 	})
 
+	t.Run("GetUserSecretForUpdateDecryptsValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		secret := insertUserSecret(t, crypt, ciphers)
+		arg := database.GetUserSecretByUserIDAndNameForUpdateParams{
+			UserID: secret.UserID, Name: secret.Name,
+		}
+
+		got, err := crypt.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+		require.NoError(t, err)
+		require.Equal(t, initialValue, got.Value)
+
+		raw, err := db.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.Value, initialValue)
+	})
+
 	t.Run("GetUserSecretDecryptErr", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)

@@ -939,6 +939,17 @@ func (db *dbCrypt) GetUserSecretByUserIDAndName(ctx context.Context, arg databas
 	return secret, nil
 }
 
+func (db *dbCrypt) GetUserSecretByUserIDAndNameForUpdate(ctx context.Context, arg database.GetUserSecretByUserIDAndNameForUpdateParams) (database.UserSecret, error) {
+	secret, err := db.Store.GetUserSecretByUserIDAndNameForUpdate(ctx, arg)
+	if err != nil {
+		return database.UserSecret{}, err
+	}
+	if err := db.decryptField(&secret.Value, secret.ValueKeyID); err != nil {
+		return database.UserSecret{}, err
+	}
+	return secret, nil
+}
+
 func (db *dbCrypt) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]database.UserSecret, error) {
 	secrets, err := db.Store.ListUserSecretsWithValues(ctx, userID)
 	if err != nil {

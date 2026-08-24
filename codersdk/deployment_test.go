@@ -1428,6 +1428,46 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 }
 
+func TestUserSecretsDisableFilePath(t *testing.T) {
+	t.Parallel()
+
+	dv := codersdk.DeploymentValues{}
+	opts := dv.Options()
+	require.NoError(t, opts.SetDefaults())
+	require.False(t, dv.DisableUserSecretFilePath.Value(), "must default to false")
+
+	var opt serpent.Option
+	for _, o := range opts {
+		if o.Value == &dv.DisableUserSecretFilePath {
+			opt = o
+			break
+		}
+	}
+	require.NotEmpty(t, opt.Flag, "option must be registered")
+	assert.Equal(t, "user-secrets-disable-file-path", opt.Flag)
+	assert.Equal(t, "CODER_USER_SECRETS_DISABLE_FILE_PATH", opt.Env)
+	assert.Equal(t, "userSecretsDisableFilePath", opt.YAML)
+
+	require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+		{Name: "CODER_USER_SECRETS_DISABLE_FILE_PATH", Value: "true"},
+	}))
+	require.True(t, dv.DisableUserSecretFilePath.Value(), "env must set the value")
+
+	yamlDV := codersdk.DeploymentValues{}
+	yamlOpts := yamlDV.Options()
+	var node yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte("userSecretsDisableFilePath: true\n"), &node))
+	require.NoError(t, node.Decode(&yamlOpts))
+	require.True(t, yamlDV.DisableUserSecretFilePath.Value(), "yaml must set the value")
+
+	// The option is not a secret, so telemetry and the config endpoint
+	// must keep reporting it after sanitization.
+	full := codersdk.DeploymentValues{DisableUserSecretFilePath: true}
+	sanitized, err := full.WithoutSecrets()
+	require.NoError(t, err)
+	require.True(t, sanitized.DisableUserSecretFilePath.Value())
+}
+
 func TestChatAIGatewayRoutingEnabledDefault(t *testing.T) {
 	t.Parallel()
 
