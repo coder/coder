@@ -645,6 +645,10 @@ type EditChatMessageRequest struct {
 	// When nil the original message's model is preserved.
 	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// MCPServerIDs, when set, replaces the chat's MCP server selection
+	// before the replacement turn runs. When nil the current selection
+	// is preserved.
+	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
