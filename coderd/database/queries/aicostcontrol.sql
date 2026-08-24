@@ -482,17 +482,11 @@ ORDER BY ai.initiator_id, tu.effective_group_id, ai.provider, ai.provider_name, 
 
 -- name: GetUnpricedAIModelsSince :many
 -- Returns the models used since the given time that hold no price, most used
--- first. Prices are keyed by the configured provider type, so interceptions
--- are resolved to their provider the same way cost recording resolves them:
--- by provider name, which is unique among live providers. An interception
--- whose provider has since been deleted cannot be resolved to a type and is
--- excluded, matching the unknown-provider path in cost recording.
--- openai-compat providers pass through to any upstream vendor and cannot be
--- priced, so their models are never reported as unpriced.
+-- first. openai-compat providers cannot be priced, so their models are excluded.
 SELECT
 	providers.type::text AS provider_type,
 	interceptions.model AS model,
-	COUNT(*)::bigint AS interceptions
+	COUNT(*)::bigint AS interception_count
 FROM aibridge_interceptions AS interceptions
 JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
@@ -506,4 +500,4 @@ WHERE interceptions.started_at >= @since::timestamptz
 			AND prices.model = interceptions.model
 	)
 GROUP BY providers.type, interceptions.model
-ORDER BY interceptions DESC, provider_type ASC, model ASC;
+ORDER BY interception_count DESC, provider_type ASC, model ASC;

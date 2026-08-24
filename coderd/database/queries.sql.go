@@ -3411,7 +3411,7 @@ const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
 SELECT
 	providers.type::text AS provider_type,
 	interceptions.model AS model,
-	COUNT(*)::bigint AS interceptions
+	COUNT(*)::bigint AS interception_count
 FROM aibridge_interceptions AS interceptions
 JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
@@ -3425,23 +3425,17 @@ WHERE interceptions.started_at >= $1::timestamptz
 			AND prices.model = interceptions.model
 	)
 GROUP BY providers.type, interceptions.model
-ORDER BY interceptions DESC, provider_type ASC, model ASC
+ORDER BY interception_count DESC, provider_type ASC, model ASC
 `
 
 type GetUnpricedAIModelsSinceRow struct {
-	ProviderType  string `db:"provider_type" json:"provider_type"`
-	Model         string `db:"model" json:"model"`
-	Interceptions int64  `db:"interceptions" json:"interceptions"`
+	ProviderType      string `db:"provider_type" json:"provider_type"`
+	Model             string `db:"model" json:"model"`
+	InterceptionCount int64  `db:"interception_count" json:"interception_count"`
 }
 
 // Returns the models used since the given time that hold no price, most used
-// first. Prices are keyed by the configured provider type, so interceptions
-// are resolved to their provider the same way cost recording resolves them:
-// by provider name, which is unique among live providers. An interception
-// whose provider has since been deleted cannot be resolved to a type and is
-// excluded, matching the unknown-provider path in cost recording.
-// openai-compat providers pass through to any upstream vendor and cannot be
-// priced, so their models are never reported as unpriced.
+// first. openai-compat providers cannot be priced, so their models are excluded.
 func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, since time.Time) ([]GetUnpricedAIModelsSinceRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, since)
 	if err != nil {
@@ -3451,7 +3445,7 @@ func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, since time.Ti
 	var items []GetUnpricedAIModelsSinceRow
 	for rows.Next() {
 		var i GetUnpricedAIModelsSinceRow
-		if err := rows.Scan(&i.ProviderType, &i.Model, &i.Interceptions); err != nil {
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.InterceptionCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
