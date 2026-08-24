@@ -15,9 +15,10 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"golang.org/x/term"
@@ -28,6 +29,7 @@ import (
 // Add or remove directories here to control the scanner's scope.
 var scanDirs = []string{
 	"agent",
+	"aibridge",
 	"coderd",
 	"enterprise",
 	"provisionerd",
@@ -36,15 +38,64 @@ var scanDirs = []string{
 
 // skipPaths lists files that should be excluded from scanning. Their metrics
 // must be maintained in the static metrics file instead.
-// TODO(ssncferreira): Add support for resolving WrapRegistererWithPrefix to
-//
-//	eliminate the need for this skip list.
 var skipPaths = []string{
-	"coderd/aibridged/metrics.go",
-	"coderd/aibridgedserver/metrics.go",
-	"enterprise/aibridgeproxyd/metrics.go",
 	"enterprise/scaletest/agentfake/metrics.go",
 }
+
+// canonicalPrefixConst is the name of the constant a package declares to state
+// the Prometheus prefix that its registration wiring applies at runtime.
+const canonicalPrefixConst = "PrometheusMetricPrefix"
+
+// knownMetricNamespaces lists the namespaces that scanned metric names are
+// expected to carry. A name outside this set means the metric is registered
+// through a prefixing registerer whose prefix the scanner does not know about,
+// so validateMetricNamespaces rejects it rather than emitting a name that no
+// scrape produces.
+var knownMetricNamespaces = []string{
+	"agent_",
+	"coder_",
+	"coderd_",
+}
+
+// metricPrefixSources maps a file that defines metrics to the file declaring
+// the canonical prefix constant applied to them. Keying by the defining file,
+// rather than by metric name, lets the scanner bypass the registration wiring,
+// and reading the constant rather than repeating its value keeps the generated
+// names in step with a prefix rename. Deprecated alias prefixes stay out of the
+// generated reference because only the canonical constant is read.
+//
+// A new file whose metrics are prefixed at registration needs an entry here.
+// Two checks catch most missing entries: validateMetricNamespaces rejects the
+// resulting name when it carries no known namespace, and
+// TestScanAIGatewayFilesAreMapped in scanner_test.go walks the AI Gateway trees
+// for unmapped metric files. Neither catches a file outside those trees whose
+// options already set a known Namespace, because the scanned name then looks
+// valid while the registration wiring adds a further prefix.
+var metricPrefixSources = map[string]string{
+	"aibridge/keypool/state_collector.go":  "aibridge/metrics/metrics.go",
+	"aibridge/metrics/metrics.go":          "aibridge/metrics/metrics.go",
+	"coderd/aibridged/metrics.go":          "aibridge/metrics/metrics.go",
+	"coderd/aibridgedserver/metrics.go":    "aibridge/metrics/metrics.go",
+	"enterprise/aibridgeproxyd/metrics.go": "enterprise/aibridgeproxyd/metrics.go",
+}
+
+// metricPrefixPaths holds the keys of metricPrefixSources ordered by descending
+// length, which is defensive against a future key that could match the same
+// file as another key. No current pair of keys is suffix-comparable.
+var metricPrefixPaths = sortedMetricPrefixPaths()
+
+func sortedMetricPrefixPaths() []string {
+	return slices.SortedFunc(maps.Keys(metricPrefixSources), func(a, b string) int {
+		if diff := len(b) - len(a); diff != 0 {
+			return diff
+		}
+		return strings.Compare(a, b)
+	})
+}
+
+// canonicalPrefixes caches the constant value read from each prefix source
+// file, keyed by that file's path. The scanner runs in a single goroutine.
+var canonicalPrefixes = map[string]string{}
 
 // MetricType represents the type of Prometheus metric.
 type MetricType string
@@ -109,25 +160,49 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to scan directories: %v", err)
 	}
-
-	// Duplicates are not expected since Prometheus enforces unique metric names at registration.
-	uniqueMetrics := make(map[string]Metric)
-	for _, m := range metrics {
-		uniqueMetrics[m.Name] = m
+	metrics = prepareMetrics(metrics)
+	if err := validateMetricNamespaces(metrics); err != nil {
+		log.Fatalf("Failed to validate metric names: %v", err)
 	}
-	metrics = make([]Metric, 0, len(uniqueMetrics))
-	for _, m := range uniqueMetrics {
-		metrics = append(metrics, m)
-	}
-
-	// Sort metrics by name for consistent output across runs.
-	sort.Slice(metrics, func(i, j int) bool {
-		return metrics[i].Name < metrics[j].Name
-	})
 
 	writeMetrics(metrics, os.Stdout)
-
 	logf("Successfully parsed %d metrics", len(metrics))
+}
+
+// validateMetricNamespaces rejects scanned metrics whose names carry no known
+// namespace. Such a name means the metrics are prefixed by their registerer and
+// the defining file has no metricPrefixSources entry, which would document a
+// name that no scrape produces.
+func validateMetricNamespaces(metrics []Metric) error {
+	var unknown []string
+	for _, metric := range metrics {
+		if !slices.ContainsFunc(knownMetricNamespaces, func(namespace string) bool {
+			return strings.HasPrefix(metric.Name, namespace)
+		}) {
+			unknown = append(unknown, metric.Name)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	return xerrors.Errorf("metrics carry no known namespace (%v): set Namespace in the metric options, "+
+		"add a metricPrefixSources entry when a registerer applies the prefix, "+
+		"or extend knownMetricNamespaces: %s",
+		knownMetricNamespaces, strings.Join(unknown, ", "))
+}
+
+// prepareMetrics deduplicates and sorts the scanned metrics. Duplicates are not
+// expected since Prometheus enforces unique metric names at registration, so the
+// deduplication is a safety net rather than a functional requirement. Sorting
+// keeps the generated output stable across runs.
+func prepareMetrics(metrics []Metric) []Metric {
+	uniqueMetrics := make(map[string]Metric)
+	for _, metric := range metrics {
+		uniqueMetrics[metric.Name] = metric
+	}
+	return slices.SortedFunc(maps.Values(uniqueMetrics), func(a, b Metric) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 }
 
 // scanAllDirs scans all configured directories for metric definitions.
@@ -203,6 +278,11 @@ func scanFile(path string) ([]Metric, error) {
 	// Collect file-local const and var declarations for resolving references.
 	decls := collectDecls(file)
 
+	prefix, err := metricPrefixForPath(path)
+	if err != nil {
+		return nil, err
+	}
+
 	var metrics []Metric
 
 	// Walk the AST looking for metric registration calls.
@@ -214,6 +294,7 @@ func scanFile(path string) ([]Metric, error) {
 
 		metric, ok := extractMetricFromCall(call, decls)
 		if ok {
+			metric.Name = prefix + metric.Name
 			if metric.Help == "" {
 				warnf("metric %q has no HELP description, skipping", metric.Name)
 				// Skip metrics without descriptions, they should be fixed in the source code
@@ -227,6 +308,43 @@ func scanFile(path string) ([]Metric, error) {
 	})
 
 	return metrics, nil
+}
+
+// metricPrefixForPath returns the canonical prefix that the registration wiring
+// applies to the metrics defined in path, or an empty string when the file
+// defines unprefixed metrics.
+func metricPrefixForPath(path string) (string, error) {
+	cleaned := filepath.ToSlash(filepath.Clean(path))
+	for _, definingPath := range metricPrefixPaths {
+		if cleaned != definingPath && !strings.HasSuffix(cleaned, "/"+definingPath) {
+			continue
+		}
+		prefix, err := canonicalPrefix(metricPrefixSources[definingPath])
+		if err != nil {
+			return "", xerrors.Errorf("resolving metric prefix for %s: %w", path, err)
+		}
+		return prefix, nil
+	}
+	return "", nil
+}
+
+// canonicalPrefix reads canonicalPrefixConst from the given file. The path is
+// relative to the repository root, which is the scanner's working directory.
+func canonicalPrefix(sourcePath string) (string, error) {
+	if prefix, ok := canonicalPrefixes[sourcePath]; ok {
+		return prefix, nil
+	}
+
+	file, err := parser.ParseFile(token.NewFileSet(), sourcePath, nil, parser.SkipObjectResolution)
+	if err != nil {
+		return "", xerrors.Errorf("parsing %s: %w", sourcePath, err)
+	}
+	prefix, ok := collectDecls(file).strings[canonicalPrefixConst]
+	if !ok {
+		return "", xerrors.Errorf("%s does not declare %s", sourcePath, canonicalPrefixConst)
+	}
+	canonicalPrefixes[sourcePath] = prefix
+	return prefix, nil
 }
 
 // collectPackageConsts collects exported string constants from a file into
@@ -369,22 +487,29 @@ func collectDecls(file *ast.File) declarations {
 }
 
 // extractLabels extracts label names from an expression passed as an argument
-// to a metric constructor. Handles both inline []string literals and
-// variable references from decls.
-// Examples:
-//   - []string{"label1", "label2"}: ["label1", "label2"] (inline literal)
-//   - myLabels: resolved value of myLabels variable (variable reference)
+// to a metric constructor. It handles inline literals, variable references,
+// and append calls that extend a shared label slice.
 func extractLabels(expr ast.Expr, decls declarations) []string {
 	switch e := expr.(type) {
 	case *ast.CompositeLit:
-		// []string{"label1", "label2"}
 		return extractStringSlice(e, decls)
 	case *ast.Ident:
-		// Variable reference like 'labels'.
-		if labels, ok := decls.stringSlices[e.Name]; ok {
-			return labels
+		return slices.Clone(decls.stringSlices[e.Name])
+	case *ast.CallExpr:
+		ident, ok := e.Fun.(*ast.Ident)
+		if !ok || ident.Name != "append" || len(e.Args) < 2 {
+			return nil
 		}
-		return nil
+
+		labels := extractLabels(e.Args[0], decls)
+		for _, arg := range e.Args[1:] {
+			if label := resolveStringExpr(arg, decls); label != "" {
+				labels = append(labels, label)
+				continue
+			}
+			labels = append(labels, extractLabels(arg, decls)...)
+		}
+		return labels
 	}
 	return nil
 }
