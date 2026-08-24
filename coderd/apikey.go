@@ -65,11 +65,9 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Map and validate requested scope.
-	// Accept legacy special scopes (all, application_connect) and external scopes.
-	// Default to coder:all scopes for backward compatibility.
 	// IsExternalScope accepts alias spellings that are not api_key_scope enum
-	// members, so every accepted name is canonicalized before it is stored.
+	// members, so every accepted name is canonicalized before it goes into
+	// CreateParams. Defaulting to coder:all is for backward compatibility.
 	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))

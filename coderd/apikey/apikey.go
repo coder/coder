@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -83,25 +84,32 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	bitlen := len(ip) * 8
 
-	var scopes database.APIKeyScopes
+	var requested database.APIKeyScopes
 	switch {
 	case len(params.Scopes) > 0:
-		scopes = params.Scopes
+		requested = params.Scopes
 	case params.Scope != "":
-		// Callers may pass an alias spelling, which is not an api_key_scope enum
-		// member and so would fail the validity check below.
-		canonical := rbac.CanonicalScopeName(rbac.ScopeName(params.Scope))
-		scopes = database.APIKeyScopes{database.APIKeyScope(canonical)}
+		requested = database.APIKeyScopes{params.Scope}
 	default:
 		// Default to coder:all scope for backward compatibility.
-		scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+		requested = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	}
 
-	for _, s := range scopes {
-		if !s.Valid() {
+	// Callers may pass an alias spelling such as "all", which is not an
+	// api_key_scope enum member and so would fail the validity check. Build a new
+	// slice rather than canonicalizing in place, so params is left as the caller
+	// passed it.
+	scopes := make(database.APIKeyScopes, 0, len(requested))
+	for _, s := range requested {
+		canonical := database.APIKeyScope(rbac.CanonicalScopeName(rbac.ScopeName(s)))
+		if !canonical.Valid() {
 			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", s)
 		}
+		scopes = append(scopes, canonical)
 	}
+	// An alias and its canonical spelling are distinct names on the way in and
+	// the same name here, so drop the repeats before they reach the column.
+	scopes = slice.Unique(scopes)
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
