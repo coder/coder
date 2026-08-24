@@ -197,3 +197,97 @@ test("buildMeta appends unlisted pages after listed ones, ordered by name", () =
 	const g = buildMeta(dirModel, model).find((m) => m.dir === "g");
 	assert.deepEqual(g.pages, ["z", "a"]);
 });
+
+test("buildMeta places a homepage-mapped section's directories by manifest position", () => {
+	// "About" is a top-level section whose own page is the homepage (README ->
+	// route ""); it nests children that live in the sibling top-level directories
+	// about/ and support/. Those directories must sort by their manifest position
+	// (right after the homepage), while a later real section (Reference) stays
+	// last - not the reverse, where about/support trail it.
+	const allMd = [
+		"README.md",
+		"about/screenshots.md",
+		"support/index.md",
+		"reference/index.md",
+		"reference/cli.md",
+	];
+	const dirRoutes = buildDirRoutes(allMd);
+	const manifest = {
+		routes: [
+			{
+				title: "About",
+				path: "./README.md",
+				children: [
+					{ title: "Screenshots", path: "./about/screenshots.md" },
+					{ title: "Support", path: "./support/index.md" },
+				],
+			},
+			{
+				title: "Reference",
+				path: "./reference/index.md",
+				children: [{ title: "CLI", path: "./reference/cli.md" }],
+			},
+		],
+	};
+	const model = buildManifestModel(manifest, dirRoutes);
+	const dirModel = buildDirModel(
+		allMd.map((rel) => mapMdPath(rel, dirRoutes).outRel),
+	);
+	const root = buildMeta(dirModel, model).find((m) => m.dir === "");
+	assert.deepEqual(root.pages, ["index", "about", "support", "reference"]);
+});
+
+test("buildMeta orders root sections by manifest document order, not disk order", () => {
+	// Two plain top-level directory sections listed non-alphabetically; the root
+	// meta must follow the manifest (zebra before apple) even though apple sorts
+	// first on disk.
+	const allMd = ["README.md", "apple/index.md", "zebra/index.md"];
+	const dirRoutes = buildDirRoutes(allMd);
+	const manifest = {
+		routes: [
+			{ title: "Zebra", path: "./zebra/index.md" },
+			{ title: "Apple", path: "./apple/index.md" },
+		],
+	};
+	const model = buildManifestModel(manifest, dirRoutes);
+	const dirModel = buildDirModel(
+		allMd.map((rel) => mapMdPath(rel, dirRoutes).outRel),
+	);
+	const root = buildMeta(dirModel, model).find((m) => m.dir === "");
+	assert.deepEqual(root.pages, ["index", "zebra", "apple"]);
+});
+
+test("buildMeta keeps a section in place when an earlier section links into it", () => {
+	// The first section (Guides) cross-references a page that lives in a later
+	// section's directory (reference/cli). That link must not pull "reference" up
+	// to the Guides position; Reference stays in its own manifest slot, after
+	// Extras.
+	const allMd = [
+		"guides/index.md",
+		"guides/intro.md",
+		"reference/cli.md",
+		"extras/index.md",
+		"reference/index.md",
+	];
+	const dirRoutes = buildDirRoutes(allMd);
+	const manifest = {
+		routes: [
+			{
+				title: "Guides",
+				path: "./guides/index.md",
+				children: [
+					{ title: "Intro", path: "./guides/intro.md" },
+					{ title: "CLI (linked)", path: "./reference/cli.md" },
+				],
+			},
+			{ title: "Extras", path: "./extras/index.md" },
+			{ title: "Reference", path: "./reference/index.md" },
+		],
+	};
+	const model = buildManifestModel(manifest, dirRoutes);
+	const dirModel = buildDirModel(
+		allMd.map((rel) => mapMdPath(rel, dirRoutes).outRel),
+	);
+	const root = buildMeta(dirModel, model).find((m) => m.dir === "");
+	assert.deepEqual(root.pages, ["index", "guides", "extras", "reference"]);
+});

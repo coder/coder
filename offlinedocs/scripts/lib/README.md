@@ -41,9 +41,12 @@ ordering model, and the per-directory `meta.json` page lists.
   to right: bucket 0 is items in the directory's manifest child order (by that
   index), bucket 1 is items ordered only by their own manifest position, and
   bucket 2 is unordered items, which fall to the end broken by name. A directory
-  sorts by the earliest-ordered page beneath it (`minOrderUnder`). The tuple
-  keeps listed items ahead of unlisted ones without sentinel numbers, so there
-  is no corpus-size ceiling.
+  sorts by the earliest-ordered page beneath it (`minOrderUnder`). At the root,
+  the manifest child order is the top-level directories and files in the order
+  their manifest section introduces them, so a section whose own page is the
+  homepage (or a pure grouping node) contributes its directories in position
+  rather than trailing the listed sections. The tuple keeps listed items ahead
+  of unlisted ones without sentinel numbers, so there is no corpus-size ceiling.
 
 ## transform.mjs
 

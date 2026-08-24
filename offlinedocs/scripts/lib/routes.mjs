@@ -101,9 +101,33 @@ export function buildManifestModel(manifest, dirRoutes) {
 	}
 	walk(manifest.routes);
 
-	const rootOrder = (manifest.routes || [])
-		.map((node) => manifestRoute(node, dirRoutes))
-		.filter((x) => x !== null);
+	// The root's children are the top-level directories and files in the order
+	// their manifest section introduces them. A section is normally a top-level
+	// directory (get-started, reference), contributing that one segment. A
+	// section with no page of its own - one mapped to the homepage (About ->
+	// README, route "") or a pure grouping node - instead owns its directories
+	// through nested children (about/, support/), so those are collected from its
+	// subtree and land at the section's position. Only such sections expand, so a
+	// normal section that merely links into another's directory does not pull
+	// that segment out of its own place.
+	const seenRoot = new Set();
+	const rootOrder = [];
+	const pushRootSeg = (route) => {
+		const seg = route ? route.split("/")[0] : "";
+		if (seg && !seenRoot.has(seg)) {
+			seenRoot.add(seg);
+			rootOrder.push(seg);
+		}
+	};
+	const collectRootSegs = (node) => {
+		pushRootSeg(manifestRoute(node, dirRoutes));
+		for (const child of node.children || []) collectRootSegs(child);
+	};
+	for (const node of manifest.routes || []) {
+		const r = manifestRoute(node, dirRoutes);
+		if (r) pushRootSeg(r);
+		else collectRootSegs(node);
+	}
 	childOrderByDir.set("", rootOrder);
 
 	return { manifestMeta, manifestPathByRoute, routeOrder, childOrderByDir };
