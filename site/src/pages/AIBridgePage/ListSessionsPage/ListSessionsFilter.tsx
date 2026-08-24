@@ -48,11 +48,7 @@ export const ListSessionsFilter: FC<ListSessionsFilterProps> = ({
 			error={error}
 			options={
 				<>
-					<DateTimeRangePicker
-						value={timeRange}
-						onChange={onTimeRangeChange}
-						size="lg"
-					/>
+					<DateTimeRangePicker value={timeRange} onChange={onTimeRangeChange} />
 					<UserMenu
 						menu={menus.user}
 						placeholder="All users"
