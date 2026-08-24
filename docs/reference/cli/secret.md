@@ -48,12 +48,12 @@ coder secret
 
 ## Subcommands
 
-| Name                                        | Purpose                                           |
-|---------------------------------------------|---------------------------------------------------|
-| [<code>create</code>](./secret_create.md)   | Create a secret                                   |
-| [<code>update</code>](./secret_update.md)   | Update a secret                                   |
-| [<code>import</code>](./secret_import.md)   | Import secrets from a file                        |
-| [<code>enable</code>](./secret_enable.md)   | Enable a secret so it is injected into workspaces |
-| [<code>disable</code>](./secret_disable.md) | Disable a secret without removing it              |
-| [<code>list</code>](./secret_list.md)       | List secrets, or show one by name                 |
-| [<code>delete</code>](./secret_delete.md)   | Delete a secret                                   |
+| Name                                        | Purpose                                                 |
+|---------------------------------------------|---------------------------------------------------------|
+| [<code>create</code>](./secret_create.md)   | Create a secret                                         |
+| [<code>update</code>](./secret_update.md)   | Update a secret                                         |
+| [<code>import</code>](./secret_import.md)   | Import secrets from a file                              |
+| [<code>enable</code>](./secret_enable.md)   | Mark a secret enabled for its allowed injection targets |
+| [<code>disable</code>](./secret_disable.md) | Disable a secret without removing it                    |
+| [<code>list</code>](./secret_list.md)       | List secrets, or show one by name                       |
+| [<code>delete</code>](./secret_delete.md)   | Delete a secret                                         |

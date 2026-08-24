@@ -86,6 +86,37 @@ func TestSecretCreate(t *testing.T) {
 		require.Equal(t, "~/.api-key", secret.FilePath)
 	})
 
+	t.Run("FilePathPolicyError", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+			values.DisableUserSecretFilePath = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{DeploymentValues: dv})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		inv, root := clitest.New(
+			t,
+			"secret",
+			"create",
+			"api-key",
+			"--value", "super-secret-value",
+			"--env", "API_KEY",
+			"--file", "~/.api-key",
+		)
+		clitest.SetupConfig(t, client, root)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "File path delivery for user secrets is disabled by the deployment administrator")
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "file_path", sdkErr.Validations[0].Field)
+	})
+
 	t.Run("ValueFlagConflictsWithStdin", func(t *testing.T) {
 		t.Parallel()
 
@@ -292,6 +323,45 @@ func TestSecretUpdate(t *testing.T) {
 		require.Contains(t, sdkErr.Validations[0].Detail, "at least one of env_name or file_path")
 	})
 
+	t.Run("ClearsLegacyFilePathWhileDisabling", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:     "legacy-file-secret",
+			Value:    "value",
+			FilePath: "~/.legacy-secret",
+		})
+		require.NoError(t, err)
+		dv.DisableUserSecretFilePath = true
+
+		inv, root := clitest.New(
+			t,
+			"secret",
+			"update",
+			"legacy-file-secret",
+			"--file", "",
+			"--enabled=false",
+		)
+		output := clitest.Capture(inv)
+		clitest.SetupConfig(t, client, root)
+
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Contains(t, output.Stdout(), "legacy-file-secret")
+
+		secret, err := client.UserSecretByName(ctx, codersdk.Me, "legacy-file-secret")
+		require.NoError(t, err)
+		require.Empty(t, secret.FilePath)
+		require.False(t, secret.Enabled)
+	})
+
 	t.Run("UpdatesValueFromEmptyFlag", func(t *testing.T) {
 		t.Parallel()
 
@@ -416,6 +486,7 @@ func TestSecretList(t *testing.T) {
 		assert.Contains(t, out, "UPDATED")
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
+		assert.Contains(t, out, "ENABLED")
 		assert.Contains(t, out, "DESCRIPTION")
 		assert.Contains(t, out, "service-token")
 		assert.Contains(t, out, "SERVICE_TOKEN")
@@ -488,6 +559,7 @@ func TestSecretList(t *testing.T) {
 		assert.Contains(t, out, "UPDATED")
 		assert.Contains(t, out, "ENV")
 		assert.Contains(t, out, "FILE")
+		assert.Contains(t, out, "ENABLED")
 		assert.Contains(t, out, "DESCRIPTION")
 		assert.Contains(t, out, "service-token")
 		assert.Contains(t, out, "SERVICE_TOKEN")
