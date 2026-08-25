@@ -2555,7 +2555,8 @@ export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
 				predicate: ({ queryKey }) =>
 					queryKey[0] === "organizations" &&
 					queryKey[2] === "permissions" &&
-					(queryKey[1] as readonly string[]).includes(organization),
+					Array.isArray(queryKey[1]) &&
+					queryKey[1].includes(organization),
 			}),
 		]);
 	},
