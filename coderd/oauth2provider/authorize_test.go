@@ -48,8 +48,6 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `id="cancel-link"`)
 }
 
-// Scope names used by the negotiation tests. Membership in
-// rbac.IsExternalScope's catalog is the point of each case.
 const (
 	scopeInCatalog     = "coder:workspaces.access"
 	scopeAlsoInCatalog = "coder:templates.build"
@@ -74,7 +72,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	// Each sub-test gets its own app: only one code exists per app/user pair.
+	// Only one code exists per app/user pair, so each sub-test needs its own app.
 	seedApp := func(t *testing.T, appScope sql.NullString) database.OAuth2ProviderApp {
 		t.Helper()
 		return dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
@@ -95,9 +93,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 	})
 
-	// The allowlist bounds authority, not spelling: an unlisted name is
-	// granted when the permissions behind it are covered.
-	t.Run("ScopeCoveredByAllowlistGranted", func(t *testing.T) {
+	t.Run("UnlistedScopeCoveredByAllowlistGranted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -108,8 +104,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, "workspace:ssh", persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// The catalog half: a name the enforcement layer cannot evaluate is
-	// rejected on its own terms, not by the allowlist.
 	t.Run("UnknownScopeRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -133,8 +127,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, allowlist, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// rbac.IsExternalScope accepts the `all` alias; the api_key_scope enum has
-	// only `coder:all`.
 	t.Run("LegacyAliasPersistedCanonically", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -146,7 +138,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, string(database.ApiKeyScopeCoderAll), persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// A space-separated scope denotes a set.
 	t.Run("DuplicateRequestedScopePersistedOnce", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -158,10 +149,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// NULL (admin-created apps) and '' (DCR apps that sent no scope) are one
-	// "no allowlist" state, and both keep the grant they had before scope
-	// enforcement existed.
-	t.Run("NullAndEmptyAllowlistBehaveIdentically", func(t *testing.T) {
+	// NULL comes from admin-created apps, '' from DCR apps that sent no scope.
+	t.Run("NullAndEmptyAllowlistGrantUnrestricted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -179,8 +168,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, nullScope, emptyScope)
 	})
 
-	// An allowlist entry no longer in the catalog is dropped, not granted.
-	t.Run("StaleAllowlistEntryDropped", func(t *testing.T) {
+	t.Run("StaleAllowlistEntryDroppedNotGranted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -191,8 +179,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, scopeInCatalog, persistedCodeScope(ctx, t, db, resp))
 	})
 
-	// The same filter with no survivors: falling back to unrestricted would
-	// grant more than the allowlist ever permitted.
 	t.Run("AllowlistFilteringToEmptyRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -205,10 +191,9 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	})
 }
 
-// TestOAuth2AuthorizeDCRScopeCompatibility pins an accepted compatibility
-// break: registration performs no catalog validation, so an app can register
-// an allowlist this server cannot grant from. Authorization then fails with
-// invalid_scope rather than granting a scope dbauthz cannot evaluate.
+// Registration performs no catalog validation, so an app can register an
+// allowlist this server cannot grant from. Authorization then rejects it rather
+// than granting a scope dbauthz cannot evaluate.
 func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +229,6 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	// Only the app owner can recover from the break, and the request carries
-	// no scope of its own, so the description has to name the registered list.
 	t.Run("RejectionNamesTheRegisteredScopes", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -260,7 +243,7 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 }
 
 // authorizeQuery builds a well-formed /oauth2/authorize query. Callers varying
-// another parameter mutate the result and pass it to sendAuthorizeRequest.
+// another parameter mutate the result before sending it.
 func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
 	t.Helper()
 
@@ -277,9 +260,8 @@ func authorizeQuery(t *testing.T, clientID, scope string) url.Values {
 	return query
 }
 
-// authorizeRequest issues an /oauth2/authorize request for the given app.
-// Redirects are not followed, so a successful POST surfaces as a 302 carrying
-// the code in Location.
+// authorizeRequest issues an /oauth2/authorize request without following
+// redirects, so a successful POST surfaces as a 302 carrying the code.
 func authorizeRequest(ctx context.Context, t *testing.T, client *codersdk.Client, method, clientID, scope string) *http.Response {
 	t.Helper()
 
@@ -307,8 +289,8 @@ func sendAuthorizeRequest(ctx context.Context, t *testing.T, client *codersdk.Cl
 	return resp
 }
 
-// persistedCodeScope returns the scope stored on the issued code, which is
-// what the token exchange later reads.
+// persistedCodeScope returns the scope stored on the issued code, which is what
+// the token exchange later reads.
 func persistedCodeScope(ctx context.Context, t *testing.T, db database.Store, resp *http.Response) string {
 	t.Helper()
 
@@ -327,21 +309,17 @@ func persistedCodeScope(ctx context.Context, t *testing.T, db database.Store, re
 	return code.Scope
 }
 
-// The rejection reasons from authorize.go, each unique to one branch. The
-// transport carries only the rendered description, so these pin over the wire
-// what errors.Is pins in the package's own tests.
+// The rejection reasons from authorize.go, each unique to one branch. The wire
+// carries only the rendered description, so these stand in for errors.Is.
 var (
 	reasonUnknownScope     = oauth2provider.ReasonUnknownScope
 	reasonNoGrantableScope = oauth2provider.ReasonNoGrantableScope
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
-// requireInvalidScope asserts that a request is refused rather than issued a
-// code, and that the refusal names the branch the caller expects.
-//
-// GET answers with an error page and POST with an OAuth2 error body. Neither
-// redirects, so the assertion is on status and body. The returned body is
-// unescaped so callers need not know which handler answered.
+// requireInvalidScope asserts the request was refused by the named branch
+// rather than issued a code. GET answers with an error page and POST with an
+// OAuth2 error body, so the returned body is unescaped for either.
 func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) string {
 	t.Helper()
 
