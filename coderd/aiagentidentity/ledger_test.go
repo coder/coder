@@ -1,6 +1,7 @@
 package aiagentidentity_test
 
 import (
+	"database/sql"
 	"sync"
 	"testing"
 	"time"
@@ -309,4 +310,83 @@ func TestMintedKeyIsInTheLedger(t *testing.T) {
 	// The 24 hour lifetime survives the move. A mirror that wrote its
 	// stand-in for never would pass every other assertion here.
 	require.WithinRange(t, key.ExpiresAt, before.Add(23*time.Hour), dbtime.Now().Add(25*time.Hour))
+}
+
+// TestRotationIsOneEntry proves a rotation reaches the journal as a single
+// event naming both credentials. entity_model.md holds that rotating is issuing
+// one credential and revoking another as one entry, so that no interval passes
+// without a valid one, and that two entries would assert the very gap the
+// overlap exists to prevent.
+func TestRotationIsOneEntry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+
+	chatID := uuid.New()
+	agentUser, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.ID,
+		OrganizationID: organization.ID,
+		OriginType:     entity.CreationSiteTypeChat,
+		OriginID:       chatID,
+	})
+	require.NoError(t, err)
+
+	profile := aiagentidentity.ChatAgentProfile(chatID)
+	oldKey, oldToken, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, profile)
+	require.NoError(t, err)
+	superseded, err := db.GetCredentialAPIKeyByKeyID(ctx, oldKey.ID)
+	require.NoError(t, err)
+
+	newKey, newToken, err := aiagentidentity.RotateKey(ctx, db, agentUser.ID, profile)
+	require.NoError(t, err)
+	require.NotEqual(t, oldToken, newToken, "a rotation replaces the authenticator")
+	replacement, err := db.GetCredentialAPIKeyByKeyID(ctx, newKey.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, superseded.ID, replacement.ID, "a rotation issues a credential")
+
+	// Two credentials, opposite states, and the journal says why for each.
+	oldRow, err := db.GetCredentialLedgerRowByID(ctx, superseded.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.CredentialStateInvalid, oldRow.State)
+	newRow, err := db.GetCredentialLedgerRowByID(ctx, replacement.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.CredentialStateValid, newRow.State)
+
+	last := func(subject uuid.UUID) database.GetCredentialLifecycleJournalEntriesBySubjectRow {
+		rows, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+			database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: subject, Limit: 8})
+		require.NoError(t, err)
+		require.NotEmpty(t, rows)
+		return rows[len(rows)-1]
+	}
+	revoked, issued := last(superseded.ID), last(replacement.ID)
+	require.Equal(t, string(entity.EventCredentialRevoke), revoked.Event)
+	require.Equal(t, string(entity.EventCredentialIssue), issued.Event)
+
+	// **The claim of this test.** One entry, so a reader of either credential
+	// can see the other half happened with it, and the record asserts no
+	// interval in which the holder had nothing valid.
+	require.Equal(t, revoked.EntryID, issued.EntryID,
+		"a rotation is one event, not a revocation followed by an issuance")
+	require.Equal(t, owner.ID, revoked.Actor.UUID, "one actor, carried by the entry")
+	require.Equal(t, owner.ID, issued.Actor.UUID)
+	require.Equal(t, revoked.EffectiveDate, issued.EffectiveDate)
+
+	// The mirror cannot hold both, its unique index being over a holder and a
+	// token name, so the superseded row went with the same transaction.
+	_, err = db.GetAPIKeyByID(ctx, oldKey.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the superseded mirror goes")
+	standing, err := db.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		HolderID:  database.HolderID(agentUser.ID),
+		TokenName: profile.TokenName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, newKey.ID, standing.ID, "the name now holds the replacement")
 }

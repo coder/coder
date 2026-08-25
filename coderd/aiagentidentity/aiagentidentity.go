@@ -176,11 +176,11 @@ func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateP
 // DropKey deletes one of an AI agent's mirrored keys without recording an
 // ending, named by the token name its profile carries.
 //
-// **It records nothing, which is why it is not called Revoke.** Two callers
-// want exactly that: a retirement, where the credential has already lapsed and
-// only the mirror is left, and a rotation, where the credential is superseded
-// rather than finished and both halves belong in one entry once WP13's atomic
-// group exists.
+// **It records nothing, which is why it is not called Revoke.** Its caller is a
+// retirement, where the credential has already lapsed and only the mirror is
+// left. A rotation used to want it too; it now revokes the superseded
+// credential on a line of the entry that issues the replacement, so the mirror
+// is dropped by that transaction rather than by this.
 //
 // **An ending calls RevokeKey or DischargeKey instead.** Ending one is currently a delete from api_keys and nothing else;
 // gathering the callers here is what lets that become a posting to the
@@ -313,6 +313,12 @@ func DropAllKeys(ctx context.Context, db database.Store, agentID uuid.UUID) erro
 // generator on every axis: it requires scopes and an allow list rather than
 // defaulting them, rejects the broad scopes, and refuses a wildcard.
 func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile) (database.APIKey, string, error) {
+	return issueKey(ctx, db, agentUserID, profile, uuid.Nil)
+}
+
+// issueKey is what MintKey and RotateKey share. superseded names the credential
+// a rotation replaces, and is nil for a plain issuance.
+func issueKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile, superseded uuid.UUID) (database.APIKey, string, error) {
 	if agentUserID == uuid.Nil {
 		return database.APIKey{}, "", xerrors.New("AI agent user ID must be non-nil")
 	}
@@ -329,7 +335,7 @@ func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, prof
 	// Key minting is internal and limited by the validated profile.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
 
-	issued, err := entity.IssueCredential(systemCtx, db, entity.IssueCredentialParams{
+	params := entity.IssueCredentialParams{
 		Holder: entity.Ref{Type: entity.TypeAIAgent, ID: agentUserID},
 		Type:   entity.CredentialTypeAPIKey,
 		Actor:  entity.Ref{Type: entity.TypeUser, ID: resolved.Ledger.OwnerID},
@@ -339,7 +345,14 @@ func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, prof
 			AllowList:      profile.AllowList,
 			MirrorLifetime: keyLifetime,
 		},
-	})
+	}
+
+	var issued entity.IssuedCredential
+	if superseded == uuid.Nil {
+		issued, err = entity.IssueCredential(systemCtx, db, params)
+	} else {
+		issued, err = entity.RotateCredential(systemCtx, db, superseded, params)
+	}
 	if err != nil {
 		return database.APIKey{}, "", xerrors.Errorf("issue AI agent credential: %w", err)
 	}
@@ -359,37 +372,58 @@ func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, prof
 	return key, issued.Authenticator, nil
 }
 
-// RotateKey replaces the credential a profile names, dropping the existing key
-// and minting one under the same token name.
+// RotateKey replaces the credential a profile names with a new one at the same
+// token name, as a single event.
 //
-// **Rotation is not an ending, which is why this drops rather than revokes.**
-// The credential is superseded, not finished: something takes its place at the
-// same name, and nothing about the holder or its authorization changed. Calling
-// an ending here would post a revocation that no party commanded and no ending
-// entailed.
+// **One entry names both credentials**, a revocation and an issuance, with one
+// party and one moment. Recording it as two entries would assert an interval
+// with no valid credential, which is the very thing a rotation exists to avoid.
+// See "How the credential machine is read" in poc_audit/entity_model.md.
 //
 // **The reason is in the name, and that is the point of the function.** Both
-// halves were written out at each site, so what the two statements together
-// amounted to was legible only by inference. `DropKey` cannot be told why it
-// was called and should not be; the caller says so by which function it calls.
+// halves used to be written out at each site, so what they amounted to together
+// was legible only by inference. `DropKey` cannot be told why it was called and
+// should not be; the caller says so by which function it calls.
 //
-// **A real gap passes here, and removing it is what this is a step toward.**
-// The drop and the mint are two statements, so an interval exists with no valid
-// credential at that name. The corpus holds that a rotation is one entry naming
-// both credentials, precisely so that the record does not assert the gap the
-// overlap exists to prevent. That needs an entry able to carry two subjects.
-// See WP13 milestone 1 in poc_audit/work_breakdown.md.
+// **Nothing to supersede is an issuance, not a rotation**, and is treated as
+// one rather than refused. A profile whose key has been swept, or which has
+// never been minted, reaches this the same way.
 //
-// The context is used as given, as for DropKey. MintKey escalates internally
-// for everything it does, so a caller escalating for the drop escalates the
-// whole call without widening the mint.
+// The context is used as given, as for DropKey. Issuance escalates internally
+// for everything it does, so a caller escalating here widens nothing.
 //
 // store may be a transaction handle.
 func RotateKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile) (database.APIKey, string, error) {
-	if err := DropKey(ctx, db, agentUserID, profile.TokenName); err != nil {
-		return database.APIKey{}, "", xerrors.Errorf("drop the superseded AI agent key: %w", err)
+	superseded, err := credentialAtTokenName(ctx, db, agentUserID, profile.TokenName)
+	if err != nil {
+		return database.APIKey{}, "", err
 	}
-	return MintKey(ctx, db, agentUserID, profile)
+	return issueKey(ctx, db, agentUserID, profile, superseded)
+}
+
+// credentialAtTokenName resolves the credential a mirrored key stands for, by
+// the name its profile carries. It returns nil where no key holds that name,
+// which is not an error: a rotation with nothing to supersede is an issuance.
+func credentialAtTokenName(ctx context.Context, db database.Store, agentUserID uuid.UUID, tokenName string) (uuid.UUID, error) {
+	key, err := db.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		HolderID:  database.HolderID(agentUserID),
+		TokenName: tokenName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, nil
+	}
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get AI agent API key by name: %w", err)
+	}
+
+	// The ledger is the index: it knows which credential this key mirrors. A
+	// key without one cannot arise, every AI agent key being minted through
+	// the ledger, so its absence is an error rather than a case to handle.
+	mirrored, err := db.GetCredentialAPIKeyByKeyID(ctx, key.ID)
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("read the credential behind AI agent key %q: %w", tokenName, err)
+	}
+	return mirrored.ID, nil
 }
 
 // Resolve loads authoritative AI agent metadata and its human owner.

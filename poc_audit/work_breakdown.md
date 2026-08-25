@@ -1870,8 +1870,11 @@ happened to it.
 journalled turned out to be unsound throughout, so it became documentary. See
 its section, and `credential_expiration.working_state.md` for the reasoning.
 
-**Milestone 3's first step has landed**, 2026-08-25. `RotateKey` exists and both
-sites call it.
+**Milestone 3 has landed**, 2026-08-25. `RotateKey` exists, both sites call it,
+and a rotation is now one entry naming both credentials.
+
+**What is left in this package is the authorization journal**, recorded under
+milestone 1. Everything the package was opened with is done.
 
 **One item has left, complete.** The two-form entailing reference was pulled
 into WP11 milestone 3 and shipped with migration 000590: `entailed_by_entry` and
@@ -2054,15 +2057,42 @@ one.
 `deleteAIAgentSessionToken` stays: `revokeAIAgentIdentity` is its second caller,
 and that one is dropping a key on a retirement rather than rotating.
 
-**Step two needs the atomic group.** `regenerateAIAgentSessionToken` deletes the
-stale key and then mints, two statements outside a transaction in
-`acquireProtoJob`, so there is a real interval with no valid credential.
-Rewriting it onto a rotation entry, one entry naming both credentials, is short
-once milestone 1 exists.
+**Step two is done**, 2026-08-25. `entity.RotateCredential` issues a credential
+and revokes the one it replaces as a single entry: one party, one moment, line
+zero revoking and line one issuing. `RotateKey` routes through it, so both call
+sites got the change without knowing about it.
 
-**The gap it leaves today has no plausible victim**, the legitimate holder not
-existing during a start build, but it is a true gap and the record should not
-have to assert one where the overlap is the point.
+**It needed a refactor the milestone did not name.** `IssueCredential` opened
+its own entry, so nothing could issue on a line of an entry someone else opened.
+It is now `prepareIssuance`, which mints and validates outside the transaction,
+and `postIssuance`, which writes one issuance as a line of an entry already
+open. `invalidateCredential` split the same way into `postInvalidation`. Both
+splits are behaviour preserving and the existing tests carried unchanged.
+
+**Nothing to supersede is treated as an issuance rather than refused.** A
+profile whose key has been swept, or which has never been minted, reaches
+`RotateKey` the same way, and refusing it would make callers ask a question they
+have no reason to ask.
+
+**Acceptance test**: `TestRotationIsOneEntry` in `coderd/aiagentidentity`. A
+mint then a rotation; the superseded credential is invalid with a `revoke`, the
+replacement valid with an `issue`, and both name the same entry. Negative
+control run: reverting `RotateKey` to the drop and mint pair fails it.
+
+#### Why the code deletes before it inserts, which is an implementation note
+
+`api_keys` carries a unique index over a holder and a token name for minted
+tokens, so two rows of one name cannot sit there at once. The superseded row
+therefore goes before the replacement arrives, and being in one transaction that
+ordering is invisible to every other reader.
+
+**This says nothing about the overlap `entity_model.md` describes.** Eric,
+2026-08-25: mirrored tables are transient, present only while the code is being
+worked on, and will not appear in any final version of a journaled system. A
+constraint of the scaffolding cannot bear on a position about the record. The
+ledger holds both credentials and the overlap is the ledger's.
+
+The note is here to explain the write order and goes when the mirror does.
 
 ### Not written yet
 

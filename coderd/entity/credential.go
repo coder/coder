@@ -173,18 +173,34 @@ type IssuedCredential struct {
 //
 // store may be a transaction handle, so issuance can commit with whatever else
 // brought the holder into being.
-func IssueCredential(ctx context.Context, store database.Store, params IssueCredentialParams) (IssuedCredential, error) {
+// preparedIssuance is everything an issuance settles before it reaches the
+// database: what was minted, what will be kept of it, and which shapes the
+// writes take. Preparing it apart from the transaction keeps generation and
+// validation off the connection, and lets a rotation issue on a line of an
+// entry it did not open.
+type preparedIssuance struct {
+	params         IssueCredentialParams
+	credentialType string
+	issued         IssuedCredential
+	stored         string
+	keyID          string
+	keySecret      string
+	mirrorHolder   database.HolderType
+	effective      time.Time
+}
+
+func prepareIssuance(params IssueCredentialParams) (preparedIssuance, error) {
 	if !params.Holder.Type.Valid() {
-		return IssuedCredential{}, xerrors.Errorf("holder type %q names no kind of entity", params.Holder.Type)
+		return preparedIssuance{}, xerrors.Errorf("holder type %q names no kind of entity", params.Holder.Type)
 	}
 	if params.Holder.ID == uuid.Nil {
-		return IssuedCredential{}, xerrors.New("a credential authenticates a holder, so issuing one needs one")
+		return preparedIssuance{}, xerrors.New("a credential authenticates a holder, so issuing one needs one")
 	}
 	if !params.Actor.Type.Valid() {
-		return IssuedCredential{}, xerrors.Errorf("actor type %q names no kind of entity", params.Actor.Type)
+		return preparedIssuance{}, xerrors.Errorf("actor type %q names no kind of entity", params.Actor.Type)
 	}
 	if params.Actor.ID == uuid.Nil {
-		return IssuedCredential{}, xerrors.New("an entry needs an actor, so issuance needs one")
+		return preparedIssuance{}, xerrors.New("an entry needs an actor, so issuance needs one")
 	}
 
 	credentialType := params.Type
@@ -201,7 +217,7 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 	// they are needed there is nothing to issue; present where they are not
 	// they parameterize an operation that takes none.
 	if (credentialType == CredentialTypeAPIKey) != (params.APIKey != nil) {
-		return IssuedCredential{}, xerrors.Errorf(
+		return preparedIssuance{}, xerrors.Errorf(
 			"credential type %q and the api_key parameters must be given together or not at all", credentialType)
 	}
 
@@ -209,18 +225,18 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 	case CredentialTypePassword:
 		authenticator, err := cryptorand.String(authenticatorLength)
 		if err != nil {
-			return IssuedCredential{}, xerrors.Errorf("generate authenticator: %w", err)
+			return preparedIssuance{}, xerrors.Errorf("generate authenticator: %w", err)
 		}
 		issued.Authenticator = authenticator
 		stored = hashAuthenticator(authenticator)
 	case CredentialTypeAPIKey:
 		id, err := cryptorand.String(apiKeyIDLength)
 		if err != nil {
-			return IssuedCredential{}, xerrors.Errorf("generate a key id: %w", err)
+			return preparedIssuance{}, xerrors.Errorf("generate a key id: %w", err)
 		}
 		secret, err := cryptorand.String(apiKeySecretLength)
 		if err != nil {
-			return IssuedCredential{}, xerrors.Errorf("generate a key secret: %w", err)
+			return preparedIssuance{}, xerrors.Errorf("generate a key secret: %w", err)
 		}
 		keyID, keySecret = id, secret
 		// What is handed to the holder packs a declaration and an
@@ -235,11 +251,11 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		// Nothing to mint and nothing to keep. Both halves are empty on
 		// purpose, and verification never consults either.
 	default:
-		return IssuedCredential{}, xerrors.Errorf("credential type %q has no code able to validate it", credentialType)
+		return preparedIssuance{}, xerrors.Errorf("credential type %q has no code able to validate it", credentialType)
 	}
 
 	if params.APIKey != nil && len(params.APIKey.AllowList) == 0 {
-		return IssuedCredential{}, xerrors.New("an api_key credential with an empty allow list confers nothing")
+		return preparedIssuance{}, xerrors.New("an api_key credential with an empty allow list confers nothing")
 	}
 
 	// The mirror narrows what may hold a credential. api_keys constrains its
@@ -252,7 +268,7 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		var err error
 		mirrorHolder, err = apiKeyHolderType(params.Holder.Type)
 		if err != nil {
-			return IssuedCredential{}, err
+			return preparedIssuance{}, err
 		}
 	}
 
@@ -262,136 +278,252 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 	}
 
 	issued.ID = uuid.New()
-	err := store.InTx(func(tx database.Store) error {
+	return preparedIssuance{
+		params:         params,
+		credentialType: credentialType,
+		issued:         issued,
+		stored:         stored,
+		keyID:          keyID,
+		keySecret:      keySecret,
+		mirrorHolder:   mirrorHolder,
+		effective:      effective,
+	}, nil
+}
+
+// appendCommandedEntry writes the entry a commanded operation occupies. It
+// carries the party and the moment and nothing about a subject, which is the
+// line's, and it names nothing as having entailed it because a party acted.
+func appendCommandedEntry(ctx context.Context, tx database.Store, entryID int64, effective time.Time, actor Ref) error {
+	_, err := tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
+		EntryID:              entryID,
+		EffectiveDate:        effective,
+		ActorType:            sql.NullString{String: string(actor.Type), Valid: true},
+		Actor:                uuid.NullUUID{UUID: actor.ID, Valid: true},
+		EntailedByEntry:      sql.NullInt64{},
+		EntailedByAnnotation: sql.NullString{},
+	})
+	if err != nil {
+		return xerrors.Errorf("append entry: %w", err)
+	}
+	return nil
+}
+
+func IssueCredential(ctx context.Context, store database.Store, params IssueCredentialParams) (IssuedCredential, error) {
+	p, err := prepareIssuance(params)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
+
+	err = store.InTx(func(tx database.Store) error {
 		entryID, err := tx.NextCredentialLifecycleJournalEntryID(ctx)
 		if err != nil {
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
-
-		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
-			EntryID:       entryID,
-			EffectiveDate: effective,
-			ActorType:     sql.NullString{String: string(params.Actor.Type), Valid: true},
-			Actor:         uuid.NullUUID{UUID: params.Actor.ID, Valid: true},
-			// Issuance is commanded, so nothing entailed it.
-			EntailedByEntry:      sql.NullInt64{},
-			EntailedByAnnotation: sql.NullString{},
-		})
-		if err != nil {
-			return xerrors.Errorf("append issuance entry: %w", err)
+		if err := appendCommandedEntry(ctx, tx, entryID, p.effective, p.params.Actor); err != nil {
+			return err
 		}
-
-		// The subject and what happened to it are the line's, the entry
-		// carrying only who acted and when. Line zero, an issuance on its own
-		// naming one credential.
-		if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
-			EntryID: entryID,
-			Line:    0,
-			Subject: issued.ID,
-			Event:   string(EventCredentialIssue),
-		}); err != nil {
-			return xerrors.Errorf("append the issuance line: %w", err)
-		}
-
-		_, err = tx.InsertCredentialLedgerRow(ctx, database.InsertCredentialLedgerRowParams{
-			ID:             issued.ID,
-			HolderType:     string(params.Holder.Type),
-			HolderID:       params.Holder.ID,
-			CredentialType: credentialType,
-			State:          CredentialStateValid,
-			// Nothing issues an expiry yet. The column is here so that the
-			// work package which does changes no schema, and an absent expiry
-			// means no expiry: the null stands exactly where a row would have
-			// been absent had expirations been kept in a table of their own.
-			ExpiresAt:                 sql.NullTime{},
-			LifecyclePostingReference: entryID,
-		})
-		if err != nil {
-			return xerrors.Errorf("post to the ledger: %w", err)
-		}
-
-		// The type's own state, in the same transaction as the row it belongs
-		// to. A password credential whose digest is missing is one nothing can
-		// verify, so the two are written together or not at all.
-		switch credentialType {
-		case CredentialTypePassword:
-			if _, err := tx.InsertCredentialPassword(ctx, database.InsertCredentialPasswordParams{
-				ID:                  issued.ID,
-				HashedAuthenticator: stored,
-			}); err != nil {
-				return xerrors.Errorf("post the password: %w", err)
-			}
-		case CredentialTypeAPIKey:
-			// The line first, then the row it posts to, for the same reason
-			// the entry precedes the ledger: the journal is the book of
-			// original entry. Line zero, this being the only line.
-			if _, err := tx.InsertCredentialLifecycleJournalAPIKeyLine(ctx, database.InsertCredentialLifecycleJournalAPIKeyLineParams{
-				EntryID:   entryID,
-				Line:      0,
-				TokenName: params.APIKey.TokenName,
-				Scopes:    params.APIKey.Scopes,
-				AllowList: params.APIKey.AllowList,
-			}); err != nil {
-				return xerrors.Errorf("append the api_key line: %w", err)
-			}
-			if _, err := tx.InsertCredentialAPIKey(ctx, database.InsertCredentialAPIKeyParams{
-				ID:           issued.ID,
-				KeyID:        keyID,
-				HashedSecret: stored,
-				TokenName:    params.APIKey.TokenName,
-				Scopes:       params.APIKey.Scopes,
-				AllowList:    params.APIKey.AllowList,
-			}); err != nil {
-				return xerrors.Errorf("post the api_key: %w", err)
-			}
-
-			mirrorExpiry := apiKeyMirrorNoExpiry
-			if params.APIKey.MirrorLifetime > 0 {
-				mirrorExpiry = effective.Add(params.APIKey.MirrorLifetime)
-			}
-
-			// The mirror, in the transaction that posted the credential.
-			// api_keys is what authenticates a request today, so a credential
-			// the ledger holds and that table does not is one the system will
-			// refuse. Writing both together is what makes issuance through the
-			// journal the same act as issuance, rather than a description of
-			// one that happened elsewhere.
-			//
-			// **This is one way and only for issuance.** Revocation, expiry
-			// and last use still write api_keys directly, so the two can
-			// diverge on every path but this one, and nothing detects it.
-			if _, err := tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
-				ID:              keyID,
-				HashedSecret:    hashAuthenticatorBytes(keySecret),
-				HolderID:        database.HolderID(params.Holder.ID),
-				HolderType:      mirrorHolder,
-				LastUsed:        time.Unix(0, 0).UTC(),
-				ExpiresAt:       mirrorExpiry,
-				LifetimeSeconds: int64(mirrorExpiry.Sub(effective).Seconds()),
-				CreatedAt:       effective,
-				UpdatedAt:       effective,
-				// A key minted on request rather than obtained by logging in.
-				// This is also what the unique index on (holder_id,
-				// token_name) is conditioned on, so a holder cannot be issued
-				// two credentials of the same name.
-				LoginType: database.LoginTypeToken,
-				IPAddress: pqtype.Inet{
-					IPNet: net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(32, 32)},
-					Valid: true,
-				},
-				Scopes:    params.APIKey.Scopes,
-				AllowList: params.APIKey.AllowList,
-				TokenName: params.APIKey.TokenName,
-			}); err != nil {
-				return xerrors.Errorf("mirror into api_keys: %w", err)
-			}
-		}
-		return nil
+		// Line zero, an issuance on its own naming one credential.
+		return postIssuance(ctx, tx, entryID, 0, p)
 	}, nil)
 	if err != nil {
 		return IssuedCredential{}, err
 	}
-	return issued, nil
+	return p.issued, nil
+}
+
+// postIssuance writes one issuance as a line of an entry already opened, and
+// posts everything that line implies: the ledger row, the type's own state, and
+// the mirror.
+//
+// **It does not open the entry**, which is what lets a rotation put an issuance
+// and a revocation into one. Its caller supplies the entry and the line number.
+func postIssuance(ctx context.Context, tx database.Store, entryID int64, line int16, p preparedIssuance) error {
+	params, credentialType, issued := p.params, p.credentialType, p.issued
+	stored, keyID, keySecret := p.stored, p.keyID, p.keySecret
+	mirrorHolder, effective := p.mirrorHolder, p.effective
+
+	// The subject and what happened to it are the line's, the entry carrying
+	// only who acted and when.
+	if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
+		EntryID: entryID,
+		Line:    line,
+		Subject: issued.ID,
+		Event:   string(EventCredentialIssue),
+	}); err != nil {
+		return xerrors.Errorf("append the issuance line: %w", err)
+	}
+
+	if _, err := tx.InsertCredentialLedgerRow(ctx, database.InsertCredentialLedgerRowParams{
+		ID:             issued.ID,
+		HolderType:     string(params.Holder.Type),
+		HolderID:       params.Holder.ID,
+		CredentialType: credentialType,
+		State:          CredentialStateValid,
+		// Nothing issues an expiry yet. The column is here so that the
+		// work package which does changes no schema, and an absent expiry
+		// means no expiry: the null stands exactly where a row would have
+		// been absent had expirations been kept in a table of their own.
+		ExpiresAt:                 sql.NullTime{},
+		LifecyclePostingReference: entryID,
+	}); err != nil {
+		return xerrors.Errorf("post to the ledger: %w", err)
+	}
+
+	// The type's own state, in the same transaction as the row it belongs
+	// to. A password credential whose digest is missing is one nothing can
+	// verify, so the two are written together or not at all.
+	switch credentialType {
+	case CredentialTypePassword:
+		if _, err := tx.InsertCredentialPassword(ctx, database.InsertCredentialPasswordParams{
+			ID:                  issued.ID,
+			HashedAuthenticator: stored,
+		}); err != nil {
+			return xerrors.Errorf("post the password: %w", err)
+		}
+	case CredentialTypeAPIKey:
+		// The line first, then the row it posts to, for the same reason
+		// the entry precedes the ledger: the journal is the book of
+		// original entry. The same line the issuance took, this saying
+		// what that line carried.
+		if _, err := tx.InsertCredentialLifecycleJournalAPIKeyLine(ctx, database.InsertCredentialLifecycleJournalAPIKeyLineParams{
+			EntryID:   entryID,
+			Line:      line,
+			TokenName: params.APIKey.TokenName,
+			Scopes:    params.APIKey.Scopes,
+			AllowList: params.APIKey.AllowList,
+		}); err != nil {
+			return xerrors.Errorf("append the api_key line: %w", err)
+		}
+		if _, err := tx.InsertCredentialAPIKey(ctx, database.InsertCredentialAPIKeyParams{
+			ID:           issued.ID,
+			KeyID:        keyID,
+			HashedSecret: stored,
+			TokenName:    params.APIKey.TokenName,
+			Scopes:       params.APIKey.Scopes,
+			AllowList:    params.APIKey.AllowList,
+		}); err != nil {
+			return xerrors.Errorf("post the api_key: %w", err)
+		}
+
+		mirrorExpiry := apiKeyMirrorNoExpiry
+		if params.APIKey.MirrorLifetime > 0 {
+			mirrorExpiry = effective.Add(params.APIKey.MirrorLifetime)
+		}
+
+		// The mirror, in the transaction that posted the credential.
+		// api_keys is what authenticates a request today, so a credential
+		// the ledger holds and that table does not is one the system will
+		// refuse. Writing both together is what makes issuance through the
+		// journal the same act as issuance, rather than a description of
+		// one that happened elsewhere.
+		//
+		// **This is one way and only for issuance.** Revocation, expiry
+		// and last use still write api_keys directly, so the two can
+		// diverge on every path but this one, and nothing detects it.
+		if _, err := tx.InsertAPIKey(ctx, database.InsertAPIKeyParams{
+			ID:              keyID,
+			HashedSecret:    hashAuthenticatorBytes(keySecret),
+			HolderID:        database.HolderID(params.Holder.ID),
+			HolderType:      mirrorHolder,
+			LastUsed:        time.Unix(0, 0).UTC(),
+			ExpiresAt:       mirrorExpiry,
+			LifetimeSeconds: int64(mirrorExpiry.Sub(effective).Seconds()),
+			CreatedAt:       effective,
+			UpdatedAt:       effective,
+			// A key minted on request rather than obtained by logging in.
+			// This is also what the unique index on (holder_id,
+			// token_name) is conditioned on, so a holder cannot be issued
+			// two credentials of the same name.
+			LoginType: database.LoginTypeToken,
+			IPAddress: pqtype.Inet{
+				IPNet: net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(32, 32)},
+				Valid: true,
+			},
+			Scopes:    params.APIKey.Scopes,
+			AllowList: params.APIKey.AllowList,
+			TokenName: params.APIKey.TokenName,
+		}); err != nil {
+			return xerrors.Errorf("mirror into api_keys: %w", err)
+		}
+	}
+	return nil
+}
+
+// RotateCredential issues a credential and revokes the one it replaces, as a
+// single entry naming both.
+//
+// **This is what the atomic group is for.** entity_model.md holds that a
+// rotation is issuing one credential and revoking another, one entry with two
+// subjects, and that recording it as two entries would assert the very gap the
+// overlap exists to prevent. One party, one moment, two lines.
+//
+// **Line zero revokes and line one issues, and the order is the mirror's
+// doing.** api_keys carries a unique index over a holder and a token name for
+// minted tokens, so the superseded row goes before the replacement arrives.
+// Inside one transaction that ordering is invisible to every other reader. It
+// constrains the writes and not the model: the ledger holds both credentials,
+// and this goes when the mirror does.
+//
+// The superseded credential must be valid. Rotating an ended credential is not
+// a rotation, and issuing a replacement for one is an issuance.
+func RotateCredential(ctx context.Context, store database.Store, superseded uuid.UUID, params IssueCredentialParams) (IssuedCredential, error) {
+	if superseded == uuid.Nil {
+		return IssuedCredential{}, xerrors.New("a rotation replaces a credential, so it needs one")
+	}
+
+	p, err := prepareIssuance(params)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
+
+	err = store.InTx(func(tx database.Store) error {
+		current, err := tx.GetCredentialLedgerRowByID(ctx, superseded)
+		if err != nil {
+			return xerrors.Errorf("read the superseded credential: %w", err)
+		}
+		if current.State != CredentialStateValid {
+			return xerrors.Errorf("credential %s is already %s", superseded, current.State)
+		}
+
+		entryID, err := tx.NextCredentialLifecycleJournalEntryID(ctx)
+		if err != nil {
+			return xerrors.Errorf("take an entry identifier: %w", err)
+		}
+		if err := appendCommandedEntry(ctx, tx, entryID, p.effective, p.params.Actor); err != nil {
+			return err
+		}
+
+		if err := postInvalidation(ctx, tx, entryID, 0, superseded, EventCredentialRevoke, current); err != nil {
+			return err
+		}
+		if err := dropMirror(ctx, tx, superseded); err != nil {
+			return err
+		}
+		return postIssuance(ctx, tx, entryID, 1, p)
+	}, nil)
+	if err != nil {
+		return IssuedCredential{}, err
+	}
+	return p.issued, nil
+}
+
+// dropMirror deletes the api_keys row standing for a credential, where it has
+// one. Only a rotation needs this here: issuance writes the mirror, and every
+// other ending still deletes it from outside, which is the divergence recorded
+// on the mirror write in postIssuance.
+func dropMirror(ctx context.Context, tx database.Store, credentialID uuid.UUID) error {
+	mirrored, err := tx.GetCredentialAPIKeyByID(ctx, credentialID)
+	if errors.Is(err, sql.ErrNoRows) {
+		// Not an api_key credential, so nothing mirrors it.
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("read the superseded credential's key id: %w", err)
+	}
+	if err := tx.DeleteAPIKeyByID(ctx, mirrored.KeyID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("delete the superseded mirror: %w", err)
+	}
+	return nil
 }
 
 // Presentation is one offering of a credential to a verifier.
@@ -732,24 +864,36 @@ func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUI
 		// ending several of a holder's credentials still writes an entry
 		// apiece; gathering those into one entry with a line each is what this
 		// shape now permits and is not done here.
-		if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
-			EntryID: entryID,
-			Line:    0,
-			Subject: id,
-			Event:   string(event),
-		}); err != nil {
-			return xerrors.Errorf("append the %s line: %w", event, err)
-		}
-
-		if _, err := tx.InvalidateCredential(ctx, database.InvalidateCredentialParams{
-			ID:                          id,
-			LifecyclePostingReference:   entryID,
-			LifecyclePostingReference_2: current.LifecyclePostingReference,
-		}); err != nil {
-			return xerrors.Errorf("post the %s: %w", event, err)
-		}
-		return nil
+		return postInvalidation(ctx, tx, entryID, 0, id, event, current)
 	}, nil)
+}
+
+// postInvalidation writes one ending as a line of an entry already opened, and
+// posts it against the ledger row the line names.
+//
+// **It does not open the entry**, for the reason postIssuance does not: a
+// rotation revokes on a line of the entry that issues on another.
+//
+// The posting is conditioned on the reference the caller read, so two posters
+// racing cannot both believe they succeeded.
+func postInvalidation(ctx context.Context, tx database.Store, entryID int64, line int16, id uuid.UUID, event Event, current database.CredentialLedger) error {
+	if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
+		EntryID: entryID,
+		Line:    line,
+		Subject: id,
+		Event:   string(event),
+	}); err != nil {
+		return xerrors.Errorf("append the %s line: %w", event, err)
+	}
+
+	if _, err := tx.InvalidateCredential(ctx, database.InvalidateCredentialParams{
+		ID:                          id,
+		LifecyclePostingReference:   entryID,
+		LifecyclePostingReference_2: current.LifecyclePostingReference,
+	}); err != nil {
+		return xerrors.Errorf("post the %s: %w", event, err)
+	}
+	return nil
 }
 
 // hashAuthenticator is the single place an authenticator becomes what the
