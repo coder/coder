@@ -256,6 +256,11 @@ Document exact values from code:
 - **Time intervals**: "daily for templates < 5 weeks old, weekly for 5+ weeks"
 - **Counts and limits**: Use precise numbers, not approximations
 
+Exact values apply to claims the reader types or receives. Whether an
+identifier belongs on the page at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
+
 ### Permission Actions
 
 - Use exact RBAC action names from code (e.g., `view_insights` not "view insights")

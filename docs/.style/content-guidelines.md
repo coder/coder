@@ -99,26 +99,40 @@ belongs on the page at all is a separate question; see
 ### Evidence justifies a claim; it does not belong in the claim
 
 Verifying a behavior against the code does not mean publishing the code's
-vocabulary. The test for whether an identifier belongs on a page: **does the
-reader type or receive it?**
+vocabulary. For each identifier, ask: **within the task this page documents,
+does the reader type it or receive it?** Then pick the highest rung that
+applies:
 
-- If yes, document the exact value, per
-  [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
-  This is the normal case for reference, API, CLI, and configuration content,
-  and for any step where the reader reads a field out of a response or types
-  a flag.
-- If no, state the behavior in the target persona's terms and keep the
-  identifier out of the page. When the reviewer needs the pointer, give it in
-  the PR discussion (a comment or review thread naming the file and symbol),
-  not in the published page. Enum values, database column and field
-  names, function and struct names, and internal subsystem names on a page
-  whose reader never sees them are unverifiable by that reader and rot
-  unnoticed. Example: an admin page says "chats with ongoing work are never
-  selected", not "chats with status `running`, `interrupting`, or
-  `requires_action` are excluded".
+1. **Typed or received in this page's task:** document the exact value, per
+   [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
+   This is the normal case for reference, API, CLI, and configuration
+   content. The same identifier can pass here and fail elsewhere: API
+   consumers receive the chat status enum, so the API reference lists its
+   exact values, while an admin configuring auto-archive never receives
+   those strings.
+2. **Shown a product label instead:** use the label the product shows. The
+   chat sidebar renders statuses as "Working", "Interrupting", and "Requires
+   action", so an admin page describes selection with those labels, not the
+   enum values behind them; the labels are what the reader can verify
+   against their own screen.
+3. **Neither:** describe the behavior in the reader's terms, naming the
+   reader by role as
+   [audience-and-scope](./style-guide/audience-and-scope.md) prescribes.
 
-*Why:* Identifiers the reader never receives can't be confirmed or corrected
-by the reader, and they silently drift when the implementation changes.
+Keep identifiers that fail the test out of the page. When the reviewer needs
+the pointer, give it in the PR discussion (a comment or review thread naming
+the file and symbol), not in the published page.
+
+Related rules that draw the same boundary:
+[Describe the current version, for the end user](#describe-the-current-version-for-the-end-user)
+for implementation history, and
+[Keep internal-only references out of published docs](./style-guide/word-choice.md)
+for internal links and ticket IDs.
+
+*Why:* Any prose can drift, including a paraphrase. The ladder minimizes
+unverifiable drift: an exact value is checkable where the reader receives
+it, a product label is checkable against the screen, and a paraphrase is the
+fallback, not the default.
 
 ### Documentation lands with the change
 
@@ -162,7 +176,7 @@ Coder has two related but distinct concepts. Don't conflate them:
   *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early
   Access, Beta, or General Availability. See
-  [Feature stages](../../install/releases/feature-stages.md).
+  [Feature stages](../install/releases/feature-stages.md).
 
 Practical impact for docs:
 

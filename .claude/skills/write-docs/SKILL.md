@@ -43,7 +43,9 @@ style.
    - **Read the real source.** Open the actual template, config, code path,
      or CLI definition. Copy exact identifiers, defaults, file paths, option
      names, RBAC role names, thresholds, and API paths from the source, not
-     from memory.
+     from memory. These copies are verification inputs; whether each value
+     appears on the page is governed by
+     [Evidence versus claim](#evidence-versus-claim).
    - **Run the real thing.** Execute the commands in the same environment and
      image the reader will use. Capture real output and real error strings.
      Do not paraphrase an error you did not see. If you can only
@@ -115,17 +117,10 @@ style.
 
 The canonical rule is
 [Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-in the content guidelines; they govern. The test is whether the reader types
-or receives the identifier. Application notes:
-
-- Reading the source is how you verify behavior (workflow step 1), not what
-  you publish. When the reader test says "no", the page states the behavior
-  in the persona's terms, and the identifiers you copied in step 1 stay out
-  of the page; hand them to the reviewer as pointers in the PR discussion
-  when asked, per the canonical rule.
-- Reference, API, CLI, and configuration docs usually pass the test, as does
-  any step where the reader reads a field from a response, so exact values
-  are required there. The test decides, not the page category.
+in the content guidelines; they govern. Read it there rather than from a
+summary here. One application note: the identifiers you copy in workflow
+step 1 are verification inputs, not page content; the canonical rule's
+ladder decides what appears on the page.
 
 ## What not to write
 
@@ -201,9 +196,9 @@ the whole series as a single review.
       series).
 - [ ] PR title and description follow the PR description style guide (including
       draft vs. ready-for-review).
-- [ ] Implementation identifiers appear only where the reader types or
-      receives them; everywhere else the page states behavior in the
-      persona's terms (see [Evidence versus claim](#evidence-versus-claim)).
+- [ ] Identifiers on the page pass the
+      [Evidence versus claim](#evidence-versus-claim) test for this page's
+      task.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 

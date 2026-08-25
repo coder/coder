@@ -54,7 +54,7 @@ writing them.
 - **CLI/API changes**: Are new flags, endpoints, or options documented?
 - **Configuration**: Are new environment variables or settings documented?
 - **Breaking changes**: Are migration steps documented if needed?
-- **Evidence leaking into claims**: See
+- **Evidence versus claim**: See
   [Evidence versus claim](#evidence-versus-claim) below.
 - **Premium features**: See [Premium feature signaling](#premium-feature-signaling)
   below.
@@ -114,11 +114,12 @@ Missing either one is a defect:
 
 This is the canonical rule
 [Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-in the content guidelines; the content guidelines govern. Flag a page that
-exposes an identifier (enum value, column or field name, function or struct
-name, internal subsystem name) the reader never types or receives; the page
-should state the behavior in the target persona's terms. Where the reader
-does type or receive the identifier, exact values are required instead.
+in the content guidelines; the content guidelines govern, so read the rule
+there. On pages **this change adds or edits**, flag an implementation
+identifier the reader neither types nor receives in that page's task; the
+canonical rule's ladder decides the replacement. A pre-existing violation on
+a page the diff does not touch is not this change's finding; mention it as
+informational context at most, without demanding a fix from this author.
 
 ### No emdash, endash, or ` -- ` as punctuation
 
