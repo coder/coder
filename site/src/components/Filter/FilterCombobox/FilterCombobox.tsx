@@ -356,11 +356,8 @@ function TypeaheadList({
 					</FilterComboboxGroup>
 				)}
 				{typeaheadLoading && (
-					<div
-						className="flex items-center justify-center px-2 py-2.5"
-						aria-hidden
-					>
-						<Spinner loading size="sm" />
+					<div className="flex items-center justify-center px-2 py-2.5">
+						<Spinner loading size="sm" label="Loading suggestions" />
 					</div>
 				)}
 				{typeaheadError && !typeaheadLoading && (
@@ -395,6 +392,12 @@ function CategoryOptionsList({
 	retryActiveOptions,
 	onSelectOption,
 }: CategoryOptionsListProps) {
+	// While the popover animates closed the active category resets to null; render
+	// nothing rather than flashing a "Loading…"/empty state on the way out.
+	if (activeCategoryKey === null) {
+		return null;
+	}
+
 	if (activeOptionsError) {
 		return (
 			<div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-content-secondary">

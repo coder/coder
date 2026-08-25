@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
-import { needsQuotes } from "#/components/Filter/filterQuery";
+import {
+	FILTER_TOKEN_RE,
+	iterateFilterTokens,
+	needsQuotes,
+} from "#/components/Filter/filterQuery";
 import type { FilterOption } from "./types";
-
-const FILTER_TOKEN_RE = /([\w-]+):"([^"]+)"|([\w-]+):(\S+)/g;
 
 export const chipToken = (key: string, value: string) => `${key}:${value}`;
 
@@ -51,13 +53,11 @@ export const queryToChips = (
 	chipKeys: readonly string[],
 ): string[] => {
 	const pairs: { key: string; value: string }[] = [];
-	for (const match of query.matchAll(FILTER_TOKEN_RE)) {
-		const key = (match[1] ?? match[3])?.toLowerCase();
-		const value = match[2] ?? match[4];
-		if (!key || !value || !chipKeys.includes(key)) {
-			continue;
+	for (const { key, value } of iterateFilterTokens(query)) {
+		const normalizedKey = key.toLowerCase();
+		if (chipKeys.includes(normalizedKey)) {
+			pairs.push({ key: normalizedKey, value });
 		}
-		pairs.push({ key, value });
 	}
 	return dedupeInOrder(pairs);
 };

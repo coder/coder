@@ -17,15 +17,10 @@ import {
 	parseTypedCategoryPrefix,
 	queryToChips,
 } from "./filterQuery";
+import { filterComboboxOptions, filterComboboxSearchResults } from "./queries";
 import type { FilterCategory, FilterOption, SearchResult } from "./types";
 
 const SEARCH_DEBOUNCE_MS = 300;
-
-const filterComboboxSearchResultsKey = (query: string) =>
-	["filterCombobox", "searchResults", query] as const;
-
-const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
-	["filterCombobox", "options", categoryKey, query] as const;
 
 /**
  * The popup has three mutually exclusive modes. `closed` hides it; `browsing`
@@ -111,20 +106,19 @@ type StatusMessageInput = {
 	activeOptionsLoading: boolean;
 	activeOptionsError: boolean;
 	activeOptionsEmpty: boolean;
-	typeaheadLoading: boolean;
 	typeaheadError: boolean;
 	typeaheadErrorLabel: string;
 	typeaheadEmpty: boolean;
 };
 
 // Live-region text for each terminal state so screen readers hear loading,
-// failures, and empty results rather than silence.
+// failures, and empty results rather than silence. Typeahead loading is voiced
+// by the standalone <Spinner label> instead, to avoid a duplicate announcement.
 const deriveStatusMessage = ({
 	activeCategoryLabel,
 	activeOptionsLoading,
 	activeOptionsError,
 	activeOptionsEmpty,
-	typeaheadLoading,
 	typeaheadError,
 	typeaheadErrorLabel,
 	typeaheadEmpty,
@@ -140,9 +134,6 @@ const deriveStatusMessage = ({
 			return `No ${activeCategoryLabel} matches`;
 		}
 		return `Filtering by ${activeCategoryLabel}`;
-	}
-	if (typeaheadLoading) {
-		return "Loading suggestions";
 	}
 	if (typeaheadError) {
 		return typeaheadErrorLabel;
@@ -264,22 +255,14 @@ export const useFilterCombobox = ({
 		activeCategoryKey !== null &&
 		activeOptionsQuerySource !== debouncedActiveOptionsQuery;
 
-	const activeOptionsQuery = useQuery({
-		queryKey: filterComboboxOptionsKey(
+	const activeOptionsQuery = useQuery(
+		filterComboboxOptions(
 			activeCategoryKey ?? "",
+			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
+			activeCategoryKey !== null,
 		),
-		queryFn: () => {
-			const category = categories.find(
-				(entry) => entry.key === activeCategoryKey,
-			);
-			if (!category) {
-				return Promise.resolve([] as FilterOption[]);
-			}
-			return category.getOptions(debouncedActiveOptionsQuery);
-		},
-		enabled: activeCategoryKey !== null,
-	});
+	);
 
 	const activeOptions = activeOptionsQuery.data;
 	const activeOptionsError =
@@ -304,14 +287,16 @@ export const useFilterCombobox = ({
 		typeaheadQuerySource !== debouncedTypeaheadQuery;
 
 	const suggestionQueries = useQueries({
-		queries: categories.map((category) => ({
-			queryKey: filterComboboxOptionsKey(category.key, debouncedTypeaheadQuery),
-			queryFn: () => category.getOptions(debouncedTypeaheadQuery),
-			enabled:
+		queries: categories.map((category) =>
+			filterComboboxOptions(
+				category.key,
+				category.getOptions,
+				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
-				activeCategoryKey === null &&
-				isBrowsing,
-		})),
+					activeCategoryKey === null &&
+					isBrowsing,
+			),
+		),
 	});
 
 	// react-query keeps each query's `data` reference stable between renders,
@@ -353,20 +338,16 @@ export const useFilterCombobox = ({
 					query.isFetching || (!query.isError && query.data === undefined),
 			));
 
-	const searchResultsQuery = useQuery({
-		queryKey: filterComboboxSearchResultsKey(debouncedTypeaheadQuery),
-		queryFn: () => {
-			if (!getSearchResults) {
-				return Promise.resolve([] as SearchResult[]);
-			}
-			return getSearchResults(debouncedTypeaheadQuery);
-		},
-		enabled:
+	const searchResultsQuery = useQuery(
+		filterComboboxSearchResults(
+			getSearchResults,
+			debouncedTypeaheadQuery,
 			hasSearchResultsLoader &&
-			debouncedTypeaheadQuery.length > 0 &&
-			activeCategoryKey === null &&
-			isBrowsing,
-	});
+				debouncedTypeaheadQuery.length > 0 &&
+				activeCategoryKey === null &&
+				isBrowsing,
+		),
+	);
 
 	const searchResults = searchResultsQuery.data ?? [];
 	const searchResultsLoading =
@@ -425,7 +406,6 @@ export const useFilterCombobox = ({
 		activeOptionsLoading,
 		activeOptionsError,
 		activeOptionsEmpty,
-		typeaheadLoading,
 		typeaheadError,
 		typeaheadErrorLabel,
 		typeaheadEmpty,

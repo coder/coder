@@ -6,7 +6,7 @@ import { templates } from "#/api/queries/templates";
 import { users } from "#/api/queries/users";
 import type { WorkspaceStatus } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import type { FilterOption } from "#/components/Filter/FilterCombobox";
+import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
 import { variantByStatusType } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";

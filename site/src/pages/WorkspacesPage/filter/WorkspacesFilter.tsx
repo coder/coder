@@ -15,11 +15,11 @@ import {
 } from "#/api/errors";
 import { workspaces } from "#/api/queries/workspaces";
 import type { UseFilterResult } from "#/components/Filter/Filter";
-import {
-	type FilterCategory,
-	FilterCombobox,
-	type SearchResult,
-} from "#/components/Filter/FilterCombobox";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type {
+	FilterCategory,
+	SearchResult,
+} from "#/components/Filter/FilterCombobox/types";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
