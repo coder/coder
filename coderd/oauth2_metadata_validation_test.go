@@ -541,12 +541,8 @@ func TestOAuth2ClientNameValidation(t *testing.T) {
 	}
 }
 
-// TestOAuth2ClientScopeValidation tests scope validation at registration time.
-//
-// Registration stores the scope string verbatim without checking it against
-// the scope catalog, so every value below is accepted. Authorization enforces
-// the catalog: an app whose allowlist names nothing grantable can no longer
-// complete a flow, whether it requests a scope or omits one. See
+// Registration stores the scope verbatim, so every value below is accepted.
+// The catalog is enforced at authorization: see
 // TestOAuth2AuthorizeDCRScopeCompatibility in coderd/oauth2provider.
 func TestOAuth2ClientScopeValidation(t *testing.T) {
 	t.Parallel()

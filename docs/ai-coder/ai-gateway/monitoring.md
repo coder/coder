@@ -10,18 +10,18 @@ AI Gateway records the last `user` prompt, token usage, model reasoning, and eve
 
 ![User Leaderboard](../../images/aibridge/grafana_user_leaderboard.png)
 
-Coder provides an example Grafana dashboard that you can import as a starting point for your metrics.
+We provide an example Grafana dashboard that you can import as a starting point for your metrics.
 Refer to the [Grafana dashboard README](../../../examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
 ## Prometheus metrics
 
-The embedded Gateway and [standalone Gateway](./standalone.md) export the same AI Gateway request metrics.
+The embedded gateway and [standalone gateway](./standalone.md) export the same AI Gateway request metrics.
 Each process exports metrics for the traffic that it handles:
 
-- The Coder control plane (`coderd`) Prometheus listener exports metrics for the embedded Gateway.
-- Each standalone Gateway replica exports metrics from its own Prometheus listener.
+- The Coder control plane (`coderd`) Prometheus listener exports metrics for the embedded gateway.
+- Each standalone gateway replica exports metrics from its own Prometheus listener.
 
 Refer to [provider configuration](./providers.md) for the provider reload lifecycle these metrics describe.
 
@@ -83,10 +83,10 @@ Refer to the [Prometheus reference](../../admin/integrations/prometheus.md) for 
 ### Metric name migration
 
 > [!IMPORTANT]
-> The embedded Gateway metric prefix changed from `coder_aibridged_*` to `coder_ai_gateway_*`, and the proxy prefix changed from `coder_aibridgeproxyd_*` to `coder_ai_gateway_proxy_*`.
-> The embedded Gateway and AI Gateway Proxy emit the legacy names with identical values during the v2.35 and v2.36 deprecation window, and the legacy names are planned for removal in v2.37.
+> The embedded gateway metric prefix changed from `coder_aibridged_*` to `coder_ai_gateway_*`, and the proxy prefix changed from `coder_aibridgeproxyd_*` to `coder_ai_gateway_proxy_*`.
+> The embedded gateway and AI Gateway Proxy emit the legacy names with identical values during the v2.35 and v2.36 deprecation window, and the legacy names are planned for removal in v2.37.
 > The cost control metrics were added after the rename and have no legacy alias.
-> The standalone Gateway emits only the current `coder_ai_gateway_*` names.
+> The standalone gateway emits only the current `coder_ai_gateway_*` names.
 > Migrate dashboards and alerts to the new names.
 > Do not relabel new names back to old names while both are emitted because this creates duplicate legacy series in the same scrape.
 > After the legacy names are removed, use `metric_relabel_configs` only if you need a temporary compatibility bridge:
@@ -123,7 +123,7 @@ Alert when the provider reload loop is firing but failing to refresh the pool fo
 
 Use the `coder_ai_gateway_proxy_*` metrics when you alert on AI Gateway Proxy.
 
-## Standalone Gateway monitoring
+## Standalone gateway monitoring
 
 ### Metrics listener
 
@@ -137,7 +137,7 @@ In addition to the common `coder_ai_gateway_*` metrics, the standalone listener 
 
 The [AI Gateway Helm chart](../../../helm/ai-gateway/README.md#metrics) enables metrics and binds the listener to `0.0.0.0:2112` by default.
 The chart exposes a named `metrics` container port, but it does not include this port in the data-plane Service or create monitoring discovery resources.
-For Prometheus pod-based discovery, add scrape annotations to each Gateway pod:
+For Prometheus pod-based discovery, add scrape annotations to each gateway pod:
 
 ```yaml
 coder:
@@ -153,14 +153,15 @@ Refer to the [Helm chart metrics configuration](../../../helm/ai-gateway/README.
 
 ### Health and readiness
 
-A standalone AI Gateway exposes health endpoints on its data-plane listener:
+A standalone AI gateway exposes health endpoints on its data-plane listener:
 
-| Endpoint   | Success condition                                                                             |
-|------------|-----------------------------------------------------------------------------------------------|
-| `/healthz` | The HTTP listener is serving.                                                                 |
-| `/readyz`  | The control connection to `coderd` is active and provider configuration has been initialized. |
+| Endpoint   | Success condition                                                                                        |
+|------------|----------------------------------------------------------------------------------------------------------|
+| `/healthz` | The HTTP listener is serving.                                                                            |
+| `/readyz`  | The control connection to `coderd` is active and the initial provider configuration fetch has completed. |
 
-`/readyz` returns HTTP 503 until provider configuration is initialized and whenever the control connection to `coderd` is unavailable.
+`/readyz` returns HTTP 503 until the initial provider configuration fetch completes and whenever the control connection to `coderd` is unavailable.
+The initial fetch can return an empty provider set.
 A `200 OK` response from `/healthz` only means the HTTP listener is accepting connections. It returns `200 OK` even when the control connection is down.
 Both endpoints are unauthenticated, bypass the concurrency, rate limiting, and BYOK middleware, and do not create trace spans.
 
@@ -178,7 +179,7 @@ Refer to the [`coder ai-gateway start` logging options](../../reference/cli/ai-g
 ### Structured interception logs
 
 AI Gateway can emit a structured log for every interception record to an external SIEM or observability platform.
-The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, standalone Gateway does not consume it.
+The `CODER_AI_GATEWAY_STRUCTURED_LOGGING` setting belongs to `coderd`, and the standalone gateway does not consume it.
 Standalone replicas send interception records to `coderd`, which writes the structured logs to the Coder server log output.
 Refer to [structured logging](./setup.md#structured-logging) for configuration and record types.
 
@@ -242,7 +243,7 @@ in the AI Gateway setup guide.
 ## Tracing
 
 AI Gateway supports tracing through [OpenTelemetry](https://opentelemetry.io/) for request processing, upstream API calls, and MCP server interactions.
-Embedded Gateway spans are emitted by the `coder server` process.
+Embedded gateway spans are emitted by the `coder server` process.
 Standalone spans are emitted independently by every replica with the service name `coder-ai-gateway`.
 
 ### Enable tracing
@@ -252,8 +253,8 @@ The exporter always dials without TLS, so an `https://` endpoint is still contac
 `CODER_TRACE_HONEYCOMB_API_KEY` adds a Honeycomb exporter and works with or without `CODER_TRACE_ENABLE`.
 Set only the Honeycomb key to export to Honeycomb alone, or set both to export to Honeycomb and an OTLP collector.
 
-The embedded and standalone Gateways share the same tracing options.
-Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded Gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
+The embedded and standalone gateways support the same tracing configuration options, but each standalone replica must be configured separately.
+Refer to the [`coder server` tracing options](../../reference/cli/server.md#--trace) for the embedded gateway and the [`coder ai-gateway start` tracing options](../../reference/cli/ai-gateway_start.md#--trace) for standalone replicas.
 Configure tracing on every standalone process or through `coder.env` in the AI Gateway Helm chart.
 
 The following minimal configuration enables tracing and exports spans over OTLP/gRPC:
@@ -263,7 +264,7 @@ export CODER_TRACE_ENABLE=true
 export OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4317
 ```
 
-In both deployment modes, each request to the Gateway's LLM API endpoint creates an HTTP request span, including requests that are passed through or rejected instead of intercepted.
+In both deployment modes, each request to the gateway's LLM API endpoint creates an HTTP request span, including requests that are passed through or rejected instead of intercepted.
 
 ### Traced operations
 
