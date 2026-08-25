@@ -59,7 +59,10 @@ const DisplayModeSettings = <T extends string>({
 	const query = useQuery(preferenceSettings());
 	const mutation = useMutation(updatePreferenceSettings(queryClient));
 
-	const mode = query.data ? getMode(query.data) : defaultValue;
+	// The API can return "" for preferences that were never set, so fall
+	// back to the default instead of feeding an unmatchable value into the
+	// select.
+	const mode = (query.data && getMode(query.data)) || defaultValue;
 
 	return (
 		<div className="flex flex-col gap-2">
