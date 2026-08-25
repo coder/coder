@@ -115,7 +115,9 @@ export const UserCompactionThresholdSettings: FC<
 			name,
 			icon: organizationIconByID.get(id) ?? "",
 		}))
-		.sort((a, b) => a.name.localeCompare(b.name));
+		.sort((a, b) =>
+			a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+		);
 	// Fall back to all organizations when the selected one disappears after
 	// a models refetch.
 	const effectiveOrganizationFilter = organizationOptions.some(

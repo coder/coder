@@ -355,6 +355,13 @@ export const OrganizationFilter: Story = {
 			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		});
 
+		// The trigger must render the selected item's avatar (fallback
+		// initials, since Second Org has no icon) alongside its name.
+		expect(within(filter).getByText("Second Org")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(within(filter).getByText("SE")).toBeInTheDocument();
+		});
+
 		await userEvent.click(filter);
 		const reopenedListbox = await within(document.body).findByRole("listbox");
 		await userEvent.click(
