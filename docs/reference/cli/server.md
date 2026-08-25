@@ -1216,6 +1216,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-workspace-agent-context-sync
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>bool</code>                                        |
+| Environment | <code>$CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC</code> |
+| YAML        | <code>disableWorkspaceAgentContextSync</code>            |
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
 ### --session-duration
 
 |             |                                              |
