@@ -1448,7 +1448,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
 						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 sm:ml-0">
+							// flex + explicit min-width let this wrapper shrink below its
+							// content so the pill truncates; a plain span's automatic
+							// minimum is the pill's full width, which blocks shrinking and
+							// clips the pill instead. The md floor matches WorkspacePill.
+							<span className="ml-1 flex min-w-0 text-xs sm:ml-0 md:min-w-[calc(8ch_+_3.125rem)]">
 								<WorkspacePill
 									workspace={workspace}
 									agent={workspaceAgent}
