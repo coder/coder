@@ -94,7 +94,7 @@ Coder can't tell the two cases apart, so the decision stays with the template ad
 
 Search the template for uses of the workspace name:
 
-```shell
+```sh
 grep -rn 'coder_workspace\.[a-z_]*\.name' .
 ```
 
