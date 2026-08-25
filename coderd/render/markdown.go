@@ -113,13 +113,10 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-// notificationExtensions is an allowlist rather than CommonExtensions minus
-// what has caused trouble. Shipped templates use inline links, ** emphasis and
-// "- " bullet lists, all core CommonMark needing no extension, so Tables,
-// DefinitionLists, MathJax and Autolink are simply absent. Each of those is
-// openable from an untrusted label value.
-//
-// Adding one back means revisiting EscapeMarkdown.
+// notificationExtensions is an allowlist. Shipped templates use only core
+// CommonMark, so Tables, DefinitionLists, MathJax and Autolink are absent; each
+// is openable from an untrusted label value. Adding one back means revisiting
+// EscapeMarkdown.
 const notificationExtensions = parser.NoIntraEmphasis | parser.HardLineBreak
 
 func HTMLFromMarkdown(markdown string) string {
@@ -134,8 +131,7 @@ func HTMLFromNotificationMarkdown(markdown string) string {
 }
 
 // longestURLPath is the longest relative-path prefix parser.IsSafeURL compares
-// against. Derived rather than hardcoded so a dependency bump that adds a
-// longer prefix keeps safeURL correct.
+// against. Derived so a dependency bump that adds a longer one stays correct.
 var longestURLPath = func() int {
 	longest := 0
 	for _, p := range parser.Paths {
@@ -147,10 +143,9 @@ var longestURLPath = func() int {
 }()
 
 // safeURL wraps parser.IsSafeURL, which slices a destination to each candidate
-// prefix length before checking it is that long, and so panics on a short
-// destination with no spare capacity, as "[docs]()" produces. Padding the
-// capacity keeps the slice in bounds; IsSafeURL's own guards still decide the
-// result.
+// prefix length before checking it is that long, and so panics on a short one
+// with no spare capacity, as "[docs]()" produces. Padding the capacity keeps
+// the slice in bounds; IsSafeURL's own guards still decide the result.
 func safeURL(url []byte) bool {
 	if cap(url) < longestURLPath {
 		padded := make([]byte, len(url), longestURLPath)
@@ -162,11 +157,8 @@ func safeURL(url []byte) bool {
 
 // recoverToEscapedSource runs render and, if it panics, returns the source
 // HTML-escaped instead: the notification still arrives, showing Markdown
-// source, and no markup escapes.
-//
-// Separate from renderHTML so the recovery has a test. No input is known to
-// panic the parser now that safeURL guards the one that did, so a test driving
-// it through renderHTML would pass without exercising this at all.
+// source, and no markup escapes. Kept separate from renderHTML so the recovery
+// is testable, safeURL having closed the only input known to panic.
 func recoverToEscapedSource(markdown string, render func() string) (out string) {
 	defer func() {
 		if r := recover(); r != nil {

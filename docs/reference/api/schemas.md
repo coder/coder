@@ -7418,6 +7418,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -8046,6 +8047,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
+  "disable_workspace_agent_context_sync": true,
   "disable_workspace_sharing": true,
   "docs_url": {
     "forceQuery": true,
@@ -8441,6 +8443,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
+| `disable_workspace_agent_context_sync`         | boolean                                                                                              | false    |              |                                                                    |
 | `disable_workspace_sharing`                    | boolean                                                                                              | false    |              |                                                                    |
 | `docs_url`                                     | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `enable_ai_tasks`                              | boolean                                                                                              | false    |              |                                                                    |
@@ -12352,6 +12355,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
+
+## codersdk.ProposeChatTitleResponse
+
+```json
+{
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `title` | string | false    |              |             |
 
 ## codersdk.ProvisionerConfig
 
