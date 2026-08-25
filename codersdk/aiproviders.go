@@ -202,6 +202,15 @@ type AIProvider struct {
 	Settings    AIProviderSettings `json:"settings"`
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
+
+	// Status carries runtime routing status; nil when empty.
+	Status *AIProviderStatus `json:"status,omitempty"`
+}
+
+// AIProviderStatus carries non-fatal routing warnings. Direct
+// routing remains available for the provider.
+type AIProviderStatus struct {
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // AIProviderKey is a single API key registered on a provider. The
