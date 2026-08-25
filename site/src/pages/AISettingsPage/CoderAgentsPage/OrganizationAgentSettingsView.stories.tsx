@@ -129,9 +129,7 @@ export const CompactionTriggerWarning: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		const compactionSection = canvas.getByRole("form", { name: "Compaction" });
 		const section = within(compactionSection);
-		expect(
-			section.queryByText(/will compact earlier/i),
-		).not.toBeInTheDocument();
+		expect(section.queryByText(/may compact earlier/i)).not.toBeInTheDocument();
 
 		await userEvent.click(
 			section.getByRole("combobox", { name: /Model One/i }),
@@ -142,7 +140,7 @@ export const CompactionTriggerWarning: Story = {
 		await waitFor(() => {
 			expect(
 				section.getByText(
-					/Chats using Model One, Model Two will compact earlier/i,
+					/Chats using Model One, Model Two may compact earlier/i,
 				),
 			).toBeVisible();
 		});
@@ -157,7 +155,7 @@ export const CompactionTriggerWarning: Story = {
 export const NoCompactionTriggerWarning: Story = {
 	play: async ({ canvasElement }) => {
 		expect(
-			within(canvasElement).queryByText(/will compact earlier/i),
+			within(canvasElement).queryByText(/may compact earlier/i),
 		).not.toBeInTheDocument();
 	},
 };

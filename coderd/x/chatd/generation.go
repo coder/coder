@@ -281,10 +281,12 @@ func generationCompactionThreshold(compaction *generationCompaction) int32 {
 }
 
 // generationCompactionContextLimit returns the context limit the compaction
-// trigger was evaluated against at prepare time (the stricter of the chat and
-// override models' limits). The still-over-limit check must compare against
-// the same limit, otherwise a stricter override loops through repeated
-// compactions instead of surfacing errCompactionStillOverLimit.
+// trigger was evaluated against at prepare time: the binding trigger's limit,
+// which is the chat model's or the compaction override model's own limit
+// depending on which enabled trigger has the lower token point. The
+// still-over-limit check must compare against the same limit, otherwise a
+// stricter binding trigger loops through repeated compactions instead of
+// surfacing errCompactionStillOverLimit.
 func generationCompactionContextLimit(compaction *generationCompaction) int64 {
 	if compaction == nil {
 		return 0

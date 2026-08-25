@@ -49,6 +49,35 @@ export const OrganizationCompactionModelBinding: Story = {
 	},
 };
 
+export const OrganizationCompactionPointUsesReportedLimit: Story = {
+	args: {
+		usage: {
+			usedTokens: 64_000,
+			// The runtime-reported window differs from the configured
+			// 128K limit that produced percent 25; the displayed percent
+			// must convert the token point against the reported window.
+			contextLimitTokens: 200_000,
+			compactionThreshold: {
+				percent: 25,
+				source: "organization",
+				pointTokens: 32_000,
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 32%/i }),
+		);
+		await waitFor(() => {
+			expect(
+				body.getByText("Compacts at 16% (organization compaction model)"),
+			).toBeVisible();
+		});
+	},
+};
+
 export const ChatModelCompactionBinding: Story = {
 	args: {
 		usage: modelCompactionUsage,

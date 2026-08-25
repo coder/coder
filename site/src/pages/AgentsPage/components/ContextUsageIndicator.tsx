@@ -274,6 +274,18 @@ export const ContextUsageIndicator: FC<{
 	].some(hasFiniteTokenValue);
 	const percentLabel =
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	// An organization trigger carries its absolute token point; convert it
+	// against the same limit the gauge displays, which may be a
+	// runtime-reported window that differs from the configured one.
+	const compaction = usage?.compactionThreshold;
+	const compactionPercent =
+		compaction === undefined
+			? undefined
+			: compaction.pointTokens !== undefined &&
+					contextLimitTokens !== undefined &&
+					contextLimitTokens > 0
+				? (compaction.pointTokens / contextLimitTokens) * 100
+				: compaction.percent;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 0;
@@ -396,9 +408,9 @@ export const ContextUsageIndicator: FC<{
 				: hasReportedUsage
 					? "Context usage unavailable"
 					: "Context usage will appear after sending a message."}
-			{hasPercent && usage?.compactionThreshold !== undefined && (
+			{hasPercent && compactionPercent !== undefined && (
 				<div className="mt-1 text-content-secondary">
-					{`Compacts at ${usage.compactionThreshold.percent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage.compactionThreshold.source === "organization" ? " (organization compaction model)" : ""}`}
+					{`Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage?.compactionThreshold?.source === "organization" ? " (organization compaction model)" : ""}`}
 				</div>
 			)}
 			{hasContextList && (

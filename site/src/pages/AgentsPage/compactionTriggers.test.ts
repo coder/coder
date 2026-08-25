@@ -134,7 +134,11 @@ describe("compaction triggers", () => {
 					[chatModel],
 					organizationTrigger(50, 32_000),
 				),
-			).toEqual({ percent: 12.5, source: "organization" });
+			).toEqual({
+				percent: 12.5,
+				source: "organization",
+				pointTokens: 16_000,
+			});
 		});
 
 		it("keeps the user threshold when the organization point is higher", () => {
@@ -159,7 +163,11 @@ describe("compaction triggers", () => {
 					[chatModel],
 					organizationTrigger(50, 256_000),
 				),
-			).toEqual({ percent: 100, source: "organization" });
+			).toEqual({
+				percent: 100,
+				source: "organization",
+				pointTokens: 128_000,
+			});
 		});
 
 		it("falls back to the model default without user or organization input", () => {

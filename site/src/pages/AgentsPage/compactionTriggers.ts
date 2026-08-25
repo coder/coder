@@ -16,6 +16,11 @@ type CompactionThresholdSource = "user" | "model" | "organization";
 export interface ResolvedCompactionThreshold {
 	readonly percent: number;
 	readonly source: CompactionThresholdSource;
+	// Absolute token point of an organization trigger. Consumers that
+	// display a runtime-reported context limit convert this against that
+	// limit instead of trusting percent, which is relative to the
+	// configured limit.
+	readonly pointTokens?: number;
 }
 
 export const isCompactionTriggerEnabled = (trigger: CompactionTrigger) =>
@@ -115,7 +120,11 @@ export const resolveCompactionThreshold = (
 				organizationTrigger.trigger,
 			) === "organization"
 		) {
-			return { percent: organizationPercent, source: "organization" };
+			return {
+				percent: organizationPercent,
+				source: "organization",
+				pointTokens: organizationTrigger.point,
+			};
 		}
 	}
 

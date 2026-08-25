@@ -134,7 +134,7 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 		return (
 			<Alert severity="warning">
 				<AlertDescription>
-					{`Chats using ${formatModelList(undercutModelNames)} will compact earlier than their configured thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window.`}
+					{`Chats using ${formatModelList(undercutModelNames)} may compact earlier than their models' default thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window. Personal thresholds set below that point still apply first.`}
 				</AlertDescription>
 			</Alert>
 		);
