@@ -126,7 +126,9 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+			{/* md floor: ~8ch of the workspace name + 3.125rem of chrome
+			 * (padding, status icon, gaps, chevron), matching ModelSelector. */}
+			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[calc(8ch+3.125rem)]">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -138,7 +140,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
 									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
+									"size-7 md:size-auto md:w-full md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
 								)}
 							>
 								<StatusIcon
