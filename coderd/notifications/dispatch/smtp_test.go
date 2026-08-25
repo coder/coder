@@ -652,9 +652,9 @@ func TestSMTPSubjectHeader(t *testing.T) {
 		title string
 		// wantSubject, when set, is the exact Subject header value.
 		wantSubject string
-		// wantSubjectContains are substrings the single Subject line must hold.
-		// Used where the plaintext renderer decorates the value and pinning the
-		// exact output would make the test about glamour rather than the header.
+		// wantSubjectContains are substrings the single Subject line must hold,
+		// used where pinning the exact output would make the test about
+		// glamour's decoration rather than the header.
 		wantSubjectContains []string
 		// wantAbsent must not appear anywhere in the transmitted message.
 		wantAbsent string
@@ -734,8 +734,7 @@ func TestSMTPSubjectHeader(t *testing.T) {
 			msg := backend.LastMessage()
 			require.NotNil(t, msg)
 
-			// Assertions are scoped to the header block. A blank line ends it;
-			// anything after that is body content, which this test is not about.
+			// Assertions are scoped to the header block, which a blank line ends.
 			headers, _, found := strings.Cut(msg.Contents, "\r\n\r\n")
 			require.True(t, found, "message has no header/body separator")
 

@@ -252,13 +252,8 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 
 	// Label and data values are user-controlled while the templates around them
 	// are not, so Markdown structure in a value is neutralized before it reaches
-	// the template.
-	//
-	// The dispatcher receives the unescaped payload because the webhook contract
-	// surfaces enqueued values verbatim, not because it escapes them itself:
-	// smtp/html.gotmpl renders through text/template, and its _subject,
-	// UserName, _body and action URL sinks are bare. _subject has also been
-	// through PlaintextFromMarkdown, which strips this escaping back out.
+	// the template. The dispatcher still receives the unescaped payload, because
+	// the webhook contract surfaces enqueued values verbatim.
 	escaped := payload.EscapedForMarkdown()
 
 	var title, body string

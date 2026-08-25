@@ -2,9 +2,10 @@ package render
 
 import "strings"
 
-// Character classes for EscapeMarkdown. They are split by where a character
-// carries structural meaning, which also keeps escaping away from the enum-like
-// label values that notification body templates compare with `eq`.
+// Character classes for EscapeMarkdown, split by where each character carries
+// structural meaning. The split is what keeps escaping away from the enum-like
+// label values that body templates compare with `eq`, such as "user_override",
+// "bobby-workspace" and "1.5": escaping one changes template control flow.
 const (
 	// inlineCritical characters can produce a link, an image, an angle autolink,
 	// or forge an escape from anywhere in a value, so they are always escaped.
@@ -16,15 +17,13 @@ const (
 	inlineCritical = "\\[]()!<`"
 
 	// blockStart characters carry structural meaning only as the first
-	// non-space character of a line, so they are escaped only there. Escaping
-	// them everywhere would corrupt values such as "bobby-workspace" and "1.5".
+	// non-space character of a line, so they are escaped only there.
 	blockStart = `#-+.>|`
 
 	// leadingEmphasis characters carry inline meaning anywhere but also open a
 	// block construct in leading position: "* " starts a bullet list, and three
-	// or more of either character starts a thematic break. They are escaped in
-	// leading position for the same reason as blockStart, which costs emphasis
-	// that begins on a line boundary and keeps "user_override" intact.
+	// or more of either character starts a thematic break. Escaping them only
+	// there costs emphasis that begins on a line boundary.
 	leadingEmphasis = `*_`
 
 	// foldStart characters also carry meaning only at the start of a line, but
@@ -43,14 +42,9 @@ const (
 
 // EscapeMarkdown neutralizes Markdown structure in an untrusted value so that it
 // renders as literal text through both HTMLFromNotificationMarkdown and
-// PlaintextFromMarkdown.
-//
-// Away from leading position "*" and "_" are left alone: they cannot carry a
-// destination, and escaping "_" would corrupt label values such as
-// "user_override" that body templates compare with `eq`.
-//
-// Line breaks are preserved so multi-line values keep their shape. Other control
-// characters are dropped, being the carrier for SMTP header injection.
+// PlaintextFromMarkdown. Line breaks are preserved so multi-line values keep
+// their shape. Other control characters are dropped, being the carrier for SMTP
+// header injection.
 //
 // Known residual: a template that wraps the value in a code span. CommonMark
 // does not process escapes inside one, so the backslashes emitted here reach
@@ -67,24 +61,24 @@ func EscapeMarkdown(s string) string {
 
 	for i, line := range lines {
 		if i > 0 {
-			// A fold-start line is joined to the previous one so it is no longer
-			// in leading position.
+			// Joining a fold-start line to the previous one takes it out of
+			// leading position.
 			if opensFoldConstruct(line) {
 				_ = b.WriteByte(' ')
 			} else {
 				_ = b.WriteByte('\n')
 			}
 		}
-		// The first line has no line break of ours in front of it, so the fold
-		// cannot reach it and escaping is the only lever left.
+		// The first line has no preceding break to fold, so escaping is the only
+		// lever left there.
 		_, _ = b.WriteString(escapeLine(line, i == 0 && isLeadingFoldConstruct(line)))
 	}
 	return b.String()
 }
 
-// stripControl replaces horizontal whitespace controls with spaces, drops the
-// remaining control characters, and keeps line breaks. Carriage returns are
-// folded rather than kept so a value cannot terminate an SMTP header.
+// stripControl keeps line breaks, turns the other whitespace controls into
+// spaces and drops the rest. Carriage returns are folded rather than kept so a
+// value cannot terminate an SMTP header.
 func stripControl(s string) string {
 	if strings.IndexFunc(s, isStrippable) < 0 {
 		return s
@@ -110,9 +104,8 @@ func isStrippable(r rune) bool {
 	return r != '\n' && (r < 0x20 || r == 0x7f)
 }
 
-// escapeLine escapes every inlineCritical character, plus a single blockStart
-// or leadingEmphasis character in leading position, plus the "." that closes an
-// ordered-list marker, and truncates indentation to maxLeadingSpaces.
+// escapeLine escapes one line's structural characters and truncates its
+// indentation to maxLeadingSpaces.
 //
 // escapeFold additionally escapes a leading "=" or "~". Only EscapeMarkdown's
 // first line passes it, and only when that line really is a fold construct.
@@ -158,21 +151,16 @@ func escapeLine(line string, escapeFold bool) string {
 }
 
 // closesMarker reports whether the single-byte list-marker delimiter at i is
-// followed by a space or ends the line. CommonMark requires that of a marker,
-// which is what keeps a value such as "1.5" out of the escaped set: templates
-// compare numeric label values with `eq`, so escaping one changes control flow.
-// Tabs need no handling here because stripControl has already folded them into
-// spaces.
+// followed by a space or ends the line, as CommonMark requires of a marker.
+// That requirement is what keeps a value such as "1.5" out of the escaped set.
+// Tabs need no handling: stripControl has already folded them into spaces.
 func closesMarker(line string, i int) bool {
 	return i+1 == len(line) || line[i+1] == ' '
 }
 
 // opensFoldConstruct reports whether a line's first non-space character is a
-// foldStart character.
-//
-// Approximate on purpose: it only decides whether to join the line to the one
-// before it, and dropping a line break costs nothing. Contrast
-// isLeadingFoldConstruct, where being wrong is visible.
+// foldStart character. Approximate on purpose: it only decides whether to drop
+// a line break, which costs nothing.
 func opensFoldConstruct(line string) bool {
 	t := strings.TrimLeft(line, " ")
 	if t == "" {
@@ -183,11 +171,9 @@ func opensFoldConstruct(line string) bool {
 
 // isLeadingFoldConstruct reports whether a line is itself a tilde fence opener
 // or a Setext "=" underline, rather than merely starting with one of those
-// characters.
-//
-// Exact, because it governs escaping and the backslash is visible: "=> next"
-// must not acquire one, while "~~~" must, since an unterminated fence at the
-// start of a title renders the Subject, <title> and heading empty.
+// characters. Exact, because it governs escaping and the backslash is visible:
+// "=> next" must not acquire one, while "~~~" must, since an unterminated fence
+// at the start of a title renders the Subject, <title> and heading empty.
 //
 // Indentation is ignored: escapeLine truncates it to maxLeadingSpaces, which
 // still leaves the line able to open a block. ":" is excluded because a

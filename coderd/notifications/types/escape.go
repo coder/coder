@@ -4,9 +4,8 @@ import "github.com/coder/coder/v2/coderd/render"
 
 // EscapedForMarkdown returns a copy of the payload whose string values have
 // Markdown structure neutralized, for rendering the title and body templates.
-//
-// The receiver is left untouched. The stored payload keeps the values as they
-// were enqueued, which is what the webhook dispatcher surfaces to consumers, and
+// The receiver is left untouched: the stored payload keeps the values as they
+// were enqueued, which is what the webhook dispatcher surfaces to consumers and
 // what the SMTP dispatcher escapes at its own HTML sinks.
 func (p MessagePayload) EscapedForMarkdown() MessagePayload {
 	out := p
@@ -35,8 +34,8 @@ func (p MessagePayload) EscapedForMarkdown() MessagePayload {
 // `{{if gt $version.failed_count 1}}` keep working.
 //
 // Nested keys are escaped too: a key is content whenever a template ranges with
-// two variables, as `{{range $resource, $paths := .Data.replacements}}` does
-// over Terraform resource addresses.
+// two variables, as the resource replacements body does over Terraform resource
+// addresses.
 func escapeValue(v any) any {
 	switch t := v.(type) {
 	case string:

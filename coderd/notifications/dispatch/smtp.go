@@ -591,7 +591,7 @@ const (
 
 // encodeHeaderValue prepares a rendered value for use as a header value. Line
 // breaks become spaces so the value cannot terminate the header and inject
-// another; short plain-ASCII values are returned unchanged.
+// another.
 func encodeHeaderValue(value string) string {
 	if strings.ContainsAny(value, "\r\n") {
 		value = strings.Map(func(r rune) rune {
@@ -606,10 +606,10 @@ func encodeHeaderValue(value string) string {
 	if strings.Contains(value, "=?") {
 		return encodeWords(value)
 	}
-	// Length is measured on the encoded form, not the input: Q-encoding expands
-	// a non-ASCII rune to three characters per byte, so a short value can still
-	// exceed the line limit. WordEncoder separates its words with a space
-	// rather than folding, so anything over the limit goes to encodeWords.
+	// Length is measured on the encoded form: Q-encoding expands a non-ASCII
+	// rune to three characters per byte, so a short value can still exceed the
+	// line limit. WordEncoder separates words with a space rather than folding,
+	// so anything over the limit goes to encodeWords.
 	if encoded := mime.QEncoding.Encode("utf-8", value); len(encoded) <= maxHeaderValueOctets {
 		return encoded
 	}

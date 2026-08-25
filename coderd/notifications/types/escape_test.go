@@ -32,9 +32,8 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("LeavesReceiverUntouched", func(t *testing.T) {
 		t.Parallel()
 
-		// The webhook dispatcher surfaces the payload to consumers verbatim, and
-		// the SMTP dispatcher escapes at its own sinks, so escaping must not
-		// mutate the original.
+		// The webhook dispatcher surfaces the payload verbatim and the SMTP
+		// dispatcher escapes at its own sinks, so the original must not mutate.
 		payload := types.MessagePayload{
 			UserName: "Eve [x](https://attacker.example)",
 			Labels:   map[string]string{"name": "bobby-workspace", "risky": "[x](https://attacker.example)"},
@@ -71,9 +70,8 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("PreservesNonStringLeaves", func(t *testing.T) {
 		t.Parallel()
 
-		// Body templates compare numbers, for example
-		// {{if gt $version.failed_count 1}}. Coercing them to strings would
-		// break those comparisons.
+		// Body templates compare numbers, as {{if gt $version.failed_count 1}}
+		// does, so coercing them to strings would break the comparison.
 		payload := types.MessagePayload{
 			Data: map[string]any{
 				"failed_count": 3.0,
@@ -101,9 +99,8 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("EscapesNestedMapKeys", func(t *testing.T) {
 		t.Parallel()
 
-		// A nested key is content whenever a template ranges with two
-		// variables, as the resource replacements body does over Terraform
-		// resource addresses. An unescaped one renders a live anchor.
+		// A nested key is content whenever a template ranges with two variables,
+		// as the resource replacements body does over Terraform addresses.
 		payload := types.MessagePayload{
 			Data: map[string]any{
 				"replacements": map[string]any{
@@ -118,8 +115,8 @@ func TestEscapedForMarkdown(t *testing.T) {
 		require.True(t, ok)
 		require.Contains(t, replacements, `\[Re-auth\]\(https://attacker.example/login\)`)
 		require.NotContains(t, replacements, "[Re-auth](https://attacker.example/login)")
-		// A key with nothing to escape is untouched, so no template that reads
-		// a key by name starts missing.
+		// A key with nothing to escape is untouched, so a template that reads one
+		// by name keeps resolving it.
 		require.Contains(t, replacements, "null_resource.ok")
 	})
 
@@ -127,8 +124,7 @@ func TestEscapedForMarkdown(t *testing.T) {
 		t.Parallel()
 
 		// Top-level .Data keys are label names that templates dereference as
-		// {{.Data.replacements}}, not content. Escaping one would make the
-		// template stop resolving it.
+		// {{.Data.replacements}}, not content, so escaping one breaks lookup.
 		payload := types.MessagePayload{
 			Data: map[string]any{"failed_builds": []any{"x"}},
 		}

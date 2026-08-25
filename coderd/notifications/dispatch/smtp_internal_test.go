@@ -154,8 +154,7 @@ func TestEncodeHeaderValue(t *testing.T) {
 
 			got := encodeHeaderValue(tc.value)
 			require.Equal(t, tc.want, got)
-			// Whatever the input, the result must never be able to terminate the
-			// header it is written into.
+			// The result must never be able to terminate its own header.
 			require.NotContains(t, got, "\r")
 			require.NotContains(t, got, "\n")
 		})
@@ -163,9 +162,9 @@ func TestEncodeHeaderValue(t *testing.T) {
 }
 
 // TestEncodeHeaderValueEncodedWord covers a value that already looks like an
-// RFC 2047 encoded-word. mime.WordEncoder only encodes non-ASCII, and an
-// encoded-word is pure printable ASCII, so a forged one would reach the
-// recipient's client intact and be decoded there.
+// RFC 2047 encoded-word. mime.WordEncoder only encodes non-ASCII and an
+// encoded-word is printable ASCII, so a forged one would reach the recipient's
+// client intact and be decoded there.
 func TestEncodeHeaderValueEncodedWord(t *testing.T) {
 	t.Parallel()
 
@@ -176,9 +175,8 @@ func TestEncodeHeaderValueEncodedWord(t *testing.T) {
 	// The forged word must not survive as something a client would decode.
 	require.NotContains(t, got, forged)
 
-	// And the real text must round-trip, so the fix costs no fidelity. A
-	// decoder is the right assertion here: the exact chunk boundaries are an
-	// implementation detail, but what the recipient sees is not.
+	// Asserted through a decoder because the chunk boundaries are an
+	// implementation detail, while what the recipient sees is not.
 	decoded, err := new(mime.WordDecoder).DecodeHeader(got)
 	require.NoError(t, err)
 	require.Equal(t, forged+" shared a chat with you", decoded)
@@ -196,9 +194,8 @@ func TestEncodeHeaderValueFolds(t *testing.T) {
 		// A rune that does not divide evenly into the per-word budget must not
 		// be split across two encoded-words: each has to decode on its own.
 		"multibyte": strings.Repeat("日本語", 400),
-		// Q-encoding expands a non-ASCII rune to three characters per byte, so
-		// these are all under the raw byte limit and over it once encoded. The
-		// gate has to measure the encoded form.
+		// Under the raw byte limit and over it once Q-encoded, so these fail
+		// unless the gate measures the encoded form.
 		"200 accented runes": strings.Repeat("é", 200),
 		"300 cjk runes":      strings.Repeat("日", 300),
 		"200 emoji":          strings.Repeat("🎉", 200),
@@ -212,7 +209,7 @@ func TestEncodeHeaderValueFolds(t *testing.T) {
 					"a header line exceeds RFC 5322's limit: %d octets", len(line))
 			}
 			// Every CRLF must begin a folded continuation rather than end the
-			// header, or this is header injection instead of folding.
+			// header, or this is injection rather than folding.
 			for _, after := range strings.Split(got, "\r\n")[1:] {
 				require.True(t, strings.HasPrefix(after, " "),
 					"a CRLF was not followed by folding whitespace: %q", got)
