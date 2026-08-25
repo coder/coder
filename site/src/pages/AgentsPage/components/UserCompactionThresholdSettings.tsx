@@ -47,6 +47,7 @@ interface UserCompactionThresholdSettingsProps {
 		OrganizationCompactionTrigger
 	>;
 	modelsError?: unknown;
+	compactionTriggersError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -96,6 +97,7 @@ export const UserCompactionThresholdSettings: FC<
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
+	compactionTriggersError,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -326,6 +328,14 @@ export const UserCompactionThresholdSettings: FC<
 							{getErrorMessage(
 								modelsError,
 								"Some organization models could not be loaded.",
+							)}
+						</p>
+					)}
+					{compactionTriggersError != null && (
+						<p className="m-0 text-xs text-content-destructive">
+							{getErrorMessage(
+								compactionTriggersError,
+								"Failed to load organization compaction settings. Warnings about earlier compaction may be missing.",
 							)}
 						</p>
 					)}

@@ -48,6 +48,12 @@ const AgentSettingsCompactionPage: FC = () => {
 	const providerTypeByID = providerTypeByIDFromUserConfigs(
 		providerConfigsQuery.data,
 	);
+	const isCompactionOverridesLoading = compactionOverrideQueries.some(
+		(query) => query.isLoading,
+	);
+	const compactionOverridesError = compactionOverrideQueries.find(
+		(query) => query.error,
+	)?.error;
 	const compactionTriggersByOrganizationID = new Map<
 		string,
 		OrganizationCompactionTrigger
@@ -71,7 +77,10 @@ const AgentSettingsCompactionPage: FC = () => {
 			organizations={organizations}
 			compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
-			isLoadingModels={organizationModels.isLoading}
+			isLoadingModels={
+				organizationModels.isLoading || isCompactionOverridesLoading
+			}
+			compactionTriggersError={compactionOverridesError}
 			thresholds={thresholdsQuery.data?.thresholds}
 			isThresholdsLoading={thresholdsQuery.isLoading}
 			thresholdsError={thresholdsQuery.error}

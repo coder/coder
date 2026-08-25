@@ -6,6 +6,7 @@ import {
 	compactionPointAsPercent,
 	compactionTriggerPoint,
 	isCompactionTriggerEnabled,
+	resolveCompactionThreshold,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
 
@@ -102,5 +103,80 @@ describe("compaction triggers", () => {
 				{ ...model, compression_threshold: 100 },
 			]),
 		).toBeUndefined();
+	});
+
+	describe("resolveCompactionThreshold", () => {
+		const chatModel: TypesGen.ChatModel = {
+			...MockChatModel,
+			id: "chat-model",
+			context_limit: 128_000,
+			compression_threshold: 80,
+		};
+		const organizationTrigger = (
+			thresholdPercent: number,
+			contextLimit: number,
+		) => ({
+			model: { ...MockChatModel, id: "compaction-model" },
+			trigger: { thresholdPercent, contextLimit },
+			point: (contextLimit * thresholdPercent) / 100,
+		});
+
+		it("returns the organization percent when its trigger binds", () => {
+			expect(
+				resolveCompactionThreshold(
+					chatModel.id,
+					undefined,
+					[chatModel],
+					organizationTrigger(50, 32_000),
+				),
+			).toEqual({ percent: 12.5, source: "organization" });
+		});
+
+		it("keeps the user threshold when the organization point is higher", () => {
+			expect(
+				resolveCompactionThreshold(
+					chatModel.id,
+					[{ model_config_id: chatModel.id, threshold_percent: 60 }],
+					[chatModel],
+					organizationTrigger(90, 128_000),
+				),
+			).toEqual({ percent: 60, source: "user" });
+		});
+
+		it("reports the binding organization trigger when the chat threshold is disabled", () => {
+			// 50% of a 256K summarizer window is exactly 100% of the 128K
+			// chat window. The backend binds to the organization trigger,
+			// so the UI must attribute it even at the 100% boundary.
+			expect(
+				resolveCompactionThreshold(
+					chatModel.id,
+					[{ model_config_id: chatModel.id, threshold_percent: 100 }],
+					[chatModel],
+					organizationTrigger(50, 256_000),
+				),
+			).toEqual({ percent: 100, source: "organization" });
+		});
+
+		it("falls back to the model default without user or organization input", () => {
+			expect(
+				resolveCompactionThreshold(
+					chatModel.id,
+					undefined,
+					[chatModel],
+					undefined,
+				),
+			).toEqual({ percent: 80, source: "model" });
+		});
+
+		it("returns undefined for unknown models", () => {
+			expect(
+				resolveCompactionThreshold(
+					"missing",
+					undefined,
+					[chatModel],
+					organizationTrigger(50, 32_000),
+				),
+			).toBeUndefined();
+		});
 	});
 });

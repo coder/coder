@@ -323,6 +323,23 @@ export const NoOrganizationCompactionOverride: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+export const CompactionTriggersLoadError: Story = {
+	args: {
+		compactionTriggersError: new Error(
+			"Failed to load organization compaction settings. Warnings about earlier compaction may be missing.",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/Failed to load organization compaction settings/i),
+		).toBeVisible();
+		expect(
+			canvas.queryByText(/Compaction will trigger earlier/i),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isThresholdsLoading: true,

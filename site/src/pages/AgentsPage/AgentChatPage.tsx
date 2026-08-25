@@ -85,10 +85,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import {
-	bindingCompactionTrigger,
-	compactionPointAsPercent,
-	type OrganizationCompactionTrigger,
-	type ResolvedCompactionThreshold,
+	resolveCompactionThreshold,
 	resolveOrganizationCompactionTrigger,
 } from "./compactionTriggers";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
@@ -760,45 +757,6 @@ const getPersistedDetailError = ({
 	}
 	return normalizeChatErrorPayload(chatRecord?.last_error);
 };
-
-function resolveCompactionThreshold(
-	modelID: string | undefined,
-	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	models: readonly TypesGen.ChatModel[] | null | undefined,
-	organizationTrigger: OrganizationCompactionTrigger | undefined,
-): ResolvedCompactionThreshold | undefined {
-	if (!modelID || !Array.isArray(models)) return undefined;
-	const config = models.find((candidate) => candidate.id === modelID);
-	if (!config) return undefined;
-
-	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelID,
-	);
-	const thresholdPercent =
-		userOverride?.threshold_percent ?? config.compression_threshold;
-	const source = userOverride ? "user" : "model";
-	if (organizationTrigger) {
-		const organizationPercent = compactionPointAsPercent(
-			organizationTrigger.point,
-			config.context_limit,
-		);
-		if (
-			organizationPercent !== undefined &&
-			bindingCompactionTrigger(
-				{
-					thresholdPercent,
-					contextLimit: config.context_limit,
-				},
-				organizationTrigger.trigger,
-			) === "organization" &&
-			organizationPercent < thresholdPercent
-		) {
-			return { percent: organizationPercent, source: "organization" };
-		}
-	}
-
-	return { percent: thresholdPercent, source };
-}
 
 // Compile-time guard: ensures the workspace watcher bailout comparison
 // covers every WorkspaceAgent field the UI reads. If WorkspaceAgent

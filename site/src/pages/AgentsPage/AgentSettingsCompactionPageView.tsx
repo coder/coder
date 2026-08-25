@@ -13,6 +13,7 @@ export interface AgentSettingsCompactionPageViewProps {
 		OrganizationCompactionTrigger
 	>;
 	modelsError: unknown;
+	compactionTriggersError?: unknown;
 	isLoadingModels: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
 	isThresholdsLoading: boolean;
@@ -32,6 +33,7 @@ export const AgentSettingsCompactionPageView: FC<
 	organizations,
 	compactionTriggersByOrganizationID,
 	modelsError,
+	compactionTriggersError,
 	isLoadingModels,
 	thresholds,
 	isThresholdsLoading,
@@ -51,6 +53,7 @@ export const AgentSettingsCompactionPageView: FC<
 				organizations={organizations}
 				compactionTriggersByOrganizationID={compactionTriggersByOrganizationID}
 				modelsError={modelsError}
+				compactionTriggersError={compactionTriggersError}
 				isLoadingModels={isLoadingModels}
 				thresholds={thresholds}
 				isThresholdsLoading={isThresholdsLoading}

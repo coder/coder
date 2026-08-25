@@ -73,3 +73,48 @@ export const compactionPointAsPercent = (
 	contextLimit > 0 && Number.isFinite(point)
 		? (point / contextLimit) * 100
 		: undefined;
+
+export const resolveCompactionThreshold = (
+	modelID: string | undefined,
+	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
+	organizationTrigger: OrganizationCompactionTrigger | undefined,
+): ResolvedCompactionThreshold | undefined => {
+	if (!modelID || !Array.isArray(models)) {
+		return undefined;
+	}
+	const config = models.find((candidate) => candidate.id === modelID);
+	if (!config) {
+		return undefined;
+	}
+
+	const userOverride = userThresholds?.find(
+		(threshold) => threshold.model_config_id === modelID,
+	);
+	const thresholdPercent =
+		userOverride?.threshold_percent ?? config.compression_threshold;
+	const source = userOverride ? "user" : "model";
+	if (organizationTrigger) {
+		const organizationPercent = compactionPointAsPercent(
+			organizationTrigger.point,
+			config.context_limit,
+		);
+		// The binding helper is authoritative so the UI matches the
+		// backend even when the chat trigger is disabled and the
+		// organization point converts to 100% or more of the chat window.
+		if (
+			organizationPercent !== undefined &&
+			bindingCompactionTrigger(
+				{
+					thresholdPercent,
+					contextLimit: config.context_limit,
+				},
+				organizationTrigger.trigger,
+			) === "organization"
+		) {
+			return { percent: organizationPercent, source: "organization" };
+		}
+	}
+
+	return { percent: thresholdPercent, source };
+};
