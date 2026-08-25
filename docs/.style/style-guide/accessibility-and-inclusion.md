@@ -198,6 +198,33 @@ Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs lik
 *Documentation-only.
 No Vale rule.*
 
+## Input-device-agnostic language
+
+Coder docs reach readers on a mouse, a trackpad, a touchscreen, a keyboard, and assistive technology such as screen readers and switch devices.
+Don't assume the reader's input device when describing a UI interaction.
+
+"Select" is the default verb for choosing or activating a UI control, instead of "click," "tap," or "press" (see [Select, not click](./word-choice.md#select-not-click)).
+When a more specific verb names the interaction more precisely, use it instead, as long as it doesn't name a device: "open," "expand," "run," and "choose" are all device-agnostic.
+"Click," "tap," "swipe," and "press [key]" name a device and belong only where the content is specifically about that device.
+
+**Do**:
+
+> Select the workspace to open its details page.
+>
+> Open the **Templates** tab, then expand **Advanced** to see the resource limits.
+
+**Don't**:
+
+> Tap the workspace to open its details page.
+>
+> Click the **Templates** tab, then click **Advanced** to expand it.
+
+Exception: content that documents an input method by name describes that method directly, because the method itself is what the reader needs to know.
+This covers references to a specific mouse button (a right-click context menu), a keyboard shortcut list, a touch-gesture reference, or third-party software that specifically records mouse clicks and keystrokes as part of what it does.
+
+*Documentation-only.
+No Vale rule for the general principle; `Coder.SelectClick` (see [Select, not click](./word-choice.md#select-not-click)) enforces the "click" case specifically, since it's the word this policy is violated with most often.*
+
 ## Plain English for international readers
 
 Keep prose accessible to readers whose first language isn't English.
