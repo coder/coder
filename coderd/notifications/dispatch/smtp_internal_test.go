@@ -133,6 +133,65 @@ func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 	require.False(t, strings.Contains(got, logoURL), "raw logo URL must not be rendered")
 }
 
+// The template escapes every value it interpolates except _body, which is
+// trusted rendered Markdown. The three values here cannot carry markup in
+// production, so this test is the only thing that fails if their escaping is
+// removed.
+func TestSMTPHTMLTemplateEscapesTrustedValues(t *testing.T) {
+	t.Parallel()
+
+	const injected = `a"onclick=alert(1)`
+
+	for _, tc := range []struct {
+		name  string
+		apply func(*types.MessagePayload, map[string]any)
+	}{
+		{
+			// net/url preserves a quote in the query and --access-url is
+			// validated for its scheme only, so an operator can land this.
+			name: "BaseURL",
+			apply: func(_ *types.MessagePayload, h map[string]any) {
+				h["base_url"] = func() string { return "https://coder.example.com/?q=" + injected }
+			},
+		},
+		{
+			name: "CurrentYear",
+			apply: func(_ *types.MessagePayload, h map[string]any) {
+				h["current_year"] = func() string { return injected }
+			},
+		},
+		{
+			name: "NotificationTemplateID",
+			apply: func(p *types.MessagePayload, _ map[string]any) {
+				p.NotificationTemplateID = injected
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := types.MessagePayload{
+				NotificationTemplateID: "00000000-0000-0000-0000-000000000000",
+				UserName:               "Test User",
+				Labels: map[string]string{
+					"_subject": "Test notification",
+					"_body":    "<p>Test body</p>",
+				},
+			}
+			helpers := templateHelpers()
+			tc.apply(&payload, helpers)
+
+			got, err := render.GoTemplate(htmlTemplate, payload, helpers)
+			require.NoError(t, err)
+
+			require.NotContains(t, got, injected,
+				"raw value reached the rendered email: %s", got)
+			require.Contains(t, got, html.EscapeString(injected),
+				"the value must still be displayed, entity encoded: %s", got)
+		})
+	}
+}
+
 func TestValidateFromAddr(t *testing.T) {
 	t.Parallel()
 
