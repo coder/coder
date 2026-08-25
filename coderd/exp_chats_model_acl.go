@@ -33,6 +33,7 @@ import (
 // @Param model path string true "Model ID" format(uuid)
 // @Success 200 {object} codersdk.ChatModelACL
 // @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [get]
+// @x-apidocgen {"skip": true}
 func (api *API) chatModelConfigACLHandler(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.ChatModelConfigParam(r)
@@ -62,6 +63,7 @@ func (*chatModelACLValidationError) Error() string {
 // @Param request body codersdk.UpdateChatModelACLRequest true "Sparse model ACL update"
 // @Success 204
 // @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [patch]
+// @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

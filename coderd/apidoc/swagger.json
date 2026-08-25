@@ -1263,7 +1263,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/config/auto-archive-days": {
@@ -1524,7 +1527,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"put": {
 				"consumes": ["application/json"],
@@ -1551,7 +1557,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/config/system-prompt": {
@@ -1620,7 +1629,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/config/user-compaction-thresholds/{modelConfig}": {
@@ -1660,7 +1672,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"delete": {
 				"tags": ["Chats"],
@@ -1684,7 +1699,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/config/user-debug-logging": {
@@ -1973,6 +1991,9 @@
 					"200": {
 						"description": "OK"
 					}
+				},
+				"x-apidocgen": {
+					"skip": true
 				}
 			}
 		},
@@ -2004,7 +2025,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/models": {
@@ -2143,7 +2167,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"patch": {
 				"consumes": ["application/json"],
@@ -2178,7 +2205,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/{chat}/compact": {
@@ -2210,7 +2240,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/{chat}/context": {
@@ -2715,7 +2748,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/chats/{chat}/title/propose": {
@@ -4453,7 +4489,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/mcp/servers/{mcpServer}/oauth2/disconnect": {
@@ -4484,7 +4523,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/notifications/custom": {
@@ -5390,7 +5432,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/chats/model-overrides/{context}": {
@@ -5444,7 +5489,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/chats/models": {
@@ -5474,7 +5522,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"post": {
 				"consumes": ["application/json"],
@@ -5512,7 +5563,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/chats/models/{model}": {
@@ -5549,7 +5603,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"delete": {
 				"tags": ["Chats"],
@@ -5580,7 +5637,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"patch": {
 				"consumes": ["application/json"],
@@ -5625,7 +5685,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/chats/models/{model}/acl": {
@@ -5663,7 +5726,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"patch": {
 				"consumes": ["application/json"],
@@ -5705,7 +5771,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/groups": {
@@ -5996,7 +6065,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"post": {
 				"consumes": ["application/json"],
@@ -6034,7 +6106,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}": {
@@ -6072,7 +6147,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"delete": {
 				"tags": ["MCP"],
@@ -6104,7 +6182,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"patch": {
 				"consumes": ["application/json"],
@@ -6150,7 +6231,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl": {
@@ -6188,7 +6272,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			},
 			"patch": {
 				"consumes": ["application/json"],
@@ -6230,7 +6317,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect": {
@@ -6264,7 +6354,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/members": {
@@ -6597,7 +6690,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/members/{user}/chats/model-overrides/{context}": {
@@ -6648,7 +6744,10 @@
 					{
 						"CoderSessionToken": []
 					}
-				]
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/organizations/{organization}/members/{user}/roles": {

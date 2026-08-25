@@ -148,6 +148,7 @@ func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {array} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
@@ -288,6 +289,7 @@ func (api *API) mcpServerConfigReadInKeyScope(r *http.Request, organizationID uu
 // @Param request body codersdk.CreateMCPServerConfigRequest true "Create MCP server config request"
 // @Success 201 {object} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers [post]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -514,6 +516,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -601,6 +604,7 @@ func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Re
 // @Param request body codersdk.UpdateMCPServerConfigRequest true "Update MCP server config request"
 // @Success 200 {object} codersdk.MCPServerConfig
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [patch]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -964,6 +968,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 204
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := api.Auditor.Load()
@@ -1022,6 +1027,7 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 307
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) {
@@ -1114,6 +1120,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 // @Produce text/html
 // @Success 200
 // @Router /api/v2/mcp/servers/{mcpServer}/oauth2/callback [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
@@ -1325,6 +1332,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 // @Param mcpServer path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerOAuth2DisconnectResponse
 // @Router /api/v2/mcp/servers/{mcpServer}/oauth2/disconnect [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

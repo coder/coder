@@ -30,6 +30,7 @@ import (
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
+// @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)
@@ -65,6 +66,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
 // @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
+// @x-apidocgen {"skip": true}
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	config := httpmw.MCPServerConfigParam(r)

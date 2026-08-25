@@ -326,6 +326,7 @@ type chatsByWorkspaceResponse map[uuid.UUID]uuid.UUID
 // @Produce json
 // @Success 200 {object} chatsByWorkspaceResponse
 // @Router /api/v2/chats/by-workspace [get]
+// @x-apidocgen {"skip": true}
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -3279,6 +3280,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/compact [post]
+// @x-apidocgen {"skip": true}
 // @Description Requests a manual context compaction on an idle or errored
 // @Description chat, clearing any stored error. The compaction runs
 // @Description asynchronously through the chat worker and bypasses the
@@ -4610,6 +4612,7 @@ func readChatModelOverrideContext(
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.ChatModelOverridesResponse
 // @Router /api/v2/organizations/{organization}/chats/model-overrides [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *http.Request) {
@@ -4647,6 +4650,7 @@ func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *htt
 // @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
 // @Success 200 {object} codersdk.ChatModelOverrideResponse
 // @Router /api/v2/organizations/{organization}/chats/model-overrides/{context} [put]
+// @x-apidocgen {"skip": true}
 func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -4958,6 +4962,7 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 // @Param user path string true "User name, ID, or me"
 // @Success 200 {object} codersdk.UserChatPersonalModelOverridesResponse
 // @Router /api/v2/organizations/{organization}/members/{user}/chats/model-overrides [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *http.Request) {
@@ -5036,6 +5041,7 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 // @Param request body codersdk.UpdateUserChatPersonalModelOverrideRequest true "Personal model override"
 // @Success 204
 // @Router /api/v2/organizations/{organization}/members/{user}/chats/model-overrides/{context} [put]
+// @x-apidocgen {"skip": true}
 func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -5594,6 +5600,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.ChatRetentionDaysResponse
 // @Router /api/v2/chats/config/retention-days [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
@@ -5623,6 +5630,7 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
 // @Success 204
 // @Router /api/v2/chats/config/retention-days [put]
+// @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -5903,6 +5911,7 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 // @Produce json
 // @Success 200 {object} codersdk.UserChatCompactionThresholds
 // @Router /api/v2/chats/config/user-compaction-thresholds [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.Request) {
@@ -5971,6 +5980,7 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 // @Produce json
 // @Success 200 {object} codersdk.UserChatCompactionThreshold
 // @Router /api/v2/chats/config/user-compaction-thresholds/{modelConfig} [put]
+// @x-apidocgen {"skip": true}
 func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6048,6 +6058,7 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 // @Param modelConfig path string true "Model config ID"
 // @Success 204
 // @Router /api/v2/chats/config/user-compaction-thresholds/{modelConfig} [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -6243,6 +6254,7 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
 // @Router /api/v2/chats/files/{file}/download-url [post]
+// @x-apidocgen {"skip": true}
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
@@ -6309,6 +6321,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 // @Param token query string true "Signed download token"
 // @Success 200
 // @Router /api/v2/chats/files/{file}/download [get]
+// @x-apidocgen {"skip": true}
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
@@ -6932,6 +6945,7 @@ func (api *API) listDefaultOrganizationChatModels(rw http.ResponseWriter, r *htt
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
+// @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -7091,6 +7105,7 @@ func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {
 // @Param model path string true "Model ID"
 // @Success 200 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models/{model} [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7194,6 +7209,7 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
+// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7411,6 +7427,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.UpdateChatModelRequest true "Model updates"
 // @Success 200 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models/{model} [patch]
+// @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -7663,6 +7680,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 // @Param model path string true "Model ID"
 // @Success 204
 // @Router /api/v2/organizations/{organization}/chats/models/{model} [delete]
+// @x-apidocgen {"skip": true}
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	existing := httpmw.ChatModelConfigParam(r)
@@ -8265,6 +8283,7 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream/parts [get]
+// @x-apidocgen {"skip": true}
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

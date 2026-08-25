@@ -34,6 +34,7 @@ import (
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatACL
 // @Router /api/v2/chats/{chat}/acl [get]
+// @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
@@ -86,6 +87,7 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 // @Param request body codersdk.UpdateChatACL true "Update chat ACL request"
 // @Success 204
 // @Router /api/v2/chats/{chat}/acl [patch]
+// @x-apidocgen {"skip": true}
 func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
