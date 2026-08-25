@@ -2170,8 +2170,17 @@ func TestSSH_CoderConnect(t *testing.T) {
 		ctx = context.WithValue(ctx, "fs", fs)
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		// Provide a live stdin for the command; with no stdin attached, the
+		// command treats it as an abandoned connection and exits early.
+		clientOutput, clientInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput} {
+				_ = c.Close()
+			}
+		}()
 		inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
 		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
 
 		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
 		ctx = withCoderConnectRunning(ctx)
@@ -2455,6 +2464,48 @@ type fakeCoderConnectDialer struct{}
 
 func (*fakeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return nil, xerrors.Errorf("dial coder connect host %q over %s", addr, network)
+}
+
+// TestSSHStdio_ExitWhenStdinClosedBeforeAgentConnects ensures the command exits
+// promptly when the client closes stdin before a connection is established,
+// instead of leaking the process while waiting for the agent or dialing.
+// See https://github.com/coder/coder/issues/27954
+func TestSSHStdio_ExitWhenStdinClosedBeforeAgentConnects(t *testing.T) {
+	t.Parallel()
+
+	client, workspace, _ := setupWorkspaceForAgent(t)
+
+	clientOutput, clientInput := io.Pipe()
+	serverOutput, serverInput := io.Pipe()
+	defer func() {
+		for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+			_ = c.Close()
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	defer cancel()
+
+	inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+	clitest.SetupConfig(t, client, root)
+	inv.Stdin = clientOutput
+	inv.Stdout = serverInput
+	inv.Stderr = io.Discard
+
+	cmdDone := tGo(t, func() {
+		err := inv.WithContext(ctx).Run()
+		assert.Error(t, err)
+	})
+
+	// The client abandons the connection attempt by closing stdin. No agent
+	// is started, so the command would wait for it forever unless it notices.
+	require.NoError(t, clientOutput.Close())
+
+	select {
+	case <-cmdDone:
+	case <-time.After(testutil.WaitShort):
+		require.Fail(t, "coder ssh --stdio did not exit after stdin was closed")
+	}
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be

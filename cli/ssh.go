@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gen2brain/beeep"
@@ -247,9 +248,28 @@ func (r *RootCmd) ssh() *serpent.Command {
 			// In stdio mode, we can't allow any writes to stdin or stdout
 			// because they are used by the SSH protocol.
 			stdioReader, stdioWriter := inv.Stdin, inv.Stdout
+			// connected is set once the SSH session is consuming stdin, at
+			// which point its copy logic handles stdin termination.
+			var connected atomic.Bool
 			if stdio {
 				inv.Stdin = stdioErrLogReader{inv.Logger}
 				inv.Stdout = inv.Stderr
+
+				// ProxyCommand clients close stdin when they abandon a
+				// connection attempt. Relay stdin through a pipe so that its
+				// termination is observed even before the connection exists,
+				// canceling this process instead of leaking it while it waits
+				// for the agent or dials. See #27954.
+				piper, pipew := io.Pipe()
+				go func(src io.Reader) {
+					_, err := io.Copy(pipew, src)
+					_ = pipew.CloseWithError(err)
+					logger.Debug(ctx, "stdin relay finished", slog.Error(err))
+					if !connected.Load() {
+						cancel()
+					}
+				}(stdioReader)
+				stdioReader = piper
 			}
 
 			// This WaitGroup solves for a race condition where we were logging
@@ -460,6 +480,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 						})
 						defer closeUsage()
 					}
+					connected.Store(true)
 					return runCoderConnectStdio(ctx, fmt.Sprintf("%s:22", coderConnectHost), stdioReader, stdioWriter, stack, logger)
 				}
 			}
@@ -549,6 +570,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 						return nil
 					}, logger, client, workspace, errCh)
 				}()
+				connected.Store(true)
 				copier.copy(&wg)
 				return nil
 			}
