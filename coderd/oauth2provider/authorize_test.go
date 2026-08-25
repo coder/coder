@@ -49,9 +49,6 @@ func TestOAuthConsentFormIncludesCSRFToken(t *testing.T) {
 	assert.Contains(t, body, `id="cancel-link"`)
 }
 
-// The consent page is the only place a person is told what they are about to
-// approve. A narrow grant must not read as full access, and a full grant must
-// not be named by a scope no user would recognize.
 func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 	t.Parallel()
 
@@ -90,12 +87,9 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		// semantics under `list-style: none`.
 		assert.Contains(t, body, `role="list"`)
 		assert.Contains(t, body, `role="listitem"`)
-		// The id is the handle the submit and cancel handlers hide the list by,
-		// so a rename leaves the permissions on screen under "is now
-		// authorized".
+		// The submit and cancel handlers hide the list by this id.
 		assert.Contains(t, body, `id="scope-list"`)
 		assert.Contains(t, body, `id="scope-disclaimer"`)
-		// The added branch must not cost the page its approval controls.
 		assert.Contains(t, body, `id="allow-form"`)
 		assert.Contains(t, body, `id="cancel-link"`)
 	})
@@ -106,15 +100,12 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		body := render(t, nil, true)
 		assert.Contains(t, body, "full access")
 		assert.NotContains(t, body, `id="scope-list"`)
-		// The disclaimer has nothing to qualify on a page that lists nothing.
 		assert.NotContains(t, body, `id="scope-disclaimer"`)
 	})
 
-	// A grant carrying no permission is the opposite of an unrestricted one, so
-	// falling back to the length of Scopes would describe the narrowest grant
-	// there is as full access. The page refuses it rather than asking anyone to
-	// approve "these permissions" above an empty list. No caller can reach this
-	// today; a future one computing the grant itself is what the guard is for.
+	// Unreachable today; the guard is for a future caller computing the grant
+	// itself. An empty grant is the opposite of an unrestricted one, so falling
+	// back to the length of Scopes would describe it as full access.
 	t.Run("EmptyScopesAreRefused", func(t *testing.T) {
 		t.Parallel()
 
@@ -126,8 +117,7 @@ func TestOAuthConsentFormStatesNegotiatedScope(t *testing.T) {
 		assert.NotContains(t, body, `id="scope-list"`)
 	})
 
-	// nil and an empty slice are the same grant, and a guard written against
-	// one spelling would let the other through.
+	// A guard written against one spelling would let the other through.
 	t.Run("NilScopesAreRefused", func(t *testing.T) {
 		t.Parallel()
 
@@ -279,8 +269,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonNoGrantableScope)
 	})
 
-	// The GET handler rejects before the consent page renders, so the user is
-	// never asked to approve a request that cannot succeed.
 	t.Run("ConsentPageNotRenderedForInvalidScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -292,8 +280,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		requireInvalidScope(t, resp, reasonScopeNotAllowed)
 	})
 
-	// The wiring rather than the template: the page a user is served must name
-	// the scope the code will carry.
 	t.Run("ConsentPageStatesNegotiatedScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -314,9 +300,6 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"the consent page must state the negotiated scope, not the app's allowlist")
 	})
 
-	// The unrestricted half of the same wiring. The collapse and the template's
-	// full-access branch are covered alone, so dropping the collapse would show
-	// a real user `coder:all` with every other test still green.
 	t.Run("ConsentPageStatesFullAccessWhenUnrestricted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -334,8 +317,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 	})
 
 	// RFC 6749 §4.1.2.1 returns state only if the request carried one, and an
-	// empty state is not the same as no state. Every other case here sends one,
-	// so the guard could be deleted with the suite staying green.
+	// empty state is not the same as no state.
 	t.Run("OmittedStateNotEchoed", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -350,17 +332,14 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, http.StatusFound, resp.StatusCode)
 		location, err := url.Parse(resp.Header.Get("Location"))
 		require.NoError(t, err)
-		// Pinned so the case cannot pass on a redirect that failed ahead of the
-		// state guard.
+		// So the case cannot pass on a redirect that failed earlier.
 		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), location.Query().Get("error"))
 		require.False(t, location.Query().Has("state"),
 			"a client that sent no state must not receive an empty one")
 	})
 
-	// The other half of RFC 6749 §4.1.2.1: an unregistered redirect URI is never
-	// a destination this server sends anyone to, however the request fails.
-	// That validation running first is what keeps the rejection redirect above
-	// from being reachable with a request-supplied URI.
+	// redirect_uri validation running first is what keeps the rejection
+	// redirect above from being reachable with a request-supplied URI.
 	t.Run("MismatchedRedirectURINotRedirected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -378,25 +357,22 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 				"%s: an unregistered redirect_uri must fail on Coder", method)
 			require.Empty(t, resp.Header.Get("Location"),
 				"%s: the user must not be redirected to a URI the app did not register", method)
-			// The request also carries an invalid scope, so this pins that the
-			// redirect URI is what rejected it first.
+			// The request also carries an invalid scope, so this pins which
+			// guard rejected it first.
 			require.Contains(t, readBody(t, resp), "must exactly match",
 				"%s: the rejection must come from redirect_uri validation", method)
 		}
 
-		// Positive control: the same handler still renders the consent page for
-		// a request the app can be granted.
+		// Positive control: the same handler still renders the consent page.
 		okResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
 		defer okResp.Body.Close()
 		require.Equal(t, http.StatusOK, okResp.StatusCode)
 		require.Contains(t, readBody(t, okResp), `id="allow-form"`)
 	})
 
-	// A registered callback whose scheme is dangerous in a browser is refused
-	// before anything writes it: no Location header, and on GET no cancel link
-	// either. The request also carries a scope the app cannot be granted, so
-	// the rejection redirect is the write that would otherwise fire, which is
-	// what makes this a test of ordering rather than of the scheme check alone.
+	// The request also carries a scope the app cannot be granted, so the
+	// rejection redirect is the write that would otherwise fire. This is a test
+	// of ordering, not of the scheme check alone.
 	t.Run("DangerousCallbackSchemeNotRedirected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -409,9 +385,7 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 
 		getResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
 		defer getResp.Body.Close()
-		// 500, not 400: the request is well formed, the stored row is not. Both
-		// verbs answer alike, so consolidating the two guards cannot pick a
-		// status and silently regress one.
+		// 500, not 400: the request is well formed, the stored row is not.
 		require.Equal(t, http.StatusInternalServerError, getResp.StatusCode)
 		require.Empty(t, getResp.Header.Get("Location"),
 			"GET: a dangerous scheme must never reach a Location header")
@@ -428,17 +402,13 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: a dangerous scheme must never reach a Location header")
 		postBody := readBody(t, postResp)
 		require.Contains(t, postBody, string(codersdk.OAuth2ErrorCodeServerError))
-		// The callback-parse branch also answers server_error, so the code alone
-		// does not say which guard fired.
+		// The callback-parse branch also answers server_error.
 		require.Contains(t, postBody, "invalid scheme",
 			"POST: the failure must name the scheme, not just the error class")
 	})
 
-	// A registered callback may carry its own state=. Every parameter this
-	// server writes onto that URL replaces what is there, so the client reads
-	// back one value per parameter rather than two it may reject as malformed.
-	// The cancel link, the success redirect, and the error redirect are
-	// separate code paths, so all three are covered.
+	// A registered callback may carry its own state=, and the cancel link, the
+	// success redirect, and the error redirect write onto it separately.
 	t.Run("CallbackQueryParamsReplacedNotAppended", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -464,15 +434,12 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, []string{authorizeState}, location.Query()["state"],
 			"the success redirect must carry exactly one state")
 
-		// Every other rejection test registers a callback carrying no query of
-		// its own, so flipping the error redirect back to Add leaves them green.
 		errResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
 		defer errResp.Body.Close()
 		require.Equal(t, http.StatusFound, errResp.StatusCode)
 		errLocation, err := url.Parse(errResp.Header.Get("Location"))
 		require.NoError(t, err)
-		// Pinned so the arm cannot pass on a redirect that failed ahead of the
-		// error helper.
+		// So the arm cannot pass on a redirect that failed earlier.
 		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), errLocation.Query().Get("error"))
 		require.Equal(t, []string{authorizeState}, errLocation.Query()["state"],
 			"the error redirect must carry exactly one state")
@@ -608,8 +575,8 @@ var (
 )
 
 // requireInvalidScope asserts the RFC 6749 §4.1.2.1 rejection: a redirect to
-// the app's registered callback carrying the error code, a description from
-// the branch the caller named, and the request's state, but no code.
+// the registered callback carrying the error and the request's state, but no
+// code.
 func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 

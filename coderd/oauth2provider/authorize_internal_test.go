@@ -307,8 +307,6 @@ func TestHashOAuth2State(t *testing.T) {
 	})
 }
 
-// consentScopes decides what a user reads before approving a grant, so the
-// case that matters is the one where a listed name understates it.
 func TestConsentScopes(t *testing.T) {
 	t.Parallel()
 
@@ -331,8 +329,6 @@ func TestConsentScopes(t *testing.T) {
 			wantUnrestricted: true,
 		},
 		{
-			// Such an allowlist defaults to both names, and naming the
-			// narrower one would describe the grant as bounded.
 			name:             "UnrestrictedAmongOthersCollapses",
 			granted:          string(database.ApiKeyScopeCoderAll) + " coder:workspaces.access",
 			want:             nil,
@@ -340,7 +336,6 @@ func TestConsentScopes(t *testing.T) {
 		},
 		{
 			// Unreachable today: negotiateScope returns "" only with an error.
-			// A grant carrying no permission must never read as unrestricted.
 			name:             "EmptyGrantIsNotUnrestricted",
 			granted:          "",
 			want:             []string{},

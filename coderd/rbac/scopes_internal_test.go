@@ -168,17 +168,15 @@ func TestScopesCoverGuards(t *testing.T) {
 	}
 }
 
-// TestScopesCoverWildcardResourceChecksAction pins that {*, read} authorizes
-// read on every resource, not every action on every resource. The only
-// wildcard resource the catalog spells is coder:all's {*, *}, so no
-// catalog-driven test reaches this shape.
+// The only wildcard resource the catalog spells is coder:all's {*, *}, so no
+// catalog-driven case reaches this shape.
 func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
 	t.Parallel()
 
 	allowed := []namedScope{{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)}}
 
-	// Positive control: the wildcard resource does match an unrelated resource,
-	// so the assertion below fails on the action rather than the resource.
+	// Positive control: the wildcard resource does match, so the assertion
+	// below fails on the action rather than the resource.
 	covered, err := scopesCoverExpanded(allowed, namedScope{name: "workspace_read", scope: coverableScope(workspaceRead)})
 	require.NoError(t, err)
 	require.True(t, covered)
