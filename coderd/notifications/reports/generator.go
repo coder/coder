@@ -374,12 +374,12 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 	}
 
 	// Fetch the models used without a price.
-	unpriced, err := db.GetUnpricedAIModelsSince(ctx, dbtime.Time(since).UTC())
+	unpricedModels, err := db.GetUnpricedAIModelsSince(ctx, dbtime.Time(since).UTC())
 	if err != nil {
 		return xerrors.Errorf("unable to fetch unpriced AI models: %w", err)
 	}
 
-	if len(unpriced) > 0 {
+	if len(unpricedModels) > 0 {
 		owners, err := db.GetUsers(ctx, database.GetUsersParams{
 			RbacRole: []string{codersdk.RoleOwner},
 		})
@@ -387,7 +387,7 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 			return xerrors.Errorf("unable to fetch owners: %w", err)
 		}
 
-		reportData := buildDataForReportUnpricedAIModels(unpriced)
+		reportData := buildDataForReportUnpricedAIModels(unpricedModels)
 		for _, owner := range owners {
 			if _, err := enqueuer.EnqueueWithData(ctx, owner.ID, notifications.TemplateAIModelsUnpricedReport,
 				map[string]string{},
@@ -415,10 +415,11 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 // buildDataForReportUnpricedAIModels renders the models most used first, so
 // the models dropped by the limit are the ones with the least unreported
 // usage.
-func buildDataForReportUnpricedAIModels(unpriced []database.GetUnpricedAIModelsSinceRow) map[string]any {
-	models := make([]map[string]any, 0, min(len(unpriced), unpricedAIModelsLimit))
-	for _, row := range unpriced[:min(len(unpriced), unpricedAIModelsLimit)] {
-		models = append(models, map[string]any{
+func buildDataForReportUnpricedAIModels(unpricedModels []database.GetUnpricedAIModelsSinceRow) map[string]any {
+	reportedCount := min(len(unpricedModels), unpricedAIModelsLimit)
+	reportedModels := make([]map[string]any, 0, reportedCount)
+	for _, row := range unpricedModels[:reportedCount] {
+		reportedModels = append(reportedModels, map[string]any{
 			"provider": row.ProviderType,
 			"model":    row.Model,
 		})
@@ -426,8 +427,8 @@ func buildDataForReportUnpricedAIModels(unpriced []database.GetUnpricedAIModelsS
 
 	return map[string]any{
 		"report_frequency": unpricedAIModelsReportFrequencyLabel,
-		"models":           models,
-		"total_count":      len(unpriced),
-		"truncated":        len(unpriced) > len(models),
+		"models":           reportedModels,
+		"total_count":      len(unpricedModels),
+		"truncated":        len(unpricedModels) > reportedCount,
 	}
 }
