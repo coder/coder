@@ -10,9 +10,15 @@ material. Findings here are numbered F to keep the two sets apart. Where a
 finding is arguably both, it goes to whichever document a reader would look in
 first, and says so.
 
-**This document is provisional.** It was opened on 2026-08-25 to stop perishable
-measurements from being lost, ahead of a corpus pass that will decide whether
-two findings documents is right. See the corpus queue.
+**This is scoping information for work planning, and it is meant to be
+disposable.** Eric, 2026-08-25. Each entry exists so that somebody sizing work
+knows the item is there and what motivates it. **If an entry does not survive
+that work, it has done its job**, and the document getting thinner is the
+document succeeding.
+
+The analysis of the `users` overload was extracted to
+`overloading_users.md` on 2026-08-25, being a different kind of writing: it has a
+thesis and gets revised, where these entries accrete and stay put.
 
 ## How to read the motivation on each finding
 
@@ -42,155 +48,76 @@ made. They are not prioritised against other work but are conditions on
 shipping, payable if the direction is adopted and evaporating if it is not.
 Marked **created here**.
 
+## Preparatory work for converting ordinary tables to ledgers
+
+**Marked as its own section because it is found by purpose, not by severity.**
+Everything here is work to do on `main` **before** a table of credentials is
+converted to a journal and a ledger. Doing it after is negative value: the
+conversion pays to model something that should not exist, and then the model has
+to be undone.
+
+**This is a sequencing claim, not a priority claim.** Each item may score low on
+both motivation axes taken alone. What makes them urgent is order: they are cheap
+before the conversion and expensive after it.
+
+### P-A. A credential is issued only where its authenticator will be presented
+
+**The position.** A credential is a means of exercising authority. An
+authenticator that nobody ever presents exercises nothing, so what such a thing
+actually supplies is a **name**: an identifier to attribute by. Issuing a
+credential in order to obtain a name is the defect, and it is invisible because
+the result works.
+
+**The instance that produced the position.** An AI agent's chat profile key is
+minted at two sites and **its authenticator is discarded at both**:
+`coderd/x/chatd/chatd.go:1385` throws away both return values of `MintKey`, and
+`coderd/x/chatd/synthetickey.go:86` keeps only `newKey.ID`. The key id is then
+used to attribute AI Gateway traffic. Nothing authenticates with it, ever. So it
+is a name wearing a credential's shape, and `api_keys` carries a stored digest of
+a secret that was handed to nobody.
+
+**Why this must be settled before conversion, not after.** Journaling it would
+create a credential in the ledger that authenticates nobody, with issuance,
+rotation and expiry entries recording the lifecycle of something with no use. The
+expiry machinery already built for it is the worked example: see
+`credential_expiration.working_state.md`, where the chat key's twenty four hour
+expiry turns out to bound inactivity rather than life, and the extension path
+that maintains it can move last use backwards. **All of that effort is spent on a
+credential that is never presented.**
+
+**The check to run before converting any credential table.** For each kind of
+credential the table holds, find where its authenticator is presented. Where the
+answer is nowhere, it is an identifier and should be converted into one rather
+than into a credential. The presented set is the set worth journaling.
+
+**How to run that check here.** Every issuance site returns the authenticator.
+Find the sites that discard it. `MintKey` and `RotateKey` in
+`coderd/aiagentidentity` are the AI agent doors; the general one is
+`entity.IssueCredential`, whose `IssuedCredential.Authenticator` is documented as
+the only time the value can be had.
+
+### P-B. Items recorded elsewhere that belong to this section
+
+**The renames.** Of the sites reading a holder as a user, most are unreachable by
+a non-user holder and want a checked accessor rather than a decision. Doing those
+before the conversion removes the largest source of noise from it. See `overloading_users.md`.
+
+**Purging non-person rows from `users`.** The order and the restricting foreign
+keys are recorded in the users overload material, which also carries the trigger
+that blocks a delete. That is advance work by the same argument: the conversion
+should not have to carry rows that do not belong to it.
+
+**The `is_system` filters.** The sibling of the `kind` filters this branch
+removed, and the one that survives untouched. They are the same debt for a
+different overloaded kind, and the same argument applies to enumerating them
+first.
+
 ## Findings
 
-### F1. An API key's holder is read as a user in a hundred and eighty places
-
-**A high, B high.** Eric places the conflation squarely on axis A. It is also
-what blocks a non-user actor from holding a credential, so the proof of concept
-cannot proceed around it. The same fix serves both, which is the strongest
-position any finding here holds.
-
-`database.HolderID.AsUserIDUnchecked()` marks each site where a holder is read
-as though it were a user without establishing that it is one. Measured
-2026-08-25, excluding `_test.go` and the file defining the method: **184 at
-`7a19c05df1`**, the commit that introduced the marking, and **180 at
-`d44016d4e3`**.
-
-**The delta is 4 and the work done is 5, and the difference is the finding.**
-Four call sites were removed, all in `ValidateAPIKey` in
-`coderd/httpmw/apikey.go`, all by commit `c84be7070d`. A fifth decision was made
-in `7ca3f77b38`, where `aibridgedserver` stopped deciding by `user.Kind` and
-began asking `key.AIAgentID()`; that removed no call, because the user path below
-still fetches by holder id. **So counting these sites measures what remains and
-is blind to what was done.** Anyone using the delta as a progress metric will
-undercount. Commit `c84be7070d` says as much in its own message: "counting sites
-measures the edits and not the questions, and the questions are what the
-schedule will turn on".
-
-#### The diagnosis
-
-**The fault is that two different facts shared one column, one type, and one
-name.** `api_keys.user_id` was a `uuid`, and every read of it produced a value
-that could mean either *the party holding this credential* or *the user this
-request is authorized as*. For a human holder those are the same value, so no
-read had to say which it meant, and none did. The overload was therefore
-invisible at every individual site while being present at all of them.
-
-**Introducing `database.HolderID` did not fix any site. It made the sites
-countable.** A distinct type with one deliberately ugly accessor,
-`AsUserIDUnchecked()`, forces each read to state that it is assuming rather than
-establishing. That is why the count exists at all, and why it appeared at
-`7a19c05df1` rather than being measurable before.
-
-**A call is not a defect.** It is an unanswered question. Some answers are
-"nothing here can be reached by a non-user, rename the variable"; some are a
-branch; and at least one, per commit `c84be7070d`, expands into further
-questions the entity model has not reached.
-
-#### The four decisions, and what each one chose
-
-Recorded in full because `main` will have to make them again and this branch
-never merges. Baseline citations are `coderd/httpmw/apikey.go` at
-`7a19c05df1`, all four inside `ValidateAPIKey`. Head citations are by marker
-rather than line, since lines move.
-
-**Site 1, baseline line 280: the provider token refresh.** It fetched the
-holder's OIDC or GitHub login link, in order to refresh a provider token, inside
-a block already gated on `key.LoginType` being `LoginTypeGithub` or
-`LoginTypeOIDC`.
-
-*The choice: make an existing truth explicit rather than repair a live fault.*
-An AI agent's key is minted with `LoginTypeToken`, so the block could never run
-for one. The site was not reachable and was not broken. The replacement adds
-`userID, holderIsUser := key.UserID()` and conjoins `holderIsUser` to the
-existing condition, so the code now states the assumption that the login type
-was silently carrying. **A maintainer should know this one is a clarification,
-not a bug fix**, and should not expect a behaviour change from it.
-
-**Site 2, baseline line 461: the last seen update.** It wrote `last_seen_at` on
-the holder's users row after a successful validation.
-
-*The choice: skip, rather than write elsewhere or fail.* The replacement wraps
-the update in `if userID, isUser := key.UserID(); isUser`. The reasoning is
-recorded at the site: last seen belongs to a user, an AI agent has no users row
-to carry one, and **when an agent wants the equivalent that is the credential use
-model's business rather than this column's**. So this is a deliberate omission
-with a named destination, not an oversight. Note that the destination does not
-work yet: see F4.
-
-**Site 3, baseline line 480: the kind check.** It fetched the users row with
-`GetUserByID` specifically so that `user.Kind` could be read, to tell an AI agent
-from a human. Everything downstream branched on that.
-
-*The choice: ask the credential, not the row.* The replacement leads with
-`if agentID, ok := key.AIAgentID(); ok`, so **what holds a credential became a
-property of the credential** rather than something discovered by fetching a row
-and inspecting it. This is the substantive decision of the four and the one that
-made the users row removable at all.
-
-*It also closed a security finding rather than moving it.* The baseline's agent
-branch built the subject by assigning `actor.Type` and `actor.FriendlyName` onto
-the value `UserRBACSubject` returned. That value carries a cached rego AST and
-`regoValue()` short-circuits on the cache, so neither assignment reached the
-policy and the workspace designation boundary did not engage. That is **P9** in
-`security_findings.md`. Deleting the branch is where P9 is answered.
-
-**Site 4, baseline line 532: the subject build for a human holder.** The `else`
-arm, passing the holder id to `UserRBACSubject`.
-
-*The choice: keep the fetch, narrow its purpose, and say so.* Sites 3 and 4
-collapse onto a single `key.UserID()` in the rewritten branch, which is why
-commit `c84be7070d` reports three sites where four occurrences went. The user
-path still calls `GetUserByID`, but **for existence alone**, with the reason
-stated: a key naming a user who is not there should be answered as an invalid
-credential rather than as a server error, which is what letting the roles fetch
-fail would produce.
-
-#### Concentration: why 180 is not the size of a punch list
-
-**Thirty nine other non-test files carry the pattern and not one of them changed
-across the entire branch.** Verified by diffing per-file counts between
-`7a19c05df1` and `d44016d4e3`: exactly one file's count moved. Every decision
-made on this branch was made in one function.
-
-That is not because the other sites are easy. It is because **authentication is
-the only place that was forced to answer.** It is where a credential becomes a
-subject, so it cannot defer the question. Everywhere else the question is
-deferred precisely because it can be: the code is correct for a human holder,
-and no non-human holder reaches it yet.
-
-Three consequences for anyone estimating from the count.
-
-**The sites are of unequal kind, not merely unequal size.** Of the 180, some are
-reachable by a non-user holder today and need a decision; some are reachable
-only by a person and want a rename; and some need a design decision that does
-not exist. Which of the three each site is has not been measured, and that
-classification is worth more than the count.
-
-**The count can grow when a site is touched.** Commit `c84be7070d` records that
-one site turned into six more and a design question, and its own note draws the
-conclusion: "counting sites measures the edits and not the questions, and the
-questions are what the schedule will turn on".
-
-**The completed work is invisible in the count**, per the delta of four against
-five decisions above. So the number moves down slower than work happens, and up
-when work is done properly.
-
-### F2. Three recorded counts of F1's sites do not reproduce
-
-**A low, B low.** Measurement hygiene rather than a defect, recorded so the next
-count is comparable.
-
-`rewrite_rbac.md` records 185; commit `c84be7070d` records 186 becoming 183. A
-plain recount at the same code states gives 184 and 184 becoming 180. The
-pattern is consistent rather than a typo, one to two above a text count, twice,
-in prose by the same author. The plausible cause is a semantic find references
-count, which dedupes multi argument call groups differently from a text match.
-
-**What is worth keeping is the counting rule, not the number.** Non test `.go`
-files, excluding `coderd/database/modelmethods.go` where the method is defined.
-Whether to amend the corpus figure is Eric's, and is in the corpus queue.
+**F1, F1a and F2 have moved** to `overloading_users.md`, which holds the `users`
+overload as a single analysis: how it arose, its discriminator history, the count
+of sites that read a holder as a user, and the counting rule behind that count.
+The numbers are not reused.
 
 ### F3. The credential ledger is not on the authentication path
 
@@ -340,3 +267,174 @@ files of 444, an xterm "get dimensions" error and a teardown timeout, in
 `IconField`, `CoderAgentsPageView`, `AgentChatPageView`, `Tool` and `DebugPanel`
 stories. The marker push touched zero files under `site/`. Recorded only so that
 a failing pre-push is not mistaken for a consequence of this work.
+
+### F9. Two live defects, found while classifying the holder sites
+
+**Created here, by the users row removal, and both verified in code.** Each is
+the same shape: a site fetches the holder's users row, requires it to exist, and
+now finds nothing for an AI agent. Before migration 000592 the row existed, the
+fetch succeeded, and the notification was sent naming the agent. **Now the
+notification is silently dropped and a warning is logged.**
+
+**`coderd/workspaces.go:1554`, `putWorkspaceDormant`.** The guard
+`apiKey.HolderID.AsUserIDUnchecked() != newWorkspace.OwnerID` is always true for
+an agent, since an agent id can never equal a user id, so the branch is entered.
+`GetUserByID` on the agent's id then fails, and the notification is gated behind
+`initiatorErr == nil`. **Reachable by a presented key**: the route needs an
+update on the one workspace the workspace-agent profile names, and that profile
+carries `workspace:update`.
+
+**A second, smaller defect sits in the same block.** The warning logs
+`slog.Error(err)`, the outer error, rather than `initiatorErr`. So the log line
+that reports this failure carries the wrong error, probably nil.
+
+**`coderd/workspacebuilds.go:730`, `notifyWorkspaceUpdated`,** fed by the holder
+read at line 654. Same fetch, same failure, and here the function returns
+outright, so the notification to every admin is dropped. Its reachability by a
+presented key is not established, the branch being a template version change,
+and that turns on the same per-function pass still outstanding.
+
+**Neither is a wrong answer, which is why nothing caught them.** They are
+notifications not sent, and no test asserts that one was.
+
+### F10. The holder decisions already made, and which sites can be reached
+
+**Both halves depend on `database.HolderID`, which exists only on this branch**,
+so neither is a statement about `main` that `main` could check for itself. The
+first half is a set of answers somebody will need again; the second bounds how
+much of the count is live work. See `overloading_users.md` for the count itself
+and for why the marked type is an instrument rather than a fix.
+
+**Eric, 2026-08-25: the four decisions may be worth redoing inside the proof of
+concept**, which is the other reason they sit here rather than in the analysis.
+
+#### The four decisions, and what each one chose
+
+Recorded in full because `main` will have to make them again and this branch
+never merges. Baseline citations are `coderd/httpmw/apikey.go` at
+`7a19c05df1`, all four inside `ValidateAPIKey`. Head citations are by marker
+rather than line, since lines move.
+
+**Site 1, baseline line 280: the provider token refresh.** It fetched the
+holder's OIDC or GitHub login link, in order to refresh a provider token, inside
+a block already gated on `key.LoginType` being `LoginTypeGithub` or
+`LoginTypeOIDC`.
+
+*The choice: make an existing truth explicit rather than repair a live fault.*
+An AI agent's key is minted with `LoginTypeToken`, so the block could never run
+for one. The site was not reachable and was not broken. The replacement adds
+`userID, holderIsUser := key.UserID()` and conjoins `holderIsUser` to the
+existing condition, so the code now states the assumption that the login type
+was silently carrying. **A maintainer should know this one is a clarification,
+not a bug fix**, and should not expect a behaviour change from it.
+
+**Site 2, baseline line 461: the last seen update.** It wrote `last_seen_at` on
+the holder's users row after a successful validation.
+
+*The choice: skip, rather than write elsewhere or fail.* The replacement wraps
+the update in `if userID, isUser := key.UserID(); isUser`. The reasoning is
+recorded at the site: last seen belongs to a user, an AI agent has no users row
+to carry one, and **when an agent wants the equivalent that is the credential use
+model's business rather than this column's**. So this is a deliberate omission
+with a named destination, not an oversight.
+
+**Site 3, baseline line 480: the kind check.** It fetched the users row with
+`GetUserByID` specifically so that `user.Kind` could be read, to tell an AI agent
+from a human. Everything downstream branched on that.
+
+*The choice: ask the credential, not the row.* The replacement leads with
+`if agentID, ok := key.AIAgentID(); ok`, so **what holds a credential became a
+property of the credential** rather than something discovered by fetching a row
+and inspecting it. This is the substantive decision of the four and the one that
+made the users row removable at all.
+
+*It also closed a security finding rather than moving it.* The baseline's agent
+branch built the subject by assigning `actor.Type` and `actor.FriendlyName` onto
+the value `UserRBACSubject` returned. That value carries a cached rego AST and
+`regoValue()` short-circuits on the cache, so neither assignment reached the
+policy and the workspace designation boundary did not engage. That defect is recorded
+separately as a security finding; deleting the branch is where it is answered
+rather than moved.
+
+**Site 4, baseline line 532: the subject build for a human holder.** The `else`
+arm, passing the holder id to `UserRBACSubject`.
+
+*The choice: keep the fetch, narrow its purpose, and say so.* Sites 3 and 4
+collapse onto a single `key.UserID()` in the rewritten branch, which is why
+commit `c84be7070d` reports three sites where four occurrences went. The user
+path still calls `GetUserByID`, but **for existence alone**, with the reason
+stated: a key naming a user who is not there should be answered as an invalid
+credential rather than as a server error, which is what letting the roles fetch
+fail would produce.
+
+#### The classification, and why most of the 180 cannot be reached at all
+
+Attempted 2026-08-25. **The reachability question collapses**, and the collapse
+is verified in code rather than inferred from scopes.
+
+**Chat profile tokens are never presented.** Both sites that mint one throw the
+token away: `coderd/x/chatd/chatd.go:1385` discards both return values of
+`MintKey`, and `coderd/x/chatd/synthetickey.go:86` keeps only `newKey.ID`. That
+key exists to attribute AI Gateway traffic by key id, and nothing ever
+authenticates with it.
+
+**So the only AI agent keys that are ever presented come from
+`WorkspaceAgentIdentityProfile`**, handed to the agent in workspace build
+metadata, and from `SandboxIdentityProfile`, handed to a sandbox. The second is
+the first: `profile.go:100` builds it by calling
+`WorkspaceAgentIdentityProfile` and changing only the token name.
+
+**That profile's allow list is one workspace**, `profile.go:83-85`, and its
+scopes are the six workspace scopes and nothing else.
+
+**An allow list denies every type it does not name.**
+`object_is_included_in_scope_allow_list` in `coderd/rbac/policy.rego:366-388`
+admits an object only through `{"*","*"}`, `{type,"*"}`, or a matching
+`{type,id}`; otherwise the set of allowed ids for that object's type is empty
+and the rule fails. Every `scope_allow` branch requires it.
+
+**Therefore a presented AI agent key can authorize actions on one workspace
+object and nothing else.** Any `AsUserIDUnchecked` site in a handler whose
+authorization touches a non-workspace object is **unreachable by an AI agent
+today**, which is C3: a rename rather than a decision.
+
+**And the sites are all on the presented path.** They read
+`httpmw.APIKey(r).HolderID` or an `apiKey` derived from it, so they are reached
+only by a request carrying a key. In-process agent paths such as
+`ChatToolSubject` build a subject without a key and never read a holder, so they
+do not widen this.
+
+**What that leaves.** The whole chat surface, 40 sites in `exp_chats.go` and
+`exp_chats_acl.go`, is C3, along with the user, template, notification, external
+auth, MCP, OAuth2 and audit surfaces. The candidates for C1, C2 and C4 are
+confined to the workspace surface: **34 sites across 20 functions** in
+`workspaces.go`, `workspacebuilds.go`, `workspaceagents.go`, `aitasks.go`,
+`workspaceapps.go`, `workspaceapps/db.go` and `parameters.go`.
+
+**The upper bound is the deliverable, and the per-function pass below was
+deliberately not done**, the shape being enough to size the work.
+
+**What that pass would establish, if it is ever wanted.** Whether each of those 20
+functions authorizes only a workspace object has to be established one at a
+time; the ones that plainly do not, such as `postWorkspacesByOrganization` and
+`postUserWorkspaces`, need `workspace:create`, which the presented profile does
+not carry. Until that pass is done the honest statement is an upper bound:
+**at most 34 of the 180 need a decision, and the rest are renames.**
+
+**A partial classification of those 34 exists and its premise is wrong in one
+respect.** A subagent classified the workspace surface on 2026-08-25 and reached
+4 needing a holder decision, 14 meaning the authorized user, 1 unreachable and
+15 undecidable. **It was not told that chat profile tokens are never presented**,
+and it argued reachability from both profiles, so any site it called reachable
+only through the chat profile is in fact unreachable. Its counts need
+re-deriving under the presented-key constraint before they are used.
+
+**What survives that correction is its concrete work**, which is worth keeping:
+the identification of `workspaceapps.go:111` as minting a new key with
+`HolderType` left unset, so an agent reaching the subdomain app redirect would
+mint a key claiming a user holder over an agent's id; the observation that
+`workspacebuilds.go:451` is the one site already doing the right thing, resolving
+on behalf of through a checked ledger lookup; and the note that
+`workspacebuilds.go:816` reads unscoped `RBACRoles`, so resolving it naively to
+the owner would bypass profile narrowing. None of those depends on the
+reachability premise.

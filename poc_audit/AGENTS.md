@@ -72,12 +72,19 @@ on something or you have simply not read the part that answers it.
   ones came out of writing proof of concept code. Carries the policy goals any
   fix must satisfy. Recommendations for work after the proof of
   concept, none of it scheduled.
-- [Findings for Production Work](production_findings.md). Findings that bear on
-  work after the proof of concept, each carrying what motivates fixing it: a
-  defect on its own merits, a change the proof of concept requires, or debt this
-  work created. Security findings stay in `security_findings.md` with their P
-  numbers. Provisional, pending a corpus pass on whether two findings documents
-  is right.
+- [Overloading the Users Table](overloading_users.md). Why `users` holds things
+  that are not people, read as a sum type that was never named as one: how it
+  arose from a foreign key, the history of its three discriminators and the
+  features that added each, and the count of sites that read a credential's
+  holder as a user. **The argument does not depend on the proof of concept.**
+  Read this before planning work on `main` that prepares for converting ordinary
+  tables to ledgers.
+- [Findings for Production Work](production_findings.md). A register of discrete
+  findings from the proof of concept period, each carrying what motivates fixing
+  it, plus the work that must be done **before** a credential table becomes a
+  ledger. Scoping information for planning, and deliberately disposable: an entry
+  that does not survive the work it scopes has done its job. Security findings
+  stay in `security_findings.md` with their P numbers.
 - [Implementation Patterns](implementation_patterns.md). How journals are
   shaped and what the schema is made to enforce rather than merely document:
   entry identifiers, line numbering, denormalization across lines, and which
