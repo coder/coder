@@ -551,9 +551,6 @@ func validateGeneratedTitle(title string) error {
 	if title == "" {
 		return xerrors.New("generated title was empty")
 	}
-	if len(strings.Fields(title)) > 8 {
-		return xerrors.New("generated title exceeded 8 words")
-	}
 	return nil
 }
 
@@ -652,10 +649,19 @@ func titlePasteText(
 	return pasteText, nil
 }
 
+// titleMaxWords caps generated titles at the prompt's stated 2-8 word
+// budget. Quickgen pins temperature, so a model that overshoots the
+// budget for a given conversation keeps overshooting on retry; keeping
+// the first words of an otherwise good title beats failing generation.
+const titleMaxWords = 8
+
 func normalizeTitleOutput(title string) string {
 	title = normalizeShortTextOutput(title)
 	if title == "" {
 		return ""
+	}
+	if words := strings.Fields(title); len(words) > titleMaxWords {
+		title = strings.Join(words[:titleMaxWords], " ")
 	}
 	return truncateRunes(title, 80)
 }

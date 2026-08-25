@@ -7200,6 +7200,13 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
 }
 
+func (q *querier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return 0, err
+	}
+	return q.db.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
+}
+
 func (q *querier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) error {
 	fetch := func(ctx context.Context, arg database.ReleaseExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
