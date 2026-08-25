@@ -60,7 +60,7 @@ func (api *API) chatModelConfigACLHandler(rw http.ResponseWriter, r *http.Reques
 }
 
 // @Summary Get available AI model ACL users and groups
-// @ID get-available-ai-model-acl-users-groups
+// @ID get-available-ai-model-acl-users-and-groups
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
