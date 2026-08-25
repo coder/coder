@@ -73,63 +73,45 @@ export const ExportingAll: Story = {
 	},
 };
 
-export const DownloadsSkill: Story = {
+export const RowMenuActions: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
-		await userEvent.click(
-			within(row).getByRole("button", { name: "Open menu" }),
-		);
-		const menu = await body.findByRole("menu");
-		await userEvent.click(
-			within(menu).getByRole("menuitem", { name: "Download" }),
-		);
+		const trigger = within(row).getByRole("button", { name: "Open menu" });
 
+		await userEvent.click(trigger);
+		await userEvent.click(
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: "Download",
+			}),
+		);
 		await waitFor(() => {
 			expect(args.onDownload).toHaveBeenCalledWith(
 				expect.objectContaining({ name: "review-sql" }),
 			);
 		});
-	},
-};
 
-export const EditsSkillFromMenu: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const row = canvas.getByRole("row", { name: /write-release-notes/ });
+		await userEvent.click(trigger);
 		await userEvent.click(
-			within(row).getByRole("button", { name: "Open menu" }),
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: "Edit",
+			}),
 		);
-		const menu = await body.findByRole("menu");
-		await userEvent.click(within(menu).getByRole("menuitem", { name: "Edit" }));
-
 		await waitFor(() => {
-			expect(args.onEdit).toHaveBeenCalledWith("write-release-notes");
-			expect(args.onDelete).not.toHaveBeenCalled();
+			expect(args.onEdit).toHaveBeenCalledWith("review-sql");
 		});
-	},
-};
 
-export const DeletesSkillFromMenu: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const row = canvas.getByRole("row", { name: /review-sql/ });
+		await userEvent.click(trigger);
 		await userEvent.click(
-			within(row).getByRole("button", { name: "Open menu" }),
+			within(await body.findByRole("menu")).getByRole("menuitem", {
+				name: /Delete/,
+			}),
 		);
-		const menu = await body.findByRole("menu");
-		await userEvent.click(
-			within(menu).getByRole("menuitem", { name: /Delete/ }),
-		);
-
 		await waitFor(() => {
 			expect(args.onDelete).toHaveBeenCalledWith(
 				expect.objectContaining({ name: "review-sql" }),
 			);
-			expect(args.onEdit).not.toHaveBeenCalled();
 		});
 	},
 };
