@@ -1561,7 +1561,7 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — verifies truncation. */
+/** Long workspace name at iPhone SE width — collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
@@ -1587,15 +1587,23 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The workspace pill button should be present.
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
+		// Too narrow for the pill's minimum width: it must collapse into
+		// the overflow popover instead of clipping to a tiny pill.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
 		});
 		await waitFor(() => {
-			expect(pill).toBeVisible();
+			expect(overflowPill).toBeVisible();
 		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
 		// The toolbar row should not cause horizontal overflow.
-		const toolbar = pill.closest(
+		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
 		) as HTMLElement;
 		if (toolbar?.parentElement) {

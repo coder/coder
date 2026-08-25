@@ -126,9 +126,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			{/* md floor: ~8ch of the workspace name + 3.125rem of chrome
-			 * (padding, status icon, gaps, chevron), matching ModelSelector. */}
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[calc(8ch_+_3.125rem)]">
+			{/* Floor of ~8ch of name + 3.125rem chrome (padding, status icon,
+			 * gaps, chevron). Below the floor the overflow system moves the
+			 * pill into the +N popover instead of shrinking it further. */}
+			<span className="inline-flex min-w-[calc(8ch_+_3.125rem)] items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -139,29 +140,22 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"size-7 md:size-auto md:w-full md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
+									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"h-7 w-full max-w-[200px] px-2 py-0.5",
 								)}
 							>
-								<StatusIcon
-									type={effectiveType}
-									className="size-icon-sm shrink-0 md:size-3"
-								/>
-								<span className="hidden min-w-0 truncate md:inline">
-									{workspace.name}
-								</span>
+								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
+								<span className="min-w-0 truncate">{workspace.name}</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3.5 shrink-0 transition-transform md:block",
+										"size-3.5 shrink-0 transition-transform",
 										open && "rotate-180",
 									)}
 								/>
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
-					<TooltipContent className="hidden md:block">
-						{statusLabel}
-					</TooltipContent>
+					<TooltipContent>{statusLabel}</TooltipContent>
 				</Tooltip>
 			</span>
 
