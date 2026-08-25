@@ -93,7 +93,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const isDisabled = isSaving || isDeleting;
 	const areFieldsDisabled =
 		isDisabled || (isEditing && onUpdateServer === undefined);
-	const canSubmit = canSubmitMCPServerForm(form.values, areFieldsDisabled);
+	// Editing requires a change before submitting, matching the provider form.
+	const canSubmit =
+		canSubmitMCPServerForm(form.values, areFieldsDisabled) &&
+		(!isEditing || form.dirty);
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
 	);

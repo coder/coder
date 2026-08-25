@@ -1286,6 +1286,11 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
+		// Pristine edit forms keep the submit disabled until a change is made.
+		await expect(
+			canvas.getByRole("button", { name: "Update server" }),
+		).toBeDisabled();
+		await userEvent.type(canvas.getByLabelText(/display name/i), " v2");
 		await expect(
 			canvas.getByRole("button", { name: "Update server" }),
 		).toBeEnabled();

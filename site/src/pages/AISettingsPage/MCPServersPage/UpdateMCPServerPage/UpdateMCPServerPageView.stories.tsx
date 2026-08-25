@@ -58,6 +58,10 @@ export const Default: Story = {
 		);
 
 		const updateButton = canvas.getByRole("button", { name: "Update server" });
+		await expect(updateButton).toBeDisabled();
+		const displayName = canvas.getByLabelText(/display name/i);
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "Coder v2");
 		await expect(updateButton).toBeEnabled();
 		await userEvent.click(updateButton);
 
@@ -65,7 +69,7 @@ export const Default: Story = {
 			expect(onUpdateServer).toHaveBeenCalledWith(
 				"mcp-coder",
 				expect.objectContaining({
-					display_name: "Coder",
+					display_name: "Coder v2",
 					slug: "coder",
 				}),
 			);
