@@ -18335,10 +18335,29 @@ func TestGetChatsSearch(t *testing.T) {
 	pendingChat := createRoot("plain four")
 	insertMsg(pendingChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "elasticsearch indexing")
 
+	// Simulates the post-migration drain window: a vector stamped
+	// 'simple' by the migration keeps exact-form matching until the
+	// sweep rewrites it.
+	staleChat := createRoot("plain stale")
+	staleMsg := insertMsg(staleChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "refactoring codebase")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = 'simple' WHERE id = $1`,
+		staleMsg.ID)
+	require.NoError(t, err)
+
+	// A vector written by a binary that predates search_tsv_config
+	// (NULL config) matches nothing until the sweep rewrites it.
+	oldBinaryChat := createRoot("plain oldbinary")
+	oldBinaryMsg := insertMsg(oldBinaryChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "quantum entanglement notes")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'quantum entanglement notes'), search_tsv_config = NULL WHERE id = $1`,
+		oldBinaryMsg.ID)
+	require.NoError(t, err)
+
 	// Prove role/visibility predicates exclude rows even when search_tsv
 	// is set.
 	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'forbidden secret token') WHERE id = ANY($1)`,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('english', 'forbidden secret token') WHERE id = ANY($1)`,
 		pq.Array([]int64{toolMsg.ID, modelOnlyMsg.ID}))
 	require.NoError(t, err)
 
@@ -18349,7 +18368,7 @@ func TestGetChatsSearch(t *testing.T) {
 		titleChat.ID, archivedChat.ID, prTitleChat.ID, mergedChat.ID,
 		msgChat.ID, assistantMsgChat.ID, userVisMsgChat.ID,
 		assistantUserVisMsgChat.ID, deletedMsgChat.ID, childParent.ID,
-		ineligibleChat.ID, pendingChat.ID,
+		ineligibleChat.ID, pendingChat.ID, staleChat.ID, oldBinaryChat.ID,
 	}
 
 	tests := []struct {
@@ -18360,8 +18379,21 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
 		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
 		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Titles keep the 'simple' config, which does not stem, so
+		// inflected query forms only match message bodies.
+		{"Title/NoStemming", database.GetChatsParams{Search: "deploying pipelines"}, nil},
 		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/NoStemming", database.GetChatsParams{Search: "authenticating"}, nil},
 		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
+		// The 'english' config stems both sides, so inflected query forms
+		// match the stored words.
+		{"Message/StemmedMatch", database.GetChatsParams{Search: "restarting clusters"}, []uuid.UUID{msgChat.ID}},
+		// Stale 'simple' vectors are queried with their own config: the
+		// exact form matches like before the migration, the stemmed form
+		// does not until the sweep rewrites the row.
+		{"Message/StaleVectorExactFormMatch", database.GetChatsParams{Search: "refactoring codebase"}, []uuid.UUID{staleChat.ID}},
+		{"Message/StaleVectorNoStemming", database.GetChatsParams{Search: "refactor"}, nil},
+		{"Message/NullConfigNoMatch", database.GetChatsParams{Search: "quantum entanglement"}, nil},
 		{"Message/AssistantRoleMatch", database.GetChatsParams{Search: "grafana tuning"}, []uuid.UUID{assistantMsgChat.ID}},
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
