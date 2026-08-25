@@ -276,12 +276,10 @@ enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
 
-`propose_plan` and `ask_user_question` are only available while plan mode is
-active. In plan mode, the agent can still inspect the workspace and template
-metadata, execute shell commands for exploration, and read process output.
-`write_file` and `edit_files` remain available only for the chat-specific plan
-file under `.coder/plans/`. MCP, dynamic, provider-native, and computer-use
-tools are blocked.
+`propose_plan` and `ask_user_question` are only available while plan mode is active.
+In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
+`write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
+Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
 
 ## Plan mode
 
@@ -294,18 +292,14 @@ current setting.
 
 While plan mode is active:
 
-- the agent can inspect repository files, workspace state, and available
-  templates
-- `write_file` and `edit_files` can only modify the chat-specific plan file
-  under `.coder/plans/`
-- `ask_user_question` can gather structured clarification from the user before
-  a plan is proposed
-- `propose_plan` snapshots the current plan file into the transcript so you can
-  review it before implementation starts
-- `execute` and `process_output` remain available for exploration, such as
-  cloning repositories, searching code, and running inspection commands
-- MCP tools, dynamic tools, provider-native tools, and computer-use tools are
-  not available
+- The agent can inspect repository files, workspace state, and available templates.
+- `write_file` and `edit_files` can only modify the chat-specific plan file under `.coder/plans/`.
+- `ask_user_question` can gather structured clarification from the user before a plan is proposed.
+- `propose_plan` snapshots the current plan file into the transcript so you can review it before implementation starts.
+- `execute` and `process_output` remain available for exploration, such as cloning repositories, searching code, and running inspection commands.
+- External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode; workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
+- Dynamic tools, provider-native tools, and computer-use tools are not available.
+- Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 
 This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal
