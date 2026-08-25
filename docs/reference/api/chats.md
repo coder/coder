@@ -2979,18 +2979,18 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Regenerate chat title
+## Propose chat title
 
 ### Code samples
 
 ```sh
 # Example request using curl
-curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/regenerate \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/propose \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/experimental/chats/{chat}/title/regenerate`
+`POST /api/experimental/chats/{chat}/title/propose`
 
 Experimental: this endpoint is subject to change.
 
@@ -3006,212 +3006,14 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "archived": true,
-  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
-  "children": [
-    {
-      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-      "archived": true,
-      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
-      "children": [],
-      "client_type": "ui",
-      "context": {
-        "dirty": true,
-        "dirty_since": "2019-08-24T14:15:22Z",
-        "error": "string",
-        "resources": [
-          {
-            "error": "string",
-            "kind": "instruction_file",
-            "size_bytes": 0,
-            "skill_description": "string",
-            "skill_name": "string",
-            "source": "string",
-            "status": "ok",
-            "tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ]
-          }
-        ]
-      },
-      "created_at": "2019-08-24T14:15:22Z",
-      "diff_status": {
-        "additions": 0,
-        "approved": true,
-        "author_avatar_url": "string",
-        "author_login": "string",
-        "base_branch": "string",
-        "changed_files": 0,
-        "changes_requested": true,
-        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-        "commits": 0,
-        "deletions": 0,
-        "head_branch": "string",
-        "pr_number": 0,
-        "pull_request_draft": true,
-        "pull_request_state": "string",
-        "pull_request_title": "string",
-        "refreshed_at": "2019-08-24T14:15:22Z",
-        "reviewer_count": 0,
-        "stale_at": "2019-08-24T14:15:22Z",
-        "url": "string"
-      },
-      "files": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "mime_type": "string",
-          "name": "string",
-          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-          "size_bytes": 0
-        }
-      ],
-      "has_unread": true,
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "labels": {
-        "property1": "string",
-        "property2": "string"
-      },
-      "last_error": {
-        "detail": "string",
-        "kind": "generic",
-        "message": "string",
-        "provider": "string",
-        "retryable": true,
-        "status_code": 0
-      },
-      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
-      "last_reasoning_effort": "string",
-      "last_turn_summary": "string",
-      "mcp_server_ids": [
-        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-      ],
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "owner_name": "string",
-      "owner_username": "string",
-      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
-      "pin_order": 0,
-      "plan_mode": "plan",
-      "queued_for_capacity": true,
-      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
-      "shared": true,
-      "status": "waiting",
-      "summary": "string",
-      "title": "string",
-      "updated_at": "2019-08-24T14:15:22Z",
-      "warnings": [
-        "string"
-      ],
-      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-    }
-  ],
-  "client_type": "ui",
-  "context": {
-    "dirty": true,
-    "dirty_since": "2019-08-24T14:15:22Z",
-    "error": "string",
-    "resources": [
-      {
-        "error": "string",
-        "kind": "instruction_file",
-        "size_bytes": 0,
-        "skill_description": "string",
-        "skill_name": "string",
-        "source": "string",
-        "status": "ok",
-        "tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ]
-      }
-    ]
-  },
-  "created_at": "2019-08-24T14:15:22Z",
-  "diff_status": {
-    "additions": 0,
-    "approved": true,
-    "author_avatar_url": "string",
-    "author_login": "string",
-    "base_branch": "string",
-    "changed_files": 0,
-    "changes_requested": true,
-    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-    "commits": 0,
-    "deletions": 0,
-    "head_branch": "string",
-    "pr_number": 0,
-    "pull_request_draft": true,
-    "pull_request_state": "string",
-    "pull_request_title": "string",
-    "refreshed_at": "2019-08-24T14:15:22Z",
-    "reviewer_count": 0,
-    "stale_at": "2019-08-24T14:15:22Z",
-    "url": "string"
-  },
-  "files": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "mime_type": "string",
-      "name": "string",
-      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "size_bytes": 0
-    }
-  ],
-  "has_unread": true,
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "labels": {
-    "property1": "string",
-    "property2": "string"
-  },
-  "last_error": {
-    "detail": "string",
-    "kind": "generic",
-    "message": "string",
-    "provider": "string",
-    "retryable": true,
-    "status_code": 0
-  },
-  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
-  "last_reasoning_effort": "string",
-  "last_turn_summary": "string",
-  "mcp_server_ids": [
-    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-  ],
-  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-  "owner_name": "string",
-  "owner_username": "string",
-  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
-  "pin_order": 0,
-  "plan_mode": "plan",
-  "queued_for_capacity": true,
-  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
-  "shared": true,
-  "status": "waiting",
-  "summary": "string",
-  "title": "string",
-  "updated_at": "2019-08-24T14:15:22Z",
-  "warnings": [
-    "string"
-  ],
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  "title": "string"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                   |
-|--------|---------------------------------------------------------|-------------|------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProposeChatTitleResponse](schemas.md#codersdkproposechattitleresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
