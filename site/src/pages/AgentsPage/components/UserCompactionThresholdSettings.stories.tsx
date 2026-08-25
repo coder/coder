@@ -2,12 +2,21 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockDefaultOrganization, MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
+
+const modelsOrganization = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+};
 
 const organizationWithEmptyDisplayName = {
 	...MockDefaultOrganization,
@@ -59,12 +68,7 @@ const meta = {
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
 		]),
-		organizationNameByID: new Map<string, string>([
-			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
-		]),
-		organizationIconByID: new Map<string, string>([
-			[MockChatModel.organization_id, MockDefaultOrganization.icon],
-		]),
+		organizations: [modelsOrganization],
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -119,13 +123,7 @@ export const Default: Story = {
 
 export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	args: {
-		organizationNameByID: new Map<string, string>([
-			[
-				organizationWithEmptyDisplayName.id,
-				organizationWithEmptyDisplayName.display_name ||
-					organizationWithEmptyDisplayName.name,
-			],
-		]),
+		organizations: [organizationWithEmptyDisplayName],
 		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
 	},
 	play: async ({ canvasElement }) => {
@@ -326,50 +324,36 @@ export const OrganizationFilter: Story = {
 			mockModels[0],
 			{
 				...mockModels[1],
-				organization_id: "org-second",
+				organization_id: MockOrganization2.id,
 			},
 		],
-		organizationNameByID: new Map<string, string>([
-			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
-			["org-second", "Second Org"],
-		]),
-		organizationIconByID: new Map<string, string>([
-			[MockChatModel.organization_id, MockDefaultOrganization.icon],
-		]),
+		organizations: [modelsOrganization, MockOrganization2],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const filter = await canvas.findByRole("combobox", {
-			name: "Filter by organization",
+		const filter = await canvas.findByRole("button", {
+			name: `Organization ${modelsOrganization.display_name}`,
 		});
 
 		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
-		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		expect(canvas.queryByText("Claude Sonnet")).not.toBeInTheDocument();
 
 		await userEvent.click(filter);
-		const listbox = await within(document.body).findByRole("listbox");
-		await userEvent.click(within(listbox).getByText("Second Org"));
+		const option = await within(document.body).findByRole("option", {
+			name: new RegExp(MockOrganization2.display_name),
+		});
+		await userEvent.click(option);
 
 		await waitFor(() => {
 			expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
 			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
 		});
 
-		expect(within(filter).getByText("Second Org")).toBeInTheDocument();
-		await waitFor(() => {
-			expect(within(filter).getByText("SE")).toBeInTheDocument();
-		});
-
-		await userEvent.click(filter);
-		const reopenedListbox = await within(document.body).findByRole("listbox");
-		await userEvent.click(
-			within(reopenedListbox).getByText("All organizations"),
-		);
-
-		await waitFor(() => {
-			expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
-			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
-		});
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
 	},
 };
 
@@ -378,7 +362,7 @@ export const SingleOrganizationHidesFilter: Story = {
 		const canvas = within(canvasElement);
 		await canvas.findByText("GPT-4o");
 		expect(
-			canvas.queryByRole("combobox", { name: "Filter by organization" }),
+			canvas.queryByRole("button", { name: /^Organization / }),
 		).not.toBeInTheDocument();
 	},
 };

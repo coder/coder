@@ -2,17 +2,13 @@ import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -39,8 +35,7 @@ import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
-	organizationNameByID: ReadonlyMap<string, string>;
-	organizationIconByID: ReadonlyMap<string, string>;
+	organizations: readonly TypesGen.Organization[];
 	modelsError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -84,8 +79,7 @@ export const UserCompactionThresholdSettings: FC<
 > = ({
 	models,
 	providerTypeByID,
-	organizationNameByID,
-	organizationIconByID,
+	organizations,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -97,40 +91,34 @@ export const UserCompactionThresholdSettings: FC<
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
-	const [organizationFilter, setOrganizationFilter] = useState("all");
+	const [selectedOrganizationID, setSelectedOrganizationID] = useState<
+		string | null
+	>(null);
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const enabledModels = models.filter((config) => config.enabled);
-	const organizationOptions = [
-		...new Map(
-			enabledModels.map((config) => [
-				config.organization_id,
-				organizationNameByID.get(config.organization_id) ??
-					config.organization_id,
-			]),
-		).entries(),
-	]
-		.map(([id, name]) => ({
-			id,
-			name,
-			icon: organizationIconByID.get(id) ?? "",
-		}))
-		.sort((a, b) =>
-			a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
-		);
-	// Fall back to all organizations when the selected one disappears after
-	// a models refetch.
-	const effectiveOrganizationFilter = organizationOptions.some(
-		(option) => option.id === organizationFilter,
-	)
-		? organizationFilter
-		: "all";
-	const visibleModels =
-		effectiveOrganizationFilter === "all"
-			? enabledModels
-			: enabledModels.filter(
-					(config) => config.organization_id === effectiveOrganizationFilter,
-				);
+	const organizationNameByID = new Map(
+		organizations.map((organization) => [
+			organization.id,
+			organization.display_name || organization.name,
+		]),
+	);
+	const organizationOptions = organizations.filter((organization) =>
+		enabledModels.some((config) => config.organization_id === organization.id),
+	);
+	const activeOrganization =
+		organizationOptions.find(
+			(organization) => organization.id === selectedOrganizationID,
+		) ??
+		organizationOptions.find((organization) => organization.is_default) ??
+		organizationOptions[0];
+	// Fall back to all models when no organization matches, such as a model
+	// whose organization the user can no longer see.
+	const visibleModels = activeOrganization
+		? enabledModels.filter(
+				(config) => config.organization_id === activeOrganization.id,
+			)
+		: enabledModels;
 	const overridesByModelID = new Map(
 		(thresholds ?? []).map(
 			(threshold: TypesGen.UserChatCompactionThreshold) => [
@@ -301,33 +289,25 @@ export const UserCompactionThresholdSettings: FC<
 							)}
 						</p>
 					)}
-					{organizationOptions.length > 1 && (
-						<Select
-							value={effectiveOrganizationFilter}
-							onValueChange={setOrganizationFilter}
-						>
-							<SelectTrigger
-								className="w-56"
-								aria-label="Filter by organization"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All organizations</SelectItem>
-								{organizationOptions.map((option) => (
-									<SelectItem key={option.id} value={option.id}>
-										<span className="flex items-center gap-2">
-											<Avatar
-												size="sm"
-												src={option.icon}
-												fallback={option.name}
-											/>
-											{option.name}
-										</span>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+					{organizationOptions.length > 1 && activeOrganization && (
+						<div>
+							<OrganizationAutocomplete
+								value={activeOrganization}
+								ariaLabel={`Organization ${getOrganizationLabel(
+									activeOrganization,
+									organizationOptions,
+								)}`}
+								options={organizationOptions}
+								triggerClassName="w-60"
+								optionsTabbable
+								onChange={(organization) => {
+									if (!organization) {
+										return;
+									}
+									setSelectedOrganizationID(organization.id);
+								}}
+							/>
+						</div>
 					)}
 					<Table>
 						<TableHeader>
