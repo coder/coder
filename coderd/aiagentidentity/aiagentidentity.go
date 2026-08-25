@@ -40,17 +40,25 @@ type AIAgentActor struct {
 	OriginID    uuid.UUID
 }
 
-// ResolvedIdentity contains the authoritative AI agent state and the users
-// rows still consulted alongside it.
+// ResolvedIdentity contains the authoritative AI agent state and the owner's
+// users row.
 //
 // Ledger is the authority on the agent: who owns it, what it was created in,
-// and whether it is still live. AgentUser is the mirrored users row and is kept
-// only for the name and the status checks that have not yet moved.
+// and whether it is still live. **No users row for the agent appears here.**
+// The two things it supplied, a name and a liveness check, are the ledger's:
+// the name is computed from the identifier and the creation site, and liveness
+// is the ledger's state. OwnerUser stays because an owner is a person and a
+// person is a users row.
 type ResolvedIdentity struct {
 	Actor     AIAgentActor
 	Ledger    database.AIAgentLedger
-	AgentUser database.User
 	OwnerUser database.User
+}
+
+// Name is what a human reads where this agent is named. Computed rather than
+// read, which is why nothing has to keep a stored copy in step.
+func (r ResolvedIdentity) Name() string {
+	return entity.DisplayName(entity.CreationSiteType(r.Ledger.CreationSiteType), r.Ledger.ID)
 }
 
 type actorContextKey struct{}
@@ -434,19 +442,11 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 
 	// Authentication must resolve identity metadata before an actor exists.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
-	agentUser, err := db.GetUserByID(systemCtx, agentUserID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ResolvedIdentity{}, ErrNotAIAgent
-		}
-		return ResolvedIdentity{}, xerrors.Errorf("get AI agent user: %w", err)
-	}
-	if agentUser.Kind != database.UserKindAIAgent {
-		return ResolvedIdentity{}, ErrNotAIAgent
-	}
 
-	// The ledger, not ai_agents. The two agree, one being written from the
-	// other, and reading the authority is what lets the mirror go.
+	// **The ledger alone says whether this identifier names an AI agent.** A
+	// users row was consulted first for as long as one existed to consult, and
+	// its absence or its kind was what produced ErrNotAIAgent. The ledger
+	// answers the same question about the entity it is authoritative for.
 	ledger, err := db.GetAIAgentLedgerRowByID(systemCtx, agentUserID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -475,7 +475,6 @@ func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (Res
 	return ResolvedIdentity{
 		Actor:     actor,
 		Ledger:    ledger,
-		AgentUser: agentUser,
 		OwnerUser: owner,
 	}, nil
 }

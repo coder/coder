@@ -45,9 +45,9 @@ func PlatformSubject(ctx context.Context, db database.Store, ownerID uuid.UUID) 
 	if identity.Actor != agentActor {
 		return rbac.Subject{}, uuid.Nil, xerrors.New("chat AI agent actor does not match its authoritative identity")
 	}
-	if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
-		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent user %s is not active", identity.AgentUser.ID)
-	}
+	// Whether the agent is live is the ledger's answer and Resolve has already
+	// given it, refusing anything but active. A second check against a mirrored
+	// users row would be a second opinion able to disagree with the authority.
 	if identity.OwnerUser.ID != ownerID || identity.OwnerUser.Kind != database.UserKindHuman ||
 		identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
 		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent owner %s is not an active human user", ownerID)
@@ -68,8 +68,8 @@ func PlatformSubject(ctx context.Context, db database.Store, ownerID uuid.UUID) 
 	// AsAIAgent carries the acting identity into the policy input so the
 	// workspace designation boundary applies to in-process chat tools exactly as
 	// it does to bearer-token requests.
-	actor = actor.AsAIAgent(identity.AgentUser.ID, identity.AgentUser.Username)
-	return actor, identity.AgentUser.ID, nil
+	actor = actor.AsAIAgent(identity.Ledger.ID, identity.Name())
+	return actor, identity.Ledger.ID, nil
 }
 
 // asOwner adds the liveness-checked chat platform subject to the database

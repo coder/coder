@@ -1757,8 +1757,15 @@ left behind.
 
 ### Status
 
-Not started. **Unblocked**: WP11 milestone 4 removed the site that decided an
-agent by fetching a user and reading its kind, which was what this waited on.
+**Milestones 1 and 2 are done**, 2026-08-25. No AI agent is decided by a users
+row any more, and `Resolve` no longer reads one. Milestone 3, which removes the
+row itself, has not started.
+
+**Milestones 2 and 3 leave a window between them and should land back to back.**
+Milestone 2 stops reading the users row's status; milestone 3 removes the row.
+Between the two, suspending an agent's users row no longer stops it, and the row
+is still there to suspend. On `tigre` that window is the gap between two
+commits, which is why it is stated rather than mitigated.
 
 ### What forces the work
 
@@ -1800,8 +1807,15 @@ than for a decision.
 
 ### Milestone 1: aibridged decides by holder type
 
-The same change as WP11 milestone 4, in `aibridgedserver`. Independent of
-everything below.
+**Done**, 2026-08-25. `aibridgedserver.go` branches on `key.AIAgentID()` rather
+than on `user.Kind`, which was the last site with that pattern.
+
+**A test caught the difference, which is the best evidence the change does
+something.** `TestAuthorizationAIAgentOwnerLiveness/AI agent identity missing`
+built a users row of kind `ai_agent` and a key whose holder type said `user`.
+The old code believed the row and refused; the new code believes the key and did
+not. The setup now states the holder type, so the case verifies what it always
+meant to: an agent whose ledger row is missing is refused.
 
 ### Milestone 2: status moves to the ledger
 
@@ -1812,11 +1826,26 @@ rather than the users row's `Deleted` and `Status`, and take the name from
 **This is what frees `Resolve`.** With `AgentUser` unread, the kind check and
 the users-row fetch inside it go, and `ResolvedIdentity` loses a field.
 
-**The status values are not the same fact and the substitution should be
-checked, not assumed.** A users row can be suspended or deleted; a ledger row is
-active or retired. Whether anything can suspend an agent's users row without
-retiring the agent is the question, and if something can, the two are not
-interchangeable.
+**Done**, 2026-08-25. Both consumers take liveness and the name from the ledger,
+`ResolvedIdentity` lost `AgentUser`, and `Resolve` no longer fetches a users row
+for the agent or checks its kind. The name comes from `ResolvedIdentity.Name()`,
+which calls the same `entity.DisplayName` the mirror's username was written
+from, so it is the same string by construction.
+
+**Neither consumer needed a replacement check.** Both were testing the users
+row's `Deleted` and `Status` after `Resolve` had already refused anything but an
+active ledger state. A second check against a mirror is a second opinion able to
+disagree with the authority, so they went rather than moved.
+
+**The status values are not the same fact, and the answer was that they are not
+interchangeable.** A users row can be suspended or deleted; a ledger row is
+active or retired. `users.go:1158` proves an agent's row is reachable: it
+suppresses the personal notification on a status change *because* `PUT
+/users/{user}/status` reaches an agent. Nothing there retires the agent.
+
+**Milestone 3 dissolves that rather than answering it.** With no users row there
+is nothing to suspend and the ledger's state is the only status there is. Hence
+the window recorded under Status.
 
 ### Milestone 3: the row goes
 
@@ -1824,16 +1853,26 @@ interchangeable.
 username instead of joining, and the two guards and the notification suppression
 go with it.
 
-**What this frees.** The six `kind = 'human'` filters in `users.sql` become
-no-ops. **The `kind` column and the `user_kind` type go entirely**, not just the
+**There are seventeen `kind = 'human'` filters, not six.** Six are in
+`users.sql`; the rest are in `groupmembers.sql` (five), `insights.sql`,
+`organizationmembers.sql`, `aiseats.sql` and `aiseatstate.sql`. Dropping the
+column touches six files.
+
+**The rows must go before the filters do.** A filter removed while agent rows
+still exist would hand those agents group membership, roles and seats. Deleting
+the rows first makes every filter vacuous before it is deleted, which is what
+makes the removal a no-op rather than a change of behaviour.
+
+**`GetAuthorizationUserRoles` is answered.** Its filter, `users.sql:662`, makes
+the query return no row for an AI agent, which is how "an AI agent has no roles
+of its own" is enforced in SQL. With no users row the query returns no row
+anyway, for a better reason, so the filter is redundant rather than load
+bearing. That holds only under the ordering above.
+
+**What this frees.** Those filters become no-ops. **The `kind` column and the `user_kind` type go entirely**, not just the
 `ai_agent` value: the type is declared on this branch and has exactly two
 values, so with one gone the column is a constant. Removing an enum value is
 ordinarily expensive; this one is not, there being no deployment that has it.
-
-**Read `GetAuthorizationUserRoles` before deleting its filter.** That filter is
-what currently enforces "an AI agent has no roles of its own" in SQL, so the
-design's convention is load bearing there and is worth understanding before it
-goes.
 
 ### New data
 

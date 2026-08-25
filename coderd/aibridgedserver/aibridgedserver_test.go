@@ -360,9 +360,15 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 					CreatedAt: dbtime.Now(),
 				})
 				require.NoError(t, err)
+				// The holder type is what routes, so the key must say its
+				// holder is an AI agent. A users row claiming to be one no
+				// longer decides that, which is the point of the change this
+				// case guards: authorization then finds no ledger row and
+				// refuses.
 				_, token = dbgen.APIKey(t, db, database.APIKey{
-					HolderID:  database.HolderID(agent.ID),
-					LoginType: database.LoginTypeToken,
+					HolderID:   database.HolderID(agent.ID),
+					HolderType: database.HolderTypeAIAgent,
+					LoginType:  database.LoginTypeToken,
 				})
 			} else {
 				agent, err = aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{

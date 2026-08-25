@@ -139,13 +139,10 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 					})
 					return
 				}
-				if resolved.AgentUser.Deleted || resolved.AgentUser.Status != database.UserStatusActive {
-					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-						Message: "Workspace agent not authorized.",
-						Detail:  "AI agent user is not active.",
-					})
-					return
-				}
+				// Whether the agent is live is the ledger's answer and Resolve
+				// has already given it, refusing anything but active. A second
+				// check against a mirrored users row would be a second opinion
+				// able to disagree with the authority.
 				if resolved.OwnerUser.Kind != database.UserKindHuman || resolved.OwnerUser.Deleted || resolved.OwnerUser.Status != database.UserStatusActive {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 						Message: "Workspace agent not authorized.",
@@ -189,7 +186,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				// AsAIAgent carries the acting identity into the policy input so
 				// a bound workspace agent is confined to workspaces designated
 				// to its identity.
-				subject = subject.AsAIAgent(identity.AgentUser.ID, identity.AgentUser.Username)
+				subject = subject.AsAIAgent(identity.Ledger.ID, identity.Name())
 				ctx = aiagentidentity.WithActor(ctx, identity.Actor)
 			}
 
