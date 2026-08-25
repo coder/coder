@@ -9597,7 +9597,7 @@ WHERE
                     AND cm.role IN ('user', 'assistant')
                     AND (
                         (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config = 'simple' AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
