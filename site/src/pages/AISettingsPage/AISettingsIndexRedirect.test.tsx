@@ -57,3 +57,35 @@ it("redirects a deployment administrator to Coder Agents", async () => {
 	await screen.findByText("Coder Agents");
 	expect(router.state.location.pathname).toBe("/ai/settings/coder-agents");
 });
+
+it("redirects an organization MCP sharer to MCP servers", async () => {
+	const queryClient = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+	vi.spyOn(API.experimental, "getChatModels").mockRejectedValue({
+		isAxiosError: true,
+		response: { status: 403 },
+	});
+	vi.spyOn(API, "checkAuthorization").mockResolvedValue({
+		[`${MockDefaultOrganization.id}.shareMCPServerConfig`]: true,
+	});
+	const router = createMemoryRouter(
+		[
+			{ path: "/ai/settings", element: <AISettingsIndexRedirect /> },
+			{
+				path: "/ai/settings/mcp-servers",
+				element: <div>MCP Servers</div>,
+			},
+		],
+		{ initialEntries: ["/ai/settings"] },
+	);
+
+	render(
+		<QueryClientProvider client={queryClient}>
+			<RouterProvider router={router} />
+		</QueryClientProvider>,
+	);
+
+	await screen.findByText("MCP Servers");
+	expect(router.state.location.pathname).toBe("/ai/settings/mcp-servers");
+});

@@ -9,6 +9,7 @@ import {
 	canAccessAnyChatModelConfig,
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
@@ -34,7 +35,7 @@ export const Navbar: React.FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
-	const canViewAISettings =
+	const canViewSiteWideAISettings =
 		permissions.viewAnyAIProvider ||
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig ||
@@ -43,6 +44,12 @@ export const Navbar: React.FC = () => {
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
 		canAccessAnyModel;
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !canViewSiteWideAISettings },
+	);
+	const canViewAISettings =
+		canViewSiteWideAISettings || organizationMCPSharing.canShare;
 	const canViewModels =
 		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
 	const canCreateChat = permissions.createChat;

@@ -112,6 +112,54 @@ func TestMCPServerConfigACLAvailable(t *testing.T) {
 	requireSDKError(t, err, http.StatusNotFound)
 }
 
+func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, rawDB, _ := newMCPClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+
+	config := createMCPServerConfig(t, client, firstUser.OrganizationID, testutil.GetRandomName(t), false)
+
+	sharerClient, sharer := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+	_, err := sharerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	requireSDKError(t, err, http.StatusNotFound)
+
+	role, err := rawDB.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name:           testutil.GetRandomName(t),
+		DisplayName:    "MCP Server Config Sharer",
+		OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+		OrgPermissions: database.CustomRolePermissions{
+			{
+				ResourceType: rbac.ResourceMCPServerConfig.Type,
+				Action:       policy.ActionRead,
+			},
+			{
+				ResourceType: rbac.ResourceMCPServerConfig.Type,
+				Action:       policy.ActionShare,
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = client.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, sharer.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{role.Name},
+	})
+	require.NoError(t, err)
+
+	// Share-authorized callers keep access to disabled configs so they can
+	// still open them and manage sharing, matching the list behavior.
+	fetched, err := sharerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
+	require.NoError(t, err)
+	require.Equal(t, config.ID, fetched.ID)
+	require.False(t, fetched.Enabled)
+	require.Empty(t, fetched.URL)
+
+	configs, err := sharerClient.MCPServerConfigs(ctx, firstUser.OrganizationID)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	require.Equal(t, config.ID, configs[0].ID)
+}
+
 func TestMCPServerConfigACLWorkspaceSharingModes(t *testing.T) {
 	t.Parallel()
 
