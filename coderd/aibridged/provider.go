@@ -37,13 +37,8 @@ type ProviderOutcome struct {
 	Err    error
 }
 
-// BaseURLHostname returns the normalized hostname from a provider
-// base URL. It is the canonical normalization used by the proxy
-// classifier and the API status check. The base URL must be absolute
-// with an http or https scheme and a hostname; every other input,
-// including a scheme-less value such as "example.com/v1", returns an
-// empty string so callers report the provider as misconfigured instead
-// of routing traffic to a guessed host.
+// BaseURLHostname returns the normalized hostname from an absolute HTTP(S)
+// provider base URL. Invalid and scheme-less URLs return an empty string.
 func BaseURLHostname(baseURL string) string {
 	baseURL = strings.TrimSpace(baseURL)
 	if baseURL == "" {
