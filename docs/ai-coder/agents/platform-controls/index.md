@@ -10,7 +10,8 @@ This means:
 
 - **All agent configuration is admin-level.** Providers, models, system prompts, and tool permissions are set by administrators from the control plane.
   These are not user preferences.
-  Deployment admins own the deployment-wide policies, and organization admins own the models and MCP servers of their organization.
+  Deployment administrators own the deployment-wide policies.
+  Users with organization configuration access own the models and the MCP servers of their organization.
   Refer to [Organization scope](./organizations.md) for the split between the 2 scopes.
 - **Developers never need to configure anything by default.** A developer just
   describes the work they want done. They do not need to pick a provider or
@@ -20,7 +21,6 @@ This means:
   a requirement.
 - **Enforcement, not defaults.** Settings configured by administrators are enforced server-side.
   Developers cannot override them.
-  The one exception is personal model overrides, which an administrator must first enable.
   A setting that a user can change is a preference, not a policy.
 
 This is an architectural decision, not just a product choice. Because the agent
@@ -49,8 +49,12 @@ When an administrator enables user API keys on a provider, developers can
 supply their own key from the Agents settings page. Refer to
 [User API keys (BYOK)](../models.md#user-api-keys-byok) for details.
 
+An administrator can also enable personal model overrides, which let a developer
+select a different model for their own chats. Coder disables personal model
+overrides until an administrator enables them.
+
 Refer to [Models](../models.md) for setup instructions.
-Refer to [Organization scope](./organizations.md) for the permissions and the upgrade behavior.
+Refer to [Organization scope](./organizations.md) for the organization scope and the upgrade behavior.
 
 ### System prompt
 
@@ -103,7 +107,7 @@ use.
 
 ### MCP servers
 
-Organization admins can register external MCP (Model Context Protocol) servers that
+Administrators can register external MCP (Model Context Protocol) servers that
 provide additional tools for agent chat sessions. This includes configuring
 authentication, controlling which tools are exposed via allow/deny lists, and
 setting availability policies that determine whether a server is mandatory,

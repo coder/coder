@@ -2,7 +2,7 @@
 
 Administrators configure LLM providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
 Providers and centrally managed credentials are deployment-wide settings managed by platform teams.
-Each model belongs to 1 organization, so every organization has its own model list.
+Each model belongs to an organization. Each organization has its own model list.
 Developers select from the set of models that an administrator has enabled in their organization.
 Refer to [Organization scope](./platform-controls/organizations.md) for the split between deployment-wide and organization-scoped settings.
 
@@ -44,7 +44,7 @@ add one of the supported provider types above instead.
 ### Add a provider
 
 LLM providers are managed from the deployment AI settings, not from the Agents settings page.
-A provider is deployment-wide, and the models that reference it are organization-scoped.
+A provider is deployment-wide, whilst the models that reference it are organization-scoped.
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
@@ -56,7 +56,7 @@ A provider is deployment-wide, and the models that reference it are organization
 1. Click **Save**.
 
 After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
-Select the organization that owns the new model before you add it.
+Select the organization that should own the new model before you add it.
 For provider-specific setup, including AWS Bedrock, refer to
 [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
@@ -104,7 +104,7 @@ on this security model.
 ## Credential selection
 
 Coder Agents use the AI providers configured by administrators.
-Provider API keys entered by administrators are centralized credentials for the deployment, and every organization's models share them.
+Provider API keys entered by administrators are centralized credentials for the deployment.
 
 BYOK for Coder Agents is controlled by the
 [global AI Gateway BYOK setting](../ai-gateway/auth.md#bring-your-own-key-byok),
@@ -152,15 +152,6 @@ Members with model share permission can grant model read access to members and g
 Coder applies the member and group changes when you save.
 Removing all entries clears the model's access list, so members without another read grant lose access on their next request.
 
-### Model permissions
-
-Models use the `chat_model_config` RBAC resource, which supports the `create`, `read`, `update`, `delete`, and `share` actions.
-Owners and organization admins hold every action.
-Auditors and organization auditors hold `read`.
-Other members reach a model only through its access list.
-API tokens can carry the public `chat_model_config:read` and `chat_model_config:share` scopes.
-Refer to [Organization scope](./platform-controls/organizations.md#permissions) for the full permission model.
-
 ### Model visibility and runtime availability
 
 Management visibility and runtime availability are separate.
@@ -168,9 +159,7 @@ A member can see a model in settings through its access list even when the model
 
 The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
 Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
-An unavailable provider can remain visible with a redacted reason while its models are omitted from the selector.
-The organization model response reports `available` for each provider and, when the provider is unavailable, an `unavailable_reason` of `missing_api_key`, `fetch_failed`, or `user_api_key_required`.
-The same response lists `unsupported_providers`, which are configured provider types that Coder Agents cannot use.
+An unavailable provider can remain visible while its models are omitted from the selector.
 
 Model APIs identify each configured model with a UUID.
 The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this model UUID.
@@ -178,7 +167,7 @@ The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this m
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and select the provider for the new model.
+1. Click **Add model** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
@@ -200,10 +189,18 @@ provider.</small>
 
 ### Set a default model
 
-Click the **star icon** next to a model in the models list to make it the default.
-The default model is pre-selected when developers start a new chat in that organization.
-Each organization has its own default model, and only 1 model can be the default in an organization at a time.
-An organization without a default model cannot start a chat, so set a default in every organization that uses Coder Agents.
+Each organization has one default model.
+The first model that you add to an organization becomes that organization's default model.
+The models list marks the current default with a **Default** badge.
+The default model is pre-selected when developers start a new chat in the organization.
+
+To change the default model:
+
+1. Navigate to **Admin settings** > **AI** > **Models**.
+1. Select the organization that owns the model.
+1. Open the model, or click **Add model** to create a new one.
+1. Select **Set as Coder Agents default model**.
+1. Click **Save**.
 
 ### Models with a missing or disabled provider
 
@@ -300,7 +297,7 @@ Models are grouped by provider if multiple providers are active.
 The model selector uses the following precedence to pre-select a model:
 
 1. **Last used model**, stored in the browser's local storage.
-1. **Admin-designated default**, the model marked with the star icon in that organization.
+1. **Organization default**, the model marked with the **Default** badge.
 1. **First available model**, if no default is set and no history exists.
 
 Developers cannot add their own providers or models. If no models are

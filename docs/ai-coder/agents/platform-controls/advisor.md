@@ -30,8 +30,8 @@ after repeated failures, or risk reduction before a destructive operation.
 ## Configuration
 
 Once the experiment is enabled, configure the advisor's runtime limits
-under **Admin settings** > **AI** > **Coder Agents** > **Advisor**. These limits apply
-deployment-wide.
+under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
+Use the **Advisor** card. These limits apply deployment-wide.
 
 | Field             | Default              | Notes                                                                                                                   |
 |-------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------|
