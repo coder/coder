@@ -29,7 +29,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Workspace "bobby-workspace" autobuild failed</title>
+    <title>Workspace &#34;bobby-workspace&#34; autobuild failed</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -44,7 +44,7 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Workspace "bobby-workspace" autobuild failed
+        Workspace &#34;bobby-workspace&#34; autobuild failed
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
