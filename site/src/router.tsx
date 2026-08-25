@@ -32,6 +32,9 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
+const MCPEscalationsPage = lazy(
+	() => import("./pages/MCPEscalationsPage/MCPEscalationsPage"),
+);
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -608,6 +611,8 @@ export const router = createBrowserRouter(
 					<Route path="/audit" element={<AuditPage />} />
 
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
+
+					<Route path="/mcp-escalations" element={<MCPEscalationsPage />} />
 
 					<Route path="/tasks" element={<TasksPage />} />
 

@@ -1269,6 +1269,28 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getMCPGatewayEscalations = async (
+		status?: TypesGen.MCPGatewayEscalationStatus,
+	): Promise<TypesGen.MCPGatewayEscalation[]> => {
+		const url = getURLWithSearchParams("/api/v2/mcp-gateway/escalations", {
+			status,
+		});
+		const response = await this.axios.get<TypesGen.MCPGatewayEscalation[]>(url);
+		return response.data;
+	};
+
+	approveMCPGatewayEscalation = async (id: string): Promise<void> => {
+		await this.axios.post(
+			`/api/v2/mcp-gateway/escalations/${encodeURIComponent(id)}/approve`,
+		);
+	};
+
+	denyMCPGatewayEscalation = async (id: string): Promise<void> => {
+		await this.axios.post(
+			`/api/v2/mcp-gateway/escalations/${encodeURIComponent(id)}/deny`,
+		);
+	};
+
 	// Network events are keyset paginated by their numeric id: pass the last
 	// received id as afterId to fetch the next page.
 	getAISandboxSessionNetworkEvents = async (
