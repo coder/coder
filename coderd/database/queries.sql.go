@@ -7416,13 +7416,11 @@ SET search_tsv = COALESCE(
 FROM batch WHERE cm.id = batch.id
 `
 
-// Backfills chat_messages.search_tsv for never-vectorized rows, newest
-// first. The WHERE clause must match the predicate of
+// Backfills chat_messages.search_tsv for pending rows, newest first.
+// The WHERE clause must match the predicate of
 // idx_chat_messages_search_tsv_pending exactly so the partial index
-// serves this query. Rows whose vector exists but was produced with a
-// stale config are handled by ReindexStaleChatMessagesSearchTsv.
+// serves this query.
 // NULL means "pending", empty tsvector means "backfilled, no text".
-// search_tsv_config records the config that produced the vector.
 func (q *sqlQuerier) BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
 	result, err := q.db.ExecContext(ctx, backfillChatMessagesSearchTsv, batchSize)
 	if err != nil {
@@ -9574,11 +9572,7 @@ WHERE
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
-    -- the 'simple' config folds case and skips stemming. Message
-    -- bodies use the 'english' config instead, which also stems words
-    -- so inflected forms match (e.g. "refactor" matches
-    -- "refactoring"); the tsquery config must match the one baked into
-    -- each stored chat_messages.search_tsv vector.
+    -- the 'simple' config folds case and skips stemming.
     AND CASE
         WHEN $16::text != '' THEN (
             -- Served by idx_chats_title_fts.
@@ -9601,10 +9595,6 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    -- Match each vector with the config that produced
-                    -- it: rows not yet re-vectorized by the sweep
-                    -- (config IS NULL) hold 'simple' lexemes that an
-                    -- 'english' tsquery would miss.
                     AND (
                         (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
@@ -11394,11 +11384,6 @@ SET search_tsv = COALESCE(
 FROM batch WHERE cm.id = batch.id
 `
 
-// Rewrites vectors produced with a stale text search config ('simple'
-// rows from before migration 000585, or rows written by an old binary
-// mid rolling upgrade). Deliberately unindexed: this is a one-time,
-// shrinking backlog drained newest first, so a permanent partial index
-// is not worth its per-write maintenance.
 func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
 	result, err := q.db.ExecContext(ctx, reindexStaleChatMessagesSearchTsv, batchSize)
 	if err != nil {
