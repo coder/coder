@@ -1,8 +1,10 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,15 +18,59 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	txErr := xerrors.New("commit transaction")
+
+	db.EXPECT().AcquireLock(
+		gomock.Any(),
+		database.GenLockID(string(chatOperationalSettingChatRetentionDays)),
+	).Return(nil)
+	db.EXPECT().GetChatSiteConfigValue(
+		gomock.Any(),
+		string(chatOperationalSettingChatRetentionDays),
+	).Return(database.GetChatSiteConfigValueRow{}, nil)
+	db.EXPECT().InTx(gomock.Any(), nil).DoAndReturn(
+		func(fn func(database.Store) error, _ *database.TxOptions) error {
+			require.NoError(t, fn(db))
+			return txErr
+		},
+	)
+
+	auditCanceled := false
+	api := &API{Options: &Options{Database: db}}
+	err := api.auditedChatOperationalSettingWrite(
+		ctx,
+		&audit.Request[database.ChatOperationalSettings]{},
+		func(commit bool) {
+			require.False(t, commit)
+			auditCanceled = true
+		},
+		chatOperationalSettingChatRetentionDays,
+		"30",
+		func(database.Store) error {
+			return xerrors.New("write unexpectedly called")
+		},
+	)
+
+	require.ErrorIs(t, err, txErr)
+	require.False(t, auditCanceled)
+}
 
 // ExtractChatParam authorizes the read, then GetAIBridgeChatCost authorizes it
 // again. A denial on the second check means the ACL changed in between (a
@@ -562,5 +608,99 @@ func TestIsZeroChatModelCallConfigCoversEveryField(t *testing.T) {
 		reflect.ValueOf(config).Elem().Field(i).Set(sampledValue.Field(i))
 		require.Falsef(t, isZeroChatModelCallConfig(config),
 			"isZeroChatModelCallConfig ignores field %s", field.Name)
+	}
+}
+
+func TestMaybeWriteManualTitleTimeoutErr(t *testing.T) {
+	t.Parallel()
+
+	// canceledCtx returns a context whose Err reports context.Canceled,
+	// mirroring a request whose caller disconnected.
+	canceledCtx := func() context.Context {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		return ctx
+	}
+
+	tests := []struct {
+		name        string
+		ctx         context.Context
+		err         error
+		wantWrote   bool
+		wantStatus  int
+		wantMessage string
+	}{
+		{
+			// A genuine title timeout is tagged with the chatd sentinel
+			// and wrapped several layers deep, so the handler must match
+			// with errors.Is.
+			name: "TitleTimeoutSentinelMapsTo504",
+			ctx:  context.Background(),
+			err: xerrors.Errorf(
+				"generate manual title: %w",
+				errors.Join(chatd.ErrManualTitleTimedOut, context.DeadlineExceeded),
+			),
+			wantWrote:   true,
+			wantStatus:  http.StatusGatewayTimeout,
+			wantMessage: "Title generation timed out. Try again or rename manually.",
+		},
+		{
+			// A provider failure can wrap an unrelated transport deadline
+			// while the title deadline never expired. Without the chatd
+			// sentinel this must keep the 500 path instead of a
+			// misleading 504.
+			name:      "BareDeadlineWithoutSentinelFallsThrough",
+			ctx:       context.Background(),
+			err:       xerrors.Errorf("provider call failed: %w", context.DeadlineExceeded),
+			wantWrote: false,
+		},
+		{
+			// The caller disconnected, so ctx.Err() confirms the cancel
+			// and the handler reports a client-closed request.
+			name:        "CanceledWithCanceledCtxMapsTo499",
+			ctx:         canceledCtx(),
+			err:         xerrors.Errorf("generate manual title: %w", context.Canceled),
+			wantWrote:   true,
+			wantStatus:  statusClientClosedRequest,
+			wantMessage: "Title generation was canceled.",
+		},
+		{
+			// A provider error can wrap context.Canceled (e.g. an
+			// upstream 401) while the request context is still active.
+			// Without a live cancel this must fall through to the 500
+			// path instead of a misleading 499.
+			name:      "CanceledWithLiveCtxFallsThrough",
+			ctx:       context.Background(),
+			err:       xerrors.Errorf("provider auth failed: %w", context.Canceled),
+			wantWrote: false,
+		},
+		{
+			// Unrelated errors must fall through so the handler keeps
+			// its existing 500 surface for genuine failures.
+			name:      "UnrelatedErrorFallsThrough",
+			ctx:       context.Background(),
+			err:       xerrors.New("something else"),
+			wantWrote: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rw := httptest.NewRecorder()
+			wrote := maybeWriteManualTitleTimeoutErr(tt.ctx, rw, tt.err)
+			require.Equal(t, tt.wantWrote, wrote)
+			if !tt.wantWrote {
+				require.Equal(t, http.StatusOK, rw.Code, "must not write a response when err is unrelated")
+				return
+			}
+			require.Equal(t, tt.wantStatus, rw.Code)
+
+			var resp codersdk.Response
+			require.NoError(t, json.NewDecoder(rw.Body).Decode(&resp))
+			require.Equal(t, tt.wantMessage, resp.Message)
+			require.Empty(t, resp.Detail, "translated copy must not leak the raw error detail")
+		})
 	}
 }

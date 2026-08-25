@@ -1,8 +1,9 @@
 # Working with templates
 
 You create and edit Coder templates as
-[Terraform](https://developer.hashicorp.com/terraform/intro) configuration files (`.tf`) and
-any supporting files, like a README or configuration files for other services.
+[Terraform](https://developer.hashicorp.com/terraform/intro) configuration files
+(`.tf`) and any supporting files, like a README or configuration files for other
+services.
 
 ## Who creates templates?
 
@@ -16,8 +17,8 @@ You can give different users and groups access to templates with
 
 ## Creating templates
 
-The [template builder](../creating-templates.md#template-builder) is
-the recommended way to create templates. It guides you through selecting a base
+The [template builder](../creating-templates.md#template-builder) is the
+recommended way to create templates. It guides you through selecting a base
 infrastructure template, adding modules (IDEs, tools, integrations), and
 configuring template settings without writing Terraform.
 
@@ -36,21 +37,19 @@ Coder starter templates are also available on our
 ## Community Templates
 
 As well as Coder's starter templates, you can see a list of community templates
-by our users
-[here](../../../../examples/templates/community-templates.md).
+by our users [here](../../../../examples/templates/community-templates.md).
 
 ## Editing templates
 
-Our templates are meant to be modified for your use cases. You can edit
-any template's files directly in the Coder dashboard.
+Our templates are meant to be modified for your use cases. You can edit any
+template's files directly in the Coder dashboard.
 
 ![Editing a template](../../../images/templates/choosing-edit-template.gif)
 
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
-> [!TIP]
-> Even if you are a Terraform expert, we suggest reading our
+> [!TIP] Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
 ## Updating templates
@@ -64,8 +63,7 @@ infrastructure, software, or security patches. Learn more about
 
 ### Template update policies
 
-> [!NOTE]
-> Template update policies are a Premium feature.
+> [!NOTE] Template update policies are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may want workspaces to always remain on the latest
@@ -82,20 +80,76 @@ automatically updated on the next startup.
 Coder reads Terraform `data` sources once, when it imports a template version.
 Every workspace built from that version reuses those stored results.
 
-Refreshing imports the active version's source files again and publishes the result as the new active version.
-Use it to pick up changes to a `data` source, or to give an older version the metadata that [Dynamic Parameters](../extending-templates/dynamic-parameters.md) needs.
+Refreshing imports the active version's source files again and publishes the
+result as the new active version. Use it to pick up changes to a `data` source,
+or to give an older version the metadata that
+[Dynamic Parameters](../extending-templates/dynamic-parameters.md) needs.
 
 To refresh a template's data:
 
 1. Navigate to the template, then select **Settings** > **Parameters**.
 1. Select **Refresh template data**, then confirm.
 
-The **Template data** section on that page shows which version is active and when Coder last imported it.
+The **Template data** section on that page shows which version is active and
+when Coder last imported it.
 
 New workspaces use the refreshed version as soon as the import finishes.
-Workspaces that are already running stay on their current version until you update them.
+Workspaces that are already running stay on their current version until you
+update them.
 
-Refreshing a template's data requires permission to update the template, which the [Template Admin](../../users/groups-roles.md#roles) role and above have.
+Refreshing a template's data requires permission to update the template, which
+the [Template Admin](../../users/groups-roles.md#roles) role and above have.
+
+## Workspace renaming
+
+Workspace renaming is disabled by default on every template. Enable it per
+template, once you have confirmed that a rename won't destroy anything.
+
+Terraform exposes the workspace name as `data.coder_workspace.me.name`. If a
+template uses that value in an attribute Terraform can't change in place,
+renaming the workspace makes Terraform destroy the resource and create a new one
+on the next build. When that resource is the home volume, the developer loses
+their data.
+
+Other uses of the name are harmless. A Kubernetes label or an environment
+variable changes without replacing anything. Coder can't tell the two cases
+apart, so the decision stays with the template admin.
+
+### Check whether your template is safe to rename
+
+Search the template for uses of the workspace name:
+
+```sh
+grep -rn 'coder_workspace\.[a-z_]*\.name' .
+```
+
+For each result, ask whether Terraform would replace the resource if that value
+changed. Attributes such as a volume name, a disk name, or an instance name
+usually force replacement. Labels, tags, and environment variables usually
+don't.
+
+If a resource would be replaced, reference an immutable identifier instead, such
+as `data.coder_workspace.me.id`. Refer to
+[Resource persistence](../extending-templates/resource-persistence.md) for the
+full set of practices.
+
+### Enable renaming for a template
+
+1. Go to the template, then select **Settings**.
+1. On the **General** page, under **Operations**, select **Allow users to rename
+   their workspaces**.
+1. Select **Save**.
+
+Developers can then rename a workspace from the workspace's **Settings** page,
+or with `coder rename`.
+
+While the setting is off, the workspace name field is disabled and the API
+rejects renames.
+
+> [!WARNING] The deployment-wide `CODER_ALLOW_WORKSPACE_RENAMES` option is
+> deprecated. While it is set, renaming is enabled for every template in the
+> deployment, and the per-template setting can't turn it off. Unset it, then
+> enable renaming on the templates that need it.
 
 ## Delete templates
 
@@ -119,6 +173,8 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Dev Containers integration](../../integrations/devcontainers/integration.md) (recommended)
-- [Envbuilder](../../integrations/devcontainers/envbuilder/index.md) (alternative for environments without Docker)
+- [Dev Containers integration](../../integrations/devcontainers/integration.md)
+  (recommended)
+- [Envbuilder](../../integrations/devcontainers/envbuilder/index.md)
+  (alternative for environments without Docker)
 - [Change management](./change-management.md)
