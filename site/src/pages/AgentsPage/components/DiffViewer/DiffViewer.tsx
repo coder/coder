@@ -70,6 +70,15 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	// Each file's code area is its own horizontal scroller. The library sizes
+	// that scroller's bottom strip from this gutter: it styles
+	// ::-webkit-scrollbar to it and subtracts it from the code area's bottom
+	// padding, so the strip stays at the 8px the virtualizer assumes per file.
+	// Left unset the library measures the platform scrollbar (15px in Chrome
+	// with classic scrollbars), every file renders 7px taller than estimated,
+	// and the accumulated drift cuts the scroll range short of the last file's
+	// scrollbar. Pinning the gutter keeps rendered and estimated heights equal.
+	"--diffs-scrollbar-gutter-override": "6px",
 } satisfies CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -187,6 +196,25 @@ const fileTreeUnsafeCSS = [
 	"  scrollbar-width: thin;",
 	"}",
 ].join(" ");
+
+// Coder's global stylesheet sets `scrollbar-color`, which Chrome inherits into
+// the diff's shadow trees. A non-auto `scrollbar-color` makes Chrome ignore the
+// library's `::-webkit-scrollbar { height: var(--diffs-scrollbar-gutter) }`
+// rule, so each file's horizontal scroller falls back to the 15px platform
+// scrollbar instead of the 6px gutter the layout is built around. Resetting the
+// property on the code area restores the library's slim scrollbar so the
+// rendered file height matches the height the virtualizer estimates. The
+// feature query keeps the reset on engines that style scrollbars through
+// ::-webkit-scrollbar, leaving Firefox on the library's own scrollbar-color.
+const codeScrollbarUnsafeCSS = [
+	"@supports selector(::-webkit-scrollbar) {",
+	"  [data-code] {",
+	"    scrollbar-color: auto;",
+	"  }",
+	"}",
+].join(" ");
+
+const diffViewerUnsafeCSS = `${SEPARATOR_CSS} ${codeScrollbarUnsafeCSS}`;
 
 function gitStatusForFile(
 	fileDiff: FileDiffMetadata,
@@ -453,7 +481,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: diffViewerUnsafeCSS,
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
