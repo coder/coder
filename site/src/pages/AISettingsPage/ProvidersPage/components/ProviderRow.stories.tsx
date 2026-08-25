@@ -29,7 +29,7 @@ const meta: Meta<typeof ProviderRow> = {
 						<TableHead className="w-[42%]">Name</TableHead>
 						<TableHead className="w-[38%]">Base URL</TableHead>
 						<TableHead className="w-20 text-center">
-							<span className="sr-only">Enabled</span>
+							<span className="sr-only">Status</span>
 						</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open provider</span>
@@ -82,11 +82,44 @@ export const NotSupportedInAgents: Story = {
 	args: {
 		provider: MockAIProviderCopilot,
 	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = canvas.getByText("Not supported in Agents");
+		await expect(badge).toBeInTheDocument();
+
+		// Hover shows the explanation in the shared tooltip, matching the
+		// warning badge instead of the native title tooltip.
+		await userEvent.hover(badge);
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent(/AI Gateway proxy/);
+
+		// Activation must not navigate the row.
+		badge.focus();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard(" ");
+		await userEvent.click(badge);
+		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
+
+export const Disabled: Story = {
+	args: {
+		provider: { ...MockAIProviderOpenAI, enabled: false },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Not supported in Agents"),
-		).toBeInTheDocument();
+		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		await expect(canvas.getByText("OpenAI")).toBeInTheDocument();
+	},
+};
+
+export const Enabled: Story = {
+	args: {
+		provider: { ...MockAIProviderOpenAI, enabled: true },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 

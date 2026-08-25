@@ -13,6 +13,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ProviderIcon";
 import { getProviderDisplayType } from "./providerFormApiMap";
 
@@ -29,6 +30,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 		onClick: () => onClick?.(),
 	});
 	const displayName = provider.display_name || provider.name;
+	const disabled = !provider.enabled;
 
 	// Stop activation from bubbling to a parent `useClickableTableRow`
 	// row, which navigates on click, Enter (onKeyDown), and Space
@@ -42,11 +44,27 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 		<TableRow key={provider.name} {...clickableProps}>
 			<TableCell className="min-w-0 px-4 py-3">
 				<AvatarData
-					title={displayName}
+					title={
+						<span className="flex items-center gap-2">
+							<span
+								className={cn("truncate", disabled && "text-content-disabled")}
+							>
+								{displayName}
+							</span>
+							{disabled && (
+								<Badge size="sm" variant="default">
+									Disabled
+								</Badge>
+							)}
+						</span>
+					}
 					avatar={
 						<Avatar
 							size="lg"
-							className="flex shrink-0 items-center justify-center"
+							className={cn(
+								"flex shrink-0 items-center justify-center",
+								disabled && "opacity-50 grayscale",
+							)}
 						>
 							<ProviderIcon
 								provider={getProviderDisplayType(provider)}
@@ -58,7 +76,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			</TableCell>
 			<TableCell className="min-w-0">
 				<span
-					className="block truncate text-content-secondary"
+					className={cn(
+						"block truncate",
+						disabled ? "text-content-disabled" : "text-content-secondary",
+					)}
 					title={provider.base_url}
 				>
 					{provider.base_url}
@@ -66,14 +87,24 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			</TableCell>
 			<TableCell>
 				<div className="flex flex-wrap items-center gap-1">
-					{provider.enabled && <Badge variant="default">Enabled</Badge>}
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
-						<Badge
-							variant="info"
-							title="This provider works with the AI Gateway proxy but Coder Agents can't use it."
-						>
-							Not supported in Agents
-						</Badge>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="info"
+									tabIndex={0}
+									onClick={stopPropagation}
+									onKeyDown={stopPropagation}
+									onKeyUp={stopPropagation}
+								>
+									Not supported in Agents
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This provider works with the AI Gateway proxy but Coder Agents
+								can't use it.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
@@ -89,9 +120,11 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 									Warning
 								</Badge>
 							</TooltipTrigger>
-							<TooltipContent>
+							<TooltipContent className="max-w-xs">
 								{provider.status.warnings.map((warning) => (
-									<p key={warning}>{warning}</p>
+									<p key={warning} className="break-words">
+										{warning}
+									</p>
 								))}
 							</TooltipContent>
 						</Tooltip>
