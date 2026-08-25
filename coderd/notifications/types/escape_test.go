@@ -32,8 +32,8 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("LeavesReceiverUntouched", func(t *testing.T) {
 		t.Parallel()
 
-		// The webhook dispatcher surfaces the payload verbatim and the SMTP
-		// dispatcher escapes at its own sinks, so the original must not mutate.
+		// The webhook dispatcher surfaces the payload verbatim, so the original
+		// must not mutate.
 		payload := types.MessagePayload{
 			UserName: "Eve [x](https://attacker.example)",
 			Labels:   map[string]string{"name": "bobby-workspace", "risky": "[x](https://attacker.example)"},
@@ -99,8 +99,7 @@ func TestEscapedForMarkdown(t *testing.T) {
 	t.Run("EscapesNestedMapKeys", func(t *testing.T) {
 		t.Parallel()
 
-		// A nested key is content whenever a template ranges with two variables,
-		// as the resource replacements body does over Terraform addresses.
+		// A nested key is content when a template ranges with two variables.
 		payload := types.MessagePayload{
 			Data: map[string]any{
 				"replacements": map[string]any{
@@ -115,16 +114,15 @@ func TestEscapedForMarkdown(t *testing.T) {
 		require.True(t, ok)
 		require.Contains(t, replacements, `\[Re-auth\]\(https://attacker.example/login\)`)
 		require.NotContains(t, replacements, "[Re-auth](https://attacker.example/login)")
-		// A key with nothing to escape is untouched, so a template that reads one
-		// by name keeps resolving it.
+		// A key with nothing to escape must stay resolvable by name.
 		require.Contains(t, replacements, "null_resource.ok")
 	})
 
 	t.Run("LeavesTopLevelDataKeysAlone", func(t *testing.T) {
 		t.Parallel()
 
-		// Top-level .Data keys are label names that templates dereference as
-		// {{.Data.replacements}}, not content, so escaping one breaks lookup.
+		// Top-level .Data keys are dereferenced by name, not content, so escaping
+		// one breaks the lookup.
 		payload := types.MessagePayload{
 			Data: map[string]any{"failed_builds": []any{"x"}},
 		}

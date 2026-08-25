@@ -634,9 +634,8 @@ func TestSMTPEnvelopeAndHeaders(t *testing.T) {
 	}
 }
 
-// TestSMTPSubjectHeader asserts that a rendered subject cannot terminate the
-// Subject header and inject another one, and that a non-ASCII subject is
-// RFC 2047 encoded rather than transmitted as raw 8-bit.
+// TestSMTPSubjectHeader: a rendered subject must not terminate the Subject
+// header, and a non-ASCII one must be RFC 2047 encoded rather than raw 8-bit.
 func TestSMTPSubjectHeader(t *testing.T) {
 	t.Parallel()
 
@@ -653,8 +652,7 @@ func TestSMTPSubjectHeader(t *testing.T) {
 		// wantSubject, when set, is the exact Subject header value.
 		wantSubject string
 		// wantSubjectContains are substrings the single Subject line must hold,
-		// used where pinning the exact output would make the test about
-		// glamour's decoration rather than the header.
+		// used where pinning exact output would test glamour, not the header.
 		wantSubjectContains []string
 		// wantAbsent must not appear anywhere in the transmitted message.
 		wantAbsent string
@@ -666,8 +664,8 @@ func TestSMTPSubjectHeader(t *testing.T) {
 		},
 		{
 			name: "newline cannot inject a header",
-			// PlaintextFromMarkdown preserves the paragraph break, so this
-			// reaches the header writer containing newlines.
+			// PlaintextFromMarkdown keeps the paragraph break, so this reaches
+			// the header writer with newlines in it.
 			title:               "Innocent subject\n\nBcc: attacker@example.com",
 			wantSubjectContains: []string{"Innocent subject", "Bcc: attacker@example.com"},
 			wantAbsent:          "\r\nBcc:",

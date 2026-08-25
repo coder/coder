@@ -13,11 +13,8 @@ import (
 // declares escapable.
 const asciiPunctuation = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
 
-// TestEscapableSet pins which characters each renderer honors as a backslash
-// escape. EscapeMarkdown's character classes are derived from this: escaping a
-// character a renderer does not honor leaves a literal backslash in the output.
-// Neither library honors all of CommonMark's escapable set and they disagree
-// with each other, so a dependency bump that shifts either table must fail here.
+// TestEscapableSet pins the escapes each renderer honors, which is what
+// EscapeMarkdown's character classes are derived from.
 func TestEscapableSet(t *testing.T) {
 	t.Parallel()
 
@@ -31,8 +28,7 @@ func TestEscapableSet(t *testing.T) {
 	for _, r := range asciiPunctuation {
 		escaped := `X\` + string(r) + `Y`
 
-		// HTML output escapes markup characters, so compare against the entity
-		// form where one applies.
+		// HTML escapes markup characters, so compare the entity form.
 		wantLiteral := "X" + string(r) + "Y"
 		switch r {
 		case '<':
@@ -73,9 +69,8 @@ func TestEscapableSet(t *testing.T) {
 	}
 }
 
-// TestEscapeMarkdownControlValues guards the label values that body templates
-// compare with `eq`. Escaping one silently changes template control flow,
-// dropping content from the rendered email with no error and no log line.
+// TestEscapeMarkdownControlValues guards the label values body templates compare
+// with `eq`. Escaping one silently changes template control flow.
 func TestEscapeMarkdownControlValues(t *testing.T) {
 	t.Parallel()
 
@@ -97,8 +92,7 @@ func TestEscapeMarkdownControlValues(t *testing.T) {
 func TestEscapeMarkdown(t *testing.T) {
 	t.Parallel()
 
-	// Tags that mean an untrusted value produced document structure. Emphasis
-	// and code tags are accepted residuals: they cannot carry a destination.
+	// Emphasis and code tags are accepted residuals: no destination.
 	structuralTags := []string{
 		"<a ", "<img ", "<h1", "<h2", "<h3", "<h4", "<h5", "<h6",
 		"<ul", "<ol", "<hr", "<blockquote", "<table",
@@ -110,11 +104,8 @@ func TestEscapeMarkdown(t *testing.T) {
 		type structureCase struct {
 			name  string
 			value string
-			// inertRaw marks a value that produces no structural tag even
-			// unescaped, so it is neutralized by something other than marker
-			// escaping and covered non-vacuously elsewhere. Leaving it unset on
-			// such a value fails the liveness assertion below rather than
-			// passing as a test that asserts nothing.
+			// inertRaw marks a value neutralized by something other than marker
+			// escaping. Leaving it unset on one fails the liveness check below.
 			inertRaw bool
 		}
 
@@ -146,24 +137,20 @@ func TestEscapeMarkdown(t *testing.T) {
 			{name: "OrderedListMultiDigit", value: "Eve\n99. one\n100. two"},
 			{name: "OrderedListParen", value: "Eve\n1) one\n2) two"},
 			{name: "Blockquote", value: "Eve\n> quoted"},
-			// Neutralized by the Tables extension being off. The escaper's own
-			// handling of both delimiter-row spellings is covered by
-			// TestEscapeMarkdownColon, which renders under CommonExtensions.
+			// Neutralized by the Tables extension being off; the escaper's own
+			// handling is covered by TestEscapeMarkdownColon.
 			{name: "Table", value: "a | b\n--- | ---\nc | d", inertRaw: true},
 			// Neutralized by the safelink policy. See
 			// TestEscapeMarkdownNoAutolink/SafelinkRejectsUnsafeSchemes.
 			{name: "JavascriptScheme", value: "[click](javascript:alert(1))", inertRaw: true},
-			// Inert by construction: the value's own backslashes neutralize it,
-			// and the assertion is that escaping does not re-enable link syntax.
+			// Asserts escaping does not re-enable the value's own backslashes.
 			{name: "EscapeForging", value: `Eve \[Re-auth\](https://attacker.example)`, inertRaw: true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				// Rendered twice: as written, and with line breaks doubled. A
-				// blank line is what lets a block construct interrupt the
-				// surrounding paragraph, so a marker can look neutralized with a
-				// single break and still open a list once a blank line precedes it.
+				// Rendered twice, the second with line breaks doubled: only a
+				// blank line lets a block construct interrupt a paragraph.
 				rawProducedTag := false
 				for _, value := range []string{tc.value, strings.ReplaceAll(tc.value, "\n", "\n\n")} {
 					escaped := EscapeMarkdown(value)
@@ -176,9 +163,8 @@ func TestEscapeMarkdown(t *testing.T) {
 						assert.NotContains(t, html, tag, "value %q rendered HTML: %s", value, html)
 						rawProducedTag = rawProducedTag || strings.Contains(raw, tag)
 					}
-					// A backslash is acceptable only if the value contained one:
-					// otherwise a character the renderer does not honor was
-					// escaped, and the escape shows up as text.
+					// A backslash the value did not contain means a character the
+					// renderer does not honor was escaped.
 					if !strings.Contains(value, `\`) {
 						assert.NotContains(t, html, `\`, "value %q leaked a literal backslash into HTML", value)
 						assert.NotContains(t, plain, `\`, "value %q leaked a literal backslash into plaintext", value)
@@ -199,8 +185,7 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("PreservesBenignValues", func(t *testing.T) {
 		t.Parallel()
 
-		// Escaping must be invisible for values that contain no structure, which
-		// is also why this change leaves the notification golden files untouched.
+		// Also why this change leaves the notification golden files untouched.
 		for _, value := range []string{
 			"William Tables",
 			"bobby-workspace",
@@ -255,9 +240,8 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("AngleBracketsAreNeutralised", func(t *testing.T) {
 		t.Parallel()
 
-		// An angle-bracketed address is a CommonMark autolink, so a display name
-		// of "Ops <ops@example.com>" used to render as a mailto anchor. Turning
-		// it into text is a deliberate behavior change.
+		// "Ops <ops@example.com>" used to render as a mailto anchor; turning it
+		// into text is a deliberate behavior change.
 		html := HTMLFromNotificationMarkdown(suspendedBody(EscapeMarkdown("Ops <ops@example.com>")))
 		require.NotContains(t, html, "<a ")
 		require.Contains(t, html, "&lt;ops@example.com&gt;")
@@ -266,23 +250,19 @@ func TestEscapeMarkdown(t *testing.T) {
 	t.Run("EmphasisIsNotEscaped", func(t *testing.T) {
 		t.Parallel()
 
-		// Away from leading position "*" and "_" are left alone: they cannot
-		// carry a destination, and escaping "_" corrupts control values. Pinned
-		// so a future tightening is deliberate. Backtick is escaped because it
-		// reaches the info-string sink; see TestEscapeMarkdownFenceInfo.
+		// Mid-line "*" and "_" carry no destination and escaping "_" corrupts
+		// control values. Backtick reaches the info-string sink, so it is escaped.
 		require.Equal(t, "Eve *_\\`~", EscapeMarkdown("Eve *_`~"))
 
-		// In leading position "*" and "_" open a bullet list or thematic break,
-		// so the first is escaped. "~" is denied the line-start position by the
-		// fold instead, glamour not honoring "\~".
+		// Leading "*" and "_" open a list or thematic break. "~" is denied the
+		// line-start position by the fold, glamour not honoring "\~".
 		require.Equal(t, "\\*_\\`~", EscapeMarkdown("*_`~"))
 		require.Equal(t, "\\_*\\`~", EscapeMarkdown("_*`~"))
 	})
 }
 
-// TestEscapeMarkdownNoAutolink asserts the notification renderer does not turn a
-// URL in an untrusted value into an anchor, while links in the trusted template
-// markdown keep working.
+// TestEscapeMarkdownNoAutolink: a URL in an untrusted value must not become an
+// anchor, while links in the trusted template markdown keep working.
 func TestEscapeMarkdownNoAutolink(t *testing.T) {
 	t.Parallel()
 
@@ -318,8 +298,7 @@ func TestEscapeMarkdownNoAutolink(t *testing.T) {
 		t.Parallel()
 
 		// The shared renderer keeps Autolink, so the OIDC signups-disabled page
-		// still linkifies. Safelink does now apply there; see
-		// TestHTMLFromMarkdownSafelink.
+		// still linkifies. Safelink does now apply; see TestHTMLFromMarkdownSafelink.
 		require.Contains(t, HTMLFromMarkdown("see https://coder.com/docs"), `<a href="https://coder.com/docs"`)
 	})
 

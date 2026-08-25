@@ -20,9 +20,8 @@ func suspendedBody(value string) string {
 	return "The account belongs to **" + value + "** and it was suspended by **rob**."
 }
 
-// TestEscapeMarkdownFenceInfo covers the sink that made backtick inlineCritical
-// (gomarkdown html/renderer.go, appendLanguageAttr): a `"` in a fence's info
-// string closes the class attribute and a `>` closes the tag.
+// TestEscapeMarkdownFenceInfo covers the info-string sink that made backtick
+// inlineCritical: a `"` closes the class attribute and a `>` closes the tag.
 func TestEscapeMarkdownFenceInfo(t *testing.T) {
 	t.Parallel()
 
@@ -53,10 +52,8 @@ func TestEscapeMarkdownFenceInfo(t *testing.T) {
 		"vacuous test: the payload no longer reaches the info-string sink even unescaped")
 }
 
-// TestEscapeMarkdownColon covers ":", which opens a definition list and a GFM
-// delimiter row. Rendered under CommonExtensions rather than the shipped
-// allowlist, which already kills both constructs and so would pass whether or
-// not the escaper did anything. This keeps the two defenses independent.
+// TestEscapeMarkdownColon covers ":", rendered under CommonExtensions so the
+// shipped allowlist, which kills these constructs anyway, cannot carry the test.
 func TestEscapeMarkdownColon(t *testing.T) {
 	t.Parallel()
 
@@ -88,7 +85,7 @@ func TestEscapeMarkdownColon(t *testing.T) {
 }
 
 // TestNotificationExtensionsDropUnusedGrammar pins the allowlist: each construct
-// is openable from an untrusted value and used by no shipped template.
+// is openable from an untrusted value and used by no template.
 func TestNotificationExtensionsDropUnusedGrammar(t *testing.T) {
 	t.Parallel()
 
@@ -119,7 +116,7 @@ func TestNotificationExtensionsDropUnusedGrammar(t *testing.T) {
 }
 
 // TestEscapeMarkdownIndentedCode covers the one construct with no escape: a
-// space cannot be backslash-escaped, so the run is truncated instead.
+// space cannot be escaped, so the indent run is truncated instead.
 func TestEscapeMarkdownIndentedCode(t *testing.T) {
 	t.Parallel()
 
@@ -181,12 +178,8 @@ func TestEscapeMarkdownEmptyLinkDestination(t *testing.T) {
 	}
 }
 
-// TestEscapeMarkdownLeadingFoldConstruct covers a value whose own first line is
-// a fold construct, which the fold cannot reach and escaping must handle. A
-// title beginning "~~~" is an unterminated fence swallowing the trusted text
-// into an empty code block; "===" beneath a text line underlines it into an
-// <h1>. Escaping costs a visible backslash, so the untouched cases below matter
-// as much as the neutralized ones.
+// TestEscapeMarkdownLeadingFoldConstruct covers a first line the fold cannot
+// reach. Escaping costs a visible backslash, so the untouched cases matter too.
 func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
 	t.Parallel()
 
@@ -233,9 +226,8 @@ func TestEscapeMarkdownLeadingFoldConstruct(t *testing.T) {
 	})
 }
 
-// TestRecoverToEscapedSource covers renderHTML's panic guard directly: safeURL
-// closed the only input known to panic, so driving it through renderHTML would
-// never reach the recovery.
+// TestRecoverToEscapedSource drives renderHTML's panic guard directly: safeURL
+// closed the only input known to panic it.
 func TestRecoverToEscapedSource(t *testing.T) {
 	t.Parallel()
 
@@ -251,8 +243,7 @@ func TestRecoverToEscapedSource(t *testing.T) {
 }
 
 // TestHTMLFromMarkdownSafelink pins the behavior change Safelink brought to the
-// shared renderer, whose one non-notification caller is
-// OIDCConfig.SignupsDisabledText (coderd/userauth.go).
+// shared renderer, called by OIDCConfig.SignupsDisabledText.
 func TestHTMLFromMarkdownSafelink(t *testing.T) {
 	t.Parallel()
 
@@ -278,8 +269,7 @@ func TestHTMLFromMarkdownSafelink(t *testing.T) {
 	}
 }
 
-// TestEscapeMarkdownResiduals pins the one gap EscapeMarkdown cannot close, so
-// that closing it later is deliberate rather than accidental.
+// TestEscapeMarkdownResiduals pins the one gap EscapeMarkdown cannot close.
 func TestEscapeMarkdownResiduals(t *testing.T) {
 	t.Parallel()
 
@@ -287,16 +277,15 @@ func TestEscapeMarkdownResiduals(t *testing.T) {
 		t.Parallel()
 
 		// CommonMark does not process escapes inside a code span, and the
-		// workspace out-of-disk body wraps a value in one. The escaper cannot
-		// see the sink, so it cannot choose not to escape.
+		// workspace out-of-disk body wraps a value in one.
 		html := HTMLFromNotificationMarkdown("The volume `" + EscapeMarkdown("config[0]") + "` is full.")
 		require.Contains(t, html, `config\[0\]`,
 			"if this no longer leaks, the residual is closed and this test should become an assertion that it stays closed")
 	})
 }
 
-// TestEscapeMarkdownNoStrayBackslash asserts the escaper's own invariant across
-// every interpolation position a shipped template provides.
+// TestEscapeMarkdownNoStrayBackslash asserts the no-stray-backslash invariant
+// across every interpolation position a shipped template provides.
 func TestEscapeMarkdownNoStrayBackslash(t *testing.T) {
 	t.Parallel()
 

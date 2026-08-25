@@ -161,10 +161,8 @@ func TestEncodeHeaderValue(t *testing.T) {
 	}
 }
 
-// TestEncodeHeaderValueEncodedWord covers a value that already looks like an
-// RFC 2047 encoded-word. mime.WordEncoder only encodes non-ASCII and an
-// encoded-word is printable ASCII, so a forged one would reach the recipient's
-// client intact and be decoded there.
+// TestEncodeHeaderValueEncodedWord covers a forged RFC 2047 encoded-word, which
+// is printable ASCII and so passes mime.WordEncoder through to the client.
 func TestEncodeHeaderValueEncodedWord(t *testing.T) {
 	t.Parallel()
 
@@ -175,16 +173,14 @@ func TestEncodeHeaderValueEncodedWord(t *testing.T) {
 	// The forged word must not survive as something a client would decode.
 	require.NotContains(t, got, forged)
 
-	// Asserted through a decoder because the chunk boundaries are an
-	// implementation detail, while what the recipient sees is not.
+	// Decoded rather than compared: chunk boundaries are an implementation detail.
 	decoded, err := new(mime.WordDecoder).DecodeHeader(got)
 	require.NoError(t, err)
 	require.Equal(t, forged+" shared a chat with you", decoded)
 }
 
-// TestEncodeHeaderValueFolds covers RFC 5322's 998-octet line limit.
-// mime.WordEncoder separates its encoded-words with a space, so a long value
-// stays on one line however far past the limit it runs.
+// TestEncodeHeaderValueFolds covers RFC 5322's 998-octet line limit, which
+// mime.WordEncoder does not fold for.
 func TestEncodeHeaderValueFolds(t *testing.T) {
 	t.Parallel()
 
@@ -208,8 +204,7 @@ func TestEncodeHeaderValueFolds(t *testing.T) {
 				require.LessOrEqual(t, len(line), 998,
 					"a header line exceeds RFC 5322's limit: %d octets", len(line))
 			}
-			// Every CRLF must begin a folded continuation rather than end the
-			// header, or this is injection rather than folding.
+			// A CRLF must begin a continuation, or this is injection not folding.
 			for _, after := range strings.Split(got, "\r\n")[1:] {
 				require.True(t, strings.HasPrefix(after, " "),
 					"a CRLF was not followed by folding whitespace: %q", got)

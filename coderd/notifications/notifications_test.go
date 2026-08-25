@@ -2494,8 +2494,8 @@ func (n *acquireSignalingInterceptor) AcquireNotificationMessages(ctx context.Co
 	return messages, err
 }
 
-// renderCapture records the title and body the notifier renders, so a test can
-// assert on what a dispatcher would receive.
+// renderCapture records what the notifier renders, so a test can assert on what
+// a dispatcher would receive.
 type renderCapture struct {
 	mu          sync.Mutex
 	title, body string
@@ -2525,9 +2525,8 @@ func (c *renderCapture) wait(t *testing.T) (title, body string) {
 	return c.title, c.body
 }
 
-// TestNotificationMarkdownInjection is the end-to-end regression test: a display
-// name any member can set must not introduce Markdown structure into a
-// notification sent to site admins. See https://linear.app/codercom/issue/SEC-93.
+// TestNotificationMarkdownInjection is the end-to-end regression test for
+// https://linear.app/codercom/issue/SEC-93.
 func TestNotificationMarkdownInjection(t *testing.T) {
 	t.Parallel()
 
@@ -2568,8 +2567,7 @@ func TestNotificationMarkdownInjection(t *testing.T) {
 	mgr.Run(ctx)
 	_, body := capture.wait(t)
 
-	// THEN: the rendered Markdown carries no structure from the display name,
-	// and neither rendered form contains a link or a heading.
+	// THEN: the rendered Markdown carries no structure from the display name.
 	html := markdown.HTMLFromNotificationMarkdown(body)
 	plain, err := markdown.PlaintextFromMarkdown(body)
 	require.NoError(t, err)
