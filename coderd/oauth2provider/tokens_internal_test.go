@@ -19,11 +19,8 @@ func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
 }
 
-// Named app fixtures for extractTokenRequest, whose behavior depends only on
-// the client type. Passing these rather than a zero-value app means the call
-// sites state which client type they mean instead of relying on the zero value
-// reading as confidential. IsPublic's handling of unset and unrecognized values
-// is pinned directly in database.TestOAuth2ProviderAppIsPublic.
+// Named so call sites state the client type they mean rather than leaning on
+// the zero value. IsPublic itself is pinned in TestOAuth2ProviderAppIsPublic.
 var (
 	confidentialApp = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypeConfidential}
 	publicApp       = database.OAuth2ProviderApp{ClientType: database.OAuth2ProviderAppClientTypePublic}
@@ -122,9 +119,8 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
-			// This test only exercises scope parsing, but code_verifier is
-			// validated unconditionally for this grant type, so use a value
-			// that satisfies the RFC 7636 §4.1 length floor.
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
 			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
@@ -460,19 +456,13 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
-// TestExtractTokenRequest_ClientSecretRequirement verifies that client_secret
-// is only required for the authorization_code grant when the app is
-// confidential. Public clients authenticate with PKCE alone. client_id is
-// always required, regardless of client type.
 func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
 		name string
 		app  database.OAuth2ProviderApp
-		// clientID/clientSecret are omitted from the form entirely when
-		// empty, rather than sent as empty strings, to match how a real
-		// client request is built.
+		// Omitted from the form when empty, rather than sent as empty strings.
 		clientID       string
 		clientSecret   string
 		wantErrorField string // Empty means no validation error is expected.
@@ -495,9 +485,8 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 			clientID: "test-client",
 		},
 		{
-			// A public client has no secret to check (RFC 7591 §2, OAuth 2.1
-			// §2.1), so one sent anyway is ignored rather than rejected. PKCE
-			// and the code's own app_id still bind the exchange.
+			// No secret to check, so one sent anyway is ignored, not rejected
+			// (RFC 7591 §2, OAuth 2.1 §2.1).
 			name:         "PublicClientWithSecretIsAccepted",
 			app:          publicApp,
 			clientID:     "test-client",
@@ -520,9 +509,8 @@ func TestExtractTokenRequest_ClientSecretRequirement(t *testing.T) {
 			form := url.Values{}
 			form.Set("grant_type", "authorization_code")
 			form.Set("code", "test-code")
-			// This test only exercises client_secret requirements, but
-			// code_verifier is validated unconditionally for this grant type,
-			// so use a value that satisfies the RFC 7636 §4.1 length floor.
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
 			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.clientID != "" {
 				form.Set("client_id", tc.clientID)

@@ -1226,9 +1226,9 @@
 											"state": ["premium"]
 										},
 										{
-											"title": "Mux",
-											"description": "Configure Mux, the parallel coding agent tool, to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/mux.md",
+											"title": "Xum",
+											"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
+											"path": "./ai-coder/ai-gateway/clients/xum.md",
 											"state": ["premium"]
 										},
 										{
@@ -1885,6 +1885,11 @@
 							"title": "organizations delete",
 							"description": "Delete an organization",
 							"path": "reference/cli/organizations_delete.md"
+						},
+						{
+							"title": "organizations edit",
+							"description": "Edit an organization.",
+							"path": "reference/cli/organizations_edit.md"
 						},
 						{
 							"title": "organizations list",

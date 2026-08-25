@@ -432,18 +432,13 @@ describe("api.ts", () => {
 	});
 
 	describe("chat configuration endpoints", () => {
+		const organizationId = "organization/id";
+
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
-				{
-					providers: [],
-				},
-			],
-			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
-				[],
+				"/api/experimental/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
+				{ models: [], providers: [], unsupported_providers: [] },
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
 			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
@@ -458,12 +453,8 @@ describe("api.ts", () => {
 
 		it.each<[string, () => Promise<unknown>]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModels(),
-			],
-			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModelConfigs(),
+				"/api/experimental/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");
@@ -471,6 +462,57 @@ describe("api.ts", () => {
 
 			await expect(request()).rejects.toBe(expectedError);
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+
+		it("uses organization-nested chat model item paths", async () => {
+			const modelId = "model/id";
+			const responseData = { id: modelId };
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "delete").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModel(organizationId, modelId),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.updateChatModel(organizationId, modelId, {
+					enabled: true,
+				}),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.deleteChatModel(organizationId, modelId),
+			).resolves.toBeUndefined();
+
+			const itemPath =
+				"/api/experimental/organizations/organization%2Fid/chats/models/model%2Fid";
+			expect(axiosInstance.get).toHaveBeenCalledWith(itemPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(itemPath, {
+				enabled: true,
+			});
+			expect(axiosInstance.delete).toHaveBeenCalledWith(itemPath);
+		});
+
+		it("uses organization-nested chat model ACL paths", async () => {
+			const modelId = "model/id";
+			const acl = { user_roles: {}, group_roles: {} };
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: acl });
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModelACL(organizationId, modelId),
+			).resolves.toStrictEqual(acl);
+			await expect(
+				API.experimental.updateChatModelACL(organizationId, modelId, acl),
+			).resolves.toBeUndefined();
+
+			const aclPath =
+				"/api/experimental/organizations/organization%2Fid/chats/models/model%2Fid/acl";
+			expect(axiosInstance.get).toHaveBeenCalledWith(aclPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, acl);
 		});
 	});
 
