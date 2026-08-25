@@ -101,26 +101,6 @@ export const Unlimited: Story = {
 	},
 };
 
-export const EveryoneBudgetViewedFromMemberGroup: Story = {
-	args: {
-		spend: {
-			...mockSpend,
-			group_spend_micros: 1_250_000_000,
-			effective_group_id: group.organization_id,
-			group_budget: null,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const cell = await canvas.findByTestId(testId);
-		await expect(cell).toHaveTextContent("$1,250 USD");
-		await expect(cell).toHaveTextContent("Group limit $7,000");
-		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
-		await expect(canvas.queryByText(/Unlimited/)).not.toBeInTheDocument();
-		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
-	},
-};
-
 // Only the Everyone group can be an effective group without a budget.
 export const UnlimitedEveryoneGroup: Story = {
 	args: {
@@ -344,14 +324,34 @@ export const NotAttributedOtherOrganization: Story = {
 		);
 		await expect(
 			await within(document.body).findByText(
-				/managed by a group that isn't visible to you/,
+				/managed by a group in another organization/,
 			),
 		).toBeInTheDocument();
 		// Close this popover so the shared message only matches once.
 		await userEvent.keyboard("{Escape}");
 		const body = await openInfo(canvasElement);
 		await expect(
-			await body.findByText(/managed by a group that isn't visible to you/),
+			await body.findByText(/managed by a group in another organization/),
 		).toBeInTheDocument();
+	},
+};
+
+export const EveryoneBudget: Story = {
+	args: {
+		spend: {
+			...mockSpend,
+			group_spend_micros: 1_250_000_000,
+			effective_group_id: group.organization_id,
+			group_budget: null,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const cell = await canvas.findByTestId(testId);
+		await expect(cell).toHaveTextContent("$1,250 USD");
+		await expect(cell).toHaveTextContent("Group limit $7,000");
+		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
+		await expect(canvas.queryByText(/Unlimited/)).not.toBeInTheDocument();
+		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
 	},
 };

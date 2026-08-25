@@ -1552,7 +1552,7 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
-func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMemberAISpend {
+func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
 		GroupSpendMicros: row.GroupSpendMicros,
@@ -1566,11 +1566,9 @@ func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMe
 			LimitSource:      codersdk.AIBudgetLimitSource(row.EffectiveLimitSource.String),
 		}
 	}
-	if row.GroupSpendLimitMicros.Valid {
-		member.GroupBudget = &codersdk.AIBudgetLimit{
-			SpendLimitMicros: row.GroupSpendLimitMicros.Int64,
-			LimitSource:      codersdk.AIBudgetLimitSource(row.GroupLimitSource.String),
-		}
+	// Set the deprecated alias only when the queried group is effective.
+	if row.EffectiveGroupID.Valid && row.EffectiveGroupID.UUID == queriedGroupID {
+		member.GroupBudget = member.EffectiveBudget
 	}
 	return member
 }

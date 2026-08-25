@@ -1431,41 +1431,8 @@ func (api *API) groupMembersAISpend(rw http.ResponseWriter, r *http.Request) {
 		},
 		Members: make([]codersdk.GroupMemberAISpend, 0, len(rows)),
 	}
-	// ExtractGroupParam has already checked group:read on the queried group.
-	visibleEffectiveGroups := map[uuid.UUID]bool{group.ID: true}
-	effectiveGroupIDs := make([]uuid.UUID, 0)
 	for _, row := range rows {
-		if !row.EffectiveGroupID.Valid {
-			continue
-		}
-		effectiveGroupID := row.EffectiveGroupID.UUID
-		if _, ok := visibleEffectiveGroups[effectiveGroupID]; ok {
-			continue
-		}
-		visibleEffectiveGroups[effectiveGroupID] = false
-		effectiveGroupIDs = append(effectiveGroupIDs, effectiveGroupID)
-	}
-	if len(effectiveGroupIDs) > 0 {
-		groups, err := api.Database.GetGroups(ctx, database.GetGroupsParams{
-			OrganizationID: group.OrganizationID,
-			GroupIds:       effectiveGroupIDs,
-		})
-		if err != nil {
-			logger.Error(ctx, "failed to get effective AI budget groups", slog.Error(err))
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		for _, visibleGroup := range groups {
-			visibleEffectiveGroups[visibleGroup.Group.ID] = true
-		}
-	}
-	for _, row := range rows {
-		if row.EffectiveGroupID.Valid && !visibleEffectiveGroups[row.EffectiveGroupID.UUID] {
-			row.EffectiveGroupID = uuid.NullUUID{}
-			row.EffectiveSpendLimitMicros = sql.NullInt64{}
-			row.EffectiveLimitSource = sql.NullString{}
-		}
-		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row))
+		resp.Members = append(resp.Members, db2sdk.GroupMemberAISpend(row, group.ID))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

@@ -117,16 +117,17 @@ type GroupMemberAISpend struct {
 	UserID uuid.UUID `json:"user_id" format:"uuid"`
 	// EffectiveGroupID is the user's effective budget group within the queried
 	// group's organization, falling back to the Everyone group when no budget
-	// applies. Null when the group is outside the queried organization or the
-	// caller cannot read it.
+	// applies. Null when the effective group belongs to a different organization
+	// than the queried group.
 	EffectiveGroupID *uuid.UUID `json:"effective_group_id" format:"uuid"`
 	// EffectiveBudget is the spend limit that currently applies to the user.
-	// Null when no budget applies or the effective group is not visible to the
-	// caller.
+	// Null when no budget applies or the effective group belongs to a different
+	// organization than the queried group.
 	EffectiveBudget *AIBudgetLimit `json:"effective_budget"`
 	// GroupBudget is the budget when the queried group is this user's
 	// effective budget source. When populated, it matches EffectiveBudget. Null
 	// when the user's budget resolves to another group or no budget applies.
+	// Deprecated: Use EffectiveBudget instead.
 	GroupBudget *AIBudgetLimit `json:"group_budget"`
 	// GroupSpendMicros is the user's spend attributed to the queried group
 	// over the current budget period.

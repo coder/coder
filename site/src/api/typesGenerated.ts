@@ -5539,20 +5539,21 @@ export interface GroupMemberAISpend {
 	/**
 	 * EffectiveGroupID is the user's effective budget group within the queried
 	 * group's organization, falling back to the Everyone group when no budget
-	 * applies. Null when the group is outside the queried organization or the
-	 * caller cannot read it.
+	 * applies. Null when the effective group belongs to a different organization
+	 * than the queried group.
 	 */
 	readonly effective_group_id: string | null;
 	/**
 	 * EffectiveBudget is the spend limit that currently applies to the user.
-	 * Null when no budget applies or the effective group is not visible to the
-	 * caller.
+	 * Null when no budget applies or the effective group belongs to a different
+	 * organization than the queried group.
 	 */
 	readonly effective_budget: AIBudgetLimit | null;
 	/**
 	 * GroupBudget is the budget when the queried group is this user's
 	 * effective budget source. When populated, it matches EffectiveBudget. Null
 	 * when the user's budget resolves to another group or no budget applies.
+	 * @deprecated Use EffectiveBudget instead.
 	 */
 	readonly group_budget: AIBudgetLimit | null;
 	/**

@@ -3049,13 +3049,6 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
-	FROM effective
-	WHERE raw_effective_group_id = $1
-),
 visible_effective AS (
 	-- The effective group and budget only when the group belongs to the queried
 	-- group's organization.
@@ -3075,14 +3068,11 @@ SELECT
 	visible_effective.group_id AS effective_group_id,
 	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
 	visible_effective.limit_source AS effective_limit_source,
-	applied_budget.spend_limit_micros AS group_spend_limit_micros,
-	applied_budget.limit_source AS group_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
 LEFT JOIN visible_effective
 	ON visible_effective.user_id = effective.user_id
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = $1
@@ -3092,9 +3082,7 @@ GROUP BY
 	queried_group.organization_id,
 	visible_effective.group_id,
 	visible_effective.spend_limit_micros,
-	visible_effective.limit_source,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.limit_source
 ORDER BY effective.user_id
 `
 
@@ -3110,8 +3098,6 @@ type GetGroupMembersAISpendRow struct {
 	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
 	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
 	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
-	GroupSpendLimitMicros     sql.NullInt64  `db:"group_spend_limit_micros" json:"group_spend_limit_micros"`
-	GroupLimitSource          sql.NullString `db:"group_limit_source" json:"group_limit_source"`
 	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
@@ -3119,16 +3105,12 @@ type GetGroupMembersAISpendRow struct {
 // period_start until NOW. Only current members of the queried group are
 // returned. effective_spend_limit_micros and effective_limit_source describe
 // the user's effective budget when its group belongs to the queried group's
-// organization. group_spend_limit_micros and limit_source are populated only
-// when the queried group is the user's effective budget source. The
-// effective group falls back to the Everyone group, and effective_group_id is
-// null only when that group belongs to a different organization than the
-// queried group.
+// organization. The effective group falls back to the Everyone group, and
+// effective_group_id is null only when that group belongs to a different
+// organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves group_spend_limit_micros and group_limit_source null for
-// users whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
 	if err != nil {
@@ -3144,8 +3126,6 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.EffectiveGroupID,
 			&i.EffectiveSpendLimitMicros,
 			&i.EffectiveLimitSource,
-			&i.GroupSpendLimitMicros,
-			&i.GroupLimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
 			return nil, err

@@ -5739,7 +5739,6 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 				codersdk.FeatureTemplateRBAC:          1,
 				codersdk.FeatureAIBridge:              1,
 				codersdk.FeatureMultipleOrganizations: 1,
-				codersdk.FeatureCustomRoles:           1,
 			},
 		},
 	})
@@ -5753,13 +5752,6 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 	otherOrgMemberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, otherOrg.ID)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	// Disable the member floor's implicit group:read grant so the authorization
-	// subtest can exercise a hidden effective group.
-	//nolint:gocritic // The owner is required to configure workspace sharing.
-	_, err := ownerClient.PatchWorkspaceSharingSettings(ctx, owner.OrganizationID.String(), codersdk.UpdateWorkspaceSharingSettingsRequest{
-		ShareableWorkspaceOwners: codersdk.ShareableWorkspaceOwnersNone,
-	})
-	require.NoError(t, err)
 	group, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "role-access-members-group",
 	})
@@ -5800,48 +5792,6 @@ func TestGroupMembersAISpendRoleAccess(t *testing.T) {
 			require.Equal(t, member.ID, resp.Members[0].UserID)
 		})
 	}
-
-	t.Run("EffectiveBudgetRequiresGroupRead", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // The owner is required to create custom roles.
-		role, err := ownerClient.CreateOrganizationRole(ctx, codersdk.Role{
-			Name:           "group-member-reader",
-			OrganizationID: owner.OrganizationID.String(),
-			OrganizationPermissions: []codersdk.Permission{
-				{ResourceType: codersdk.ResourceGroupMember, Action: codersdk.ActionRead},
-			},
-		})
-		require.NoError(t, err)
-		readerClient, reader := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleIdentifier{
-			Name:           role.Name,
-			OrganizationID: owner.OrganizationID,
-		})
-		_, err = userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{reader.ID.String()},
-		})
-		require.NoError(t, err)
-
-		effectiveGroup, err := userAdminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
-			Name: "hidden-effective-budget-group",
-		})
-		require.NoError(t, err)
-		_, err = userAdminClient.PatchGroup(ctx, effectiveGroup.ID, codersdk.PatchGroupRequest{
-			AddUsers: []string{member.ID.String()},
-		})
-		require.NoError(t, err)
-		_, err = userAdminClient.UpsertGroupAIBudget(ctx, effectiveGroup.ID, codersdk.UpsertGroupAIBudgetRequest{
-			SpendLimitMicros: 1_000_000,
-		})
-		require.NoError(t, err)
-
-		resp, err := readerClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{member.ID})
-		require.NoError(t, err)
-		require.Len(t, resp.Members, 1)
-		require.Nil(t, resp.Members[0].EffectiveGroupID)
-		require.Nil(t, resp.Members[0].EffectiveBudget)
-	})
 
 	t.Run("MemberCanOnlyReadOwnRow", func(t *testing.T) {
 		t.Parallel()
