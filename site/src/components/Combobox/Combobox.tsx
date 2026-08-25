@@ -114,7 +114,7 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto border-surface-quaternary overflow-y-auto text-sm",
+				"w-auto border-border-default overflow-y-auto text-sm",
 				className,
 			)}
 			{...props}
@@ -126,7 +126,11 @@ export const ComboboxContent = ({
 
 export const ComboboxInput = CommandInput;
 
-export const ComboboxList = CommandList;
+export const ComboboxList: React.FC<
+	React.ComponentPropsWithRef<typeof CommandList>
+> = ({ className, ...props }) => {
+	return <CommandList className={cn("p-2", className)} {...props} />;
+};
 
 export const ComboboxItem = ({
 	children,

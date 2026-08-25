@@ -65,7 +65,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 			</ComboboxTrigger>
 			<ComboboxContent
 				align="end"
-				className="w-[320px] max-w-[320px] overflow-hidden bg-surface-secondary border-surface-quaternary"
+				className="w-[320px] max-w-[320px] overflow-hidden"
 			>
 				<ComboboxInput
 					placeholder="Type/select a workspace template"
@@ -90,7 +90,7 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 								key={template.id}
 								value={template.id}
 								keywords={[template.display_name, template.name]}
-								className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-3 [&>svg:last-child]:hidden"
+								className="px-4 font-normal gap-3 [&>svg:last-child]:hidden"
 							>
 								<Avatar
 									variant="icon"
