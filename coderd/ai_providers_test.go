@@ -1950,6 +1950,42 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Equal(t, wantWarnings, secondListed.Status.Warnings)
 	})
 
+	t.Run("UpdateReturnsWarningOnEnable", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first"; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/second/...) instead`}
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: false,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Status)
+		require.Equal(t, wantWarnings, updated.Status.Warnings)
+	})
+
 	t.Run("UpdateBaseURLReturnsWarning", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
