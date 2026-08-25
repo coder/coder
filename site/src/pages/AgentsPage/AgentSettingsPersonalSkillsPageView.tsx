@@ -17,6 +17,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
@@ -338,6 +339,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
 												Edit
 											</DropdownMenuItem>
+											<DropdownMenuSeparator />
 											<DropdownMenuItem
 												className="text-content-destructive focus:text-content-destructive"
 												onClick={() => onDelete(skill)}
