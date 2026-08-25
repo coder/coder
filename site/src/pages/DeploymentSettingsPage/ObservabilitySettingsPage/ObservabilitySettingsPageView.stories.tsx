@@ -83,16 +83,12 @@ export const OSS: Story = {
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
 		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
-		await expect(docsLinks).toHaveLength(3);
+		await expect(docsLinks).toHaveLength(2);
 		await expect(docsLinks[0]).toHaveAttribute(
-			"href",
-			docs("/admin/monitoring"),
-		);
-		await expect(docsLinks[1]).toHaveAttribute(
 			"href",
 			docs("/admin/security/audit-logs"),
 		);
-		await expect(docsLinks[2]).toHaveAttribute(
+		await expect(docsLinks[1]).toHaveAttribute(
 			"href",
 			docs("/admin/monitoring"),
 		);

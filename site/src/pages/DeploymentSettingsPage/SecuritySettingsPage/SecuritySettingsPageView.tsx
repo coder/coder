@@ -55,7 +55,11 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 
 			<div>
 				<SettingsHeader>
-					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+					<SettingsHeaderTitle
+						level="h2"
+						hierarchy="secondary"
+						className="items-center"
+					>
 						Browser-Only Connections{" "}
 						<Badges>
 							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
@@ -70,9 +74,6 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>
-					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-				</Badges>
 				{!featureBrowserOnlyEnabled ? (
 					<PremiumPaywallSmall
 						source="browser_only"

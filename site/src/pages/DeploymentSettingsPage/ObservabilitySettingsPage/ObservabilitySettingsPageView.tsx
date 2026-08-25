@@ -25,10 +25,6 @@ export const ObservabilitySettingsPageView: FC<
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
-					<SettingsHeaderDescription>
-						Monitor logs, metrics, and audit events for your Coder deployment.{" "}
-						<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />
-					</SettingsHeaderDescription>
 				</SettingsHeader>
 
 				<SettingsHeader>
