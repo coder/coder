@@ -119,9 +119,8 @@ func TestExtractTokenParams_Scopes(t *testing.T) {
 			form.Set("client_id", "test-client")
 			form.Set("client_secret", "test-secret")
 			form.Set("code", "test-code")
-			// This test only exercises scope parsing, but code_verifier is
-			// validated unconditionally for this grant type, so use a value
-			// that satisfies the RFC 7636 §4.1 length floor.
+			// Validated unconditionally for this grant type, so it has to satisfy
+			// the RFC 7636 §4.1 length floor even here.
 			form.Set("code_verifier", strings.Repeat("a", pkceVerifierMinLength))
 			if tc.scopeParam != "" {
 				form.Set("scope", tc.scopeParam)
