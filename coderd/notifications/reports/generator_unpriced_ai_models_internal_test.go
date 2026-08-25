@@ -39,6 +39,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
 		require.Len(t, sent, 1)
 		require.Equal(t, owner.ID, sent[0].UserID)
+		require.Equal(t, "week", sent[0].Data["report_frequency"])
 		require.Equal(t, []map[string]any{
 			{"provider": "anthropic", "model": "claude-opus-4-8"},
 		}, modelsFromPayload(t, sent[0].Data))
