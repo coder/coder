@@ -448,7 +448,7 @@ func TestPatchGroup(t *testing.T) {
 
 		// Updating the group budget must fail as unauthorized (404).
 		_, err = memberClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			QuotaAllowance: ptr.Ref(20),
+			QuotaAllowance: new(20),
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)

@@ -113,7 +113,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 			name:      "PreservesGoogleEntry",
 			provider:  fantasygoogle.Name,
 			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(true)}}},
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: new(true)}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
@@ -125,7 +125,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 			name:      "GoogleExplicitBudgetWins",
 			provider:  fantasygoogle.Name,
 			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: ptr.Ref(int64(1024))}}},
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: new(int64(1024))}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.Equal(t, int64(1024), *providerOptions.ThinkingConfig.ThinkingBudget)
@@ -136,7 +136,7 @@ func TestApplyReasoningEffort(t *testing.T) {
 			name:      "GoogleExplicitThoughtsOffPreserved",
 			provider:  fantasygoogle.Name,
 			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: ptr.Ref(false)}}},
+			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: new(false)}}},
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
 				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 				require.NotNil(t, providerOptions.ThinkingConfig.IncludeThoughts)

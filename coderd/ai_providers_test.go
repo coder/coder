@@ -1977,7 +1977,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(true),
+			Enabled: new(true),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Status)
@@ -2031,7 +2031,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, first.ID.String(), codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://api.openai.com/v2"),
+			BaseURL: new("https://api.openai.com/v2"),
 		})
 		require.NoError(t, err)
 		require.Nil(t, updated.Status, "update-self should not trigger a warning")

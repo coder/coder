@@ -1855,7 +1855,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.UpdateTemplateMeta{
-			AllowWorkspaceRenames: ptr.Ref(true),
+			AllowWorkspaceRenames: new(true),
 		}
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
@@ -1869,7 +1869,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updated.AllowWorkspaceRenames, "expected true")
 
-		req.AllowWorkspaceRenames = ptr.Ref(false)
+		req.AllowWorkspaceRenames = new(false)
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.AllowWorkspaceRenames, "expected false")

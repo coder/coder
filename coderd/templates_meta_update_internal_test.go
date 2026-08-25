@@ -293,7 +293,7 @@ func TestResolveTemplateMetaUpdate(t *testing.T) {
 		},
 		{
 			name: "AllowWorkspaceRenames",
-			req:  codersdk.UpdateTemplateMeta{AllowWorkspaceRenames: ptr.Ref(false)},
+			req:  codersdk.UpdateTemplateMeta{AllowWorkspaceRenames: new(false)},
 			expected: expected{override: func(r *templateMetaUpdate) {
 				r.allowWorkspaceRenames = false
 			}},

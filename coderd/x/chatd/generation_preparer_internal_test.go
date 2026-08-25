@@ -106,7 +106,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: ptr.Ref("turn-options-sentinel"),
+				User: new("turn-options-sentinel"),
 			},
 		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{

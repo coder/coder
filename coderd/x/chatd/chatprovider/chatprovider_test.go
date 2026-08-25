@@ -392,31 +392,31 @@ func TestGoogleThinkingLevelFromChat(t *testing.T) {
 	}{
 		{
 			name:  "Minimal",
-			input: ptr.Ref(" MINIMAL "),
-			want:  ptr.Ref(fantasygoogle.ThinkingLevelMinimal),
+			input: new(" MINIMAL "),
+			want:  new(fantasygoogle.ThinkingLevelMinimal),
 		},
 		{
 			name:  "Low",
-			input: ptr.Ref("low"),
-			want:  ptr.Ref(fantasygoogle.ThinkingLevelLow),
+			input: new("low"),
+			want:  new(fantasygoogle.ThinkingLevelLow),
 		},
 		{
 			name:  "Medium",
-			input: ptr.Ref("Medium"),
-			want:  ptr.Ref(fantasygoogle.ThinkingLevelMedium),
+			input: new("Medium"),
+			want:  new(fantasygoogle.ThinkingLevelMedium),
 		},
 		{
 			name:  "High",
-			input: ptr.Ref("high"),
-			want:  ptr.Ref(fantasygoogle.ThinkingLevelHigh),
+			input: new("high"),
+			want:  new(fantasygoogle.ThinkingLevelHigh),
 		},
 		{
 			name:  "InvalidReturnsNil",
-			input: ptr.Ref("ultra"),
+			input: new("ultra"),
 		},
 		{
 			name:  "EmptyReturnsNil",
-			input: ptr.Ref(" "),
+			input: new(" "),
 		},
 		{
 			name:  "NilInputReturnsNil",
@@ -448,7 +448,7 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Google: &codersdk.ChatModelGoogleProviderOptions{
 					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
-						ThinkingLevel: ptr.Ref(" MEDIUM "),
+						ThinkingLevel: new(" MEDIUM "),
 					},
 				},
 			},
@@ -473,8 +473,8 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Google: &codersdk.ChatModelGoogleProviderOptions{
 					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
-						ThinkingLevel:   ptr.Ref("medium"),
-						IncludeThoughts: ptr.Ref(true),
+						ThinkingLevel:   new("medium"),
+						IncludeThoughts: new(true),
 					},
 				},
 			},
@@ -499,7 +499,7 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Google: &codersdk.ChatModelGoogleProviderOptions{
 					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
-						ThinkingLevel: ptr.Ref("minimal"),
+						ThinkingLevel: new("minimal"),
 					},
 				},
 			},
@@ -522,10 +522,10 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 
 		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
 			},
-		}, ptr.Ref(codersdk.ChatModelReasoningEffortMedium))
+		}, new(codersdk.ChatModelReasoningEffortMedium))
 
 		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 		require.True(t, ok)
@@ -541,15 +541,15 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Google: &codersdk.ChatModelGoogleProviderOptions{
 					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
-						ThinkingLevel: ptr.Ref("medium"),
+						ThinkingLevel: new("medium"),
 					},
 				},
 			},
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
 			},
-		}, ptr.Ref(codersdk.ChatModelReasoningEffortHigh))
+		}, new(codersdk.ChatModelReasoningEffortHigh))
 
 		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
 		require.True(t, ok)
@@ -565,13 +565,13 @@ func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Google: &codersdk.ChatModelGoogleProviderOptions{
 					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
-						ThinkingBudget: ptr.Ref(int64(2048)),
+						ThinkingBudget: new(int64(2048)),
 					},
 				},
 			},
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-				Default: ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
-				Max:     ptr.Ref(codersdk.ChatModelReasoningEffortHigh),
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
 			},
 		}, nil)
 
