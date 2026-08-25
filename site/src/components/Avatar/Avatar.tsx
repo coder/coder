@@ -73,26 +73,13 @@ export const Avatar: React.FC<AvatarProps> = ({
 	fallback,
 	alt = "",
 	children,
-	style,
 	...props
 }) => {
 	const { externalImages } = useAppearance();
 
-	const isEmoji = src?.startsWith("/emojis/");
-
 	return (
 		<AvatarPrimitive.Root
-			className={cn(
-				avatarVariants({
-					size,
-					variant: isEmoji ? "default" : variant,
-					className,
-				}),
-			)}
-			style={{
-				...style,
-				padding: isEmoji ? "20%" : style?.padding,
-			}}
+			className={cn(avatarVariants({ size, variant, className }))}
 			{...props}
 		>
 			<AvatarPrimitive.Image
