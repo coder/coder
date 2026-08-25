@@ -2106,6 +2106,8 @@ func AIBridgeToolUsage(t testing.TB, db database.Store, seed database.InsertAIBr
 		InvocationError:    invocationError,
 		Metadata:           takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		CreatedAt:          takeFirst(seed.CreatedAt, dbtime.Now()),
+		Disposition:        takeFirst(seed.Disposition, "permitted"),
+		EscalationID:       seed.EscalationID,
 	})
 	require.NoError(t, err, "insert aibridge tool usage")
 	return toolUsage

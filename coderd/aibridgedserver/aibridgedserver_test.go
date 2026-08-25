@@ -366,6 +366,157 @@ func TestAuthorizeMCPGateway(t *testing.T) {
 	}
 }
 
+func TestCreateMCPGatewayEscalation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	organization := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: organization.ID,
+		UserID:         owner.ID,
+	})
+	agentUser, agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+		OwnerID:        owner.ID,
+		OrganizationID: organization.ID,
+		OriginType:     database.AIAgentOriginChat,
+		OriginID:       uuid.New(),
+	})
+	require.NoError(t, err)
+	_, token, err := aiagentidentity.MintKey(ctx, db, agentUser.ID, aiagentidentity.ChatAgentProfile(agent.OriginID))
+	require.NoError(t, err)
+
+	enqueuer := &notificationstest.FakeEnqueuer{}
+	srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		Enqueuer:      enqueuer,
+		AccessURL:     "/",
+		GatewayCfg:    codersdk.AIBridgeConfig{},
+		Experiments:   requiredExperiments,
+		Logger:        testutil.Logger(t),
+		Clock:         quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	serverConfigID := uuid.New()
+	resp, err := srv.CreateMCPGatewayEscalation(ctx, &proto.CreateMCPGatewayEscalationRequest{
+		Key:               token,
+		McpServerConfigId: serverConfigID.String(),
+		ServerSlug:        "github",
+		ServerUrl:         "https://mcp.example.com",
+		Tool:              "create_pull_request",
+		Input:             `{"title":"secret arguments"}`,
+		WorkspaceName:     "dev-workspace",
+	})
+	require.NoError(t, err)
+
+	escalationID, err := uuid.Parse(resp.GetId())
+	require.NoError(t, err)
+	escalation, err := db.GetMCPGatewayEscalationByID(ctx, escalationID)
+	require.NoError(t, err)
+	require.Equal(t, serverConfigID, escalation.MCPServerConfigID)
+	require.Equal(t, agentUser.ID, escalation.AIAgentID)
+	require.Equal(t, owner.ID, escalation.SponsorUserID)
+	require.Equal(t, "pending", escalation.Status)
+	require.Equal(t, escalation.CreatedAt.Add(5*time.Minute), escalation.ExpiresAt)
+	require.True(t, escalation.ExpiresAt.Equal(resp.GetExpiresAt().AsTime()))
+
+	sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateMCPGatewayEscalationRequested))
+	require.Len(t, sent, 1)
+	require.Equal(t, owner.ID, sent[0].UserID)
+	require.Equal(t, map[string]string{
+		"tool":           "create_pull_request",
+		"server_slug":    "github",
+		"workspace_name": "dev-workspace",
+	}, sent[0].Labels)
+	require.NotContains(t, sent[0].Labels, "arguments")
+	require.NotContains(t, sent[0].Labels, "input")
+}
+
+func TestWaitMCPGatewayEscalation(t *testing.T) {
+	t.Parallel()
+
+	newServer := func(t *testing.T, ctx context.Context, db database.Store) *aibridgedserver.Server {
+		t.Helper()
+		srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+			Store:         db,
+			AISeatTracker: agplaiseats.Noop{},
+			AccessURL:     "/",
+			GatewayCfg:    codersdk.AIBridgeConfig{},
+			Experiments:   requiredExperiments,
+			Logger:        testutil.Logger(t),
+			Clock:         quartz.NewReal(),
+		})
+		require.NoError(t, err)
+		return srv
+	}
+	insertEscalation := func(t *testing.T, ctx context.Context, db database.Store, expiresAt time.Time) database.MCPGatewayEscalation {
+		t.Helper()
+		now := dbtime.Now()
+		escalation, err := db.InsertMCPGatewayEscalation(ctx, database.InsertMCPGatewayEscalationParams{
+			ID:                uuid.New(),
+			MCPServerConfigID: uuid.New(),
+			ServerSlug:        "github",
+			ServerUrl:         "https://mcp.example.com",
+			Tool:              "create_pull_request",
+			Input:             json.RawMessage(`{"title":"test"}`),
+			AIAgentID:         uuid.New(),
+			SponsorUserID:     uuid.New(),
+			WorkspaceName:     "dev-workspace",
+			Status:            "pending",
+			CreatedAt:         now,
+			ExpiresAt:         expiresAt,
+		})
+		require.NoError(t, err)
+		return escalation
+	}
+
+	t.Run("approved", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		escalation := insertEscalation(t, ctx, db, dbtime.Now().Add(5*time.Minute))
+		srv := newServer(t, ctx, db)
+
+		type waitResult struct {
+			response *proto.WaitMCPGatewayEscalationResponse
+			err      error
+		}
+		result := make(chan waitResult, 1)
+		go func() {
+			response, err := srv.WaitMCPGatewayEscalation(ctx, &proto.WaitMCPGatewayEscalationRequest{Id: escalation.ID.String()})
+			result <- waitResult{response: response, err: err}
+		}()
+
+		now := dbtime.Now()
+		_, err := db.ResolveMCPGatewayEscalation(ctx, database.ResolveMCPGatewayEscalationParams{
+			ID:         escalation.ID,
+			Status:     "approved",
+			ResolvedAt: sql.NullTime{Time: now, Valid: true},
+			ResolvedBy: uuid.NullUUID{UUID: escalation.SponsorUserID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		waited := <-result
+		require.NoError(t, waited.err)
+		require.Equal(t, "approved", waited.response.GetStatus())
+	})
+
+	t.Run("expired", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		escalation := insertEscalation(t, ctx, db, dbtime.Now().Add(-time.Minute))
+		response, err := newServer(t, ctx, db).WaitMCPGatewayEscalation(ctx, &proto.WaitMCPGatewayEscalationRequest{Id: escalation.ID.String()})
+		require.NoError(t, err)
+		require.Equal(t, "expired", response.GetStatus())
+	})
+}
+
 func TestGetMCPUpstreamCredential(t *testing.T) {
 	t.Parallel()
 

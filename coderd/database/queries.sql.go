@@ -2029,9 +2029,9 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 
 const insertAIBridgeToolUsage = `-- name: InsertAIBridgeToolUsage :one
 INSERT INTO aibridge_tool_usages (
-  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at
+  id, interception_id, provider_response_id, provider_tool_call_id, provider_item_id, tool, server_url, input, injected, invocation_error, metadata, created_at, disposition, escalation_id
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::jsonb, '{}'::jsonb), $12
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::jsonb, '{}'::jsonb), $12, $13, $14
 )
 RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id, disposition, escalation_id
 `
@@ -2049,6 +2049,8 @@ type InsertAIBridgeToolUsageParams struct {
 	InvocationError    sql.NullString  `db:"invocation_error" json:"invocation_error"`
 	Metadata           json.RawMessage `db:"metadata" json:"metadata"`
 	CreatedAt          time.Time       `db:"created_at" json:"created_at"`
+	Disposition        string          `db:"disposition" json:"disposition"`
+	EscalationID       uuid.NullUUID   `db:"escalation_id" json:"escalation_id"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error) {
@@ -2065,6 +2067,8 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		arg.InvocationError,
 		arg.Metadata,
 		arg.CreatedAt,
+		arg.Disposition,
+		arg.EscalationID,
 	)
 	var i AIBridgeToolUsage
 	err := row.Scan(

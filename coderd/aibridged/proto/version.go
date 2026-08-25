@@ -33,9 +33,13 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.6:
 //   - Adds sponsor attribution to MCP gateway authorization and interception
 //     recording.
+//
+// API v1.7:
+//   - Adds MCP gateway escalation creation and long-polling, plus tool usage
+//     disposition attribution.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 6
+	CurrentMinor = 7
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway
