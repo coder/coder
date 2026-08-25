@@ -49,7 +49,8 @@ template's files directly in the Coder dashboard.
 If you'd prefer to use the CLI, use `coder templates pull`, edit the template
 files, then `coder templates push`.
 
-> [!TIP] Even if you are a Terraform expert, we suggest reading our
+> [!TIP]
+> Even if you are a Terraform expert, we suggest reading our
 > [guided tour of a template](../../../tutorials/template-from-scratch.md).
 
 ## Updating templates
@@ -63,7 +64,8 @@ infrastructure, software, or security patches. Learn more about
 
 ### Template update policies
 
-> [!NOTE] Template update policies are a Premium feature.
+> [!NOTE]
+> Template update policies are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Licensed template admins may want workspaces to always remain on the latest
