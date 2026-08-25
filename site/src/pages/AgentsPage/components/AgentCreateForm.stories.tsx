@@ -2009,7 +2009,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/You need access to an organization/i);
+		await canvas.findByText(/don't have permission to use Coder Agents/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2238,7 +2238,7 @@ export const ForbiddenNoOrganizationAccess: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
 		await expect(
-			canvas.getByText(/You need access to an organization/),
+			canvas.getByText(/don't have permission to use Coder Agents/),
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
@@ -2292,7 +2292,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		await waitFor(
 			() => {
 				expect(
-					canvas.getByText(/You need access to an organization/i),
+					canvas.getByText(/don't have permission to use Coder Agents/i),
 				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
