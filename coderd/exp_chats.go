@@ -146,6 +146,43 @@ func maybeWriteChatUsageLimitError(ctx context.Context, rw http.ResponseWriter, 
 	return true
 }
 
+// statusClientClosedRequest is nginx's non-standard 499 status code,
+// used here to distinguish a client-initiated cancel from a server-
+// side failure when the manual title generation context is canceled.
+const statusClientClosedRequest = 499
+
+// maybeWriteManualTitleTimeoutErr translates context-cancel or
+// title-timeout errors from the manual title pipeline into friendly
+// 499/504 responses instead of a raw 500 that leaks the wrapped error
+// chain. The errors bubble up wrapped, so match with errors.Is. Returns
+// true when a response was written.
+//
+// The 499 branch additionally requires the request context itself to be
+// canceled. A provider error can wrap context.Canceled (for example an
+// upstream 401) while the caller context is still active; without the
+// ctx.Err() guard such a provider failure would be misreported as a
+// client-closed request instead of surfacing through the 500 path.
+//
+// The 504 branch keys off chatd.ErrManualTitleTimedOut, which chatd
+// attaches only when the title-generation deadline actually expired. A
+// provider failure whose chain merely contains an unrelated transport
+// deadline is not tagged and keeps its provider-failure surface.
+func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled):
+		httpapi.Write(ctx, rw, statusClientClosedRequest, codersdk.Response{
+			Message: "Title generation was canceled.",
+		})
+		return true
+	case errors.Is(err, chatd.ErrManualTitleTimedOut):
+		httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
+			Message: "Title generation timed out. Try again or rename manually.",
+		})
+		return true
+	}
+	return false
+}
+
 // requireChatDaemon reports whether the chat daemon exists, writing a 503
 // Service Unavailable with a remediation message when it does not. The
 // daemon is nil when the in-memory AI Gateway is disabled by deployment
@@ -3362,63 +3399,16 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
-// @Summary Regenerate chat title
-// @ID regenerate-chat-title
+// @Summary Propose chat title
+// @ID propose-chat-title
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/title/regenerate [post]
+// @Success 200 {object} codersdk.ProposeChatTitleResponse
+// @Router /api/experimental/chats/{chat}/title/propose [post]
 // @Description Experimental: this endpoint is subject to change.
 //
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	chat := httpmw.ChatParam(r)
-
-	if !api.requireChatDaemon(ctx, rw) {
-		return
-	}
-
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Only the chat owner may regenerate titles. See
-	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may regenerate the title.",
-		})
-		return
-	}
-
-	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
-	if err != nil {
-		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
-			writeNoLocalChatModelResponse(ctx, rw)
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if maybeWriteChatUsageLimitError(ctx, rw, err) {
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to regenerate chat title.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
-}
-
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3454,6 +3444,9 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if maybeWriteChatUsageLimitError(ctx, rw, err) {
+			return
+		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

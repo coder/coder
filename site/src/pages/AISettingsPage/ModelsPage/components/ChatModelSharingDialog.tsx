@@ -210,7 +210,7 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 			},
 			{
 				onSuccess: () => {
-					toast.success(`Sharing for "${modelName}" updated.`);
+					toast.success(`Permissions for "${modelName}" updated.`);
 					close();
 				},
 			},
@@ -228,9 +228,9 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 		>
 			<DialogContent className="max-w-2xl">
 				<DialogHeader>
-					<DialogTitle>Share model</DialogTitle>
+					<DialogTitle>Model permissions</DialogTitle>
 					<DialogDescription>
-						Choose which organization members and groups can use {modelName}.
+						Manage which organization members and groups can use {modelName}.
 					</DialogDescription>
 				</DialogHeader>
 
@@ -244,7 +244,7 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 						className="flex items-center justify-center gap-3 py-10"
 					>
 						<Spinner loading />
-						<span>Loading model sharing</span>
+						<span>Loading model permissions</span>
 					</div>
 				) : !initialized ? null : (
 					<div className="flex flex-col gap-4">
@@ -273,14 +273,14 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 						{isEmpty ? (
 							<div className="rounded-md border border-solid border-border px-6 py-10 text-center">
 								<p className="m-0 text-sm font-medium">
-									No shared members or groups yet
+									No members or groups have permission yet
 								</p>
 								<p className="m-0 mt-2 text-sm text-content-secondary">
 									Add a member or group using the controls above.
 								</p>
 							</div>
 						) : (
-							<Table aria-label="Shared model members and groups">
+							<Table aria-label="Model permissions for members and groups">
 								<TableHeader>
 									<TableRow>
 										<TableHead>Member</TableHead>
@@ -301,7 +301,7 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 														src={group?.avatar_url}
 													/>
 												</TableCell>
-												<TableCell>Read</TableCell>
+												<TableCell>Use</TableCell>
 												<TableCell>
 													<Button
 														variant="subtle"
@@ -331,7 +331,7 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 														src={member?.avatar_url}
 													/>
 												</TableCell>
-												<TableCell>Read</TableCell>
+												<TableCell>Use</TableCell>
 												<TableCell>
 													<Button
 														variant="subtle"
@@ -355,7 +355,7 @@ export const ChatModelSharingDialog: FC<ChatModelSharingDialogProps> = ({
 
 				<DialogFooter>
 					<DialogActions
-						confirmText="Save sharing"
+						confirmText="Save permissions"
 						confirmLoading={updateMutation.isPending}
 						confirmDisabled={isLoading || Boolean(loadError) || !isDirty}
 						onConfirm={save}
