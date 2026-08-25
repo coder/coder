@@ -1220,14 +1220,10 @@ type sqlcQuerier interface {
 	// statement on purpose: the column default supplies it, so no caller can
 	// supply, override, or backdate it.
 	InsertAuthorizationLifecycleJournalFirstLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalFirstLineParams) (AuthorizationLifecycleJournal, error)
-	// NOT LIVE CODE. Nothing calls this. It is here to show what a line after the
-	// first looks like, since the proof of concept writes no multiline entry:
-	// revoke and grant, the case that needs one, is out of scope. It deserves a
-	// unit test of its own and does not have one, so treat it as documentation
-	// rather than as a tested path. In production this would rot; this is not
-	// production.
-	//
-	// A line after the first. Every entry level column is written as a literal
+	// A line after the first. Live since 2026-08-25: retiring an AI agent ends every
+	// authorization naming it, which is one event and so one entry with a line
+	// apiece. Revoke and grant, the other case that wants a multiline entry, is
+	// still out of scope. Every entry level column is written as a literal
 	// null rather than as a parameter, for the same reason line 0 omits the
 	// recording date: what a caller cannot name, a caller cannot get wrong.
 	InsertAuthorizationLifecycleJournalSubsequentLine(ctx context.Context, arg InsertAuthorizationLifecycleJournalSubsequentLineParams) (AuthorizationLifecycleJournal, error)

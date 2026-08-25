@@ -149,13 +149,32 @@ func GrantUniversalAuthorization(ctx context.Context, store database.Store, para
 // record the noticer is the control plane, which is why callers pass
 // SystemActor rather than whoever commanded that ending.
 //
+// **It takes every authorization the one ending ends.** A party ceasing does
+// not end its authorizations one at a time, so this is one entry with a line
+// apiece rather than an entry apiece. Passing a single authorization is a set
+// of one and costs nothing.
+//
+// The caller supplies ledger rows rather than identifiers because the posting
+// is conditioned on the reference each row was read at, and the caller read
+// them to know which ones were still active.
+//
+// **This journal is in the denormalized form**, so the entry level values ride
+// on line zero and every later line writes null in their place. Two statements
+// express that, which is why there are two. See "Entry level values are written
+// once, on line zero" in poc_audit/implementation_patterns.md.
+//
 // store may be a transaction handle, so a lapse can commit with the ending that
 // caused it. Where that ending is not ours to record a sweep has to find it
 // instead, per "Sweeps have three triggers, and never run on the read path" in
 // poc_audit/implementation_patterns.md, and no sweep exists yet.
-func LapseAuthorization(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, effectiveAt time.Time) error {
+func LapseAuthorizations(ctx context.Context, store database.Store, authorizations []database.AuthorizationLedger, actor Ref, effectiveAt time.Time) error {
 	if !actor.Type.Valid() || actor.ID == uuid.Nil {
 		return xerrors.New("an entry needs an actor, so a lapse needs one")
+	}
+	if len(authorizations) == 0 {
+		// No authorization ended, so no event happened. An entry with no line
+		// would assert one did.
+		return nil
 	}
 
 	effective := effectiveAt
@@ -164,37 +183,49 @@ func LapseAuthorization(ctx context.Context, store database.Store, id uuid.UUID,
 	}
 
 	return store.InTx(func(tx database.Store) error {
-		current, err := tx.GetAuthorizationLedgerRowByID(ctx, id)
-		if err != nil {
-			return xerrors.Errorf("read the authorization: %w", err)
-		}
-		if current.State != StateActive {
-			return xerrors.Errorf("authorization %s is already %s", id, current.State)
-		}
-
 		entryID, err := tx.NextAuthorizationLifecycleJournalEntryID(ctx)
 		if err != nil {
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
 
-		_, err = tx.InsertAuthorizationLifecycleJournalFirstLine(ctx, database.InsertAuthorizationLifecycleJournalFirstLineParams{
-			EntryID:       entryID,
-			EffectiveDate: sql.NullTime{Time: effective, Valid: true},
-			ActorType:     sql.NullString{String: string(actor.Type), Valid: true},
-			Actor:         uuid.NullUUID{UUID: actor.ID, Valid: true},
-			Event:         string(EventAuthorizationLapse),
-			Subject:       id,
-		})
-		if err != nil {
-			return xerrors.Errorf("append lapse entry: %w", err)
-		}
+		// Lines in the order the caller read them. Nothing depends on the
+		// order, the entry being one event, but a stable one makes two runs
+		// over the same authorizations comparable.
+		var line int16
+		for _, authorization := range authorizations {
+			if authorization.State != StateActive {
+				return xerrors.Errorf("authorization %s is already %s", authorization.ID, authorization.State)
+			}
 
-		if _, err := tx.TerminateAuthorization(ctx, database.TerminateAuthorizationParams{
-			ID:                 id,
-			PostingReference:   entryID,
-			PostingReference_2: current.PostingReference,
-		}); err != nil {
-			return xerrors.Errorf("post the lapse: %w", err)
+			if line == 0 {
+				_, err = tx.InsertAuthorizationLifecycleJournalFirstLine(ctx, database.InsertAuthorizationLifecycleJournalFirstLineParams{
+					EntryID:       entryID,
+					EffectiveDate: sql.NullTime{Time: effective, Valid: true},
+					ActorType:     sql.NullString{String: string(actor.Type), Valid: true},
+					Actor:         uuid.NullUUID{UUID: actor.ID, Valid: true},
+					Event:         string(EventAuthorizationLapse),
+					Subject:       authorization.ID,
+				})
+			} else {
+				_, err = tx.InsertAuthorizationLifecycleJournalSubsequentLine(ctx, database.InsertAuthorizationLifecycleJournalSubsequentLineParams{
+					EntryID: entryID,
+					Line:    line,
+					Event:   string(EventAuthorizationLapse),
+					Subject: authorization.ID,
+				})
+			}
+			if err != nil {
+				return xerrors.Errorf("append lapse line %d: %w", line, err)
+			}
+
+			if _, err := tx.TerminateAuthorization(ctx, database.TerminateAuthorizationParams{
+				ID:                 authorization.ID,
+				PostingReference:   entryID,
+				PostingReference_2: authorization.PostingReference,
+			}); err != nil {
+				return xerrors.Errorf("post the lapse: %w", err)
+			}
+			line++
 		}
 		return nil
 	}, nil)

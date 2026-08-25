@@ -317,13 +317,17 @@ func lapseAuthorizationsOf(ctx context.Context, tx database.Store, agentID uuid.
 	if err != nil {
 		return xerrors.Errorf("read the agent's authorizations: %w", err)
 	}
+	// The read returns every authorization whatever its state, so the ones
+	// already ended are dropped rather than skipped inside the loop: they are
+	// not part of this event and must not occupy a line of it.
+	active := make([]database.AuthorizationLedger, 0, len(rows))
 	for _, row := range rows {
-		if row.State != StateActive {
-			continue
+		if row.State == StateActive {
+			active = append(active, row)
 		}
-		if err := LapseAuthorization(ctx, tx, row.ID, SystemActor, effective); err != nil {
-			return xerrors.Errorf("lapse authorization %s: %w", row.ID, err)
-		}
+	}
+	if err := LapseAuthorizations(ctx, tx, active, SystemActor, effective); err != nil {
+		return xerrors.Errorf("lapse the agent's authorizations: %w", err)
 	}
 	return nil
 }
@@ -331,8 +335,9 @@ func lapseAuthorizationsOf(ctx context.Context, tx database.Store, agentID uuid.
 // lapseCredentialsOf invalidates every credential a retired AI agent holds.
 //
 // The read returns only the valid ones, so unlike the authorizations there is
-// nothing to skip. More than one may be valid at once, a rotation being allowed
-// to overlap, so this is a loop rather than a lookup.
+// nothing to drop. More than one may be valid at once, a rotation being allowed
+// to overlap, so this is a set rather than a lookup, and the whole set ends as
+// one event.
 func lapseCredentialsOf(ctx context.Context, tx database.Store, agentID uuid.UUID, effective time.Time) error {
 	rows, err := tx.GetValidCredentialsByHolder(ctx, database.GetValidCredentialsByHolderParams{
 		HolderType: string(TypeAIAgent),
@@ -341,10 +346,8 @@ func lapseCredentialsOf(ctx context.Context, tx database.Store, agentID uuid.UUI
 	if err != nil {
 		return xerrors.Errorf("read the agent's credentials: %w", err)
 	}
-	for _, row := range rows {
-		if err := LapseCredential(ctx, tx, row.ID, SystemActor, effective); err != nil {
-			return xerrors.Errorf("lapse credential %s: %w", row.ID, err)
-		}
+	if err := LapseCredentials(ctx, tx, rows, SystemActor, effective); err != nil {
+		return xerrors.Errorf("lapse the agent's credentials: %w", err)
 	}
 	return nil
 }

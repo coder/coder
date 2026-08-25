@@ -1858,9 +1858,10 @@ milestone 2 was sound.
 
 ### Status
 
-**Not yet fully written.** Three milestones are in scope and more journal
-structure work is expected to join them before this is planned properly. What
-follows states what forces each and what is unresolved, not how it is done.
+**Complete**, 2026-08-25. Four milestones: the atomic group, `reissue` left
+documented rather than built, the rotation rewrite, and a retirement becoming one
+event. The fourth was the further journal structure work this package was opened
+expecting to gather.
 
 **Milestone 1 has landed**, 2026-08-25, with migration 000591. An entry now
 carries the party and the moment, and a line carries the credential and what
@@ -1873,8 +1874,8 @@ its section, and `credential_expiration.working_state.md` for the reasoning.
 **Milestone 3 has landed**, 2026-08-25. `RotateKey` exists, both sites call it,
 and a rotation is now one entry naming both credentials.
 
-**What is left in this package is the authorization journal**, recorded under
-milestone 1. Everything the package was opened with is done.
+**Milestone 4 has landed**, 2026-08-25, and closes the package. A retirement is
+one event on both journals rather than an entry per thing ended.
 
 **One item has left, complete.** The two-form entailing reference was pulled
 into WP11 milestone 3 and shipped with migration 000590: `entailed_by_entry` and
@@ -1968,16 +1969,20 @@ history returns the line naming it and the entry identifier that says the two
 happened together. It exercises the store directly, because the schema is what
 this milestone changed and nothing in production writes a two line entry yet.
 
-#### The authorization journal has the same need, and this did not take it
+#### What the other two journals want, corrected on measurement
 
-`lapseAuthorizationsOf` loops and writes one entry per authorization, exactly as
-`lapseCredentialsOf` does for credentials. So one retirement produces N entries
-on both journals where the model wants one entry with N lines. **The AI agent
-journal does not need it**, one agent being one subject per event.
+I first recorded that the authorization journal needed the same schema change.
+**It does not.** It is already in the denormalized form with `PRIMARY KEY
+(entry_id, line)`, entry level values on line zero under checks, and two insert
+statements expressing that. It has been able to carry a multiline entry all
+along; nothing wrote one. The credential journal took the normalized form
+because it has a type specific line table, which is what
+`implementation_patterns.md` means by heterogeneity deciding the form.
 
-That answers the open question this package recorded, in the direction of a
-second milestone rather than a wider first one. It is the further journal
-structure work this package expected to gather.
+So the remaining work was never schema. It was that **a retirement is one event
+and was written as many**, on both journals. That became milestone 4.
+
+**The AI agent journal wants neither**, one agent being one subject per event.
 
 #### A pre-existing gap this surfaced
 
@@ -2094,12 +2099,43 @@ ledger holds both credentials and the overlap is the ledger's.
 
 The note is here to explain the write order and goes when the mirror does.
 
+### Milestone 4: a retirement is one event
+
+**Done**, 2026-08-25, and it is what milestone 1 was for.
+
+**What forced it.** Retiring an AI agent ends every authorization naming it and
+every credential it holds. A holder ceasing does not end its credentials one at
+a time, so those endings are one event, and both journals recorded them as an
+entry apiece. `audit_approach.md` defines an atomic group as one event and not
+several that happen to coincide; this was several that coincided, asserted as
+such.
+
+**What changed.** `LapseCredential` and `LapseAuthorization` became
+`LapseCredentials` and `LapseAuthorizations`, each taking the set the one ending
+ends and writing one entry with a line apiece. Both had exactly one caller, the
+retirement, so this replaced them rather than sitting beside them. They take
+ledger rows rather than identifiers, the posting being conditioned on the
+reference each row was read at and the caller having read them already.
+
+**An empty set writes nothing.** No credential ended means no event happened,
+and an entry with no line would assert one did.
+
+**It made a documented dead statement live.**
+`InsertAuthorizationLifecycleJournalSubsequentLine` carried a comment saying
+nothing called it, that the proof of concept wrote no multiline entry, and that
+it should be read as documentation rather than a tested path. A retirement is
+now that path, and the comment says so.
+
+**Acceptance test**: `ARetirementIsOneEvent` in `coderd/entity`. An agent with
+two credentials and two authorizations is retired; each journal shows one entry
+with both subjects on separate lines, and the authorization journal's later line
+carries null where the entry level values sit, which is the denormalized rule
+holding. Negative control run: writing an entry per credential fails it.
+
 ### Not written yet
 
-Milestone 3 step two's acceptance test. The rest of what this section held has
-been answered: milestone 1's shape and test landed with migration 000591, and
-the authorization journal's identical need is recorded under that milestone as
-the next piece of journal structure work rather than an open question.
+Nothing. Everything this package opened with is done, and the further journal
+structure work it expected to gather turned out to be milestone 4.
 
 ## WP14. An AI agent's own endpoints
 

@@ -354,6 +354,71 @@ func TestRetireAIAgent(t *testing.T) {
 		require.Equal(t, credential.LifecyclePostingReference, credLapse.EntryID)
 	})
 
+	// A holder ceasing does not end its credentials one at a time. Everything
+	// a retirement ends belongs to one event, so each journal records one entry
+	// with a line for each thing ended, rather than an entry apiece.
+	t.Run("ARetirementIsOneEvent", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agent, owner := newAgent(t, ctx, db)
+
+		// A second of each, so there is something to gather. With one apiece
+		// the assertion below would hold whatever shape the writes took.
+		second, err := entity.IssueCredential(ctx, db, entity.IssueCredentialParams{
+			Holder: entity.Ref{Type: entity.TypeAIAgent, ID: agent.ID},
+			Actor:  owner,
+		})
+		require.NoError(t, err)
+		secondGrant, err := entity.GrantUniversalAuthorization(ctx, db, entity.GrantParams{
+			Principal: owner,
+			Agent:     entity.Ref{Type: entity.TypeAIAgent, ID: agent.ID},
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentKill, owner, time.Time{}))
+
+		credLapse := func(subject uuid.UUID) database.GetCredentialLifecycleJournalEntriesBySubjectRow {
+			rows, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+				database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: subject, Limit: 10})
+			require.NoError(t, err)
+			require.NotEmpty(t, rows)
+			last := rows[len(rows)-1]
+			require.Equal(t, string(entity.EventCredentialLapse), last.Event)
+			return last
+		}
+		first, other := credLapse(agent.CredentialID), credLapse(second.ID)
+		require.Equal(t, first.EntryID, other.EntryID,
+			"one holder ceased, so one event ended both credentials")
+		require.NotEqual(t, first.Line, other.Line, "each credential has its own line")
+
+		authLapse := func(subject uuid.UUID) database.AuthorizationLifecycleJournal {
+			rows, err := db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx,
+				database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{Subject: subject, Limit: 10})
+			require.NoError(t, err)
+			require.NotEmpty(t, rows)
+			last := rows[len(rows)-1]
+			require.Equal(t, string(entity.EventAuthorizationLapse), last.Event)
+			return last
+		}
+		firstAuth, otherAuth := authLapse(agent.AuthorizationID), authLapse(secondGrant)
+		require.Equal(t, firstAuth.EntryID, otherAuth.EntryID,
+			"one party ceased, so one event ended both authorizations")
+		require.NotEqual(t, firstAuth.Line, otherAuth.Line)
+
+		// This journal is denormalized, so the entry level values ride on line
+		// zero and a later line writes null in their place. A later line
+		// carrying an actor would be a second copy able to disagree.
+		later := firstAuth
+		if later.Line == 0 {
+			later = otherAuth
+		}
+		require.False(t, later.Actor.Valid, "the actor is the entry's, written once")
+		require.False(t, later.EffectiveDate.Valid)
+		require.False(t, later.RecordingDate.Valid)
+	})
+
 	t.Run("LapsedCredentialsStopVerifying", func(t *testing.T) {
 		t.Parallel()
 

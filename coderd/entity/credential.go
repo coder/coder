@@ -810,14 +810,67 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 // not acquire this shape by being written to match. Until then, read the actor
 // on a lapse entry as noise.
 //
+// **It takes every credential the one ending ends.** A holder ceasing does not
+// end its credentials one at a time, so this is one entry with a line apiece
+// rather than an entry apiece. Passing a single credential is a set of one and
+// costs nothing.
+//
+// The caller supplies ledger rows rather than identifiers because the posting
+// is conditioned on the reference each row was read at, and the caller read
+// them to know which ones were still valid.
+//
 // store may be a transaction handle, so a lapse can commit with the ending that
 // caused it.
-func LapseCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, effectiveAt time.Time) error {
+func LapseCredentials(ctx context.Context, store database.Store, credentials []database.CredentialLedger, actor Ref, effectiveAt time.Time) error {
 	if !actor.Type.Valid() || actor.ID == uuid.Nil {
 		return xerrors.New("an entry needs an actor, so a lapse needs one")
 	}
+	if len(credentials) == 0 {
+		// No credential ended, so no event happened. An entry with no line
+		// would assert one did.
+		return nil
+	}
 
-	return invalidateCredential(ctx, store, id, actor, EventCredentialLapse, effectiveAt, EntailedBy{})
+	effective := effectiveAt
+	if effective.IsZero() {
+		effective = time.Now()
+	}
+
+	return store.InTx(func(tx database.Store) error {
+		entryID, err := tx.NextCredentialLifecycleJournalEntryID(ctx)
+		if err != nil {
+			return xerrors.Errorf("take an entry identifier: %w", err)
+		}
+
+		// The actor is written because the schema still asks for one. See the
+		// status note above: on a lapse it is noise.
+		actorType, actorID := optionalActor(actor)
+		if _, err := tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
+			EntryID:              entryID,
+			EffectiveDate:        effective,
+			ActorType:            actorType,
+			Actor:                actorID,
+			EntailedByEntry:      sql.NullInt64{},
+			EntailedByAnnotation: sql.NullString{},
+		}); err != nil {
+			return xerrors.Errorf("append lapse entry: %w", err)
+		}
+
+		// Lines in the order the caller read them. Nothing depends on the
+		// order, the entry being one event, but a stable one makes two runs
+		// over the same credentials comparable.
+		var line int16
+		for _, credential := range credentials {
+			if credential.State != CredentialStateValid {
+				return xerrors.Errorf("credential %s is already %s", credential.ID, credential.State)
+			}
+			if err := postInvalidation(ctx, tx, entryID, line, credential.ID, EventCredentialLapse, credential); err != nil {
+				return err
+			}
+			line++
+		}
+		return nil
+	}, nil)
 }
 
 // invalidateCredential writes the entry and posts it. Both transitions into
@@ -861,9 +914,8 @@ func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUI
 		}
 
 		// Line zero, an ending naming the one credential it ends. A retirement
-		// ending several of a holder's credentials still writes an entry
-		// apiece; gathering those into one entry with a line each is what this
-		// shape now permits and is not done here.
+		// ends several at once and goes through LapseCredentials instead,
+		// which writes one entry with a line apiece.
 		return postInvalidation(ctx, tx, entryID, 0, id, event, current)
 	}, nil)
 }
