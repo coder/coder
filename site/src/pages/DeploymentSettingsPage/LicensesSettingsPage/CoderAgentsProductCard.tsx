@@ -122,7 +122,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 		return (
 			<CardContainer
 				title={isTrial ? "Coder Agents Trial" : "Coder Agents"}
-				className="border-dashed border-highlight-purple"
+				className="border-dashed border-border"
 			>
 				<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 					<MinutesUsedMetric actualMinutes={actualMinutes} />
