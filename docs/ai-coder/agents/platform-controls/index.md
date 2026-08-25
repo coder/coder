@@ -8,18 +8,20 @@ burden.
 
 This means:
 
-- **All agent configuration is admin-level.** Providers, models, system prompts,
-  and tool permissions are set by platform teams from the control plane. These
-  are not user preferences — they are deployment-wide policies.
+- **All agent configuration is admin-level.** Providers, models, system prompts, and tool permissions are set by administrators from the control plane.
+  These are not user preferences.
+  Deployment administrators own the deployment-wide policies.
+  Users with organization configuration access own the models and the MCP servers of their organization.
+  Refer to [Organization scope](./organizations.md) for the split between the 2 scopes.
 - **Developers never need to configure anything by default.** A developer just
   describes the work they want done. They do not need to pick a provider or
-  write a system prompt — the platform team has already set all of that up.
+  write a system prompt. The platform team has already set all of that up.
   When a platform team enables user API keys for a provider, developers may
-  optionally supply their own key — but this is an opt-in policy decision, not
+  optionally supply their own key, but this is an opt-in policy decision, not
   a requirement.
-- **Enforcement, not defaults.** Settings configured by administrators are
-  enforced server-side. Developers cannot override them. This is a deliberate
-  distinction — a setting that a user can change is a preference, not a policy.
+- **Enforcement, not defaults.** Settings configured by administrators are enforced server-side.
+  Developers cannot override them.
+  A setting that a user can change is a preference, not a policy.
 
 This is an architectural decision, not just a product choice. Because the agent
 loop runs in the control plane rather than inside developer workspaces, there is
@@ -36,15 +38,23 @@ Coder dashboard. This includes API keys, base URLs (for enterprise proxies or
 self-hosted models), and per-model parameters like context limits, thinking
 budgets, and reasoning effort.
 
+Providers are deployment-wide.
+Models belong to an organization, so each organization has its own model list and its own default model.
+
 Developers select from the set of models an administrator has enabled. They
 cannot add their own providers or access models that have not been explicitly
 configured.
 
 When an administrator enables user API keys on a provider, developers can
-supply their own key from the Agents settings page. See
+supply their own key from the Agents settings page. Refer to
 [User API keys (BYOK)](../models.md#user-api-keys-byok) for details.
 
-See [Models](../models.md) for setup instructions.
+An administrator can also enable personal model overrides, which let a developer
+select a different model for their own chats. Coder disables personal model
+overrides until an administrator enables them.
+
+Refer to [Models](../models.md) for setup instructions.
+Refer to [Organization scope](./organizations.md) for the organization scope and the upgrade behavior.
 
 ### System prompt
 
@@ -52,7 +62,7 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-This setting is available under **AI Settings** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers do not see or interact with it.
+This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers can't access or interact with it.
 
 ### Plan mode instructions
 
@@ -61,7 +71,7 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **AI Settings** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
+This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions**. Developers do not edit it directly.
 
 The same value is exposed over the chat configuration API:
 
@@ -74,22 +84,23 @@ Platform teams control which templates are available to agents and how the agent
 selects them. When a developer describes a task, the agent reads template
 descriptions to determine which template to provision.
 
-By writing clear template descriptions — for example, "Use this template for
-Python backend services in the payments repo" — platform teams can guide the
+By writing clear template descriptions, for example, "Use this template for
+Python backend services in the payments repo", platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents at **Agents** > **Settings** > **Manage Agents** > **Templates**.
+Administrators can also restrict which templates are available to agents at **Admin settings** > **AI** > **Coder Agents** > **Templates**.
 Use the switch for each template in the list.
 The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces using this template**.
 Templates allow agents by default.
 When you disable the control, the agent cannot read the template or provision workspaces from it.
 This is separate from what developers observe when manually creating workspaces, so you can apply stricter policies to agent-created workspaces without affecting the manual workspace experience.
 
-See [Template Optimization](./template-optimization.md) for best practices on writing
-discoverable descriptions, restricting template visibility, configuring network
-boundaries, scoping credentials, and designing template parameters for agent
-use.
+The same control is available outside the dashboard.
+Use `coder templates create --agents-allowed=false` or `coder templates edit --agents-allowed=false <template>` for a single template.
+Use the search filter `agents-allowed:false` on `GET /api/v2/templates` to list the templates that block agents.
+
+Check out [Template Optimization](./template-optimization.md) for best practices on writing discoverable descriptions, restricting template visibility, configuring network boundaries, scoping credentials, and designing template parameters for agent use.
 
 ### MCP servers
 
@@ -99,7 +110,9 @@ authentication, controlling which tools are exposed via allow/deny lists, and
 setting availability policies that determine whether a server is mandatory,
 opt-out, or opt-in for each chat.
 
-See [MCP Servers](./mcp-servers.md) for configuration details.
+Each organization has its own set of MCP servers.
+
+Refer to [MCP Servers](./mcp-servers.md) for configuration details.
 
 ### Workspace autostop fallback
 
@@ -107,10 +120,9 @@ Administrators can set a default autostop timer for agent-created workspaces
 that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Lifecycle**. The maximum configurable value is 30
-days. When disabled, workspaces follow their template's autostop rules (or
-none, if the template does not define any).
+This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
+The maximum configurable value is 30 days.
+When disabled, workspaces follow their template's autostop rules (or none, if the template does not define any).
 
 ### Concurrent agents
 
@@ -155,16 +167,15 @@ Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
 retention period are automatically purged. The default is 30 days.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Lifecycle**. See [Data Retention](./chat-retention.md)
-for details.
+This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**.
+Refer to [Data Retention](./chat-retention.md) for details.
 
 ### Experiments
 
 Administrators enable experimental features using the `--experiments` flag on
 `coder server` (or the `CODER_EXPERIMENTS` environment variable). Once enabled,
-runtime configuration for those features is available under **AI Settings** >
-**Coder Agents**.
+runtime configuration for those features is available under **Admin settings** >
+**AI** > **Coder Agents**.
 
 See the following pages for experiment-gated features:
 
