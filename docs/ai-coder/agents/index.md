@@ -275,9 +275,7 @@ skills in its `.agents/skills/` directory.
 `propose_plan` and `ask_user_question` are only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
-Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
-Dynamic, provider-native, and computer-use tools are blocked.
 
 ## Plan mode
 
@@ -297,6 +295,7 @@ While plan mode is active:
 - `execute` and `process_output` remain available for exploration, such as cloning repositories, searching code, and running inspection commands.
 - External MCP tools are available to root chats only for the server configurations an administrator approved for plan mode; workspace MCP tools and MCP tools for plan-mode sub-agents are not available.
 - Dynamic tools, provider-native tools, and computer-use tools are not available.
+- Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 
 This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal
