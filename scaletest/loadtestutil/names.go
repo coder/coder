@@ -28,7 +28,7 @@ func GenerateUserIdentifier(id string) (username, email string, err error) {
 // testing using a caller-supplied username prefix. The username follows the
 // pattern: <prefix><random>-<id>. Callers are expected to keep the "scaletest-"
 // root in prefix so users created with a custom prefix are still discovered by
-// IsScaleTestUser and the scaletest cleanup command; a caller-chosen sub-prefix
+// IsScaleTestUser and the scaletest cleanup command; a caller-chosen infix
 // is inserted between the root and the random suffix (for example prefix
 // "scaletest-asdf-" yields scaletest-asdf-<random>-<id>). The email keeps the
 // scaletest domain regardless (<random>-<id>@scaletest.local).

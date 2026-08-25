@@ -23,7 +23,7 @@ func (r *RootCmd) scaletestCreateUsers() *serpent.Command {
 	var (
 		count                   int64
 		templateAdminPercentage float64
-		usernamePrefix          string
+		usernameInfix           string
 		noCleanup               bool
 
 		tracingFlags    = &scaletestTracingFlags{}
@@ -95,12 +95,12 @@ func (r *RootCmd) scaletestCreateUsers() *serpent.Command {
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 
 			// The scaletest- root is always kept so the cleanup command still
-			// finds these users; --username-prefix is inserted between it and the
-			// random suffix, e.g. --username-prefix asdf produces usernames like
+			// finds these users; --username-infix is inserted between it and the
+			// random suffix, e.g. --username-infix asdf produces usernames like
 			// scaletest-asdf-<random>-<id>.
 			userPrefix := loadtestutil.ScaleTestPrefix + "-"
-			if usernamePrefix != "" {
-				userPrefix += usernamePrefix + "-"
+			if usernameInfix != "" {
+				userPrefix += usernameInfix + "-"
 			}
 
 			_, _ = fmt.Fprintln(inv.Stderr, "Creating users...")
@@ -208,10 +208,10 @@ func (r *RootCmd) scaletestCreateUsers() *serpent.Command {
 			Value:       serpent.Float64Of(&templateAdminPercentage),
 		},
 		{
-			Flag:        "username-prefix",
-			Env:         "CODER_SCALETEST_CREATE_USERS_USERNAME_PREFIX",
-			Description: "Optional sub-prefix inserted between the mandatory \"scaletest-\" root and the rest of each generated username. For example --username-prefix asdf produces usernames like scaletest-asdf-<random>-<id>; leave empty for the default scaletest-<random>-<id> names. Use it to partition users into disjoint pools that a matching --reuse-users run can select. The scaletest- root is always kept so the cleanup command still discovers the users.",
-			Value:       serpent.StringOf(&usernamePrefix),
+			Flag:        "username-infix",
+			Env:         "CODER_SCALETEST_CREATE_USERS_USERNAME_INFIX",
+			Description: "Optional infix inserted between the mandatory \"scaletest-\" root and the rest of each generated username. For example --username-infix asdf produces usernames like scaletest-asdf-<random>-<id>; leave empty for the default scaletest-<random>-<id> names. Use it to partition users into disjoint pools that a matching --reuse-users run can select. The scaletest- root is always kept so the cleanup command still discovers the users.",
+			Value:       serpent.StringOf(&usernameInfix),
 		},
 		{
 			Flag:        "no-cleanup",

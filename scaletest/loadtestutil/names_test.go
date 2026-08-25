@@ -25,7 +25,7 @@ func TestGenerateUserIdentifierWithPrefix(t *testing.T) {
 			wantPrefix: "scaletest-",
 		},
 		{
-			name:       "sub-prefix inserted after scaletest root",
+			name:       "infix inserted after scaletest root",
 			prefix:     loadtestutil.ScaleTestPrefix + "-notif-",
 			wantPrefix: "scaletest-notif-",
 		},
