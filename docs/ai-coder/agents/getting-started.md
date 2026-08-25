@@ -17,7 +17,11 @@ Before you begin, confirm the following:
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
-- **Organization membership** for each user who uses Coder Agents.
+- **Organization membership** for each user who uses Coder Agents. Users
+  also need read access to at least one model in the organization. New models
+  are shared with the whole organization by default; to restrict who can use
+  Coder Agents, narrow the model access lists. See
+  [Share a model](./models.md#share-a-model).
 
 ## Step 1: Configure an LLM provider and model
 
