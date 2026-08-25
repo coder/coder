@@ -474,6 +474,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{template.use_classic_parameter_flow && (
 						<Alert
 							severity="warning"
+							prominent
 							actions={
 								canUpdateTemplate && (
 									<Button asChild size="sm" variant="outline">

@@ -57,7 +57,7 @@ const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
 	templateCount,
 }) => {
 	return (
-		<Alert severity="warning" className="mt-6">
+		<Alert severity="warning" prominent className="mt-6">
 			<AlertTitle>
 				{templateCount === 1
 					? "1 template still uses the classic parameter flow"
