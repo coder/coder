@@ -17,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -702,32 +704,33 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		}, member, "activated_account_name")
 	})
 
-	t.Run("AI agent target skips personal notification", func(t *testing.T) {
+	// **User administration cannot reach an AI agent, because there is no row
+	// to name.** This case used to assert that suspending an agent skipped the
+	// personal notification, an agent having nobody to notify. Suspending one
+	// is no longer possible: the suppression went with the row, and what is
+	// worth asserting is that the endpoint does not find an agent at all.
+	//
+	// That is also what closes the window milestone 2 opened, in which an
+	// agent's users row could still be suspended while nothing read its status.
+	t.Run("AI agent is not a user to administer", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &notificationstest.FakeEnqueuer{}
-		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			NotificationsEnqueuer: notifyEnq,
-		})
+		adminClient, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
 		firstUser := coderdtest.CreateFirstUser(t, adminClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		agent, err := db.InsertAIAgentUser(dbauthz.AsSystemRestricted(ctx), database.InsertAIAgentUserParams{
-			ID:        uuid.New(),
-			Username:  "ai-test-" + uuid.NewString()[:8],
-			CreatedAt: dbtime.Now(),
+		agent, err := aiagentidentity.Create(dbauthz.AsSystemRestricted(ctx), db, aiagentidentity.CreateParams{ //nolint:gocritic // Test setup.
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			OriginType:     entity.CreationSiteTypeChat,
+			OriginID:       uuid.New(),
 		})
 		require.NoError(t, err)
-		notifyEnq.Clear()
 
 		_, err = adminClient.UpdateUserStatus(ctx, agent.ID.String(), codersdk.UserStatusSuspended)
-		require.NoError(t, err)
-
-		sent := notifyEnq.Sent()
-		require.Len(t, sent, 1)
-		require.Equal(t, notifications.TemplateUserAccountSuspended, sent[0].TemplateID)
-		require.Equal(t, firstUser.UserID, sent[0].UserID)
-		require.NotEqual(t, agent.ID, sent[0].UserID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
 

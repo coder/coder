@@ -32,7 +32,6 @@ func expectActiveChatOwner(db *dbmock.MockStore) {
 		DoAndReturn(func(_ context.Context, id uuid.UUID) (database.User, error) {
 			return database.User{
 				ID:     id,
-				Kind:   database.UserKindHuman,
 				Status: database.UserStatusActive,
 			}, nil
 		}).

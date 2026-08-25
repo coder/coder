@@ -1891,10 +1891,10 @@ func (mr *MockStoreMockRecorder) GetAIAgentLifecycleJournalCreateLines(ctx, entr
 }
 
 // GetAIAgentsByOwner mocks base method.
-func (m *MockStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
+func (m *MockStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.AIAgentLedger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAIAgentsByOwner", ctx, ownerID)
-	ret0, _ := ret[0].([]database.GetAIAgentsByOwnerRow)
+	ret0, _ := ret[0].([]database.AIAgentLedger)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7857,21 +7857,6 @@ func (m *MockStore) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg 
 func (mr *MockStoreMockRecorder) InsertAIAgentLifecycleJournalEntry(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentLifecycleJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertAIAgentLifecycleJournalEntry), ctx, arg)
-}
-
-// InsertAIAgentUser mocks base method.
-func (m *MockStore) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertAIAgentUser", ctx, arg)
-	ret0, _ := ret[0].(database.User)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertAIAgentUser indicates an expected call of InsertAIAgentUser.
-func (mr *MockStoreMockRecorder) InsertAIAgentUser(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIAgentUser", reflect.TypeOf((*MockStore)(nil).InsertAIAgentUser), ctx, arg)
 }
 
 // InsertAIBridgeInterception mocks base method.

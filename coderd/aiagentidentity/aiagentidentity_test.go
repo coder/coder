@@ -1,6 +1,7 @@
 package aiagentidentity_test
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -36,11 +37,12 @@ func TestCreateAndMintKey(t *testing.T) {
 		OriginID:       originID,
 	})
 	require.NoError(t, err)
-	require.Equal(t, database.UserKindAIAgent, agent.Kind)
-	require.Equal(t, database.LoginTypeNone, agent.LoginType)
-	require.Empty(t, agent.Email)
-	require.False(t, agent.IsServiceAccount)
-	require.Equal(t, database.UserStatusActive, agent.Status)
+	// **An AI agent has no users row.** These assertions used to describe one,
+	// checking the kind, login type and status the mirror was written with.
+	// Nothing writes it now, so what is worth asserting is its absence.
+	_, err = db.GetUserByID(ctx, agent.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "an AI agent is not a user")
+
 	ledger, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 	require.NoError(t, err)
 	require.Equal(t, owner.ID, ledger.OwnerID)

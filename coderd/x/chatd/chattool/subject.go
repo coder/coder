@@ -48,7 +48,7 @@ func PlatformSubject(ctx context.Context, db database.Store, ownerID uuid.UUID) 
 	// Whether the agent is live is the ledger's answer and Resolve has already
 	// given it, refusing anything but active. A second check against a mirrored
 	// users row would be a second opinion able to disagree with the authority.
-	if identity.OwnerUser.ID != ownerID || identity.OwnerUser.Kind != database.UserKindHuman ||
+	if identity.OwnerUser.ID != ownerID ||
 		identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
 		return rbac.Subject{}, uuid.Nil, xerrors.Errorf("chat AI agent owner %s is not an active human user", ownerID)
 	}

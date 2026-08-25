@@ -1757,15 +1757,13 @@ left behind.
 
 ### Status
 
-**Milestones 1 and 2 are done**, 2026-08-25. No AI agent is decided by a users
-row any more, and `Resolve` no longer reads one. Milestone 3, which removes the
-row itself, has not started.
+**Complete**, 2026-08-25. An AI agent has no `users` row, `users` has no `kind`
+column, and `user_kind` is gone. `aiagentidentity.Create` returns
+`entity.NewAIAgent`, the ledger's own value, rather than a mirrored row.
 
-**Milestones 2 and 3 leave a window between them and should land back to back.**
-Milestone 2 stops reading the users row's status; milestone 3 removes the row.
-Between the two, suspending an agent's users row no longer stops it, and the row
-is still there to suspend. On `tigre` that window is the gap between two
-commits, which is why it is stated rather than mitigated.
+The window between milestones 2 and 3 lasted one commit and is closed. It is
+recorded under milestone 2 rather than removed, because what closed it is worth
+keeping: user administration cannot reach an agent, there being no row to name.
 
 ### What forces the work
 
@@ -1849,9 +1847,41 @@ the window recorded under Status.
 
 ### Milestone 3: the row goes
 
-`aiagentidentity.Create` stops writing it, the AI agents endpoint derives the
-username instead of joining, and the two guards and the notification suppression
-go with it.
+**Done**, 2026-08-25, with migration 000592. `Create` writes no row and returns
+`entity.NewAIAgent`; the AI agents endpoint computes the username; the two
+`apikey.go` guards and the `users.go` notification suppression went with the
+row, all four having existed only because an agent could be named as a user.
+
+**Three things came up that this package had not recorded.**
+
+**`aibridge_interceptions.initiator_id` referenced `users` and had to stop.** It
+is `NOT NULL` and, for an AI agent's key, the initiator *is* the agent, so the
+reference could not survive the row. Dropping it is the change
+`api_keys.holder_id` already took and for the same reason: the column names
+whoever acted, and not every actor is a person. **What is given up is the
+database's guarantee that an initiator exists**, and reconciling interceptions
+against the two ledgers is what replaces it. Nothing does that yet.
+
+**Dropping the column silently took two check constraints with it**, neither
+about AI agents. `users_email_not_empty` and `users_service_account_login_type`
+both named `kind` only to exempt an agent from a rule meant for people, and
+Postgres drops any constraint depending on a dropped column. Both are restored
+without the exemption, which makes them stricter than they were: there is no
+longer a kind of user they do not apply to. Nothing would have reported the
+loss; the generated `check_constraint.go` shrinking is what caught it.
+
+**`aibridgedserver.IsAuthorized` fetched a users row for every key holder.** For
+an agent that fetch would now fail, so the agent path returns before it, with
+the name computed from the ledger. The user path is unchanged below it.
+
+**Three tests changed what they assert, and the reason is the same in each.**
+The AI seats and dormancy exclusions used to rest on a `kind = 'human'` filter;
+they now rest on an agent having no users row at all, and the seats case asserts
+the foreign key refusing it, which a filter could never do. The notification
+case asserted that suspending an agent skipped the personal notification; it now
+asserts that suspending one is not possible. The api key guard case asserted
+403; it now asserts 404, the endpoint resolving no user before a guard would
+have run.
 
 **There are seventeen `kind = 'human'` filters, not six.** Six are in
 `users.sql`; the rest are in `groupmembers.sql` (five), `insights.sql`,
@@ -1880,6 +1910,8 @@ None, and nothing structural holds the row in place: `ai_agent_ledger.id` has no
 foreign key to `users`.
 
 ### Acceptance tests
+
+All met.
 
 **No AI agent has a `users` row**, and `InsertAIAgentUser` is gone.
 

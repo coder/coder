@@ -27,7 +27,7 @@ import (
 type aiAgentAuthFixture struct {
 	db        database.Store
 	owner     database.User
-	agentUser database.User
+	agentUser entity.NewAIAgent
 	token     string
 }
 
@@ -90,7 +90,8 @@ func TestAIAgentPermissionCeiling(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, status)
 	require.Equal(t, fixture.owner.ID.String(), firstSubject.ID)
 	require.Equal(t, rbac.SubjectTypeAIAgent, firstSubject.Type)
-	require.Equal(t, fixture.agentUser.Username, firstSubject.FriendlyName)
+	require.Equal(t, entity.DisplayName(entity.CreationSiteTypeChat, fixture.agentUser.ID), firstSubject.FriendlyName,
+		"the friendly name is computed, there being no users row to read it from")
 
 	authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 	template := rbac.ResourceTemplate.WithID(uuid.New()).InOrg(uuid.New())

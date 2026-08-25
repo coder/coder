@@ -387,10 +387,10 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, member.ID, agent.OwnerID)
 		require.Equal(t, entity.AIAgentStateActive, agent.State)
 
-		agentUser, err := db.GetUserByID(sysCtx, agent.ID)
-		require.NoError(t, err)
-		require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
-		require.Equal(t, database.LoginTypeNone, agentUser.LoginType)
+		// The agent is a ledger row and nothing else. These assertions used
+		// to describe a mirrored users row, checking its kind and login type.
+		_, err = db.GetUserByID(sysCtx, agent.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "an AI agent is not a user")
 
 		keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
 			HolderID:  database.HolderID(agent.ID),

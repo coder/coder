@@ -16,7 +16,6 @@ JOIN
 	users u
 ON
 	u.id = tus.user_id
-	AND u.kind = 'human'::user_kind
 WHERE
 	tus.start_time >= @start_time::timestamptz
 	AND tus.end_time <= @end_time::timestamptz
@@ -73,7 +72,6 @@ JOIN
 	users u
 ON
 	u.id = ds.user_id
-	AND u.kind = 'human'::user_kind
 JOIN
 	template_ids t
 ON
@@ -809,7 +807,7 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 -- The time range is inclusively defined by the start_time and end_time parameters.
 WITH
 excluded_users AS (
-    SELECT id FROM users WHERE is_system = TRUE OR kind = 'ai_agent'::user_kind
+    SELECT id FROM users WHERE is_system = TRUE
 ),
 	-- dates_of_interest generates the dates that will represent the horizontal axis of the chart.
 dates_of_interest AS (

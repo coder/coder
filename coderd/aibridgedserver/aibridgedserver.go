@@ -802,6 +802,43 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrInvalidKey
 	}
 
+	// **The key says what kind of actor holds it, and the holder decides which
+	// table answers for it.** An AI agent has no users row, so fetching one
+	// would fail for every agent key rather than tell us anything.
+	if agentID, ok := key.AIAgentID(); ok {
+		// Authentication must resolve identity metadata before an actor exists.
+		identityCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
+		agent, err := s.store.GetAIAgentLedgerRowByID(identityCtx, agentID)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to retrieve AI agent identity", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.Error(err))
+			return nil, ErrInvalidAIAgent
+		}
+		// The ledger's state is the agent's liveness, standing where a users
+		// row's deleted and status flags stood for a human.
+		if agent.State != entity.AIAgentStateActive {
+			return nil, ErrInvalidAIAgent
+		}
+
+		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerID)
+		if err != nil {
+			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.F("owner_user_id", agent.OwnerID), slog.Error(err))
+			return nil, ErrInvalidAIAgent
+		}
+		if owner.Deleted {
+			return nil, ErrDeletedUser
+		}
+		if owner.Status != database.UserStatusActive {
+			return nil, ErrInactiveUser
+		}
+
+		return &proto.IsAuthorizedResponse{
+			OwnerId:  key.HolderID.String(),
+			ApiKeyId: key.ID,
+			// Computed, there being no stored name to read.
+			Username: entity.DisplayName(entity.CreationSiteType(agent.CreationSiteType), agent.ID),
+		}, nil
+	}
+
 	// User exists.
 	user, err := s.store.GetUserByID(ctx, key.HolderID.AsUserIDUnchecked())
 	if err != nil {
@@ -818,39 +855,6 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if user.IsSystem {
 		return nil, ErrSystemUser
-	}
-
-	// **The key says what kind of actor holds it, and a users row does not get
-	// to say.** Deciding by user.Kind read the answer out of a table the ledger
-	// is authoritative over, and would stop working the moment an AI agent has
-	// no users row. The same change was made in httpmw/apikey.go as WP11
-	// milestone 4; this was the last site with the pattern.
-	if agentID, ok := key.AIAgentID(); ok {
-		// Authentication must resolve identity metadata before an actor exists.
-		identityCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
-		agent, err := s.store.GetAIAgentLedgerRowByID(identityCtx, agentID)
-		if err != nil {
-			s.logger.Warn(ctx, "failed to retrieve AI agent identity", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.Error(err))
-			return nil, ErrInvalidAIAgent
-		}
-		if agent.State != entity.AIAgentStateActive {
-			return nil, ErrInvalidAIAgent
-		}
-
-		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerID)
-		if err != nil {
-			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.F("owner_user_id", agent.OwnerID), slog.Error(err))
-			return nil, ErrInvalidAIAgent
-		}
-		if owner.Kind != database.UserKindHuman {
-			return nil, ErrInvalidAIAgent
-		}
-		if owner.Deleted {
-			return nil, ErrDeletedUser
-		}
-		if owner.Status != database.UserStatusActive {
-			return nil, ErrInactiveUser
-		}
 	}
 
 	return &proto.IsAuthorizedResponse{

@@ -1028,7 +1028,7 @@ func AIAgentRBACSubject(ctx context.Context, db database.Store, agentID uuid.UUI
 	if err != nil {
 		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("get the AI agent's owner: %w", err)
 	}
-	if owner.Kind != database.UserKindHuman || owner.Deleted || owner.Status != database.UserStatusActive {
+	if owner.Deleted || owner.Status != database.UserStatusActive {
 		return rbac.Subject{}, "", aiagentidentity.AIAgentActor{}, xerrors.Errorf("AI agent %s has no live human owner to act for", agentID)
 	}
 

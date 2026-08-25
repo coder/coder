@@ -3900,64 +3900,6 @@ func AllTaskStatusValues() []TaskStatus {
 	}
 }
 
-type UserKind string
-
-const (
-	UserKindHuman   UserKind = "human"
-	UserKindAIAgent UserKind = "ai_agent"
-)
-
-func (e *UserKind) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = UserKind(s)
-	case string:
-		*e = UserKind(s)
-	default:
-		return fmt.Errorf("unsupported scan type for UserKind: %T", src)
-	}
-	return nil
-}
-
-type NullUserKind struct {
-	UserKind UserKind `json:"user_kind"`
-	Valid    bool     `json:"valid"` // Valid is true if UserKind is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullUserKind) Scan(value interface{}) error {
-	if value == nil {
-		ns.UserKind, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.UserKind.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullUserKind) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.UserKind), nil
-}
-
-func (e UserKind) Valid() bool {
-	switch e {
-	case UserKindHuman,
-		UserKindAIAgent:
-		return true
-	}
-	return false
-}
-
-func AllUserKindValues() []UserKind {
-	return []UserKind{
-		UserKindHuman,
-		UserKindAIAgent,
-	}
-}
-
 // Defines the users status: active, dormant, or suspended.
 type UserStatus string
 
@@ -6472,7 +6414,6 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
-	Kind                 UserKind      `db:"kind" json:"kind"`
 }
 
 // Per-user AI spend override that supersedes group budget resolution.

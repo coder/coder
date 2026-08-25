@@ -2811,7 +2811,7 @@ func (q *querier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, ent
 // ledger reads authorize on the system resource because they serve internal
 // resolution; this one serves a request scoped to a principal and keeps the
 // personal-read boundary the query it replaces had.
-func (q *querier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
+func (q *querier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.AIAgentLedger, error) {
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, rbac.ResourceUserObject(ownerID)); err != nil {
 		return nil, err
 	}
@@ -6102,13 +6102,6 @@ func (q *querier) InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg da
 		return database.AIAgentLifecycleJournal{}, err
 	}
 	return q.db.InsertAIAgentLifecycleJournalEntry(ctx, arg)
-}
-
-func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUser); err != nil {
-		return database.User{}, err
-	}
-	return q.db.InsertAIAgentUser(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {

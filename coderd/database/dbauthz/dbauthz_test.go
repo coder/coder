@@ -438,21 +438,10 @@ func (s *MethodTestSuite) TestAPIKey() {
 func (s *MethodTestSuite) TestAIAgents() {
 	s.Run("GetAIAgentsByOwner", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		owner := uuid.New()
-		dbm.EXPECT().GetAIAgentsByOwner(gomock.Any(), owner).Return([]database.GetAIAgentsByOwnerRow{}, nil).AnyTimes()
-		check.Args(owner).Asserts(rbac.ResourceUserObject(owner), policy.ActionReadPersonal).Returns([]database.GetAIAgentsByOwnerRow{})
+		dbm.EXPECT().GetAIAgentsByOwner(gomock.Any(), owner).Return([]database.AIAgentLedger{}, nil).AnyTimes()
+		check.Args(owner).Asserts(rbac.ResourceUserObject(owner), policy.ActionReadPersonal).Returns([]database.AIAgentLedger{})
 	}))
 
-	s.Run("InsertAIAgentUser", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := testutil.Fake(s.T(), faker, database.InsertAIAgentUserParams{})
-		user := testutil.Fake(s.T(), faker, database.User{ID: arg.ID})
-		dbm.EXPECT().InsertAIAgentUser(gomock.Any(), arg).Return(user, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceUser, policy.ActionCreate).Returns(user)
-	}))
-}
-
-// TestAuthorizationLifecycle covers the authorization journal and ledger, the
-// first pair built to the patterns in poc_audit/implementation_patterns.md.
-func (s *MethodTestSuite) TestAuthorizationLifecycle() {
 	s.Run("NextAuthorizationLifecycleJournalEntryID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().NextAuthorizationLifecycleJournalEntryID(gomock.Any()).Return(int64(1), nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionCreate)

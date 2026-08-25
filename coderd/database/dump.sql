@@ -629,11 +629,6 @@ CREATE TYPE task_status AS ENUM (
     'error'
 );
 
-CREATE TYPE user_kind AS ENUM (
-    'human',
-    'ai_agent'
-);
-
 CREATE TYPE user_status AS ENUM (
     'active',
     'suspended',
@@ -2354,11 +2349,10 @@ CREATE TABLE users (
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
     chat_spend_limit_micros bigint,
-    kind user_kind DEFAULT 'human'::user_kind NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
     CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
-    CONSTRAINT users_email_not_empty CHECK (((email = ''::text) = ((is_service_account = true) OR (kind = 'ai_agent'::user_kind)))),
-    CONSTRAINT users_service_account_login_type CHECK ((((is_service_account = false) AND (kind <> 'ai_agent'::user_kind)) OR (login_type = 'none'::login_type))),
+    CONSTRAINT users_email_not_empty CHECK (((email = ''::text) = (is_service_account = true))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
     CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
 );
 
@@ -5584,9 +5578,6 @@ ALTER TABLE ONLY ai_sandboxes
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY aibridge_interceptions
-    ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
 
 ALTER TABLE ONLY boundary_logs
     ADD CONSTRAINT boundary_logs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;

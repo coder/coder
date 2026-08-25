@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -2861,12 +2862,16 @@ func TestUpdateInactiveUsersToDormantExcludesAIAgents(t *testing.T) {
 		Status:     database.UserStatusActive,
 		LastSeenAt: lastSeenAfter.Add(-time.Hour),
 	})
-	agent, err := db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
-		ID:        uuid.New(),
-		Username:  "ai-test-" + uuid.NewString()[:8],
-		CreatedAt: lastSeenAfter.Add(-time.Hour),
+	// **The exclusion is now structural.** An AI agent is a ledger row and has
+	// no users row, so a statement over users cannot reach it. This used to
+	// rest on a kind = 'human' filter, which went with the column.
+	agent, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+		Owner:        entity.Ref{Type: entity.TypeUser, ID: human.ID},
+		CreationSite: entity.CreationSite{Type: entity.CreationSiteTypeChat, ID: uuid.New()},
 	})
 	require.NoError(t, err)
+	_, userErr := db.GetUserByID(ctx, agent.ID)
+	require.ErrorIs(t, userErr, sql.ErrNoRows, "an AI agent is not a user")
 
 	updated, err := db.UpdateInactiveUsersToDormant(ctx, database.UpdateInactiveUsersToDormantParams{
 		UpdatedAt:     now,
@@ -2880,9 +2885,11 @@ func TestUpdateInactiveUsersToDormantExcludesAIAgents(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.UserStatusDormant, human.Status)
 
-	agent, err = db.GetUserByID(ctx, agent.ID)
+	// The agent's own state is untouched, which is the other half of the
+	// claim: the sweep passed it over rather than failing on it.
+	ledger, err := db.GetAIAgentLedgerRowByID(ctx, agent.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.UserStatusActive, agent.Status)
+	require.Equal(t, entity.AIAgentStateActive, ledger.State)
 }
 
 func TestUserChangeLoginType(t *testing.T) {
@@ -13048,10 +13055,9 @@ func TestAISeatsExcludeAIAgents(t *testing.T) {
 	now := dbtime.Now()
 
 	human := dbgen.User(t, db, database.User{Status: database.UserStatusActive})
-	agent, err := db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
-		ID:        uuid.New(),
-		Username:  "ai-test-" + uuid.NewString()[:8],
-		CreatedAt: now,
+	agent, err := entity.CreateAIAgent(ctx, db, entity.CreateAIAgentParams{
+		Owner:        entity.Ref{Type: entity.TypeUser, ID: human.ID},
+		CreationSite: entity.CreationSite{Type: entity.CreationSiteTypeChat, ID: uuid.New()},
 	})
 	require.NoError(t, err)
 
@@ -13061,12 +13067,17 @@ func TestAISeatsExcludeAIAgents(t *testing.T) {
 		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
+
+	// **An AI agent cannot hold a seat, and a foreign key says so.** The
+	// exclusion used to be a kind = 'human' filter over a users row an agent
+	// had; an agent has no users row, and ai_seat_state.user_id references one.
+	// A filter can be forgotten on the next query written. This cannot.
 	_, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        agent.ID,
 		FirstUsedAt:   now,
 		LastEventType: database.AISeatUsageReasonTask,
 	})
-	require.NoError(t, err)
+	require.Error(t, err, "an AI agent is not a user and cannot hold a seat")
 
 	count, err := db.GetActiveAISeatCount(ctx)
 	require.NoError(t, err)

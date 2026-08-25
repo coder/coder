@@ -13,10 +13,8 @@ FROM
 		INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	-- AI agents are not organization members and are hidden from member lists.
-	users.kind = 'human'::user_kind
 	-- Filter by organization id
-	AND CASE
+	CASE
 		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = @organization_id
 		ELSE true
@@ -95,8 +93,7 @@ FROM
 INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	users.kind = 'human'::user_kind
-	AND CASE
+	CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.

@@ -310,10 +310,10 @@ type sqlcQuerier interface {
 	GetAIAgentLifecycleJournalCreateLines(ctx context.Context, entryID int64) ([]AIAgentLifecycleJournalCreate, error)
 	// The AI agents a principal owns, newest first.
 	//
-	// Joined to users only for the mirrored username, which is the one thing the
-	// ledger does not hold. The join goes when the mirror does, the name being
-	// derived from the identifier either way.
-	GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]GetAIAgentsByOwnerRow, error)
+	// The name is not selected. It was joined from users while a mirrored row held
+	// it; an AI agent has no such row, and the name is computed from the identifier
+	// and the creation site by the caller.
+	GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]AIAgentLedger, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -1191,7 +1191,6 @@ type sqlcQuerier interface {
 	// recording_date is absent from this statement on purpose: the column default
 	// supplies it, so no caller can supply, override, or backdate it.
 	InsertAIAgentLifecycleJournalEntry(ctx context.Context, arg InsertAIAgentLifecycleJournalEntryParams) (AIAgentLifecycleJournal, error)
-	InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUserParams) (User, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)

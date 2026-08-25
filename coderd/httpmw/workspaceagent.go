@@ -143,7 +143,7 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				// has already given it, refusing anything but active. A second
 				// check against a mirrored users row would be a second opinion
 				// able to disagree with the authority.
-				if resolved.OwnerUser.Kind != database.UserKindHuman || resolved.OwnerUser.Deleted || resolved.OwnerUser.Status != database.UserStatusActive {
+				if resolved.OwnerUser.Deleted || resolved.OwnerUser.Status != database.UserStatusActive {
 					httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 						Message: "Workspace agent not authorized.",
 						Detail:  "AI agent owner is not active.",

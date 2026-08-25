@@ -129,15 +129,13 @@ LIMIT
 -- name: GetAIAgentsByOwner :many
 -- The AI agents a principal owns, newest first.
 --
--- Joined to users only for the mirrored username, which is the one thing the
--- ledger does not hold. The join goes when the mirror does, the name being
--- derived from the identifier either way.
+-- The name is not selected. It was joined from users while a mirrored row held
+-- it; an AI agent has no such row, and the name is computed from the identifier
+-- and the creation site by the caller.
 SELECT
-	sqlc.embed(ai_agent_ledger),
-	users.username
+	*
 FROM
 	ai_agent_ledger
-	INNER JOIN users ON users.id = ai_agent_ledger.id
 WHERE
 	ai_agent_ledger.owner_id = $1
 ORDER BY

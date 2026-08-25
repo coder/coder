@@ -34,7 +34,7 @@ type workspaceAgentAIFixture struct {
 	owner     database.User
 	workspace database.WorkspaceTable
 	agent     database.WorkspaceAgent
-	agentUser database.User
+	agentUser entity.NewAIAgent
 	siteID    uuid.UUID
 }
 
@@ -149,7 +149,8 @@ func TestWorkspaceAgentAIBinding(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, status)
 		require.Equal(t, fixture.owner.ID.String(), subject.ID)
 		require.Equal(t, rbac.SubjectTypeAIAgent, subject.Type)
-		require.Equal(t, fixture.agentUser.Username, subject.FriendlyName)
+		require.Equal(t, entity.DisplayName(entity.CreationSiteTypeWorkspace, fixture.agentUser.ID), subject.FriendlyName,
+			"the friendly name is computed, there being no users row to read it from")
 
 		authorizer := rbac.NewAuthorizer(prometheus.NewRegistry())
 		userResource := rbac.ResourceUser.WithOwner(fixture.owner.ID.String()).WithID(fixture.owner.ID)

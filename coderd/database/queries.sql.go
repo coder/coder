@@ -1005,46 +1005,38 @@ func (q *sqlQuerier) GetAIAgentLifecycleJournalCreateLines(ctx context.Context, 
 
 const getAIAgentsByOwner = `-- name: GetAIAgentsByOwner :many
 SELECT
-	ai_agent_ledger.id, ai_agent_ledger.owner_type, ai_agent_ledger.owner_id, ai_agent_ledger.state, ai_agent_ledger.posting_reference, ai_agent_ledger.creation_site_type, ai_agent_ledger.creation_site_id, ai_agent_ledger.creation_time,
-	users.username
+	id, owner_type, owner_id, state, posting_reference, creation_site_type, creation_site_id, creation_time
 FROM
 	ai_agent_ledger
-	INNER JOIN users ON users.id = ai_agent_ledger.id
 WHERE
 	ai_agent_ledger.owner_id = $1
 ORDER BY
 	ai_agent_ledger.creation_time DESC
 `
 
-type GetAIAgentsByOwnerRow struct {
-	AIAgentLedger AIAgentLedger `db:"aiagent_ledger" json:"aiagent_ledger"`
-	Username      string        `db:"username" json:"username"`
-}
-
 // The AI agents a principal owns, newest first.
 //
-// Joined to users only for the mirrored username, which is the one thing the
-// ledger does not hold. The join goes when the mirror does, the name being
-// derived from the identifier either way.
-func (q *sqlQuerier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]GetAIAgentsByOwnerRow, error) {
+// The name is not selected. It was joined from users while a mirrored row held
+// it; an AI agent has no such row, and the name is computed from the identifier
+// and the creation site by the caller.
+func (q *sqlQuerier) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]AIAgentLedger, error) {
 	rows, err := q.db.QueryContext(ctx, getAIAgentsByOwner, ownerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetAIAgentsByOwnerRow
+	var items []AIAgentLedger
 	for rows.Next() {
-		var i GetAIAgentsByOwnerRow
+		var i AIAgentLedger
 		if err := rows.Scan(
-			&i.AIAgentLedger.ID,
-			&i.AIAgentLedger.OwnerType,
-			&i.AIAgentLedger.OwnerID,
-			&i.AIAgentLedger.State,
-			&i.AIAgentLedger.PostingReference,
-			&i.AIAgentLedger.CreationSiteType,
-			&i.AIAgentLedger.CreationSiteID,
-			&i.AIAgentLedger.CreationTime,
-			&i.Username,
+			&i.ID,
+			&i.OwnerType,
+			&i.OwnerID,
+			&i.State,
+			&i.PostingReference,
+			&i.CreationSiteType,
+			&i.CreationSiteID,
+			&i.CreationTime,
 		); err != nil {
 			return nil, err
 		}
@@ -1357,72 +1349,6 @@ func (q *sqlQuerier) RetireAIAgent(ctx context.Context, arg RetireAIAgentParams)
 		&i.CreationSiteType,
 		&i.CreationSiteID,
 		&i.CreationTime,
-	)
-	return i, err
-}
-
-const insertAIAgentUser = `-- name: InsertAIAgentUser :one
-INSERT INTO users (
-	id,
-	email,
-	username,
-	name,
-	hashed_password,
-	created_at,
-	updated_at,
-	rbac_roles,
-	login_type,
-	status,
-	is_service_account,
-	kind
-) VALUES (
-	$1,
-	'',
-	$2,
-	'',
-	''::bytea,
-	$3,
-	$3,
-	'{}'::text[],
-	'none'::login_type,
-	'active'::user_status,
-	false,
-	'ai_agent'::user_kind
-)
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
-`
-
-type InsertAIAgentUserParams struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	Username  string    `db:"username" json:"username"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) InsertAIAgentUser(ctx context.Context, arg InsertAIAgentUserParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, insertAIAgentUser, arg.ID, arg.Username, arg.CreatedAt)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.HashedPassword,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		&i.RBACRoles,
-		&i.LoginType,
-		&i.AvatarURL,
-		&i.Deleted,
-		&i.LastSeenAt,
-		&i.QuietHoursSchedule,
-		&i.Name,
-		&i.GithubComUserID,
-		&i.HashedOneTimePasscode,
-		&i.OneTimePasscodeExpiresAt,
-		&i.IsSystem,
-		&i.IsServiceAccount,
-		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -4650,7 +4576,6 @@ WHERE
 	u.status = 'active'::user_status
 	AND u.deleted = false
 	AND u.is_system = false
-	AND u.kind = 'human'::user_kind
 `
 
 func (q *sqlQuerier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
@@ -4716,7 +4641,6 @@ WHERE
 	AND u.status = 'active'::user_status
 	AND u.deleted = false
 	AND u.is_system = false
-	AND u.kind = 'human'::user_kind
 `
 
 // Returns user IDs from the provided list that are consuming an AI seat.
@@ -16819,8 +16743,7 @@ func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteG
 
 const getGroupMembers = `-- name: GetGroupMembers :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, user_is_service_account, organization_id, group_name, group_id FROM group_members_expanded
-WHERE user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
-AND CASE
+WHERE CASE
       WHEN $1::bool THEN TRUE
       ELSE
         user_is_system = false
@@ -16875,7 +16798,6 @@ const getGroupMembersByGroupID = `-- name: GetGroupMembersByGroupID :many
 SELECT user_id, user_email, user_username, user_hashed_password, user_created_at, user_updated_at, user_status, user_rbac_roles, user_login_type, user_avatar_url, user_deleted, user_last_seen_at, user_quiet_hours_schedule, user_name, user_github_com_user_id, user_is_system, user_is_service_account, organization_id, group_name, group_id
 FROM group_members_expanded
 WHERE group_id = $1
-  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN $2::bool THEN TRUE
@@ -16940,7 +16862,6 @@ FROM
 	group_members_expanded
 WHERE
 	group_members_expanded.group_id = $1
-	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -17156,7 +17077,6 @@ const getGroupMembersCountByGroupID = `-- name: GetGroupMembersCountByGroupID :o
 SELECT COUNT(*)
 FROM group_members_expanded
 WHERE group_id = $1
-  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN $2::bool THEN TRUE
@@ -17186,7 +17106,6 @@ SELECT
 	COUNT(*) AS member_count
 FROM group_members_expanded
 WHERE group_id = ANY($1 :: uuid[])
-	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		WHEN $2::bool THEN TRUE
 		ELSE user_is_system = false
@@ -18536,7 +18455,6 @@ JOIN
 	users u
 ON
 	u.id = ds.user_id
-	AND u.kind = 'human'::user_kind
 JOIN
 	template_ids t
 ON
@@ -18611,7 +18529,6 @@ JOIN
 	users u
 ON
 	u.id = tus.user_id
-	AND u.kind = 'human'::user_kind
 WHERE
 	tus.start_time >= $1::timestamptz
 	AND tus.end_time <= $2::timestamptz
@@ -18674,7 +18591,7 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 const getUserStatusCounts = `-- name: GetUserStatusCounts :many
 WITH
 excluded_users AS (
-    SELECT id FROM users WHERE is_system = TRUE OR kind = 'ai_agent'::user_kind
+    SELECT id FROM users WHERE is_system = TRUE
 ),
 	-- dates_of_interest generates the dates that will represent the horizontal axis of the chart.
 dates_of_interest AS (
@@ -22239,10 +22156,8 @@ FROM
 		INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	-- AI agents are not organization members and are hidden from member lists.
-	users.kind = 'human'::user_kind
 	-- Filter by organization id
-	AND CASE
+	CASE
 		WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			organization_id = $1
 		ELSE true
@@ -22350,8 +22265,7 @@ FROM
 INNER JOIN
 	users ON organization_members.user_id = users.id AND users.deleted = false
 WHERE
-	users.kind = 'human'::user_kind
-	AND CASE
+	CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
@@ -32443,7 +32357,6 @@ FROM
 WHERE
 	status = 'active'::user_status AND deleted = false
 	AND is_service_account = false
-	AND kind = 'human'::user_kind
 	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
@@ -32508,7 +32421,6 @@ WHERE
 	AND users.deleted = false
 	AND users.is_system = false
 	AND users.is_service_account = false
-	AND users.kind = 'human'::user_kind
 `
 
 type GetActiveUsersAuthorizationRolesRow struct {
@@ -32605,7 +32517,6 @@ FROM
 	users
 WHERE
 	users.id = $1
-	AND users.kind = 'human'::user_kind
 `
 
 type GetAuthorizationUserRolesRow struct {
@@ -32696,7 +32607,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM
 	users
 WHERE
@@ -32735,14 +32646,13 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM
 	users
 WHERE
@@ -32775,7 +32685,6 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -32873,7 +32782,6 @@ FROM
 	users
 WHERE
 	deleted = false
-	AND kind = 'human'::user_kind
   	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
@@ -32885,7 +32793,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 }
 
 const getUserForChatSyntheticAPIKeyByID = `-- name: GetUserForChatSyntheticAPIKeyByID :one
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 FROM users
 WHERE id = $1::uuid
 `
@@ -32914,7 +32822,6 @@ func (q *sqlQuerier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id u
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -32972,12 +32879,11 @@ func (q *sqlQuerier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
 	users.deleted = false
-	AND users.kind = 'human'::user_kind
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -33139,7 +33045,6 @@ type GetUsersRow struct {
 	IsSystem                 bool           `db:"is_system" json:"is_system"`
 	IsServiceAccount         bool           `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros     sql.NullInt64  `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
-	Kind                     UserKind       `db:"kind" json:"kind"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -33192,7 +33097,6 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
-			&i.Kind,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -33209,7 +33113,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -33245,7 +33149,6 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
-			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -33281,7 +33184,7 @@ VALUES
 		-- we were doing before.
 		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status),
 		$11::bool
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type InsertUserParams struct {
@@ -33334,7 +33237,6 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33414,7 +33316,6 @@ WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
     AND NOT is_system
-    AND kind = 'human'::user_kind
 RETURNING id, email, username, last_seen_at
 `
 
@@ -33642,7 +33543,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -33675,7 +33576,6 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33695,7 +33595,7 @@ SET
 WHERE
 	id = $2
 	AND NOT is_system
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -33727,7 +33627,6 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33743,7 +33642,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserProfileParams struct {
@@ -33786,7 +33685,6 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33798,7 +33696,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -33830,7 +33728,6 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33843,7 +33740,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserRolesParams struct {
@@ -33875,7 +33772,6 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }
@@ -33916,7 +33812,7 @@ SET
 	-- If the user is logging in, set last_seen_at to updated_at.
 	last_seen_at = CASE WHEN $4 :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, kind
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
 `
 
 type UpdateUserStatusParams struct {
@@ -33955,7 +33851,6 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
-		&i.Kind,
 	)
 	return i, err
 }

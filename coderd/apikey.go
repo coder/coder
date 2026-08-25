@@ -64,11 +64,6 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-	if user.Kind == database.UserKindAIAgent {
-		api.Logger.Warn(ctx, "disallowed creating api key for AI agent user", slog.F("user_id", user.ID))
-		httpapi.Forbidden(rw)
-		return
-	}
 
 	// Map and validate requested scope.
 	// Accept legacy special scopes (all, application_connect) and external scopes.
@@ -215,11 +210,6 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 	// and we don't want to disallow all members from creating API keys.
 	if user.IsSystem {
 		api.Logger.Warn(ctx, "disallowed creating api key for system user", slog.F("user_id", user.ID))
-		httpapi.Forbidden(rw)
-		return
-	}
-	if user.Kind == database.UserKindAIAgent {
-		api.Logger.Warn(ctx, "disallowed creating api key for AI agent user", slog.F("user_id", user.ID))
 		httpapi.Forbidden(rw)
 		return
 	}

@@ -1097,7 +1097,7 @@ func (m queryMetricsStore) GetAIAgentLifecycleJournalCreateLines(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.GetAIAgentsByOwnerRow, error) {
+func (m queryMetricsStore) GetAIAgentsByOwner(ctx context.Context, ownerID uuid.UUID) ([]database.AIAgentLedger, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIAgentsByOwner(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetAIAgentsByOwner").Observe(time.Since(start).Seconds())
@@ -4190,14 +4190,6 @@ func (m queryMetricsStore) InsertAIAgentLifecycleJournalEntry(ctx context.Contex
 	r0, r1 := m.s.InsertAIAgentLifecycleJournalEntry(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIAgentLifecycleJournalEntry").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentLifecycleJournalEntry").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAgentUserParams) (database.User, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertAIAgentUser(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAIAgentUser").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIAgentUser").Inc()
 	return r0, r1
 }
 

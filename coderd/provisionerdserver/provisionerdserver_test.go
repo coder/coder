@@ -5994,9 +5994,8 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	require.Equal(t, user.ID, agent.OwnerID)
 	require.NotEqual(t, staleAgent.ID, agent.ID)
 
-	agentUser, err := db.GetUserByID(ctx, agent.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.UserKindAIAgent, agentUser.Kind)
+	_, err = db.GetUserByID(ctx, agent.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "an AI agent is not a user")
 
 	keyID := strings.Split(firstToken, "-")[0]
 	firstKey, err := db.GetAPIKeyByID(ctx, keyID)

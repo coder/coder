@@ -1,7 +1,6 @@
 -- name: GetGroupMembers :many
 SELECT * FROM group_members_expanded
-WHERE user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
-AND CASE
+WHERE CASE
       WHEN @include_system::bool THEN TRUE
       ELSE
         user_is_system = false
@@ -11,7 +10,6 @@ AND CASE
 SELECT *
 FROM group_members_expanded
 WHERE group_id = @group_id
-  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN @include_system::bool THEN TRUE
@@ -26,7 +24,6 @@ FROM
 	group_members_expanded
 WHERE
 	group_members_expanded.group_id = @group_id
-	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -139,7 +136,6 @@ LIMIT
 SELECT COUNT(*)
 FROM group_members_expanded
 WHERE group_id = @group_id
-  AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
   -- Filter by system type
   AND CASE
       WHEN @include_system::bool THEN TRUE
@@ -157,7 +153,6 @@ SELECT
 	COUNT(*) AS member_count
 FROM group_members_expanded
 WHERE group_id = ANY(@group_ids :: uuid[])
-	AND user_id IN (SELECT id FROM users WHERE kind = 'human'::user_kind)
 	AND CASE
 		WHEN @include_system::bool THEN TRUE
 		ELSE user_is_system = false

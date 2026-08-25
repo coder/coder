@@ -42,7 +42,9 @@ func TestAIAgentVisibilityAndListing(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, agents, 1)
 	require.Equal(t, agentUser.ID, agents[0].ID)
-	require.Equal(t, agentUser.Username, agents[0].Username)
+	// The name is computed, so the endpoint derives the same string the agent
+	// would have carried in a users row.
+	require.Equal(t, entity.DisplayName(entity.CreationSiteTypeWorkspace, agentUser.ID), agents[0].Username)
 	require.Equal(t, codersdk.AIAgentOriginWorkspace, agents[0].OriginType)
 	require.False(t, agents[0].Deleted)
 

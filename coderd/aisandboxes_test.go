@@ -55,7 +55,7 @@ func newAISandboxLifecycleFixture(t *testing.T, options *coderdtest.Options) aiS
 	}
 }
 
-func bindAISandboxLifecycleParent(t *testing.T, fixture aiSandboxLifecycleFixture) database.User {
+func bindAISandboxLifecycleParent(t *testing.T, fixture aiSandboxLifecycleFixture) entity.NewAIAgent {
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)

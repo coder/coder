@@ -294,7 +294,7 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 	tests := []struct {
 		name            string
 		missingIdentity bool
-		mutate          func(context.Context, database.Store, database.User, database.User) error
+		mutate          func(ctx context.Context, db database.Store, owner database.User, agentID uuid.UUID) error
 		wantErr         error
 	}{
 		{
@@ -302,7 +302,7 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 		},
 		{
 			name: "owner suspended",
-			mutate: func(ctx context.Context, db database.Store, owner, _ database.User) error {
+			mutate: func(ctx context.Context, db database.Store, owner database.User, _ uuid.UUID) error {
 				_, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 					ID:        owner.ID,
 					Status:    database.UserStatusSuspended,
@@ -314,16 +314,16 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 		},
 		{
 			name: "owner deleted",
-			mutate: func(ctx context.Context, db database.Store, owner, _ database.User) error {
+			mutate: func(ctx context.Context, db database.Store, owner database.User, _ uuid.UUID) error {
 				return db.UpdateUserDeletedByID(ctx, owner.ID)
 			},
 			wantErr: aibridgedserver.ErrDeletedUser,
 		},
 		{
 			name: "AI agent identity retired",
-			mutate: func(ctx context.Context, db database.Store, owner, agent database.User) error {
+			mutate: func(ctx context.Context, db database.Store, owner database.User, agentID uuid.UUID) error {
 				// Retirement in the ledger is what authorization reads.
-				return entity.RetireAIAgent(ctx, db, agent.ID, entity.EventAIAgentKill,
+				return entity.RetireAIAgent(ctx, db, agentID, entity.EventAIAgentKill,
 					entity.Ref{Type: entity.TypeUser, ID: owner.ID}, dbtime.Now())
 			},
 			wantErr: aibridgedserver.ErrInvalidAIAgent,
@@ -349,41 +349,38 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 			})
 
 			var (
-				agent database.User
-				token string
-				err   error
+				agentID   uuid.UUID
+				agentName string
+				token     string
 			)
 			if tt.missingIdentity {
-				agent, err = db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
-					ID:        uuid.New(),
-					Username:  testutil.GetRandomName(t),
-					CreatedAt: dbtime.Now(),
-				})
-				require.NoError(t, err)
-				// The holder type is what routes, so the key must say its
-				// holder is an AI agent. A users row claiming to be one no
-				// longer decides that, which is the point of the change this
-				// case guards: authorization then finds no ledger row and
-				// refuses.
+				// A key whose holder type says AI agent, held by an
+				// identifier the ledger never named. The holder type is what
+				// routes, so authorization looks for a ledger row, finds
+				// none, and refuses.
+				agentID = uuid.New()
 				_, token = dbgen.APIKey(t, db, database.APIKey{
-					HolderID:   database.HolderID(agent.ID),
+					HolderID:   database.HolderID(agentID),
 					HolderType: database.HolderTypeAIAgent,
 					LoginType:  database.LoginTypeToken,
 				})
 			} else {
-				agent, err = aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+				originID := uuid.New()
+				agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
 					OwnerID:        owner.ID,
 					OrganizationID: organization.ID,
 					OriginType:     entity.CreationSiteTypeChat,
-					OriginID:       uuid.New(),
+					OriginID:       originID,
 				})
 				require.NoError(t, err)
-				_, token, err = aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.ChatAgentProfile(uuid.New()))
+				agentID = agent.ID
+				agentName = entity.DisplayName(entity.CreationSiteTypeChat, agent.ID)
+				_, token, err = aiagentidentity.MintKey(ctx, db, agentID, aiagentidentity.ChatAgentProfile(uuid.New()))
 				require.NoError(t, err)
 			}
 
 			if tt.mutate != nil {
-				require.NoError(t, tt.mutate(ctx, db, owner, agent))
+				require.NoError(t, tt.mutate(ctx, db, owner, agentID))
 			}
 
 			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
@@ -405,8 +402,9 @@ func TestAuthorizationAIAgentOwnerLiveness(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, agent.ID.String(), resp.GetOwnerId())
-			require.Equal(t, agent.Username, resp.GetUsername())
+			require.Equal(t, agentID.String(), resp.GetOwnerId())
+			require.Equal(t, agentName, resp.GetUsername(),
+				"the name is computed from the ledger, there being no users row to read")
 		})
 	}
 }

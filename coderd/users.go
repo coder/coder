@@ -807,15 +807,18 @@ func (api *API) aiAgentsByUser(rw http.ResponseWriter, r *http.Request) {
 	agents := make([]codersdk.AIAgent, 0, len(rows))
 	for _, row := range rows {
 		agents = append(agents, codersdk.AIAgent{
-			ID:         row.AIAgentLedger.ID,
-			Username:   row.Username,
-			OriginType: codersdk.AIAgentOrigin(row.AIAgentLedger.CreationSiteType),
-			OriginID:   row.AIAgentLedger.CreationSiteID,
-			CreatedAt:  row.AIAgentLedger.CreationTime,
+			ID: row.ID,
+			// Computed rather than read. The name was joined from a mirrored
+			// users row until that row went; the derivation is the same one
+			// the row was written from, so the value is unchanged.
+			Username:   entity.DisplayName(entity.CreationSiteType(row.CreationSiteType), row.ID),
+			OriginType: codersdk.AIAgentOrigin(row.CreationSiteType),
+			OriginID:   row.CreationSiteID,
+			CreatedAt:  row.CreationTime,
 			// The response says deleted because that is the word the public
 			// type uses. The ledger's word is retired, and the two mean the
 			// same thing about the same agent.
-			Deleted: row.AIAgentLedger.State != entity.AIAgentStateActive,
+			Deleted: row.State != entity.AIAgentStateActive,
 		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, agents)
@@ -1155,14 +1158,12 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	if targetUser.Kind != database.UserKindAIAgent {
-		// nolint:gocritic // Need notifier actor to enqueue notifications
-		if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
-			labels, data, "api-put-user-status",
-			targetUser.ID,
-		); err != nil {
-			api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
-		}
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
+		labels, data, "api-put-user-status",
+		targetUser.ID,
+	); err != nil {
+		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
 	}
 	return nil
 }

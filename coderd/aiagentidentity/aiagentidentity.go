@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
 )
@@ -74,44 +73,43 @@ func ActorFromContext(ctx context.Context) (AIAgentActor, bool) {
 	return actor, ok
 }
 
-// Create creates an AI agent and mirrors it into the tables the identity code
-// reads.
+// Create creates an AI agent, checking that the owner is a human who belongs to
+// the organization the agent is being created in.
 //
-// **The ledger mints and these two rows follow.** entity.CreateAIAgent names
-// the agent; the users row and the ai_agents row are written under the
-// identifier it returns, so there is one identifier for one agent rather than
-// two spaces to reconcile. Every column referring to an AI agent therefore
-// resolves against the ledger, which is what lets those references carry a
-// foreign key to it.
+// **The ledger is the only place an AI agent is written.** It was mirrored into
+// `ai_agents` and then into `users` while code elsewhere still read those
+// tables; both are gone. What is returned is what the ledger minted, and every
+// column referring to an AI agent resolves against it, which is what lets those
+// references carry a foreign key.
 //
-// The mirror is an interim and is one way. Nothing here reports divergence,
-// and nothing should come to rely on these rows being the authority. Later work
-// deletes the mirror rather than untangling it.
-func Create(ctx context.Context, db database.Store, params CreateParams) (database.User, error) {
+// **An AI agent has no users row and must not acquire one.** It is not a person
+// and does not log in; the row existed to satisfy readers, not to record
+// anything. Its name is computed by entity.DisplayName wherever one is needed.
+func Create(ctx context.Context, db database.Store, params CreateParams) (entity.NewAIAgent, error) {
 	if params.OwnerID == uuid.Nil {
-		return database.User{}, xerrors.New("owner ID must be non-nil")
+		return entity.NewAIAgent{}, xerrors.New("owner ID must be non-nil")
 	}
 	if params.OrganizationID == uuid.Nil {
-		return database.User{}, xerrors.New("organization ID must be non-nil")
+		return entity.NewAIAgent{}, xerrors.New("organization ID must be non-nil")
 	}
 	if params.OriginID == uuid.Nil {
-		return database.User{}, xerrors.New("origin ID must be non-nil")
+		return entity.NewAIAgent{}, xerrors.New("origin ID must be non-nil")
 	}
 	if !params.OriginType.Valid() {
-		return database.User{}, xerrors.Errorf("invalid AI agent origin type %q", params.OriginType)
+		return entity.NewAIAgent{}, xerrors.Errorf("invalid AI agent origin type %q", params.OriginType)
 	}
 
-	var createdUser database.User
+	var agent entity.NewAIAgent
 	// Identity creation is an internal operation with explicit owner checks.
 	systemCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic
 
 	err := db.InTx(func(tx database.Store) error {
-		owner, err := tx.GetUserByID(systemCtx, params.OwnerID)
-		if err != nil {
+		// **The owner must be a users row, which is now the whole of the
+		// check.** It used to also test the kind, refusing an owner that was
+		// itself an AI agent. An AI agent has no users row, so this read
+		// failing is that refusal.
+		if _, err := tx.GetUserByID(systemCtx, params.OwnerID); err != nil {
 			return xerrors.Errorf("get AI agent owner: %w", err)
-		}
-		if owner.Kind != database.UserKindHuman {
-			return xerrors.Errorf("AI agent owner %s is not a human user", params.OwnerID)
 		}
 
 		members, err := tx.OrganizationMembers(systemCtx, database.OrganizationMembersParams{
@@ -127,7 +125,7 @@ func Create(ctx context.Context, db database.Store, params CreateParams) (databa
 			return xerrors.Errorf("AI agent owner %s is not a member of organization %s", params.OwnerID, params.OrganizationID)
 		}
 
-		created, err := entity.CreateAIAgent(systemCtx, tx, entity.CreateAIAgentParams{
+		agent, err = entity.CreateAIAgent(systemCtx, tx, entity.CreateAIAgentParams{
 			Owner:        entity.Ref{Type: entity.TypeUser, ID: params.OwnerID},
 			CreationSite: creationSite(params),
 		})
@@ -135,50 +133,23 @@ func Create(ctx context.Context, db database.Store, params CreateParams) (databa
 			return xerrors.Errorf("create AI agent: %w", err)
 		}
 
-		createdUser, err = mirror(systemCtx, tx, created.ID, params)
-		return err
+		rewrite2026augustlog.AIAgentCreated(systemCtx, rewrite2026augustlog.F{
+			"ai_agent_user_id": agent.ID,
+			"owner_user_id":    params.OwnerID,
+			"origin_type":      params.OriginType,
+			"origin_id":        params.OriginID,
+		})
+		return nil
 	}, nil)
 	if err != nil {
-		return database.User{}, err
+		return entity.NewAIAgent{}, err
 	}
-	return createdUser, nil
+	return agent, nil
 }
 
 // creationSite reads the params as the pair the model calls a creation site.
 func creationSite(params CreateParams) entity.CreationSite {
 	return entity.CreationSite{Type: params.OriginType, ID: params.OriginID}
-}
-
-// mirror writes the users row for an AI agent the ledger has already named.
-//
-// It is all that is left of the mirror. The ai_agents row went when nothing
-// read it; this row survives because six places still route on
-// users.kind = 'ai_agent' and because the username is read from it.
-func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateParams) (database.User, error) {
-	// One derivation, so the mirrored username and the name the authorizer
-	// carries as a friendly name cannot drift apart. It exceeds the 32
-	// character limit codersdk.NameValid states, which nothing enforces here:
-	// the column is plain text, and an AI agent never logs in or is renamed,
-	// which are the only paths that validate.
-	name := entity.DisplayName(creationSite(params).Type, id)
-
-	now := dbtime.Now()
-	createdUser, err := tx.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
-		ID:        id,
-		Username:  name,
-		CreatedAt: now,
-	})
-	if err != nil {
-		return database.User{}, xerrors.Errorf("insert AI agent user: %w", err)
-	}
-
-	rewrite2026augustlog.AIAgentCreated(ctx, rewrite2026augustlog.F{
-		"ai_agent_user_id": id,
-		"owner_user_id":    params.OwnerID,
-		"origin_type":      params.OriginType,
-		"origin_id":        params.OriginID,
-	})
-	return createdUser, nil
 }
 
 // DropKey deletes one of an AI agent's mirrored keys without recording an

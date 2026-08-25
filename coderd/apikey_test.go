@@ -517,8 +517,17 @@ func TestAPIKey_SetDefault(t *testing.T) {
 	require.EqualValues(t, dc.Sessions.DefaultTokenDuration.Value().Seconds(), apiKey1.LifetimeSeconds)
 }
 
+// TestAPIKey_AIAgentTargetsRefused asserts that neither key creation endpoint
+// will mint a key for an AI agent.
+//
+// **The refusal used to be a guard and is now the absence of a target.** Both
+// handlers checked the target user's kind and returned 403. An AI agent has no
+// users row, so the endpoints resolve no user and return 404 before any guard
+// would have run. The stronger statement is the one asserted: an agent cannot
+// be named where a user is expected.
+//
 //nolint:tparallel,paralleltest // Subtests share one server and verify key counts sequentially.
-func TestAPIKey_AIAgentTargetsForbidden(t *testing.T) {
+func TestAPIKey_AIAgentTargetsRefused(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -578,7 +587,7 @@ func TestAPIKey_AIAgentTargetsForbidden(t *testing.T) {
 			require.Error(t, err)
 			var sdkErr *codersdk.Error
 			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+			require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 			require.Zero(t, keyCount(t, agentUser.ID, tt.loginType))
 
 			before := keyCount(t, owner.UserID, tt.loginType)
