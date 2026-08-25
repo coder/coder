@@ -106,10 +106,41 @@ type MCPServerConfig struct {
 	AuthConnected bool `json:"auth_connected"`
 }
 
-// MCPServerToolRule explicitly enables or disables one upstream tool.
+// MCPServerToolAction is the gateway's disposition for calls to one tool.
+type MCPServerToolAction string
+
+const (
+	// MCPServerToolActionEnabled permits calls and lists the tool.
+	MCPServerToolActionEnabled MCPServerToolAction = "enabled"
+	// MCPServerToolActionDisabled hides the tool and denies calls.
+	MCPServerToolActionDisabled MCPServerToolAction = "disabled"
+	// MCPServerToolActionEscalate lists the tool but holds each call for
+	// approval by the sponsoring user before forwarding it upstream.
+	MCPServerToolActionEscalate MCPServerToolAction = "escalate"
+)
+
+// MCPServerToolRule sets the gateway disposition for one upstream tool.
 type MCPServerToolRule struct {
-	Tool    string `json:"tool" validate:"required"`
-	Enabled bool   `json:"enabled"`
+	Tool string `json:"tool" validate:"required"`
+	// Action is one of enabled, disabled, or escalate. When empty, the
+	// legacy Enabled boolean decides between enabled and disabled.
+	Action MCPServerToolAction `json:"action,omitempty" validate:"omitempty,oneof=enabled disabled escalate"`
+	// Enabled is the legacy binary form of Action. It is kept in sync on
+	// write so older readers keep working; escalate mirrors as disabled,
+	// the fail-closed reading for consumers without escalation support.
+	Enabled bool `json:"enabled"`
+}
+
+// EffectiveAction resolves the rule's action, honoring legacy rules that
+// only carry the boolean.
+func (r MCPServerToolRule) EffectiveAction() MCPServerToolAction {
+	if r.Action != "" {
+		return r.Action
+	}
+	if r.Enabled {
+		return MCPServerToolActionEnabled
+	}
+	return MCPServerToolActionDisabled
 }
 
 // CreateMCPServerConfigRequest is the request to create a new MCP server config.
@@ -139,7 +170,7 @@ type CreateMCPServerConfigRequest struct {
 	ToolAllowList []string            `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string            `json:"tool_deny_list,omitempty"`
 	ToolRules     []MCPServerToolRule `json:"tool_rules,omitempty" validate:"dive"`
-	ToolDefault   string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled"`
+	ToolDefault   string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled escalate"`
 
 	Availability    string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
 	Enabled         bool   `json:"enabled"`
@@ -178,7 +209,7 @@ type UpdateMCPServerConfigRequest struct {
 	ToolAllowList *[]string            `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string            `json:"tool_deny_list,omitempty"`
 	ToolRules     *[]MCPServerToolRule `json:"tool_rules,omitempty" validate:"omitempty,dive"`
-	ToolDefault   *string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled"`
+	ToolDefault   *string              `json:"tool_default,omitempty" validate:"omitempty,oneof=enabled disabled escalate"`
 
 	Availability    *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
 	Enabled         *bool   `json:"enabled,omitempty"`

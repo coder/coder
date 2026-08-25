@@ -160,6 +160,7 @@ func newMCPGatewayPolicy(cfg *proto.MCPGatewayServerConfig) (mcpGatewayPolicy, e
 	for _, rule := range cfg.GetToolRules() {
 		rules = append(rules, codersdk.MCPServerToolRule{
 			Tool:    rule.GetTool(),
+			Action:  codersdk.MCPServerToolAction(rule.GetAction()),
 			Enabled: rule.GetEnabled(),
 		})
 	}
@@ -187,14 +188,16 @@ func newMCPGatewayPolicy(cfg *proto.MCPGatewayServerConfig) (mcpGatewayPolicy, e
 	return policy, nil
 }
 
-func (p mcpGatewayPolicy) allowed(tool string) bool {
-	if !mcptools.Allowed(p.tools, tool) {
-		return false
-	}
+func (p mcpGatewayPolicy) evaluate(tool string) mcptools.Action {
+	// The regex lists are binary and apply on top of the rule layers, so a
+	// regex-excluded tool cannot be escalated into existence.
 	if p.denylist != nil && p.denylist.MatchString(tool) {
-		return false
+		return mcptools.ActionBlock
 	}
-	return p.allowlist == nil || p.allowlist.MatchString(tool)
+	if p.allowlist != nil && !p.allowlist.MatchString(tool) {
+		return mcptools.ActionBlock
+	}
+	return mcptools.Evaluate(p.tools, tool)
 }
 
 func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (mcpGatewayPlan, error) {
@@ -237,7 +240,8 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 			}
 			call.Tool = params.Name
 			call.Input = string(input)
-			if !policy.allowed(params.Name) {
+			switch policy.evaluate(params.Name) {
+			case mcptools.ActionBlock:
 				call.InvocationError = fmt.Sprintf("tool %q denied by MCP gateway policy", params.Name)
 				plan.toolCalls = append(plan.toolCalls, call)
 				if len(item.Envelope.ID) > 0 {
@@ -249,6 +253,24 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 					))
 				}
 				continue
+			case mcptools.ActionEscalate:
+				// TODO(mcp-escalations): hold the call for sponsor approval
+				// per AI_AGENT_MCP_ESCALATION_SPEC.md. Until the hold path
+				// exists, escalated calls fail closed with a distinct
+				// message so an admin setting the rule early sees denials,
+				// never silent forwards.
+				call.InvocationError = fmt.Sprintf("tool %q requires human approval, which this deployment does not support yet", params.Name)
+				plan.toolCalls = append(plan.toolCalls, call)
+				if len(item.Envelope.ID) > 0 {
+					plan.local = append(plan.local, marshalMCPGatewayError(
+						item.Envelope.ID,
+						mcp.INTERNAL_ERROR,
+						call.InvocationError,
+						map[string]any{"tool": params.Name, "disposition": "escalate"},
+					))
+				}
+				continue
+			case mcptools.ActionPermit:
 			}
 			plan.toolCalls = append(plan.toolCalls, call)
 			plan.forward = append(plan.forward, item.Raw)
@@ -902,7 +924,9 @@ func filterMCPGatewayResponseObject(body []byte, plan mcpGatewayPlan) ([]byte, e
 		if err := json.Unmarshal(tool, &descriptor); err != nil {
 			return nil, xerrors.Errorf("decode tools/list tool: %w", err)
 		}
-		if plan.policy.allowed(descriptor.Name) {
+		// Escalated tools stay listed: the model must be able to see a tool
+		// to call it, and the approval hold happens at call time.
+		if plan.policy.evaluate(descriptor.Name) != mcptools.ActionBlock {
 			allowed = append(allowed, tool)
 		}
 	}

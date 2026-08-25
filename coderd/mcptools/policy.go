@@ -14,21 +14,56 @@ type Policy struct {
 	Default   string
 }
 
-// Allowed reports whether a tool passes every configured policy layer.
-func Allowed(policy Policy, toolName string) bool {
+// Action is a policy disposition for one tool.
+type Action string
+
+const (
+	// ActionPermit forwards calls and lists the tool.
+	ActionPermit Action = "permit"
+	// ActionBlock hides the tool and denies calls.
+	ActionBlock Action = "block"
+	// ActionEscalate holds each call for human approval. Consumers without
+	// an escalation path must treat it as ActionBlock.
+	ActionEscalate Action = "escalate"
+)
+
+// Evaluate resolves a tool's disposition across every configured policy
+// layer. The legacy allow and deny lists are binary and apply first: a tool
+// they exclude is blocked outright and cannot be escalated into existence.
+func Evaluate(policy Policy, toolName string) Action {
 	if len(policy.AllowList) > 0 {
 		if !slices.Contains(policy.AllowList, toolName) {
-			return false
+			return ActionBlock
 		}
 	} else if slices.Contains(policy.DenyList, toolName) {
-		return false
+		return ActionBlock
 	}
 
 	for _, rule := range policy.Rules {
 		if rule.Tool == toolName {
-			return rule.Enabled
+			switch rule.EffectiveAction() {
+			case codersdk.MCPServerToolActionEnabled:
+				return ActionPermit
+			case codersdk.MCPServerToolActionEscalate:
+				return ActionEscalate
+			default:
+				return ActionBlock
+			}
 		}
 	}
 
-	return policy.Default != "disabled"
+	switch policy.Default {
+	case "disabled":
+		return ActionBlock
+	case "escalate":
+		return ActionEscalate
+	default:
+		return ActionPermit
+	}
+}
+
+// Allowed reports whether a tool is unconditionally permitted. Escalated
+// tools are not: callers without an escalation path fail closed.
+func Allowed(policy Policy, toolName string) bool {
+	return Evaluate(policy, toolName) == ActionPermit
 }

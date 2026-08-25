@@ -131,6 +131,79 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 	require.Contains(t, toolUsages[1].GetInvocationError(), `tool "write" denied`)
 }
 
+// TestServeHTTP_MCPGatewayEscalateRule covers the escalate disposition before
+// the approval hold exists: the tool stays listed, but calls fail closed with
+// a distinct message and are recorded as denied invocations.
+func TestServeHTTP_MCPGatewayEscalateRule(t *testing.T) {
+	t.Parallel()
+
+	var upstreamCalls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		var request struct {
+			Method string `json:"method"`
+		}
+		require.NoError(t, json.Unmarshal(body, &request))
+		require.Equal(t, "tools/list", request.Method, "escalated calls must never reach upstream")
+		upstreamCalls.Add(1)
+		rw.Header().Set("Content-Type", "application/json")
+		_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"read"},{"name":"delete_repo"}]}}`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	srv, client, _ := newTestServer(t)
+	initiatorID := uuid.NewString()
+	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+		OwnerId:  initiatorID,
+		ApiKeyId: "key-id",
+		Username: "agent",
+	}, nil)
+	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPGatewayServerConfigResponse{
+		Found: true,
+		Config: &proto.MCPGatewayServerConfig{
+			Id:        uuid.NewString(),
+			Slug:      "github",
+			Url:       upstream.URL,
+			Transport: "streamable_http",
+			ToolRules: []*proto.MCPGatewayToolRule{
+				{Tool: "delete_repo", Action: "escalate"},
+			},
+			ToolDefault: "enabled",
+		},
+	}, nil)
+	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.AuthorizeMCPGatewayResponse{
+		Authorized:  true,
+		InitiatorId: initiatorID,
+	}, nil)
+	client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
+	var toolUsages []*proto.RecordToolUsageRequest
+	client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+		toolUsages = append(toolUsages, in)
+		return &proto.RecordToolUsageResponse{}, nil
+	})
+	client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionEndedResponse{}, nil)
+
+	gateway := httptest.NewServer(srv)
+	t.Cleanup(gateway.Close)
+
+	// Escalated tools stay visible in tools/list.
+	response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+	require.Contains(t, string(response), `{"name":"delete_repo"}`)
+	require.Equal(t, int32(1), upstreamCalls.Load())
+
+	// Calls to an escalated tool fail closed until the hold path exists.
+	response = mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{}}}`)
+	require.Contains(t, string(response), "requires human approval")
+	require.Contains(t, string(response), `"disposition":"escalate"`)
+	require.Equal(t, int32(1), upstreamCalls.Load(), "escalated call must not reach upstream")
+
+	require.Len(t, toolUsages, 1)
+	require.Equal(t, "delete_repo", toolUsages[0].GetTool())
+	require.Contains(t, toolUsages[0].GetInvocationError(), "requires human approval")
+}
+
 // TestServeHTTP_MCPGatewaySSEFiltering exercises a strict Streamable HTTP
 // upstream, modeled on GitHub's MCP server, which rejects POSTs whose Accept
 // header does not list both JSON and SSE and answers with an SSE stream.

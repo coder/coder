@@ -201,6 +201,9 @@ message GetMCPGatewayServerConfigRequest {
 message MCPGatewayToolRule {
   string tool = 1;
   bool enabled = 2;
+  // Action is "enabled", "disabled", or "escalate". Empty means the legacy
+  // enabled boolean decides.
+  string action = 3;
 }
 
 message MCPGatewayServerConfig {

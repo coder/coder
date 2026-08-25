@@ -2620,7 +2620,7 @@ CREATE TABLE mcp_server_configs (
     tool_default text DEFAULT 'enabled'::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text, 'external_auth'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
-    CONSTRAINT mcp_server_configs_tool_default_check CHECK ((tool_default = ANY (ARRAY['enabled'::text, 'disabled'::text]))),
+    CONSTRAINT mcp_server_configs_tool_default_check CHECK ((tool_default = ANY (ARRAY['enabled'::text, 'disabled'::text, 'escalate'::text]))),
     CONSTRAINT mcp_server_configs_tool_rules_check CHECK ((jsonb_typeof(tool_rules) = 'array'::text)),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );

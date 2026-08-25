@@ -263,22 +263,31 @@ func TestMCPServerConfigsExternalAuthAndToolRules(t *testing.T) {
 	require.Equal(t, "external_auth", created.AuthType)
 	require.Equal(t, providerID, created.ExternalAuthProviderID)
 	require.Equal(t, "disabled", created.ToolDefault)
+	// Normalization stamps the explicit action on legacy boolean rules.
 	require.Equal(t, []codersdk.MCPServerToolRule{
-		{Tool: "read", Enabled: true},
-		{Tool: "delete", Enabled: false},
+		{Tool: "read", Action: codersdk.MCPServerToolActionEnabled, Enabled: true},
+		{Tool: "delete", Action: codersdk.MCPServerToolActionDisabled, Enabled: false},
 	}, created.ToolRules)
 	require.False(t, created.HasOAuth2Secret)
 	require.False(t, created.HasAPIKey)
 	require.False(t, created.HasCustomHeaders)
 
-	newRules := []codersdk.MCPServerToolRule{{Tool: "write", Enabled: true}}
+	newRules := []codersdk.MCPServerToolRule{
+		{Tool: "write", Enabled: true},
+		{Tool: "delete_repo", Action: codersdk.MCPServerToolActionEscalate},
+	}
 	newDefault := "enabled"
 	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
 		ToolRules:   &newRules,
 		ToolDefault: &newDefault,
 	})
 	require.NoError(t, err)
-	require.Equal(t, newRules, updated.ToolRules)
+	// Escalate mirrors as disabled in the legacy boolean so readers without
+	// escalation support fail closed.
+	require.Equal(t, []codersdk.MCPServerToolRule{
+		{Tool: "write", Action: codersdk.MCPServerToolActionEnabled, Enabled: true},
+		{Tool: "delete_repo", Action: codersdk.MCPServerToolActionEscalate, Enabled: false},
+	}, updated.ToolRules)
 	require.Equal(t, newDefault, updated.ToolDefault)
 	require.Equal(t, providerID, updated.ExternalAuthProviderID)
 

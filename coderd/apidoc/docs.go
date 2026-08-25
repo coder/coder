@@ -20179,7 +20179,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "enabled",
-                        "disabled"
+                        "disabled",
+                        "escalate"
                     ]
                 },
                 "tool_deny_list": {
@@ -22646,13 +22647,40 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MCPServerToolAction": {
+            "type": "string",
+            "enum": [
+                "enabled",
+                "disabled",
+                "escalate"
+            ],
+            "x-enum-varnames": [
+                "MCPServerToolActionEnabled",
+                "MCPServerToolActionDisabled",
+                "MCPServerToolActionEscalate"
+            ]
+        },
         "codersdk.MCPServerToolRule": {
             "type": "object",
             "required": [
                 "tool"
             ],
             "properties": {
+                "action": {
+                    "description": "Action is one of enabled, disabled, or escalate. When empty, the\nlegacy Enabled boolean decides between enabled and disabled.",
+                    "enum": [
+                        "enabled",
+                        "disabled",
+                        "escalate"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerToolAction"
+                        }
+                    ]
+                },
                 "enabled": {
+                    "description": "Enabled is the legacy binary form of Action. It is kept in sync on\nwrite so older readers keep working; escalate mirrors as disabled,\nthe fail-closed reading for consumers without escalation support.",
                     "type": "boolean"
                 },
                 "tool": {
@@ -27379,7 +27407,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "enabled",
-                        "disabled"
+                        "disabled",
+                        "escalate"
                     ]
                 },
                 "tool_deny_list": {

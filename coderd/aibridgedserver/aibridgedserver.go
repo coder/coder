@@ -694,6 +694,7 @@ func (s *Server) GetMCPGatewayServerConfig(ctx context.Context, in *proto.GetMCP
 		protoRules = append(protoRules, &proto.MCPGatewayToolRule{
 			Tool:    rule.Tool,
 			Enabled: rule.Enabled,
+			Action:  string(rule.Action),
 		})
 	}
 
