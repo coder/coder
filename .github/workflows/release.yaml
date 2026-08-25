@@ -541,6 +541,22 @@ jobs:
             gcloud storage cp "./build/${detached_signature}" "gs://releases.coder.com/coder-cli/${version}/${cli_name}.asc"
           done
 
+      # Mint a short-lived installation token from the dedicated release
+      # GitHub App. The default GITHUB_TOKEN (github-actions[bot]) cannot be
+      # added to the "Auto-imported tag create protections" ruleset bypass
+      # list, so `gh release create` fails to create the tag with a 403. The
+      # App is added to that ruleset's bypass list as an Integration actor.
+      - name: Generate release App token
+        id: release_app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # The App is installed at the org level, so resolve the org
+          # installation (avoids a 404 on the per-repo installation lookup).
+          owner: ${{ github.repository_owner }}
+          repositories: coder
+
       - name: Publish release
         run: |
           set -euo pipefail
@@ -579,7 +595,9 @@ jobs:
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             "${files[@]}"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use the dedicated release App token (github-actions[bot] is blocked
+          # from creating tags by the tag-create protection ruleset).
+          GITHUB_TOKEN: ${{ steps.release_app_token.outputs.token }}
           CODER_GPG_RELEASE_KEY_BASE64: ${{ secrets.GPG_RELEASE_KEY_BASE64 }}
           VERSION: ${{ steps.version.outputs.version }}
           CREATED_LATEST_TAG: ${{ steps.build_docker.outputs.created_latest_tag }}
