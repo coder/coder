@@ -1415,8 +1415,10 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 	grantedRoles = append(grantedRoles, removed...)
 	// Retired role names may linger in stored role arrays and org default
 	// role lists until a data cleanup migration lands. They expand to no
-	// permissions and cannot be re-created as custom roles, so granting or
-	// revoking them needs no per-role validation.
+	// permissions and cannot be re-created as custom roles, so validating
+	// them is unnecessary: the added set only contains them via stored
+	// data (implied org defaults), never via explicit grants, which the
+	// role-update paths reject before reaching this filter.
 	grantedRoles = slices.DeleteFunc(grantedRoles, func(r rbac.RoleIdentifier) bool {
 		return rbac.IsLegacyRoleName(r.Name)
 	})
@@ -7873,6 +7875,16 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
+	// Explicitly granting a retired role is rejected. Legacy-name tolerance
+	// only covers stored grants and implied org defaults that linger until
+	// the cleanup migration lands; without this check the request would
+	// skip validation and persist a hidden grant that a binary rollback
+	// resolves again.
+	for _, role := range scopedGranted {
+		if rbac.IsLegacyRoleName(role.Name) {
+			return database.OrganizationMember{}, xerrors.Errorf("role %q is retired and cannot be assigned", role.Name)
+		}
+	}
 
 	// The org's default_org_member_roles are implied at request time by
 	// GetAuthorizationUserRoles. Include them in the implied set so
@@ -8497,6 +8509,15 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 	user, err := fetch(q.log, q.auth, q.db.GetUserByID)(ctx, arg.ID)
 	if err != nil {
 		return database.User{}, err
+	}
+
+	// Explicitly granting a retired role is rejected. Legacy-name tolerance
+	// only covers stored grants that linger until the cleanup migration
+	// lands.
+	for _, roleName := range arg.GrantedRoles {
+		if rbac.IsLegacyRoleName(roleName) {
+			return database.User{}, xerrors.Errorf("role %q is retired and cannot be assigned", roleName)
+		}
 	}
 
 	// The member role is always implied.

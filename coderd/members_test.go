@@ -134,6 +134,19 @@ func TestMembersWithLegacyRole(t *testing.T) {
 	}
 	require.Contains(t, names, codersdk.RoleOrganizationAuditor)
 	require.NotContains(t, names, "agents-access")
+
+	// Explicitly granting the retired role again is rejected for both org
+	// and site scope, so tolerance of stale data cannot be used to store
+	// fresh grants that a binary rollback would resolve again.
+	_, err = client.UpdateOrganizationMemberRoles(ctx, owner.OrganizationID, member.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{codersdk.RoleOrganizationAuditor, "agents-access"},
+	})
+	require.ErrorContains(t, err, "retired")
+
+	_, err = client.UpdateUserRoles(ctx, member.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{"agents-access"},
+	})
+	require.ErrorContains(t, err, "retired")
 }
 
 func TestDeleteMember(t *testing.T) {
