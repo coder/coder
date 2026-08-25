@@ -1,12 +1,15 @@
 package coderd_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -14,8 +17,16 @@ func TestChatRoutesCompatibility(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := coderdtest.New(t, nil)
-	coderdtest.CreateFirstUser(t, client)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		OrganizationID: firstUser.OrganizationID,
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: model.ID,
+	})
 
 	for _, route := range []string{
 		"/api/experimental/chats",
@@ -39,8 +50,8 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		{http.MethodGet, "/api/v2/chats/user-provider-configs"},
 		{http.MethodGet, "/api/v2/chats/config/computer-use-provider"},
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
-		{http.MethodGet, "/api/v2/chats/00000000-0000-0000-0000-000000000000/debug/runs"},
-		{http.MethodGet, "/api/v2/chats/00000000-0000-0000-0000-000000000000/stream/desktop"},
+		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/debug/runs", chat.ID)},
+		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/stream/desktop", chat.ID)},
 		{http.MethodGet, "/api/v2/mcp/servers/not-a-uuid/oauth2/callback"},
 		{http.MethodPost, "/api/v2/mcp/http/server"},
 	} {
