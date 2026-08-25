@@ -12,11 +12,11 @@ Off by default. Three layers control whether it runs for a given chat:
 1. **Runtime admin gate.** With the deployment override unset, the
    *Let users record chat debug logs* toggle decides whether users can opt
    in. Configure it under **AI Settings** > **Lifecycle**, or at
-   `GET/PUT /api/v2/chats/config/debug-logging`.
+   `GET/PUT /api/experimental/chats/config/debug-logging`.
 1. **Per-user toggle.** Users with the admin gate enabled can turn debug
    logging on for their own chats from **Agents** > **Settings** > **General**
    under *Record debug logs for my chats*. The endpoint
-   `PUT /api/v2/chats/config/user-debug-logging` returns
+   `PUT /api/experimental/chats/config/user-debug-logging` returns
    `409 Conflict` if the deployment override is active and `403 Forbidden`
    if the admin has not enabled user opt-in.
 
@@ -51,9 +51,9 @@ the newest runs.
 
 The same data is available through the API:
 
-- `GET /api/v2/chats/{chat}/debug/runs` lists the most recent runs
+- `GET /api/experimental/chats/{chat}/debug/runs` lists the most recent runs
   for a chat (up to 100, newest first).
-- `GET /api/v2/chats/{chat}/debug/runs/{debugRun}` returns a single
+- `GET /api/experimental/chats/{chat}/debug/runs/{debugRun}` returns a single
   run with all of its steps, including normalized request and response bodies.
 
 Fetch a single run and save it as JSON:
@@ -66,7 +66,7 @@ export RUN_ID="11111111-1111-1111-1111-111111111111"
 
 curl -fsS \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs/$RUN_ID" \
+  "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs/$RUN_ID" \
   | jq . > "coder-agents-debug-run-$RUN_ID.json"
 ```
 
@@ -77,7 +77,7 @@ from above:
 ```sh
 RUN_IDS=$(curl -fsS \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-  "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs" \
+  "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs" \
   | jq -r '.[].id') || {
   echo "Failed to list debug runs" >&2
   exit 1
@@ -89,7 +89,7 @@ trap 'rm -f "$RUN_EXPORTS"' EXIT
 for RUN_ID in $RUN_IDS; do
   curl -fsS \
     -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
-    "$CODER_URL/api/v2/chats/$CHAT_ID/debug/runs/$RUN_ID" \
+    "$CODER_URL/api/experimental/chats/$CHAT_ID/debug/runs/$RUN_ID" \
     >> "$RUN_EXPORTS" || {
       echo "Failed to fetch debug run $RUN_ID" >&2
       exit 1

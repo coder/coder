@@ -31,8 +31,8 @@ disable retention entirely.
 Use the admin API to read or update the value:
 
 ```txt
-GET  /api/v2/chats/config/retention-days
-PUT  /api/v2/chats/config/retention-days
+GET  /api/experimental/chats/config/retention-days
+PUT  /api/experimental/chats/config/retention-days
 ```
 
 ## What gets deleted

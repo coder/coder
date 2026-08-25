@@ -190,7 +190,7 @@ deployment. Use this to encode organizational conventions:
 - Any guardrails specific to your environment.
 
 Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
-or via the API at `PUT /api/v2/chats/config/system-prompt`.
+or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
 ### Understand the security model
@@ -259,20 +259,25 @@ This is useful for building automations such as:
 **Quick example — create a Coder Agent via the API:**
 
 ```sh
-curl -X POST https://coder.example.com/api/v2/chats \
+curl -X POST https://coder.example.com/api/experimental/chats \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
+    "organization_id": "<your-org-id>",
     "content": [
       {"type": "text", "text": "Fix the failing tests in the auth service"}
     ]
   }'
 ```
 
+`organization_id` is required, and the caller must be a member of that
+organization. To find the ID, call `GET /api/v2/organizations` and use the
+`id` field of the organization you want.
+
 Stream updates in real time by connecting to the WebSocket endpoint:
 
 ```txt
-GET /api/v2/chats/{chat}/stream
+GET /api/experimental/chats/{chat}/stream
 ```
 
 For service-to-service automation, use

@@ -39,5 +39,5 @@ provider is set.
 
 The same configuration is available at:
 
-- `GET /api/v2/chats/config/computer-use-provider`
-- `PUT /api/v2/chats/config/computer-use-provider`
+- `GET /api/experimental/chats/config/computer-use-provider`
+- `PUT /api/experimental/chats/config/computer-use-provider`

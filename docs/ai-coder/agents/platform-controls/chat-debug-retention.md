@@ -28,8 +28,8 @@ is `3650` days.
 Use the admin API to read or update the value:
 
 ```txt
-GET  /api/v2/chats/config/debug-retention-days
-PUT  /api/v2/chats/config/debug-retention-days
+GET  /api/experimental/chats/config/debug-retention-days
+PUT  /api/experimental/chats/config/debug-retention-days
 ```
 
 ## Interaction with conversation retention

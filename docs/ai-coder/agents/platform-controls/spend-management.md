@@ -28,9 +28,9 @@ $1,000,000 per member per period.
 > Configured per-model prices and historical native cost totals are also not migrated to AI Gateway.
 > Before upgrading, record any per-model prices you need from **Admin settings** > **AI** > **Models**.
 > The old cost endpoints default `start_date` to 30 days before the request and `end_date` to the request time, so choose explicit RFC 3339 UTC values that cover all history you need.
-> Fetch `/api/v2/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0` and save the response.
+> Fetch `/api/experimental/chats/cost/users?start_date=<start>&end_date=<end>&limit=100&offset=0` and save the response.
 > After each page, stop when `offset + users.length >= count`; otherwise, increase `offset` by 100 and fetch the next page.
-> For every `users[].user_id` across those pages, save `/api/v2/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>` with the same dates.
+> For every `users[].user_id` across those pages, save `/api/experimental/chats/cost/{user_id}/summary?start_date=<start>&end_date=<end>` with the same dates.
 > Each summary contains the user's totals plus `by_model` and `by_chat` breakdowns.
 > After upgrading, the native **Spend** page, per-model pricing fields, and aggregate cost endpoints are unavailable.
 > Historical `chat_messages.total_cost_micros` values remain in the database temporarily for rolling upgrade compatibility, but AI Gateway reports do not include or reconstruct them.

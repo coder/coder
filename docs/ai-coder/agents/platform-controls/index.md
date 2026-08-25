@@ -65,8 +65,8 @@ This setting is available under **AI Settings** > **Coder Agents** > **Instructi
 
 The same value is exposed over the chat configuration API:
 
-- `GET /api/v2/chats/config/plan-mode-instructions`
-- `PUT /api/v2/chats/config/plan-mode-instructions`
+- `GET /api/experimental/chats/config/plan-mode-instructions`
+- `PUT /api/experimental/chats/config/plan-mode-instructions`
 
 ### Template routing
 
