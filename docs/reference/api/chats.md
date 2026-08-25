@@ -3268,10 +3268,10 @@ curl -X DELETE http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage
 
 ### Parameters
 
-| Name            | In   | Type    | Required | Description       |
-|-----------------|------|---------|----------|-------------------|
-| `chat`          | path | string  | true     | Chat ID           |
-| `queuedMessage` | path | integer | true     | Queued message ID |
+| Name            | In   | Type         | Required | Description       |
+|-----------------|------|--------------|----------|-------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID           |
+| `queuedMessage` | path | integer      | true     | Queued message ID |
 
 ### Responses
 
@@ -3296,10 +3296,10 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}/
 
 ### Parameters
 
-| Name            | In   | Type    | Required | Description       |
-|-----------------|------|---------|----------|-------------------|
-| `chat`          | path | string  | true     | Chat ID           |
-| `queuedMessage` | path | integer | true     | Queued message ID |
+| Name            | In   | Type         | Required | Description       |
+|-----------------|------|--------------|----------|-------------------|
+| `chat`          | path | string(uuid) | true     | Chat ID           |
+| `queuedMessage` | path | integer      | true     | Queued message ID |
 
 ### Example responses
 
@@ -4029,9 +4029,9 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/title/propose \
 
 ### Parameters
 
-| Name   | In   | Type   | Required | Description |
-|--------|------|--------|----------|-------------|
-| `chat` | path | string | true     | Chat ID     |
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
 
 ### Example responses
 
@@ -4319,7 +4319,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 | Name   | In   | Type                                                                             | Required | Description  |
 |--------|------|----------------------------------------------------------------------------------|----------|--------------|
-| `chat` | path | string                                                                           | true     | Chat ID      |
+| `chat` | path | string(uuid)                                                                     | true     | Chat ID      |
 | `body` | body | [codersdk.SubmitToolResultsRequest](schemas.md#codersdksubmittoolresultsrequest) | true     | Request body |
 
 ### Responses
@@ -4432,7 +4432,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{aiPro
 | Name         | In   | Type                                                                                         | Required | Description              |
 |--------------|------|----------------------------------------------------------------------------------------------|----------|--------------------------|
 | `user`       | path | string                                                                                       | true     | User ID, username, or me |
-| `aiProvider` | path | string                                                                                       | true     | AI provider ID           |
+| `aiProvider` | path | string(uuid)                                                                                 | true     | AI provider ID           |
 | `body`       | body | [codersdk.CreateUserAIProviderKeyRequest](schemas.md#codersdkcreateuseraiproviderkeyrequest) | true     | Request body             |
 
 ### Example responses
@@ -4478,10 +4478,10 @@ curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai-provider-keys/{ai
 
 ### Parameters
 
-| Name         | In   | Type   | Required | Description              |
-|--------------|------|--------|----------|--------------------------|
-| `user`       | path | string | true     | User ID, username, or me |
-| `aiProvider` | path | string | true     | AI provider ID           |
+| Name         | In   | Type         | Required | Description              |
+|--------------|------|--------------|----------|--------------------------|
+| `user`       | path | string       | true     | User ID, username, or me |
+| `aiProvider` | path | string(uuid) | true     | AI provider ID           |
 
 ### Responses
 

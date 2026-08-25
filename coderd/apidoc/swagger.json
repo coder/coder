@@ -1697,6 +1697,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Model config ID",
 						"name": "modelConfig",
 						"in": "path",
@@ -1736,6 +1737,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Model config ID",
 						"name": "modelConfig",
 						"in": "path",
@@ -2610,6 +2612,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Chat ID",
 						"name": "chat",
 						"in": "path",
@@ -2644,6 +2647,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Chat ID",
 						"name": "chat",
 						"in": "path",
@@ -2820,6 +2824,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Chat ID",
 						"name": "chat",
 						"in": "path",
@@ -2881,6 +2886,7 @@
 				"parameters": [
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Chat ID",
 						"name": "chat",
 						"in": "path",
@@ -10437,6 +10443,7 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "AI provider ID",
 						"name": "aiProvider",
 						"in": "path",
@@ -10480,6 +10487,7 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "AI provider ID",
 						"name": "aiProvider",
 						"in": "path",

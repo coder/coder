@@ -17,7 +17,7 @@ import (
 // prefixes cannot double the budget.
 func (api *API) chatFilesRateLimitMW() func(http.Handler) http.Handler {
 	api.chatFilesRateLimitOnce.Do(func() {
-		api.chatFilesRateLimit = httpmw.RateLimit(api.FilesRateLimit, time.Minute)
+		api.chatFilesRateLimit = httpmw.RateLimitByAPICompatibilityEndpoint(api.FilesRateLimit, time.Minute)
 	})
 	return api.chatFilesRateLimit
 }

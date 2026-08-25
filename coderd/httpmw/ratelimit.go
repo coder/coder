@@ -23,6 +23,16 @@ import (
 // RateLimit returns a handler that limits requests per-minute based
 // on IP, endpoint, and user ID (if available).
 func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, keyByNormalizedEndpoint)
+}
+
+// RateLimitByAPICompatibilityEndpoint shares rate-limit buckets for matching
+// endpoints under the /api/v2 and /api/experimental compatibility prefixes.
+func RateLimitByAPICompatibilityEndpoint(count int, window time.Duration) func(http.Handler) http.Handler {
+	return rateLimitWithEndpointKey(count, window, keyByAPICompatibilityEndpoint)
+}
+
+func rateLimitWithEndpointKey(count int, window time.Duration, endpointKey func(*http.Request) (string, error)) func(http.Handler) http.Handler {
 	// -1 is no rate limit
 	if count <= 0 {
 		return func(handler http.Handler) http.Handler {
@@ -87,7 +97,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 				"%q provided but user is not %v",
 				codersdk.BypassRatelimitHeader, rbac.RoleOwner(),
 			)
-		}, keyByNormalizedEndpoint),
+		}, endpointKey),
 		httprate.WithLimitHandler(func(w http.ResponseWriter, r *http.Request) {
 			httpapi.Write(r.Context(), w, http.StatusTooManyRequests, codersdk.Response{
 				Message: fmt.Sprintf("You've been rate limited for sending more than %v requests in %v.", count, window),
@@ -108,14 +118,20 @@ func keyByNormalizedEndpoint(r *http.Request) (string, error) {
 	if p == "" {
 		p = "/"
 	}
-	p = path.Clean(p)
-	// Routes mounted under both prefixes during the /api/experimental to
-	// /api/v2 compatibility window share one limiter instance; stripping
-	// the prefix keeps them in one bucket per endpoint.
-	for _, prefix := range []string{"/api/v2/", "/api/experimental/"} {
-		if strings.HasPrefix(p, prefix) {
-			p = p[len(prefix)-1:]
-			break
+	return path.Clean(p), nil
+}
+
+func keyByAPICompatibilityEndpoint(r *http.Request) (string, error) {
+	p, err := keyByNormalizedEndpoint(r)
+	if err != nil {
+		return "", err
+	}
+	for _, prefix := range []string{"/api/v2", "/api/experimental"} {
+		if p == prefix {
+			return "/", nil
+		}
+		if strings.HasPrefix(p, prefix+"/") {
+			return strings.TrimPrefix(p, prefix), nil
 		}
 	}
 	return p, nil

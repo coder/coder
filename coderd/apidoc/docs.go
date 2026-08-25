@@ -1946,6 +1946,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Model config ID",
                         "name": "modelConfig",
                         "in": "path",
@@ -1987,6 +1988,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Model config ID",
                         "name": "modelConfig",
                         "in": "path",
@@ -2965,6 +2967,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Chat ID",
                         "name": "chat",
                         "in": "path",
@@ -3003,6 +3006,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Chat ID",
                         "name": "chat",
                         "in": "path",
@@ -3199,6 +3203,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Chat ID",
                         "name": "chat",
                         "in": "path",
@@ -3268,6 +3273,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Chat ID",
                         "name": "chat",
                         "in": "path",
@@ -11766,6 +11772,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "AI provider ID",
                         "name": "aiProvider",
                         "in": "path",
@@ -11811,6 +11818,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "AI provider ID",
                         "name": "aiProvider",
                         "in": "path",
