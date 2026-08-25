@@ -24,7 +24,7 @@ Conversation and file cleanup operations run in batches of 1,000 rows per cycle.
 
 ## Configuration
 
-Navigate to **AI Settings** > **Coder Agents** > **Lifecycle** (`/ai/settings/lifecycle`) to configure the conversation retention period.
+Navigate to **Admin settings** > **AI** > **Coder Agents** > **Lifecycle** to configure the conversation retention period.
 The default is 30 days.
 Use the toggle to disable retention entirely.
 

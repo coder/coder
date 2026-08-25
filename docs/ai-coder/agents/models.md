@@ -302,8 +302,8 @@ layers. Both are stored per organization and resolve from the chat's
 organization:
 
 - **Admin overrides** (per organization): Pin specific contexts to a
-  particular model. Configure them under **AI Settings** > **Coder Agents**
-  (`/ai/settings/coder-agents`) for the selected organization.
+  particular model. Configure them on the **Defaults & overrides** tab
+  under **AI Settings** > **Models** for the selected organization.
 - **Personal overrides** (per user and organization, opt-in by admin):
   Let users override the model for their own root chats and delegated
   subagents. Admins enable the deployment-wide toggle under
