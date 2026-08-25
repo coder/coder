@@ -1,3 +1,4 @@
+import { EllipsisVerticalIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -12,7 +13,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -23,6 +29,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { formatDate } from "#/utils/time";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
@@ -272,12 +279,6 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				</div>
 			) : isLoading ? (
 				<Loader />
-			) : skills.length === 0 ? (
-				<EmptyState
-					message="No personal skills yet"
-					description="Create a personal skill to save reusable agent guidance for your workflows."
-					cta={addSkillAction}
-				/>
 			) : (
 				<Table aria-label="Personal skills">
 					<TableHeader>
@@ -285,54 +286,67 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 							<TableHead>Name</TableHead>
 							<TableHead>Description</TableHead>
 							<TableHead>Updated</TableHead>
-							<TableHead className="text-right">Actions</TableHead>
+							<TableHead className="w-14">
+								<span className="sr-only">Actions</span>
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{skills.map((skill) => (
-							<TableRow key={skill.id}>
-								<TableCell className="font-mono text-content-primary">
-									{skill.name}
-								</TableCell>
-								<TableCell>
-									{skill.description || (
-										<span className="text-content-secondary">
-											No description
-										</span>
-									)}
-								</TableCell>
-								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
-								<TableCell>
-									<div className="flex justify-end gap-2">
-										<Button
-											size="xs"
-											variant="outline"
-											onClick={() => onDownload(skill)}
-											disabled={downloadingSkillName === skill.name}
-										>
-											{downloadingSkillName === skill.name && (
-												<Spinner className="size-4" loading />
-											)}
-											Download
-										</Button>
-										<Button
-											size="xs"
-											variant="outline"
-											onClick={() => onEdit(skill.name)}
-										>
-											Edit
-										</Button>
-										<Button
-											size="xs"
-											variant="destructive"
-											onClick={() => onDelete(skill)}
-										>
-											Delete
-										</Button>
-									</div>
-								</TableCell>
-							</TableRow>
-						))}
+						{skills.length === 0 ? (
+							<TableEmpty
+								message="No personal skills yet"
+								description="Create a personal skill to save reusable agent guidance for your workflows."
+								cta={addSkillAction}
+							/>
+						) : (
+							skills.map((skill) => (
+								<TableRow key={skill.id}>
+									<TableCell className="font-mono text-content-primary">
+										{skill.name}
+									</TableCell>
+									<TableCell>
+										{skill.description || (
+											<span className="text-content-secondary">
+												No description
+											</span>
+										)}
+									</TableCell>
+									<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
+									<TableCell className="text-right">
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													aria-label="Open menu"
+													disabled={downloadingSkillName === skill.name}
+												>
+													{downloadingSkillName === skill.name ? (
+														<Spinner className="size-4" loading />
+													) : (
+														<EllipsisVerticalIcon aria-hidden="true" />
+													)}
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuItem onClick={() => onDownload(skill)}>
+													Download
+												</DropdownMenuItem>
+												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+													Edit
+												</DropdownMenuItem>
+												<DropdownMenuItem
+													className="text-content-destructive focus:text-content-destructive"
+													onClick={() => onDelete(skill)}
+												>
+													Delete&hellip;
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</TableCell>
+								</TableRow>
+							))
+						)}
 					</TableBody>
 				</Table>
 			)}
