@@ -47,6 +47,13 @@ export const ModelRow: FC<ModelRowProps> = ({
 			? "The provider connected to this model is disabled."
 			: null;
 
+	// Stop activation from bubbling to the clickable row, which navigates on
+	// click, Enter (onKeyDown), and Space (onKeyUp). Radix composes its own
+	// click handler, so the tooltip still opens.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
+
 	return (
 		<TableRow {...clickableProps}>
 			<TableCell className="min-w-0 px-4 py-3">
@@ -83,6 +90,26 @@ export const ModelRow: FC<ModelRowProps> = ({
 							<Badge variant="default" className="shrink-0">
 								Disabled
 							</Badge>
+						)}
+						{providerNotice && (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Badge
+										variant="warning"
+										className="shrink-0"
+										tabIndex={0}
+										aria-label={`Unavailable: ${providerNotice}`}
+										onClick={stopPropagation}
+										onKeyDown={stopPropagation}
+										onKeyUp={stopPropagation}
+									>
+										Unavailable
+									</Badge>
+								</TooltipTrigger>
+								<TooltipContent side="bottom" className="max-w-[240px]">
+									{providerNotice}
+								</TooltipContent>
+							</Tooltip>
 						)}
 					</div>
 				</div>
@@ -128,18 +155,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 				>
 					{formatContextLimit(model.context_limit)}
 				</span>
-			</TableCell>
-			<TableCell>
-				{providerNotice && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Badge variant="warning">Unavailable</Badge>
-						</TooltipTrigger>
-						<TooltipContent side="bottom" className="max-w-[240px]">
-							{providerNotice}
-						</TooltipContent>
-					</Tooltip>
-				)}
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">
