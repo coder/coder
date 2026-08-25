@@ -584,6 +584,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
+	const shouldShowWorkspacePill = Boolean(
+		attachedWorkspace && workspace && workspaceAgent && chatId,
+	);
 
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
@@ -591,10 +594,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	if (shouldOverflowPlanningBadge) {
 		allBadges.push({ kind: "planning" });
 	}
-	// When workspace data is available, WorkspacePill handles
-	// the display (including app dropdown). Otherwise fall back
-	// to the simple attached-workspace ToolBadge.
-	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
+	if (shouldShowWorkspacePill) {
+		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace! });
+	} else if (attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
@@ -606,7 +608,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
 	const visibleCount = Math.max(0, allBadges.length - overflowCount);
-	const overflowBadges = allBadges.slice(visibleCount);
+	const adjustedVisibleCount =
+		overflowCount > 0 && shouldShowWorkspacePill
+			? Math.max(0, visibleCount - 1)
+			: visibleCount;
+	const overflowBadges = allBadges.slice(adjustedVisibleCount);
 
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
 	const removeWorkspaceHandler = onWorkspaceChange
@@ -1447,31 +1453,43 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
-						{workspace && workspaceAgent && chatId && (
-							// flex + explicit min-width let this wrapper shrink below its
-							// content so the pill truncates; a plain span's automatic
-							// minimum is the pill's full width, which blocks shrinking and
-							// clips the pill instead. The md floor matches WorkspacePill.
-							<span className="ml-1 flex min-w-0 text-xs sm:ml-0 md:min-w-[calc(8ch_+_3.125rem)]">
-								<WorkspacePill
-									workspace={workspace}
-									agent={workspaceAgent}
-									chatId={chatId}
-									sshCommand={sshCommand}
-									folder={folder}
-									onRemoveWorkspace={removeWorkspaceHandler}
-								/>
-							</span>
-						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
 							{allBadges.map((badge, i) => {
-								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								const isOverflow = i >= adjustedVisibleCount;
+								const key = badge.kind === "mcp" ? badge.server.id : badge.kind;
+								if (badge.kind === "attached-workspace") {
+									if (isOverflow) {
+										return null;
+									}
+									if (
+										shouldShowWorkspacePill &&
+										workspace &&
+										workspaceAgent &&
+										chatId
+									) {
+										return (
+											<span
+												key={key}
+												className="flex min-w-0 text-xs md:min-w-[calc(8ch_+_3.125rem)]"
+											>
+												<WorkspacePill
+													workspace={workspace}
+													agent={workspaceAgent}
+													chatId={chatId}
+													sshCommand={sshCommand}
+													folder={folder}
+													onRemoveWorkspace={removeWorkspaceHandler}
+												/>
+											</span>
+										);
+									}
+								}
 								return (
 									<ToolBadge
-										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
+										key={key}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}

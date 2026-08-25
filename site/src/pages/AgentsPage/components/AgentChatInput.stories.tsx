@@ -1479,6 +1479,21 @@ export const OverflowBadges: Story = {
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			route: "/@admin/my-long-workspace-name",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			owner_name: "admin",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1552,6 +1567,13 @@ export const LongWorkspaceNameMobile: Story = {
 		...mcpDefaults,
 		mcpServers: [githubMCPConnected],
 		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
 		workspace: {
 			...MockWorkspace,
 			name: "my-super-extremely-long-workspace-name-that-overflows",
