@@ -192,6 +192,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 		ContextDirtyMarker:   contextDirtyMarker,
+		ContextSyncDisabled:  api.DeploymentValues.DisableWorkspaceAgentContextSync.Value(),
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{

@@ -23,7 +23,6 @@ const meta: Meta<typeof AddModelPageView> = {
 			<OrganizationModelsContext.Provider
 				value={{
 					organization: MockDefaultOrganization,
-					organizations: [MockDefaultOrganization],
 					permissions: MockOrganizationPermissions,
 					requestedOrganizationDenied: false,
 				}}

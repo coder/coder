@@ -96,7 +96,6 @@ export const splitModelQueryErrors = (
 
 type OrganizationModelsContextValue = {
 	organization: Organization;
-	organizations: readonly Organization[];
 	permissions: OrganizationPermissions | undefined;
 	requestedOrganizationDenied: boolean;
 };
@@ -124,17 +123,6 @@ const organizationModelSettingsPath = (
 	return `/ai/settings/models${suffix}?${next.toString()}`;
 };
 
-export const organizationModelsPath = (
-	organization: Organization,
-	searchParams?: URLSearchParams,
-): string => organizationModelSettingsPath(organization, "", searchParams);
-
-export const organizationModelDefaultsPath = (
-	organization: Organization,
-	searchParams?: URLSearchParams,
-): string =>
-	organizationModelSettingsPath(organization, "/defaults", searchParams);
-
 export const organizationAddModelPath = (
 	organization: Organization,
 	searchParams?: URLSearchParams,
@@ -154,5 +142,5 @@ export const organizationModelPath = (
 export const useOrganizationModelsPath = (): string => {
 	const { organization } = useOrganizationModels();
 	const [searchParams] = useSearchParams();
-	return organizationModelsPath(organization, searchParams);
+	return organizationModelSettingsPath(organization, "", searchParams);
 };
