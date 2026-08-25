@@ -382,7 +382,8 @@ func TestRecordTokenUsage(t *testing.T) {
 					OutputTokens: 20,
 					TotalTokens:  30,
 					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
-						CachedTokens: 5,
+						CachedTokens:     5,
+						CacheWriteTokens: 3,
 					},
 					OutputTokensDetails: oairesponses.ResponseUsageOutputTokensDetails{
 						ReasoningTokens: 5,
@@ -390,11 +391,12 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "resp_full",
-				Input:                5, // 10 input - 5 cached
-				Output:               20,
-				CacheReadInputTokens: 5,
+				InterceptionID:        id.String(),
+				MsgID:                 "resp_full",
+				Input:                 2, // 10 input - 5 cache read - 3 cache write
+				Output:                20,
+				CacheReadInputTokens:  5,
+				CacheWriteInputTokens: 3,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 5,
 					"total_tokens":     30,
@@ -413,16 +415,18 @@ func TestRecordTokenUsage(t *testing.T) {
 					OutputTokens: 20,
 					TotalTokens:  30,
 					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
-						CachedTokens: 40,
+						CachedTokens:     20,
+						CacheWriteTokens: 20,
 					},
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "resp_clamp",
-				Input:                0, // max(0, 10 input - 40 cached)
-				Output:               20,
-				CacheReadInputTokens: 40,
+				InterceptionID:        id.String(),
+				MsgID:                 "resp_clamp",
+				Input:                 0, // max(0, 10 input - 20 cache read - 20 cache write)
+				Output:                20,
+				CacheReadInputTokens:  20,
+				CacheWriteInputTokens: 20,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     30,

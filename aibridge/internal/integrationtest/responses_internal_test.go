@@ -94,10 +94,11 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-4.1",
 			expectPromptRecorded: "This was a large input...",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:                "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
-				Input:                129, // 12033 input - 11904 cached
-				Output:               44,
-				CacheReadInputTokens: 11904,
+				MsgID:                 "resp_0cd5d6b8310055d600696a1776b42c81a199fbb02248a8bfa0",
+				Input:                 114, // 12033 input - 11904 cached - 15 cache write
+				Output:                44,
+				CacheReadInputTokens:  11904,
+				CacheWriteInputTokens: 15,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     12077,
@@ -256,10 +257,11 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-5.2-codex",
 			expectPromptRecorded: "Test cached input tokens.",
 			expectTokenUsage: &recorder.TokenUsageRecord{
-				MsgID:                "resp_05080461b406f3f501696a1409d34c8195a40ff4b092145c35",
-				Input:                1165, // 16909 input - 15744 cached
-				Output:               54,
-				CacheReadInputTokens: 15744,
+				MsgID:                 "resp_05080461b406f3f501696a1409d34c8195a40ff4b092145c35",
+				Input:                 1135, // 16909 input - 15744 cached - 30 cache write
+				Output:                54,
+				CacheReadInputTokens:  15744,
+				CacheWriteInputTokens: 30,
 				ExtraTokenTypes: map[string]int64{
 					"output_reasoning": 0,
 					"total_tokens":     16963,

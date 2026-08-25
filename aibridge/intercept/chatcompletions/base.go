@@ -227,14 +227,15 @@ func (i *interceptionBase) hasInjectableTools() bool {
 }
 
 // recordTokenUsage records the token usage for a single completion, accounting
-// for cached tokens included in the prompt token count.
+// for cache read and write tokens included in the prompt token count.
 func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage) {
 	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-		InterceptionID:       i.ID().String(),
-		MsgID:                msgID,
-		Input:                calculateActualInputTokenUsage(usage),
-		Output:               usage.CompletionTokens,
-		CacheReadInputTokens: usage.PromptTokensDetails.CachedTokens,
+		InterceptionID:        i.ID().String(),
+		MsgID:                 msgID,
+		Input:                 calculateActualInputTokenUsage(usage),
+		Output:                usage.CompletionTokens,
+		CacheReadInputTokens:  usage.PromptTokensDetails.CachedTokens,
+		CacheWriteInputTokens: usage.PromptTokensDetails.CacheWriteTokens,
 		ExtraTokenTypes: map[string]int64{
 			"prompt_audio":                   usage.PromptTokensDetails.AudioTokens,
 			"completion_accepted_prediction": usage.CompletionTokensDetails.AcceptedPredictionTokens,
@@ -263,11 +264,11 @@ func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
 	}
 }
 
-// calculateActualInputTokenUsage accounts for cached tokens which are included in [openai.CompletionUsage].PromptTokens.
+// calculateActualInputTokenUsage calculates ordinary input tokens.
+// in.PromptTokens contains sum of all prompt tokens including
+// cache read and write tokens which are priced differently.
 func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	// The original value can be reconstructed by adding CachedTokens back to Input.
-	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
-	return max(0, in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
-		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */)
+	return max(0, in.PromptTokens-
+		in.PromptTokensDetails.CachedTokens-
+		in.PromptTokensDetails.CacheWriteTokens)
 }

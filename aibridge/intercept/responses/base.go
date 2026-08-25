@@ -327,16 +327,19 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	usage := response.Usage
 
-	// Keeping logic consistent with chat completions
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
+	// InputTokens include cache read and write tokens, see OpenAI spending controller cookbook for reference:
+	// https://github.com/openai/openai-cookbook/blob/51c769595490f7513d4bd7c6e7700a7ab8dedbd4/articles/per_run_spending_controller_responses_api.md?plain=1#L197
+	inputNonCacheTokens := max(0, usage.InputTokens-
+		usage.InputTokensDetails.CachedTokens-
+		usage.InputTokensDetails.CacheWriteTokens)
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-		InterceptionID:       i.ID().String(),
-		MsgID:                response.ID,
-		Input:                inputNonCacheTokens,
-		Output:               usage.OutputTokens,
-		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
+		InterceptionID:        i.ID().String(),
+		MsgID:                 response.ID,
+		Input:                 inputNonCacheTokens,
+		Output:                usage.OutputTokens,
+		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
+		CacheWriteInputTokens: usage.InputTokensDetails.CacheWriteTokens,
 		ExtraTokenTypes: map[string]int64{
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
