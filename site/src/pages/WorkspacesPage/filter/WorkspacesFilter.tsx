@@ -1,144 +1,161 @@
-import type { FC } from "react";
 import {
-	Filter,
-	MenuSkeleton,
-	type UseFilterResult,
-} from "#/components/Filter/Filter";
+	Building2Icon,
+	CircleDotIcon,
+	LayoutGridIcon,
+	SlidersHorizontalIcon,
+	UserIcon,
+} from "lucide-react";
+import { type FC, useCallback, useMemo } from "react";
+import { useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
 import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "#/components/Filter/UserFilter";
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
+import { workspaces } from "#/api/queries/workspaces";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type {
+	FilterCategory,
+	SearchResult,
+} from "#/components/Filter/FilterCombobox/types";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "#/modules/tableFiltering/options";
-import { docs } from "#/utils/docs";
-import {
-	type StatusFilterMenu,
-	StatusMenu,
-	type TemplateFilterMenu,
-	TemplateMenu,
-} from "./menus";
+	ATTRIBUTE_CHIP_KEYS,
+	getAttributeFilterOptions,
+	getOrganizationFilterOptions,
+	getOwnerFilterOptions,
+	getStatusFilterOptions,
+	getTemplateFilterOptions,
+} from "./categoryOptions";
 
-const workspaceFilterQuery = {
-	me: "owner:me",
-	all: "",
-	running: "status:running",
-	failed: "status:failed",
-	dormant: "dormant:true",
-	outdated: "outdated:true",
-	shared: "shared:true",
-};
-
-type FilterPreset = {
-	query: string;
-	name: string;
-};
-
-// Can't use as const declarations to make arrays deep readonly because that
-// interferes with the type contracts for Filter
-const PRESET_FILTERS: FilterPreset[] = [
-	{
-		query: workspaceFilterQuery.me,
-		name: "My workspaces",
-	},
-	{
-		query: workspaceFilterQuery.all,
-		name: "All workspaces",
-	},
-	{
-		query: workspaceFilterQuery.running,
-		name: "Running workspaces",
-	},
-	{
-		query: workspaceFilterQuery.failed,
-		name: "Failed workspaces",
-	},
-	{
-		query: workspaceFilterQuery.outdated,
-		name: "Outdated workspaces",
-	},
-	{
-		query: workspaceFilterQuery.shared,
-		name: "Shared workspaces",
-	},
-];
-
-// Defined outside component so that the array doesn't get reconstructed each render
-const PRESETS_WITH_DORMANT: FilterPreset[] = [
-	...PRESET_FILTERS,
-	{
-		query: workspaceFilterQuery.dormant,
-		name: "Dormant workspaces",
-	},
-];
-
-export type WorkspaceFilterState = {
-	filter: UseFilterResult;
-	error?: unknown;
-	menus: {
-		user?: UserFilterMenu;
-		template: TemplateFilterMenu;
-		status: StatusFilterMenu;
-		organizations?: OrganizationsFilterMenu;
-	};
-};
+const WORKSPACE_PREVIEW_LIMIT = 5;
 
 type WorkspaceFilterProps = Readonly<{
 	filter: UseFilterResult;
 	error: unknown;
-	templateMenu: TemplateFilterMenu;
-	statusMenu: StatusFilterMenu;
-
-	userMenu?: UserFilterMenu;
-	organizationsMenu?: OrganizationsFilterMenu;
 }>;
 
 export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	filter,
 	error,
-	templateMenu,
-	statusMenu,
-	userMenu,
-	organizationsMenu,
 }) => {
-	const { entitlements, showOrganizations } = useDashboard();
-	const width = showOrganizations ? DEFAULT_USER_FILTER_WIDTH : undefined;
-	const presets = entitlements.features.advanced_template_scheduling.enabled
-		? PRESETS_WITH_DORMANT
-		: PRESET_FILTERS;
-	const organizationsActive =
-		showOrganizations && organizationsMenu !== undefined;
+	const { showOrganizations, entitlements } = useDashboard();
+	const { permissions, user: me } = useAuthenticated();
+	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` gates Owner on the wrong
+	// capability. Listing users (which the Owner options need) is not the same as
+	// reading the deployment config. Carried over from the legacy page; replace
+	// with a list-users capability check.
+	const canFilterByUser = permissions.viewDeploymentConfig;
+	const canFilterDormant =
+		entitlements.features.advanced_template_scheduling.enabled;
+	const queryClient = useQueryClient();
+	const navigate = useNavigate();
+
+	const categories = useMemo(() => {
+		const next: FilterCategory[] = [
+			{
+				key: "status",
+				label: "Status",
+				icon: <CircleDotIcon />,
+				getOptions: getStatusFilterOptions,
+			},
+			{
+				key: "template",
+				label: "Template",
+				icon: <LayoutGridIcon />,
+				getOptions: (query) => getTemplateFilterOptions(query, queryClient),
+			},
+			{
+				key: "attributes",
+				label: "Attributes",
+				icon: <SlidersHorizontalIcon />,
+				// Boolean workspace filters live under their own keys, so the
+				// category owns them for chip parsing.
+				chipKeys: ATTRIBUTE_CHIP_KEYS,
+				getOptions: (query) =>
+					getAttributeFilterOptions(query, { canFilterDormant }),
+			},
+		];
+
+		if (showOrganizations) {
+			next.push({
+				key: "organization",
+				label: "Organization",
+				icon: <Building2Icon />,
+				getOptions: (query) => getOrganizationFilterOptions(query, queryClient),
+			});
+		}
+
+		if (canFilterByUser) {
+			next.push({
+				key: "owner",
+				label: "Owner",
+				aliases: ["user"],
+				icon: <UserIcon />,
+				getOptions: (query) => getOwnerFilterOptions(query, me, queryClient),
+			});
+		}
+
+		return next;
+	}, [canFilterByUser, canFilterDormant, me, showOrganizations, queryClient]);
+
+	const getSearchResults = useCallback(
+		async (query: string): Promise<SearchResult[]> => {
+			const response = await queryClient.fetchQuery(
+				workspaces({
+					q: query,
+					limit: WORKSPACE_PREVIEW_LIMIT,
+					offset: 0,
+				}),
+			);
+
+			return response.workspaces.map((workspace) => ({
+				value: workspace.id,
+				label: workspace.name,
+				subtitle: [
+					workspace.owner_name,
+					workspace.template_display_name || workspace.template_name,
+				]
+					.filter(Boolean)
+					.join(" · "),
+				imageUrl: workspace.owner_avatar_url,
+				href: `/@${workspace.owner_name}/${workspace.name}`,
+			}));
+		},
+		[queryClient],
+	);
+
+	const onSearchResultSelect = useCallback(
+		(result: SearchResult) => {
+			if (result.href) {
+				navigate(result.href);
+			}
+		},
+		[navigate],
+	);
+
+	// The page hides its ErrorAlert for API validation errors, so the filter
+	// owns surfacing the actionable "invalid query" message.
+	const showValidationError = hasError(error) && isApiValidationError(error);
 
 	return (
-		<Filter
-			presets={presets}
-			isLoading={statusMenu.isInitializing}
-			filter={filter}
-			error={error}
-			learnMoreLink={docs(
-				"/user-guides/workspace-management#workspace-filtering",
-			)}
-			options={
-				<>
-					{userMenu && <UserMenu width={width} menu={userMenu} />}
-					<TemplateMenu width={width} menu={templateMenu} />
-					<StatusMenu width={width} menu={statusMenu} />
-					{organizationsActive && (
-						<OrganizationsMenu width={width} menu={organizationsMenu} />
-					)}
-				</>
-			}
-			optionsSkeleton={
-				<>
-					{userMenu && <MenuSkeleton />}
-					<MenuSkeleton />
-					<MenuSkeleton />
-					{organizationsActive && <MenuSkeleton />}
-				</>
-			}
-		/>
+		<div className="flex flex-col gap-2">
+			<FilterCombobox
+				value={filter.query}
+				onChange={filter.update}
+				categories={categories}
+				placeholder="Search and filter workspaces…"
+				className="max-w-lg"
+				errorMessage={
+					showValidationError ? getValidationErrorMessage(error) : undefined
+				}
+				getSearchResults={getSearchResults}
+				onSearchResultSelect={onSearchResultSelect}
+				searchResultsLabel="Jump to workspace"
+			/>
+		</div>
 	);
 };

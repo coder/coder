@@ -14,6 +14,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
+import type { UseFilterResult } from "#/components/Filter/Filter";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -25,10 +26,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { TableToolbar } from "#/components/TableToolbar/TableToolbar";
 import { WorkspacesTable } from "#/pages/WorkspacesPage/WorkspacesTable";
 import { mustUpdateWorkspace } from "#/utils/workspace";
-import {
-	type WorkspaceFilterState,
-	WorkspacesFilter,
-} from "./filter/WorkspacesFilter";
+import { WorkspacesFilter } from "./filter/WorkspacesFilter";
 import { WorkspaceHelpPopover } from "./WorkspaceHelpPopover";
 import { WorkspacesButton } from "./WorkspacesButton";
 
@@ -38,7 +36,7 @@ interface WorkspacesPageViewProps {
 	workspaces?: readonly Workspace[];
 	checkedWorkspaces: readonly Workspace[];
 	count?: number;
-	filterState: WorkspaceFilterState;
+	filter: UseFilterResult;
 	page: number;
 	limit: number;
 	onPageChange: (page: number) => void;
@@ -63,7 +61,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	error,
 	limit,
 	count,
-	filterState,
+	filter,
 	onPageChange,
 	page,
 	checkedWorkspaces,
@@ -113,14 +111,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 				{hasError(error) && !isApiValidationError(error) && (
 					<ErrorAlert error={error} />
 				)}
-				<WorkspacesFilter
-					filter={filterState.filter}
-					error={error}
-					statusMenu={filterState.menus.status}
-					templateMenu={filterState.menus.template}
-					userMenu={filterState.menus.user}
-					organizationsMenu={filterState.menus.organizations}
-				/>
+				<WorkspacesFilter filter={filter} error={error} />
 			</div>
 
 			<TableToolbar>
@@ -218,7 +209,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					canCreateTemplate={canCreateTemplate}
 					canCreateWorkspace={canCreateWorkspace}
 					workspaces={workspaces}
-					isUsingFilter={filterState.filter.used}
+					isUsingFilter={filter.used}
 					checkedWorkspaces={checkedWorkspaces}
 					onCheckChange={onCheckChange}
 					templates={templates}
