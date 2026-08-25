@@ -97,7 +97,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently created chat. If the user has never created a chat, defaults only when they belong to one organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
@@ -182,7 +182,7 @@ func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, e
 			return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
 		}
 		for i := range chats {
-			if latest == nil || chats[i].CreatedAt.After(latest.CreatedAt) {
+			if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
 				latest = &chats[i]
 			}
 		}

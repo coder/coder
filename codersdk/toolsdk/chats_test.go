@@ -796,38 +796,42 @@ func TestChatTools(t *testing.T) {
 		require.Contains(t, auditorIDs, defaultModelConfig.ID.String())
 	})
 
-	t.Run("CreateChatUsesMostRecentOrganization", func(t *testing.T) {
+	t.Run("CreateChatUsesLastUpdatedOrganization", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
+		model := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")
 		organization := dbgen.Organization(t, api.Database, database.Organization{})
 		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         firstUser.UserID,
 		})
-		contextLimit := int64(4096)
-		isDefault := true
-		model, err := expClient.CreateChatModel(ctx, organization.ID, codersdk.CreateChatModelRequest{
-			AIProviderID: &defaultModelConfig.AIProviderID,
-			Model:        "most-recent-org-model",
-			ContextLimit: &contextLimit,
-			IsDefault:    &isDefault,
+		defaultOrgChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: model.ID,
 		})
-		require.NoError(t, err)
+		dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: model.ID,
+		})
 
-		explicit, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
-			Prompt:         "Create in the second organization.",
-			OrganizationID: organization.ID.String(),
-			ModelConfigID:  model.ID.String(),
+		err := expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
 		})
 		require.NoError(t, err)
-		coderdtest.WaitForChatSettled(ctx, t, api, uuid.MustParse(explicit.ID))
+		err = expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(false),
+		})
+		require.NoError(t, err)
 
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
-			Prompt: "Reuse the most recent organization.",
+			Prompt:        "Reuse the last updated organization.",
+			ModelConfigID: model.ID.String(),
 		})
 		require.NoError(t, err)
 		chat, err := expClient.GetChat(ctx, uuid.MustParse(created.ID))
 		require.NoError(t, err)
-		require.Equal(t, organization.ID, chat.OrganizationID)
+		require.Equal(t, firstUser.OrganizationID, chat.OrganizationID)
 	})
 
 	t.Run("CreateChatRequiresOrganizationForNewMultiOrgUser", func(t *testing.T) {
