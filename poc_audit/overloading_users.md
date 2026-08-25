@@ -6,9 +6,10 @@ discriminated union, and the conversion was never named as one. Eric,
 cost, and what it will cost to undo.
 
 **Who this is for.** Somebody planning work on `main`. **The argument does not
-depend on the proof of concept**, which is the point: this needs doing whether or
-not any of the ledger work proceeds, and the measurements here were simply taken
-while that work was in flight. Where a fact comes from this branch it says so.
+depend on the experiment during which it was written**, which is the point: this
+needs doing whether or not that work proceeds. The measurements were taken while
+it was in flight, and where a fact comes from the experiment rather than from
+`main` it says so.
 
 **What a sum type needs, and what `users` got.** A discriminant: `users` grew
 three, one per variant, rather than one with three cases. A common interface, the
@@ -42,8 +43,8 @@ credential table is converted to a ledger.
 
 ## How the overload arose: a workaround for a foreign key
 
-Researched from `27414788f7` on 2026-08-25, which is the state of `main` this
-work branched from, deliberately not from the branch tip.
+Researched from `27414788f7` on 2026-08-25, the state of `main` the experiment
+branched from, deliberately not from its tip.
 
 **The overload was never a decision about identity.** It was a workaround for a
 foreign key, and the commit that made it says so plainly. `4c33846f6d`,
@@ -62,8 +63,8 @@ entered the reasoning. The change is labelled `chore:`.
 **Three discriminators arrived one at a time, and none generalised the last.**
 `is_system` on 2025-03-25 for prebuilds; `is_service_account` on 2026-03-11 for
 service accounts, eleven and a half months later; and `kind` for AI agents, which
-is **ours** and does not exist at the merge-base. Migration 000592 removed the
-third again, so the branch ends where main still is, at two.
+was added and withdrawn again during a later experiment and is present in neither
+state of `main`. **So `main` has two**, and had two throughout.
 
 **The second discriminator paid for the first's placeholder strategy.** Service
 accounts must have an empty email, which required dropping and recreating two
@@ -87,7 +88,7 @@ question it raised was written down, and nothing carried the question forward.
 
 ### A history of the discriminators
 
-Measured from the merge-base on 2026-08-25. Dates are author dates. "Predicate"
+Measured from `27414788f7` on 2026-08-25. Dates are author dates. "Predicate"
 means a query or constraint that consults the field.
 
 **`is_system`, a boolean.**
@@ -197,8 +198,9 @@ obligation did not travel with it. An author in 2026 writing a new aggregate ove
 history.
 
 That is also why the fix is not more filters. A filter is another thing to
-remember. Removing the rows is what makes the obligation unnecessary, which is
-what migration 000592 did for one of the three kinds.
+remember. **Removing the rows is what makes the obligation unnecessary**, and the
+experiment that added a third variant demonstrated it by removing that variant's
+rows and then deleting every predicate that had been written for it.
 
 ### The constraints are the discriminant's fingerprint
 
@@ -216,7 +218,7 @@ without that clause. **A constraint that must be edited every time a variant is
 added is the interface that was never declared**, written one predicate at a time
 in the only place the schema allows.
 
-At the merge-base and at the tip they read identically:
+Before the third variant and after it they read identically:
 
 ```text
 users_email_not_empty            CHECK ((is_service_account = true) = (email = ''))
@@ -280,7 +282,7 @@ questions the entity model has not reached.
 **Thirty nine other non-test files carry the pattern and not one of them changed
 across the entire branch.** Verified by diffing per-file counts between
 `7a19c05df1` and `d44016d4e3`: exactly one file's count moved. Every decision
-made on this branch was made in one function.
+made during the experiment was made in one function.
 
 That is not because the other sites are easy. It is because **authentication is
 the only place that was forced to answer.** It is where a credential becomes a
