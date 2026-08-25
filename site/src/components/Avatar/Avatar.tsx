@@ -16,12 +16,6 @@ import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
 import { isBuiltInEmojiUrl } from "#/utils/emojis";
 
-const avatarSizeVariables = {
-	lg: "--avatar-lg",
-	md: "--avatar-default",
-	sm: "--avatar-sm",
-} as const;
-
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
@@ -95,21 +89,13 @@ export const Avatar: React.FC<AvatarProps> = ({
 	// Built-in emojis always use the emoji variant, even when a caller
 	// passes another one. See the AvatarProps doc.
 	const resolvedVariant = isBuiltInEmojiUrl(src) ? "emoji" : variant;
-	const resolvedSize = size ?? "md";
-	const resolvedStyle =
-		resolvedVariant === "emoji"
-			? {
-					...style,
-					padding: `calc(var(${avatarSizeVariables[resolvedSize]}) * 0.2)`,
-				}
-			: style;
 
 	return (
 		<AvatarPrimitive.Root
 			className={cn(
 				avatarVariants({ size, variant: resolvedVariant, className }),
 			)}
-			style={resolvedStyle}
+			style={resolvedVariant === "emoji" ? { padding: "20%", ...style } : style}
 			{...props}
 		>
 			<AvatarPrimitive.Image
