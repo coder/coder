@@ -19,8 +19,7 @@ import (
 func TestNegotiateScope(t *testing.T) {
 	t.Parallel()
 
-	// Whether a name is in rbac.IsExternalScope's curated catalog is the point
-	// of most cases below, so the two groups are named rather than inlined.
+	// Membership in rbac.IsExternalScope's catalog is the point of most cases.
 	const (
 		inCatalog      = "coder:workspaces.access"
 		alsoInCatalog  = "coder:templates.build"
@@ -31,9 +30,8 @@ func TestNegotiateScope(t *testing.T) {
 	noAllowlist := sql.NullString{}
 	emptyAllowlist := sql.NullString{String: "", Valid: true}
 
-	// wantErr names the branch a rejection must come from, so a refactor
-	// cannot silently route one branch through another. wantErrText, where
-	// set, additionally pins the rendered text.
+	// wantErr names the branch a rejection must come from; wantErrText pins
+	// the rendered text.
 	tests := []struct {
 		name        string
 		requested   []string
@@ -56,25 +54,21 @@ func TestNegotiateScope(t *testing.T) {
 			wantErr:   errUnknownScope,
 		},
 		{
-			// debug_info:read is a real scope RBAC can expand and the enum can
-			// store. Only the catalog's curation keeps a client from
-			// negotiating an internal-only permission for itself.
+			// RBAC can expand debug_info:read; only the catalog keeps it
+			// out of a client's reach.
 			name:      "InternalOnlyScopeRejected",
 			requested: []string{"debug_info:read"},
 			appScope:  noAllowlist,
 			wantErr:   errUnknownScope,
 		},
 		{
-			// "" is exactly what the column's CHECK rejects, so asserting only
-			// "no error" would let a DB-level 500 through.
 			name:      "NoAllowlistOmittedRequestIsUnrestricted",
 			requested: nil,
 			appScope:  noAllowlist,
 			want:      string(database.ApiKeyScopeCoderAll),
 		},
 		{
-			// '' is the DCR-registered encoding of the unset state NULL
-			// expresses for admin-created apps.
+			// '' is how DCR encodes the unset state NULL expresses.
 			name:      "EmptyAllowlistBehavesAsNoAllowlist",
 			requested: nil,
 			appScope:  emptyAllowlist,
@@ -111,34 +105,29 @@ func TestNegotiateScope(t *testing.T) {
 			want:      alsoInCatalog,
 		},
 		{
-			// coder:workspaces.access grants template:read but not
-			// template:update.
+			// coder:workspaces.access grants template:read, not template:update.
 			name:      "PartiallyOutOfAllowlistRejected",
 			requested: []string{inCatalog, "template:update"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
 			wantErr:   errScopeNotAllowed,
 		},
 		{
-			// The allowlist bounds authority, not spelling: workspace:ssh is
-			// already granted by the composite, so the client gets a token
-			// narrower than the ceiling instead of having to ask for the
-			// whole composite.
+			// The allowlist bounds authority, not spelling: the composite
+			// already grants workspace:ssh.
 			name:      "LowLevelScopeCoveredByCompositeAllowlistAccepted",
 			requested: []string{"workspace:ssh"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
 			want:      "workspace:ssh",
 		},
 		{
-			// Coverage is per requested name, so a mixed request is refused
-			// whole rather than trimmed to its covered part.
+			// Coverage is per name, so a mixed request is refused whole.
 			name:      "PartiallyCoveredRequestRejectedWhole",
 			requested: []string{"workspace:ssh", "workspace:delete"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
 			wantErr:   errScopeNotAllowed,
 		},
 		{
-			// The wildcard action is wider than the composite covering its
-			// read half.
+			// The wildcard action is wider than the composite's read half.
 			name:      "WildcardActionNotCoveredByCompositeAllowlist",
 			requested: []string{"workspace:*"},
 			appScope:  sql.NullString{String: inCatalog, Valid: true},
@@ -152,52 +141,47 @@ func TestNegotiateScope(t *testing.T) {
 			want:      "user_secret:delete",
 		},
 		{
-			// The allowlist is one combined ceiling, not a set of independent
-			// entries, so a request may draw on more than one at once.
+			// The allowlist is one combined ceiling, so a request may draw
+			// on several entries at once.
 			name:      "CoverageSpansMultipleAllowlistEntries",
 			requested: []string{"file:create", "workspace:ssh"},
 			appScope:  sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
 			want:      "file:create workspace:ssh",
 		},
 		{
-			// Catalog drift: the stale entry is dropped, the surviving one is
-			// still granted.
+			// Catalog drift: the stale entry is dropped, the survivor granted.
 			name:      "StaleAllowlistEntryDroppedNotGranted",
 			requested: nil,
 			appScope:  sql.NullString{String: inCatalog + " " + notInCatalog, Valid: true},
 			want:      inCatalog,
 		},
 		{
-			// The request's catalog check runs before the allowlist is
-			// consulted, so the reason is errUnknownScope rather than
-			// errScopeNotAllowed.
+			// The catalog check runs before the allowlist, so the reason is
+			// errUnknownScope.
 			name:      "StaleAllowlistEntryNotRequestableExplicitly",
 			requested: []string{notInCatalog},
 			appScope:  sql.NullString{String: inCatalog + " " + notInCatalog, Valid: true},
 			wantErr:   errUnknownScope,
 		},
 		{
-			// Falling back to the unrestricted sentinel here would grant
-			// strictly more than this allowlist ever permitted.
+			// Falling back to unrestricted would grant more than the
+			// allowlist ever permitted.
 			name:      "AllowlistFilteringToEmptyRejected",
 			requested: nil,
 			appScope:  sql.NullString{String: "openid profile email", Valid: true},
 			wantErr:   errNoGrantableScope,
 		},
 		{
-			// The accepted compatibility break in its most direct form: a DCR
-			// client requesting exactly what it registered.
+			// The accepted compatibility break: a DCR client requesting
+			// exactly what it registered.
 			name:      "NonCatalogScopeRequestedAsRegistered",
 			requested: []string{neverInCatalog},
 			appScope:  sql.NullString{String: neverInCatalog, Valid: true},
 			wantErr:   errUnknownScope,
 		},
 		{
-			// A whitespace-only allowlist is configured but grants nothing, so
-			// it rejects rather than falling back to unrestricted. The text is
-			// pinned because this is the one allowlist whose entries all
-			// vanish before the message is built, so naming the filter's input
-			// would show the owner an empty string.
+			// Configured but grants nothing. The text is pinned because every
+			// entry vanishes before the message is built.
 			name:        "WhitespaceOnlyAllowlistRejected",
 			requested:   nil,
 			appScope:    sql.NullString{String: "   ", Valid: true},
@@ -205,8 +189,8 @@ func TestNegotiateScope(t *testing.T) {
 			wantErrText: `"   "`,
 		},
 		{
-			// rbac.IsExternalScope accepts `all` as a backward-compatible
-			// alias, but the api_key_scope enum has no such member.
+			// rbac.IsExternalScope accepts the `all` alias; the api_key_scope
+			// enum has no such member.
 			name:      "LegacyAllAliasCanonicalized",
 			requested: []string{"all"},
 			appScope:  noAllowlist,
@@ -219,8 +203,7 @@ func TestNegotiateScope(t *testing.T) {
 			want:      "coder:application_connect",
 		},
 		{
-			// The allowlist is canonicalized on the same terms, so the two
-			// spellings match instead of reading as different scopes.
+			// The allowlist is canonicalized on the same terms.
 			name:      "LegacyAliasInAllowlistCoversCanonicalRequest",
 			requested: []string{"coder:all"},
 			appScope:  sql.NullString{String: "all", Valid: true},
@@ -240,15 +223,14 @@ func TestNegotiateScope(t *testing.T) {
 			want:      inCatalog,
 		},
 		{
-			// The same holds for the default, which is built from the
-			// allowlist rather than from the request.
+			// The same holds for the default built from the allowlist.
 			name:      "DuplicateAllowlistEntriesDeduplicated",
 			requested: nil,
 			appScope:  sql.NullString{String: inCatalog + " " + inCatalog, Valid: true},
 			want:      inCatalog,
 		},
 		{
-			// Two spellings of one scope collapse to a single entry.
+			// Two spellings of one scope collapse to one entry.
 			name:      "AliasAndCanonicalAllowlistEntriesCollapse",
 			requested: nil,
 			appScope:  sql.NullString{String: "all coder:all", Valid: true},
@@ -265,9 +247,7 @@ func TestNegotiateScope(t *testing.T) {
 			if test.wantErr != nil {
 				require.ErrorIs(t, err, test.wantErr)
 				assert.Empty(t, got, "a rejected request must not return a persistable scope")
-				// xerrors repeats the wrapped text unless %w is the final
-				// verb, which errors.Is cannot catch and a person reading
-				// error_description sees.
+				// xerrors repeats the wrapped text unless %w is the final verb.
 				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
 					"the rejection reason must appear once, not doubled by the wrap")
 				if test.wantErrText != "" {
@@ -285,10 +265,9 @@ func TestNegotiateScope(t *testing.T) {
 	}
 }
 
-// requirePersistableScope asserts that every name in a negotiated scope can
-// survive the trip ahead of it: stored as api_key_scope on the authorization
-// code, carried to the token, and expanded by RBAC when the key minted from it
-// is authorized. Passing the external scope catalog does not imply all three.
+// requirePersistableScope asserts that every name in a negotiated scope can be
+// stored as an api_key_scope and expanded by RBAC. Passing the external scope
+// catalog does not imply either.
 func requirePersistableScope(t *testing.T, scope string) {
 	t.Helper()
 
@@ -301,9 +280,8 @@ func requirePersistableScope(t *testing.T, scope string) {
 	}
 }
 
-// Rejection reasons handed to the package's black-box tests, which cannot
-// reach the sentinels themselves. Binding here rather than re-typing the
-// strings over there keeps a rewording from silently unpinning them.
+// Rejection reasons for the package's black-box tests, which cannot reach the
+// sentinels themselves.
 var (
 	ReasonUnknownScope     = errUnknownScope.Error()
 	ReasonNoGrantableScope = errNoGrantableScope.Error()
@@ -313,9 +291,8 @@ var (
 func TestNoScopeAllowlist(t *testing.T) {
 	t.Parallel()
 
-	// Both encodings are produced in the tree today: sql.NullString{} by
-	// admin-created apps, Valid-with-empty-string by DCR registration that
-	// sent no scope.
+	// NULL comes from admin-created apps, '' from DCR registration that sent
+	// no scope.
 	assert.True(t, noScopeAllowlist(sql.NullString{}))
 	assert.True(t, noScopeAllowlist(sql.NullString{String: "", Valid: true}))
 	assert.False(t, noScopeAllowlist(sql.NullString{String: "coder:workspaces.access", Valid: true}))
