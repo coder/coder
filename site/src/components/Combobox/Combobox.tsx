@@ -114,14 +114,12 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				"w-auto border-surface-quaternary overflow-y-auto text-sm",
 				className,
 			)}
 			{...props}
 		>
-			<Command className="bg-surface-secondary" shouldFilter={shouldFilter}>
-				{children}
-			</Command>
+			<Command shouldFilter={shouldFilter}>{children}</Command>
 		</PopoverContent>
 	);
 };
