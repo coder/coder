@@ -54,6 +54,8 @@ writing them.
 - **CLI/API changes**: Are new flags, endpoints, or options documented?
 - **Configuration**: Are new environment variables or settings documented?
 - **Breaking changes**: Are migration steps documented if needed?
+- **Evidence leaking into claims**: See
+  [Evidence versus claim](#evidence-versus-claim) below.
 - **Premium features**: See [Premium feature signaling](#premium-feature-signaling)
   below.
 - **Renames or moves**: See [Renames and moves require redirects](#renames-and-moves-require-redirects)
@@ -107,6 +109,17 @@ Missing either one is a defect:
 1. The H1 title takes a `(Premium)` suffix. Example:
    `# Template Insights (Premium)`.
 2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
+
+### Evidence versus claim
+
+Code evidence justifies a claim; it does not belong in the claim. Flag
+user-facing pages that expose enum values, database column or field names,
+function or struct names, or internal subsystem names the reader never types
+or receives. The page should state the behavior in the target persona's
+terms; the exact identifiers belong in the PR description's evidence section.
+The exception is reference, API, CLI, and configuration docs, where
+identifiers are the interface the reader types or receives, and exact values
+are required.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

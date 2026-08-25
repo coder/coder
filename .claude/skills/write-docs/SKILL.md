@@ -111,6 +111,25 @@ style.
   Previous/Next where the engine supports it); never ship a page that
   dead-ends.
 
+## Evidence versus claim
+
+Code evidence justifies a claim; it does not belong in the claim. Reading the
+source is how you verify behavior (workflow step 1), not what you publish.
+Translate what the code proves into the target persona's terms:
+
+- Enum values, database column and field names, function and struct names,
+  and internal subsystem names stay in the PR description's evidence section,
+  where the reviewer can check them.
+- The page states the behavior in the reader's vocabulary. An admin-facing
+  page says "chats with ongoing work are never selected", not "chats with
+  status `running`, `interrupting`, or `requires_action` are excluded".
+- The exception is pages where identifiers are the interface. Reference, API,
+  CLI, and configuration docs document exact flag names, endpoint paths,
+  response fields, and accepted values, per
+  [Verify against the code; document exact values](../../../docs/.style/content-guidelines.md#verify-against-the-code-document-exact-values).
+  The test: does the reader type or receive the identifier? If they never see
+  it, it is evidence, not content.
+
 ## What not to write
 
 Do not put non-docs content in `docs/`. The canonical catalog of what to
@@ -155,6 +174,9 @@ the whole series as a single review.
 - Telling the reader their tool is wrong when it merely needs configuration.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
+- Publishing verification evidence as content: enum values, internal
+  identifiers, or subsystem names on a page whose reader never types or
+  receives them.
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
@@ -182,6 +204,9 @@ the whole series as a single review.
       series).
 - [ ] PR title and description follow the PR description style guide (including
       draft vs. ready-for-review).
+- [ ] Implementation identifiers appear only where the reader types or
+      receives them; everywhere else the page states behavior in the
+      persona's terms and the identifiers live in the PR's evidence section.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
