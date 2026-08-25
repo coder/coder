@@ -137,19 +137,19 @@ Members with model read access can open the model list and model details.
 Coder shows model fields as read-only unless the member also has update permission.
 Create, update, delete, and share permissions control their corresponding actions independently.
 
-### Share a model
+### Manage model permissions
 
-Members with model share permission can grant model read access to members and groups in the selected organization.
+Members with model share permission can let members and groups in the selected organization use the model.
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
 2. Select the organization that owns the model.
 3. Select the model.
-4. Open **Model actions** and select **Share model**.
+4. Open **Model actions** and select **Manage permissions**.
 5. Add or remove organization members and groups.
-6. Select **Save**.
+6. Select **Save permissions**.
 
 Coder applies the member and group changes when you save.
-Removing all entries clears the model's access list, so members without another read grant lose access on their next request.
+Removing all entries clears the model's access list, so members without another access grant cannot use the model on their next request.
 
 ### Model visibility and runtime availability
 

@@ -89,15 +89,15 @@ Chats in that organization offer no MCP servers.
 The dashboard shows the organization picker when you can access more than 1 organization.
 Your access applies to the selected organization, so your controls can differ between organizations.
 
-## Share models and MCP servers
+## Manage model and MCP server access
 
 Each chat model and each MCP server has an access list of groups and users.
 An entry lets a member use the model or the server.
 Coder adds the organization's **Everyone** group when you create a model or a server, so all members have access by default.
 You can add only the members and the groups of the organization that owns the model or the server.
 
-To change a model's access list, open **Model actions** > **Share model** on the **Models** page.
-Refer to [Share a model](../models.md#share-a-model) for the steps.
+To change a model's access list, open **Model actions** > **Manage permissions** on the **Models** page.
+Refer to [Manage model permissions](../models.md#manage-model-permissions) for the steps.
 
 The **MCP servers** page has no access list editor.
 Change an MCP server access list through the API instead:
