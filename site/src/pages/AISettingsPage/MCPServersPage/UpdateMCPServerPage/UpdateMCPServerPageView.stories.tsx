@@ -157,7 +157,7 @@ export const ShareOnlyAccess: Story = {
 		);
 		await expect(
 			await body.findByRole("dialog", { name: "Share server" }),
-		).toBeVisible();
+		).toHaveAttribute("data-state", "open");
 	},
 };
 
