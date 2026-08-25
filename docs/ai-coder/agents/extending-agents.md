@@ -38,6 +38,9 @@ The agent scans the following:
 - `~/.claude/plugins/cache`
 - Any additional source you declare through the agent's context sources API
 
+Declared sources contribute instruction files and skills only.
+A `.mcp.json` file inside a declared source appears in the context inventory, but the agent does not connect to the servers it lists; MCP servers load only from the workspace working directory.
+
 Discovery is shallow.
 Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
 The agent never walks further down the tree and never climbs to a parent directory.
@@ -223,8 +226,9 @@ When the connected tool list changes, the agent re-scans and pushes a new snapsh
 
 Editing `.mcp.json` does not require a workspace restart.
 A file watcher fires 250&nbsp;ms after the file is created, written, removed, or renamed, and the agent reloads its servers from the file on disk.
-The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date.
-Chats that have not pinned a snapshot yet receive the new tool set immediately; a chat that already pinned one keeps its current tool set until you select **Refresh context** in that chat.
+The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
+New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
+An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
