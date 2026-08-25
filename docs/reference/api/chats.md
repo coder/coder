@@ -556,6 +556,44 @@ curl -X POST http://coder-server:8080/api/v2/chats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List chats by workspace
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/chats/by-workspace \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/chats/by-workspace`
+
+### Parameters
+
+| Name            | In    | Type   | Required | Description                   |
+|-----------------|-------|--------|----------|-------------------------------|
+| `workspace_ids` | query | string | false    | Comma-separated workspace IDs |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                       |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.chatsByWorkspaceResponse](schemas.md#coderdchatsbyworkspaceresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get chat auto archive days
 
 ### Code samples
@@ -1174,28 +1212,22 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```sh
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+  -H 'Content-Type: image/png' \
   -H 'Accept: application/json' \
-  -H 'Content-Disposition: string' \
-  -H 'Coder-Session-Token: API_KEY'
+  -H 'Content-Disposition: attachment; filename="image.png"' \
+  -H 'Coder-Session-Token: API_KEY' \
+  --data-binary '@image.png'
 ```
 
 `POST /api/v2/chats/files`
 
-> Body parameter
-
-```yaml
-file: string
-
-```
-
 ### Parameters
 
-| Name           | In    | Type         | Required | Description     |
-|----------------|-------|--------------|----------|-----------------|
-| `organization` | query | string(uuid) | true     | Organization ID |
-|`Content-Disposition`|header|string|true|Attachment disposition carrying the file name, e.g. `attachment; filename=\|
-|`body`|body|object|true||
-|`» file`|body|binary|true|File to be uploaded, sent as the raw request body|
+| Name                  | In     | Type         | Required | Description                                   |
+|-----------------------|--------|--------------|----------|-----------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                               |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
+| `body`                | body   | string       | true     | Raw file binary data                          |
 
 ### Example responses
 

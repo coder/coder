@@ -326,7 +326,6 @@ type chatsByWorkspaceResponse map[uuid.UUID]uuid.UUID
 // @Produce json
 // @Success 200 {object} chatsByWorkspaceResponse
 // @Router /api/v2/chats/by-workspace [get]
-// @x-apidocgen {"skip": true}
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -6085,15 +6084,15 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 }
 
 // @Summary Upload chat file
-// @Description Swagger notice: Swagger 2.0 cannot model the raw binary request body this endpoint reads, so the upload is described as form data.
 // @ID upload-chat-file
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name, e.g. `attachment; filename=\"img.png\"`"
-// @Param file formData file true "File to be uploaded, sent as the raw request body"
+// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param request body string true "Raw file binary data"
+// @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
 // @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB"
 // @Router /api/v2/chats/files [post]

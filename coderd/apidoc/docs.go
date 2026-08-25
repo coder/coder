@@ -1442,10 +1442,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/v2/chats/config/auto-archive-days": {
@@ -2128,7 +2125,6 @@ const docTemplate = `{
         },
         "/api/v2/chats/files": {
             "post": {
-                "description": "Swagger notice: Swagger 2.0 cannot model the raw binary request body this endpoint reads, so the upload is described as form data.",
                 "consumes": [
                     "image/png",
                     "image/jpeg",
@@ -2159,17 +2155,20 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Attachment disposition carrying the file name, e.g. ` + "`" + `attachment; filename=\\",
+                        "example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the file name",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
                     },
                     {
-                        "type": "file",
-                        "description": "File to be uploaded, sent as the raw request body",
-                        "name": "file",
-                        "in": "formData",
-                        "required": true
+                        "description": "Raw file binary data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
@@ -2190,7 +2189,10 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ]
+                ],
+                "x-apidocgen": {
+                    "rawBodyFile": "image.png"
+                }
             }
         },
         "/api/v2/chats/files/{file}": {
