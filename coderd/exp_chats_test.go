@@ -3014,23 +3014,41 @@ func TestListChats_Search(t *testing.T) {
 		require.Contains(t, ids, titleMatch.ID)
 		require.Contains(t, ids, bodyMatch.ID)
 		require.NotContains(t, ids, noMatch.ID)
+
+		// The 'english' config stems both sides, so an inflected query
+		// form matches the stored words.
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"restarting"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), bodyMatch.ID)
 	})
 
 	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		// "or" is a real lexeme (an operator only between operands), so
-		// search:"or" matches the control chat; search:"!!!" has no lexemes and
-		// matches nothing.
-		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		// Message search uses the 'english' config, which drops
+		// stopwords: search:"or" tokenizes to no lexemes and matches
+		// nothing, just like search:"!!!". The title must not contain the
+		// searched words because title search keeps the 'simple' config,
+		// which retains stopwords. The control query proves the empty
+		// results come from tokenization, not missing data.
+		control := createChat(t, db, firstUser, modelConfig.ID, "plain title")
+		insertMessage(t, db, firstUser, modelConfig.ID, control.ID, "fix this or that")
 		backfillSearchTsv(ctx, t, db)
 
 		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: `search:"or"`,
+			Query: `search:"fix"`,
 		})
 		require.NoError(t, err)
 		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
 
 		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
