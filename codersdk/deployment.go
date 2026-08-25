@@ -736,6 +736,7 @@ type DeploymentValues struct {
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
 	DisableChatSharing                      serpent.Bool                         `json:"disable_chat_sharing,omitempty" typescript:",notnull"`
+	DisableWorkspaceAgentContextSync        serpent.Bool                         `json:"disable_workspace_agent_context_sync,omitempty" typescript:",notnull"`
 	ProxyHealthStatusInterval               serpent.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
@@ -3780,6 +3781,15 @@ communicating directly.`,
 
 			Value: &c.DisableChatSharing,
 			YAML:  "disableChatSharing",
+		},
+		{
+			Name:        "Disable Workspace Agent Context Sync",
+			Description: "Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.",
+			Flag:        "disable-workspace-agent-context-sync",
+			Env:         "CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC",
+
+			Value: &c.DisableWorkspaceAgentContextSync,
+			YAML:  "disableWorkspaceAgentContextSync",
 		},
 		{
 			Name:        "Session Duration",
