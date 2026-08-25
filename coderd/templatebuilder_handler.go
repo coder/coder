@@ -233,6 +233,50 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 // for the provisioner import job to complete.
 const templateBuilderCreateTemplateTimeout = 2 * time.Minute
 
+// reportTemplateBuilderBuildFailure reports why a template builder create
+// request failed. The wizard session ID doubles as the event ID, so a failure
+// joins to the wizard_entry and compose_completion events of the same visit;
+// callers without a session, such as the CLI, get a fresh ID. Only catalog
+// identifiers are reported, never variable values or error text.
+func (api *API) reportTemplateBuilderBuildFailure(req codersdk.TemplateBuilderCreateTemplateRequest, userID uuid.UUID, reason string) {
+	id := req.SessionID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+
+	moduleIDs := make([]string, 0, len(req.Modules))
+	for _, m := range req.Modules {
+		moduleIDs = append(moduleIDs, m.ID)
+	}
+
+	api.Telemetry.Report(&telemetry.Snapshot{
+		TemplateBuilderSessions: []telemetry.TemplateBuilderSession{
+			{
+				ID:             id,
+				EventType:      telemetry.TemplateBuilderSessionEventBuildFailure,
+				UserID:         userID,
+				BaseTemplateID: req.BaseTemplateID,
+				ModuleIDs:      moduleIDs,
+				FailureReason:  reason,
+				CreatedAt:      dbtime.Now(),
+			},
+		},
+	})
+}
+
+// templateBuilderProvisionerFailureReason maps a classified provisioner import
+// failure to the telemetry failure reason reported for it.
+func templateBuilderProvisionerFailureReason(category templatebuilder.ProvisionerErrorCategory) string {
+	switch category {
+	case templatebuilder.ProvisionerErrorNetwork:
+		return telemetry.TemplateBuilderFailureProvisionerNetwork
+	case templatebuilder.ProvisionerErrorAuth:
+		return telemetry.TemplateBuilderFailureProvisionerAuth
+	default:
+		return telemetry.TemplateBuilderFailureProvisionerUnknown
+	}
+}
+
 // @Summary Compose and create a template
 // @ID compose-and-create-a-template
 // @Security CoderSessionToken
@@ -256,6 +300,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	}
 
 	if req.BaseTemplateID == "" {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInvalidRequest)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Missing base_template_id.",
 		})
@@ -265,12 +310,14 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	// Resolve and authorize against the organization.
 	organization, err := api.Database.GetOrganizationByID(ctx, req.OrganizationID)
 	if httpapi.Is404Error(err) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInvalidRequest)
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: "Organization not found.",
 		})
 		return
 	}
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching organization.",
 			Detail:  err.Error(),
@@ -290,12 +337,14 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		Deleted:        false,
 	})
 	if err == nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: "A template with this name already exists in the organization.",
 		})
 		return
 	}
 	if !xerrors.Is(err, sql.ErrNoRows) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking template name.",
 			Detail:  err.Error(),
@@ -318,6 +367,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	result, err := templatebuilder.Compose(composeReq)
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureComposeInvalid)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to compose template.",
 			Detail:  err.Error(),
@@ -327,6 +377,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	tarData, err := templatebuilder.BundleTar(result)
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error bundling template.",
 			Detail:  err.Error(),
@@ -343,6 +394,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		CreatedBy: apiKey.UserID,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking file.",
 			Detail:  err.Error(),
@@ -359,6 +411,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			Data:      tarData,
 		})
 		if err != nil {
+			api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error saving file.",
 				Detail:  err.Error(),
@@ -370,6 +423,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	tags := provisionersdk.MutateTags(apiKey.UserID, nil, req.ProvisionerTags)
 	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(ctx))
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error marshaling trace metadata.",
 			Detail:  err.Error(),
@@ -441,6 +495,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		return nil
 	}, nil)
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating template version.",
 			Detail:  err.Error(),
@@ -463,12 +518,14 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 	completedJob, err := api.waitForProvisionerJob(jobCtx, provisionerJob.ID)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
+			api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureImportTimeout)
 			httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
 				Message: "Timed out waiting for template import to complete.",
 				Detail:  "The template version is still being imported. You can check its status manually.",
 			})
 			return
 		}
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error waiting for template import.",
 			Detail:  err.Error(),
@@ -478,6 +535,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	// Check if the job was canceled.
 	if completedJob.CanceledAt.Valid {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureImportCanceled)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Template import was canceled.",
 		})
@@ -499,6 +557,8 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		}
 
 		classified := templatebuilder.ClassifyProvisionerError(completedJob.Error.String, logLines)
+		category := templatebuilder.ClassifyProvisionerErrorCategory(completedJob.Error.String, logLines)
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, templateBuilderProvisionerFailureReason(category))
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Template import failed.",
 			Detail:  classified,
@@ -559,6 +619,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
+				api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureNameConflict)
 				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 					Message: "A template with this name already exists in the organization.",
 				})
@@ -605,6 +666,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 		return nil
 	}, nil)
 	if err != nil {
+		api.reportTemplateBuilderBuildFailure(req, apiKey.UserID, telemetry.TemplateBuilderFailureInternal)
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating template.",
 			Detail:  err.Error(),

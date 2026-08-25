@@ -145,7 +145,8 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
   "provisioner_tags": {
     "property1": "string",
     "property2": "string"
-  }
+  },
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
 }
 ```
 

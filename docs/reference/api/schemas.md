@@ -14047,25 +14047,27 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "provisioner_tags": {
     "property1": "string",
     "property2": "string"
-  }
+  },
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                                                    | Required | Restrictions | Description |
-|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id`     | string                                                                                  | false    |              |             |
-| `base_variable_values` | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
-| `description`          | string                                                                                  | false    |              |             |
-| `display_name`         | string                                                                                  | false    |              |             |
-| `icon`                 | string                                                                                  | false    |              |             |
-| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
-| `name`                 | string                                                                                  | true     |              |             |
-| `organization_id`      | string                                                                                  | true     |              |             |
-| `provisioner_tags`     | object                                                                                  | false    |              |             |
-| » `[any property]`     | string                                                                                  | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description                                                                                                                                                                                                |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_template_id`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `base_variable_values` | object                                                                                  | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `description`          | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `display_name`         | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `icon`                 | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |                                                                                                                                                                                                            |
+| `name`                 | string                                                                                  | true     |              |                                                                                                                                                                                                            |
+| `organization_id`      | string                                                                                  | true     |              |                                                                                                                                                                                                            |
+| `provisioner_tags`     | object                                                                                  | false    |              |                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                                                  | false    |              |                                                                                                                                                                                                            |
+| `session_id`           | string                                                                                  | false    |              | Session ID is the wizard session this request belongs to, as reported to POST /api/v2/templatebuilder/sessions. It is optional and used only to attribute a build failure to the session that produced it. |
 
 ## codersdk.TemplateBuilderCreateTemplateResponse
 

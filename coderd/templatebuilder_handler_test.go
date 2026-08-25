@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -355,4 +359,116 @@ func TestTemplateBuilderSession(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
+}
+
+func TestTemplateBuilderCreateTemplateFailureTelemetry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ComposeInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		sessionID := uuid.New()
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			SessionID:      sessionID,
+			BaseTemplateID: "nonexistent",
+			Modules: []codersdk.TemplateBuilderComposeModule{
+				{ID: "code-server"},
+			},
+			OrganizationID: user.OrganizationID,
+			Name:           "compose-invalid",
+		})
+		require.Error(t, err)
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureComposeInvalid, event.FailureReason)
+		// The session ID doubles as the event ID so the failure joins to the
+		// wizard_entry event of the same visit.
+		require.Equal(t, sessionID, event.ID)
+		require.Equal(t, user.UserID, event.UserID)
+		require.Equal(t, "nonexistent", event.BaseTemplateID)
+		require.Equal(t, []string{"code-server"}, event.ModuleIDs)
+		require.False(t, event.Success)
+	})
+
+	t.Run("MissingBaseTemplateID", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		client := coderdtest.New(t, &coderdtest.Options{
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			OrganizationID: user.OrganizationID,
+			Name:           "missing-base",
+		})
+		require.Error(t, err)
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureInvalidRequest, event.FailureReason)
+		// Callers without a wizard session still produce a usable row.
+		require.NotEqual(t, uuid.Nil, event.ID)
+	})
+
+	t.Run("NameConflict", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		reporter := newFakeTelemetryReporter(ctx, t, 100)
+		db, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:          db,
+			Pubsub:            ps,
+			TelemetryReporter: reporter,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		existing := dbgen.Template(t, db, database.Template{
+			OrganizationID: user.OrganizationID,
+			CreatedBy:      user.UserID,
+			Name:           "taken-name",
+		})
+
+		_, err := client.TemplateBuilderCreateTemplate(ctx, codersdk.TemplateBuilderCreateTemplateRequest{
+			BaseTemplateID: "docker",
+			OrganizationID: user.OrganizationID,
+			Name:           existing.Name,
+		})
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+		event := receiveTemplateBuilderSession(ctx, t, reporter)
+		require.Equal(t, telemetry.TemplateBuilderSessionEventBuildFailure, event.EventType)
+		require.Equal(t, telemetry.TemplateBuilderFailureNameConflict, event.FailureReason)
+		require.Equal(t, "docker", event.BaseTemplateID)
+	})
+}
+
+// receiveTemplateBuilderSession drains snapshots until one carries a template
+// builder session event. Unrelated snapshots, such as those reported while
+// creating the first user, arrive on the same channel.
+func receiveTemplateBuilderSession(ctx context.Context, t *testing.T, reporter *fakeTelemetryReporter) telemetry.TemplateBuilderSession {
+	t.Helper()
+	for {
+		snapshot := testutil.TryReceive(ctx, t, reporter.snapshots)
+		if len(snapshot.TemplateBuilderSessions) == 0 {
+			continue
+		}
+		require.Len(t, snapshot.TemplateBuilderSessions, 1)
+		return snapshot.TemplateBuilderSessions[0]
+	}
 }

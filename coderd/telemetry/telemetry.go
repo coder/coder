@@ -2671,9 +2671,8 @@ type UserSecretsSummary struct {
 }
 
 // TemplateBuilderSession tracks a single event in the template builder
-// wizard. Two events are emitted per session: one on wizard entry and
-// one on compose completion. User-supplied variable values are never
-// included.
+// wizard: entry, compose completion, and build failure. User-supplied
+// variable values are never included.
 type TemplateBuilderSession struct {
 	ID              uuid.UUID `json:"id"`
 	EventType       string    `json:"event_type"`
@@ -2682,8 +2681,32 @@ type TemplateBuilderSession struct {
 	ModuleIDs       []string  `json:"module_ids,omitempty"`
 	DurationSeconds float64   `json:"duration_seconds,omitempty"`
 	Success         bool      `json:"success,omitempty"`
+	FailureReason   string    `json:"failure_reason,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 }
+
+// TemplateBuilderSessionEventBuildFailure is stamped by coderd when a
+// template builder create request fails. The wizard reports entry and
+// compose completion itself, but only the server knows why a build failed,
+// and the event must survive the browser navigating away. It is therefore
+// absent from the codersdk event type enum, which clients may send.
+const TemplateBuilderSessionEventBuildFailure = "build_failure"
+
+// Reasons a template builder build failed, reported on
+// TemplateBuilderSessionEventBuildFailure events. The provisioner reasons
+// mirror templatebuilder.ProvisionerErrorCategory, which is derived from the
+// provisioner job error and its logs.
+const (
+	TemplateBuilderFailureInvalidRequest     = "invalid_request"
+	TemplateBuilderFailureComposeInvalid     = "compose_invalid"
+	TemplateBuilderFailureNameConflict       = "name_conflict"
+	TemplateBuilderFailureImportCanceled     = "import_canceled"
+	TemplateBuilderFailureImportTimeout      = "import_timeout"
+	TemplateBuilderFailureProvisionerNetwork = "provisioner_network"
+	TemplateBuilderFailureProvisionerAuth    = "provisioner_auth"
+	TemplateBuilderFailureProvisionerUnknown = "provisioner_unknown"
+	TemplateBuilderFailureInternal           = "internal"
+)
 
 // Steps of the premium trial funnel. These are set by coderd rather than the
 // client so that a conversion cannot be forged.

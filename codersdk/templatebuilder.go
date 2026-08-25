@@ -142,6 +142,10 @@ type TemplateBuilderCreateTemplateRequest struct {
 	Description        string                         `json:"description,omitempty" validate:"lt=128"`
 	Icon               string                         `json:"icon,omitempty"`
 	ProvisionerTags    map[string]string              `json:"provisioner_tags,omitempty"`
+	// SessionID is the wizard session this request belongs to, as reported to
+	// POST /api/v2/templatebuilder/sessions. It is optional and used only to
+	// attribute a build failure to the session that produced it.
+	SessionID uuid.UUID `json:"session_id,omitempty" format:"uuid"`
 }
 
 // TemplateBuilderCreateTemplateResponse is the response body for
