@@ -12358,6 +12358,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `collect_db_metrics`       | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
+## codersdk.ProposeChatTitleResponse
+
+```json
+{
+  "title": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `title` | string | false    |              |             |
+
 ## codersdk.ProvisionerConfig
 
 ```json

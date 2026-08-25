@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -637,34 +636,6 @@ type failNextGetChatSiteConfigValueStore struct {
 	database.Store
 
 	failNextGetChatSiteConfigValue *atomic.Bool
-}
-
-type failNextChatOperationalSettingTransactionStore struct {
-	database.Store
-
-	failNextTransaction *atomic.Bool
-}
-
-func newFailNextChatOperationalSettingTransactionStore(store database.Store) *failNextChatOperationalSettingTransactionStore {
-	return &failNextChatOperationalSettingTransactionStore{
-		Store:               store,
-		failNextTransaction: &atomic.Bool{},
-	}
-}
-
-func (s *failNextChatOperationalSettingTransactionStore) InTx(
-	function func(database.Store) error,
-	txOpts *database.TxOptions,
-) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		if err := function(tx); err != nil {
-			return err
-		}
-		if s.failNextTransaction.CompareAndSwap(true, false) {
-			return stderrors.New("forced chat operational setting transaction failure")
-		}
-		return nil
-	}, txOpts)
 }
 
 type failNextUpsertChatRetentionDaysStore struct {
@@ -3015,23 +2986,41 @@ func TestListChats_Search(t *testing.T) {
 		require.Contains(t, ids, titleMatch.ID)
 		require.Contains(t, ids, bodyMatch.ID)
 		require.NotContains(t, ids, noMatch.ID)
+
+		// The 'english' config stems both sides, so an inflected query
+		// form matches the stored words.
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"restarting"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), bodyMatch.ID)
 	})
 
 	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		// "or" is a real lexeme (an operator only between operands), so
-		// search:"or" matches the control chat; search:"!!!" has no lexemes and
-		// matches nothing.
-		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		// Message search uses the 'english' config, which drops
+		// stopwords: search:"or" tokenizes to no lexemes and matches
+		// nothing, just like search:"!!!". The title must not contain the
+		// searched words because title search keeps the 'simple' config,
+		// which retains stopwords. The control query proves the empty
+		// results come from tokenization, not missing data.
+		control := createChat(t, db, firstUser, modelConfig.ID, "plain title")
+		insertMessage(t, db, firstUser, modelConfig.ID, control.ID, "fix this or that")
 		backfillSearchTsv(ctx, t, db)
 
 		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: `search:"or"`,
+			Query: `search:"fix"`,
 		})
 		require.NoError(t, err)
 		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
 
 		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
@@ -11275,289 +11264,6 @@ func TestCompactChat(t *testing.T) {
 	})
 }
 
-func TestRegenerateChatTitle(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ChatNotFound", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-
-		_, err := client.RegenerateChatTitle(ctx, uuid.New())
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	t.Run("UpdateDenied", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Authorizer: &coderdtest.FakeAuthorizer{
-				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
-					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
-						return xerrors.New("denied")
-					}
-					return nil
-				},
-			},
-			DeploymentValues: coderdtest.DeploymentValues(t),
-		})
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-		db := api.Database
-		client := codersdk.NewExperimentalClient(clientRaw)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "chat with update denied",
-		})
-
-		_, err := client.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "private chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
-		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
-		_, err = otherClient.RegenerateChatTitle(ctx, createdChat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	t.Run("Unauthenticated", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "chat for unauthenticated regeneration",
-			}},
-		})
-		require.NoError(t, err)
-
-		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
-		_, err = unauthenticatedClient.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusUnauthorized)
-	})
-
-	t.Run("PasteOnlyChat", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "New Chat",
-			Status:            database.ChatStatusWaiting,
-		})
-		// The chat's only user message is a synthetic pasted-text
-		// attachment with no text parts.
-		seedPasteOnlyTitleSourceMessage(ctx, t, db, chat, modelConfig.ID, "pasted stack trace for title")
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-	})
-
-	t.Run("NoPubsubDelivery", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-
-		// Wire the daemon's reload subscription to a pubsub coderd never
-		// publishes to: gateway routes can then only come from the
-		// synchronous initial load. This guards the invariant the
-		// create-config-before-daemon pattern above relies on; if the
-		// initial load is removed or made asynchronous, this fails
-		// deterministically instead of reintroducing the startup race.
-		isolated := dbpubsub.NewInMemory()
-		t.Cleanup(func() { _ = isolated.Close() })
-		aibridgedtest.StartTestAIBridgeDaemonWithPubsub(t.Context(), t, api, nil, isolated)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "New Chat",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-	})
-
-	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "history fence chat",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-
-		// Leave history_version lagging snapshot_version, as when a
-		// generation task is in flight. A chat_messages write here would
-		// sync it and break that task's commit fence.
-		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-
-		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.NotEqual(t, before.SnapshotVersion, before.HistoryVersion,
-			"setup must leave history_version lagging snapshot_version")
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-
-		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, before.HistoryVersion, after.HistoryVersion,
-			"manual title regeneration must not touch chat_messages")
-	})
-
-	t.Run("NoDefaultModelConfig", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
-
-		_, err := client.RegenerateChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
-
-	t.Run("RegenerationFailure", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelWithTitleFailure(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "test chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusWaiting,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   pqtype.NullRawMessage{},
-		})
-		require.NoError(t, err)
-
-		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-
-		_, err = client.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusInternalServerError)
-
-		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
-	})
-
-	t.Run("UsageLimitExhausted", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelWithTitleQuotaExhausted(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "test chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusWaiting,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   pqtype.NullRawMessage{},
-		})
-		require.NoError(t, err)
-
-		_, err = client.RegenerateChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Equal(t,
-			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
-			sdkErr.Message)
-	})
-}
-
 func TestProposeChatTitle(t *testing.T) {
 	t.Parallel()
 
@@ -11627,6 +11333,31 @@ func TestProposeChatTitle(t *testing.T) {
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
+	t.Run("PasteOnlyChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithoutAIBridge(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createTitleGenerationChatModel(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "New Chat",
+			Status:            database.ChatStatusWaiting,
+		})
+		// The chat's only user message is a synthetic pasted-text
+		// attachment with no text parts.
+		seedPasteOnlyTitleSourceMessage(ctx, t, db, chat, modelConfig.ID, "pasted stack trace for title")
+
+		proposed, err := client.ProposeChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", proposed.Title)
+	})
+
 	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
 		t.Parallel()
 
@@ -11644,7 +11375,8 @@ func TestProposeChatTitle(t *testing.T) {
 		})
 		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
 
-		// See the matching TestRegenerateChatTitle subtest.
+		// Bump the snapshot version up front so the assertion below
+		// detects any further bump caused by the propose call.
 		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
@@ -11779,13 +11511,6 @@ func TestManualTitleEndpointsPassOwnerSyntheticAPIKeyToAIGateway(t *testing.T) {
 		name string
 		call func(context.Context, *codersdk.ExperimentalClient, uuid.UUID) error
 	}{
-		{
-			name: "RegenerateChatTitle",
-			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
-				_, err := client.RegenerateChatTitle(ctx, chatID)
-				return err
-			},
-		},
 		{
 			name: "ProposeChatTitle",
 			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
@@ -17105,14 +16830,6 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 				return store, func() { store.failNextAcquireLock.Store(true) }
 			},
 		},
-		{
-			name:          "TransactionAfterNoChange",
-			retentionDays: 30,
-			store: func(db database.Store) (database.Store, func()) {
-				store := newFailNextChatOperationalSettingTransactionStore(db)
-				return store, func() { store.failNextTransaction.Store(true) }
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -18728,15 +18445,6 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("RegenerateChatTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, _, sharedClient, chat, _ := setup(t)
-		_, err := sharedClient.RegenerateChatTitle(ctx, chat.ID)
-
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
 	t.Run("ProposeChatTitle", func(t *testing.T) {
 		t.Parallel()
 
@@ -18886,17 +18594,6 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Output:     json.RawMessage(`"forbidden"`),
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
-	})
-
-	t.Run("RegenerateChatTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
-
-		_, err := adminClient.RegenerateChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})

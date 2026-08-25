@@ -7410,8 +7410,9 @@ WITH batch AS (
 )
 UPDATE chat_messages cm
 SET search_tsv = COALESCE(
-    to_tsvector('simple', chat_message_search_text(cm.content)),
-    ''::tsvector)
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
 FROM batch WHERE cm.id = batch.id
 `
 
@@ -8449,7 +8450,7 @@ func (q *sqlQuerier) GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatP
 
 const getChatMessageByID = `-- name: GetChatMessageByID :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8485,6 +8486,7 @@ func (q *sqlQuerier) GetChatMessageByID(ctx context.Context, id int64) (ChatMess
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.SearchTsvConfig,
 	)
 	return i, err
 }
@@ -8571,7 +8573,7 @@ func (q *sqlQuerier) GetChatMessageSummariesPerChat(ctx context.Context, created
 
 const getChatMessagesByChatID = `-- name: GetChatMessagesByChatID :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8625,6 +8627,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8641,7 +8644,7 @@ func (q *sqlQuerier) GetChatMessagesByChatID(ctx context.Context, arg GetChatMes
 
 const getChatMessagesByChatIDAscPaginated = `-- name: GetChatMessagesByChatIDAscPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8695,6 +8698,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8711,7 +8715,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDAscPaginated(ctx context.Context, ar
 
 const getChatMessagesByChatIDDescPaginated = `-- name: GetChatMessagesByChatIDDescPaginated :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8778,6 +8782,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8794,7 +8799,7 @@ func (q *sqlQuerier) GetChatMessagesByChatIDDescPaginated(ctx context.Context, a
 
 const getChatMessagesByRevisionForStream = `-- name: GetChatMessagesByRevisionForStream :many
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8845,6 +8850,7 @@ func (q *sqlQuerier) GetChatMessagesByRevisionForStream(ctx context.Context, arg
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -8876,7 +8882,7 @@ WITH latest_compressed_summary AS (
         1
 )
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -8952,6 +8958,7 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -9588,7 +9595,10 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('simple', $16)
+                    AND (
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                    )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
@@ -10182,7 +10192,7 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
-    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM
     chat_messages
 WHERE
@@ -10230,6 +10240,7 @@ func (q *sqlQuerier) GetLastChatMessageByRole(ctx context.Context, arg GetLastCh
 		&i.Revision,
 		&i.ReasoningEffort,
 		&i.SearchTsv,
+		&i.SearchTsvConfig,
 	)
 	return i, err
 }
@@ -10746,9 +10757,9 @@ inserted AS (
         ($16::boolean[])[allocated.ord],
         NULLIF(($17::bigint[])[allocated.ord], 0)
     FROM allocated
-    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+    RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 )
-SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv
+SELECT id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
 FROM inserted
 ORDER BY id
 `
@@ -10774,30 +10785,31 @@ type InsertChatMessagesParams struct {
 }
 
 type InsertChatMessagesRow struct {
-	ID                  int64                   `db:"id" json:"id"`
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole         `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
-	Compressed          bool                    `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
-	ContentVersion      int16                   `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                    `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                   `db:"revision" json:"revision"`
-	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	SearchTsv           interface{}             `db:"search_tsv" json:"search_tsv"`
+	ID                  int64                          `db:"id" json:"id"`
+	ChatID              uuid.UUID                      `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID                  `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time                      `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage          `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility          `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64                  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64                  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64                  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64                  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64                  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64                  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64                  `db:"context_limit" json:"context_limit"`
+	Compressed          bool                           `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID                  `db:"created_by" json:"created_by"`
+	ContentVersion      int16                          `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64                  `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64                  `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                           `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString                 `db:"provider_response_id" json:"provider_response_id"`
+	Revision            int64                          `db:"revision" json:"revision"`
+	ReasoningEffort     NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv           interface{}                    `db:"search_tsv" json:"search_tsv"`
+	SearchTsvConfig     NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the
@@ -10855,6 +10867,7 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 			&i.Revision,
 			&i.ReasoningEffort,
 			&i.SearchTsv,
+			&i.SearchTsvConfig,
 		); err != nil {
 			return nil, err
 		}
@@ -11350,6 +11363,33 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.ReasoningEffort,
 	)
 	return i, err
+}
+
+const reindexStaleChatMessagesSearchTsv = `-- name: ReindexStaleChatMessagesSearchTsv :execrows
+WITH batch AS (
+    SELECT id FROM chat_messages
+    WHERE search_tsv IS NOT NULL
+      AND search_tsv_config IS DISTINCT FROM 'english'
+      AND deleted = false
+      AND visibility IN ('user', 'both')
+      AND role IN ('user', 'assistant')
+    ORDER BY id DESC
+    LIMIT $1::int
+)
+UPDATE chat_messages cm
+SET search_tsv = COALESCE(
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
+FROM batch WHERE cm.id = batch.id
+`
+
+func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, reindexStaleChatMessagesSearchTsv, batchSize)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const reorderChatQueuedMessageToFront = `-- name: ReorderChatQueuedMessageToFront :execrows

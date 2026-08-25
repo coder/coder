@@ -352,6 +352,11 @@ CREATE TYPE chat_message_role AS ENUM (
     'tool'
 );
 
+CREATE TYPE chat_message_search_tsv_config AS ENUM (
+    'simple',
+    'english'
+);
+
 CREATE TYPE chat_message_visibility AS ENUM (
     'user',
     'model',
@@ -1479,6 +1484,7 @@ BEGIN
 
         cmp := NEW;
         cmp.search_tsv := OLD.search_tsv;
+        cmp.search_tsv_config := OLD.search_tsv_config;
         IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
@@ -1496,7 +1502,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1548,7 +1554,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
+        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1559,7 +1565,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -2053,12 +2059,15 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
