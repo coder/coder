@@ -56,6 +56,10 @@ export const AISettingsIndexRedirect = () => {
 		return <Loader fullscreen />;
 	}
 
+	if (organizationMCPSharing.error !== null) {
+		return <ErrorAlert error={organizationMCPSharing.error} />;
+	}
+
 	if (organizationMCPSharing.canShare) {
 		return <Navigate to="/ai/settings/mcp-servers" replace />;
 	}

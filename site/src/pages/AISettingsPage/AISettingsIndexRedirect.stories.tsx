@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen } from "storybook/test";
+import { expect, screen, spyOn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { API } from "#/api/api";
 import { chatModels } from "#/api/queries/chats";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
@@ -85,5 +86,29 @@ export const MemberWithoutMCPSharingFallsBack: Story = {
 		await expect(
 			await screen.findByRole("heading", { name: "AI providers" }),
 		).toBeInTheDocument();
+	},
+};
+
+export const MCPSharingPermissionLookupFailureShowsError: Story = {
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockRejectedValue(
+			new Error("Unable to load organization permissions"),
+		);
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatModels(MockDefaultOrganization.id).queryKey,
+				data: { models: [], providers: [] },
+			},
+		],
+	},
+	play: async () => {
+		await expect(
+			await screen.findByText("Unable to load organization permissions"),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "AI providers" }),
+		).not.toBeInTheDocument();
 	},
 };
