@@ -15,14 +15,18 @@ import { workspacePermissionsByOrganization } from "#/api/queries/organizations"
 import { templates, templateVersionRoot } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
 import { useFilter } from "#/components/Filter/Filter";
+import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePagination } from "#/hooks/usePagination";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { pageTitle } from "#/utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchStopConfirmation } from "./BatchStopConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
+import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 // To reduce the number of fetches, we reduce the fetch interval if there are no
@@ -100,11 +104,10 @@ const WorkspacesPage: FC = () => {
 		});
 	}, [templatesQuery.data, workspacePermissionsQuery.data]);
 
-	const filter = useFilter({
-		fallbackFilter: "owner:me",
+	const filterState = useWorkspacesFilter({
 		searchParams,
 		onSearchParamsChange: setSearchParams,
-		onUpdate: () => {
+		onFilterChange: () => {
 			pagination.goToPage(1);
 			resetChecked();
 		},
@@ -113,7 +116,7 @@ const WorkspacesPage: FC = () => {
 	const workspacesQueryOptions = workspaces({
 		limit: pagination.limit,
 		offset: pagination.offset,
-		q: filter.query,
+		q: filterState.filter.query,
 	});
 	const { data, error, refetch } = useQuery({
 		...workspacesQueryOptions,
@@ -198,7 +201,7 @@ const WorkspacesPage: FC = () => {
 				page={pagination.page}
 				limit={pagination.limit}
 				onPageChange={pagination.goToPage}
-				filter={filter}
+				filterState={filterState}
 				isRunningBatchAction={batchActions.isProcessing}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
@@ -274,3 +277,64 @@ const WorkspacesPage: FC = () => {
 };
 
 export default WorkspacesPage;
+
+type UseWorkspacesFilterOptions = {
+	searchParams: URLSearchParams;
+	onSearchParamsChange: (newParams: URLSearchParams) => void;
+	onFilterChange: () => void;
+};
+
+const useWorkspacesFilter = ({
+	searchParams,
+	onSearchParamsChange,
+	onFilterChange,
+}: UseWorkspacesFilterOptions) => {
+	const filter = useFilter({
+		fallbackFilter: "owner:me",
+		searchParams,
+		onSearchParamsChange,
+		onUpdate: onFilterChange,
+	});
+
+	const { permissions } = useAuthenticated();
+	const canFilterByUser = permissions.viewDeploymentConfig;
+	const userMenu = useUserFilterMenu({
+		value: filter.values.owner,
+		onChange: (option) =>
+			filter.update({ ...filter.values, owner: option?.value }),
+		enabled: canFilterByUser,
+	});
+
+	const templateMenu = useTemplateFilterMenu({
+		value: filter.values.template,
+		onChange: (option) =>
+			filter.update({ ...filter.values, template: option?.value }),
+	});
+
+	const statusMenu = useStatusFilterMenu({
+		value: filter.values.status,
+		onChange: (option) =>
+			filter.update({ ...filter.values, status: option?.value }),
+	});
+
+	const { showOrganizations } = useDashboard();
+	const organizationsMenu = useOrganizationsFilterMenu({
+		value: filter.values.organization,
+		onChange: (option) => {
+			filter.update({
+				...filter.values,
+				organization: option?.value,
+			});
+		},
+	});
+
+	return {
+		filter,
+		menus: {
+			user: canFilterByUser ? userMenu : undefined,
+			template: templateMenu,
+			status: statusMenu,
+			organizations: showOrganizations ? organizationsMenu : undefined,
+		},
+	};
+};

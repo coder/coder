@@ -1,24 +1,44 @@
 import { screen } from "@testing-library/react";
-import type { UseFilterResult } from "#/components/Filter/Filter";
 import { MockTemplate } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import type { WorkspaceFilterState } from "./filter/WorkspacesFilter";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
-const createFilter = (used = false): UseFilterResult => ({
+const mockMenu = {
+	initialOption: undefined,
+	isInitializing: false,
+	isSearching: false,
 	query: "",
-	values: {},
-	used,
-	update: vi.fn(),
-	debounceUpdate: vi.fn(),
-	cancelDebounce: vi.fn(),
-});
+	searchOptions: [],
+	selectedOption: undefined,
+	selectOption: vi.fn(),
+	setQuery: vi.fn(),
+};
+
+const createFilterState = (used = false) =>
+	({
+		filter: {
+			query: "",
+			values: {},
+			used,
+			update: vi.fn(),
+			debounceUpdate: vi.fn(),
+			cancelDebounce: vi.fn(),
+		},
+		menus: {
+			user: mockMenu,
+			template: mockMenu,
+			status: mockMenu,
+			organizations: mockMenu,
+		},
+	}) as WorkspaceFilterState;
 
 const defaultProps = {
 	error: undefined,
 	workspaces: [],
 	checkedWorkspaces: [],
 	count: 0,
-	filter: createFilter(),
+	filterState: createFilterState(),
 	page: 1,
 	limit: 25,
 	onPageChange: vi.fn(),
@@ -62,7 +82,7 @@ describe("WorkspacesPageView", () => {
 			<WorkspacesPageView
 				{...defaultProps}
 				canCreateWorkspace={false}
-				filter={createFilter(true)}
+				filterState={createFilterState(true)}
 			/>,
 		);
 
@@ -77,7 +97,10 @@ describe("WorkspacesPageView", () => {
 
 	it("shows the filter empty state when the user can create workspaces but the filter matches nothing", async () => {
 		renderWithAuth(
-			<WorkspacesPageView {...defaultProps} filter={createFilter(true)} />,
+			<WorkspacesPageView
+				{...defaultProps}
+				filterState={createFilterState(true)}
+			/>,
 		);
 
 		await screen.findByText(/no results matched your search/i);

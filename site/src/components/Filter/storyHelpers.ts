@@ -21,7 +21,7 @@ export const getDefaultFilterProps = <TFilterProps>({
 }: {
 	query?: string;
 	values: Record<string, string | undefined>;
-	menus?: Record<string, UseFilterMenuResult>;
+	menus: Record<string, UseFilterMenuResult>;
 	used?: boolean;
 }) =>
 	({
@@ -32,5 +32,5 @@ export const getDefaultFilterProps = <TFilterProps>({
 			used: used,
 			values,
 		},
-		...(menus ? { menus } : {}),
+		menus,
 	}) as TFilterProps;
