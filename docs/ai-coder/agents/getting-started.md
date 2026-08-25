@@ -20,11 +20,10 @@ Before you begin, confirm the following:
 - **Access to configure models** in each organization where you configure models.
   The **Organization Admin** role and the **Owner** role include this access.
   A custom role with model configuration access also works.
-- **Organization membership** for each user who uses Coder Agents. Users
-  also need read access to at least one model in the organization. New models
-  are shared with the whole organization by default; to restrict who can use
-  Coder Agents, narrow the model access lists. See
-  [Manage model permissions](./models.md#manage-model-permissions).
+- **Organization membership** for each user who uses Coder Agents.
+  Users also need read access to at least one model in the organization.
+  New models are shared with the whole organization by default; to restrict who can use Coder Agents, narrow the model access lists.
+  See [Manage model permissions](./models.md#manage-model-permissions).
 
 ## Step 1: Configure an LLM provider and model
 

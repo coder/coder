@@ -340,18 +340,18 @@ type RoleOptions struct {
 	NoChatSharing        bool
 }
 
-// legacyRoleNames contains retired built-in role names. They stay reserved so
+// retiredRoleNames contains retired built-in role names. They stay reserved so
 // a custom role cannot take a name that older binaries still resolve as a
 // built-in role, which would silently shadow the custom permissions on
 // rollback.
-var legacyRoleNames = map[string]struct{}{
+var retiredRoleNames = map[string]struct{}{
 	"agents-access": {},
 }
 
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
-	if _, ok := legacyRoleNames[name]; ok {
+	if _, ok := retiredRoleNames[name]; ok {
 		return true
 	}
 	_, ok := loadBuiltinRoles()[name]
