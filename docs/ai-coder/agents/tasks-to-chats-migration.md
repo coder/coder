@@ -668,7 +668,7 @@ API:
 | **Labels**                           | Key-value metadata on chats for filtering (`label` query parameter)            |
 | **Sub-agents**                       | Agent can spawn child agents for parallel work                                 |
 | **Diff/PR tracking**                 | `GET /chats/{chat}/diff` returns change tracking and PR metadata               |
-| **Title regeneration**               | `POST /chats/{chat}/title/regenerate`                                          |
+| **Title generation**                 | `POST /chats/{chat}/title/propose` returns a suggested title                   |
 | **Pinning**                          | Pin and reorder chats via the `pin_order` field                                |
 | **Automatic workspace provisioning** | No workspace needed for Q&A. Provisioned only when the agent needs to act      |
 

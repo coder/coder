@@ -48,6 +48,9 @@ import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
+/** @internal Exported for testing. */
+export const selectedOrganizationIdStorageKey =
+	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
@@ -165,8 +168,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
-	const initialOrg =
-		organizations.find((o) => o.is_default) ?? organizations[0];
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
@@ -175,7 +176,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		null,
+		() => {
+			const storedOrganizationId = localStorage.getItem(
+				selectedOrganizationIdStorageKey,
+			);
+			return (
+				organizations.find(
+					(organization) => organization.id === storedOrganizationId,
+				) ?? null
+			);
+		},
 	);
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
@@ -195,14 +205,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// selection, its organization list is authoritative so a removed org cannot
 	// remain selected for submission.
 	const permittedOrgs = showOrganizations
-		? (permittedOrgsQuery.data ?? organizations)
+		? (permittedOrgsQuery.data ?? [])
 		: organizations;
 	// Treat the dashboard org as provisional until permissions resolve so
 	// sends and persisted attachments cannot use an unpermitted org.
 	const orgSelectionSettled =
 		!showOrganizations || permittedOrgsQuery.data !== undefined;
-	// Prevent effectiveOrg's dashboard fallback from bypassing an empty
-	// permitted set.
+	// Keep an authoritative empty permission set distinct from pending data.
 	const noPermittedOrgs =
 		showOrganizations && permittedOrgsQuery.data?.length === 0;
 	const selectedOrgIsPermitted =
@@ -228,7 +237,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedOrg
 			: (permittedOrgs.find((org) => org.is_default) ??
 				permittedOrgs[0] ??
-				initialOrg ??
 				null);
 	const organizationId = effectiveOrg?.id ?? "";
 	const mcpServersQuery = useQuery({
@@ -266,6 +274,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			setUserMCPServerIds(null);
 		}
 	}
+	useEffect(() => {
+		if (!orgSelectionSettled) {
+			return;
+		}
+		if (selectedOrg) {
+			localStorage.setItem(selectedOrganizationIdStorageKey, selectedOrg.id);
+		} else {
+			localStorage.removeItem(selectedOrganizationIdStorageKey);
+		}
+	}, [orgSelectionSettled, selectedOrg]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
 			localStorage.removeItem(selectedWorkspaceIdStorageKey);
@@ -453,10 +471,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// guarantees completeness. If workspace counts grow large
 	// enough to warrant pagination, this should switch to a
 	// server-side organization:<name> query filter.
-	const filteredWorkspaces =
-		showOrganizations && effectiveOrg
+	const filteredWorkspaces = showOrganizations
+		? effectiveOrg
 			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
-			: workspaceOptions;
+			: []
+		: workspaceOptions;
 
 	const effectiveWorkspaceId =
 		selectedWorkspaceId !== null &&
@@ -595,22 +614,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{personalModelOverridesQuery.error != null && (
 						<ErrorAlert error={personalModelOverridesQuery.error} />
 					)}
-					{organizationId !== "" &&
-						modelsQuery.data !== undefined &&
-						modelsQuery.error == null &&
-						!isModelCatalogLoading &&
-						!hasModelOptions && (
-							<Alert severity="warning">
-								<AlertTitle>No model is available</AlertTitle>
-								<AlertDescription>
-									{hasUserFixableModelProviders
-										? "A provider requires your API key. Add it in provider settings to enable models."
-										: "No chat model is currently available for this organization."}
-								</AlertDescription>
-							</Alert>
-						)}
-					{/* The pre-settlement list is the unfiltered dashboard fallback;
-					    selecting from it could destroy existing workspace state. */}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (

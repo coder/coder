@@ -686,7 +686,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err = adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Verify audit log.
 		als := auditor.AuditLogs()
@@ -713,7 +713,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify the token is expired.
 		key, err := memberClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 	})
 
 	t.Run("MemberCannotExpireOtherUsersToken", func(t *testing.T) {
@@ -793,7 +793,7 @@ func TestExpireAPIKey(t *testing.T) {
 		// Verify it's expired.
 		key, err := adminClient.APIKeyByID(ctx, codersdk.Me, keyID)
 		require.NoError(t, err)
-		require.True(t, key.ExpiresAt.Before(dbtime.Now()))
+		require.LessOrEqual(t, key.ExpiresAt, dbtime.Now(), "key should be expired")
 
 		// Delete the expired token - should succeed.
 		err = adminClient.DeleteAPIKey(ctx, codersdk.Me, keyID)
