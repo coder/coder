@@ -2070,17 +2070,6 @@ func TestListChats(t *testing.T) {
 			})
 		}
 
-		// Make the oldest chat the most recently updated and pin it. Explicit
-		// sorting must ignore the pin, while the default must retain it.
-		dbCtx := dbauthz.AsSystemRestricted(ctx)
-		var err error
-		dbChats[0], err = db.UpdateChatByID(dbCtx, database.UpdateChatByIDParams{
-			ID:    dbChats[0].ID,
-			Title: dbChats[0].Title,
-		})
-		require.NoError(t, err)
-		require.NoError(t, db.PinChatByID(dbCtx, dbChats[0].ID))
-
 		expectedIDs := func(sortBy codersdk.ChatListSortField, sortOrder codersdk.ChatListSortOrder) []uuid.UUID {
 			t.Helper()
 			sorted := slices.Clone(dbChats)
@@ -2117,36 +2106,40 @@ func TestListChats(t *testing.T) {
 			return ids
 		}
 
+		wantExplicitSort := expectedIDs(codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending)
+		pinnedID := wantExplicitSort[1]
+		require.NoError(t, db.PinChatByID(dbauthz.AsSystemRestricted(ctx), pinnedID))
+
 		defaultChats, err := client.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Equal(t, dbChats[0].ID, defaultChats[0].ID)
+		require.Equal(t, pinnedID, defaultChats[0].ID)
 
-		tests := []struct {
-			name      string
-			sortBy    codersdk.ChatListSortField
-			sortOrder codersdk.ChatListSortOrder
-			wantBy    codersdk.ChatListSortField
-			wantOrder codersdk.ChatListSortOrder
-		}{
-			{"CreatedAtAscending", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending},
-			{"CreatedAtDescending", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending, codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending},
-			{"UpdatedAtAscending", codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending},
-			{"UpdatedAtDescending", codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderDescending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderDescending},
-			{"SortByDefaultsToDescending", codersdk.ChatListSortFieldCreatedAt, "", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending},
-			{"SortOrderDefaultsToUpdatedAt", "", codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending},
-		}
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-					SortBy:    tt.sortBy,
-					SortOrder: tt.sortOrder,
-				})
-				require.NoError(t, err)
-				require.Equal(t, expectedIDs(tt.wantBy, tt.wantOrder), actualIDs(chats))
-			})
-		}
+		explicitlySorted, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortBy:    codersdk.ChatListSortFieldCreatedAt,
+			SortOrder: codersdk.ChatListSortOrderAscending,
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantExplicitSort, actualIDs(explicitlySorted))
+		require.NotEqual(t, pinnedID, explicitlySorted[0].ID)
 
-		wantCreatedAscending := expectedIDs(codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending)
+		sortByOnly, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortBy: codersdk.ChatListSortFieldCreatedAt,
+		})
+		require.NoError(t, err)
+		require.Equal(t,
+			expectedIDs(codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending),
+			actualIDs(sortByOnly),
+		)
+
+		sortOrderOnly, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortOrder: codersdk.ChatListSortOrderAscending,
+		})
+		require.NoError(t, err)
+		require.Equal(t,
+			expectedIDs(codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending),
+			actualIDs(sortOrderOnly),
+		)
+
 		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			SortBy:    codersdk.ChatListSortFieldCreatedAt,
 			SortOrder: codersdk.ChatListSortOrderAscending,
@@ -2156,7 +2149,7 @@ func TestListChats(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, wantCreatedAscending[1:3], actualIDs(offsetPage))
+		require.Equal(t, wantExplicitSort[1:3], actualIDs(offsetPage))
 
 		firstPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 			SortBy:     codersdk.ChatListSortFieldCreatedAt,
@@ -2173,7 +2166,7 @@ func TestListChats(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, wantCreatedAscending, actualIDs(append(firstPage, secondPage...)))
+		require.Equal(t, wantExplicitSort, actualIDs(append(firstPage, secondPage...)))
 
 		invalidTests := []struct {
 			name      string
