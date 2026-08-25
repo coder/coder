@@ -16,8 +16,10 @@ describe("effectiveBudgetGroup", () => {
 		expect(effectiveBudgetGroup(undefined, group)).toEqual({ kind: "none" });
 	});
 
-	it("is other without a governing group (budget in another org)", () => {
-		expect(effectiveBudgetGroup(mockSpend, group)).toEqual({ kind: "other" });
+	it("is other organization when the effective group is masked", () => {
+		expect(effectiveBudgetGroup(mockSpend, group)).toEqual({
+			kind: "otherOrganization",
+		});
 	});
 
 	it("is everyone for the org-wide Everyone group", () => {

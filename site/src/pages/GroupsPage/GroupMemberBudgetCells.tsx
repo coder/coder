@@ -64,30 +64,32 @@ export const GroupMemberBudgetCells: FC<{
 		case "this":
 			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
 			break;
-		case "other": {
+		case "other":
 			// Wait for the name to resolve rather than flashing the fallback.
 			if (isResolvingGroupName) {
 				budgetGroup = <Spinner loading size="sm" />;
-			} else if (effectiveGroupName) {
-				budgetGroup = <Badge size="sm">{badgeName(effectiveGroupName)}</Badge>;
 			} else {
-				// The group can't be resolved (another org), so it can't be named.
-				budgetGroup = (
-					<LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />
+				budgetGroup = effectiveGroupName ? (
+					<Badge size="sm">{badgeName(effectiveGroupName)}</Badge>
+				) : (
+					EM_DASH
 				);
 			}
 			break;
-		}
+		case "otherOrganization":
+			budgetGroup = (
+				<LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />
+			);
+			break;
 	}
 
 	let budget: ReactNode = EM_DASH;
-	if (spend && fromOtherGroup) {
+	if (spend && effective.kind === "otherOrganization") {
+		budget = <LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />;
+	} else if (spend && effective.kind === "other") {
 		if (isResolvingGroupName) {
 			budget = <Spinner loading size="sm" />;
-		} else if (!effectiveGroupName) {
-			// The spend hides entirely when the governing group can't be resolved.
-			budget = <LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />;
-		} else {
+		} else if (effectiveGroupName) {
 			budget = (
 				<div className="flex flex-col gap-0.5">
 					<span className="flex items-center gap-1">
@@ -171,13 +173,17 @@ type EffectiveBudgetGroup =
 	| { kind: "none" }
 	| { kind: "everyone" }
 	| { kind: "this" }
-	| { kind: "other" };
+	| { kind: "other" }
+	| { kind: "otherOrganization" };
 
 /**
- * Resolves which group governs a member's AI budget. "none" means no budget
- * data loaded; "everyone" is the org-wide fallback when no named group sets a
- * budget. A null effective group means the budget resolves to a group in
- * another organization, so it can't be shown here.
+ * Resolves which group governs a member's AI budget:
+ *
+ * - "none": spend data is not loaded.
+ * - "everyone": the Everyone group governs the budget.
+ * - "this": the viewed group governs the budget.
+ * - "other": another group in this organization governs the budget.
+ * - "otherOrganization": a group in another organization governs the budget.
  */
 export function effectiveBudgetGroup(
 	spend: GroupMemberAISpend | undefined,
@@ -185,7 +191,9 @@ export function effectiveBudgetGroup(
 ): EffectiveBudgetGroup {
 	const groupId = spend?.effective_group_id ?? null;
 	if (groupId === null) {
-		return spend === undefined ? { kind: "none" } : { kind: "other" };
+		return spend === undefined
+			? { kind: "none" }
+			: { kind: "otherOrganization" };
 	}
 	// Everyone shares the org's id; checked first so it wins when the viewed
 	// group is Everyone itself.

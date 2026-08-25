@@ -287,29 +287,20 @@ export const ResolvingGroupName: Story = {
 	},
 };
 
-/** An effective group that can't be resolved, standing in for another org's. */
-export const NotAttributedUnknownGroup: Story = {
+export const NotAttributedOtherOrganization: Story = {
 	args: {
 		spend: {
 			...mockSpend,
 			group_spend_micros: 456_000_000,
-			effective_group_id: "external-group",
+			effective_group_id: null,
+			group_budget: null,
 		},
-	},
-	parameters: {
-		queries: [
-			{
-				key: getGroupByIdQueryKey("external-group", { exclude_members: true }),
-				data: null,
-			},
-		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("\u2014");
 		await expect(cell).not.toHaveTextContent("$456");
-		// The group cell shows an em-dash + info instead of naming the group.
 		const groupCell = canvas.getAllByRole("cell")[1];
 		await expect(groupCell).toHaveTextContent("\u2014");
 		await userEvent.click(
