@@ -534,7 +534,7 @@ require (
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.10.0
 	github.com/coder/preview v1.0.10-0.20260521153517-34deb0946c4f
-	github.com/coder/safedial v0.1.0
+	github.com/coder/safedial v0.2.0
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.9.0
