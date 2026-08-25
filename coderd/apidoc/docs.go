@@ -21719,6 +21719,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_workspace_agent_context_sync": {
+                    "type": "boolean"
+                },
                 "disable_workspace_sharing": {
                     "type": "boolean"
                 },
@@ -22003,6 +22006,14 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
+                    }
+                },
+                "mcp_server_ids": {
+                    "description": "MCPServerIDs, when set, replaces the chat's MCP server selection\nbefore the replacement turn runs. When nil the current selection\nis preserved.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 },
                 "model_config_id": {
