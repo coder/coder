@@ -628,7 +628,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								</AlertDescription>
 							</Alert>
 						)}
-					{/* Wait for authoritative permissions before exposing organization choices. */}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (
