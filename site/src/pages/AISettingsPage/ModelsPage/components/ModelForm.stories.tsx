@@ -299,8 +299,8 @@ export const ShareOnlyAccess: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatModelACL").mockResolvedValue({
-			user_roles: {},
-			group_roles: {},
+			users: [],
+			groups: [],
 		});
 		spyOn(API.experimental, "updateChatModelACL").mockResolvedValue();
 		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({

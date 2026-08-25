@@ -265,6 +265,7 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router, prefix chatAPIPrefi
 			r.Route("/acl", func(r chi.Router) {
 				r.Get("/", api.chatModelConfigACLHandler)
 				r.Patch("/", api.updateChatModelConfigACL)
+				r.Get("/available", api.chatModelConfigACLAvailable)
 			})
 		})
 	})
