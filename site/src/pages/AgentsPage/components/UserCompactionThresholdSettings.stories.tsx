@@ -362,13 +362,24 @@ export const OrganizationFilter: Story = {
 	},
 };
 
-export const SingleOrganizationHidesFilter: Story = {
+export const SingleOrganizationShowsFilter: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("GPT-4o");
-		expect(
-			canvas.queryByRole("combobox", { name: "Filter by organization" }),
-		).not.toBeInTheDocument();
+		const filter = canvas.getByRole("combobox", {
+			name: "Filter by organization",
+		});
+
+		await userEvent.click(filter);
+		const listbox = await within(document.body).findByRole("listbox");
+		await userEvent.click(
+			within(listbox).getByText(MockDefaultOrganization.display_name),
+		);
+
+		await waitFor(() => {
+			expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		});
 	},
 };
 

@@ -292,27 +292,22 @@ export const UserCompactionThresholdSettings: FC<
 							)}
 						</p>
 					)}
-					{organizationOptions.length > 1 && (
-						<Select
-							value={effectiveOrganizationFilter}
-							onValueChange={setOrganizationFilter}
-						>
-							<SelectTrigger
-								className="w-56"
-								aria-label="Filter by organization"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="all">All organizations</SelectItem>
-								{organizationOptions.map((option) => (
-									<SelectItem key={option.id} value={option.id}>
-										{option.name}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
+					<Select
+						value={effectiveOrganizationFilter}
+						onValueChange={setOrganizationFilter}
+					>
+						<SelectTrigger className="w-56" aria-label="Filter by organization">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">All organizations</SelectItem>
+							{organizationOptions.map((option) => (
+								<SelectItem key={option.id} value={option.id}>
+									{option.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
 					<Table>
 						<TableHeader>
 							<TableRow>
