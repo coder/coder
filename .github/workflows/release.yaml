@@ -551,6 +551,10 @@ jobs:
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # The App is installed at the org level, so resolve the org
+          # installation (avoids a 404 on the per-repo installation lookup).
+          owner: ${{ github.repository_owner }}
+          repositories: coder
 
       - name: Publish release
         run: |
