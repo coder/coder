@@ -331,8 +331,27 @@ WITH batch AS (
 UPDATE chat_messages cm
 -- NULL means "pending", empty tsvector means "backfilled, no text".
 SET search_tsv = COALESCE(
-    to_tsvector('simple', chat_message_search_text(cm.content)),
-    ''::tsvector)
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
+FROM batch WHERE cm.id = batch.id;
+
+-- name: ReindexStaleChatMessagesSearchTsv :execrows
+WITH batch AS (
+    SELECT id FROM chat_messages
+    WHERE search_tsv IS NOT NULL
+      AND search_tsv_config IS DISTINCT FROM 'english'
+      AND deleted = false
+      AND visibility IN ('user', 'both')
+      AND role IN ('user', 'assistant')
+    ORDER BY id DESC
+    LIMIT @batch_size::int
+)
+UPDATE chat_messages cm
+SET search_tsv = COALESCE(
+        to_tsvector('english', chat_message_search_text(cm.content)),
+        ''::tsvector),
+    search_tsv_config = 'english'
 FROM batch WHERE cm.id = batch.id;
 
 -- name: GetChatByID :one
@@ -702,7 +721,10 @@ WHERE
                     AND cm.deleted = false
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
-                    AND cm.search_tsv @@ websearch_to_tsquery('simple', @search)
+                    AND (
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', @search))
+                        OR (cm.search_tsv_config = 'simple' AND cm.search_tsv @@ websearch_to_tsquery('simple', @search))
+                    )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
