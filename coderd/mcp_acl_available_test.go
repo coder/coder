@@ -132,10 +132,6 @@ func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
 		OrgPermissions: database.CustomRolePermissions{
 			{
 				ResourceType: rbac.ResourceMCPServerConfig.Type,
-				Action:       policy.ActionRead,
-			},
-			{
-				ResourceType: rbac.ResourceMCPServerConfig.Type,
 				Action:       policy.ActionShare,
 			},
 		},
@@ -147,7 +143,8 @@ func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
 	require.NoError(t, err)
 
 	// Share-authorized callers keep access to disabled configs so they can
-	// still open them and manage sharing, matching the list behavior.
+	// still open them and manage sharing, matching the list behavior. The
+	// role grants share without read to prove the whole path admits it.
 	fetched, err := sharerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
 	require.NoError(t, err)
 	require.Equal(t, config.ID, fetched.ID)

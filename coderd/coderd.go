@@ -1393,7 +1393,7 @@ func New(options *Options) *API {
 					r.Post("/", api.createMCPServerConfig)
 					r.Route("/{mcpserverconfig}", func(r chi.Router) {
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getMCPServerConfig)
+							policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare)).Get("/", api.getMCPServerConfig)
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
 							policy.ActionUpdate)).Patch("/", api.updateMCPServerConfig)
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
