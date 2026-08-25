@@ -1,10 +1,10 @@
 import type { FC } from "react";
 import type { Organization } from "#/api/typesGenerated";
-import { Avatar } from "#/components/Avatar/Avatar";
 import { Label } from "#/components/Label/Label";
 import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
+	OrganizationValue,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { cn } from "#/utils/cn";
 
@@ -56,18 +56,11 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 		<div className={cn("flex w-72 flex-col gap-2", className)}>
 			{showLabel && <Label htmlFor={id}>Organization</Label>}
 			{isReadOnly ? (
-				<output
+				<OrganizationValue
 					id={id}
-					aria-label={`Organization ${organizationLabel}`}
-					className="flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary"
-				>
-					<Avatar
-						size="sm"
-						src={organization.icon}
-						fallback={organization.display_name}
-					/>
-					<span className="truncate">{organizationLabel}</span>
-				</output>
+					organization={organization}
+					labelOrganizations={labelOrganizations}
+				/>
 			) : (
 				<OrganizationAutocomplete
 					id={id}

@@ -154,3 +154,45 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 		</Popover>
 	);
 };
+
+type OrganizationValueProps = {
+	organization: Organization;
+	// Collision set for disambiguation labels, matching the autocomplete's
+	// labelOrganizations behavior. Defaults to just the organization.
+	labelOrganizations?: readonly Organization[];
+	id?: string;
+	className?: string;
+};
+
+// Read-only counterpart to OrganizationAutocomplete for contexts where the
+// organization is informational and cannot be changed. Renders a static
+// value instead of a disabled control so the text keeps its normal color
+// and stays out of the tab order.
+export const OrganizationValue: FC<OrganizationValueProps> = ({
+	organization,
+	labelOrganizations,
+	id,
+	className,
+}) => {
+	const label = getOrganizationLabel(
+		organization,
+		labelOrganizations ?? [organization],
+	);
+	return (
+		<output
+			id={id}
+			aria-label={`Organization ${label}`}
+			className={cn(
+				"flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary",
+				className,
+			)}
+		>
+			<Avatar
+				size="sm"
+				src={organization.icon}
+				fallback={organization.display_name}
+			/>
+			<span className="truncate">{label}</span>
+		</output>
+	);
+};

@@ -4,6 +4,7 @@ import { Label } from "#/components/Label/Label";
 import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
+	OrganizationValue,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	modelOrganizationSearchParam,
@@ -12,22 +13,30 @@ import {
 
 // Switches the active organization by rewriting the org search param while
 // preserving the current path and auxiliary parameters. Hidden when only one
-// organization is accessible.
+// organization is accessible. With readOnly the organization renders as an
+// informational value instead, and is shown even for a single organization.
 export const ModelOrganizationSelect: FC<{
 	label?: string;
+	readOnly?: boolean;
 	triggerClassName?: string;
-}> = ({ label, triggerClassName }) => {
+}> = ({ label, readOnly = false, triggerClassName }) => {
 	const { organization, accessibleOrganizations } = useOrganizationModels();
 	const location = useLocation();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const id = useId();
 
-	if (accessibleOrganizations.length <= 1) {
+	if (!readOnly && accessibleOrganizations.length <= 1) {
 		return null;
 	}
 
-	const autocomplete = (
+	const autocomplete = readOnly ? (
+		<OrganizationValue
+			id={id}
+			organization={organization}
+			labelOrganizations={accessibleOrganizations}
+		/>
+	) : (
 		<OrganizationAutocomplete
 			id={id}
 			value={organization}

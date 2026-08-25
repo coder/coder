@@ -250,7 +250,10 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
-					<ModelOrganizationSelect label="Organization" />
+					<ModelOrganizationSelect
+						label="Organization"
+						readOnly={mode === "edit"}
+					/>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
