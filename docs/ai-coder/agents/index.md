@@ -129,10 +129,10 @@ direction.
 
 Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
 Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, and PDF files.
-Each upload can be up to 10&nbsp;MiB, and a single conversation can reference at most 50 attachments. Attachments are sent to the model as multimodal content alongside the text prompt.
+Each upload can be up to 10&nbsp;MiB, and a single conversation can reference at most 50 attachments.
+Attachments are sent to the model as multimodal content alongside the text prompt.
 
-This is useful for sharing screenshots of errors, UI mockups, terminal output,
-logs, or other context that helps the agent understand the task.
+This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
 Messages can contain attachments alone or combined with text.
 Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
 Providers differ in which types they accept as native file content; a part the provider rejects is downgraded to text instead of being dropped.

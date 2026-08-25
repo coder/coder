@@ -65,9 +65,7 @@ A good template description tells the agent:
 | Default            | Tells the agent nothing                                                 |
 
 > [!TIP]
-> If many developers already use a template, the agent is more likely to
-> select it, because organization popularity contributes to the affinity score
-> that orders the shortlist.
+> If many developers already use a template, the agent is more likely to select it, because organization popularity contributes to the affinity score that orders the shortlist.
 > A well-written description on a popular template is the strongest routing signal you can provide.
 
 ### Template display names
