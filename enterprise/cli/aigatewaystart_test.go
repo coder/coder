@@ -12,6 +12,8 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -239,6 +241,19 @@ func requireEventualAIGatewayStatus(ctx context.Context, t *testing.T, probeURL 
 	}, testutil.WaitLong, testutil.IntervalFast, "%s never returned %d", probeURL, want)
 }
 
+// startUnreachableCoderd starts a coderd stub that answers 503 to every
+// request, so the gateway daemon keeps retrying its control connection instead
+// of completing. It returns the stub's URL.
+func startUnreachableCoderd(t *testing.T) string {
+	t.Helper()
+
+	coderSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(coderSrv.Close)
+	return coderSrv.URL
+}
+
 // TestAIGatewayStartE2E drives every part of the standalone gateway plumbing
 // once through public surface only: the CLI starts with flags, connects to
 // coderd with a gateway key, reports health and readiness, proxies an LLM
@@ -308,15 +323,12 @@ func TestAIGatewayStartE2E_InvalidKey(t *testing.T) {
 func TestAIGatewayStart_HealthBeforeReady(t *testing.T) {
 	t.Parallel()
 
-	// Given: a coderd that always answers 503
-	coderSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusServiceUnavailable)
-	}))
-	t.Cleanup(coderSrv.Close)
+	// Given: a coderd that always answers 503, so the daemon keeps retrying.
+	coderURL := startUnreachableCoderd(t)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	// When: the gateway starts and binds its listener.
-	baseURL, _ := startAIGatewayCommand(ctx, t, coderSrv.URL, "test-key")
+	baseURL, _ := startAIGatewayCommand(ctx, t, coderURL, "test-key")
 
 	// Then: healthz is already 200 while readyz stays 503.
 	// The startup log line is emitted after the bind, so no retry is needed.
@@ -334,7 +346,7 @@ func TestAIGatewayStartE2E_RevokedKey(t *testing.T) {
 	// Given: a ready gateway, and a coderd whose key check ticker the test drives.
 	keyCheck := make(chan time.Time, 1)
 	dep := setupAIGatewayDeployment(ctx, t, withAIGatewayCoderdOptions(func(opts *coderdenttest.Options) {
-		opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+		opts.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
 			return keyCheck, func() {}
 		}
 	}))
@@ -678,4 +690,64 @@ func TestAIGatewayStartE2E_InFlightRequestSurvivesDisconnect(t *testing.T) {
 	// The recording RPCs that follow the response share the connection that was
 	// dropped, so this interception's usage rows are expected to be lost. Only
 	// the caller-visible outcome is asserted.
+}
+
+// TestAIGatewayStart_ConfigYAML verifies that a YAML file supplied via
+// --config (CODER_CONFIG_PATH) configures the running standalone Gateway.
+// It enables the inherited Prometheus listener through YAML and asserts that the
+// listener comes up.
+func TestAIGatewayStart_ConfigYAML(t *testing.T) {
+	t.Parallel()
+
+	// Fake coderd that answers 503 so the daemon keeps retrying to connect.
+	coderURL := startUnreachableCoderd(t)
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	err := os.WriteFile(configFile, []byte(
+		"introspection:\n  prometheus:\n    enable: true\n    address: 127.0.0.1:0\n",
+	), 0o600)
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	inv, _ := newCLI(t,
+		"ai-gateway", "start",
+		"--url", coderURL,
+		"--key", "test-key",
+		"--http-address", "127.0.0.1:0",
+		"--config", configFile,
+	)
+	inv = inv.WithContext(ctx)
+	pty := ptytest.New(t).Attach(inv)
+	waiter := clitest.StartWithWaiter(t, inv)
+
+	// The Prometheus listener is only started when prometheus.enable
+	// option is set which is enabled through YAML.
+	promLine := pty.ExpectRegexMatch(ctx, `http server listening\s+addr=[0-9.]+:[0-9]+\s+name=prometheus`)
+	matches := regexp.MustCompile(`addr=([0-9.]+:[0-9]+)`).FindStringSubmatch(promLine)
+	require.Len(t, matches, 2, "prometheus address not found in startup log: %q", promLine)
+	promURL := "http://" + matches[1] + "/metrics"
+	requireAIGatewayStatus(ctx, t, promURL, http.StatusOK)
+
+	waiter.Cancel()
+	require.NoError(t, waiter.Wait())
+}
+
+// TestAIGatewayStart_ConfigYAML_Invalid verifies that a YAML file with an
+// unknown option fails the command with a descriptive error.
+func TestAIGatewayStart_ConfigYAML_Invalid(t *testing.T) {
+	t.Parallel()
+
+	configFile := filepath.Join(t.TempDir(), "config.yaml")
+	err := os.WriteFile(configFile, []byte(
+		"introspection:\n  prometheus:\n    unknown_field: true\n",
+	), 0o600)
+	require.NoError(t, err)
+
+	inv, _ := newCLI(t,
+		"ai-gateway", "start",
+		"--key", "test-key",
+		"--config", configFile,
+	)
+
+	err = inv.Run()
+	require.ErrorContains(t, err, `unknown option "introspection.prometheus.unknown_field"`)
 }

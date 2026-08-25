@@ -876,7 +876,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				removeTmpDirUntilSuccessAfterTest(t, tempDir)
 				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 				for _, param := range params {
-					_, err := parameterFile.WriteString(fmt.Sprintf("%s: %s\n", param.name, param.value))
+					_, err := fmt.Fprintf(parameterFile, "%s: %s\n", param.name, param.value)
 					require.NoError(t, err)
 				}
 

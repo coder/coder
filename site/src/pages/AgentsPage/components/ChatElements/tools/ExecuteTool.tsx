@@ -1,4 +1,4 @@
-import { LayersIcon, OctagonXIcon } from "lucide-react";
+import { OctagonXIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -59,7 +59,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 			? "preview"
 			: "collapsed";
 	const isRunning = status === "running";
-	const durationLabel = formatShellDurationMs(durationMs);
+	const durationLabel = isBackgrounded ? "" : formatShellDurationMs(durationMs);
 	const { commandLabel, durationSuffix } = getShellCommandLine({
 		command,
 		modelIntent,
@@ -67,6 +67,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 		durationLabel,
 		isRunning,
 		isError,
+		isBackgrounded,
 	});
 	const defaultView = resolveAgentDisplayState(
 		shellToolDisplayMode,
@@ -76,7 +77,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 	return (
 		<ToolCall.Root
 			key={`${shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
-			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
+			className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start rounded-md bg-surface-primary font-sans font-normal text-xs leading-5"
 			status={status}
 			isError={isError}
 			errorMessage={errorText || "Command failed"}
@@ -101,20 +102,6 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = ({
 					<ToolCall.Chevron />
 				</ToolCall.HeaderButton>
 				<ToolCall.HeaderActions>
-					{isBackgrounded && !isRunning && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<span
-									aria-label="Running in background"
-									role="img"
-									className="flex shrink-0 text-content-secondary"
-								>
-									<LayersIcon aria-hidden className="size-3.5 shrink-0" />
-								</span>
-							</TooltipTrigger>
-							<TooltipContent>Running in background</TooltipContent>
-						</Tooltip>
-					)}
 					{killedBySignal && !isRunning && (
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -150,6 +137,7 @@ type ShellCommandLineInput = {
 	durationLabel: string;
 	isRunning: boolean;
 	isError: boolean;
+	isBackgrounded: boolean;
 };
 
 const getShellCommandLine = ({
@@ -159,16 +147,22 @@ const getShellCommandLine = ({
 	durationLabel,
 	isRunning,
 	isError,
+	isBackgrounded,
 }: ShellCommandLineInput): { commandLabel: string; durationSuffix: string } => {
-	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	const summary =
 		parsedCommands && parsedCommands.length > 0
 			? summarizeParsedCommands(parsedCommands)
 			: "";
 	const commandDisplay = summary || command;
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	let commandLabel = intentLabel
 		? `${intentLabel} using ${commandDisplay}`
 		: `Ran ${commandDisplay}`;
+	if (intentLabel && isBackgrounded) {
+		commandLabel = `${intentLabel} in the background using ${commandDisplay}`;
+	} else if (isBackgrounded) {
+		commandLabel = `Started ${commandDisplay} in the background`;
+	}
 	if (!isRunning && isError) {
 		commandLabel = `Failed to run ${commandDisplay}`;
 	}
@@ -188,6 +182,8 @@ const ShellTranscriptBody: React.FC<{
 		<ScrollArea
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 			viewportClassName="max-h-64"
+			viewportTabIndex={0}
+			viewportAriaLabel="Command output"
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">

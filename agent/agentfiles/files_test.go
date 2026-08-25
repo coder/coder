@@ -58,7 +58,7 @@ func (fs *testFs) Create(name string) (afero.File, error) {
 	}
 	// Unlike os, afero lets you create files where directories already exist and
 	// lets you nest them underneath files, somehow.
-	stat, err := fs.Fs.Stat(name)
+	stat, err := fs.Stat(name)
 	if err == nil && stat.IsDir() {
 		return nil, &os.PathError{
 			Op:   "open",
@@ -66,7 +66,7 @@ func (fs *testFs) Create(name string) (afero.File, error) {
 			Err:  syscall.EISDIR,
 		}
 	}
-	stat, err = fs.Fs.Stat(filepath.Dir(name))
+	stat, err = fs.Stat(filepath.Dir(name))
 	if err == nil && !stat.IsDir() {
 		return nil, &os.PathError{
 			Op:   "open",
@@ -83,7 +83,7 @@ func (fs *testFs) MkdirAll(name string, mode os.FileMode) error {
 	}
 	// Unlike os, afero lets you create directories where files already exist and
 	// lets you nest them underneath files somehow.
-	stat, err := fs.Fs.Stat(filepath.Dir(name))
+	stat, err := fs.Stat(filepath.Dir(name))
 	if err == nil && !stat.IsDir() {
 		return &os.PathError{
 			Op:   "mkdir",
@@ -91,7 +91,7 @@ func (fs *testFs) MkdirAll(name string, mode os.FileMode) error {
 			Err:  syscall.ENOTDIR,
 		}
 	}
-	stat, err = fs.Fs.Stat(name)
+	stat, err = fs.Stat(name)
 	if err == nil && !stat.IsDir() {
 		return &os.PathError{
 			Op:   "mkdir",

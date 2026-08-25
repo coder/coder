@@ -369,9 +369,15 @@ export interface AIModelPrice {
 	readonly output_price: number | null;
 	readonly cache_read_price: number | null;
 	readonly cache_write_price: number | null;
+	readonly source: AIModelPriceSource;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/aimodelprices.go
+export type AIModelPriceSource = "custom" | "default";
+
+export const AIModelPriceSources: AIModelPriceSource[] = ["custom", "default"];
 
 // From codersdk/aimodelprices.go
 /**
@@ -407,6 +413,10 @@ export interface AIProvider {
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * Status carries runtime routing status; nil when empty.
+	 */
+	readonly status?: AIProviderStatus;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -561,6 +571,15 @@ export interface AIProviderSettings {}
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
+// From codersdk/aiproviders.go
+/**
+ * AIProviderStatus carries non-fatal routing warnings. Direct
+ * routing remains available for the provider.
+ */
+export interface AIProviderStatus {
+	readonly warnings?: readonly string[];
+}
+
 // From codersdk/chats.go
 /**
  * AIProviderSummary is provider metadata embedded in other API responses.
@@ -701,6 +720,12 @@ export type APIKeyScope =
 	| "chat:*"
 	| "chat:create"
 	| "chat:delete"
+	| "chat_model_config:*"
+	| "chat_model_config:create"
+	| "chat_model_config:delete"
+	| "chat_model_config:read"
+	| "chat_model_config:share"
+	| "chat_model_config:update"
 	| "chat:read"
 	| "chat:share"
 	| "chat:update"
@@ -749,6 +774,12 @@ export type APIKeyScope =
 	| "license:create"
 	| "license:delete"
 	| "license:read"
+	| "mcp_server_config:*"
+	| "mcp_server_config:create"
+	| "mcp_server_config:delete"
+	| "mcp_server_config:read"
+	| "mcp_server_config:share"
+	| "mcp_server_config:update"
 	| "notification_message:*"
 	| "notification_message:create"
 	| "notification_message:delete"
@@ -941,6 +972,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:*",
 	"chat:create",
 	"chat:delete",
+	"chat_model_config:*",
+	"chat_model_config:create",
+	"chat_model_config:delete",
+	"chat_model_config:read",
+	"chat_model_config:share",
+	"chat_model_config:update",
 	"chat:read",
 	"chat:share",
 	"chat:update",
@@ -989,6 +1026,12 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"license:create",
 	"license:delete",
 	"license:read",
+	"mcp_server_config:*",
+	"mcp_server_config:create",
+	"mcp_server_config:delete",
+	"mcp_server_config:read",
+	"mcp_server_config:share",
+	"mcp_server_config:update",
 	"notification_message:*",
 	"notification_message:create",
 	"notification_message:delete",
@@ -1183,19 +1226,6 @@ export interface AdvisorConfig {
 	 * use the runtime default.
 	 */
 	readonly max_output_tokens: number;
-	/**
-	 * ModelConfigID selects a specific chat model config to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
-	 */
-	readonly model_config_id: string;
-	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
-	 */
-	readonly reasoning_effort?: string;
 }
 
 // From codersdk/users.go
@@ -2800,13 +2830,36 @@ export interface ChatMessagesResponse {
 
 // From codersdk/chats.go
 /**
- * ChatModel represents a model in the chat model catalog.
+ * ChatModel is an org-scoped model configuration.
  */
 export interface ChatModel {
 	readonly id: string;
-	readonly provider: string;
+	readonly organization_id: string;
+	readonly ai_provider_id: string;
 	readonly model: string;
 	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly is_default: boolean;
+	readonly context_limit: number;
+	readonly compression_threshold: number;
+	readonly model_config?: ChatModelCallConfig;
+	/**
+	 * ReasoningEfforts lists selectable reasoning effort values through
+	 * the model's configured maximum.
+	 */
+	readonly reasoning_efforts?: readonly string[];
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelACL is the access control list for an organization-scoped chat
+ * model. Each principal is mapped to its effective model role.
+ */
+export interface ChatModelACL {
+	readonly user_roles: Record<string, ChatRole>;
+	readonly group_roles: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go
@@ -2850,29 +2903,6 @@ export interface ChatModelCallConfig {
 
 // From codersdk/chats.go
 /**
- * ChatModelConfig is an admin-managed model configuration.
- */
-export interface ChatModelConfig {
-	readonly id: string;
-	readonly ai_provider_id: string;
-	readonly model: string;
-	readonly display_name: string;
-	readonly enabled: boolean;
-	readonly is_default: boolean;
-	readonly context_limit: number;
-	readonly compression_threshold: number;
-	readonly model_config?: ChatModelCallConfig;
-	/**
-	 * ReasoningEfforts lists selectable reasoning effort values through
-	 * the model's configured maximum.
-	 */
-	readonly reasoning_efforts?: readonly string[];
-	readonly created_at: string;
-	readonly updated_at: string;
-}
-
-// From codersdk/chats.go
-/**
  * ChatModelGoogleProviderOptions configures Google provider behavior.
  */
 export interface ChatModelGoogleProviderOptions {
@@ -2898,6 +2928,7 @@ export interface ChatModelGoogleSafetySetting {
  */
 export interface ChatModelGoogleThinkingConfig {
 	readonly thinking_budget?: number;
+	readonly thinking_level?: string;
 	readonly include_thoughts?: boolean;
 }
 
@@ -2982,12 +3013,14 @@ export interface ChatModelOpenRouterProviderOptions {
 
 // From codersdk/chats.go
 export type ChatModelOverrideContext =
+	| "advisor"
 	| "compaction"
 	| "explore"
 	| "general"
 	| "title_generation";
 
 export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
+	"advisor",
 	"compaction",
 	"explore",
 	"general",
@@ -2996,25 +3029,42 @@ export const ChatModelOverrideContexts: ChatModelOverrideContext[] = [
 
 // From codersdk/chats.go
 /**
- * ChatModelOverrideResponse is the response body for the chat model override
- * configuration endpoint.
+ * ChatModelOverrideResponse is the response body for one chat model override.
  */
 export interface ChatModelOverrideResponse {
 	readonly context: ChatModelOverrideContext;
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
 /**
- * ChatModelProvider represents provider availability and model results.
+ * ChatModelOverridesResponse is the response body for organization chat model overrides.
  */
-export interface ChatModelProvider {
-	readonly provider: string;
+export interface ChatModelOverridesResponse {
+	readonly overrides: readonly ChatModelOverrideResponse[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatModelProviderDescriptor is the redacted view of an AI provider carried
+ * on the org model collection response. It carries only the capability
+ * metadata the Models UI needs; key material, base URLs, and headers are
+ * never exposed. The fields mirror what /api/experimental/chats/models
+ * already discloses to any authenticated caller.
+ */
+export interface ChatModelProviderDescriptor {
+	readonly id: string;
+	readonly type: string;
+	readonly display_name: string;
+	readonly icon: string;
+	readonly enabled: boolean;
+	readonly has_api_key: boolean;
+	readonly has_user_api_key: boolean;
+	readonly has_effective_api_key: boolean;
+	readonly allow_user_api_key: boolean;
 	readonly available: boolean;
 	readonly unavailable_reason?: ChatModelProviderUnavailableReason;
-	readonly models: readonly ChatModel[];
 }
 
 // From codersdk/chats.go
@@ -3133,19 +3183,6 @@ export interface ChatModelVercelProviderOptions {
 
 // From codersdk/chats.go
 /**
- * ChatModelsResponse is the catalog returned from chat model discovery.
- */
-export interface ChatModelsResponse {
-	readonly providers: readonly ChatModelProvider[];
-	/**
-	 * UnsupportedProviders lists configured providers the Agents harness
-	 * cannot use, so the UI can explain the empty state.
-	 */
-	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
-}
-
-// From codersdk/chats.go
-/**
  * ChatPersonalModelOverride is a resolved user personal model override.
  */
 export interface ChatPersonalModelOverride {
@@ -3154,7 +3191,6 @@ export interface ChatPersonalModelOverride {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
 	readonly is_set: boolean;
-	readonly is_malformed: boolean;
 }
 
 // From codersdk/chats.go
@@ -3727,12 +3763,12 @@ export const ConnectionLogStatuses: ConnectionLogStatus[] = [
 export interface ConnectionLogWebInfo {
 	readonly user_agent: string;
 	/**
-	 * User is omitted if the connection event was from an unauthenticated user.
+	 * User is omitted if the connection event was unauthenticated.
 	 */
 	readonly user: User | null;
 	readonly slug_or_port: string;
 	/**
-	 * StatusCode is the HTTP status code of the request.
+	 * StatusCode is the HTTP status code or tunnel authorization outcome.
 	 */
 	readonly status_code: number;
 }
@@ -3858,9 +3894,14 @@ export interface CreateChatMessageResponse {
 
 // From codersdk/chats.go
 /**
- * CreateChatModelConfigRequest creates a chat model config.
+ * CreateChatModelRequest is the request body for an organization-scoped
+ * ChatModel. AIProviderID, Model, and a positive ContextLimit are required.
+ * Enabled defaults to true. IsDefault defaults to false when the organization
+ * already has a default model. The first model created in an organization is
+ * automatically promoted to default. CompressionThreshold defaults to 70. An
+ * omitted ModelConfig uses the provider defaults.
  */
-export interface CreateChatModelConfigRequest {
+export interface CreateChatModelRequest {
 	readonly ai_provider_id?: string;
 	readonly model: string;
 	readonly display_name?: string;
@@ -4157,6 +4198,12 @@ export interface CreateTemplateRequest {
 	 * this template. Defaults to true.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name, so this defaults to false.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -4208,6 +4255,31 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/licenses.go
+/**
+ * Defines the input payload for requesting a trial license.
+ */
+export interface CreateTrialLicenseRequest {
+	readonly email: string;
+	readonly first_name: string;
+	readonly last_name: string;
+	readonly phone_number: string;
+	readonly job_title: string;
+	readonly company_name: string;
+	readonly country: string;
+	readonly developers: string;
+	/**
+	 * Source is the premium paywall the request came from, for telemetry. It
+	 * is not forwarded to the licensor. Omit it to report "direct".
+	 */
+	readonly source?: PremiumFunnelSource;
+	/**
+	 * AttributionID is the ID of the cta_click funnel event that led here, so
+	 * that a signup can be joined back to the paywall that produced it.
+	 */
+	readonly attribution_id?: string;
 }
 
 // From codersdk/chats.go
@@ -4764,10 +4836,14 @@ export interface DeploymentValues {
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
+	readonly disable_workspace_agent_context_sync?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
 	readonly web_terminal_renderer?: string;
+	/**
+	 * @deprecated Use the per-template allow_workspace_renames setting instead.
+	 */
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
 	readonly retention?: RetentionConfig;
@@ -4777,7 +4853,7 @@ export interface DeploymentValues {
 	readonly additional_csp_policy?: string;
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
-	readonly hide_ai_tasks?: boolean;
+	readonly enable_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -4931,6 +5007,12 @@ export interface EditChatMessageRequest {
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
+	/**
+	 * MCPServerIDs, when set, replaces the chat's MCP server selection
+	 * before the replacement turn runs. When nil the current selection
+	 * is preserved.
+	 */
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -5945,6 +6027,7 @@ export interface LoginWithPasswordResponse {
  */
 export interface MCPServerConfig {
 	readonly id: string;
+	readonly organization_id: string;
 	readonly display_name: string;
 	readonly slug: string;
 	readonly description: string;
@@ -5993,6 +6076,37 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigACL is the resolved access control list of an MCP server
+ * config.
+ */
+export interface MCPServerConfigACL {
+	readonly users: readonly MCPServerConfigUser[];
+	readonly groups: readonly MCPServerConfigGroup[];
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigGroup is a group entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigGroup extends Group {
+	readonly role: MCPServerConfigRole;
+}
+
+// From codersdk/mcp.go
+export type MCPServerConfigRole = "" | "read";
+
+export const MCPServerConfigRoles: MCPServerConfigRole[] = ["", "read"];
+
+// From codersdk/mcp.go
+/**
+ * MCPServerConfigUser is a user entry in an MCP server config ACL.
+ */
+export interface MCPServerConfigUser extends MinimalUser {
+	readonly role: MCPServerConfigRole;
 }
 
 // From codersdk/mcp.go
@@ -6534,6 +6648,11 @@ export interface OAuth2ClientRegistrationResponse {
 	readonly registration_client_uri: string;
 }
 
+// From codersdk/oauth2.go
+export type OAuth2ClientType = "confidential" | "public";
+
+export const OAuth2ClientTypes: OAuth2ClientType[] = ["confidential", "public"];
+
 // From codersdk/deployment.go
 export interface OAuth2Config {
 	readonly github: OAuth2GithubConfig;
@@ -6915,6 +7034,18 @@ export interface Organization extends MinimalOrganization {
 	 * next request.
 	 */
 	readonly default_org_member_roles: readonly string[];
+}
+
+// From codersdk/chats.go
+/**
+ * OrganizationChatModelsResponse is the org chat model config collection:
+ * the caller-readable configs plus the redacted provider descriptors the
+ * authoring page needs.
+ */
+export interface OrganizationChatModelsResponse {
+	readonly models: readonly ChatModel[];
+	readonly providers: readonly ChatModelProviderDescriptor[];
+	readonly unsupported_providers: readonly ChatUnsupportedProvider[];
 }
 
 // From codersdk/aibridge.go
@@ -7303,6 +7434,76 @@ export interface PrebuildsSettings {
  * recognize a prebuild claim after the fact.
  */
 export const PrebuildsSystemUserID = "c42fdf75-3097-471c-8c33-fb52454d81c0";
+
+// From codersdk/premiumfunnel.go
+/**
+ * PremiumFunnelEventRequest is the request body for
+ * POST /api/v2/deployment/premium-funnel-events.
+ */
+export interface PremiumFunnelEventRequest {
+	/**
+	 * ID identifies this click, and doubles as the attribution token that a
+	 * later trial signup reports.
+	 */
+	readonly id: string;
+	readonly source: PremiumFunnelSource;
+	readonly variant: PremiumFunnelVariant;
+}
+
+// From codersdk/premiumfunnel.go
+export type PremiumFunnelSource =
+	| "aibridge_session_threads"
+	| "aibridge_sessions"
+	| "ai_gateway_keys"
+	| "ai_governance"
+	| "appearance"
+	| "audit_log"
+	| "browser_only"
+	| "connection_log"
+	| "custom_roles"
+	| "direct"
+	| "external_auth"
+	| "groups"
+	| "idp_org_sync"
+	| "idp_sync"
+	| "multiple_organizations"
+	| "observability"
+	| "provisioner_keys"
+	| "provisioners"
+	| "template_permissions"
+	| "workspace_proxies";
+
+export const PremiumFunnelSources: PremiumFunnelSource[] = [
+	"aibridge_session_threads",
+	"aibridge_sessions",
+	"ai_gateway_keys",
+	"ai_governance",
+	"appearance",
+	"audit_log",
+	"browser_only",
+	"connection_log",
+	"custom_roles",
+	"direct",
+	"external_auth",
+	"groups",
+	"idp_org_sync",
+	"idp_sync",
+	"multiple_organizations",
+	"observability",
+	"provisioner_keys",
+	"provisioners",
+	"template_permissions",
+	"workspace_proxies",
+];
+
+// From codersdk/premiumfunnel.go
+export type PremiumFunnelVariant = "ai_governance" | "premium" | "small";
+
+export const PremiumFunnelVariants: PremiumFunnelVariant[] = [
+	"ai_governance",
+	"premium",
+	"small",
+];
 
 // From codersdk/presets.go
 export interface Preset {
@@ -7734,6 +7935,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_model_config"
 	| "connection_log"
 	| "crypto_key"
 	| "debug_info"
@@ -7745,6 +7947,7 @@ export type RBACResource =
 	| "idpsync_settings"
 	| "inbox_notification"
 	| "license"
+	| "mcp_server_config"
 	| "notification_message"
 	| "notification_preference"
 	| "notification_template"
@@ -7787,6 +7990,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_model_config",
 	"connection_log",
 	"crypto_key",
 	"debug_info",
@@ -7798,6 +8002,7 @@ export const RBACResources: RBACResource[] = [
 	"idpsync_settings",
 	"inbox_notification",
 	"license",
+	"mcp_server_config",
 	"notification_message",
 	"notification_preference",
 	"notification_template",
@@ -7940,6 +8145,8 @@ export type ResourceType =
 	| "api_key"
 	| "chat"
 	| "chat_instruction_settings"
+	| "chat_model_config"
+	| "chat_operational_settings"
 	| "convert_login"
 	| "custom_role"
 	| "git_ssh_key"
@@ -7950,6 +8157,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
 	| "oauth2_provider_app"
@@ -7979,6 +8187,8 @@ export const ResourceTypes: ResourceType[] = [
 	"api_key",
 	"chat",
 	"chat_instruction_settings",
+	"chat_model_config",
+	"chat_operational_settings",
 	"convert_login",
 	"custom_role",
 	"git_ssh_key",
@@ -7989,6 +8199,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",
 	"oauth2_provider_app",
@@ -8944,6 +9155,12 @@ export interface Template {
 	 * provisioning.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames: boolean;
 }
 
 // From codersdk/templates.go
@@ -9511,38 +9728,17 @@ export interface UpdateActiveTemplateVersion {
 
 // From codersdk/chats.go
 /**
- * UpdateAdvisorConfigRequest is the request body for updating advisor
- * runtime configuration. It is a type alias for AdvisorConfig because
- * the request and response shapes are currently identical.
+ * UpdateAdvisorConfigRequest is the request body for updating advisor runtime configuration.
  */
 export interface UpdateAdvisorConfigRequest {
-	/**
-	 * Enabled reflects whether the chat-advisor experiment is active.
-	 * The experiment flag is the sole gate; this field is read-only and
-	 * always matches the experiment state regardless of the stored DB value.
-	 */
-	readonly enabled: boolean;
-	/**
-	 * MaxUsesPerRun caps how many times the advisor can be invoked per
-	 * chat run. 0 means unlimited.
-	 */
 	readonly max_uses_per_run: number;
-	/**
-	 * MaxOutputTokens caps the advisor model response tokens. 0 means
-	 * use the runtime default.
-	 */
 	readonly max_output_tokens: number;
 	/**
-	 * ModelConfigID selects a specific chat model config to power the
-	 * advisor. uuid.Nil means reuse the outer chat model. The runtime
-	 * must fall back to the outer chat model when this ID cannot be
-	 * resolved (e.g. the referenced model config was soft-deleted or
-	 * its provider was disabled after the admin saved this config).
+	 * @deprecated moved to the organization model override endpoint.
 	 */
-	readonly model_config_id: string;
+	readonly model_config_id?: string;
 	/**
-	 * ReasoningEffort overrides the selected advisor model's configured default.
-	 * It requires a non-zero ModelConfigID.
+	 * @deprecated moved to the organization model override endpoint.
 	 */
 	readonly reasoning_effort?: string;
 }
@@ -9602,17 +9798,13 @@ export interface UpdateChatDebugRetentionDaysRequest {
 
 // From codersdk/chats.go
 /**
- * UpdateChatModelConfigRequest updates a chat model config.
+ * UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
+ * listed principals change. ChatRoleDeleted removes an entry, while an omitted
+ * map or principal is unchanged.
  */
-export interface UpdateChatModelConfigRequest {
-	readonly ai_provider_id?: string;
-	readonly model?: string;
-	readonly display_name?: string;
-	readonly enabled?: boolean;
-	readonly is_default?: boolean;
-	readonly context_limit?: number;
-	readonly compression_threshold?: number;
-	readonly model_config?: ChatModelCallConfig;
+export interface UpdateChatModelACLRequest {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go
@@ -9623,6 +9815,23 @@ export interface UpdateChatModelConfigRequest {
 export interface UpdateChatModelOverrideRequest {
 	readonly model_config_id: string;
 	readonly reasoning_effort?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UpdateChatModelRequest updates a ChatModel. Empty Model and DisplayName
+ * values preserve the stored values. Nil pointer fields preserve their stored
+ * values. This request cannot clear DisplayName.
+ */
+export interface UpdateChatModelRequest {
+	readonly ai_provider_id?: string;
+	readonly model?: string;
+	readonly display_name?: string;
+	readonly enabled?: boolean;
+	readonly is_default?: boolean;
+	readonly context_limit?: number;
+	readonly compression_threshold?: number;
+	readonly model_config?: ChatModelCallConfig;
 }
 
 // From codersdk/chats.go
@@ -9751,6 +9960,17 @@ export interface UpdateInboxNotificationReadStatusRequest {
 export interface UpdateInboxNotificationReadStatusResponse {
 	readonly notification: InboxNotification;
 	readonly unread_count: number;
+}
+
+// From codersdk/mcp.go
+/**
+ * UpdateMCPServerConfigACLRequest is a sparse update of an MCP server
+ * config ACL: only the listed principals change, and
+ * MCPServerConfigRoleDeleted removes an entry.
+ */
+export interface UpdateMCPServerConfigACLRequest {
+	readonly user_roles?: Record<string, MCPServerConfigRole>;
+	readonly group_roles?: Record<string, MCPServerConfigRole>;
 }
 
 // From codersdk/mcp.go
@@ -9930,6 +10150,12 @@ export interface UpdateTemplateMeta {
 	 * this template. If omitted, the current value is preserved.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/users.go
@@ -10760,6 +10986,11 @@ export interface Workspace {
 	 */
 	readonly health: WorkspaceHealth;
 	readonly automatic_updates: AutomaticUpdates;
+	/**
+	 * AllowRenames is the effective rename permission for this workspace,
+	 * derived from the template's allow_workspace_renames setting and the
+	 * deprecated deployment-wide flag.
+	 */
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;

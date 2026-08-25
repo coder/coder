@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -248,6 +249,43 @@ func TestPostLicense(t *testing.T) {
 		require.ErrorAs(t, err, &errResp)
 		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
 		require.Contains(t, errResp.Detail, license.ErrMultipleIssues.Error())
+	})
+}
+
+func TestPostTrialLicense(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Forbidden", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, user := coderdenttest.New(t, nil)
+		member, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		_, err := member.CreateTrialLicense(ctx, codersdk.CreateTrialLicenseRequest{})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusForbidden, errResp.StatusCode())
+	})
+
+	t.Run("MissingFields", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, _ := coderdenttest.New(t, nil)
+
+		//nolint:gocritic // Requesting a trial is owner-only; the Forbidden subtest covers non-owners.
+		_, err := client.CreateTrialLicense(ctx, codersdk.CreateTrialLicenseRequest{})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusBadRequest, errResp.StatusCode())
+		fields := make([]string, 0, len(errResp.Validations))
+		for _, v := range errResp.Validations {
+			fields = append(fields, v.Field)
+		}
+		require.Contains(t, fields, "email")
 	})
 }
 

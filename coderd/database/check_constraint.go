@@ -25,9 +25,15 @@ const (
 	CheckChatModelConfigsAIProviderRequiredWhenActive        CheckConstraint = "chat_model_configs_ai_provider_required_when_active"       // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck           CheckConstraint = "chat_model_configs_compression_threshold_check"            // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck                   CheckConstraint = "chat_model_configs_context_limit_check"                    // chat_model_configs
+	CheckChatModelConfigsGroupAclIsObject                    CheckConstraint = "chat_model_configs_group_acl_is_object"                    // chat_model_configs
+	CheckChatModelConfigsUserAclIsObject                     CheckConstraint = "chat_model_configs_user_acl_is_object"                     // chat_model_configs
+	CheckChatOrganizationModelOverridesContextCheck          CheckConstraint = "chat_organization_model_overrides_context_check"           // chat_organization_model_overrides
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config
+	CheckChatUserModelOverridesContextCheck                  CheckConstraint = "chat_user_model_overrides_context_check"                   // chat_user_model_overrides
+	CheckChatUserModelOverridesModeCheck                     CheckConstraint = "chat_user_model_overrides_mode_check"                      // chat_user_model_overrides
+	CheckChatUserModelOverridesModelRequiresConfigCheck      CheckConstraint = "chat_user_model_overrides_model_requires_config_check"     // chat_user_model_overrides
 	CheckChatAclOnlyOnRootChats                              CheckConstraint = "chat_acl_only_on_root_chats"                               // chats
 	CheckChatGroupAclNotNullJsonb                            CheckConstraint = "chat_group_acl_not_null_jsonb"                             // chats
 	CheckChatUserAclNotNullJsonb                             CheckConstraint = "chat_user_acl_not_null_jsonb"                              // chats
@@ -43,7 +49,9 @@ const (
 	CheckGroupsChatSpendLimitMicrosCheck                     CheckConstraint = "groups_chat_spend_limit_micros_check"                      // groups
 	CheckMcpServerConfigsAuthTypeCheck                       CheckConstraint = "mcp_server_configs_auth_type_check"                        // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                   CheckConstraint = "mcp_server_configs_availability_check"                     // mcp_server_configs
+	CheckMcpServerConfigsGroupAclIsObject                    CheckConstraint = "mcp_server_configs_group_acl_is_object"                    // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                      CheckConstraint = "mcp_server_configs_transport_check"                        // mcp_server_configs
+	CheckMcpServerConfigsUserAclIsObject                     CheckConstraint = "mcp_server_configs_user_acl_is_object"                     // mcp_server_configs
 	CheckOauth2ProviderAppCodesScopeNotEmpty                 CheckConstraint = "oauth2_provider_app_codes_scope_not_empty"                 // oauth2_provider_app_codes
 	CheckOauth2ProviderAppTokensScopeNotEmpty                CheckConstraint = "oauth2_provider_app_tokens_scope_not_empty"                // oauth2_provider_app_tokens
 	CheckOauth2ProviderAppsClientTypeCheck                   CheckConstraint = "oauth2_provider_apps_client_type_check"                    // oauth2_provider_apps

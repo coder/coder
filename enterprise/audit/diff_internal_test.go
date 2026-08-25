@@ -2,6 +2,7 @@ package audit
 
 import (
 	"database/sql"
+	"encoding/json"
 	"reflect"
 	"testing"
 	"time"
@@ -558,6 +559,133 @@ func Test_diff(t *testing.T) {
 			exp: audit.Map{},
 		},
 	})
+
+	runDiffTests(t, []diffTest{
+		{
+			name: "CreateEmptyStoredValues",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+				ToolAllowList: []string{},
+				ToolDenyList:  []string{},
+			},
+			exp: audit.Map{},
+		},
+		{
+			name: "Create",
+			left: audit.Empty[database.MCPServerConfig](),
+			right: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				Slug:               "github",
+				Url:                "https://mcp.example.com/v1",
+				AuthType:           "api_key",
+				APIKeyHeader:       "X-Api-Key",
+				APIKeyValue:        "plaintext-api-key",
+				CustomHeaders:      `{"Authorization":"Bearer plaintext-header"}`,
+				ToolAllowList:      []string{"issues"},
+				ToolDenyList:       []string{"delete_repository"},
+				OAuth2ClientSecret: "plaintext-oauth-secret",
+				Enabled:            true,
+				CreatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				UpdatedBy:          uuid.NullUUID{UUID: uuid.UUID{2}, Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":         audit.OldNew{Old: "", New: "GitHub MCP"},
+				"slug":                 audit.OldNew{Old: "", New: "github"},
+				"url":                  audit.OldNew{Old: "", New: "https://mcp.example.com/v1"},
+				"auth_type":            audit.OldNew{Old: "", New: "api_key"},
+				"api_key_header":       audit.OldNew{Old: "", New: "X-Api-Key"},
+				"api_key_value":        audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers":       audit.OldNew{Old: "", New: "", Secret: true},
+				"tool_allow_list":      audit.OldNew{Old: []string(nil), New: []string{"issues"}},
+				"tool_deny_list":       audit.OldNew{Old: []string(nil), New: []string{"delete_repository"}},
+				"oauth2_client_secret": audit.OldNew{Old: "", New: "", Secret: true},
+				"enabled":              audit.OldNew{Old: false, New: true},
+				"created_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+				"updated_by":           audit.OldNew{Old: "null", New: uuid.UUID{2}.String()},
+			},
+		},
+		{
+			name: "CustomHeadersAdded",
+			left: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "CustomHeadersRemoved",
+			left: database.MCPServerConfig{
+				CustomHeaders: `{"Authorization":"Bearer plaintext-header"}`,
+			},
+			right: database.MCPServerConfig{
+				CustomHeaders: "{}",
+			},
+			exp: audit.Map{
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+		{
+			name: "SecretRotationRedacted",
+			left: database.MCPServerConfig{
+				ID:                 uuid.UUID{1},
+				DisplayName:        "GitHub MCP",
+				AuthType:           "api_key",
+				APIKeyValue:        "old-plaintext-api-key",
+				APIKeyValueKeyID:   sql.NullString{String: "key-1", Valid: true},
+				CustomHeaders:      `{"Authorization":"Bearer old-plaintext"}`,
+				CustomHeadersKeyID: sql.NullString{String: "key-1", Valid: true},
+				OrganizationID:     uuid.UUID{4},
+			},
+			right: database.MCPServerConfig{
+				ID:             uuid.UUID{1},
+				DisplayName:    "Renamed MCP",
+				AuthType:       "api_key",
+				APIKeyValue:    "new-plaintext-api-key",
+				CustomHeaders:  `{"Authorization":"Bearer new-plaintext"}`,
+				OrganizationID: uuid.UUID{4},
+			},
+			exp: audit.Map{
+				"display_name":   audit.OldNew{Old: "GitHub MCP", New: "Renamed MCP"},
+				"api_key_value":  audit.OldNew{Old: "", New: "", Secret: true},
+				"custom_headers": audit.OldNew{Old: "", New: "", Secret: true},
+			},
+		},
+	})
+}
+
+func Test_mcpServerConfigSecretsNeverSerialized(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{
+		"plaintext-oauth-secret",
+		"plaintext-api-key",
+		"Bearer plaintext-header",
+	}
+	left := audit.Empty[database.MCPServerConfig]()
+	right := database.MCPServerConfig{
+		ID:                 uuid.UUID{1},
+		DisplayName:        "GitHub MCP",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "client-id",
+		OAuth2ClientSecret: secrets[0],
+		APIKeyValue:        secrets[1],
+		CustomHeaders:      `{"Authorization":"` + secrets[2] + `"}`,
+		OrganizationID:     uuid.UUID{4},
+	}
+
+	raw, err := json.Marshal(diffValues(left, right, AuditableResources))
+	require.NoError(t, err)
+	for _, secret := range secrets {
+		require.NotContains(t, string(raw), secret)
+	}
+	require.Contains(t, string(raw), "client-id")
 }
 
 func runDiffTests(t *testing.T, tests []diffTest) {

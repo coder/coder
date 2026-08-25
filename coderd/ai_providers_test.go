@@ -1887,3 +1887,153 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 		require.Equal(t, externalIDReadOnlyMsg, sdkErr.Message)
 	})
 }
+
+func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("CreateGetListReturnsWarning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, first.Status, "first provider in database order should not get a warning")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, second.Status)
+		require.Len(t, second.Status.Warnings, 1)
+		require.Contains(t, second.Status.Warnings[0], `"first"`)
+		require.Contains(t, second.Status.Warnings[0], "AI Gateway Proxy")
+		require.Contains(t, second.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		got, err := client.AIProvider(ctx, second.ID.String())
+		require.NoError(t, err)
+		require.NotNil(t, got.Status)
+		require.Len(t, got.Status.Warnings, 1)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		winner, err := client.AIProvider(ctx, first.ID.String())
+		require.NoError(t, err)
+		require.Nil(t, winner.Status, "first provider in database order should not get a warning on get")
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		providers, err := client.AIProviders(ctx)
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+		var firstListed, secondListed codersdk.AIProvider
+		for _, p := range providers {
+			switch p.Name {
+			case "first":
+				firstListed = p
+			case "second":
+				secondListed = p
+			}
+		}
+		require.Nil(t, firstListed.Status, "first provider in database order should not get a warning in list")
+		require.NotNil(t, secondListed.Status)
+		require.Len(t, secondListed.Status.Warnings, 1)
+	})
+
+	t.Run("UpdateReturnsWarningOnEnable", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: false,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
+			Enabled: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Status)
+		require.Len(t, updated.Status.Warnings, 1)
+		require.Contains(t, updated.Status.Warnings[0], `"first"`)
+		require.Contains(t, updated.Status.Warnings[0], "AI Gateway Proxy")
+		require.Contains(t, updated.Status.Warnings[0], "/api/v2/ai-gateway/second/...")
+	})
+
+	t.Run("NoWarningWhenNoCollision", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, first.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.anthropic.com/v1",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+	})
+
+	t.Run("UpdateSelfNoWarning", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		updated, err := client.UpdateAIProvider(ctx, first.ID.String(), codersdk.UpdateAIProviderRequest{
+			BaseURL: ptr.Ref("https://api.openai.com/v2"),
+		})
+		require.NoError(t, err)
+		require.Nil(t, updated.Status, "update-self should not trigger a warning")
+	})
+}

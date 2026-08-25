@@ -49,7 +49,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -141,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -311,7 +311,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -333,7 +333,7 @@ jobs:
         uses: ./.github/actions/pnpm-install
 
       - name: Install Go mise tools
-        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/golangci/golangci-lint/v2/cmd/golangci-lint go:github.com/coder/paralleltestctx/cmd/paralleltestctx go:github.com/rhysd/actionlint/cmd/actionlint
 
       - name: Get golangci-lint cache dir
         run: |
@@ -401,7 +401,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-8' || 'ubuntu-24.04' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -431,7 +431,7 @@ jobs:
     if: ${{ !cancelled() }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -486,7 +486,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -537,7 +537,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -748,7 +748,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -823,7 +823,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -904,7 +904,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -933,7 +933,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -971,7 +971,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1004,7 +1004,7 @@ jobs:
       - run: make site/e2e/bin/coder
         name: make coder
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site
 
       # Cache the Coder release binaries downloaded by the outdatedCLI /
@@ -1100,7 +1100,7 @@ jobs:
         working-directory: site/
         name: Build Storybook
 
-      - run: pnpm playwright:install
+      - run: pnpm exec playwright install chromium
         working-directory: site/
         name: Install Chromium
 
@@ -1119,7 +1119,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1184,7 +1184,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1223,7 +1223,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1276,7 +1276,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 
@@ -1643,7 +1643,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@b09bb98e06d4d774595224525879c09bc6e98c40 # v2.20.1
+        uses: step-security/harden-runner@05e31511f85b41b11d1cf0ef85d0992719546e2c # v2.21.0
         with:
           egress-policy: audit
 

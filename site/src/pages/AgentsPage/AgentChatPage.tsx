@@ -33,7 +33,6 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
 	chatModels,
 	chatQueueConvergence,
 	compactChat,
@@ -51,7 +50,6 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
-	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -67,11 +65,12 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { isMobileViewport } from "#/utils/mobile";
+import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -84,6 +83,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
 	type ChatDetailError,
 	isChatHookDeniedResponse,
@@ -117,7 +117,9 @@ import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
@@ -753,15 +755,15 @@ const getPersistedDetailError = ({
  * preferring the user's override when set.
  */
 function resolveCompactionThreshold(
-	modelConfigID: string | undefined,
+	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
-	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!modelID || !Array.isArray(models)) return undefined;
+	const config = models.find((c) => c.id === modelID);
 	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelConfigID,
+		(threshold) => threshold.model_config_id === modelID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
@@ -833,6 +835,7 @@ const AgentChatPage: FC = () => {
 		requestUnpinAgent,
 		isArchiving,
 		archivingChatId,
+		activeChatChildren,
 		onOpenRenameDialog,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -857,17 +860,33 @@ const AgentChatPage: FC = () => {
 	// Right panel open/closed state is owned here so the loading
 	// skeleton and the loaded view share the same layout, preventing
 	// a horizontal shift when data arrives.
-	const [showSidebarPanel, setShowSidebarPanel] = useState(() => {
+	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const handleSetShowSidebarPanel = (
-		next: boolean | ((prev: boolean) => boolean),
-	) => {
-		setShowSidebarPanel((prev) => {
-			const value = typeof next === "function" ? next(prev) : next;
-			localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(value));
-			return value;
-		});
+	// Below the lg breakpoint, chat and the right panel are mutually
+	// exclusive, so a panel left open on a wide window would hide chat
+	// as soon as the window narrows. Suppression hides the panel while
+	// narrow without touching the persisted preference: widening
+	// restores the panel, and an explicit toggle overrides it.
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
+	const [panelSuppressedOnNarrow, setPanelSuppressedOnNarrow] =
+		useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setPanelSuppressedOnNarrow(isBelowLg);
+	}
+	// Canonical panel visibility: the persisted preference gated by the
+	// narrow-viewport suppression. Only this derived value may be
+	// rendered or handed to children; the raw preference stays local.
+	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
+
+	const handleSetShowSidebarPanel = (next: boolean) => {
+		setPanelSuppressedOnNarrow(false);
+		setSidebarPanelPreference(next);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
 
 	const chatQuery = useQuery({
@@ -895,6 +914,7 @@ const AgentChatPage: FC = () => {
 		},
 		refetchIntervalInBackground: false,
 	});
+	const chatOrganizationId = chatQuery.data?.organization_id ?? "";
 	const chatMessagesQuery = useInfiniteQuery({
 		...chatMessagesForInfiniteScroll(agentId ?? ""),
 		enabled: Boolean(agentId),
@@ -912,17 +932,23 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels(chatOrganizationId));
+	const models = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	const mcpServersQuery = useQuery(mcpServerConfigs());
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+	});
+	const isDefaultChatOrganization = organizations.some(
+		(organization) =>
+			organization.id === chatOrganizationId && organization.is_default,
+	);
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
 		workspacesQuery.data?.workspaces ?? [],
@@ -941,7 +967,9 @@ const AgentChatPage: FC = () => {
 
 	const handleMCPSelectionChange = (ids: string[]) => {
 		setSelectedMCPServerIds(ids);
-		saveMCPSelection(ids);
+		if (chatOrganizationId) {
+			saveMCPSelection(chatOrganizationId, ids);
+		}
 	};
 
 	const handleMCPAuthComplete = (_serverId: string) => {
@@ -953,27 +981,20 @@ const AgentChatPage: FC = () => {
 		isModelCatalogLoading,
 		modelCatalog,
 		hasConfiguredModels,
-	} = resolveModelSelector(
-		chatModelConfigsQuery,
-		chatModelsQuery,
-		userProviderConfigsQuery,
-	);
-	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	} = resolveModelSelector(chatOrganizationId, modelsQuery);
+	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
 	const providerCount =
 		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.isSuccess &&
-		chatModelsQuery.isSuccess
+		chatProviderConfigsQuery.data &&
+		modelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelsQuery.data,
+					modelsQuery.data,
 				)
 			: undefined;
-	const modelCount =
-		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
-			? modelOptions.length
-			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelsQuery.data,
+		modelsQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1096,7 +1117,13 @@ const AgentChatPage: FC = () => {
 			return chatRecord.mcp_server_ids;
 		}
 		// Check for a previously saved selection in localStorage.
-		const saved = getSavedMCPSelection(mcpServers);
+		const saved = chatOrganizationId
+			? getSavedMCPSelection(
+					chatOrganizationId,
+					mcpServers,
+					isDefaultChatOrganization,
+				)
+			: null;
 		if (saved !== null) {
 			return saved;
 		}
@@ -1290,9 +1317,8 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
-	// Compute an effective selected model by validating the user's
-	// explicit choice against the current model options, falling
-	// back to the chat's last model or the first available option.
+	// Validate explicit and historical choices against organization options.
+	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1310,8 +1336,36 @@ const AgentChatPage: FC = () => {
 			return resolvedChatModel;
 		}
 
-		return modelOptions[0]?.id ?? "";
+		return (
+			getUsableDefaultModelIDForOrganization(
+				models,
+				modelOptions,
+				chatOrganizationId,
+			) ||
+			modelOptions[0]?.id ||
+			""
+		);
 	})();
+	const hasModelOptions = modelOptions.length > 0;
+	const hasResolvedModelData =
+		!isModelDataPending &&
+		modelsQuery.data !== undefined &&
+		modelsQuery.error == null;
+	const hasUnavailableHistoricalModel =
+		hasResolvedModelData &&
+		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	const unavailableModelNotice = hasUnavailableHistoricalModel
+		? hasModelOptions
+			? "The model used by this chat is not available. A usable model is selected for new messages."
+			: hasUserFixableModelProviders
+				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
+		: hasResolvedModelData && !hasModelOptions
+			? hasUserFixableModelProviders
+				? "No usable chat model is available. Add your API key in provider settings to enable models."
+				: "No usable chat model is currently available. Generation is disabled."
+			: undefined;
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
@@ -1327,18 +1381,16 @@ const AgentChatPage: FC = () => {
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
-		modelConfigs,
+		models,
 	);
-	const hasModelOptions = modelOptions.length > 0;
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
@@ -1668,15 +1720,19 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
-			// Only override the original model when the user has switched to
-			// a different selectable option. If the original is no longer
-			// selectable, the picker is showing a fallback we should not
-			// silently use; let the backend preserve the original.
+				modelOptions.some((option) => option.id === originalModelConfigID);
+			const originalIsUnavailable = isUnavailableHistoricalModelID(
+				originalModelConfigID,
+				modelOptions,
+			);
+			// Use the picker fallback for an unavailable historical model.
+			// Override a selectable model only after the user changes it.
+			// Omit blank and nil references so the backend preserves the original.
 			const editSelectedModelConfigID =
 				pickerModelConfigID &&
-				originalIsSelectable &&
-				pickerModelConfigID !== originalModelConfigID
+				(originalIsUnavailable ||
+					(originalIsSelectable &&
+						pickerModelConfigID !== originalModelConfigID))
 					? pickerModelConfigID
 					: undefined;
 			// Omit so the backend preserves the original effort.
@@ -1686,6 +1742,7 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: isEditReasoningEffortDirtyRef.current
 					? effectiveReasoningEffort
 					: undefined,
+				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1885,7 +1942,7 @@ const AgentChatPage: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				isModelCatalogLoading={isModelCatalogLoading}
+				isModelCatalogLoading={isModelDataPending}
 				planModeEnabled={planModeEnabled}
 				onPlanModeToggle={handlePlanModeToggle}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -1964,6 +2021,8 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			modelCatalogError={modelsQuery.error}
+			unavailableModelNotice={unavailableModelNotice}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {
 				setSelectedReasoningEffort(value);
@@ -1977,7 +2036,7 @@ const AgentChatPage: FC = () => {
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
+			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}
@@ -2019,6 +2078,9 @@ const AgentChatPage: FC = () => {
 			}
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
 			isChildChat={parentChatID !== undefined}
+			isArchiveBlocked={
+				!chatFamilyAllowsArchive(liveChatStatus, activeChatChildren)
+			}
 			urlTransform={urlTransform}
 			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
 			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}

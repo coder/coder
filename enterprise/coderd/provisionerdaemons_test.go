@@ -1388,7 +1388,7 @@ func (s *deleteKeyOnReadStore) GetProvisionerKeyByID(ctx context.Context, id uui
 	if target := s.keyID.Load(); target != nil && *target == id {
 		s.once.Do(func() {
 			//nolint:gocritic // The test deletes the key outside the request actor.
-			_ = s.Store.DeleteProvisionerKey(dbauthz.AsSystemRestricted(context.Background()), id)
+			_ = s.DeleteProvisionerKey(dbauthz.AsSystemRestricted(context.Background()), id)
 			s.deleted.Store(true)
 		})
 	}

@@ -264,8 +264,8 @@ func TestAIBridgeListSessions(t *testing.T) {
 		t.Parallel()
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1710,8 +1710,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// role grants boundary_log:create; they are written by the agent path.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1798,8 +1798,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// its own sequence) is excluded by the exclusive lower bound.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1866,8 +1866,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// by session B's interception and B's calls never bleed into A's counts.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -1934,8 +1934,8 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		// truncated but the summary total stays authoritative.
 		db, ps := dbtestutil.NewDB(t)
 		opts := aibridgeOpts(t)
-		opts.Options.Database = db
-		opts.Options.Pubsub = ps
+		opts.Database = db
+		opts.Pubsub = ps
 		client, _, firstUser := coderdenttest.NewWithDatabase(t, opts)
 		ctx := testutil.Context(t, testutil.WaitLong)
 

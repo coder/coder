@@ -30,30 +30,20 @@ events for the same workspace and agent.
 
 ## Tunnel Connections
 
-The connection log records a tunnel event each time a client
-establishes a tunnel to a workspace agent, carrying the identity, IP
-address, and user agent of the authenticated user who opened it. Tunnels
-carry SSH and IDE traffic, so these events provide the user attribution
-that agent-reported events lack.
+The connection log records the authorization decision for each request to add a tunnel to a workspace agent.
+Accepted requests have status code `101`, and denied requests have status code `403`.
+Tunnel events include the authenticated user's identity, IP address, and user agent.
 
 Keep the following in mind when interpreting tunnel events:
 
-- A tunnel event records that a tunnel was established, not what it was
-  used for. Any client that dials a workspace agent produces one,
-  including `coder ssh`, `coder port-forward`, `coder ping`,
-  `coder speedtest`, and IDE extensions. One tunnel may carry many
-  sessions, or none.
-- Tunnel events are deduplicated per user, workspace agent, IP address,
-  and client. Clients automatically re-establish tunnels after network
-  interruptions or server restarts; reconnections do not produce new
-  events while a session is active. A new event is recorded when a
-  session has been idle for one hour, or when the user connects from a
-  new IP address or client.
-- Connections made through Coder Desktop (Coder Connect) do not
-  currently produce tunnel events.
-- Like workspace app connections, tunnel events are point-in-time
-  records: they have no close time and are excluded from `status:`
-  filter results.
+- A tunnel event records an authorization decision, not how the tunnel was used.
+  Clients such as `coder ssh`, `coder port-forward`, `coder ping`, `coder speedtest`, Coder Desktop, and IDE extensions can request tunnels.
+- Tunnel events are deduplicated per workspace agent, actor, IP address, client, and authorization result.
+  Clients automatically re-request tunnels after network interruptions or server restarts.
+  These requests do not produce new events while a session is active.
+  A new event is recorded after one hour of inactivity, or when the actor, IP address, client, or result changes.
+- Like workspace app connections, tunnel events are point-in-time records.
+  They have no close time and are excluded from `status:` filter results.
 
 ## How to Filter Connection Logs
 
@@ -67,9 +57,9 @@ You can filter connection logs by the following parameters:
     For more connection types, refer to the
     [CoderSDK documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#ConnectionType).
 - `username`: The name of the user who initiated the connection.
-   Results will not include agent-reported SSH or IDE sessions.
+   Results do not include agent-reported SSH or IDE sessions.
 - `user_email`: The email of the user who initiated the connection.
-   Results will not include agent-reported SSH or IDE sessions.
+   Results do not include agent-reported SSH or IDE sessions.
 - `connected_after`: The time after which the connection started.
    Uses the RFC3339Nano format.
 - `connected_before`: The time before which the connection started.

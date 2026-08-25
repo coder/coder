@@ -187,7 +187,7 @@ func TestTemplates(t *testing.T) {
 
 		// OK: setting the same level is a no-op under the new PATCH semantics
 		// (304 Not Modified) but must not be a server error.
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelPublic
+		level := codersdk.WorkspaceAgentPortShareLevelPublic
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		})

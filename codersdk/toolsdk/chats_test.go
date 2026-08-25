@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -27,17 +26,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type failPathTransport struct {
-	path string
-}
-
-func (t *failPathTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.URL.Path == t.path {
-		return nil, xerrors.New("transport down")
-	}
-	return http.DefaultTransport.RoundTrip(req)
-}
 
 // stallTransport hangs every request until its context is canceled.
 type stallTransport struct{}
@@ -82,19 +70,51 @@ func TestChatTools(t *testing.T) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
-	defaultModelConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, "")
+	defaultModelConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")
 	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 
 	tb, err := toolsdk.NewDeps(client)
 	require.NoError(t, err)
 
 	t.Run("ListChatModelConfigs", func(t *testing.T) {
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.NoArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
 		require.Len(t, result.ModelConfigs, 1)
 		require.Equal(t, defaultModelConfig.ID.String(), result.ModelConfigs[0].ID)
 		require.Equal(t, coderdtest.TestChatModelOpenAICompat, result.ModelConfigs[0].Model)
 		require.True(t, result.ModelConfigs[0].IsDefault)
+	})
+
+	t.Run("ListChatModelConfigsForOrganization", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         firstUser.UserID,
+		})
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAICompat,
+			Name:    "other-org-" + uuid.NewString(),
+			BaseURL: chattest.OpenAI(t),
+			Enabled: true,
+			APIKeys: []string{"test-api-key"},
+		})
+		require.NoError(t, err)
+		contextLimit := int64(4096)
+		model, err := expClient.CreateChatModel(ctx, organization.ID, codersdk.CreateChatModelRequest{
+			AIProviderID: &provider.ID,
+			Model:        "gpt-4o-other-org",
+			ContextLimit: &contextLimit,
+		})
+		require.NoError(t, err)
+
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{
+			OrganizationID: organization.ID.String(),
+		})
+		require.NoError(t, err)
+		require.Len(t, result.ModelConfigs, 1)
+		require.Equal(t, model.ID.String(), result.ModelConfigs[0].ID)
 	})
 
 	t.Run("Lifecycle", func(t *testing.T) {
@@ -463,7 +483,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Await Test"}`)
 		})
-		blockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, blockingURL)
+		blockingModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, blockingURL)
 		awaitFile, err := expClient.UploadChatFile(ctx, firstUser.OrganizationID, "text/plain", "await.txt", bytes.NewReader([]byte("await evidence")))
 		require.NoError(t, err)
 		running, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -543,7 +563,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Shared Await Test"}`)
 		})
-		sharedBlockingModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, sharedBlockingURL)
+		sharedBlockingModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, sharedBlockingURL)
 		sharedRunning, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Wait for shared release."}},
@@ -620,7 +640,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Await Timeout Test"}`)
 		})
-		timeoutModel := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, timeoutURL)
+		timeoutModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, timeoutURL)
 		busy, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Stay busy."}},
@@ -663,14 +683,14 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigsSkipsDisabledProviders", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		disabledProviderConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, chattest.OpenAI(t))
 		provider, err := client.UpdateAIProvider(ctx, disabledProviderConfig.AIProviderID.String(), codersdk.UpdateAIProviderRequest{
 			Enabled: new(false),
 		})
 		require.NoError(t, err)
 		require.False(t, provider.Enabled)
 
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.NoArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
 		var ids []string
 		for _, config := range result.ModelConfigs {
@@ -683,11 +703,11 @@ func TestChatTools(t *testing.T) {
 	t.Run("ListChatModelConfigsSkipsDeletedProviders", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		deletedProviderConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, chattest.OpenAI(t))
+		deletedProviderConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, chattest.OpenAI(t))
 		err := client.DeleteAIProvider(ctx, deletedProviderConfig.AIProviderID.String())
 		require.NoError(t, err)
 
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.NoArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
 		var ids []string
 		for _, config := range result.ModelConfigs {
@@ -712,7 +732,7 @@ func TestChatTools(t *testing.T) {
 			}
 			return chattest.OpenAINonStreamingResponse(`{"title": "Interrupt Test"}`)
 		})
-		blockingModelConfig := coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, blockingURL)
+		blockingModelConfig := coderdtest.CreateOpenAICompatChatModel(t, expClient, blockingURL)
 
 		created, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{
 			Prompt:        "Block forever.",
@@ -753,7 +773,7 @@ func TestChatTools(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		memberDeps, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
-		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.NoArgs{})
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
 		var ids []string
 		for _, config := range result.ModelConfigs {
@@ -764,19 +784,13 @@ func TestChatTools(t *testing.T) {
 		auditorClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID, rbac.RoleAuditor())
 		auditorDeps, err := toolsdk.NewDeps(auditorClient)
 		require.NoError(t, err)
-		_, err = testTool(t, toolsdk.ListChatModelConfigs, auditorDeps, toolsdk.NoArgs{})
-		require.ErrorContains(t, err, "missing AI provider read permission")
-
-		brokenProbeClient := codersdk.New(auditorClient.URL)
-		brokenProbeClient.SetSessionToken(auditorClient.SessionToken())
-		brokenProbeClient.HTTPClient = &http.Client{
-			Transport: &failPathTransport{path: "/api/v2/deployment/config"},
-		}
-		t.Cleanup(brokenProbeClient.HTTPClient.CloseIdleConnections)
-		brokenProbeDeps, err := toolsdk.NewDeps(brokenProbeClient)
+		auditorResult, err := testTool(t, toolsdk.ListChatModelConfigs, auditorDeps, toolsdk.ListChatModelConfigsArgs{})
 		require.NoError(t, err)
-		_, err = testTool(t, toolsdk.ListChatModelConfigs, brokenProbeDeps, toolsdk.NoArgs{})
-		require.ErrorContains(t, err, "verify deployment config access")
+		var auditorIDs []string
+		for _, config := range auditorResult.ModelConfigs {
+			auditorIDs = append(auditorIDs, config.ID)
+		}
+		require.Contains(t, auditorIDs, defaultModelConfig.ID.String())
 	})
 
 	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {
@@ -794,6 +808,9 @@ func TestChatTools(t *testing.T) {
 	t.Run("Validation", func(t *testing.T) {
 		_, err := testTool(t, toolsdk.CreateChat, tb, toolsdk.CreateChatArgs{})
 		require.ErrorContains(t, err, "prompt is required")
+
+		_, err = testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{OrganizationID: "not-a-uuid"})
+		require.ErrorContains(t, err, "organization_id must be a valid UUID")
 
 		_, err = testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: "not-a-uuid"})
 		require.ErrorContains(t, err, "chat_id must be a valid UUID")

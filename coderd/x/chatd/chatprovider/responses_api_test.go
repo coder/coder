@@ -46,7 +46,7 @@ func TestModelFromConfig_OpenAIResponsesAPIOverride(t *testing.T) {
 			var gotPath string
 			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				mu.Lock()
-				gotPath = req.Request.URL.Path
+				gotPath = req.URL.Path
 				mu.Unlock()
 				return chattest.OpenAINonStreamingResponse("ok")
 			})
@@ -134,7 +134,7 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			var gotPath string
 			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				mu.Lock()
-				gotPath = req.Request.URL.Path
+				gotPath = req.URL.Path
 				mu.Unlock()
 				return chattest.OpenAINonStreamingResponse("ok")
 			})

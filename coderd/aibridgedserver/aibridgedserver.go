@@ -85,6 +85,7 @@ type store interface {
 	GetUserEveryoneFallbackGroup(ctx context.Context, userID uuid.UUID) (uuid.UUID, error)
 	GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (database.Group, error)
+	GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error)
 	GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error)
 
 	// MCPConfigurator-related queries.

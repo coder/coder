@@ -1,7 +1,11 @@
 // Package ptr contains some utility methods related to pointers.
 package ptr
 
-import "golang.org/x/exp/constraints"
+import (
+	"database/sql"
+
+	"golang.org/x/exp/constraints"
+)
 
 type number interface {
 	constraints.Integer | constraints.Float
@@ -32,4 +36,14 @@ func NilToDefault[T any](s *T, def T) T {
 // NilOrZero returns true if v is nil or 0.
 func NilOrZero[T number](v *T) bool {
 	return v == nil || *v == 0
+}
+
+// FromNullString returns a pointer to the string when it is valid and nil
+// otherwise.
+func FromNullString(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	value := v.String
+	return &value
 }

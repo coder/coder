@@ -14,9 +14,9 @@ Your browser does not support the video tag.
 
 ## What Coder Agents is and isn't
 
-It is a standalone agent written in Go that implements standard
-agentic patterns — sub-agent delegation, context compaction, file editing, and
-shell execution — and works with any LLM provider you configure.
+It is a standalone agent written in Go.
+It implements standard agentic patterns, such as sub-agent delegation, context compaction, file editing, and shell execution.
+It works with any LLM provider you configure.
 
 It is not a wrapper around third-party agent tools like Claude Code
 or Codex.
@@ -90,6 +90,8 @@ creates a workspace automatically. Template visibility is scoped to the user's r
 Platform teams control template routing by writing clear template descriptions.
 For example, a description like "Use this template for Python backend services
 in the payments repo" helps the agent select the correct infrastructure.
+Administrators can also block agents on a template, which hides it from the agent completely.
+Refer to [Platform Controls](./platform-controls/index.md#template-routing) for that setting.
 
 **Examples of what triggers workspace creation:**
 
@@ -166,7 +168,7 @@ entirely:
   else. The workspace never needs to reach the internet for AI functionality.
 - **Centralized, enforced control.** Platform teams configure models, system
   prompts, and tool permissions from the control plane. These settings are
-  enforced server-side — they are not user preferences that developers can
+  enforced server-side, so they are not user preferences that developers can
   override.
 - **User identity is always attached.** Every action the agent takes — PRs
   opened, code pushed, commands run — is tied to the user who submitted the
@@ -217,8 +219,10 @@ and models from the Coder dashboard or API. Supported providers include:
 Most providers support custom base URLs, which allows integration with
 enterprise LLM proxies, self-hosted model endpoints, and internal gateways.
 
-Administrators can configure multiple providers simultaneously and set a default
-model. Developers select from enabled models when starting a chat.
+Administrators can configure multiple providers simultaneously and set a default model in each organization.
+Developers select from enabled models when starting a chat.
+Providers are deployment-wide, and models belong to an organization.
+Refer to [Organization scope](./platform-controls/organizations.md) for details.
 
 <img src="../../images/guides/ai-agents/llm-providers.png" alt="Screenshot of the provider/model configuration in the Agents settings">
 
@@ -306,18 +310,3 @@ While plan mode is active:
 This keeps planning turns focused on analysis and plan authoring rather than
 implementation. Once you click **Implement plan**, the next turn runs in normal
 mode again.
-
-## Comparison to Coder Tasks
-
-Coder Agents is a new approach that differs from
-[Coder Tasks](../tasks.md) in several ways:
-
-| Aspect              | Coder Agents                         | Coder Tasks                                                    |
-|---------------------|--------------------------------------|----------------------------------------------------------------|
-| Agent execution     | Runs in the control plane            | Runs inside the workspace                                      |
-| Agent harness       | Built-in, no installation needed     | Requires Claude Code, Codex, or similar installed in workspace |
-| API keys            | Stored in control plane only         | Injected into workspace environment                            |
-| Chat state          | Persisted in database                | Stored in workspace                                            |
-| Workspace selection | Automatic, based on task description | Manual, user selects template                                  |
-| Sub-agents          | Built-in parallel delegation         | Not supported                                                  |
-| Modern chat UI      | Native chat with diffs, queuing      | Terminal-based interface                                       |

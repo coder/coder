@@ -56,10 +56,14 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 		// warning cannot pollute the callers' warning assertions.
 		GraceAt:   dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
 		ExpiresAt: dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
+<<<<<<< HEAD
 		// The addon marks AI Bridge as explicitly entitled, suppressing
 		// the unrelated "AI Governance add-on is required to use AI
 		// Gateway" warning that Premium would otherwise produce.
 	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, new(int64(80)), new(int64(120)))
+=======
+	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
+>>>>>>> main
 
 	lic := database.License{
 		ID:  1,
@@ -2300,163 +2304,6 @@ func TestLicenseEntitlements(t *testing.T) {
 	}
 }
 
-func TestAIBridgeSoftWarning(t *testing.T) {
-	t.Parallel()
-
-	aiBridgeEnabledEnablements := map[codersdk.FeatureName]bool{
-		codersdk.FeatureAIBridge: true,
-	}
-
-	aiBridgeDisabledEnablements := map[codersdk.FeatureName]bool{
-		codersdk.FeatureAIBridge: false,
-	}
-
-	aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
-
-	// A Premium license grants a managed agent limit and a grandfathered
-	// agent runtime allocation by default: a nil AgentRuntimeMsFn is a hard
-	// developer error and a nil ManagedAgentCountFn degrades into an
-	// entitlements error, so these subtests wire zero-usage closures.
-	zeroUsageArgs := license.FeatureArguments{
-		ManagedAgentCountFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-			return 0, nil
-		},
-		AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
-			return 0, nil
-		},
-	}
-
-	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
-		t.Parallel()
-		// License without addon and AI Bridge disabled should NOT show warning.
-		lo := (&coderdenttest.LicenseOptions{
-			AccountType: "salesforce",
-			AccountID:   "test",
-			FeatureSet:  codersdk.FeatureSetPremium,
-		}).Valid(time.Now())
-
-		generatedLicenses := []database.License{
-			{
-				ID:         1,
-				UploadedAt: time.Now().Add(time.Hour * -1),
-				JWT:        lo.Generate(t),
-				Exp:        lo.GraceAt,
-				UUID:       uuid.New(),
-			},
-		}
-
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
-		require.NoError(t, err)
-
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		assert.False(t, aiBridgeFeature.Enabled)
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
-	})
-
-	t.Run("NoAddon_AIBridgeOn", func(t *testing.T) {
-		t.Parallel()
-		// License without addon and AI Bridge enabled SHOULD show warning.
-		lo := (&coderdenttest.LicenseOptions{
-			AccountType: "salesforce",
-			AccountID:   "test",
-			FeatureSet:  codersdk.FeatureSetPremium,
-		}).Valid(time.Now())
-
-		generatedLicenses := []database.License{
-			{
-				ID:         1,
-				UploadedAt: time.Now().Add(time.Hour * -1),
-				JWT:        lo.Generate(t),
-				Exp:        lo.GraceAt,
-				UUID:       uuid.New(),
-			},
-		}
-
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
-		require.NoError(t, err)
-
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		assert.True(t, aiBridgeFeature.Enabled)
-		assert.Equal(t, codersdk.EntitlementEntitled, aiBridgeFeature.Entitlement)
-		require.Contains(t, entitlements.Warnings, aiBridgeWarningMessage)
-	})
-
-	t.Run("Addon_AIBridgeOff", func(t *testing.T) {
-		t.Parallel()
-		// License with addon and AI Bridge disabled should NOT show warning.
-		lo := (&coderdenttest.LicenseOptions{
-			AccountType: "salesforce",
-			AccountID:   "test",
-			FeatureSet:  codersdk.FeatureSetPremium,
-			Addons:      []codersdk.Addon{codersdk.AddonAIGovernance},
-			Features: license.Features{
-				codersdk.FeatureAIGovernanceUserLimit: 100,
-			},
-		}).Valid(time.Now())
-
-		generatedLicenses := []database.License{
-			{
-				ID:         1,
-				UploadedAt: time.Now().Add(time.Hour * -1),
-				JWT:        lo.Generate(t),
-				Exp:        lo.GraceAt,
-				UUID:       uuid.New(),
-			},
-		}
-
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeDisabledEnablements, coderdenttest.Keys, zeroUsageArgs)
-		require.NoError(t, err)
-
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		assert.False(t, aiBridgeFeature.Enabled)
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
-	})
-
-	t.Run("Addon_AIBridgeOn", func(t *testing.T) {
-		t.Parallel()
-		// License with addon and AI Bridge enabled should NOT show warning.
-		lo := (&coderdenttest.LicenseOptions{
-			AccountType: "salesforce",
-			AccountID:   "test",
-			FeatureSet:  codersdk.FeatureSetPremium,
-			Addons:      []codersdk.Addon{codersdk.AddonAIGovernance},
-			Features: license.Features{
-				codersdk.FeatureAIGovernanceUserLimit: 100,
-			},
-		}).Valid(time.Now())
-
-		generatedLicenses := []database.License{
-			{
-				ID:         1,
-				UploadedAt: time.Now().Add(time.Hour * -1),
-				JWT:        lo.Generate(t),
-				Exp:        lo.GraceAt,
-				UUID:       uuid.New(),
-			},
-		}
-
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), generatedLicenses, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
-		require.NoError(t, err)
-
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		assert.True(t, aiBridgeFeature.Enabled)
-		assert.Equal(t, codersdk.EntitlementEntitled, aiBridgeFeature.Entitlement)
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
-	})
-
-	t.Run("NoLicense_AIBridgeOn", func(t *testing.T) {
-		t.Parallel()
-		// No license with AI Bridge enabled should NOT show the soft warning
-		// (it will show the generic "not entitled" warning instead).
-		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, zeroUsageArgs)
-		require.NoError(t, err)
-
-		aiBridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		assert.Equal(t, codersdk.EntitlementNotEntitled, aiBridgeFeature.Entitlement)
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage)
-	})
-}
-
 func TestUsageLimitFeatures(t *testing.T) {
 	t.Parallel()
 
@@ -3780,8 +3627,6 @@ func TestAIGovernanceAddon(t *testing.T) {
 		// AI Bridge should be enabled without warning when addon is present.
 		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
-		aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Bridge warning should not appear when AI Governance addon is present")
 
 		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
 

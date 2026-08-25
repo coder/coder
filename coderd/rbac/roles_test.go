@@ -825,6 +825,26 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:    "MCPServerConfigRead",
+			Actions: []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				orgID.String(): {policy.ActionRead},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, orgAuditor, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin},
+				false: {setOtherOrg, memberMe, templateAdmin, userAdmin, auditor},
+			},
+		},
+		{
+			Name:     "MCPServerConfigWrite",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceMCPServerConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin},
+				false: {setOtherOrg, orgAuditor, auditor, orgMemberMe, memberMe, agentsAccessUser, orgWorkspaceAccessUser, orgUserAdmin, orgTemplateAdmin, templateAdmin, userAdmin},
+			},
+		},
+		{
 			Name:     "DebugInfo",
 			Actions:  []policy.Action{policy.ActionRead},
 			Resource: rbac.ResourceDebugInfo,
@@ -1439,6 +1459,35 @@ func TestRolePermissions(t *testing.T) {
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgAdmin},
 				false: {setOtherOrg, memberMe, orgMemberMe, agentsAccessUser, userAdmin, templateAdmin, orgTemplateAdmin, orgUserAdmin, orgAuditor, orgWorkspaceAccessUser},
+			},
+		},
+		{
+			Name:     "ChatModelConfigRead",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin, auditor, orgAuditor},
+				false: {
+					memberMe, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+					otherOrgAdmin, otherOrgAuditor,
+				},
+			},
+		},
+		{
+			Name:     "ChatModelConfigCreateUpdateDeleteShare",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete, policy.ActionShare},
+			Resource: rbac.ResourceChatModelConfig.WithID(uuid.New()).InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, orgAdmin},
+				false: {
+					memberMe, orgMemberMe, agentsAccessUser, orgWorkspaceAccessUser,
+					auditor, orgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+					otherOrgAdmin, otherOrgAuditor,
+				},
 			},
 		},
 	}
