@@ -146,10 +146,11 @@ or with `coder rename`.
 While the setting is off, the workspace name field is disabled and the API
 rejects renames.
 
-> [!WARNING] The deployment-wide `CODER_ALLOW_WORKSPACE_RENAMES` option is
-> deprecated. While it is set, renaming is enabled for every template in the
-> deployment, and the per-template setting can't turn it off. Unset it, then
-> enable renaming on the templates that need it.
+> [!WARNING]
+> The deployment-wide `CODER_ALLOW_WORKSPACE_RENAMES` option is deprecated.
+> While it is set, renaming is enabled for every template in the deployment,
+> and the per-template setting can't turn it off. Unset it, then enable
+> renaming on the templates that need it.
 
 ## Delete templates
 
