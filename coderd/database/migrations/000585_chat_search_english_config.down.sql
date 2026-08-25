@@ -1,25 +1,13 @@
 -- Revert chat message full-text search to the 'simple' text search
 -- config.
 
--- Hand rows re-vectorized with 'english' back to the parent version's
--- bounded dbpurge sweep. The parent backfill only selects rows with
--- search_tsv IS NULL, so 'english' vectors must be reset to NULL to
--- re-enter its pending queue (idx_chat_messages_search_tsv_pending,
--- which this migration never modified); the parent sweep then rewrites
--- them with 'simple' incrementally, newest first. Rows never
--- re-vectorized (search_tsv_config IS NULL) still hold valid 'simple'
--- lexemes and are left untouched. The reset size is proportional to
--- how much of the backlog the upgraded sweep processed before the
--- rollback, so a prompt rollback rewrites a small set; only a rollback
--- after a full drain approaches a full-table update, which is
--- unavoidable because the parent job has no other way to find these
--- rows.
---
--- This UPDATE runs while the replacement trigger functions (which
--- exclude search_tsv and search_tsv_config from change comparisons)
--- are still installed, so it does not advance message revisions or
--- chat history_version. The original trigger functions are restored
--- below, after this statement.
+-- Reset 'english' vectors to NULL so they re-enter the parent
+-- version's pending queue (search_tsv IS NULL) and its bounded sweep
+-- rewrites them with 'simple'. Rows never re-vectorized still hold
+-- valid 'simple' lexemes and are left untouched. This runs while the
+-- replacement trigger functions (which ignore the search columns) are
+-- still installed, so it does not advance message revisions or chat
+-- history_version.
 UPDATE chat_messages SET search_tsv = NULL WHERE search_tsv_config = 'english';
 
 ALTER TABLE chat_messages DROP COLUMN search_tsv_config;

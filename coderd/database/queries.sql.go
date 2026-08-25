@@ -9602,17 +9602,9 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     -- Match each vector with the config that produced
-                    -- it. Rows not yet re-vectorized by the sweep
-                    -- (search_tsv_config IS NULL) hold 'simple'
-                    -- lexemes, so an 'english' tsquery would miss them
-                    -- (stored lexeme 'refactoring' never matches the
-                    -- stemmed query 'refactor'). Querying stale rows
-                    -- with 'simple' preserves their pre-migration
-                    -- matching until the sweep rewrites them; once the
-                    -- backlog drains the second arm matches no rows.
-                    -- Both arms use constant tsqueries so the planner
-                    -- can serve the OR as a bitmap over
-                    -- idx_chat_messages_search_tsv.
+                    -- it: rows not yet re-vectorized by the sweep
+                    -- (config IS NULL) hold 'simple' lexemes that an
+                    -- 'english' tsquery would miss.
                     AND (
                         (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
                         OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
@@ -11402,19 +11394,11 @@ SET search_tsv = COALESCE(
 FROM batch WHERE cm.id = batch.id
 `
 
-// Rewrites vectors produced with a stale text search config: rows
-// indexed with 'simple' before migration 000585 and rows written by an
-// old binary during a rolling upgrade (which cannot stamp
-// search_tsv_config). This queue is deliberately unindexed. Stale rows
-// are a one-time, shrinking backlog, so a permanent partial index (and
-// its per-write maintenance) is not worth it, and rebuilding the
-// pending index with a wider predicate in the migration would block
-// message writes on large tables. ORDER BY id DESC with LIMIT walks
-// the primary key backwards and terminates early while stale rows are
-// dense, which is the entire drain; only the final near-empty pass
-// costs a full walk, and the dbpurge caller stops calling this query
-// for the process lifetime once a pass returns fewer rows than the
-// batch size (proof the scan reached the end of the table).
+// Rewrites vectors produced with a stale text search config ('simple'
+// rows from before migration 000585, or rows written by an old binary
+// mid rolling upgrade). Deliberately unindexed: this is a one-time,
+// shrinking backlog drained newest first, so a permanent partial index
+// is not worth its per-write maintenance.
 func (q *sqlQuerier) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
 	result, err := q.db.ExecContext(ctx, reindexStaleChatMessagesSearchTsv, batchSize)
 	if err != nil {

@@ -1,28 +1,19 @@
 -- Switch chat message full-text search from the 'simple' to the
 -- 'english' text search config so queries match inflected forms
--- (e.g. searching "refactor" matches "refactoring"). The config baked
--- into a tsvector must match the config used by the tsquery at search
--- time.
---
--- Only chat_messages.search_tsv is affected; title and pull request
--- title matching keeps its existing 'simple' behavior and indexes.
--- chat_messages gets no index or data changes at all: a full-table
--- UPDATE of search_tsv or a non-concurrent index rebuild would block
--- message writes for the duration on large tables. Instead the new
--- search_tsv_config column records which config produced each stored
--- vector, and the bounded dbpurge sweep finds rows whose config is
--- not 'english' with a self-terminating scan and rewrites them
--- incrementally, newest first (see ReindexStaleChatMessagesSearchTsv).
+-- (e.g. "refactor" matches "refactoring"). No data or index changes
+-- here: rewriting search_tsv in a migration would block message
+-- writes on large tables. The new search_tsv_config column records
+-- which config produced each stored vector, and the bounded dbpurge
+-- sweep rewrites stale rows incrementally, newest first (see
+-- ReindexStaleChatMessagesSearchTsv).
 
 ALTER TABLE chat_messages ADD COLUMN search_tsv_config text;
 
-COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means the vector is stale (produced by an unknown config) and the row is pending re-vectorization. Binaries that predate this column cannot set it, so vectors written by an old replica during a rolling upgrade stay pending and are rewritten by an upgraded replica''s sweep.';
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
--- The sweep now also writes search_tsv_config, so both chatd trigger
--- functions must exclude it (alongside search_tsv) when deciding
--- whether a message change is meaningful. Without this every backfill
--- batch would advance message revisions and chat history_version,
--- waking chatd's processing loop for the whole backlog.
+-- Both chatd trigger functions must exclude search_tsv_config
+-- (alongside search_tsv) from their change comparisons so backfill
+-- batches do not advance message revisions or chat history_version.
 
 CREATE OR REPLACE FUNCTION set_chat_message_revision_before()
 RETURNS trigger AS $$

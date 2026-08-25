@@ -358,22 +358,12 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Rewrite vectors produced with a stale text search config (rows
-		// indexed before the switch to 'english', plus rows written by an
-		// old binary during a rolling upgrade). This backlog is finite:
-		// upgraded binaries always stamp search_tsv_config, so once the
-		// scan comes up short the queue can never refill and the query is
-		// skipped for the process lifetime. A pass returning fewer rows
-		// than the batch size proves the unindexed scan reached the end of
-		// the table, so latching on it avoids one extra full walk. If an
-		// old replica writes a stale row after the latch is set, the row
-		// stays correctly searchable via its recorded config (GetChats
-		// matches each vector with the config that produced it) and is
-		// rewritten after the next process restart re-runs one pass.
-		//
-		// staleDrained is committed to the instance only after the
-		// transaction succeeds; a rollback discards the batch updates, so
-		// latching inside the transaction could strand stale rows.
+		// Rewrite vectors produced with a stale text search config
+		// ('simple' rows from before migration 000585, or rows written by
+		// an old binary mid rolling upgrade). Upgraded binaries always
+		// stamp search_tsv_config, so this backlog is finite: once a pass
+		// returns fewer rows than the batch size the scan has reached the
+		// end of the table and is skipped for the process lifetime.
 		var reindexedChatSearchRows int64
 		if !i.chatSearchStaleDrained {
 			for range i.chatSearchBackfillMaxBatches {
@@ -459,9 +449,7 @@ type instance struct {
 	chatSearchRowsBackfilled     prometheus.Counter
 	chatSearchBackfillBatchSize  int32
 	chatSearchBackfillMaxBatches int
-	// chatSearchStaleDrained latches off the stale-config reindex scan
-	// once it observes an empty (or final partial) pass. Only doTick's
-	// single goroutine touches it.
+	// Skips the stale-config reindex scan once its backlog is drained.
 	chatSearchStaleDrained bool
 }
 
