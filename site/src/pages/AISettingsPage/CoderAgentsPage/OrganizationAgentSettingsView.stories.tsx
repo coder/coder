@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import DefaultsPageView from "./DefaultsPageView";
+import OrganizationAgentSettingsView from "./OrganizationAgentSettingsView";
 
 const model: TypesGen.ChatModel = {
 	...MockChatModel,
@@ -32,9 +32,9 @@ const saveByContext = new Map<
 	["advisor", fn()],
 ]);
 
-const meta: Meta<typeof DefaultsPageView> = {
-	title: "pages/AISettingsPage/ModelsPage/DefaultsPageView",
-	component: DefaultsPageView,
+const meta: Meta<typeof OrganizationAgentSettingsView> = {
+	title: "pages/AISettingsPage/CoderAgentsPage/OrganizationAgentSettingsView",
+	component: OrganizationAgentSettingsView,
 	args: {
 		overrides,
 		enabledModels: [model, alternateModel],
@@ -55,7 +55,7 @@ const meta: Meta<typeof DefaultsPageView> = {
 	},
 };
 export default meta;
-type Story = StoryObj<typeof DefaultsPageView>;
+type Story = StoryObj<typeof OrganizationAgentSettingsView>;
 
 export const SetAndUnset: Story = {
 	beforeEach: () => {

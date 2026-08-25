@@ -451,6 +451,18 @@ describe("api.ts", () => {
 			expect(result).toStrictEqual(responseData);
 		});
 
+		it("rejects chat model responses without a models array", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: { providers: [], unsupported_providers: [] },
+			});
+
+			await expect(
+				API.experimental.getChatModels(organizationId),
+			).rejects.toThrow(
+				"Invalid chat models response: models must be an array.",
+			);
+		});
+
 		it.each<[string, () => Promise<unknown>]>([
 			[
 				"/api/experimental/organizations/organization%2Fid/chats/models",

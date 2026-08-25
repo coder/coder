@@ -1,11 +1,6 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { SubagentModelOverrideSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 
@@ -14,7 +9,7 @@ export type SaveModelOverride = (
 	options?: { onSuccess?: () => void; onError?: () => void },
 ) => void;
 
-interface DefaultsPageViewProps {
+interface OrganizationAgentSettingsViewProps {
 	overrides: readonly TypesGen.ChatModelOverrideResponse[] | undefined;
 	enabledModels: readonly TypesGen.ChatModel[];
 	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
@@ -69,7 +64,7 @@ const settings: readonly {
 	},
 ];
 
-const DefaultsPageView: FC<DefaultsPageViewProps> = ({
+const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	overrides,
 	enabledModels,
 	providerInfoByID,
@@ -90,14 +85,7 @@ const DefaultsPageView: FC<DefaultsPageViewProps> = ({
 	);
 
 	return (
-		<div className="flex max-w-4xl flex-col gap-8">
-			<SettingsHeader>
-				<SettingsHeaderTitle>Defaults & overrides</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Choose organization defaults for each Coder Agents context. Leave a
-					model unset to use the default model selection.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+		<div className="flex flex-col gap-6">
 			{refetchError != null && <ErrorAlert error={refetchError} />}
 			{enabledModels.length === 0 && !isLoading && refetchError == null && (
 				<p role="status" className="m-0 text-content-secondary">
@@ -138,4 +126,4 @@ const DefaultsPageView: FC<DefaultsPageViewProps> = ({
 	);
 };
 
-export default DefaultsPageView;
+export default OrganizationAgentSettingsView;

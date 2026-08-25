@@ -91,6 +91,98 @@ func TestResolver_SkillsContainerEmitsEachSubdir(t *testing.T) {
 	}, kinds)
 }
 
+func TestResolver_DuplicateSkillNamesFirstRootWins(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	firstRoot := filepath.Join(dir, "b", "skills")
+	secondRoot := filepath.Join(dir, "a", "skills")
+	mustWriteSkill(t, firstRoot, "make-coffee", "first root")
+	mustWriteSkill(t, secondRoot, "make-coffee", "second root")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: firstRoot},
+		{Path: secondRoot},
+	})
+
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(firstRoot, "make-coffee"), snap.Resources[0].Source)
+	require.Equal(t, "first root", snap.Resources[0].Description)
+}
+
+func TestResolver_DuplicateSkillNamesFirstValidRootWins(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	firstRoot := filepath.Join(dir, "b", "skills")
+	secondRoot := filepath.Join(dir, "a", "skills")
+	mustWriteFile(t, filepath.Join(firstRoot, "make-coffee", "SKILL.md"),
+		"---\nname: drink-tea\ndescription: invalid\n---\nBody")
+	mustWriteSkill(t, secondRoot, "make-coffee", "second root")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: firstRoot},
+		{Path: secondRoot},
+	})
+
+	require.Len(t, snap.Resources, 2)
+	winner := findResource(t, snap.Resources, agentcontext.KindSkill, filepath.Join(secondRoot, "make-coffee"))
+	require.Equal(t, agentcontext.StatusOK, winner.Status)
+	require.Equal(t, "second root", winner.Description)
+}
+
+func TestResolver_DuplicateSkillIDPrefersValidOccurrence(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on Windows")
+	}
+	wd := t.TempDir()
+	skillDir := filepath.Join(wd, ".agents", "skills", "make-coffee")
+	target := filepath.Join(wd, "shared", "SKILL.md")
+	mustWriteFile(t, target,
+		"---\nname: make-coffee\ndescription: valid from broad root\n---\nBody")
+	require.NoError(t, os.MkdirAll(skillDir, 0o755))
+	require.NoError(t, os.Symlink(target, filepath.Join(skillDir, "SKILL.md")))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: filepath.Join(wd, ".agents", "skills")},
+		{Path: wd},
+	})
+
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, agentcontext.StatusOK, snap.Resources[0].Status)
+	require.Equal(t, "valid from broad root", snap.Resources[0].Description)
+}
+
+func TestResolver_DuplicateSkillIDUsesValidDiscoveryOrder(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires elevated privileges on Windows")
+	}
+	wd := t.TempDir()
+	firstSkillDir := filepath.Join(wd, ".agents", "skills", "make-coffee")
+	target := filepath.Join(wd, "shared", "SKILL.md")
+	mustWriteFile(t, target,
+		"---\nname: make-coffee\ndescription: valid from broad root\n---\nBody")
+	require.NoError(t, os.MkdirAll(firstSkillDir, 0o755))
+	require.NoError(t, os.Symlink(target, filepath.Join(firstSkillDir, "SKILL.md")))
+
+	secondRoot := filepath.Join(t.TempDir(), "skills")
+	mustWriteSkill(t, secondRoot, "make-coffee", "first valid root")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: filepath.Join(wd, ".agents", "skills")},
+		{Path: secondRoot},
+		{Path: wd},
+	})
+
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(secondRoot, "make-coffee"), snap.Resources[0].Source)
+	require.Equal(t, "first valid root", snap.Resources[0].Description)
+}
+
 func TestResolver_SkillNameMismatchInvalid(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()

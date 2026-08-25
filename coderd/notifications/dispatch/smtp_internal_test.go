@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"html"
+	"mime"
 	"strings"
 	"testing"
 
@@ -113,6 +114,105 @@ func TestValidateFromAddr(t *testing.T) {
 				"envelope address should be the bare email")
 			require.Equal(t, tc.expectedHeader, header,
 				"header address should preserve the original input")
+		})
+	}
+}
+
+func TestEncodeHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "ascii is unchanged",
+			value: `User account "bobby" suspended`,
+			want:  `User account "bobby" suspended`,
+		},
+		{
+			name:  "crlf is folded",
+			value: "Subject\r\nBcc: attacker@example.com",
+			want:  "Subject  Bcc: attacker@example.com",
+		},
+		{
+			name:  "bare newline is folded",
+			value: "Subject\nBcc: attacker@example.com",
+			want:  "Subject Bcc: attacker@example.com",
+		},
+		{
+			name:  "non-ascii is q-encoded",
+			value: "Konto gelöscht",
+			want:  "=?utf-8?q?Konto_gel=C3=B6scht?=",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(tc.value)
+			require.Equal(t, tc.want, got)
+			// The result must never be able to terminate its own header.
+			require.NotContains(t, got, "\r")
+			require.NotContains(t, got, "\n")
+		})
+	}
+}
+
+// TestEncodeHeaderValueEncodedWord covers a forged RFC 2047 encoded-word, which
+// is printable ASCII and so passes mime.WordEncoder through to the client.
+func TestEncodeHeaderValueEncodedWord(t *testing.T) {
+	t.Parallel()
+
+	// Decodes to "URGENT: verify your account".
+	const forged = "=?utf-8?B?VVJHRU5UOiB2ZXJpZnkgeW91ciBhY2NvdW50?="
+	got := encodeHeaderValue(forged + " shared a chat with you")
+
+	// The forged word must not survive as something a client would decode.
+	require.NotContains(t, got, forged)
+
+	// Decoded rather than compared: chunk boundaries are an implementation detail.
+	decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+	require.NoError(t, err)
+	require.Equal(t, forged+" shared a chat with you", decoded)
+}
+
+// TestEncodeHeaderValueFolds covers RFC 5322's 998-octet line limit, which
+// mime.WordEncoder does not fold for.
+func TestEncodeHeaderValueFolds(t *testing.T) {
+	t.Parallel()
+
+	for name, value := range map[string]string{
+		"non-ascii": strings.Repeat("é", 600),
+		"ascii":     strings.Repeat("a b ", 400),
+		// A rune that does not divide evenly into the per-word budget must not
+		// be split across two encoded-words: each has to decode on its own.
+		"multibyte": strings.Repeat("日本語", 400),
+		// Under the raw byte limit and over it once Q-encoded, so these fail
+		// unless the gate measures the encoded form.
+		"200 accented runes": strings.Repeat("é", 200),
+		"300 cjk runes":      strings.Repeat("日", 300),
+		"200 emoji":          strings.Repeat("🎉", 200),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(value)
+			for _, line := range strings.Split(got, "\r\n") {
+				require.LessOrEqual(t, len(line), 998,
+					"a header line exceeds RFC 5322's limit: %d octets", len(line))
+			}
+			// A CRLF must begin a continuation, or this is injection not folding.
+			for _, after := range strings.Split(got, "\r\n")[1:] {
+				require.True(t, strings.HasPrefix(after, " "),
+					"a CRLF was not followed by folding whitespace: %q", got)
+			}
+
+			decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+			require.NoError(t, err)
+			require.Equal(t, value, decoded)
 		})
 	}
 }

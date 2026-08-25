@@ -1216,6 +1216,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-workspace-agent-context-sync
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>bool</code>                                        |
+| Environment | <code>$CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC</code> |
+| YAML        | <code>disableWorkspaceAgentContextSync</code>            |
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
 ### --session-duration
 
 |             |                                              |
@@ -1359,17 +1369,6 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | Default     | <code>canvas</code>                       |
 
 The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
-
-### --allow-workspace-renames
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>bool</code>                           |
-| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
-| YAML        | <code>allowWorkspaceRenames</code>          |
-| Default     | <code>false</code>                          |
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
 
 ### --health-check-refresh
 

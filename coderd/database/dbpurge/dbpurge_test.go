@@ -256,6 +256,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChatDebugRuns(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatDebugRunsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
@@ -308,6 +309,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().DeleteOldWorkspaceBuildOrchestrations(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldAuditLogConnectionEvents(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Return(int64(0), nil).AnyTimes()
 		mDB.EXPECT().DeleteOldChats(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatsParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().DeleteOldChatFiles(gomock.Any(), gomock.AssignableToTypeOf(database.DeleteOldChatFilesParams{})).Return(int64(0), nil).MinTimes(1)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
@@ -3113,15 +3115,19 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		isNull, _ := searchTsv(ctx, t, rawDB, id)
 		require.False(t, isNull, msg)
 	}
-	// Asserts the row's tsvector matches expectedText, not just non-NULL.
+	// Asserts the row's tsvector matches expectedText and that the sweep
+	// stamped the config that produced it.
 	requireTsvFor := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, expectedText string) {
 		t.Helper()
 		var matches bool
+		var config sql.NullString
 		err := rawDB.QueryRowContext(ctx,
-			"SELECT search_tsv = to_tsvector('simple', $2::text) FROM chat_messages WHERE id = $1", id, expectedText).
-			Scan(&matches)
+			"SELECT search_tsv = to_tsvector('english', $2::text), search_tsv_config FROM chat_messages WHERE id = $1", id, expectedText).
+			Scan(&matches, &config)
 		require.NoError(t, err)
 		require.True(t, matches, "search_tsv should contain the lexemes of %q", expectedText)
+		require.Equal(t, sql.NullString{String: "english", Valid: true}, config,
+			"backfilled rows must record the config that produced the vector")
 	}
 	requireNotBackfilled := func(ctx context.Context, t *testing.T, rawDB *sql.DB, id int64, msg string) {
 		t.Helper()
@@ -3285,6 +3291,71 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 	})
 
 	//nolint:paralleltest // It uses LockIDDBPurge.
+	t.Run("ReindexesStaleConfigVectors", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clk := quartz.NewMock(t)
+		clk.Set(now).MustWait(ctx)
+		db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		deps := setupDeps(t, db)
+
+		countStale := func() int {
+			var count int
+			err := rawDB.QueryRowContext(ctx, `
+				SELECT COUNT(*) FROM chat_messages
+				WHERE search_tsv IS NOT NULL
+				  AND search_tsv_config IS DISTINCT FROM 'english'
+				  AND deleted = false
+				  AND visibility IN ('user', 'both')
+				  AND role IN ('user', 'assistant')`).Scan(&count)
+			require.NoError(t, err)
+			return count
+		}
+		makeStale := func(id int64) {
+			// Simulates a vector produced before the 'english' switch or by
+			// a binary that predates search_tsv_config (e.g. an old replica
+			// winning the dbpurge lock mid rolling upgrade).
+			_, err := rawDB.ExecContext(ctx, `
+				UPDATE chat_messages
+				SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
+				    search_tsv_config = NULL
+				WHERE id = $1`, id)
+			require.NoError(t, err)
+		}
+
+		preexisting := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
+		makeStale(preexisting.ID)
+		require.Equal(t, 1, countStale())
+
+		tick := awaitDoTicks(ctx, t, clk, 2)
+		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+
+		// The first tick rewrites the stale backlog with 'english' and
+		// latches off the stale scan for the process lifetime.
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+
+		// A stale row appearing after the latch (old replica racing the
+		// tail of a rolling upgrade) is intentionally not rewritten by
+		// this process; it stays correctly searchable via its recorded
+		// config until a restart re-runs one stale pass.
+		makeStale(preexisting.ID)
+		tick()
+		require.Equal(t, 1, countStale(), "stale scan must stay latched off after drain")
+		require.NoError(t, closer.Close())
+
+		// A new dbpurge instance (process restart) re-runs one stale pass
+		// and repairs the row.
+		tick = awaitDoTicks(ctx, t, clk, 1)
+		closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+		defer closer.Close()
+		tick()
+		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		require.Zero(t, countStale())
+	})
+
+	//nolint:paralleltest // It uses LockIDDBPurge.
 	t.Run("SteadyStateNoop", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		clk := quartz.NewMock(t)
@@ -3341,6 +3412,7 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			Return(int32(0), nil).AnyTimes()
 		mDB.EXPECT().TryAcquireLock(gomock.Any(), int64(database.LockIDDBPurge)).Return(false, nil).AnyTimes()
 		mDB.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
+		mDB.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), gomock.Any()).Times(0)
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			DoAndReturn(func(f func(database.Store) error, _ *database.TxOptions) error {
 				return f(mDB)
