@@ -142,7 +142,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 		containerUser string
 	)
 	cmd := &serpent.Command{
-		Annotations: workspaceCommand,
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Use:         "ssh <workspace> [command]",
 		Short:       "Start a shell into a workspace or run a command",
 		Long: "This command does not have full parity with the standard SSH command. For users who need the full functionality of SSH, create an ssh configuration with `coder config-ssh`.\n\n" +

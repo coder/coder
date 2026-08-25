@@ -1748,6 +1748,13 @@ func wrapTransportWithUserAgentHeader(transport http.RoundTripper, inv *serpent.
 // session ID instead of generating a new one, per the connection-log RFC.
 const clientSessionIDEnv = "CODER_TRACE_SESSION_ID"
 
+// annotationClientSessionID marks commands that establish a client session and
+// should resolve a client_session_id. clientSessionIDMiddleware only resolves
+// and attaches the ID for commands that opt in with this annotation, so
+// long-running daemon commands (server, agent, provisionerd, and so on) never
+// carry a meaningless session ID in their logs, request baggage, or telemetry.
+const annotationClientSessionID = "client_session_id"
+
 type clientSessionIDContextKey struct{}
 
 // withClientSessionID returns a copy of ctx carrying the client session ID so
@@ -1786,16 +1793,18 @@ func resolveClientSessionID(inv *serpent.Invocation) (string, error) {
 }
 
 // clientSessionIDMiddleware resolves a single client session ID per invocation
-// and stores it on the invocation context. It attaches the ID as a slog field
-// so any log written with the invocation context (or a descendant) carries
+// and stores it on the invocation context for commands that opt in with the
+// annotationClientSessionID annotation. It attaches the ID as a slog field so
+// any log written with the invocation context (or a descendant) carries
 // client_session_id regardless of which logger emits it, and stores the raw ID
 // so createHTTPClient can attach it as W3C baggage and ssh can forward it as
-// tailnet telemetry. Completion mode is skipped so shell completion neither
-// generates IDs nor emits warnings.
+// tailnet telemetry. Commands that do not opt in (and completion mode) are
+// skipped so daemon logs stay free of an irrelevant session ID.
 func clientSessionIDMiddleware() serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
-			if inv.IsCompletionMode() {
+			if inv.IsCompletionMode() || inv.Command == nil ||
+				!inv.Command.Annotations.IsSet(annotationClientSessionID) {
 				return next(inv)
 			}
 			id, err := resolveClientSessionID(inv)

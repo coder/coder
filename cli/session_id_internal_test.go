@@ -64,9 +64,16 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 	t.Parallel()
 
 	// runMiddleware runs clientSessionIDMiddleware around a handler that
-	// captures the resulting invocation, returning it for assertions.
-	runMiddleware := func(t *testing.T, inv *serpent.Invocation) *serpent.Invocation {
+	// captures the resulting invocation, returning it for assertions. The
+	// invocation opts in with the annotationClientSessionID annotation unless
+	// optIn is false.
+	runMiddleware := func(t *testing.T, inv *serpent.Invocation, optIn bool) *serpent.Invocation {
 		t.Helper()
+		annotations := serpent.Annotations{}
+		if optIn {
+			annotations = annotations.Mark(annotationClientSessionID, "")
+		}
+		inv.Command = &serpent.Command{Annotations: annotations}
 		var got *serpent.Invocation
 		handler := clientSessionIDMiddleware()(func(i *serpent.Invocation) error {
 			got = i
@@ -81,7 +88,7 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 		t.Parallel()
 
 		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
-		got := runMiddleware(t, inv)
+		got := runMiddleware(t, inv, true)
 		id := clientSessionIDFromContext(got.Context())
 		require.True(t, tracing.ValidSessionID(id), "middleware must store a valid generated ID")
 	})
@@ -92,7 +99,7 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 		const want = "0123456789abcdef0123456789abcdef"
 		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
 		inv.Environ.Set(clientSessionIDEnv, want)
-		got := runMiddleware(t, inv)
+		got := runMiddleware(t, inv, true)
 		require.Equal(t, want, clientSessionIDFromContext(got.Context()))
 	})
 
@@ -100,7 +107,7 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 		t.Parallel()
 
 		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
-		got := runMiddleware(t, inv)
+		got := runMiddleware(t, inv, true)
 		id := clientSessionIDFromContext(got.Context())
 		require.NotEmpty(t, id)
 
@@ -113,13 +120,23 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 		require.Contains(t, buf.String(), "client_session_id="+id)
 	})
 
+	t.Run("SkipsWithoutOptIn", func(t *testing.T) {
+		t.Parallel()
+
+		inv := (&serpent.Invocation{Stderr: io.Discard}).WithContext(t.Context())
+		inv.Environ.Set(clientSessionIDEnv, "0123456789abcdef0123456789abcdef")
+		got := runMiddleware(t, inv, false)
+		require.Empty(t, clientSessionIDFromContext(got.Context()),
+			"commands without the opt-in annotation must not resolve a session ID")
+	})
+
 	t.Run("SkipsCompletionMode", func(t *testing.T) {
 		t.Parallel()
 
 		inv := (&serpent.Invocation{Stderr: io.Discard}).
 			WithContext(t.Context())
 		inv.Environ.Set(serpent.CompletionModeEnv, "1")
-		got := runMiddleware(t, inv)
+		got := runMiddleware(t, inv, true)
 		require.Empty(t, clientSessionIDFromContext(got.Context()),
 			"completion mode must not resolve a session ID")
 	})
