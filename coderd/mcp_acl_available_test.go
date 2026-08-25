@@ -112,7 +112,7 @@ func TestMCPServerConfigACLAvailable(t *testing.T) {
 	requireSDKError(t, err, http.StatusNotFound)
 }
 
-func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
+func TestMCPServerConfigDisabledSharerFetch(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -132,6 +132,10 @@ func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
 		OrgPermissions: database.CustomRolePermissions{
 			{
 				ResourceType: rbac.ResourceMCPServerConfig.Type,
+				Action:       policy.ActionRead,
+			},
+			{
+				ResourceType: rbac.ResourceMCPServerConfig.Type,
 				Action:       policy.ActionShare,
 			},
 		},
@@ -142,9 +146,10 @@ func TestMCPServerConfigDisabledShareOnlyFetch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Share-authorized callers keep access to disabled configs so they can
-	// still open them and manage sharing, matching the list behavior. The
-	// role grants share without read to prove the whole path admits it.
+	// Delegated sharers hold read alongside share: share alone deliberately
+	// does not admit the detail route (enterprise share-only contract), but
+	// sharers with read keep access to disabled configs so they can still
+	// open them and manage sharing, matching the list behavior.
 	fetched, err := sharerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
 	require.NoError(t, err)
 	require.Equal(t, config.ID, fetched.ID)
