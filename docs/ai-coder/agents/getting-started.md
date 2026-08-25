@@ -242,9 +242,9 @@ Good starting points:
 - **Prototyping** — building proof-of-concept implementations, simple
   dashboards, internal tools.
 
-Set expectations for how the team reviews agent output. Developers should
-still review all agent-produced code before merging. The agent is a force
-multiplier, not a replacement for developer judgment.
+Set expectations for how the team reviews agent output.
+Developers should still review all agent-produced code before merging.
+The agent is a force multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
 
@@ -305,10 +305,8 @@ already-running workspace instead of provisioning from scratch.
 
 ## Providing feedback
 
-Report bugs and feature requests as
-[GitHub issues](https://github.com/coder/coder/issues/new/choose).
-For deployment-specific problems, such as provider configuration or
-performance in your environment, use your usual Coder support channel.
+Report bugs and feature requests as [GitHub issues](https://github.com/coder/coder/issues/new/choose).
+For deployment-specific problems, such as provider configuration or performance in your environment, use your usual Coder support channel.
 
 Good reports include:
 
