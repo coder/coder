@@ -18,7 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
-import type { FixedSizeList } from "react-window";
+import type { VariableSizeList } from "react-window";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
@@ -830,7 +830,7 @@ type TaskStartingAgentProps = {
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
-	const listRef = useRef<FixedSizeList>(null);
+	const listRef = useRef<VariableSizeList>(null);
 	const queryClient = useQueryClient();
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),

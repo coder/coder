@@ -73,6 +73,11 @@ type Template struct {
 	// DisableModuleCache disables the use of cached Terraform modules during
 	// provisioning.
 	DisableModuleCache bool `json:"disable_module_cache"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames bool `json:"allow_workspace_renames"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -286,6 +291,10 @@ type UpdateTemplateMeta struct {
 	// AgentsAllowed controls whether Coder Agents can create workspaces using
 	// this template. If omitted, the current value is preserved.
 	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 type TemplateExample struct {
@@ -452,7 +461,7 @@ func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVer
 	if req.IncludeArchived {
 		u += "?include_archived=true"
 	}
-	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

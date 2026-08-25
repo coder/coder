@@ -139,16 +139,16 @@ func TestGuessSessionID(t *testing.T) {
 			headers: map[string]string{"session_id": "zed-session"},
 			body:    `{"metadata":{"user_id":"user_abc_account_456_session_some-id"}}`,
 		},
-		// Mux.
+		// Xum.
 		{
-			name:      "mux_with_workspace_header",
-			client:    aibridge.ClientMux,
+			name:      "xum_with_workspace_header",
+			client:    aibridge.ClientXum,
 			headers:   map[string]string{"X-Mux-Workspace-Id": "ws-abc-123"},
 			sessionID: utils.PtrTo("ws-abc-123"),
 		},
 		{
-			name:   "mux_without_workspace_header",
-			client: aibridge.ClientMux,
+			name:   "xum_without_workspace_header",
+			client: aibridge.ClientXum,
 		},
 		// Copilot VS Code.
 		{

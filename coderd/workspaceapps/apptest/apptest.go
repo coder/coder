@@ -1094,7 +1094,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.NoError(t, err)
 
 		// Verify the prefix is in the token.
-		require.Equal(t, prefixedOwnerApp.Prefix, tok.Request.Prefix)
+		require.Equal(t, prefixedOwnerApp.Prefix, tok.Prefix)
 
 		// Ensure the signed app token cookie is valid by making a request with
 		// it with no session token.

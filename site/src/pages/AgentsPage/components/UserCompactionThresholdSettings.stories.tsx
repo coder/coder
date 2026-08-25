@@ -1,17 +1,23 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import { MockDefaultOrganization, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
-const mockModelConfigs: TypesGen.ChatModelConfig[] = [
+const organizationWithEmptyDisplayName = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+	display_name: "",
+};
+
+const mockModels: TypesGen.ChatModel[] = [
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -22,7 +28,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-2",
 		ai_provider_id: "provider-anthropic",
 		model: "claude-sonnet",
@@ -31,7 +37,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
-		...MockChatModelConfig,
+		...MockChatModel,
 		id: "model-3",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
@@ -48,10 +54,13 @@ const meta = {
 	component: UserCompactionThresholdSettings,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
-		modelConfigs: mockModelConfigs,
+		models: mockModels,
 		providerTypeByID: new Map<string, string>([
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
+		]),
+		organizationNameByID: new Map<string, string>([
+			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
 		]),
 		thresholds: [],
 		isThresholdsLoading: false,
@@ -79,9 +88,15 @@ export const Default: Story = {
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
 		// Each badge announces provider + model (the icon itself is decorative).
-		expect(canvas.getByLabelText("OpenAI GPT-4o")).toBeInTheDocument();
 		expect(
-			canvas.getByLabelText("Anthropic Claude Sonnet"),
+			canvas.getByLabelText(
+				`OpenAI GPT-4o in ${MockDefaultOrganization.display_name}`,
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByLabelText(
+				`Anthropic Claude Sonnet in ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeInTheDocument();
 
 		// No footer visible when nothing is dirty
@@ -96,6 +111,35 @@ export const Default: Story = {
 				canvas.getByRole("button", { name: /Save 1 change/i }),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
+	args: {
+		organizationNameByID: new Map<string, string>([
+			[
+				organizationWithEmptyDisplayName.id,
+				organizationWithEmptyDisplayName.display_name ||
+					organizationWithEmptyDisplayName.name,
+			],
+		]),
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getAllByText(organizationWithEmptyDisplayName.name).length,
+		).toBeGreaterThan(0);
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${organizationWithEmptyDisplayName.name}`,
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("button", {
+				name: `Reset GPT-4o for ${organizationWithEmptyDisplayName.name} to default`,
+			}),
+		).toBeVisible();
 	},
 };
 
@@ -237,8 +281,8 @@ export const Loading: Story = {
 export const PartialSaveFailure: Story = {
 	name: "Partial Save Failure",
 	args: {
-		onSaveThreshold: fn(async (modelConfigId: string) => {
-			if (modelConfigId === "model-2") {
+		onSaveThreshold: fn(async (modelId: string) => {
+			if (modelId === "model-2") {
 				throw new globalThis.Error("Network error");
 			}
 		}),
@@ -280,5 +324,27 @@ export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const PartialModelLoadError: Story = {
+	args: {
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load models from one organization"),
+		).toBeVisible();
+		expect(
+			canvas.getAllByText(MockDefaultOrganization.display_name).length,
+		).toBeGreaterThan(0);
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeEnabled();
 	},
 };

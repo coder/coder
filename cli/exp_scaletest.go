@@ -249,7 +249,7 @@ func (s *scaletestStrategyFlags) attach(opts *serpent.OptionSet) {
 }
 
 func (s *scaletestStrategyFlags) toStrategy() harness.ExecutionStrategy {
-	return s.timeoutFlags.wrapStrategy(s.concurrencyFlags.toStrategy())
+	return s.wrapStrategy(s.concurrencyFlags.toStrategy())
 }
 
 type scaleTestOutputFormat string
@@ -1715,10 +1715,10 @@ func (r *RootCmd) scaletestDashboard() *serpent.Command {
 				return err
 			}
 
-			if !(interval > 0) {
+			if interval <= 0 {
 				return xerrors.Errorf("--interval must be greater than zero")
 			}
-			if !(jitter < interval) {
+			if jitter >= interval {
 				return xerrors.Errorf("--jitter must be less than --interval")
 			}
 			targetUserStart, targetUserEnd, err := parseTargetRange("users", targetUsers)
@@ -2271,6 +2271,14 @@ func getScaletestWorkspaces(ctx context.Context, client *codersdk.Client, owner,
 }
 
 func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk.User, error) {
+	return getScaletestUsersWithPrefix(ctx, client, loadtestutil.ScaleTestPrefix+"-")
+}
+
+// getScaletestUsersWithPrefix returns scaletest users whose username starts with
+// the given full prefix. The prefix partitions users into disjoint pools (for
+// example per load generator) so that concurrent reuse runs select
+// non-overlapping users.
+func getScaletestUsersWithPrefix(ctx context.Context, client *codersdk.Client, prefix string) ([]codersdk.User, error) {
 	var (
 		pageNumber = 0
 		limit      = 100
@@ -2279,7 +2287,7 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 
 	for {
 		page, err := client.Users(ctx, codersdk.UsersRequest{
-			Search: "scaletest-",
+			Search: prefix,
 			Pagination: codersdk.Pagination{
 				Offset: pageNumber * limit,
 				Limit:  limit,
@@ -2294,16 +2302,24 @@ func getScaletestUsers(ctx context.Context, client *codersdk.Client) ([]codersdk
 			break
 		}
 
-		pageUsers := make([]codersdk.User, 0, len(page.Users))
-		for _, u := range page.Users {
-			if loadtestutil.IsScaleTestUser(u.Username, u.Email) {
-				pageUsers = append(pageUsers, u)
-			}
-		}
-		users = append(users, pageUsers...)
+		users = append(users, filterScaletestUsersByPrefix(page.Users, prefix)...)
 	}
 
 	return users, nil
+}
+
+// filterScaletestUsersByPrefix returns the users whose username starts with
+// prefix and that look like scaletest users. It is the in-memory selection
+// behind getScaletestUsersWithPrefix. The username prefix guard matters because
+// the users search matches the term in several fields, not just the username.
+func filterScaletestUsersByPrefix(users []codersdk.User, prefix string) []codersdk.User {
+	filtered := make([]codersdk.User, 0, len(users))
+	for _, u := range users {
+		if strings.HasPrefix(u.Username, prefix) && loadtestutil.IsScaleTestUser(u.Username, u.Email) {
+			filtered = append(filtered, u)
+		}
+	}
+	return filtered
 }
 
 func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {

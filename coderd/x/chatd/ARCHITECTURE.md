@@ -418,6 +418,10 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 ## HTTP endpoints
 
+<!-- TODO(CODAGT-709): Document organization-scoped model discovery here. -->
+
+<!-- TODO(CODAGT-709): Document organization-scoped model-config write serialization here. -->
+
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
 ### `POST /api/experimental/chats`
@@ -597,6 +601,8 @@ There are 2 notification channels:
 
 # Chat worker
 
+<!-- TODO(CODAGT-709): Document organization-local model selection and fallback here. -->
+
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
 
 The chat worker is responsible for:
@@ -725,6 +731,8 @@ The buffer exposes the following API:
 - `GetParts(chat_id, history_version, generation_attempt)`: returns the message parts for an episode. Returns a predefined error if the episode is not found.
 - `StartModelInvocation(chat_id, history_version, generation_attempt)`: stamps the instant the episode opens its provider stream. Returns a predefined error if the episode is not found or already closed. Episodes that never invoke a model, such as local tool execution batches, are never stamped.
 - `ModelInvokedAt(chat_id, history_version, generation_attempt)`: returns the instant stamped by `StartModelInvocation`, or the zero time when the episode is unknown or never opened a provider stream. It must be read before `CloseEpisode`, because closed episodes are garbage collected and reading afterwards races the cleanup loop. The interrupt goroutine reads it just before closing the episode and uses the span between that instant and the interrupt as the interrupted attempt's billable runtime.
+- `RecordToolStart(chat_id, history_version, generation_attempt, call_index, started_at)` and `RecordToolCompletion(chat_id, history_version, generation_attempt, call_index, completed_at)`: record when each call occurrence starts and finishes.
+- `ToolCompletions(chat_id, history_version, generation_attempt)`: returns when each tool call started and finished.
 - `SubscribeToEpisode(chat_id, history_version, generation_attempt)`: returns a go channel that will receive all message parts for the episode. It spawns a goroutine that delivers parts to the channel. It's live until the episode is closed or until a subscriber requests that the channel be closed. Once the goroutine delivers all message parts for a closed episode, it closes the channel and exits. If the episode is already closed at the time of the call, the goroutine delivers all message parts for the episode, closes the channel, and exits. `SubscribeToEpisode` does not return an error if the episode is not found: it waits for it to be created instead.
 
 Closed episodes are garbage collected after at least 15 seconds since they were closed and when they have no active subscribers. The message part buffer maintains a garbage collection goroutine.
@@ -858,6 +866,7 @@ The generation goroutine supports:
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
 
+<!-- TODO(CODAGT-872): Document organization-scoped subagent model overrides (personal and admin overrides are now per-organization rows, not deployment site configs). -->
 Subagent spawning is a second source of both values. `spawn_agent` accepts optional `model_config_id` and `reasoning_effort` args (discoverable via the `list_subagent_models` tool): an explicit model selection becomes the child chat's `last_model_config_id` and wins over personal and deployment subagent overrides and over parent inheritance, and an explicit effort is stored on the child's initial message and wins over effort carried by those overrides. Both are validated at spawn time (enabled config, enabled provider, usable credentials, effort on the global scale) and rejected with tool errors before the child chat is created; `computer_use` spawns reject both args because their model routing is specialized. Generation-time resolution and clamping below apply to the child unchanged.
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
@@ -876,7 +885,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
-Paths that build their own clients get a `Model` from the same constructor, including the compaction override, quick generation (used by turn status labels and debug models), and the advisor runtime. Within quick generation, only title generation converts the model config through `ProviderOptionsForCall`; the turn status label and chat summary paths deliberately send no provider options, because they are short structured calls that set their own output bounds. Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
+Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
 
 Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so the transport keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions.
 
@@ -915,6 +924,7 @@ The model editor scopes the field to openai-typed providers with a `providers` s
 
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
 
+<!-- TODO(CODAGT-872): Document the organization-scoped compaction override (route moved to /api/experimental/organizations/{organization}/chats/model-overrides/compaction, storage moved to typed chat_organization_model_overrides rows resolved by the chat's organization, and the malformed-string fallback no longer applies). -->
 By default the summary is generated with the chat model. Admins can override the compaction model deployment-wide via the `compaction` context of the chat model override API (`/api/experimental/chats/config/model-override/{context}`, stored in the `agents_chat_compaction_model_override` site config). The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
 
 Details that follow from the override:

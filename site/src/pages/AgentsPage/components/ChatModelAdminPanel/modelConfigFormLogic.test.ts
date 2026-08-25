@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FieldSchema } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -81,8 +81,8 @@ function deepGet(obj: unknown, path: string[]): unknown {
 	return current;
 }
 
-const baseChatModelConfig: TypesGen.ChatModelConfig = {
-	...MockChatModelConfig,
+const baseChatModel: TypesGen.ChatModel = {
+	...MockChatModel,
 	id: "test-id",
 	model: "gpt-4",
 	display_name: "GPT-4",
@@ -108,13 +108,13 @@ describe("buildInitialModelFormValues", () => {
 	});
 
 	it("preserves enabled=true when editing an enabled model", () => {
-		expect(buildInitialModelFormValues(baseChatModelConfig).enabled).toBe(true);
+		expect(buildInitialModelFormValues(baseChatModel).enabled).toBe(true);
 	});
 
 	it("preserves enabled=false when editing a disabled model", () => {
 		expect(
 			buildInitialModelFormValues({
-				...baseChatModelConfig,
+				...baseChatModel,
 				enabled: false,
 			}).enabled,
 		).toBe(false);
@@ -206,18 +206,18 @@ describe("parseThresholdInteger", () => {
 
 describe("extractModelConfigFormState", () => {
 	it("returns empty form state when model_config is undefined", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		expect(result).toEqual(emptyModelConfigFormState);
 	});
 
 	it("returns a copy, not a reference to emptyModelConfigFormState", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		expect(result).not.toBe(emptyModelConfigFormState);
 	});
 
 	it("extracts top-level numeric fields", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				max_output_tokens: 4096,
 				temperature: 0.7,
@@ -237,8 +237,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts reasoning effort bounds", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				reasoning_effort: {
 					default: "medium",
@@ -252,8 +252,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenAI provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openai: {
@@ -278,8 +278,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts Anthropic provider options with thinking", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					anthropic: {
@@ -298,8 +298,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts Anthropic 1M context window option", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					anthropic: {
@@ -315,8 +315,8 @@ describe("extractModelConfigFormState", () => {
 
 	it("extracts Google provider options with safety settings", () => {
 		const safetySettings = [{ category: "harm", threshold: "block" }];
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					google: {
@@ -339,8 +339,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("returns empty string for google safety settings when absent", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					google: {},
@@ -353,8 +353,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenAI-compatible provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openaicompat: {
@@ -369,8 +369,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts OpenRouter provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					openrouter: {
@@ -397,8 +397,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("extracts Vercel provider options", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				provider_options: {
 					vercel: {
@@ -423,8 +423,8 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("handles missing provider_options gracefully", () => {
-		const model: TypesGen.ChatModelConfig = {
-			...baseChatModelConfig,
+		const model: TypesGen.ChatModel = {
+			...baseChatModel,
 			model_config: {
 				temperature: 0.5,
 			},
@@ -441,7 +441,7 @@ describe("extractModelConfigFormState", () => {
 	});
 
 	it("returns deep copies of provider sub-objects", () => {
-		const result = extractModelConfigFormState(baseChatModelConfig);
+		const result = extractModelConfigFormState(baseChatModel);
 		const empty = emptyModelConfigFormState;
 		expect(result.openai).not.toBe(empty.openai);
 		expect(result.anthropic).not.toBe(empty.anthropic);

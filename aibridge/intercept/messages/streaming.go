@@ -65,7 +65,7 @@ func (*StreamingInterception) Streaming() bool {
 }
 
 func (i *StreamingInterception) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.interceptionBase.baseTraceAttributes(r, true)
+	return i.baseTraceAttributes(r, true)
 }
 
 // ProcessRequest handles a request to /v1/messages.

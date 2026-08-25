@@ -37,8 +37,8 @@ interface PersonalModelOverrideRowProps {
 	overrideData: PersonalOverride | undefined;
 	deploymentDefault?: TypesGen.ChatModelOverrideResponse;
 	modelOptions: readonly ModelSelectorOption[];
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	modelConfigsError: unknown;
+	models: readonly TypesGen.ChatModel[];
+	modelsError: unknown;
 	isLoading: boolean;
 	onSave: SavePersonalOverride;
 	isSaving: boolean;
@@ -57,7 +57,7 @@ const toFormValues = (
 	overrideData: PersonalOverride | undefined,
 	context: PersonalOverrideContext,
 ): PersonalOverrideFormValues => {
-	if (!overrideData || overrideData.is_malformed) {
+	if (!overrideData) {
 		return {
 			mode: getDefaultMode(context),
 			model_config_id: "",
@@ -90,29 +90,27 @@ const toUpdateRequest = (
 	return { mode: values.mode, model_config_id: "" };
 };
 
-const getModelConfigLabel = (modelConfig: TypesGen.ChatModelConfig): string => {
-	return modelConfig.display_name.trim() || modelConfig.model || modelConfig.id;
+const getModelLabel = (model: TypesGen.ChatModel): string => {
+	return model.display_name.trim() || model.model || model.id;
 };
 
-const getModelConfigLabelByID = (
-	modelConfigID: string,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+const getModelLabelByID = (
+	modelID: string,
+	models: readonly TypesGen.ChatModel[],
 ): string | undefined => {
-	const modelConfig = modelConfigs.find(
-		(config) => config.id === modelConfigID,
-	);
-	return modelConfig ? getModelConfigLabel(modelConfig) : undefined;
+	const model = models.find((model) => model.id === modelID);
+	return model ? getModelLabel(model) : undefined;
 };
 
 const getUnavailableModelLabel = (
-	modelConfigID: string,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	modelID: string,
+	models: readonly TypesGen.ChatModel[],
 ): string => {
-	const modelConfigLabel = getModelConfigLabelByID(modelConfigID, modelConfigs);
-	if (!modelConfigLabel) {
-		return `Unavailable model (${modelConfigID})`;
+	const modelLabel = getModelLabelByID(modelID, models);
+	if (!modelLabel) {
+		return `Unavailable model (${modelID})`;
 	}
-	return `Unavailable: ${modelConfigLabel}`;
+	return `Unavailable: ${modelLabel}`;
 };
 
 const getDefaultModeOptions = (
@@ -125,35 +123,29 @@ const getDefaultModeOptions = (
 
 const getChatDefaultDescription = (
 	context: PersonalOverrideContext,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	models: readonly TypesGen.ChatModel[],
 ): string => {
 	if (context !== "root") {
 		return "Your current chat model";
 	}
-	const defaultModel = modelConfigs.find((config) => config.is_default);
+	const defaultModel = models.find((model) => model.is_default);
 	return defaultModel
-		? getModelConfigLabel(defaultModel)
+		? getModelLabel(defaultModel)
 		: "Model definition default";
 };
 
 const getDeploymentDefaultDescription = (
 	deploymentDefault: TypesGen.ChatModelOverrideResponse | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[],
+	models: readonly TypesGen.ChatModel[],
 ): string => {
 	if (!deploymentDefault) {
-		return "Loading deployment default";
+		return "Loading organization default";
 	}
-	if (deploymentDefault.is_malformed) {
-		return "Invalid deployment default";
-	}
-	const modelConfigID = deploymentDefault.model_config_id.trim();
-	if (modelConfigID === "") {
+	const modelID = deploymentDefault.model_config_id.trim();
+	if (modelID === "") {
 		return "Chat default fallback";
 	}
-	return (
-		getModelConfigLabelByID(modelConfigID, modelConfigs) ??
-		`Unavailable model (${modelConfigID})`
-	);
+	return getModelLabelByID(modelID, models) ?? `Unavailable model (${modelID})`;
 };
 
 const isDefaultModeOption = (
@@ -169,8 +161,8 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	overrideData,
 	deploymentDefault,
 	modelOptions,
-	modelConfigs,
-	modelConfigsError,
+	models,
+	modelsError,
 	isLoading,
 	onSave,
 	isSaving,
@@ -179,7 +171,6 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	disabled,
 }) => {
 	const hasLoadedOverride = overrideData !== undefined;
-	const isMalformedOverride = overrideData?.is_malformed ?? false;
 	const form = useFormik<PersonalOverrideFormValues>({
 		enableReinitialize: true,
 		initialValues: toFormValues(overrideData, context),
@@ -191,15 +182,14 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 	});
 	const isFormDisabled =
 		disabled || isSaving || isLoading || !hasLoadedOverride;
-	const canSave =
-		hasLoadedOverride && !disabled && (form.dirty || isMalformedOverride);
+	const canSave = hasLoadedOverride && !disabled && form.dirty;
 	const defaultModeOptions = getDefaultModeOptions(context).map((mode) => {
 		const label =
-			mode === "deployment_default" ? "Deployment default" : "Chat default";
+			mode === "deployment_default" ? "Organization default" : "Chat default";
 		const modeDescription =
 			mode === "deployment_default"
-				? getDeploymentDefaultDescription(deploymentDefault, modelConfigs)
-				: getChatDefaultDescription(context, modelConfigs);
+				? getDeploymentDefaultDescription(deploymentDefault, models)
+				: getChatDefaultDescription(context, models);
 		return {
 			id: mode,
 			provider: "defaults",
@@ -275,12 +265,9 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 					disabled={isFormDisabled}
 					placeholder={
 						isInvalidRootDeploymentDefault
-							? "Invalid deployment default"
+							? "Invalid organization default"
 							: isUnavailableSelectedModel
-								? getUnavailableModelLabel(
-										form.values.model_config_id,
-										modelConfigs,
-									)
+								? getUnavailableModelLabel(form.values.model_config_id, models)
 								: "Select..."
 					}
 					triggerAriaLabel={`${title} behavior`}
@@ -301,14 +288,12 @@ export const PersonalModelOverrideRow: FC<PersonalModelOverrideRowProps> = ({
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage="The saved model is unavailable and will be ignored until you choose a valid model override."
-					isMalformedOverride={isMalformedOverride}
-					malformedMessage="The saved override is malformed. Choose a valid value and save to replace it."
-					modelConfigsError={modelConfigsError}
+					modelsError={modelsError}
 				>
 					{isInvalidRootDeploymentDefault && (
 						<Alert severity="warning">
 							<AlertDescription>
-								The saved root override uses the deployment default, which is
+								The saved root override uses the organization default, which is
 								not supported for root agents. Choose a valid value and save to
 								replace it.
 							</AlertDescription>

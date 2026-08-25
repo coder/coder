@@ -24,7 +24,6 @@ import {
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -62,6 +61,7 @@ import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -429,8 +429,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	const mcpPopupRef = useRef<Window | null>(null);
+	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
+		useMCPOAuthFlow({
+			organizationId: chatOrganizationId,
+			onAuthComplete: onMCPAuthComplete,
+			onFlowSuccess: (serverID) => {
+				if (
+					onMCPSelectionChange &&
+					selectedMCPServerIds &&
+					mcpServers?.some(
+						(server) => server.id === serverID && server.enabled,
+					) &&
+					!selectedMCPServerIds.includes(serverID)
+				) {
+					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+				}
+			},
+		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -507,41 +522,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	// Listen for OAuth2 completion postMessage from popup.
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			if (event.origin !== location.origin) return;
-			if (
-				event.data?.type === "mcp-oauth2-complete" &&
-				typeof event.data.serverID === "string"
-			) {
-				setMcpConnectingId(null);
-				onMCPAuthComplete?.(event.data.serverID);
-				mcpPopupRef.current = null;
-			}
-		};
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, [onMCPAuthComplete]);
-
-	// Poll for popup close and clean up on unmount.
-	useEffect(() => {
-		if (!mcpConnectingId || !mcpPopupRef.current) return;
-		const interval = setInterval(() => {
-			if (mcpPopupRef.current?.closed) {
-				setMcpConnectingId(null);
-				mcpPopupRef.current = null;
-			}
-		}, 500);
-		return () => {
-			clearInterval(interval);
-			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
-				mcpPopupRef.current.close();
-				mcpPopupRef.current = null;
-			}
-		};
-	}, [mcpConnectingId]);
-
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
 		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
 		if (checked) {
@@ -551,22 +531,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
-		if (!chatOrganizationId) {
-			return;
-		}
-		setMcpConnectingId(server.id);
-		const connectUrl = mcpServerOAuth2ConnectPath(
-			chatOrganizationId,
-			server.id,
-		);
-		mcpPopupRef.current = window.open(
-			connectUrl,
-			"_blank",
-			"width=900,height=600",
-		);
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -1190,6 +1154,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					workspaceSkills={workspaceSkills}
 					autoFocus
 					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1396,7 +1361,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	variant="outline"
 																	size="sm"
 																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
+																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null
 																	}
