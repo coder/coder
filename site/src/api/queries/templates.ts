@@ -243,6 +243,22 @@ export const updateActiveTemplateVersion = (
 	};
 };
 
+export const enableTemplateParameterCompatibilityMode = (
+	template: Template,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (comaptibilityModeEnabled: boolean) =>
+			API.updateTemplateMeta(template.id, {
+				use_classic_parameter_flow: comaptibilityModeEnabled,
+			}),
+		onSuccess: () =>
+			queryClient.invalidateQueries({
+				queryKey: templateByNameKey(template.organization_name, template.name),
+			}),
+	};
+};
+
 export const templaceACLAvailable = (
 	templateId: string,
 	options: UsersRequest,

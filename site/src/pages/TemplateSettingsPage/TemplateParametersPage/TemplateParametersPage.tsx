@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import {
 	createAndBuildTemplateVersion,
+	enableTemplateParameterCompatibilityMode,
 	templateByNameKey,
 	templateVersion,
 	templateVersionsQueryKey,
@@ -31,16 +32,9 @@ const TemplateParametersPage: React.FC = () => {
 		...templateVersion(template.active_version_id),
 		placeholderData: keepPreviousData,
 	});
-	const saveMutation = useMutation({
-		mutationFn: (useClassicParameterFlow: boolean) =>
-			API.updateTemplateMeta(template.id, {
-				use_classic_parameter_flow: useClassicParameterFlow,
-			}),
-		onSuccess: () =>
-			queryClient.invalidateQueries({
-				queryKey: templateByNameKey(template.organization_name, template.name),
-			}),
-	});
+	const compatibililtyModeMutation = useMutation(
+		enableTemplateParameterCompatibilityMode(template, queryClient),
+	);
 	const createAndBuildMutation = useMutation(
 		createAndBuildTemplateVersion(template.organization_name),
 	);
@@ -64,20 +58,22 @@ const TemplateParametersPage: React.FC = () => {
 				activeVersion={activeVersion}
 				useClassicParameterFlow={template.use_classic_parameter_flow}
 				canUpdate={permissions.canUpdateTemplate}
-				isSaving={saveMutation.isPending}
+				isSaving={compatibililtyModeMutation.isPending}
 				isRefreshing={
 					createAndBuildMutation.isPending || promoteMutation.isPending
 				}
 				error={
-					saveMutation.error ??
+					compatibililtyModeMutation.error ??
 					createAndBuildMutation.error ??
 					promoteMutation.error
 				}
 				onChangeClassicParameterFlow={async (useClassicParameterFlow) => {
-					saveMutation.reset();
+					compatibililtyModeMutation.reset();
 
 					try {
-						await saveMutation.mutateAsync(useClassicParameterFlow);
+						await compatibililtyModeMutation.mutateAsync(
+							useClassicParameterFlow,
+						);
 						toast.success(
 							useClassicParameterFlow
 								? `${template.display_name} will use parameter compatibility mode.`
