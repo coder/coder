@@ -47,11 +47,14 @@ To pick up context in another directory, declare that directory as its own sourc
 
 A snapshot is capped so a large workspace cannot flood a chat's prompt:
 
-| Limit                              | Behavior when exceeded                                                                                   |
-|------------------------------------|----------------------------------------------------------------------------------------------------------|
-| 64&nbsp;KiB per resource           | The resource is reported with an oversize status and no content, so the chat lists it but cannot read it |
-| 2&nbsp;MiB total across a snapshot | Resources past the cap are reported as excluded with no content                                          |
-| 500 resources per snapshot         | Resources past the cap are reported as excluded with no content                                          |
+| Limit                                        | Behavior when exceeded                                                                                   |
+|----------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| 64&nbsp;KiB per file resource                | The resource is reported with an oversize status and no content, so the chat lists it but cannot read it |
+| 2&nbsp;MiB of file content across a snapshot | Resources past the cap are reported as excluded with no content                                          |
+| 500 resources per snapshot                   | Resources past the cap are reported as excluded with no content                                          |
+
+The byte caps measure file contents, such as instruction files and skill files.
+MCP server entries count toward the 500-resource cap, but their tool definitions are not measured by the byte caps.
 
 Excluded and oversize resources still appear in the chat's context list with their status and error, so a dropped skill or instruction file is visible rather than silently missing.
 
@@ -220,7 +223,8 @@ When the connected tool list changes, the agent re-scans and pushes a new snapsh
 
 Editing `.mcp.json` does not require a workspace restart.
 A file watcher fires 250&nbsp;ms after the file is created, written, removed, or renamed, and the agent reloads its servers from the file on disk.
-The reload changes the pushed snapshot, which marks existing chats out of date; the new tool set reaches a chat when the chat is refreshed.
+The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date.
+Chats that have not pinned a snapshot yet receive the new tool set immediately; a chat that already pinned one keeps its current tool set until you select **Refresh context** in that chat.
 
 The snapshot carries tool definitions only, not a way to run them.
 Every workspace MCP tool call is proxied back through the workspace agent, so a chat can list workspace MCP tools while the workspace is unreachable, but calling one requires a running workspace with the server connected.
