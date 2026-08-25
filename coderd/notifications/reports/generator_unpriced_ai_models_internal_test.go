@@ -178,18 +178,14 @@ func TestReportUnpricedAIModels(t *testing.T) {
 
 		ctx, logger, db, _, notifEnq, clk := setup(t)
 		seedOwner(t, db)
-		initiator := dbgen.User(t, db, database.User{})
-		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
+		now := clk.Now()
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Empty(t, notifEnq.Sent())
 
-		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
-
-		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
-
-		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
+		reportLog, err := db.GetNotificationReportGeneratorLogByTemplate(ctx, notifications.TemplateAIModelsUnpricedReport)
+		require.NoError(t, err)
+		require.True(t, now.Equal(reportLog.LastGeneratedAt))
 	})
 }
 
