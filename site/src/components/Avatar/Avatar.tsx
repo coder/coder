@@ -14,6 +14,7 @@ import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
+import { isBuiltInEmojiUrl } from "#/utils/emojis";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
@@ -49,26 +50,33 @@ const avatarVariants = cva(
 				variant: "icon",
 				className: "p-[3px]",
 			},
-			// Emojis get a proportional inset of roughly 20% per side.
+			// Emojis get a proportional inset of 20% per side, so the padding
+			// stays in ratio with the --avatar-* size variables.
 			{
 				size: "lg",
 				variant: "emoji",
-				className: "p-2",
+				className: "p-[calc(var(--avatar-lg)*0.2)]",
 			},
 			{
 				size: "md",
 				variant: "emoji",
-				className: "p-[6px]",
+				className: "p-[calc(var(--avatar-default)*0.2)]",
 			},
 			{
 				size: "sm",
 				variant: "emoji",
-				className: "p-1",
+				className: "p-[calc(var(--avatar-sm)*0.2)]",
 			},
 		],
 	},
 );
 
+/**
+ * Avatar props. The variant prop is resolved internally: sources that
+ * isBuiltInEmojiUrl matches always render with the emoji variant, overriding
+ * any variant passed by the caller, so emojis look the same at call sites
+ * whose source is data-dependent and may be an icon, photo, or emoji.
+ */
 export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
@@ -95,14 +103,13 @@ export const Avatar: React.FC<AvatarProps> = ({
 	const { externalImages } = useAppearance();
 
 	// Built-in emojis always use the emoji variant, even when a caller
-	// passes another one.
-	const resolvedVariant = src?.startsWith("/emojis/") ? "emoji" : variant;
+	// passes another one. See the AvatarProps doc.
+	const resolvedVariant = isBuiltInEmojiUrl(src) ? "emoji" : variant;
 
 	return (
 		<AvatarPrimitive.Root
 			className={cn(
-				avatarVariants({ size, variant: resolvedVariant }),
-				className,
+				avatarVariants({ size, variant: resolvedVariant, className }),
 			)}
 			{...props}
 		>

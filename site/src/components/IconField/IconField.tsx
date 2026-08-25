@@ -23,6 +23,7 @@ import {
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
+import { builtInEmojiUrl } from "#/utils/emojis";
 
 const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
@@ -121,7 +122,7 @@ export const IconField: FC<IconFieldProps> = ({
 							<Suspense fallback={<Loader />}>
 								<EmojiPicker
 									onEmojiSelect={(emoji) => {
-										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
+										const picked = emoji.src ?? builtInEmojiUrl(emoji.unified);
 										onPickEmoji(picked);
 										setOpen(false);
 									}}
