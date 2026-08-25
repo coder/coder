@@ -112,14 +112,13 @@ Missing either one is a defect:
 
 ### Evidence versus claim
 
-Code evidence justifies a claim; it does not belong in the claim. Flag
-user-facing pages that expose enum values, database column or field names,
-function or struct names, or internal subsystem names the reader never types
-or receives. The page should state the behavior in the target persona's
-terms; the exact identifiers belong in the PR description's evidence section.
-The exception is reference, API, CLI, and configuration docs, where
-identifiers are the interface the reader types or receives, and exact values
-are required.
+This is the canonical rule
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; the content guidelines govern. Flag a page that
+exposes an identifier (enum value, column or field name, function or struct
+name, internal subsystem name) the reader never types or receives; the page
+should state the behavior in the target persona's terms. Where the reader
+does type or receive the identifier, exact values are required instead.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

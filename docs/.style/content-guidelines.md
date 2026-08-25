@@ -94,6 +94,28 @@ approximations:
 *Why:* Precise values are what make accuracy checkable; "roughly 5
 minutes" can't drift-fail, but `300s default` can.
 
+### Evidence justifies a claim; it does not belong in the claim
+
+Verifying a behavior against the code does not mean publishing the code's
+vocabulary. The test for whether an identifier belongs on a page: **does the
+reader type or receive it?**
+
+- If yes, document the exact value, per
+  [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
+  This is the normal case for reference, API, CLI, and configuration content,
+  and for any step where the reader reads a field out of a response or types
+  a flag.
+- If no, state the behavior in the target persona's terms and keep the
+  identifier in the PR description's evidence, where the reviewer can check
+  it. Enum values, database column and field names, function and struct
+  names, and internal subsystem names on a page whose reader never sees them
+  are unverifiable by that reader and rot unnoticed. Example: an admin page
+  says "chats with ongoing work are never selected", not "chats with status
+  `running`, `interrupting`, or `requires_action` are excluded".
+
+*Why:* Identifiers the reader never receives can't be confirmed or corrected
+by the reader, and they silently drift when the implementation changes.
+
 ### Documentation lands with the change
 
 A PR that introduces or changes a user-facing feature should include the

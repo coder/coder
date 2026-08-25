@@ -113,22 +113,18 @@ style.
 
 ## Evidence versus claim
 
-Code evidence justifies a claim; it does not belong in the claim. Reading the
-source is how you verify behavior (workflow step 1), not what you publish.
-Translate what the code proves into the target persona's terms:
+The canonical rule is
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; they govern. The test is whether the reader types
+or receives the identifier. Application notes:
 
-- Enum values, database column and field names, function and struct names,
-  and internal subsystem names stay in the PR description's evidence section,
-  where the reviewer can check them.
-- The page states the behavior in the reader's vocabulary. An admin-facing
-  page says "chats with ongoing work are never selected", not "chats with
-  status `running`, `interrupting`, or `requires_action` are excluded".
-- The exception is pages where identifiers are the interface. Reference, API,
-  CLI, and configuration docs document exact flag names, endpoint paths,
-  response fields, and accepted values, per
-  [Verify against the code; document exact values](../../../docs/.style/content-guidelines.md#verify-against-the-code-document-exact-values).
-  The test: does the reader type or receive the identifier? If they never see
-  it, it is evidence, not content.
+- Reading the source is how you verify behavior (workflow step 1), not what
+  you publish. When the reader test says "no", the identifiers you copied in
+  step 1 go in the PR description's evidence section, and the page states the
+  behavior in the persona's terms.
+- Reference, API, CLI, and configuration docs usually pass the test, as does
+  any step where the reader reads a field from a response, so exact values
+  are required there. The test decides, not the page category.
 
 ## What not to write
 
@@ -174,9 +170,9 @@ the whole series as a single review.
 - Telling the reader their tool is wrong when it merely needs configuration.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
-- Publishing verification evidence as content: enum values, internal
-  identifiers, or subsystem names on a page whose reader never types or
-  receives them.
+- Publishing verification evidence as content: identifiers on a page whose
+  reader never types or receives them (see
+  [Evidence versus claim](#evidence-versus-claim)).
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
