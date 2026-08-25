@@ -66,11 +66,14 @@ export const users = {
 export const gitAuth = {
 	deviceProvider: "device",
 	webProvider: "web",
-	// These ports need to be hardcoded so that they can be
-	// used in `playwright.config.ts` to set the environment
-	// variables for the server.
-	devicePort: 50515,
-	webPort: 50516,
+	// Keep these below Linux's default ephemeral port range. Otherwise, an
+	// outbound connection can claim one and prevent the mock server from binding.
+	devicePort: process.env.CODER_E2E_GITAUTH_DEVICE_PORT
+		? Number(process.env.CODER_E2E_GITAUTH_DEVICE_PORT)
+		: 29515,
+	webPort: process.env.CODER_E2E_GITAUTH_WEB_PORT
+		? Number(process.env.CODER_E2E_GITAUTH_WEB_PORT)
+		: 29516,
 
 	authPath: "/auth",
 	tokenPath: "/token",

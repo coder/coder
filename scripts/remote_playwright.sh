@@ -87,7 +87,7 @@ main() {
 	)
 
 	# Also forward prometheus, pprof, and gitauth ports.
-	for p in 2114 6061 50515 50516; do
+	for p in 2114 6061 29515 29516; do
 		port_args+=(-L "${p}:127.0.0.1:${p}")
 	done
 

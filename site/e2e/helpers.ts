@@ -907,8 +907,7 @@ export const createServer = async (port: number): Promise<MockServer> => {
 
 	const app = express();
 	// We need to specify the local IP address as the web server
-	// tends to fail with IPv6 related error:
-	// listen EADDRINUSE: address already in use :::50516
+	// tends to fail with IPv6 related EADDRINUSE errors.
 	const server = await new Promise<Server>((resolve) => {
 		const s = app.listen(port, "0.0.0.0", () => resolve(s));
 	});
@@ -927,7 +926,7 @@ export const createServer = async (port: number): Promise<MockServer> => {
 async function waitForPort(
 	port: number,
 	host = "0.0.0.0",
-	timeout = 60_000,
+	timeout = 20_000,
 ): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {
