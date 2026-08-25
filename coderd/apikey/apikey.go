@@ -107,8 +107,7 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		}
 		scopes = append(scopes, canonical)
 	}
-	// An alias and its canonical spelling are distinct names on the way in and
-	// the same name here, so drop the repeats before they reach the column.
+	// Ensure scopes are still unique after canonicalizing.
 	scopes = slice.Unique(scopes)
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
