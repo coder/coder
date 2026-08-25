@@ -169,27 +169,23 @@ func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, e
 	}
 
 	expClient := codersdk.NewExperimentalClient(deps.coderClient)
+	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
+	}
+	// Pinned chats sort before recently updated chats. If the user has 100
+	// pinned chats, this batch may not contain their latest chat, which is an
+	// acceptable tradeoff for keeping organization selection to one request.
 	var latest *codersdk.Chat
-	for afterID := uuid.Nil; ; {
-		chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
-			Source: codersdk.ChatListSourceCreatedByMe,
-			Pagination: codersdk.Pagination{
-				AfterID: afterID,
-				Limit:   100,
-			},
-		})
-		if err != nil {
-			return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
+	for i := range chats {
+		if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
+			latest = &chats[i]
 		}
-		for i := range chats {
-			if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
-				latest = &chats[i]
-			}
-		}
-		if len(chats) < 100 {
-			break
-		}
-		afterID = chats[len(chats)-1].ID
 	}
 	if latest != nil {
 		return latest.OrganizationID, nil
