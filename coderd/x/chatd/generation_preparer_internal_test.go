@@ -643,6 +643,86 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 	})
 }
 
+// TestBindingCompactionTrigger verifies the selection between the chat
+// trigger and the compaction override model's own trigger: the enabled
+// trigger with the lower token point wins, ties prefer the chat
+// trigger, and a fully disabled pair passes the chat trigger through.
+func TestBindingCompactionTrigger(t *testing.T) {
+	t.Parallel()
+
+	chat := func(threshold int32, limit int64) compactionTrigger {
+		return compactionTrigger{thresholdPercent: threshold, contextLimit: limit}
+	}
+
+	cases := []struct {
+		name     string
+		chat     compactionTrigger
+		override compactionTrigger
+		want     compactionTrigger
+	}{
+		{
+			name:     "lower override point wins",
+			chat:     chat(70, 200_000),
+			override: chat(70, 32_000),
+			want:     chat(70, 32_000),
+		},
+		{
+			name:     "lower chat point wins over higher override point",
+			chat:     chat(70, 100_000),
+			override: chat(95, 80_000),
+			want:     chat(70, 100_000),
+		},
+		{
+			name:     "tie prefers the chat trigger",
+			chat:     chat(70, 100_000),
+			override: chat(70, 100_000),
+			want:     chat(70, 100_000),
+		},
+		{
+			name:     "chat trigger disabled by threshold 100 yields override",
+			chat:     chat(100, 200_000),
+			override: chat(70, 32_000),
+			want:     chat(70, 32_000),
+		},
+		{
+			name:     "chat trigger disabled by zero limit yields override",
+			chat:     chat(70, 0),
+			override: chat(70, 32_000),
+			want:     chat(70, 32_000),
+		},
+		{
+			name:     "override disabled by threshold 100 yields chat",
+			chat:     chat(70, 200_000),
+			override: chat(100, 32_000),
+			want:     chat(70, 200_000),
+		},
+		{
+			name:     "override disabled by zero limit yields chat",
+			chat:     chat(70, 200_000),
+			override: chat(70, 0),
+			want:     chat(70, 200_000),
+		},
+		{
+			name:     "both disabled passes the chat pair through",
+			chat:     chat(100, 200_000),
+			override: chat(100, 32_000),
+			want:     chat(100, 200_000),
+		},
+		{
+			name:     "threshold zero fires immediately and wins",
+			chat:     chat(70, 200_000),
+			override: chat(0, 32_000),
+			want:     chat(0, 32_000),
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, bindingCompactionTrigger(tc.chat, tc.override))
+		})
+	}
+}
+
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 	t.Parallel()
 

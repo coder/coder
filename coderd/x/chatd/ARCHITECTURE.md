@@ -962,6 +962,7 @@ By default the summary is generated with the chat model. Organization admins can
 
 Details that follow from the override:
 
+<!-- TODO: Update for independent compaction triggers: the trigger no longer uses the stricter of the two context limits with a single threshold. The chat trigger (user or chat model threshold against the chat model's window) and the override model's own trigger (its compression threshold against its own window) are evaluated independently and compaction fires at whichever enabled trigger is reached first. A threshold of 100 disables only that trigger. -->
 - Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window.
   The post-compaction "still over limit" check uses that same stricter limit; otherwise a smaller compaction-model window could trigger repeated compactions instead of a terminal error.
 - Failure semantics: an unset override uses the chat model.

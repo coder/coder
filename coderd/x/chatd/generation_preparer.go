@@ -681,31 +681,37 @@ func (server *Server) prepareGeneration(
 	if override, ok := server.resolveUserCompactionThreshold(ctx, chat.OwnerID, modelConfig.ID); ok {
 		effectiveThreshold = override
 	}
-	// The compaction trigger uses the stricter of the chat and override
-	// models' context limits: the history must also fit the summarizer's
-	// window.
-	compactionContextLimit := modelConfig.ContextLimit
+	chatTrigger := compactionTrigger{
+		thresholdPercent: effectiveThreshold,
+		contextLimit:     modelConfig.ContextLimit,
+	}
 	compactionOverride, err := server.resolveCompactionOverrideConfig(ctx, chat)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
 	}
+	// The chat trigger applies the user's (or chat model's) threshold to
+	// the chat model's window, while the override model applies its own
+	// threshold to its own window so history keeps fitting the
+	// summarizer. Compaction fires at whichever enabled trigger is
+	// reached first; downstream gates receive the binding pair.
+	binding := chatTrigger
 	if compactionOverride != nil {
-		if overrideLimit := compactionOverride.Config.ContextLimit; overrideLimit > 0 &&
-			(compactionContextLimit <= 0 || overrideLimit < compactionContextLimit) {
-			compactionContextLimit = overrideLimit
-		}
+		binding = bindingCompactionTrigger(chatTrigger, compactionTrigger{
+			thresholdPercent: compactionOverride.Config.CompressionThreshold,
+			contextLimit:     compactionOverride.Config.ContextLimit,
+		})
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
-	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, binding.contextLimit, binding.thresholdPercent)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
 		Messages:             prompt,
-		ThresholdPercent:     effectiveThreshold,
-		ContextLimit:         compactionContextLimit,
-		ContextLimitFallback: compactionContextLimit,
+		ThresholdPercent:     binding.thresholdPercent,
+		ContextLimit:         binding.contextLimit,
+		ContextLimitFallback: binding.contextLimit,
 		ToolCallID:           compactionToolCallID,
 		ToolName:             "chat_summarized",
 		DebugSvc:             debugSvc,
@@ -767,6 +773,45 @@ func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 		}
 	}
 	return fantasy.Usage{}
+}
+
+// compactionTrigger pairs a compaction threshold percent with the
+// context limit the percent applies to.
+type compactionTrigger struct {
+	thresholdPercent int32
+	contextLimit     int64
+}
+
+// enabled reports whether the trigger can fire at all: a threshold of
+// 100 or more disables it and an unknown context limit cannot anchor a
+// token point.
+func (t compactionTrigger) enabled() bool {
+	return t.thresholdPercent >= 0 && t.thresholdPercent < 100 && t.contextLimit > 0
+}
+
+// point is the token count at which the trigger fires.
+func (t compactionTrigger) point() float64 {
+	return float64(t.contextLimit) * float64(t.thresholdPercent) / 100
+}
+
+// bindingCompactionTrigger selects the trigger that fires first between
+// the chat trigger and the compaction override model's own trigger.
+// Prompt usage is a single scalar, so firing when either enabled
+// trigger is reached is equivalent to using the enabled trigger with
+// the lower token point. Ties prefer the chat trigger, and when neither
+// trigger is enabled the chat pair passes through so the existing
+// threshold and limit disable semantics hold downstream.
+func bindingCompactionTrigger(chat, override compactionTrigger) compactionTrigger {
+	switch {
+	case !override.enabled():
+		return chat
+	case !chat.enabled():
+		return override
+	case override.point() < chat.point():
+		return override
+	default:
+		return chat
+	}
 }
 
 func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, thresholdPercent int32) bool {
