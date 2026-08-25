@@ -139,7 +139,7 @@ stored bytes exceed the raw value.
 
 You can create, edit, and delete user secrets from the Coder dashboard:
 
-1. Click your avatar in the top right.
+1. Select your avatar in the top right.
 1. Select **Account**.
 1. Select **Secrets**.
 

@@ -244,7 +244,7 @@ To invalidate presets:
 
 1. Navigate to **Templates** and select your template.
 1. Go to the **Prebuilds** tab.
-1. Click **Invalidate Prebuilds**.
+1. Select **Invalidate Prebuilds**.
 1. Confirm the action in the dialog.
 
 Once presets are invalidated, the **next reconciliation loop** run will delete the old prebuilt workspaces and create new ones to maintain the desired instance count.

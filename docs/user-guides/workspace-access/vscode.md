@@ -11,7 +11,7 @@ Learn more about how VS Code Web and code-server compare in the
 
 VS Code desktop is a default app for workspaces.
 
-Click `VS Code Desktop` in the dashboard to one-click enter a workspace. This
+Select `VS Code Desktop` in the dashboard to one-click enter a workspace. This
 automatically installs the [Coder Remote](https://github.com/coder/vscode-coder)
 extension, authenticates with Coder, and connects to the workspace.
 

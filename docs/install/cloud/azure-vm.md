@@ -9,7 +9,7 @@ This guide assumes you have full administrator privileges on Azure.
 
 ## Create An Azure VM
 
-From the Azure Portal, navigate to the Virtual Machines Dashboard. Click Create,
+From the Azure Portal, navigate to the Virtual Machines Dashboard. Select Create,
 and select creating a new Azure Virtual machine .
 
 <img src="../../images/platforms/azure/azure1.jpg" alt="Azure VM creation page">
@@ -31,19 +31,19 @@ take in `HTTPS` and `HTTP`.
 
 <img src="../../images/platforms/azure/azure4.png" alt="Azure VM inbound port rules">
 
-The set up for the image is complete at this stage. Click `Review and Create` -
-review the information and click `Create`. A popup will appear asking you to
-download the key pair for the server. Click
+The set up for the image is complete at this stage. Select `Review and Create` -
+review the information and select `Create`. A popup will appear asking you to
+download the key pair for the server. Select
 `Download private key and create resource` and place it into a folder of your
 choice on your local system.
 
 <img src="../../images/platforms/azure/azure5.png" alt="Azure VM key pair generation">
 
-Click `Return to create a virtual machine`. Your VM will start up!
+Select `Return to create a virtual machine`. Your VM will start up!
 
 <img src="../../images/platforms/azure/azure6.png" alt="Azure VM deployment complete">
 
-Click `Go to resource` in the virtual machine and copy the public IP address.
+Select `Go to resource` in the virtual machine and copy the public IP address.
 You will need it to SSH into the virtual machine via your local machine.
 
 Follow

@@ -48,12 +48,12 @@ settings page.
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
-1. Click **Add provider**.
+1. Select **Add provider**.
 1. Select the provider type.
 1. Enter a unique lowercase provider name, the credentials, and the upstream
    provider or proxy
    [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
-1. Click **Save**.
+1. Select **Save**.
 
 After saving a provider, add an Agents model for it from **Admin settings** >
 **AI** > **Models**. For provider-specific setup, including AWS Bedrock, see
@@ -166,7 +166,7 @@ The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this m
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and select the provider for the new model.
+1. Select **Add** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
@@ -174,7 +174,7 @@ The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this m
 1. Set the **Context Limit**, the maximum number of tokens in the model's
    context window (e.g., `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
-1. Click **Save**.
+1. Select **Save**.
 
 <img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the Agents settings">
 
@@ -188,7 +188,7 @@ provider.</small>
 
 ### Set a default model
 
-Click the **star icon** next to a model in the models list to make it the
+Select the **star icon** next to a model in the models list to make it the
 default. The default model is pre-selected when developers start a new chat.
 Only one model can be the default at a time.
 
@@ -204,7 +204,7 @@ The Models list reflects whether each model can actually be used:
   model cannot serve chat requests.
 
 To reconnect a model to a working provider, open the model from the list,
-pick a new provider from the **Provider** dropdown, and click **Save**. The
+pick a new provider from the **Provider** dropdown, and select **Save**. The
 Save button is enabled as soon as the selected provider differs from the
 model's current provider, even if no other field is edited.
 
@@ -371,7 +371,7 @@ from the Agents settings page.
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.
-1. Enter your API key and click **Save**.
+1. Enter your API key and select **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption
 used for deployment-managed provider secrets. The dashboard never displays a
@@ -379,7 +379,7 @@ saved key, only whether one is set.
 
 ### Removing a personal key
 
-Click **Remove** on the provider card in the API Keys settings tab. Subsequent
+Select **Remove** on the provider card in the API Keys settings tab. Subsequent
 requests use deployment-managed credentials when they are configured for that
 provider. If no deployment-managed credential is available, add a new personal
 key before you use models from that provider.

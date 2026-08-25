@@ -316,14 +316,21 @@ Use "select" for actions on UI elements, regardless of input device.
 "Click" assumes a mouse.
 Touch devices tap, keyboard users press Enter, and assistive-technology users activate.
 "Select" covers every case and matches the Microsoft style guide convention.
+This is one instance of the broader [input-device-agnostic language](./accessibility-and-inclusion.md#input-device-agnostic-language) principle.
 
-Reserve "click" for code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event.
+Reserve "click" for:
+
+- Code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event (already exempt: Vale's prose scope skips code spans and fenced code blocks).
+- Explicit mouse-button phrasing: "click," "left-click," "right-click," "middle-click," and "mouse click," with their `-s`/`-ed`/`-ing` forms, describe a literal mouse action and have no device-agnostic equivalent worth writing around.
+- "One-click" and "one click" as a compound feature descriptor ("one-click install"), and the industry term "ClickOps."
 
 **Do**:
 
 > Select **Save** to apply the changes.
 >
 > Select **Templates** > **Settings** > **Schedule**.
+>
+> On Mac or Windows, highlight the files, then right-click to open the compress option.
 
 **Don't**:
 
@@ -331,7 +338,7 @@ Reserve "click" for code or configuration that literally fires on a click event,
 >
 > Click on the **Templates** tab, then click **Settings**.
 
-*Enforced by `Coder.SelectClick` (planned).*
+*Enforced by `Coder.SelectClick` at `warning` severity.*
 
 ## Don't assume simplicity or difficulty
 

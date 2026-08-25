@@ -36,9 +36,9 @@ To configure Coder Agents:
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and configure at least one model with its identifier, display
+1. Select **Add** and configure at least one model with its identifier, display
    name, and context limit.
-1. Click the **star icon** next to a model to set it as the default.
+1. Select the **star icon** next to a model to set it as the default.
 
 Detailed instructions for each provider and model option are in the
 [Models](./models.md) documentation.
@@ -62,7 +62,7 @@ steps for each user who needs access in each organization.
 1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
    select the organization where you want to grant access.
 1. The **Members** tab opens by default. Find the user in the table.
-1. Click the **Roles** cell for that user to open the role editor.
+1. Select the **Roles** cell for that user to open the role editor.
 1. Toggle on **Coder Agents User** and save.
 
 > [!TIP]

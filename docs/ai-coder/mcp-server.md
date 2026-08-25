@@ -178,7 +178,7 @@ MCP clients that support [RFC 9728](https://datatracker.ietf.org/doc/html/rfc972
 server advertises its OAuth2 capabilities via the `WWW-Authenticate` header and
 `/.well-known/oauth-protected-resource` endpoint.
 
-This enables a seamless "click-to-connect" experience where users authenticate
+This enables a seamless connect-and-authenticate experience where users sign in
 through their browser without manually managing tokens.
 
 > [!NOTE]

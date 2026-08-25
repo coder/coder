@@ -16,9 +16,9 @@ read-only field when only one organization is available.
 ## Add an MCP server
 
 1. Navigate to **AI Settings** > **Coder Agents** > **MCP servers**.
-1. Click **Add**.
+1. Select **Add**.
 1. Fill in the configuration fields described below.
-1. Click **Save**.
+1. Select **Save**.
 
 ### Identity
 

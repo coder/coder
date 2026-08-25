@@ -155,7 +155,7 @@ Alternatively, you can configure the IDE to accept the certificate:
 
 1. Open Settings (`Ctrl+Alt+S` for Windows or `Cmd+,` for macOS)
 1. Navigate to `Appearance & Behavior` > `System Settings` > `Server Certificates`
-1. Under `Accepted certificates`, click `+` and select the CA certificate file
+1. Under `Accepted certificates`, select `+` and select the CA certificate file
 1. Check `Accept non-trusted certificates automatically`
 1. Restart the IDE for changes to take effect
 
