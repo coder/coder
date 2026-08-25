@@ -418,6 +418,10 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 ## HTTP endpoints
 
+<!-- TODO(CODAGT-709): Document organization-scoped model discovery here. -->
+
+<!-- TODO(CODAGT-709): Document organization-scoped model-config write serialization here. -->
+
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
 ### `POST /api/experimental/chats`
@@ -596,6 +600,8 @@ There are 2 notification channels:
 - Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
 
 # Chat worker
+
+<!-- TODO(CODAGT-709): Document organization-local model selection and fallback here. -->
 
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
 
@@ -858,6 +864,7 @@ The generation goroutine supports:
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
 
+<!-- TODO(CODAGT-872): Document organization-scoped subagent model overrides (personal and admin overrides are now per-organization rows, not deployment site configs). -->
 Subagent spawning is a second source of both values. `spawn_agent` accepts optional `model_config_id` and `reasoning_effort` args (discoverable via the `list_subagent_models` tool): an explicit model selection becomes the child chat's `last_model_config_id` and wins over personal and deployment subagent overrides and over parent inheritance, and an explicit effort is stored on the child's initial message and wins over effort carried by those overrides. Both are validated at spawn time (enabled config, enabled provider, usable credentials, effort on the global scale) and rejected with tool errors before the child chat is created; `computer_use` spawns reject both args because their model routing is specialized. Generation-time resolution and clamping below apply to the child unchanged.
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
@@ -915,6 +922,7 @@ The model editor scopes the field to openai-typed providers with a `providers` s
 
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
 
+<!-- TODO(CODAGT-872): Document the organization-scoped compaction override (route moved to /api/experimental/organizations/{organization}/chats/model-overrides/compaction, storage moved to typed chat_organization_model_overrides rows resolved by the chat's organization, and the malformed-string fallback no longer applies). -->
 By default the summary is generated with the chat model. Admins can override the compaction model deployment-wide via the `compaction` context of the chat model override API (`/api/experimental/chats/config/model-override/{context}`, stored in the `agents_chat_compaction_model_override` site config). The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
 
 Details that follow from the override:

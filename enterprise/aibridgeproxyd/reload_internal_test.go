@@ -137,9 +137,8 @@ func TestBuildProviderRouter(t *testing.T) {
 	t.Run("DefensiveDeduplicatesSameHost", func(t *testing.T) {
 		t.Parallel()
 
-		// Refresh function should mark the duplicate as ProviderStatusError;
-		// buildProviderRouter is defensive and tolerates an enabled duplicate
-		// by giving the first entry the host (first wins).
+		// buildProviderRouter is defensive: it tolerates an enabled
+		// duplicate by giving the first entry the host (first wins).
 		reload := ProviderReload{Providers: []ReloadedProvider{
 			enabledProvider("first", "api.example.com"),
 			enabledProvider("second", "api.example.com"),
