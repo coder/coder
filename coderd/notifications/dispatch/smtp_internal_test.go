@@ -14,7 +14,7 @@ import (
 )
 
 // Benign values, so a test measures only what its own payload injected.
-func appearanceHelpers() map[string]any {
+func templateHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "https://coder.example.com" },
 		"current_year": func() string { return "2026" },
@@ -23,13 +23,14 @@ func appearanceHelpers() map[string]any {
 	}
 }
 
-func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
+func TestSMTPHTMLTemplateEscapesUntrustedValues(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name     string
 		title    string
 		userName string
+		actions  []types.TemplateAction
 		injected string
 	}{
 		{
@@ -50,6 +51,24 @@ func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
 			userName: `Bobby <img src=x onerror="alert(1)">`,
 			injected: `<img src=x onerror="alert(1)">`,
 		},
+		{
+			name:     "RawHTMLInActionLabel",
+			title:    "Account suspended",
+			userName: "Bobby",
+			actions: []types.TemplateAction{
+				{Label: `<img src=x onerror="alert(1)">`, URL: "https://coder.example.com/"},
+			},
+			injected: `<img src=x onerror="alert(1)">`,
+		},
+		{
+			name:     "RawHTMLInActionURL",
+			title:    "Account suspended",
+			userName: "Bobby",
+			actions: []types.TemplateAction{
+				{Label: "Open Coder", URL: `https://coder.example.com/?x=<script>alert(1)</script>`},
+			},
+			injected: `<script>alert(1)</script>`,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -58,16 +77,19 @@ func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
 			subject, err := markdown.PlaintextFromMarkdown(tc.title)
 			require.NoError(t, err)
 
+			// Actions are set as the template sees them. The enqueuer renders
+			// them into JSON first, which rejects a `"` of its own accord.
 			payload := types.MessagePayload{
 				NotificationTemplateID: "00000000-0000-0000-0000-000000000000",
 				UserName:               tc.userName,
+				Actions:                tc.actions,
 				Labels: map[string]string{
 					"_subject": subject,
 					"_body":    "<p>Test body</p>",
 				},
 			}
 
-			got, err := render.GoTemplate(htmlTemplate, payload, appearanceHelpers())
+			got, err := render.GoTemplate(htmlTemplate, payload, templateHelpers())
 			require.NoError(t, err)
 
 			escaped := html.EscapeString(tc.injected)
@@ -98,12 +120,9 @@ func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 			"_body":    "<p>Test body</p>",
 		},
 	}
-	helpers := map[string]any{
-		"base_url":     func() string { return "https://coder.example.com" },
-		"current_year": func() string { return "2026" },
-		"logo_url":     func() string { return logoURL },
-		"app_name":     func() string { return appName },
-	}
+	helpers := templateHelpers()
+	helpers["logo_url"] = func() string { return logoURL }
+	helpers["app_name"] = func() string { return appName }
 
 	got, err := render.GoTemplate(htmlTemplate, payload, helpers)
 	require.NoError(t, err)
