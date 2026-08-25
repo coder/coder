@@ -127,17 +127,17 @@ are queued and delivered when the agent completes its current step, so there is
 no need to wait for a response before providing additional context or changing
 direction.
 
-### Image attachments
+### File attachments
 
-Users can attach images to chat messages by pasting from the clipboard, dragging
-files into the input area, or using the attachment button. Supported formats are
-PNG, JPEG, GIF, and WebP up to 10 MB per file. Images are sent to the model as
-multimodal content alongside the text prompt.
+Users can attach files to chat messages by pasting from the clipboard, dragging files into the input area, or using the attachment button.
+Supported types are PNG, JPEG, GIF, and WebP images, plus plain text, Markdown, CSV, JSON, and PDF files.
+Each upload can be up to 10&nbsp;MiB, and a single conversation can reference at most 50 attachments.
+Attachments are sent to the model as multimodal content alongside the text prompt.
 
-This is useful for sharing screenshots of errors, UI mockups, terminal output,
-or other visual context that helps the agent understand the task. Messages can
-contain images alone or combined with text. Image attachments require a model
-that supports vision input.
+This is useful for sharing screenshots of errors, UI mockups, terminal output, logs, or other context that helps the agent understand the task.
+Messages can contain attachments alone or combined with text.
+Image attachments require a model that supports vision input, and Anthropic models (including Bedrock-hosted Claude) cap each inline image at 5&nbsp;MiB.
+Providers differ in which types they accept as native file content; a part the provider rejects is downgraded to text instead of being dropped.
 
 ## Security benefits of the control plane architecture
 
@@ -233,39 +233,41 @@ Refer to [Organization scope](./platform-controls/organizations.md) for details.
 The agent has access to a set of workspace tools that it uses to accomplish
 tasks:
 
-| Tool                                        | Description                                                                                        |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------|
-| `list_templates`                            | Browse available workspace templates                                                               |
-| `read_template`                             | Get template details and configurable parameters                                                   |
-| `create_workspace`                          | Create a workspace from a template                                                                 |
-| `start_workspace`                           | Start a stopped workspace for the current chat                                                     |
-| `propose_plan`                              | Present a Markdown plan file for user review                                                       |
-| `ask_user_question`                         | Ask the user structured clarification questions during plan mode                                   |
-| `read_file`                                 | Read file contents from the workspace                                                              |
-| `write_file`                                | Write a file to the workspace                                                                      |
-| `edit_files`                                | Perform search-and-replace edits across files                                                      |
-| `execute`                                   | Run shell commands in the workspace                                                                |
-| `process_output`                            | Retrieve output from a background process                                                          |
-| `process_list`                              | List all tracked processes in the workspace                                                        |
-| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                |
-| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                           |
-| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                 |
-| `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                           |
-| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                            |
-| `message_agent`                             | Send a follow-up message to a running sub-agent                                                    |
-| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages |
-| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                           |
-| `list_agents`                               | List spawned child agents, most recently active first                                              |
-| `read_skill`                                | Read the instructions for a workspace skill by name                                                |
-| `read_skill_file`                           | Read a supporting file from a skill's directory                                                    |
-| `web_search`                                | Search the internet (provider-native, when enabled)                                                |
+| Tool                                        | Description                                                                                                                                                           |
+|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `list_templates`                            | Browse available workspace templates                                                                                                                                  |
+| `read_template`                             | Get template details and configurable parameters                                                                                                                      |
+| `create_workspace`                          | Create a workspace from a template                                                                                                                                    |
+| `start_workspace`                           | Start a stopped workspace for the current chat                                                                                                                        |
+| `stop_workspace`                            | Stop the current chat's workspace and wait for the stop build to finish                                                                                               |
+| `propose_plan`                              | Present a Markdown plan file for user review                                                                                                                          |
+| `ask_user_question`                         | Ask the user structured clarification questions during plan mode                                                                                                      |
+| `read_file`                                 | Read file contents from the workspace                                                                                                                                 |
+| `write_file`                                | Write a file to the workspace                                                                                                                                         |
+| `edit_files`                                | Perform search-and-replace edits across files                                                                                                                         |
+| `execute`                                   | Run shell commands in the workspace                                                                                                                                   |
+| `process_output`                            | Retrieve output from a background process                                                                                                                             |
+| `process_list`                              | List all tracked processes in the workspace                                                                                                                           |
+| `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                                   |
+| `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                              |
+| `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                                    |
+| `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                              |
+| `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                               |
+| `message_agent`                             | Send a follow-up message to a running sub-agent                                                                                                                       |
+| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting or running if there are queued messages                                                                    |
+| `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard)                                                                                              |
+| `list_agents`                               | List spawned child agents, most recently active first                                                                                                                 |
+| `read_skill`                                | Read the instructions for a workspace skill by name                                                                                                                   |
+| `read_skill_file`                           | Read a supporting file from a skill's directory                                                                                                                       |
+| `web_search`                                | Search the internet (provider-native, when enabled)                                                                                                                   |
+| `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer |
 
 These tools connect to the workspace over the same secure connection used for
 web terminals and IDE access. No additional ports or services are required in
 the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
-`start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
+`start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
 `list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
