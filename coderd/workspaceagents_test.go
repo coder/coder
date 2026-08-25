@@ -3383,12 +3383,15 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client *agentsdk.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC211WithRole(ctx, "")
+	// Connect at the current agent API version so the recorded APIVersion
+	// tracks proto.CurrentVersion as it is bumped.
+	conn, err := client.ConnectRPCWithRole(ctx, "")
 	require.NoError(t, err)
 	defer func() {
-		cErr := aAPI.DRPCConn().Close()
+		cErr := conn.Close()
 		require.NoError(t, cErr)
 	}()
+	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
 }
