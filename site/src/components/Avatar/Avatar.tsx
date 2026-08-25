@@ -95,7 +95,10 @@ export const Avatar: React.FC<AvatarProps> = ({
 			className={cn(
 				avatarVariants({ size, variant: resolvedVariant, className }),
 			)}
-			style={resolvedVariant === "emoji" ? { padding: "20%", ...style } : style}
+			style={{
+				...style,
+				padding: resolvedVariant === "emoji" ? "20%" : style?.padding,
+			}}
 			{...props}
 		>
 			<AvatarPrimitive.Image
