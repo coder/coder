@@ -100,6 +100,11 @@ describe("compaction triggers", () => {
 		expect(resolveOrganizationCompactionTrigger(overrides, [])).toBeUndefined();
 		expect(
 			resolveOrganizationCompactionTrigger(overrides, [
+				{ ...model, enabled: false },
+			]),
+		).toBeUndefined();
+		expect(
+			resolveOrganizationCompactionTrigger(overrides, [
 				{ ...model, compression_threshold: 100 },
 			]),
 		).toBeUndefined();

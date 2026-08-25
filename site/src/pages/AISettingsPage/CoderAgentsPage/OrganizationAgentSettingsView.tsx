@@ -3,7 +3,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
-	compactionTriggerPoint,
+	bindingCompactionTrigger,
 	isCompactionTriggerEnabled,
 } from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
@@ -112,14 +112,16 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 			return null;
 		}
 
-		const overridePoint = compactionTriggerPoint(overrideTrigger);
+		// The binding helper is authoritative: it also catches chat models
+		// whose own threshold of 100 disables their trigger, because the
+		// organization trigger then binds regardless of token points.
 		const undercutModelNames = enabledModels.flatMap((model) => {
 			const chatTrigger = {
 				thresholdPercent: model.compression_threshold,
 				contextLimit: model.context_limit,
 			};
-			return isCompactionTriggerEnabled(chatTrigger) &&
-				overridePoint < compactionTriggerPoint(chatTrigger)
+			return bindingCompactionTrigger(chatTrigger, overrideTrigger) ===
+				"organization"
 				? [model.display_name.trim() || model.model]
 				: [];
 		});

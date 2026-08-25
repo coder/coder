@@ -51,7 +51,10 @@ export const resolveOrganizationCompactionTrigger = (
 	const model = models?.find(
 		(candidate) => candidate.id === override?.model_config_id,
 	);
-	if (!model) {
+	// The backend treats a disabled override config as absent and falls
+	// back to the chat model, so a disabled model must not present a
+	// trigger here either.
+	if (!model?.enabled) {
 		return undefined;
 	}
 
