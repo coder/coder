@@ -3903,6 +3903,9 @@ class ExperimentalApiMethods {
 			await this.axios.get<TypesGen.OrganizationChatModelsResponse>(
 				chatModelsPath(organizationId),
 			);
+		if (!Array.isArray(response.data?.models)) {
+			throw new Error("Invalid chat models response: models must be an array.");
+		}
 		return response.data;
 	};
 
