@@ -729,6 +729,99 @@ func TestEditFiles_NewFieldNamesTakePrecedenceOverOld(t *testing.T) {
 	assert.False(t, resp.IsError)
 }
 
+func TestEditFiles_StringEncodedFilesAccepted(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	targetPath := "/home/coder/main.go"
+
+	mockConn.EXPECT().
+		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
+			Files: []workspacesdk.FileEdits{{
+				Path: targetPath,
+				Edits: []workspacesdk.FileEdit{{
+					Search:  "old content",
+					Replace: "new content",
+				}},
+			}},
+			IncludeDiff: true,
+		}).
+		Return(workspacesdk.FileEditResponse{}, nil)
+
+	tool := chattool.EditFiles(chattool.EditFilesOptions{
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+	})
+
+	// Some models send files as a JSON-encoded string instead of the
+	// declared array.
+	filesJSON := `[{"path":"` + targetPath + `","edits":[{"old_text":"old content","new_text":"new content"}]}]`
+	input, err := json.Marshal(map[string]string{"files": filesJSON})
+	require.NoError(t, err)
+
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "edit_files",
+		Input: string(input),
+	})
+	require.NoError(t, err)
+	assert.False(t, resp.IsError)
+}
+
+func TestEditFiles_StringEncodedFilesRejectsBadContent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		files   string
+		wantErr string
+	}{
+		{
+			name:    "NotJSON",
+			files:   "lib/metrics.ts",
+			wantErr: "files must be a JSON array",
+		},
+		{
+			// Keys hidden inside the encoded string get the same
+			// ambiguity checks as plain input.
+			name:    "DuplicateKey",
+			files:   `[{"path":"/home/coder/a.txt","path":"/home/coder/b.txt","edits":[{"old_text":"x","new_text":"y"}]}]`,
+			wantErr: `repeats the key "files[].path"`,
+		},
+		{
+			name:    "CaseVariantKey",
+			files:   `[{"Path":"/home/coder/a.txt","edits":[{"old_text":"x","new_text":"y"}]}]`,
+			wantErr: `differs from schema property "path" only by case`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			tool := chattool.EditFiles(chattool.EditFilesOptions{
+				GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+					return mockConn, nil
+				},
+			})
+
+			input, err := json.Marshal(map[string]string{"files": tc.files})
+			require.NoError(t, err)
+
+			resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+				ID:    "call-1",
+				Name:  "edit_files",
+				Input: string(input),
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, tc.wantErr)
+		})
+	}
+}
+
 func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	t.Parallel()
 

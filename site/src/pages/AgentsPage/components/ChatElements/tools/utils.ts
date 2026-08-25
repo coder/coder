@@ -518,7 +518,16 @@ export const COLLAPSED_REPORT_HEIGHT = 72;
 export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 	const parsed = parseArgs(args);
 	if (!parsed) return [];
-	const files = parsed.files;
+	let files = parsed.files;
+	// Some models send files as a JSON-encoded string of the array; the
+	// backend decoder tolerates that, so rendering must parse it too.
+	if (typeof files === "string") {
+		try {
+			files = JSON.parse(files);
+		} catch {
+			return [];
+		}
+	}
 	if (!Array.isArray(files)) return [];
 	return files
 		.filter((f): f is FileEntry => isValid(fileEntrySchema, f))

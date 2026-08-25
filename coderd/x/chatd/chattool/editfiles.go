@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -23,6 +26,43 @@ type EditFilesOptions struct {
 type EditFilesArgs struct {
 	Files []editFileEdits `json:"files" description:"Files to edit. Every entry must include path and at least one edit."`
 }
+
+// UnmarshalJSON also accepts a "files" value sent as a JSON-encoded
+// string of the declared array, which some models intermittently do.
+// Dispatch-time ambiguity validation cannot inspect keys inside a
+// string value, so the encoded content is checked against the same
+// schema before it is decoded.
+func (a *EditFilesArgs) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Files json.RawMessage `json:"files"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	a.Files = nil
+	filesJSON := raw.Files
+	if len(filesJSON) == 0 || string(filesJSON) == "null" {
+		return nil
+	}
+	var encoded string
+	if json.Unmarshal(filesJSON, &encoded) == nil {
+		if err := toolschema.ValidateUnambiguous(editFilesParameters(), []byte(`{"files":`+encoded+`}`)); err != nil {
+			return err
+		}
+		filesJSON = json.RawMessage(encoded)
+	}
+	if err := json.Unmarshal(filesJSON, &a.Files); err != nil {
+		return xerrors.Errorf("files must be a JSON array of {path, edits} entries: %w", err)
+	}
+	return nil
+}
+
+// editFilesParameters caches the advertised edit_files schema so the
+// decoder validates string-encoded content by the same rules a policy
+// reader applies to plain input.
+var editFilesParameters = sync.OnceValue(func() map[string]any {
+	return EditFiles(EditFilesOptions{}).Info().Parameters
+})
 
 type editFileEdits struct {
 	Path  string         `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
