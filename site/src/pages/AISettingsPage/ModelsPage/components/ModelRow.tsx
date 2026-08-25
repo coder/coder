@@ -11,6 +11,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
+import { cn } from "#/utils/cn";
 
 type ModelRowProps = {
 	model: ChatModel;
@@ -52,7 +53,10 @@ export const ModelRow: FC<ModelRowProps> = ({
 				<div className="flex min-w-0 items-center gap-4">
 					<Avatar
 						size="lg"
-						className="flex shrink-0 items-center justify-center"
+						className={cn(
+							"flex shrink-0 items-center justify-center",
+							!model.enabled && "opacity-50",
+						)}
 					>
 						<ProviderIcon
 							provider={providerTypeByID.get(model.ai_provider_id) ?? ""}
@@ -60,7 +64,12 @@ export const ModelRow: FC<ModelRowProps> = ({
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
 						<span
-							className="truncate text-sm font-medium leading-6 text-content-primary"
+							className={cn(
+								"truncate text-sm font-medium leading-6",
+								model.enabled
+									? "text-content-primary"
+									: "text-content-disabled",
+							)}
 							title={displayName}
 						>
 							{displayName}
@@ -81,7 +90,12 @@ export const ModelRow: FC<ModelRowProps> = ({
 			<TableCell className="min-w-0">
 				{hasProvider ? (
 					<span
-						className="block truncate text-sm font-medium leading-6 text-content-secondary"
+						className={cn(
+							"block truncate text-sm font-medium leading-6",
+							model.enabled
+								? "text-content-secondary"
+								: "text-content-disabled",
+						)}
 						title={providerLabel}
 					>
 						{providerLabel}
@@ -106,7 +120,12 @@ export const ModelRow: FC<ModelRowProps> = ({
 				)}
 			</TableCell>
 			<TableCell className="min-w-0">
-				<span className="block truncate text-sm font-medium leading-6 text-content-secondary">
+				<span
+					className={cn(
+						"block truncate text-sm font-medium leading-6",
+						model.enabled ? "text-content-secondary" : "text-content-disabled",
+					)}
+				>
 					{formatContextLimit(model.context_limit)}
 				</span>
 			</TableCell>
