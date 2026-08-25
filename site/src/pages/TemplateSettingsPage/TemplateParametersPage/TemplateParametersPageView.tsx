@@ -67,11 +67,7 @@ export const TemplateParametersPageView: React.FC<
 			)}
 
 			<div className="flex items-start">
-				{/*
-				 * Spinner renders its children until it is loading, then replaces
-				 * them. At size sm it is 18px, the same as the checkbox, and the
-				 * matching margin keeps the label from moving during the swap.
-				 */}
+				{/* sm + m-1 keeps the layout from shifting */}
 				<Spinner
 					size="sm"
 					className="m-1 shrink-0"
