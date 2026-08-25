@@ -3751,10 +3751,10 @@ func (mr *MockStoreMockRecorder) GetCredentialLifecycleJournalAPIKeyLines(ctx, e
 }
 
 // GetCredentialLifecycleJournalEntriesBySubject mocks base method.
-func (m *MockStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+func (m *MockStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.GetCredentialLifecycleJournalEntriesBySubjectRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCredentialLifecycleJournalEntriesBySubject", ctx, arg)
-	ret0, _ := ret[0].([]database.CredentialLifecycleJournal)
+	ret0, _ := ret[0].([]database.GetCredentialLifecycleJournalEntriesBySubjectRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -8336,6 +8336,21 @@ func (m *MockStore) InsertCredentialLifecycleJournalEntry(ctx context.Context, a
 func (mr *MockStoreMockRecorder) InsertCredentialLifecycleJournalEntry(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLifecycleJournalEntry", reflect.TypeOf((*MockStore)(nil).InsertCredentialLifecycleJournalEntry), ctx, arg)
+}
+
+// InsertCredentialLifecycleJournalLine mocks base method.
+func (m *MockStore) InsertCredentialLifecycleJournalLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalLineParams) (database.CredentialLifecycleJournalLine, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertCredentialLifecycleJournalLine", ctx, arg)
+	ret0, _ := ret[0].(database.CredentialLifecycleJournalLine)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertCredentialLifecycleJournalLine indicates an expected call of InsertCredentialLifecycleJournalLine.
+func (mr *MockStoreMockRecorder) InsertCredentialLifecycleJournalLine(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertCredentialLifecycleJournalLine", reflect.TypeOf((*MockStore)(nil).InsertCredentialLifecycleJournalLine), ctx, arg)
 }
 
 // InsertCredentialPassword mocks base method.

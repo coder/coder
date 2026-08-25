@@ -273,14 +273,24 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 			EffectiveDate: effective,
 			ActorType:     sql.NullString{String: string(params.Actor.Type), Valid: true},
 			Actor:         uuid.NullUUID{UUID: params.Actor.ID, Valid: true},
-			Event:         string(EventCredentialIssue),
-			Subject:       issued.ID,
 			// Issuance is commanded, so nothing entailed it.
 			EntailedByEntry:      sql.NullInt64{},
 			EntailedByAnnotation: sql.NullString{},
 		})
 		if err != nil {
 			return xerrors.Errorf("append issuance entry: %w", err)
+		}
+
+		// The subject and what happened to it are the line's, the entry
+		// carrying only who acted and when. Line zero, an issuance on its own
+		// naming one credential.
+		if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
+			EntryID: entryID,
+			Line:    0,
+			Subject: issued.ID,
+			Event:   string(EventCredentialIssue),
+		}); err != nil {
+			return xerrors.Errorf("append the issuance line: %w", err)
 		}
 
 		_, err = tx.InsertCredentialLedgerRow(ctx, database.InsertCredentialLedgerRowParams{
@@ -711,13 +721,24 @@ func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUI
 			EffectiveDate:        effective,
 			ActorType:            actorType,
 			Actor:                actorID,
-			Event:                string(event),
-			Subject:              id,
 			EntailedByEntry:      sql.NullInt64{Int64: entailedBy.Entry, Valid: entailedBy.Entry != 0},
 			EntailedByAnnotation: sql.NullString{String: entailedBy.Annotation, Valid: entailedBy.Annotation != ""},
 		})
 		if err != nil {
 			return xerrors.Errorf("append %s entry: %w", event, err)
+		}
+
+		// Line zero, an ending naming the one credential it ends. A retirement
+		// ending several of a holder's credentials still writes an entry
+		// apiece; gathering those into one entry with a line each is what this
+		// shape now permits and is not done here.
+		if _, err := tx.InsertCredentialLifecycleJournalLine(ctx, database.InsertCredentialLifecycleJournalLineParams{
+			EntryID: entryID,
+			Line:    0,
+			Subject: id,
+			Event:   string(event),
+		}); err != nil {
+			return xerrors.Errorf("append the %s line: %w", event, err)
 		}
 
 		if _, err := tx.InvalidateCredential(ctx, database.InvalidateCredentialParams{

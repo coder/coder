@@ -2523,12 +2523,8 @@ CREATE TABLE credential_lifecycle_journal (
     effective_date timestamp with time zone DEFAULT now() NOT NULL,
     actor_type text,
     actor uuid,
-    event text NOT NULL,
-    subject uuid NOT NULL,
     entailed_by_entry bigint,
     entailed_by_annotation text,
-    CONSTRAINT credential_lifecycle_journal_discharge_has_no_actor CHECK (((event = 'discharge'::text) = (actor IS NULL))),
-    CONSTRAINT credential_lifecycle_journal_discharge_names_its_cause CHECK (((event = 'discharge'::text) = ((entailed_by_entry IS NOT NULL) OR (entailed_by_annotation IS NOT NULL)))),
     CONSTRAINT credential_lifecycle_journal_entailed_by_one_form CHECK ((NOT ((entailed_by_entry IS NOT NULL) AND (entailed_by_annotation IS NOT NULL))))
 );
 
@@ -2559,6 +2555,20 @@ CREATE SEQUENCE credential_lifecycle_journal_entry_seq
     NO MINVALUE
     NO MAXVALUE
     CACHE 1;
+
+CREATE TABLE credential_lifecycle_journal_line (
+    entry_id bigint NOT NULL,
+    line smallint NOT NULL,
+    subject uuid NOT NULL,
+    event text NOT NULL,
+    CONSTRAINT credential_lifecycle_journal_line_non_negative CHECK ((line >= 0))
+);
+
+COMMENT ON TABLE credential_lifecycle_journal_line IS 'Lines of the credential journal, one per credential the entry acts on. The entry says who acted and when; a line says which credential and what happened to it. An entry with two lines is an atomic group: a rotation issues one credential and revokes another as a single event.';
+
+COMMENT ON COLUMN credential_lifecycle_journal_line.line IS 'Subordinate to the entry and starting at zero, as in the denormalized form. Nothing enforces that a type specific line table does not claim a number this table has not issued beyond the foreign key that now points here.';
+
+COMMENT ON COLUMN credential_lifecycle_journal_line.subject IS 'The credential this line acts on. An entry names one party and may name several subjects, which is the asymmetry the atomic group rests on.';
 
 CREATE TABLE credential_password (
     id uuid NOT NULL,
@@ -4707,6 +4717,9 @@ ALTER TABLE ONLY credential_ledger
 ALTER TABLE ONLY credential_lifecycle_journal_api_key
     ADD CONSTRAINT credential_lifecycle_journal_api_key_pkey PRIMARY KEY (entry_id, line);
 
+ALTER TABLE ONLY credential_lifecycle_journal_line
+    ADD CONSTRAINT credential_lifecycle_journal_line_pkey PRIMARY KEY (entry_id, line);
+
 ALTER TABLE ONLY credential_lifecycle_journal
     ADD CONSTRAINT credential_lifecycle_journal_pkey PRIMARY KEY (entry_id);
 
@@ -5087,7 +5100,7 @@ CREATE INDEX credential_ledger_holder_idx ON credential_ledger USING btree (hold
 
 CREATE INDEX credential_lifecycle_journal_actor_idx ON credential_lifecycle_journal USING btree (actor_type, actor) WHERE (actor IS NOT NULL);
 
-CREATE INDEX credential_lifecycle_journal_subject_idx ON credential_lifecycle_journal USING btree (subject);
+CREATE INDEX credential_lifecycle_journal_line_subject_idx ON credential_lifecycle_journal_line USING btree (subject);
 
 CREATE INDEX credential_use_journal_subject_idx ON credential_use_journal USING btree (subject);
 
@@ -5666,7 +5679,10 @@ ALTER TABLE ONLY credential_api_key
     ADD CONSTRAINT credential_api_key_id_fkey FOREIGN KEY (id) REFERENCES credential_ledger(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY credential_lifecycle_journal_api_key
-    ADD CONSTRAINT credential_lifecycle_journal_api_key_entry_fkey FOREIGN KEY (entry_id) REFERENCES credential_lifecycle_journal(entry_id);
+    ADD CONSTRAINT credential_lifecycle_journal_api_key_line_fkey FOREIGN KEY (entry_id, line) REFERENCES credential_lifecycle_journal_line(entry_id, line);
+
+ALTER TABLE ONLY credential_lifecycle_journal_line
+    ADD CONSTRAINT credential_lifecycle_journal_line_entry_id_fkey FOREIGN KEY (entry_id) REFERENCES credential_lifecycle_journal(entry_id);
 
 ALTER TABLE ONLY credential_password
     ADD CONSTRAINT credential_password_id_fkey FOREIGN KEY (id) REFERENCES credential_ledger(id) ON DELETE CASCADE;

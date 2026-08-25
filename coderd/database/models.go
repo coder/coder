@@ -5483,8 +5483,6 @@ type CredentialLifecycleJournal struct {
 	EffectiveDate time.Time      `db:"effective_date" json:"effective_date"`
 	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
 	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
-	Event         string         `db:"event" json:"event"`
-	Subject       uuid.UUID      `db:"subject" json:"subject"`
 	// The entry this operation followed from, where the thing that entailed it keeps a journal. Exactly one of this and entailed_by_annotation is set on an entailed entry.
 	EntailedByEntry sql.NullInt64 `db:"entailed_by_entry" json:"entailed_by_entry"`
 	// What entailed this operation, in words, where the thing that entailed it keeps no journal to reference. Annotative: posting never reads it. Replaced by a proper reference once that thing is an entity.
@@ -5498,6 +5496,16 @@ type CredentialLifecycleJournalApiKey struct {
 	TokenName string       `db:"token_name" json:"token_name"`
 	Scopes    APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+// Lines of the credential journal, one per credential the entry acts on. The entry says who acted and when; a line says which credential and what happened to it. An entry with two lines is an atomic group: a rotation issues one credential and revokes another as a single event.
+type CredentialLifecycleJournalLine struct {
+	EntryID int64 `db:"entry_id" json:"entry_id"`
+	// Subordinate to the entry and starting at zero, as in the denormalized form. Nothing enforces that a type specific line table does not claim a number this table has not issued beyond the foreign key that now points here.
+	Line int16 `db:"line" json:"line"`
+	// The credential this line acts on. An entry names one party and may name several subjects, which is the asymmetry the atomic group rests on.
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Event   string    `db:"event" json:"event"`
 }
 
 // What a password credential holds beyond what every credential holds. Keyed on the ledger row it belongs to, which is why this needs no foreign key into a union: the ledger mints the identifier and the type says which table to look in.

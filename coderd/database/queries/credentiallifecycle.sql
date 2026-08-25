@@ -18,13 +18,24 @@ INSERT INTO
 		effective_date,
 		actor_type,
 		actor,
-		event,
-		subject,
 		entailed_by_entry,
 		entailed_by_annotation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+	($1, $2, $3, $4, $5, $6) RETURNING *;
+
+-- name: InsertCredentialLifecycleJournalLine :one
+-- One credential this entry acts on, and what happened to it. An entry with
+-- several lines is an atomic group: a rotation issues one credential and
+-- revokes another as a single event, so that no interval passes without a
+-- valid one.
+--
+-- Line numbers start at zero and are the caller's to assign, being an ordering
+-- within the entry rather than a fact about anything outside it.
+INSERT INTO
+	credential_lifecycle_journal_line (entry_id, line, subject, event)
+VALUES
+	($1, $2, $3, $4) RETURNING *;
 
 -- name: InsertCredentialLedgerRow :one
 INSERT INTO
@@ -70,14 +81,30 @@ WHERE
 -- cycle, so one subject's entries are bounded by the sequences it allows and
 -- the limit only caps what a caller will take. Callers pass one more than they
 -- will accept, so receiving it tells them the set was larger.
+--
+-- The subject is on the line, so this joins. An entry acting on two credentials
+-- is returned to each of them, once, carrying the line that concerns the one
+-- asked about: what the other line did is that credential's business and is
+-- reached by asking about it. The entry identifier is what shows two answers
+-- came from one event.
 SELECT
-	*
+	j.entry_id,
+	j.recording_date,
+	j.effective_date,
+	j.actor_type,
+	j.actor,
+	j.entailed_by_entry,
+	j.entailed_by_annotation,
+	l.line,
+	l.subject,
+	l.event
 FROM
-	credential_lifecycle_journal
+	credential_lifecycle_journal AS j
+	INNER JOIN credential_lifecycle_journal_line AS l ON l.entry_id = j.entry_id
 WHERE
-	subject = $1
+	l.subject = $1
 ORDER BY
-	entry_id
+	j.entry_id
 LIMIT
 	$2;
 

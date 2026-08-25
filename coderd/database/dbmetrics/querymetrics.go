@@ -2025,7 +2025,7 @@ func (m queryMetricsStore) GetCredentialLifecycleJournalAPIKeyLines(ctx context.
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+func (m queryMetricsStore) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.GetCredentialLifecycleJournalEntriesBySubjectRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetCredentialLifecycleJournalEntriesBySubject(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetCredentialLifecycleJournalEntriesBySubject").Observe(time.Since(start).Seconds())
@@ -4446,6 +4446,14 @@ func (m queryMetricsStore) InsertCredentialLifecycleJournalEntry(ctx context.Con
 	r0, r1 := m.s.InsertCredentialLifecycleJournalEntry(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalEntry").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalEntry").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertCredentialLifecycleJournalLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalLineParams) (database.CredentialLifecycleJournalLine, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertCredentialLifecycleJournalLine(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertCredentialLifecycleJournalLine").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertCredentialLifecycleJournalLine").Inc()
 	return r0, r1
 }
 

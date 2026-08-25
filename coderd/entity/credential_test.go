@@ -568,3 +568,71 @@ func TestDischargeSaysWhatEntailedIt(t *testing.T) {
 		require.ErrorContains(t, err, "says what entailed it")
 	})
 }
+
+// TestAnEntryIsAnAtomicGroup proves the journal can record one event acting on
+// two credentials. That is what a rotation is: an issuance and a revocation
+// sharing a party and a moment, so that no interval passes without a valid
+// credential. Recording it as two entries would assert the very gap the overlap
+// exists to prevent.
+//
+// **It exercises the store directly, and that is deliberate.** Nothing in
+// production writes a two line entry yet; the rotation path moves onto one in
+// WP13 milestone 3. What this milestone changed is the schema, so the schema is
+// what is tested. Before it, these two inserts collided on a primary key over
+// the entry alone.
+func TestAnEntryIsAnAtomicGroup(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	actor := uuid.New()
+	issued, revoked := uuid.New(), uuid.New()
+
+	entryID, err := db.NextCredentialLifecycleJournalEntryID(ctx)
+	require.NoError(t, err)
+
+	// The entry carries the party and the moment, and nothing about a subject.
+	_, err = db.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
+		EntryID:       entryID,
+		EffectiveDate: dbtime.Now(),
+		ActorType:     sql.NullString{String: string(entity.TypeUser), Valid: true},
+		Actor:         uuid.NullUUID{UUID: actor, Valid: true},
+	})
+	require.NoError(t, err)
+
+	lines := []database.InsertCredentialLifecycleJournalLineParams{
+		{EntryID: entryID, Line: 0, Subject: issued, Event: string(entity.EventCredentialIssue)},
+		{EntryID: entryID, Line: 1, Subject: revoked, Event: string(entity.EventCredentialRevoke)},
+	}
+	for _, line := range lines {
+		_, err := db.InsertCredentialLifecycleJournalLine(ctx, line)
+		require.NoError(t, err, "an entry names as many subjects as the event acted on")
+	}
+
+	read := func(subject uuid.UUID) database.GetCredentialLifecycleJournalEntriesBySubjectRow {
+		rows, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+			database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: subject, Limit: 8})
+		require.NoError(t, err)
+		require.Len(t, rows, 1, "a credential's history holds the entries naming it, once each")
+		return rows[0]
+	}
+
+	fromIssued, fromRevoked := read(issued), read(revoked)
+
+	// Each credential is told what happened to it, not what happened to the
+	// other. What the other line did is that credential's business.
+	require.Equal(t, string(entity.EventCredentialIssue), fromIssued.Event)
+	require.Equal(t, string(entity.EventCredentialRevoke), fromRevoked.Event)
+	require.EqualValues(t, 0, fromIssued.Line)
+	require.EqualValues(t, 1, fromRevoked.Line)
+
+	// The entry identifier is what says the two happened as one event, and the
+	// actor rides on the entry, so both sides report the same party.
+	require.Equal(t, entryID, fromIssued.EntryID)
+	require.Equal(t, entryID, fromRevoked.EntryID,
+		"one entry, so a reader of either credential can see the other half happened with it")
+	require.Equal(t, actor, fromIssued.Actor.UUID)
+	require.Equal(t, actor, fromRevoked.Actor.UUID)
+	require.Equal(t, fromIssued.EffectiveDate, fromRevoked.EffectiveDate)
+}

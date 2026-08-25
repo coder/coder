@@ -3807,7 +3807,7 @@ func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, 
 	return q.db.GetCredentialLifecycleJournalAPIKeyLines(ctx, entryID)
 }
 
-func (q *querier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.CredentialLifecycleJournal, error) {
+func (q *querier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg database.GetCredentialLifecycleJournalEntriesBySubjectParams) ([]database.GetCredentialLifecycleJournalEntriesBySubjectRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
@@ -6361,6 +6361,13 @@ func (q *querier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg
 		return database.CredentialLifecycleJournal{}, err
 	}
 	return q.db.InsertCredentialLifecycleJournalEntry(ctx, arg)
+}
+
+func (q *querier) InsertCredentialLifecycleJournalLine(ctx context.Context, arg database.InsertCredentialLifecycleJournalLineParams) (database.CredentialLifecycleJournalLine, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.CredentialLifecycleJournalLine{}, err
+	}
+	return q.db.InsertCredentialLifecycleJournalLine(ctx, arg)
 }
 
 func (q *querier) InsertCredentialPassword(ctx context.Context, arg database.InsertCredentialPasswordParams) (database.CredentialPassword, error) {

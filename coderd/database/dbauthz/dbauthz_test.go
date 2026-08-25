@@ -604,10 +604,18 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 			EffectiveDate: dbtime.Now(),
 			ActorType:     sql.NullString{String: "user", Valid: true},
 			Actor:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
-			Event:         "issue",
-			Subject:       uuid.New(),
 		}
 		dbm.EXPECT().InsertCredentialLifecycleJournalEntry(gomock.Any(), arg).Return(database.CredentialLifecycleJournal{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("InsertCredentialLifecycleJournalLine", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertCredentialLifecycleJournalLineParams{
+			EntryID: 1,
+			Line:    0,
+			Subject: uuid.New(),
+			Event:   "issue",
+		}
+		dbm.EXPECT().InsertCredentialLifecycleJournalLine(gomock.Any(), arg).Return(database.CredentialLifecycleJournalLine{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertCredentialPassword", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
@@ -645,7 +653,7 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 			Subject: uuid.New(),
 			Limit:   10,
 		}
-		dbm.EXPECT().GetCredentialLifecycleJournalEntriesBySubject(gomock.Any(), arg).Return([]database.CredentialLifecycleJournal{}, nil).AnyTimes()
+		dbm.EXPECT().GetCredentialLifecycleJournalEntriesBySubject(gomock.Any(), arg).Return([]database.GetCredentialLifecycleJournalEntriesBySubjectRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetValidCredentialsByHolder", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

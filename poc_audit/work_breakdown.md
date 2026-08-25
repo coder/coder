@@ -1862,6 +1862,10 @@ milestone 2 was sound.
 structure work is expected to join them before this is planned properly. What
 follows states what forces each and what is unresolved, not how it is done.
 
+**Milestone 1 has landed**, 2026-08-25, with migration 000591. An entry now
+carries the party and the moment, and a line carries the credential and what
+happened to it.
+
 **Milestone 2 is closed and wrote no code**, 2026-08-25. What it would have
 journalled turned out to be unsound throughout, so it became documentary. See
 its section, and `credential_expiration.working_state.md` for the reasoning.
@@ -1928,6 +1932,57 @@ subjects, one entry" and never suggesting two actors.
 **It pays beyond rotation.** `RetireAIAgent` lapses a holder's credentials as
 one entry each. Under lines that is one entry with a line per credential, which
 is what happened: one event ending several credentials.
+
+#### What landed, and the one thing given up
+
+**Migration 000591.** `credential_lifecycle_journal_line` keyed `(entry_id,
+line)` carries `subject` and `event`; the entry keeps both dates, the actor pair
+and the entailing reference. The subject index moved with the column. The
+`api_key` line table's foreign key moved from the entry to the line, which is
+what stops a type specific line claiming a number the entry never issued.
+
+**It matches a position already held.** `implementation_patterns.md`, under
+"Entry level values are written once, on line zero", already says line level
+means the event and the subject. The credential journal was the outlier.
+
+**Two checks were dropped and not reproduced.** Migration 000590 made a
+discharge carry no actor and name what entailed it, as checks over `event`,
+`actor` and the entailing reference. With `event` on another table no check can
+see both sides. Eric, 2026-08-25: **drop them and consign the property to
+reconciliation.** The door in `coderd/entity/credential.go` still writes only
+what the model permits, so enforcement is what was lost. The surviving check
+tests only columns that stayed, an entailed entry naming its cause in one form
+and never in both.
+
+**The reader returns a flat row rather than an embedded entry.** `sqlc.embed`
+would have made every caller write `.CredentialLifecycleJournal.Actor` for
+nothing. Naming the columns keeps the row a view of one line with its entry,
+which is what a reader of a credential's history wants.
+
+**Acceptance test**: `TestAnEntryIsAnAtomicGroup` in `coderd/entity`. One entry,
+two lines, an `issue` and a `revoke`, one actor and one moment. Each credential's
+history returns the line naming it and the entry identifier that says the two
+happened together. It exercises the store directly, because the schema is what
+this milestone changed and nothing in production writes a two line entry yet.
+
+#### The authorization journal has the same need, and this did not take it
+
+`lapseAuthorizationsOf` loops and writes one entry per authorization, exactly as
+`lapseCredentialsOf` does for credentials. So one retirement produces N entries
+on both journals where the model wants one entry with N lines. **The AI agent
+journal does not need it**, one agent being one subject per event.
+
+That answers the open question this package recorded, in the direction of a
+second milestone rather than a wider first one. It is the further journal
+structure work this package expected to gather.
+
+#### A pre-existing gap this surfaced
+
+`TestMigrateUpWithFixtures` fails because **no migration fixtures exist for any
+credential or authorization table**. It listed eight such tables before this
+change and nine after, so the new table joins the gap rather than causing it.
+The gap dates to WP2 and WP4 and is not this package's to close, but nothing was
+recording it.
 
 ### Milestone 2: `reissue` is documented and left alone
 
@@ -2011,10 +2066,10 @@ have to assert one where the overlap is the point.
 
 ### Not written yet
 
-Acceptance tests, the migration's shape, and whether the AI agent and
-authorization journals take the same treatment or keep the form they have. That
-last is the likeliest home for the further journal structure work this package
-is expected to gather.
+Milestone 3 step two's acceptance test. The rest of what this section held has
+been answered: milestone 1's shape and test landed with migration 000591, and
+the authorization journal's identical need is recorded under that milestone as
+the next piece of journal structure work rather than an open question.
 
 ## WP14. An AI agent's own endpoints
 

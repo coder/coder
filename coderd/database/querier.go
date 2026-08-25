@@ -609,7 +609,13 @@ type sqlcQuerier interface {
 	// cycle, so one subject's entries are bounded by the sequences it allows and
 	// the limit only caps what a caller will take. Callers pass one more than they
 	// will accept, so receiving it tells them the set was larger.
-	GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]CredentialLifecycleJournal, error)
+	//
+	// The subject is on the line, so this joins. An entry acting on two credentials
+	// is returned to each of them, once, carrying the line that concerns the one
+	// asked about: what the other line did is that credential's business and is
+	// reached by asking about it. The entry identifier is what shows two answers
+	// came from one event.
+	GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]GetCredentialLifecycleJournalEntriesBySubjectRow, error)
 	GetCredentialPasswordByID(ctx context.Context, id uuid.UUID) (CredentialPassword, error)
 	// Entries about one credential's use, in journal order. Unbounded in principle:
 	// a variable takes assignments without limit, so the caller's limit is a cap it
@@ -1267,6 +1273,14 @@ type sqlcQuerier interface {
 	// present on an entailed entry and neither is on a commanded one, which the
 	// table's checks enforce.
 	InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error)
+	// One credential this entry acts on, and what happened to it. An entry with
+	// several lines is an atomic group: a rotation issues one credential and
+	// revokes another as a single event, so that no interval passes without a
+	// valid one.
+	//
+	// Line numbers start at zero and are the caller's to assign, being an ordering
+	// within the entry rather than a fact about anything outside it.
+	InsertCredentialLifecycleJournalLine(ctx context.Context, arg InsertCredentialLifecycleJournalLineParams) (CredentialLifecycleJournalLine, error)
 	// The password type's own state, keyed on the ledger row it belongs to. Written
 	// in the same transaction as that row: a ledger row of type password with no
 	// row here is a credential nothing can verify.

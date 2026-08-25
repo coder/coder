@@ -15370,13 +15370,23 @@ func (q *sqlQuerier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Contex
 
 const getCredentialLifecycleJournalEntriesBySubject = `-- name: GetCredentialLifecycleJournalEntriesBySubject :many
 SELECT
-	entry_id, recording_date, effective_date, actor_type, actor, event, subject, entailed_by_entry, entailed_by_annotation
+	j.entry_id,
+	j.recording_date,
+	j.effective_date,
+	j.actor_type,
+	j.actor,
+	j.entailed_by_entry,
+	j.entailed_by_annotation,
+	l.line,
+	l.subject,
+	l.event
 FROM
-	credential_lifecycle_journal
+	credential_lifecycle_journal AS j
+	INNER JOIN credential_lifecycle_journal_line AS l ON l.entry_id = j.entry_id
 WHERE
-	subject = $1
+	l.subject = $1
 ORDER BY
-	entry_id
+	j.entry_id
 LIMIT
 	$2
 `
@@ -15386,29 +15396,49 @@ type GetCredentialLifecycleJournalEntriesBySubjectParams struct {
 	Limit   int32     `db:"limit" json:"limit"`
 }
 
+type GetCredentialLifecycleJournalEntriesBySubjectRow struct {
+	EntryID              int64          `db:"entry_id" json:"entry_id"`
+	RecordingDate        time.Time      `db:"recording_date" json:"recording_date"`
+	EffectiveDate        time.Time      `db:"effective_date" json:"effective_date"`
+	ActorType            sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor                uuid.NullUUID  `db:"actor" json:"actor"`
+	EntailedByEntry      sql.NullInt64  `db:"entailed_by_entry" json:"entailed_by_entry"`
+	EntailedByAnnotation sql.NullString `db:"entailed_by_annotation" json:"entailed_by_annotation"`
+	Line                 int16          `db:"line" json:"line"`
+	Subject              uuid.UUID      `db:"subject" json:"subject"`
+	Event                string         `db:"event" json:"event"`
+}
+
 // Entries about one credential, ordered as they were made. This machine has no
 // cycle, so one subject's entries are bounded by the sequences it allows and
 // the limit only caps what a caller will take. Callers pass one more than they
 // will accept, so receiving it tells them the set was larger.
-func (q *sqlQuerier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]CredentialLifecycleJournal, error) {
+//
+// The subject is on the line, so this joins. An entry acting on two credentials
+// is returned to each of them, once, carrying the line that concerns the one
+// asked about: what the other line did is that credential's business and is
+// reached by asking about it. The entry identifier is what shows two answers
+// came from one event.
+func (q *sqlQuerier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.Context, arg GetCredentialLifecycleJournalEntriesBySubjectParams) ([]GetCredentialLifecycleJournalEntriesBySubjectRow, error) {
 	rows, err := q.db.QueryContext(ctx, getCredentialLifecycleJournalEntriesBySubject, arg.Subject, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CredentialLifecycleJournal
+	var items []GetCredentialLifecycleJournalEntriesBySubjectRow
 	for rows.Next() {
-		var i CredentialLifecycleJournal
+		var i GetCredentialLifecycleJournalEntriesBySubjectRow
 		if err := rows.Scan(
 			&i.EntryID,
 			&i.RecordingDate,
 			&i.EffectiveDate,
 			&i.ActorType,
 			&i.Actor,
-			&i.Event,
-			&i.Subject,
 			&i.EntailedByEntry,
 			&i.EntailedByAnnotation,
+			&i.Line,
+			&i.Subject,
+			&i.Event,
 		); err != nil {
 			return nil, err
 		}
@@ -15684,13 +15714,11 @@ INSERT INTO
 		effective_date,
 		actor_type,
 		actor,
-		event,
-		subject,
 		entailed_by_entry,
 		entailed_by_annotation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject, entailed_by_entry, entailed_by_annotation
+	($1, $2, $3, $4, $5, $6) RETURNING entry_id, recording_date, effective_date, actor_type, actor, entailed_by_entry, entailed_by_annotation
 `
 
 type InsertCredentialLifecycleJournalEntryParams struct {
@@ -15698,8 +15726,6 @@ type InsertCredentialLifecycleJournalEntryParams struct {
 	EffectiveDate        time.Time      `db:"effective_date" json:"effective_date"`
 	ActorType            sql.NullString `db:"actor_type" json:"actor_type"`
 	Actor                uuid.NullUUID  `db:"actor" json:"actor"`
-	Event                string         `db:"event" json:"event"`
-	Subject              uuid.UUID      `db:"subject" json:"subject"`
 	EntailedByEntry      sql.NullInt64  `db:"entailed_by_entry" json:"entailed_by_entry"`
 	EntailedByAnnotation sql.NullString `db:"entailed_by_annotation" json:"entailed_by_annotation"`
 }
@@ -15717,8 +15743,6 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, 
 		arg.EffectiveDate,
 		arg.ActorType,
 		arg.Actor,
-		arg.Event,
-		arg.Subject,
 		arg.EntailedByEntry,
 		arg.EntailedByAnnotation,
 	)
@@ -15729,10 +15753,46 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, 
 		&i.EffectiveDate,
 		&i.ActorType,
 		&i.Actor,
-		&i.Event,
-		&i.Subject,
 		&i.EntailedByEntry,
 		&i.EntailedByAnnotation,
+	)
+	return i, err
+}
+
+const insertCredentialLifecycleJournalLine = `-- name: InsertCredentialLifecycleJournalLine :one
+INSERT INTO
+	credential_lifecycle_journal_line (entry_id, line, subject, event)
+VALUES
+	($1, $2, $3, $4) RETURNING entry_id, line, subject, event
+`
+
+type InsertCredentialLifecycleJournalLineParams struct {
+	EntryID int64     `db:"entry_id" json:"entry_id"`
+	Line    int16     `db:"line" json:"line"`
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Event   string    `db:"event" json:"event"`
+}
+
+// One credential this entry acts on, and what happened to it. An entry with
+// several lines is an atomic group: a rotation issues one credential and
+// revokes another as a single event, so that no interval passes without a
+// valid one.
+//
+// Line numbers start at zero and are the caller's to assign, being an ordering
+// within the entry rather than a fact about anything outside it.
+func (q *sqlQuerier) InsertCredentialLifecycleJournalLine(ctx context.Context, arg InsertCredentialLifecycleJournalLineParams) (CredentialLifecycleJournalLine, error) {
+	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalLine,
+		arg.EntryID,
+		arg.Line,
+		arg.Subject,
+		arg.Event,
+	)
+	var i CredentialLifecycleJournalLine
+	err := row.Scan(
+		&i.EntryID,
+		&i.Line,
+		&i.Subject,
+		&i.Event,
 	)
 	return i, err
 }
