@@ -11,10 +11,9 @@ import {
 	useOrganizationModels,
 } from "../organizationModels";
 
-// Switches the active organization by rewriting the org search param while
-// preserving the current path and auxiliary parameters. Hidden when only one
-// organization is accessible. With readOnly the organization renders as an
-// informational value instead, and is shown even for a single organization.
+// Switches the active organization by rewriting the org search param in
+// place. Hidden with a single accessible organization unless readOnly,
+// which renders a static value instead.
 export const ModelOrganizationSelect: FC<{
 	label?: string;
 	readOnly?: boolean;

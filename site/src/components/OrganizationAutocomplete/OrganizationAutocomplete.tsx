@@ -157,17 +157,14 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 
 type OrganizationValueProps = {
 	organization: Organization;
-	// Collision set for disambiguation labels, matching the autocomplete's
-	// labelOrganizations behavior. Defaults to just the organization.
 	labelOrganizations?: readonly Organization[];
 	id?: string;
 	className?: string;
 };
 
-// Read-only counterpart to OrganizationAutocomplete for contexts where the
-// organization is informational and cannot be changed. Renders a static
-// value instead of a disabled control so the text keeps its normal color
-// and stays out of the tab order.
+// Read-only counterpart to OrganizationAutocomplete: a static value rather
+// than a disabled control, so it keeps normal text color and stays out of
+// the tab order.
 export const OrganizationValue: FC<OrganizationValueProps> = ({
 	organization,
 	labelOrganizations,
