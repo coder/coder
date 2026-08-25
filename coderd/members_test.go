@@ -119,6 +119,12 @@ func TestMembersWithRetiredRole(t *testing.T) {
 	require.NoError(t, err)
 	require.NotContains(t, orgResp.DefaultOrgMemberRoles, "agents-access")
 
+	// The user-roles endpoint hides the stale grant the same way.
+	userRoles, err := memberClient.UserRoles(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NotContains(t, userRoles.Roles, "agents-access")
+	require.NotContains(t, userRoles.OrganizationRoles[owner.OrganizationID], "agents-access")
+
 	// Restore the defaults so the stale grant is no longer implied and the
 	// next update must validate its removal.
 	updateOrg.DefaultOrgMemberRoles = org.DefaultOrgMemberRoles
