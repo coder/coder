@@ -2766,17 +2766,10 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 	}
 
 	return workspaceData{
-<<<<<<< HEAD
 		templates:               templates,
 		appStatuses:             db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:                  apiBuilds,
-		deploymentAllowsRenames: api.Options.AllowWorkspaceRenames,
-=======
-		templates:    templates,
-		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
-		builds:       apiBuilds,
-		allowRenames: api.AllowWorkspaceRenames,
->>>>>>> main
+		deploymentAllowsRenames: api.AllowWorkspaceRenames,
 	}, nil
 }
 
