@@ -2,7 +2,7 @@
 
 // From codersdk/templates.go
 /**
- * ACLAvailable is a list of users and groups that can be added to a template
+ * ACLAvailable is a list of users and groups that can be added to a resource
  * ACL.
  */
 export interface ACLAvailable {
@@ -2575,7 +2575,7 @@ export interface ChatGitChange {
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2591,7 +2591,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2604,7 +2604,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2616,7 +2616,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2855,11 +2855,12 @@ export interface ChatModel {
 // From codersdk/chats.go
 /**
  * ChatModelACL is the access control list for an organization-scoped chat
- * model. Each principal is mapped to its effective model role.
+ * model. Each principal includes the identity details needed to display and
+ * manage the ACL without separate directory lookups.
  */
 export interface ChatModelACL {
-	readonly user_roles: Record<string, ChatRole>;
-	readonly group_roles: Record<string, ChatRole>;
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
 }
 
 // From codersdk/chats.go
@@ -3050,8 +3051,8 @@ export interface ChatModelOverridesResponse {
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
- * never exposed. The fields mirror what /api/experimental/chats/models
- * already discloses to any authenticated caller.
+ * never exposed. The fields mirror the provider descriptors returned by the
+ * organization-scoped chat models collection.
  */
 export interface ChatModelProviderDescriptor {
 	readonly id: string;
@@ -3247,7 +3248,7 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 // From codersdk/chats.go
 /**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
- * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
  * parts (tool calls, files, attachments) are omitted by the server.
  */
@@ -3272,7 +3273,7 @@ export interface ChatPromptsOptions {
 // From codersdk/chats.go
 /**
  * ChatPromptsResponse is the payload of
- * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * GET /api/v2/chats/{chat}/prompts. Prompts are returned
  * newest first so the client can index directly into the slice for
  * up/down arrow history cycling.
  */
@@ -3657,7 +3658,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4198,6 +4199,12 @@ export interface CreateTemplateRequest {
 	 * this template. Defaults to true.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name, so this defaults to false.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -4325,9 +4332,12 @@ export interface CreateUserRequestWithOrgs {
 // From codersdk/usersecrets.go
 /**
  * CreateUserSecretRequest is the payload for creating a new user
- * secret. Name and Value are required. An enabled secret requires an
- * effective target; deployment policy may reject FilePath and require EnvName.
- * Enabled defaults to true.
+ * secret. Name and Value are required. An enabled secret must have at
+ * least one of EnvName or FilePath non-empty so it has an injection
+ * target; to keep a secret without injecting it, set Enabled to false.
+ * A deployment may disable file path delivery, which rejects a
+ * non-empty FilePath. All other fields are optional and default to
+ * empty string. Enabled defaults to true when omitted.
  */
 export interface CreateUserSecretRequest {
 	readonly name: string;
@@ -4712,7 +4722,7 @@ export const DefaultChatDebugRetentionDays = 30;
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero means disabled; the template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -4828,11 +4838,15 @@ export interface DeploymentValues {
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
 	readonly disable_chat_sharing?: boolean;
+	readonly disable_workspace_agent_context_sync?: boolean;
 	readonly disable_user_secret_file_path?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
 	readonly web_terminal_renderer?: string;
+	/**
+	 * @deprecated Use the per-template allow_workspace_renames setting instead.
+	 */
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
 	readonly retention?: RetentionConfig;
@@ -4843,6 +4857,7 @@ export interface DeploymentValues {
 	readonly workspace_hostname_suffix?: string;
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly enable_ai_tasks?: boolean;
+	readonly mcp_allowed_private_cidrs?: string;
 	readonly ai?: AIConfig;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
@@ -5533,9 +5548,16 @@ export interface GroupMemberAISpend {
 	 */
 	readonly effective_group_id: string | null;
 	/**
+	 * EffectiveBudget is the spend limit that currently applies to the user.
+	 * Null when no budget applies or the effective group belongs to a different
+	 * organization than the queried group.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
 	 * GroupBudget is the budget when the queried group is this user's
-	 * effective budget source. Null when the user's budget resolves to another
-	 * group or no budget applies to the user.
+	 * effective budget source. When populated, it matches EffectiveBudget. Null
+	 * when the user's budget resolves to another group or no budget applies.
+	 * @deprecated Use EffectiveBudget instead.
 	 */
 	readonly group_budget: AIBudgetLimit | null;
 	/**
@@ -6306,12 +6328,6 @@ export interface NetcheckReport {
 	 * STUN server you're talking to (on IPv4).
 	 */
 	readonly MappingVariesByDestIP: boolean | null;
-	/**
-	 * HairPinning is whether the router supports communicating
-	 * between two local devices through the NATted public IP address
-	 * (on IPv4).
-	 */
-	readonly HairPinning: boolean | null;
 	/**
 	 * UPnP is whether UPnP appears present on the LAN.
 	 * Empty means not checked.
@@ -8312,6 +8328,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
+ * @deprecated the agents-access role was removed. Coder Agents chat
+ * access is part of the organization-member permission floor, and
+ * servers without this built-in role reject assigning it.
  */
 export const RoleAgentsAccess = "agents-access";
 
@@ -9144,6 +9163,12 @@ export interface Template {
 	 * provisioning.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames: boolean;
 }
 
 // From codersdk/templates.go
@@ -9905,7 +9930,7 @@ export interface UpdateChatSystemPromptRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -10133,6 +10158,12 @@ export interface UpdateTemplateMeta {
 	 * this template. If omitted, the current value is preserved.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/users.go
@@ -10246,8 +10277,12 @@ export interface UpdateUserQuietHoursScheduleRequest {
 /**
  * UpdateUserSecretRequest is the payload for partially updating a
  * user secret. At least one field must be non-nil. Pointer fields
- * distinguish "not sent" from "set empty". An enabled post-update row
- * requires an effective target; deployment policy may require EnvName.
+ * distinguish "not sent" (nil) from "set to empty string" (pointer
+ * to empty string). If the post-update row is enabled it must still
+ * have at least one of EnvName or FilePath non-empty; clearing both
+ * targets is only allowed when the secret is (or becomes) disabled.
+ * When a deployment disables file path delivery, an enabled row also
+ * requires EnvName.
  */
 export interface UpdateUserSecretRequest {
 	readonly value?: string;
@@ -10752,7 +10787,10 @@ export interface UserSecret {
 	readonly env_name: string;
 	readonly file_path: string;
 	/**
-	 * Enabled is stored intent. Deployment policy may block a stored target.
+	 * Enabled controls whether the secret is injected into workspaces.
+	 * Disabled secrets remain visible and editable, but are not added
+	 * to the agent manifest, so they are not exposed as environment
+	 * variables or written to secret files.
 	 */
 	readonly enabled: boolean;
 	readonly created_at: string;
@@ -10958,6 +10996,11 @@ export interface Workspace {
 	 */
 	readonly health: WorkspaceHealth;
 	readonly automatic_updates: AutomaticUpdates;
+	/**
+	 * AllowRenames is the effective rename permission for this workspace,
+	 * derived from the template's allow_workspace_renames setting and the
+	 * deprecated deployment-wide flag.
+	 */
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;

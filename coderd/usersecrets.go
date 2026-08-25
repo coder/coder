@@ -44,41 +44,29 @@ const (
 	//nolint:gosec // User-facing validation text.
 	userSecretFilePathDisabledDetail = "File path delivery for user secrets is disabled by the deployment administrator. Clear file_path or use env_name instead."
 	//nolint:gosec // User-facing validation text.
-	userSecretEnvTargetRequiredDetail = "File path delivery for user secrets is disabled by the deployment administrator, so an enabled secret must have an env_name. Add env_name, or disable the secret."
+	userSecretEnvTargetRequiredDetail = "File path delivery for user secrets is disabled by the deployment administrator, so an enabled secret must have an env_name. Add env_name, or set enabled to false."
 )
 
-type userSecretFilePathPolicy int
-
-const (
-	userSecretFilePathAllowed userSecretFilePathPolicy = iota
-	userSecretFilePathBlocked
-)
-
-func (api *API) userSecretFilePathPolicy() userSecretFilePathPolicy {
-	if api.DeploymentValues != nil && api.DeploymentValues.DisableUserSecretFilePath.Value() {
-		return userSecretFilePathBlocked
-	}
-	return userSecretFilePathAllowed
+// userSecretFilePathBlocked reports whether the deployment forbids file path
+// delivery for user secrets.
+func (api *API) userSecretFilePathBlocked() bool {
+	return api.DeploymentValues != nil && api.DeploymentValues.DisableUserSecretFilePath.Value()
 }
 
-func userSecretCreatePolicyValidationErrors(req codersdk.CreateUserSecretRequest, policy userSecretFilePathPolicy) []codersdk.ValidationError {
-	if policy != userSecretFilePathBlocked || req.FilePath == "" {
-		return nil
-	}
-	return []codersdk.ValidationError{{
-		Field:  codersdk.UserSecretFilePathField,
-		Detail: userSecretFilePathDisabledDetail,
-	}}
-}
-
-func userSecretCreateValidationErrors(req codersdk.CreateUserSecretRequest, policy userSecretFilePathPolicy) []codersdk.ValidationError {
+//nolint:revive // blocked is deployment configuration, not caller control coupling.
+func userSecretCreateValidationErrors(req codersdk.CreateUserSecretRequest, blocked bool) []codersdk.ValidationError {
 	validations := codersdk.ValidateCreateUserSecretRequest(req)
-	if policy != userSecretFilePathBlocked {
+	if !blocked {
 		return validations
 	}
 
-	validations = append(validations, userSecretCreatePolicyValidationErrors(req, policy)...)
-	if req.Enabled != nil && !*req.Enabled || req.EnvName != "" {
+	if req.FilePath != "" {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  codersdk.UserSecretFilePathField,
+			Detail: userSecretFilePathDisabledDetail,
+		})
+	}
+	if (req.Enabled != nil && !*req.Enabled) || req.EnvName != "" {
 		return validations
 	}
 
@@ -161,7 +149,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := userSecretCreateValidationErrors(req, api.userSecretFilePathPolicy()); len(validations) > 0 {
+	if validations := userSecretCreateValidationErrors(req, api.userSecretFilePathBlocked()); len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 		return
 	}
@@ -248,10 +236,10 @@ func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
 	// Validate every entry and accumulate all errors so the caller can
 	// fix the whole file in one round-trip. Each field is prefixed with
 	// the entry index, e.g. "secrets[2].env_name".
-	filePathPolicy := api.userSecretFilePathPolicy()
+	filePathBlocked := api.userSecretFilePathBlocked()
 	var validations []codersdk.ValidationError
 	for i, sreq := range reqs {
-		entryValidations := userSecretCreateValidationErrors(sreq, filePathPolicy)
+		entryValidations := userSecretCreateValidationErrors(sreq, filePathBlocked)
 		validations = append(validations, prefixUserSecretValidationErrors(i, entryValidations)...)
 	}
 	if len(validations) > 0 {
@@ -481,7 +469,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 
 	// Lock before computing post-state so concurrent PATCHes serialize.
 	var secret database.UserSecret
-	filePathPolicy := api.userSecretFilePathPolicy()
+	filePathBlocked := api.userSecretFilePathBlocked()
 	err := api.Database.InTx(func(tx database.Store) error {
 		old, err := tx.GetUserSecretByUserIDAndNameForUpdate(ctx, database.GetUserSecretByUserIDAndNameForUpdateParams{
 			UserID: user.ID,
@@ -508,7 +496,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		if req.Enabled != nil {
 			postEnabled = *req.Enabled
 		}
-		if filePathPolicy == userSecretFilePathBlocked {
+		if filePathBlocked {
 			if err := userSecretFilePathPolicyError(old, req); err != nil {
 				return err
 			}
@@ -531,24 +519,19 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if errors.Is(err, errUserSecretInjectionTargetRequired) {
-			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, []codersdk.ValidationError{{
-				Field:  codersdk.UserSecretEnvNameField,
-				Detail: codersdk.UserSecretInjectionTargetRequiredDetail,
-			}})
-			return
+		var field, detail string
+		switch {
+		case errors.Is(err, errUserSecretInjectionTargetRequired):
+			field, detail = codersdk.UserSecretEnvNameField, codersdk.UserSecretInjectionTargetRequiredDetail
+		case errors.Is(err, errUserSecretFilePathDisabled):
+			field, detail = codersdk.UserSecretFilePathField, userSecretFilePathDisabledDetail
+		case errors.Is(err, errUserSecretEnvTargetRequired):
+			field, detail = codersdk.UserSecretEnvNameField, userSecretEnvTargetRequiredDetail
 		}
-		if errors.Is(err, errUserSecretFilePathDisabled) {
+		if field != "" {
 			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, []codersdk.ValidationError{{
-				Field:  codersdk.UserSecretFilePathField,
-				Detail: userSecretFilePathDisabledDetail,
-			}})
-			return
-		}
-		if errors.Is(err, errUserSecretEnvTargetRequired) {
-			writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, []codersdk.ValidationError{{
-				Field:  codersdk.UserSecretEnvNameField,
-				Detail: userSecretEnvTargetRequiredDetail,
+				Field:  field,
+				Detail: detail,
 			}})
 			return
 		}

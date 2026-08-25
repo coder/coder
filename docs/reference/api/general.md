@@ -312,6 +312,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_password_auth": true,
     "disable_path_apps": true,
     "disable_user_secret_file_path": true,
+    "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -388,6 +389,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ],
       "stackdriver": "string"
     },
+    "mcp_allowed_private_cidrs": [
+      "string"
+    ],
     "metrics_cache_refresh_interval": 0,
     "notifications": {
       "dispatch_timeout": 0,

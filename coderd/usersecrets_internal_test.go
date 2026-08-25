@@ -7,11 +7,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-func boolPtr(b bool) *bool    { return &b }
-func strPtr(s string) *string { return &s }
 
 func TestUserSecretCreateValidationErrors(t *testing.T) {
 	t.Parallel()
@@ -28,25 +26,25 @@ func TestUserSecretCreateValidationErrors(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		policy     userSecretFilePathPolicy
+		blocked    bool
 		req        codersdk.CreateUserSecretRequest
 		wantField  string
 		wantDetail string
 	}{
-		{name: "PolicyOffAllowsFilePath", policy: userSecretFilePathAllowed, req: req("X", "/tmp/x", nil)},
-		{name: "PolicyOnAllowsEnvOnly", policy: userSecretFilePathBlocked, req: req("X", "", nil)},
-		{name: "PolicyOnAllowsDisabledTargetless", policy: userSecretFilePathBlocked, req: req("", "", boolPtr(false))},
-		{name: "PolicyOnRejectsFilePath", policy: userSecretFilePathBlocked, req: req("X", "/tmp/x", nil), wantField: pathField, wantDetail: userSecretFilePathDisabledDetail},
-		{name: "PolicyOnRejectsFilePathOnDisabled", policy: userSecretFilePathBlocked, req: req("", "/tmp/x", boolPtr(false)), wantField: pathField, wantDetail: userSecretFilePathDisabledDetail},
-		{name: "PolicyOnRequiresEnvTarget", policy: userSecretFilePathBlocked, req: req("", "", nil), wantField: envField, wantDetail: userSecretEnvTargetRequiredDetail},
-		{name: "PolicyOffKeepsSharedMessage", policy: userSecretFilePathAllowed, req: req("", "", nil), wantField: envField, wantDetail: codersdk.UserSecretInjectionTargetRequiredDetail},
+		{name: "PolicyOffAllowsFilePath", blocked: false, req: req("X", "/tmp/x", nil)},
+		{name: "PolicyOnAllowsEnvOnly", blocked: true, req: req("X", "", nil)},
+		{name: "PolicyOnAllowsDisabledTargetless", blocked: true, req: req("", "", ptr.Ref(false))},
+		{name: "PolicyOnRejectsFilePath", blocked: true, req: req("X", "/tmp/x", nil), wantField: pathField, wantDetail: userSecretFilePathDisabledDetail},
+		{name: "PolicyOnRejectsFilePathOnDisabled", blocked: true, req: req("", "/tmp/x", ptr.Ref(false)), wantField: pathField, wantDetail: userSecretFilePathDisabledDetail},
+		{name: "PolicyOnRequiresEnvTarget", blocked: true, req: req("", "", nil), wantField: envField, wantDetail: userSecretEnvTargetRequiredDetail},
+		{name: "PolicyOffKeepsSharedMessage", blocked: false, req: req("", "", nil), wantField: envField, wantDetail: codersdk.UserSecretInjectionTargetRequiredDetail},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := userSecretCreateValidationErrors(tt.req, tt.policy)
+			got := userSecretCreateValidationErrors(tt.req, tt.blocked)
 			if tt.wantField == "" {
 				require.Empty(t, got)
 				return
@@ -71,6 +69,17 @@ func TestPrefixUserSecretValidationErrors(t *testing.T) {
 	assert.Equal(t, "secrets[2].env_name", got[1].Field)
 }
 
+func TestPrefixUserSecretValidationErrorsNegativeIndex(t *testing.T) {
+	t.Parallel()
+
+	// The batch handler passes failedIndex=-1 when no entry can be blamed.
+	in := []codersdk.ValidationError{{Field: codersdk.UserSecretEnvNameField, Detail: "nope"}}
+	got := prefixUserSecretValidationErrors(-1, in)
+	require.Len(t, got, 1)
+	assert.Equal(t, codersdk.UserSecretEnvNameField, got[0].Field)
+	assert.Equal(t, "nope", got[0].Detail)
+}
+
 func TestUserSecretFilePathPolicyError(t *testing.T) {
 	t.Parallel()
 
@@ -87,17 +96,17 @@ func TestUserSecretFilePathPolicyError(t *testing.T) {
 		req     codersdk.UpdateUserSecretRequest
 		wantErr error
 	}{
-		{name: "UnrelatedEdit", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{Description: strPtr("new")}},
-		{name: "ResubmitSamePath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr("/tmp/legacy")}},
-		{name: "Disable", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{Enabled: boolPtr(false)}},
-		{name: "ClearOnlyPath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr("")}, wantErr: errUserSecretEnvTargetRequired},
-		{name: "ClearPathAndDisable", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr(""), Enabled: boolPtr(false)}},
-		{name: "MigrateToEnv", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{EnvName: strPtr("ENV"), FilePath: strPtr("")}},
-		{name: "CleanupPathWithEnvTarget", old: bothTargets, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr("")}},
-		{name: "AddPath", old: envOnly, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr("/tmp/new")}, wantErr: errUserSecretFilePathDisabled},
-		{name: "ChangePath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: strPtr("/tmp/other")}, wantErr: errUserSecretFilePathDisabled},
-		{name: "ClearEnvLeavesOnlyPath", old: bothTargets, req: codersdk.UpdateUserSecretRequest{EnvName: strPtr("")}, wantErr: errUserSecretEnvTargetRequired},
-		{name: "ReEnableFileOnly", old: disabledFileOnly, req: codersdk.UpdateUserSecretRequest{Enabled: boolPtr(true)}, wantErr: errUserSecretEnvTargetRequired},
+		{name: "UnrelatedEdit", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{Description: ptr.Ref("new")}},
+		{name: "ResubmitSamePath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref("/tmp/legacy")}},
+		{name: "Disable", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{Enabled: ptr.Ref(false)}},
+		{name: "ClearOnlyPath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref("")}, wantErr: errUserSecretEnvTargetRequired},
+		{name: "ClearPathAndDisable", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref(""), Enabled: ptr.Ref(false)}},
+		{name: "MigrateToEnv", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{EnvName: ptr.Ref("ENV"), FilePath: ptr.Ref("")}},
+		{name: "CleanupPathWithEnvTarget", old: bothTargets, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref("")}},
+		{name: "AddPath", old: envOnly, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref("/tmp/new")}, wantErr: errUserSecretFilePathDisabled},
+		{name: "ChangePath", old: legacyFileOnly, req: codersdk.UpdateUserSecretRequest{FilePath: ptr.Ref("/tmp/other")}, wantErr: errUserSecretFilePathDisabled},
+		{name: "ClearEnvLeavesOnlyPath", old: bothTargets, req: codersdk.UpdateUserSecretRequest{EnvName: ptr.Ref("")}, wantErr: errUserSecretEnvTargetRequired},
+		{name: "ReEnableFileOnly", old: disabledFileOnly, req: codersdk.UpdateUserSecretRequest{Enabled: ptr.Ref(true)}, wantErr: errUserSecretEnvTargetRequired},
 	}
 
 	for _, tt := range tests {

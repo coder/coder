@@ -53,17 +53,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets \
 
 Status Code **200**
 
-| Name            | Type              | Required | Restrictions | Description                                                            |
-|-----------------|-------------------|----------|--------------|------------------------------------------------------------------------|
-| `[array item]`  | array             | false    |              |                                                                        |
-| `» created_at`  | string(date-time) | false    |              |                                                                        |
-| `» description` | string            | false    |              |                                                                        |
-| `» enabled`     | boolean           | false    |              | Enabled is stored intent. Deployment policy may block a stored target. |
-| `» env_name`    | string            | false    |              |                                                                        |
-| `» file_path`   | string            | false    |              |                                                                        |
-| `» id`          | string(uuid)      | false    |              |                                                                        |
-| `» name`        | string            | false    |              |                                                                        |
-| `» updated_at`  | string(date-time) | false    |              |                                                                        |
+| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|-----------------|-------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`  | array             | false    |              |                                                                                                                                                                                                                                      |
+| `» created_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» description` | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» enabled`     | boolean           | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `» env_name`    | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» file_path`   | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» id`          | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+| `» name`        | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» updated_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -190,17 +190,17 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets/batch \
 
 Status Code **201**
 
-| Name            | Type              | Required | Restrictions | Description                                                            |
-|-----------------|-------------------|----------|--------------|------------------------------------------------------------------------|
-| `[array item]`  | array             | false    |              |                                                                        |
-| `» created_at`  | string(date-time) | false    |              |                                                                        |
-| `» description` | string            | false    |              |                                                                        |
-| `» enabled`     | boolean           | false    |              | Enabled is stored intent. Deployment policy may block a stored target. |
-| `» env_name`    | string            | false    |              |                                                                        |
-| `» file_path`   | string            | false    |              |                                                                        |
-| `» id`          | string(uuid)      | false    |              |                                                                        |
-| `» name`        | string            | false    |              |                                                                        |
-| `» updated_at`  | string(date-time) | false    |              |                                                                        |
+| Name            | Type              | Required | Restrictions | Description                                                                                                                                                                                                                          |
+|-----------------|-------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`  | array             | false    |              |                                                                                                                                                                                                                                      |
+| `» created_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
+| `» description` | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» enabled`     | boolean           | false    |              | Enabled controls whether the secret is injected into workspaces. Disabled secrets remain visible and editable, but are not added to the agent manifest, so they are not exposed as environment variables or written to secret files. |
+| `» env_name`    | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» file_path`   | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» id`          | string(uuid)      | false    |              |                                                                                                                                                                                                                                      |
+| `» name`        | string            | false    |              |                                                                                                                                                                                                                                      |
+| `» updated_at`  | string(date-time) | false    |              |                                                                                                                                                                                                                                      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

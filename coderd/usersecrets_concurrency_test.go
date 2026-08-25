@@ -2,7 +2,6 @@ package coderd_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -25,23 +24,21 @@ func TestGetUserSecretByUserIDAndNameForUpdateLocks(t *testing.T) {
 	arg := database.GetUserSecretByUserIDAndNameForUpdateParams{
 		UserID: user.ID, Name: secret.Name,
 	}
-	lock := func() (<-chan error, func()) {
-		locked, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
-		go func() {
-			done <- db.InTx(func(tx database.Store) error {
-				if _, err := tx.GetUserSecretByUserIDAndNameForUpdate(ctx, arg); err != nil {
-					return err
-				}
-				close(locked)
-				<-release
-				return nil
-			}, nil)
-		}()
-		testutil.TryReceive(ctx, t, locked)
-		return done, func() { close(release) }
-	}
 
-	firstDone, releaseFirst := lock()
+	// The first transaction holds the row lock until released.
+	locked, release := make(chan struct{}), make(chan struct{})
+	first := make(chan error, 1)
+	go func() {
+		first <- db.InTx(func(tx database.Store) error {
+			if _, err := tx.GetUserSecretByUserIDAndNameForUpdate(ctx, arg); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		}, nil)
+	}()
+	testutil.TryReceive(ctx, t, locked)
 
 	second := make(chan error, 1)
 	go func() {
@@ -51,13 +48,42 @@ func TestGetUserSecretByUserIDAndNameForUpdateLocks(t *testing.T) {
 		}, nil)
 	}()
 
+	// Wait until the second transaction is observably blocked on the row lock,
+	// rather than inferring it from a fixed delay. A waiter for SELECT ... FOR
+	// UPDATE takes a granted "tuple" lock on the relation and then waits on the
+	// holder's transaction ID, so it appears in pg_locks as a backend holding
+	// both rows. Asserting the wait directly stops this from passing vacuously
+	// when the second goroutine is merely slow to reach the query.
+	require.Eventually(t, func() bool {
+		locks, err := db.PGLocks(ctx)
+		if err != nil {
+			return false
+		}
+		waitingOnRow := make(map[int]bool)
+		for _, l := range locks {
+			if l.LockType != nil && *l.LockType == "tuple" &&
+				l.RelationName != nil && *l.RelationName == "user_secrets" {
+				waitingOnRow[l.PID] = true
+			}
+		}
+		for _, l := range locks {
+			if !l.Granted && waitingOnRow[l.PID] &&
+				l.LockType != nil && *l.LockType == "transactionid" {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitShort, testutil.IntervalFast, "second transaction must block on the user_secrets row lock")
+
+	// With the second transaction proven blocked, it must not have completed
+	// while the row lock is still held.
 	select {
 	case err := <-second:
 		t.Fatalf("second transaction acquired the row lock while it was held: %v", err)
-	case <-time.After(testutil.IntervalMedium):
+	default:
 	}
 
-	releaseFirst()
-	require.NoError(t, testutil.TryReceive(ctx, t, firstDone))
+	close(release)
+	require.NoError(t, testutil.TryReceive(ctx, t, first))
 	require.NoError(t, testutil.TryReceive(ctx, t, second))
 }

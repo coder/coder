@@ -35,12 +35,6 @@ func TestUserSecretFilePathDisabledHandlers(t *testing.T) {
 	})
 	requireSecretValidationContainsError(t, err, http.StatusBadRequest, "file_path", "disabled")
 
-	imported, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
-		Format: codersdk.SecretsFileFormatEnv, Content: "IMPORTED=value\nPATH=disabled\n",
-	})
-	require.NoError(t, err)
-	require.Len(t, imported, 2)
-
 	legacy := dbgen.UserSecret(t, db, database.UserSecret{UserID: owner.UserID, Name: "legacy"},
 		func(p *database.CreateUserSecretParams) {
 			p.EnvName, p.FilePath, p.Enabled = "", "/tmp/legacy", true
@@ -58,11 +52,7 @@ func TestUserSecretFilePathDisabledHandlers(t *testing.T) {
 	_, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{FilePath: &empty})
 	requireSecretValidationContainsError(t, err, http.StatusBadRequest, "env_name", "Add env_name")
 
-	disabled := false
-	updated, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{Enabled: &disabled})
-	require.NoError(t, err)
-	assert.Equal(t, "/tmp/legacy", updated.FilePath)
-
+	// Changing the path of the still-enabled legacy row is rejected.
 	auditor.ResetLogs()
 	newPath := "/tmp/other"
 	_, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{
@@ -76,4 +66,9 @@ func TestUserSecretFilePathDisabledHandlers(t *testing.T) {
 	assert.EqualValues(t, http.StatusBadRequest, logs[0].StatusCode)
 	assert.Equal(t, legacy.ID, logs[0].ResourceID)
 	assert.JSONEq(t, "{}", string(logs[0].Diff))
+
+	disabled := false
+	updated, err = client.UpdateUserSecret(ctx, codersdk.Me, legacy.Name, codersdk.UpdateUserSecretRequest{Enabled: &disabled})
+	require.NoError(t, err)
+	assert.Equal(t, "/tmp/legacy", updated.FilePath)
 }

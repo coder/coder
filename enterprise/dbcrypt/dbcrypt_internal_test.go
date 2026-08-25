@@ -1923,6 +1923,26 @@ func TestUserSecrets(t *testing.T) {
 		require.ErrorAs(t, err, &derr)
 	})
 
+	t.Run("GetUserSecretForUpdateDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		dbgen.UserSecret(t, db, database.UserSecret{
+			UserID:     user.ID,
+			Name:       "corrupt-secret-for-update",
+			Value:      fakeBase64RandomData(t, 32),
+			ValueKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+		})
+
+		_, err := crypt.GetUserSecretByUserIDAndNameForUpdate(ctx, database.GetUserSecretByUserIDAndNameForUpdateParams{
+			UserID: user.ID,
+			Name:   "corrupt-secret-for-update",
+		})
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
 	t.Run("ListUserSecretsWithValuesDecryptErr", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
