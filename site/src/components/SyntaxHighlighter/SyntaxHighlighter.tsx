@@ -111,7 +111,6 @@ const DiffFile: FC<DiffFileProps> = ({
 		) => {
 			onMount?.(editor, monacoInstance);
 
-			// Capture the models so the cleanup effect can dispose them.
 			const diffModel = editor.getModel();
 			diffModelsRef.current = diffModel
 				? { original: diffModel.original, modified: diffModel.modified }
