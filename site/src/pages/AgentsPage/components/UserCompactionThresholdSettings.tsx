@@ -181,10 +181,13 @@ export const UserCompactionThresholdSettings: FC<
 			});
 	};
 
-	// Compute dirty rows: rows where the user has typed a valid value
-	// that differs from the current server-side override.
+	// Compute dirty rows: visible rows where the user has typed a valid
+	// value that differs from the current server-side override. Drafts on
+	// rows hidden by the organization picker are kept but not acted on
+	// until their organization is selected again.
+	const visibleModelIDs = new Set(visibleModels.map((config) => config.id));
 	const dirtyRows: Array<{ modelId: string; value: number }> = [];
-	for (const modelConfig of enabledModels) {
+	for (const modelConfig of visibleModels) {
 		const draft = drafts[modelConfig.id];
 		if (draft === undefined) continue;
 		const parsed = parseThresholdDraft(draft);
@@ -226,13 +229,31 @@ export const UserCompactionThresholdSettings: FC<
 	};
 
 	const handleCancelAll = () => {
-		setDrafts({});
-		setRowErrors({});
+		setDrafts((currentDrafts) =>
+			Object.fromEntries(
+				Object.entries(currentDrafts).filter(
+					([modelID]) => !visibleModelIDs.has(modelID),
+				),
+			),
+		);
+		setRowErrors((currentErrors) =>
+			Object.fromEntries(
+				Object.entries(currentErrors).filter(
+					([modelID]) => !visibleModelIDs.has(modelID),
+				),
+			),
+		);
 	};
 
-	const hasAnyPending = pendingModels.size > 0;
-	const hasAnyErrors = Object.keys(rowErrors).length > 0;
-	const hasAnyDrafts = Object.keys(drafts).length > 0;
+	const hasAnyPending = [...pendingModels].some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
+	const hasAnyErrors = Object.keys(rowErrors).some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
+	const hasAnyDrafts = Object.keys(drafts).some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
 	const shouldShowActions =
 		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
 

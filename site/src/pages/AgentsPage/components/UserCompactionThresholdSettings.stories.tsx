@@ -340,7 +340,7 @@ export const OrganizationFilter: Story = {
 
 		await userEvent.click(filter);
 		const option = await within(document.body).findByRole("option", {
-			name: new RegExp(MockOrganization2.display_name),
+			name: MockOrganization2.display_name,
 		});
 		await userEvent.click(option);
 
@@ -364,6 +364,82 @@ export const SingleOrganizationHidesFilter: Story = {
 		expect(
 			canvas.queryByRole("button", { name: /^Organization / }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const OrganizationFilterScopesSaveActions: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(gpt4oInput, "95");
+		await canvas.findByRole("button", { name: /Save 1 change/i });
+
+		// Switch to the other organization: the draft belongs to a hidden
+		// row, so the footer must disappear.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${modelsOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
+		});
+
+		// Editing the visible row saves only that row.
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+		await userEvent.type(claudeInput, "50");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Save 1 change/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
+		});
+
+		// Switching back restores the hidden draft and its footer.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: modelsOrganization.display_name,
+			}),
+		);
+		const restoredInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		expect(restoredInput).toHaveValue("95");
+		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// action buttons reappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /Save 1 change/i }),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
 	},
 };
 
