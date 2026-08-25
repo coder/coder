@@ -2153,6 +2153,12 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
+		r.Route("/mcp-gateway/escalations", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.mcpGatewayEscalations)
+			r.Post("/{id}/approve", api.approveMCPGatewayEscalation)
+			r.Post("/{id}/deny", api.denyMCPGatewayEscalation)
+		})
 		// The enterprise AI Gateway catch-all is a wildcard, so chi gives this
 		// literal management route precedence in all editions.
 		r.Route("/ai-gateway/mcp-servers", mcpServerConfigsHandler(api, apiKeyMiddleware))

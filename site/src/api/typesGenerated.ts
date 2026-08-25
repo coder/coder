@@ -5965,6 +5965,36 @@ export interface LoginWithPasswordResponse {
 	readonly session_token: string;
 }
 
+// From codersdk/mcpgatewayescalations.go
+/**
+ * MCPGatewayEscalation is an MCP tool call awaiting or recording sponsor
+ * approval.
+ */
+export interface MCPGatewayEscalation {
+	readonly id: string;
+	readonly server_slug: string;
+	readonly tool: string;
+	readonly input: string;
+	readonly workspace_name: string;
+	readonly status: MCPGatewayEscalationStatus;
+	readonly created_at: string;
+	readonly expires_at: string;
+}
+
+// From codersdk/mcpgatewayescalations.go
+export type MCPGatewayEscalationStatus =
+	| "approved"
+	| "denied"
+	| "expired"
+	| "pending";
+
+export const MCPGatewayEscalationStatuses: MCPGatewayEscalationStatus[] = [
+	"approved",
+	"denied",
+	"expired",
+	"pending",
+];
+
 // From codersdk/mcp.go
 /**
  * MCPServerConfig represents an admin-configured MCP server.

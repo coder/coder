@@ -557,3 +557,165 @@ curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/mcp-servers/{mcpServer
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.MCPServerOAuth2DisconnectResponse](schemas.md#codersdkmcpserveroauth2disconnectresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List MCP gateway escalations
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/mcp-gateway/escalations \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/mcp-gateway/escalations`
+
+### Parameters
+
+| Name     | In    | Type   | Required | Description       |
+|----------|-------|--------|----------|-------------------|
+| `status` | query | string | false    | Escalation status |
+
+#### Enumerated Values
+
+| Parameter | Value(s)                                   |
+|-----------|--------------------------------------------|
+| `status`  | `approved`, `denied`, `expired`, `pending` |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "expires_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": "string",
+    "server_slug": "string",
+    "status": "pending",
+    "tool": "string",
+    "workspace_name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                            |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.MCPGatewayEscalation](schemas.md#codersdkmcpgatewayescalation) |
+
+<h3 id="list-mcp-gateway-escalations-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name               | Type                                                                                 | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `[array item]`     | array                                                                                | false    |              |             |
+| `» created_at`     | string(date-time)                                                                    | false    |              |             |
+| `» expires_at`     | string(date-time)                                                                    | false    |              |             |
+| `» id`             | string(uuid)                                                                         | false    |              |             |
+| `» input`          | string                                                                               | false    |              |             |
+| `» server_slug`    | string                                                                               | false    |              |             |
+| `» status`         | [codersdk.MCPGatewayEscalationStatus](schemas.md#codersdkmcpgatewayescalationstatus) | false    |              |             |
+| `» tool`           | string                                                                               | false    |              |             |
+| `» workspace_name` | string                                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s)                                   |
+|----------|--------------------------------------------|
+| `status` | `approved`, `denied`, `expired`, `pending` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Approve an MCP gateway escalation
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/mcp-gateway/escalations/{id}/approve \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/mcp-gateway/escalations/{id}/approve`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description               |
+|------|------|--------------|----------|---------------------------|
+| `id` | path | string(uuid) | true     | MCP gateway escalation ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Deny an MCP gateway escalation
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/mcp-gateway/escalations/{id}/deny \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/mcp-gateway/escalations/{id}/deny`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description               |
+|------|------|--------------|----------|---------------------------|
+| `id` | path | string(uuid) | true     | MCP gateway escalation ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

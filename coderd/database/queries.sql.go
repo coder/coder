@@ -17935,7 +17935,8 @@ func (q *sqlQuerier) InsertMCPGatewayEscalation(ctx context.Context, arg InsertM
 
 const listMCPGatewayEscalationsBySponsor = `-- name: ListMCPGatewayEscalationsBySponsor :many
 SELECT id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by FROM mcp_gateway_escalations
-WHERE sponsor_user_id = $1 AND status = $2
+WHERE sponsor_user_id = $1
+  AND ($2::text = '' OR status = $2::text)
 ORDER BY created_at DESC
 `
 

@@ -9096,6 +9096,48 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 |-----------------|--------|----------|--------------|-------------|
 | `session_token` | string | true     |              |             |
 
+## codersdk.MCPGatewayEscalation
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input": "string",
+  "server_slug": "string",
+  "status": "pending",
+  "tool": "string",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                       | Required | Restrictions | Description |
+|------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`     | string                                                                     | false    |              |             |
+| `expires_at`     | string                                                                     | false    |              |             |
+| `id`             | string                                                                     | false    |              |             |
+| `input`          | string                                                                     | false    |              |             |
+| `server_slug`    | string                                                                     | false    |              |             |
+| `status`         | [codersdk.MCPGatewayEscalationStatus](#codersdkmcpgatewayescalationstatus) | false    |              |             |
+| `tool`           | string                                                                     | false    |              |             |
+| `workspace_name` | string                                                                     | false    |              |             |
+
+## codersdk.MCPGatewayEscalationStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                   |
+|--------------------------------------------|
+| `approved`, `denied`, `expired`, `pending` |
+
 ## codersdk.MCPServerConfig
 
 ```json

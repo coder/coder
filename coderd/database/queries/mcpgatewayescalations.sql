@@ -37,7 +37,8 @@ SELECT * FROM mcp_gateway_escalations WHERE id = $1;
 
 -- name: ListMCPGatewayEscalationsBySponsor :many
 SELECT * FROM mcp_gateway_escalations
-WHERE sponsor_user_id = $1 AND status = $2
+WHERE sponsor_user_id = @sponsor_user_id
+  AND (@status::text = '' OR status = @status::text)
 ORDER BY created_at DESC;
 
 -- name: ResolveMCPGatewayEscalation :one
