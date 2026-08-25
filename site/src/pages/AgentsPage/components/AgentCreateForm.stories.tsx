@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import {
 	expect,
@@ -26,6 +26,7 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -37,8 +38,15 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+import {
+	AgentCreateForm,
+	emptyInputStorageKey,
+	selectedOrganizationIdStorageKey,
+} from "./AgentCreateForm";
 
+let pendingOrganizationAuthorization: Deferred<
+	Awaited<ReturnType<typeof API.checkAuthorization>>
+>;
 let capturedQueryClient: QueryClient | undefined;
 
 const permittedOrgsKey = permittedOrganizationsKey({
@@ -297,6 +305,20 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+
+const RemountAgentCreateForm = (
+	props: ComponentProps<typeof AgentCreateForm>,
+) => {
+	const [key, setKey] = useState(0);
+	return (
+		<>
+			<button type="button" onClick={() => setKey((current) => current + 1)}>
+				Remount form
+			</button>
+			<AgentCreateForm key={key} {...props} />
+		</>
+	);
+};
 
 const mockPermittedOrganizations = (
 	permissions: Record<string, boolean>,
@@ -1644,6 +1666,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -1655,10 +1678,18 @@ export const OrganizationAuthorizationFailure: Story = {
 		spyOn(API, "checkAuthorization").mockRejectedValue(
 			new Error("authorization check failed"),
 		);
+		spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			defaultModelCatalog,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findAllByText(/authorization check failed/i);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -1695,15 +1726,23 @@ export const DelayedOrganizationAuthorization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.setItem(emptyInputStorageKey, "draft message");
-		mockPermittedOrganizations(
-			{
-				[MockDefaultOrganization.id]: true,
-				[MockOrganization2.id]: true,
-			},
-			1_500,
+		pendingOrganizationAuthorization = createDeferred();
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(
+			() => pendingOrganizationAuthorization.promise,
+		);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: { ...defaultModelCatalog, models: [] },
 		);
 	},
 	args: {
@@ -1724,6 +1763,15 @@ export const DelayedOrganizationAuthorization: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "More options" }),
 		).toBeDisabled();
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
+		expect(
+			canvas.queryByText(/AI models aren't available yet/i),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText("No model is available")).not.toBeInTheDocument();
 		// dispatchEvent returns false when a handler accepted the drop
 		// via preventDefault, giving a race-free accepted/ignored signal.
 		const dropFile = (name: string): boolean => {
@@ -1741,18 +1789,81 @@ export const DelayedOrganizationAuthorization: Story = {
 		// must be ignored.
 		expect(dropFile("drop.txt")).toBe(true);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
-		// The pending option list is unfiltered, so the picker must stay hidden.
 		expect(
 			canvas.queryByRole("button", { name: /organization/i }),
 		).not.toBeInTheDocument();
-		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
-		await canvas.findByRole("button", { name: /organization/i });
+
+		pendingOrganizationAuthorization.resolve({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		expect(API.experimental.getChatModels).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+		);
+		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).toHaveBeenCalledWith(MockOrganization2.id, "me");
 		// Positive control: once settled the same drop is accepted and
 		// attaches, so the pending-state assertions exercised a real path.
 		expect(dropFile("after.txt")).toBe(false);
 		await waitFor(() =>
 			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
 		);
+	},
+};
+
+export const SelectedOrganizationSurvivesRemount: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: { ...defaultArgs },
+	render: (args) => <RemountAgentCreateForm {...args} />,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: defaultModelCatalog,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+				MockOrganization2.id,
+			);
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Remount form" }));
+		expect(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeVisible();
 	},
 };
 
