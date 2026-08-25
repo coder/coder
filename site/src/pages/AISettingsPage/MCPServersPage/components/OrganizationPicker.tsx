@@ -53,8 +53,17 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	const isReadOnly = !onChange || hasSingleSelectedOrganization;
 
 	return (
-		<div className={cn("flex w-72 flex-col gap-2", className)}>
-			{showLabel && <Label htmlFor={id}>Organization</Label>}
+		// The label and gap mirror the form Field primitive so the picker
+		// lines up with sibling fields when rendered inside a form grid.
+		<div className={cn("flex w-72 flex-col gap-1.5", className)}>
+			{showLabel && (
+				<Label
+					htmlFor={id}
+					className="flex items-center gap-1 leading-6 text-content-primary"
+				>
+					Organization
+				</Label>
+			)}
 			{isReadOnly ? (
 				<OrganizationValue
 					id={id}

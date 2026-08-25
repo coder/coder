@@ -1305,7 +1305,7 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 			body.queryByRole("option", { name: "User OIDC identity" }),
 		).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Server actions" }),
+			canvas.queryByRole("button", { name: "Delete" }),
 		).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: /delete server/i }),
@@ -1379,7 +1379,6 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
@@ -1389,10 +1388,7 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
-		await expect(enabledSwitch).toHaveAttribute("aria-disabled", "true");
-		await expect(enabledSwitch).toHaveAccessibleDescription(
-			"You do not have permission to update this server.",
-		);
+		await expect(enabledSwitch).toBeDisabled();
 		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
@@ -1403,12 +1399,7 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 		await expect(
 			canvas.getByLabelText(/authentication method/i),
 		).toHaveTextContent("User OIDC identity");
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Server actions" }),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		).toBeEnabled();
+		await expect(canvas.getByRole("button", { name: "Delete" })).toBeEnabled();
 	},
 };
 
@@ -1447,10 +1438,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
-		await expect(enabledSwitch).toHaveAttribute("aria-disabled", "true");
-		await expect(enabledSwitch).toHaveAccessibleDescription(
-			"You do not have permission to update this server.",
-		);
+		await expect(enabledSwitch).toBeDisabled();
 		await expect(canvas.getByLabelText(/^slug/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/server url/i)).toBeDisabled();
@@ -1473,12 +1461,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		).toBeDisabled();
 		await expect(canvas.getByLabelText(/tool allow list/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/tool deny list/i)).toBeDisabled();
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Server actions" }),
-		);
-		await userEvent.click(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
 		await userEvent.click(
 			await body.findByRole("button", { name: "Delete MCP server" }),
 		);

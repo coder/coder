@@ -44,7 +44,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 					organizationPicker={
 						<OrganizationPicker
 							id="mcp-add-organization"
-							className="w-full gap-1.5"
+							className="w-full"
 							organizations={organizations}
 							organization={organization}
 							onChange={onSelectOrganization}

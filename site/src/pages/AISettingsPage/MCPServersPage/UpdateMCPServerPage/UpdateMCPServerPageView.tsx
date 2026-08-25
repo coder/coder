@@ -47,7 +47,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				organizationPicker={
 					<OrganizationPicker
 						id="mcp-update-organization"
-						className="w-full gap-1.5"
+						className="w-full"
 						organizations={organizations}
 						organization={organization}
 						showSingleOrganization

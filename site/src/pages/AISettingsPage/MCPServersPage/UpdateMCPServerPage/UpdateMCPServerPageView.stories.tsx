@@ -104,32 +104,16 @@ export const DeleteOnly: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/^slug/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/server url/i)).toBeDisabled();
 		await expect(
 			canvas.getByRole("button", { name: "Update server" }),
 		).toBeDisabled();
-		const serverActions = canvas.getByRole("button", {
-			name: "Server actions",
-		});
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
-		await expect(enabledSwitch).toHaveAttribute("aria-disabled", "true");
-		await expect(enabledSwitch).toHaveAccessibleDescription(
-			"You do not have permission to update this server.",
-		);
-		serverActions.focus();
-		await userEvent.tab();
-		await expect(enabledSwitch).toHaveFocus();
-		await expect(await body.findByRole("tooltip")).toHaveTextContent(
-			"You do not have permission to update this server.",
-		);
-		await userEvent.click(serverActions);
-		await expect(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		).toBeEnabled();
+		await expect(enabledSwitch).toBeDisabled();
+		await expect(canvas.getByRole("button", { name: "Delete" })).toBeEnabled();
 	},
 };
