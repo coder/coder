@@ -348,6 +348,14 @@ var retiredRoleNames = map[string]struct{}{
 	"agents-access": {},
 }
 
+// IsRetiredRoleName reports whether name is a retired built-in role name. It
+// is reserved against creation and updates, but a custom role that took the
+// name before it was reserved must remain deletable.
+func IsRetiredRoleName(name string) bool {
+	_, ok := retiredRoleNames[name]
+	return ok
+}
+
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
