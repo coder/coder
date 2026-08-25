@@ -26,30 +26,22 @@ be combined with `title:`, `pr_title:`, or `pr:`.
 
 `search:` uses token-based PostgreSQL full-text search:
 
-- Matching is case-insensitive. Every word in the value must match
-  (AND semantics). Quoted phrases, `OR`, and `-` negation follow
+- Case-insensitive whole-word matching with AND semantics. Quoted
+  phrases, `OR`, and `-` negation follow
   [`websearch_to_tsquery`](https://www.postgresql.org/docs/current/textsearch-controls.html#TEXTSEARCH-PARSING-QUERIES)
-  semantics.
-- Chat titles and PR titles match whole words without stemming.
-- Message content matches English word stems, so `refactor` matches a
-  message containing `refactoring`, and ignores common English
-  stopwords (such as `the`, `or`, `and`).
-- There is no fuzzy, semantic, or partial-word (prefix) matching.
-- A value that tokenizes to no searchable words, such as punctuation
-  only, returns an empty list. An empty `search:` value returns HTTP
-  400.
-- A value that is a whole number also matches chats by exact PR number.
-- Results list matching conversations only; there are no match snippets
-  or highlights.
-- Results use the standard chat list ordering (pinned conversations
-  first, then most recently updated) and pagination (default page size
-  50).
-- Message content is indexed by a background job and becomes searchable
-  shortly after it is written, usually within 10 minutes. Chat titles
-  and PR titles are searchable immediately.
-
-The `title:`, `pr_title:`, and `repo:` filters are unaffected: they use
-case-insensitive `ILIKE` substring matching, not full-text search.
+  rules.
+- Message content matches English word stems (`refactor` matches
+  `refactoring`) and ignores English stopwords. Titles and PR titles
+  do not stem.
+- No fuzzy, semantic, or prefix matching.
+- Whole-number values also match exact PR numbers.
+- A value with no searchable words (punctuation only) returns an empty
+  list; an empty value returns HTTP 400.
+- Results use the standard chat list ordering (pinned first, then most
+  recently updated) and pagination, without match snippets.
+- Message content becomes searchable shortly after it is written
+  (background indexing, usually within 10 minutes). Titles and PR
+  titles are searchable immediately.
 
 ## Examples
 
@@ -82,9 +74,6 @@ case-insensitive `ILIKE` substring matching, not full-text search.
 ?q=pr_title:"fix auth bug"
 
 # Full-text search across titles, PR titles, and messages
-?q=search:deploy
-
-# Multi-word full-text search (all words must match)
 ?q=search:"kubernetes restart"
 
 # Combine full-text search with other filters
