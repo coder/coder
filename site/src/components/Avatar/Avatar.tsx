@@ -16,6 +16,12 @@ import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
 import { isBuiltInEmojiUrl } from "#/utils/emojis";
 
+const avatarSizeVariables = {
+	lg: "--avatar-lg",
+	md: "--avatar-default",
+	sm: "--avatar-sm",
+} as const;
+
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
 	{
@@ -50,23 +56,6 @@ const avatarVariants = cva(
 				variant: "icon",
 				className: "p-[3px]",
 			},
-			// Emojis get a proportional inset of 20% per side, so the padding
-			// stays in ratio with the --avatar-* size variables.
-			{
-				size: "lg",
-				variant: "emoji",
-				className: "p-[calc(var(--avatar-lg)*0.2)]",
-			},
-			{
-				size: "md",
-				variant: "emoji",
-				className: "p-[calc(var(--avatar-default)*0.2)]",
-			},
-			{
-				size: "sm",
-				variant: "emoji",
-				className: "p-[calc(var(--avatar-sm)*0.2)]",
-			},
 		],
 	},
 );
@@ -98,6 +87,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 	fallback,
 	alt = "",
 	children,
+	style,
 	...props
 }) => {
 	const { externalImages } = useAppearance();
@@ -105,12 +95,21 @@ export const Avatar: React.FC<AvatarProps> = ({
 	// Built-in emojis always use the emoji variant, even when a caller
 	// passes another one. See the AvatarProps doc.
 	const resolvedVariant = isBuiltInEmojiUrl(src) ? "emoji" : variant;
+	const resolvedSize = size ?? "md";
+	const resolvedStyle =
+		resolvedVariant === "emoji"
+			? {
+					...style,
+					padding: `calc(var(${avatarSizeVariables[resolvedSize]}) * 0.2)`,
+				}
+			: style;
 
 	return (
 		<AvatarPrimitive.Root
 			className={cn(
 				avatarVariants({ size, variant: resolvedVariant, className }),
 			)}
+			style={resolvedStyle}
 			{...props}
 		>
 			<AvatarPrimitive.Image
