@@ -1,14 +1,14 @@
-import type { QueryClient } from "react-query";
 import {
 	getAttributeFilterOptions,
 	getOwnerFilterOptions,
+	getSelfOwnerFilterOptions,
 	getStatusFilterOptions,
+	type OptionsQueryClient,
 } from "./categoryOptions";
 
-const fakeQueryClient = <T>(data: T): QueryClient =>
-	({
-		fetchQuery: async () => data,
-	}) as unknown as QueryClient;
+const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({
+	fetchQuery: (async () => data) as OptionsQueryClient["fetchQuery"],
+});
 
 describe("getOwnerFilterOptions", () => {
 	const me = { username: "alice", avatar_url: "/alice.png" };
@@ -32,6 +32,22 @@ describe("getOwnerFilterOptions", () => {
 		const options = await getOwnerFilterOptions("", me, queryClient);
 
 		expect(options.map((option) => option.value)).toEqual(["me", "bob"]);
+	});
+});
+
+describe("getSelfOwnerFilterOptions", () => {
+	const me = { username: "alice", avatar_url: "/alice.png" };
+
+	it("returns only the current user without fetching", async () => {
+		const options = await getSelfOwnerFilterOptions("", me);
+
+		expect(options).toMatchObject([{ label: "alice (you)", value: "me" }]);
+	});
+
+	it("matches the self option by the me sentinel and username", async () => {
+		expect(await getSelfOwnerFilterOptions("me", me)).toHaveLength(1);
+		expect(await getSelfOwnerFilterOptions("ali", me)).toHaveLength(1);
+		expect(await getSelfOwnerFilterOptions("bob", me)).toHaveLength(0);
 	});
 });
 

@@ -27,6 +27,7 @@ import {
 	getAttributeFilterOptions,
 	getOrganizationFilterOptions,
 	getOwnerFilterOptions,
+	getSelfOwnerFilterOptions,
 	getStatusFilterOptions,
 	getTemplateFilterOptions,
 } from "./categoryOptions";
@@ -44,11 +45,11 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 }) => {
 	const { showOrganizations, entitlements } = useDashboard();
 	const { permissions, user: me } = useAuthenticated();
-	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` gates Owner on the wrong
-	// capability. Listing users (which the Owner options need) is not the same as
-	// reading the deployment config. Carried over from the legacy page; replace
-	// with a list-users capability check.
-	const canFilterByUser = permissions.viewDeploymentConfig;
+	// TODO(DEVEX-421 follow-up): `viewDeploymentConfig` is the wrong capability
+	// for listing users. It is carried over from the legacy page; replace it with
+	// a list-users capability check. Users without it still get an Owner category
+	// scoped to themselves (below) so `owner:me` keeps working.
+	const canListUsers = permissions.viewDeploymentConfig;
 	const canFilterDormant =
 		entitlements.features.advanced_template_scheduling.enabled;
 	const queryClient = useQueryClient();
@@ -89,18 +90,21 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			});
 		}
 
-		if (canFilterByUser) {
-			next.push({
-				key: "owner",
-				label: "Owner",
-				aliases: ["user"],
-				icon: <UserIcon />,
-				getOptions: (query) => getOwnerFilterOptions(query, me, queryClient),
-			});
-		}
+		// Always expose Owner so `owner` stays a recognized chip key and the
+		// page's default `owner:me` renders as a chip rather than free text.
+		// Users who cannot list others only see themselves.
+		next.push({
+			key: "owner",
+			label: "Owner",
+			aliases: ["user"],
+			icon: <UserIcon />,
+			getOptions: canListUsers
+				? (query) => getOwnerFilterOptions(query, me, queryClient)
+				: (query) => getSelfOwnerFilterOptions(query, me),
+		});
 
 		return next;
-	}, [canFilterByUser, canFilterDormant, me, showOrganizations, queryClient]);
+	}, [canListUsers, canFilterDormant, me, showOrganizations, queryClient]);
 
 	const getSearchResults = useCallback(
 		async (query: string): Promise<SearchResult[]> => {

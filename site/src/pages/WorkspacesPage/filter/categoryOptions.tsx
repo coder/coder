@@ -14,6 +14,9 @@ import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 // Owner suggestions are capped; the picker is a prefix search, not a full list.
 const OWNER_SUGGESTIONS_LIMIT = 25;
 
+/** The slice of `QueryClient` the option loaders depend on. */
+export type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
+
 const STATUS_OPTIONS: WorkspaceStatus[] = [
 	"running",
 	"stopped",
@@ -54,7 +57,7 @@ export const getStatusFilterOptions = async (
 
 export const getTemplateFilterOptions = async (
 	query: string,
-	queryClient: QueryClient,
+	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	// Fetch through the shared `templates` query so the dropdown and the page's
 	// own template list read from one cache instead of diverging.
@@ -83,10 +86,40 @@ export const getTemplateFilterOptions = async (
 	}));
 };
 
+type OwnerIdentity = Readonly<{ username: string; avatar_url?: string }>;
+
+// The current user's own option. Commits the backend's per-session `owner:me`
+// sentinel, matching the page's `owner:me` fallback, rather than a static
+// `owner:<username>`.
+const selfOwnerOption = (me: OwnerIdentity): FilterOption => ({
+	label: `${me.username} (you)`,
+	value: "me",
+	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="md" />,
+});
+
+// Users who cannot list other users still filter by themselves, so the Owner
+// category stays available (and `owner` stays a recognized chip key) with just
+// the "you" option.
+export const getSelfOwnerFilterOptions = async (
+	query: string,
+	me: OwnerIdentity,
+): Promise<FilterOption[]> => {
+	const option = selfOwnerOption(me);
+	const normalized = query.trim().toLowerCase();
+	if (
+		normalized.length === 0 ||
+		option.label.toLowerCase().includes(normalized) ||
+		option.value.includes(normalized)
+	) {
+		return [option];
+	}
+	return [];
+};
+
 export const getOwnerFilterOptions = async (
 	query: string,
-	me: Readonly<{ username: string; avatar_url?: string }>,
-	queryClient: QueryClient,
+	me: OwnerIdentity,
+	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	const usersRes = await queryClient.fetchQuery(
 		users({ q: query, limit: OWNER_SUGGESTIONS_LIMIT }),
@@ -101,18 +134,7 @@ export const getOwnerFilterOptions = async (
 			),
 		}));
 
-	return [
-		{
-			label: `${me.username} (you)`,
-			// Commit the backend's per-session `owner:me` sentinel, matching the
-			// page's `owner:me` fallback, rather than a static `owner:<username>`.
-			value: "me",
-			startIcon: (
-				<Avatar fallback={me.username} src={me.avatar_url} size="md" />
-			),
-		},
-		...options,
-	];
+	return [selfOwnerOption(me), ...options];
 };
 
 type AttributeDefinition = {
@@ -189,7 +211,7 @@ export const getAttributeFilterOptions = async (
 
 export const getOrganizationFilterOptions = async (
 	query: string,
-	queryClient: QueryClient,
+	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
 	// Reuse the shared `permittedOrganizations` query, which fetches the org list
 	// and applies the `audit_log:read` authorization gate, rather than duplicating
