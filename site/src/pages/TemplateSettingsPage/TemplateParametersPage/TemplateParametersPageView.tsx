@@ -67,15 +67,27 @@ export const TemplateParametersPageView: React.FC<
 			)}
 
 			<div className="flex items-start">
-				<Checkbox
-					id="use_classic_parameter_flow"
-					name="use_classic_parameter_flow"
-					checked={useClassicParameterFlow}
-					onCheckedChange={(checked) => {
-						onChangeClassicParameterFlow(checked === true);
-					}}
-					disabled={!canUpdate || isSaving}
-				/>
+				{/*
+				 * Spinner renders its children until it is loading, then replaces
+				 * them. At size sm it is 18px, the same as the checkbox, and the
+				 * matching margin keeps the label from moving during the swap.
+				 */}
+				<Spinner
+					size="sm"
+					className="m-1 shrink-0"
+					loading={isSaving}
+					label="Saving parameter compatibility mode"
+				>
+					<Checkbox
+						id="use_classic_parameter_flow"
+						name="use_classic_parameter_flow"
+						checked={useClassicParameterFlow}
+						onCheckedChange={(checked) => {
+							onChangeClassicParameterFlow(checked === true);
+						}}
+						disabled={!canUpdate}
+					/>
+				</Spinner>
 				<StackLabel>
 					<Label htmlFor="use_classic_parameter_flow">
 						<span className="flex flex-row items-center gap-2">
@@ -106,7 +118,6 @@ export const TemplateParametersPageView: React.FC<
 						Learn more
 					</Link>
 				</StackLabel>
-				<Spinner size="sm" className="mt-0.5" loading={isSaving} />
 			</div>
 
 			<Separator className="my-2" />

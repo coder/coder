@@ -5,11 +5,9 @@ import {
 	useQueryClient,
 } from "react-query";
 import { toast } from "sonner";
-import { API } from "#/api/api";
 import {
 	createAndBuildTemplateVersion,
 	enableTemplateParameterCompatibilityMode,
-	templateByNameKey,
 	templateVersion,
 	templateVersionsQueryKey,
 	updateActiveTemplateVersion,
@@ -32,7 +30,7 @@ const TemplateParametersPage: React.FC = () => {
 		...templateVersion(template.active_version_id),
 		placeholderData: keepPreviousData,
 	});
-	const compatibililtyModeMutation = useMutation(
+	const compatibilityModeMutation = useMutation(
 		enableTemplateParameterCompatibilityMode(template, queryClient),
 	);
 	const createAndBuildMutation = useMutation(
@@ -58,20 +56,20 @@ const TemplateParametersPage: React.FC = () => {
 				activeVersion={activeVersion}
 				useClassicParameterFlow={template.use_classic_parameter_flow}
 				canUpdate={permissions.canUpdateTemplate}
-				isSaving={compatibililtyModeMutation.isPending}
+				isSaving={compatibilityModeMutation.isPending}
 				isRefreshing={
 					createAndBuildMutation.isPending || promoteMutation.isPending
 				}
 				error={
-					compatibililtyModeMutation.error ??
+					compatibilityModeMutation.error ??
 					createAndBuildMutation.error ??
 					promoteMutation.error
 				}
 				onChangeClassicParameterFlow={async (useClassicParameterFlow) => {
-					compatibililtyModeMutation.reset();
+					compatibilityModeMutation.reset();
 
 					try {
-						await compatibililtyModeMutation.mutateAsync(
+						await compatibilityModeMutation.mutateAsync(
 							useClassicParameterFlow,
 						);
 						toast.success(

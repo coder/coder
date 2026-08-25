@@ -26,6 +26,19 @@ export const Saving: Story = {
 	args: {
 		isSaving: true,
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByRole("checkbox", {
+				name: /use parameter compatibility mode for workspace builds/i,
+			}),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.getByRole("status", {
+				name: /saving parameter compatibility mode/i,
+			}),
+		).toBeVisible();
+	},
 };
 
 export const Refreshing: Story = {

@@ -248,9 +248,9 @@ export const enableTemplateParameterCompatibilityMode = (
 	queryClient: QueryClient,
 ) => {
 	return {
-		mutationFn: (comaptibilityModeEnabled: boolean) =>
+		mutationFn: (compatibilityModeEnabled: boolean) =>
 			API.updateTemplateMeta(template.id, {
-				use_classic_parameter_flow: comaptibilityModeEnabled,
+				use_classic_parameter_flow: compatibilityModeEnabled,
 			}),
 		onSuccess: () =>
 			queryClient.invalidateQueries({
