@@ -14,8 +14,8 @@ here to prevent collisions between parallel work.
 | 2     | `mcp_gateway_escalations` table + tool-usage `disposition`/`escalation_id` columns + `resource_type` enum value (migration 000577), notification template (migration 000578), queries, dbauthz, audit table entry | done (`f69ed687b6`) |
 | 3     | dRPC 1.7 (`CreateMCPGatewayEscalation` incl. notification enqueue, `WaitMCPGatewayEscalation`), gateway SSE hold replacing the interim denial, tool-usage dispositions recorded                                   | done                |
 | 4     | Management API `GET /api/v2/mcp-gateway/escalations`, `POST .../{id}/approve|deny` (frozen contract below), codersdk client, lazy expiry on read, audit on resolution                                             | done (`6f5d168f91`) |
-| 5     | Approvals page in the site + inbox notification deep link                                                                                                                                                         | pending             |
-| 6     | Demo template example rule + docs                                                                                                                                                                                 | pending             |
+| 5     | Approvals page in the site + inbox notification deep link                                                                                                                                                         | done (`88bfea4570`) |
+| 6     | Demo template example rule + docs                                                                                                                                                                                 | done (`66b787f1ea`) |
 
 V1 scope reductions (revisit later): escalation expiry is a fixed 5
 minutes (no per-server `escalation_timeout` column yet); approve and deny
