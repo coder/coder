@@ -11,9 +11,7 @@ import {
 	useOrganizationModels,
 } from "../organizationModels";
 
-// Switches the active organization by rewriting the org search param in
-// place. Hidden with a single accessible organization unless readOnly,
-// which renders a static value instead.
+// Switches the active organization via the org search param.
 export const ModelOrganizationSelect: FC<{
 	label?: string;
 	readOnly?: boolean;

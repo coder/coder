@@ -162,9 +162,7 @@ type OrganizationValueProps = {
 	className?: string;
 };
 
-// Read-only counterpart to OrganizationAutocomplete: a static value rather
-// than a disabled control, so it keeps normal text color and stays out of
-// the tab order.
+// Static read-only counterpart to OrganizationAutocomplete.
 export const OrganizationValue: FC<OrganizationValueProps> = ({
 	organization,
 	labelOrganizations,

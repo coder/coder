@@ -48,13 +48,10 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 		organization,
 		labelOrganizations,
 	);
-	// A picker without a change handler or alternatives is informational, so
-	// render a static value instead of a disabled control with muted text.
+	// A picker without a change handler or alternatives is informational.
 	const isReadOnly = !onChange || hasSingleSelectedOrganization;
 
 	return (
-		// The label and gap mirror the form Field primitive so the picker
-		// lines up with sibling fields when rendered inside a form grid.
 		<div className={cn("flex w-72 flex-col gap-1.5", className)}>
 			{showLabel && (
 				<Label

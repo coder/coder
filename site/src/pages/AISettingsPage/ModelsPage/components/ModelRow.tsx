@@ -47,9 +47,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 			? "The provider connected to this model is disabled."
 			: null;
 
-	// Stop activation from bubbling to the clickable row, which navigates on
-	// click, Enter (onKeyDown), and Space (onKeyUp). Radix composes its own
-	// click handler, so the tooltip still opens.
+	// Keep tooltip activation from triggering the clickable row's navigation.
 	const stopPropagation = (event: React.SyntheticEvent) => {
 		event.stopPropagation();
 	};
