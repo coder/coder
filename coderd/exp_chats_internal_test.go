@@ -397,6 +397,19 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
 		},
 		{
+			// A scheme-less base URL is not a usable endpoint, so it is
+			// not classified as an OpenRouter host. Such a row is
+			// reported as misconfigured by the provider status checks
+			// instead of being inferred as https://openrouter.ai.
+			name:  "SchemeLessOpenRouterHostNotDetected",
+			model: "anthropic/claude-opus-4.6",
+			provider: database.AIProvider{
+				Name:    "private-relay",
+				Type:    database.AIProviderTypeOpenai,
+				BaseUrl: "openrouter.ai/api/v1",
+			},
+		},
+		{
 			name:  "OpenRouterTypeAllowsSlashModel",
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
