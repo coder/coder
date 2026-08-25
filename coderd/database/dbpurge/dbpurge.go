@@ -449,8 +449,7 @@ type instance struct {
 	chatSearchRowsBackfilled     prometheus.Counter
 	chatSearchBackfillBatchSize  int32
 	chatSearchBackfillMaxBatches int
-	// Skips the stale-config reindex scan once its backlog is drained.
-	chatSearchStaleDrained bool
+	chatSearchStaleDrained       bool
 }
 
 func (i *instance) Close() error {
