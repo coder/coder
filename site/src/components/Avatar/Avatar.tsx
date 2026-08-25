@@ -91,7 +91,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 			)}
 			style={{
 				...style,
-				padding: isEmoji ? "20%" : style?.padding,
+				padding: isEmoji ? `calc(var(--avatar-${size}) * 0.1)` : style?.padding,
 			}}
 			{...props}
 		>
