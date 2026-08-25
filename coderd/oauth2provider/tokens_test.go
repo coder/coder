@@ -25,11 +25,8 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// The negotiation the authorize endpoint performs only bounds anything if the
-// key minted from the code carries it. Every case here asserts against the
-// api_keys row rather than the token response, because that row is what
-// dbauthz reads on each later request; the response says nothing about the
-// authority the client just received.
+// Cases assert against the api_keys row, not the response: that row is what
+// dbauthz reads on each later request.
 func TestOAuth2TokenExchangeScope(t *testing.T) {
 	t.Parallel()
 
@@ -52,11 +49,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
 	})
 
-	// The refresh row has carried the scope since authorization; only the key
-	// minted from it did not. Without that carried through, a narrowly scoped
-	// token silently widened to coder:all the first time the client refreshed,
-	// which is the longer-lived half of the grant.
-	t.Run("RefreshKeepsTheGrant", func(t *testing.T) {
+	t.Run("RefreshDoesNotWidenTheScope", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -76,11 +69,9 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		require.Equal(t, "workspace:ssh", refreshed.Scope)
 	})
 
-	// An app with no allowlist negotiates the unrestricted sentinel, and the
-	// key it mints has to say so by name. apikey.Generate defaults an empty
-	// scope list to coder:all, so this case would pass even if the exchange
-	// dropped the scope entirely; it is here to pin that the unrestricted path
-	// keeps working, not to prove the scope was applied.
+	// apikey.Generate defaults an empty scope list to coder:all, so this passes
+	// even if the exchange drops the scope. It pins the unrestricted path, not
+	// that the scope was applied.
 	t.Run("UnrestrictedGrantMintsCoderAll", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -93,12 +84,9 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			mintedKeyScopes(ctx, t, db, token.RefreshToken))
 	})
 
-	// The scopes on the key only mean something once the authorizer reads them,
-	// so this drives the issued access token against the real API: one action
-	// the negotiated scope covers, one it does not. coder:workspaces.access
-	// carries template:read but not template:delete, and the user behind the
-	// grant owns the deployment, so the role permits both calls and the scope
-	// is the only thing standing between the client and the deletion.
+	// coder:workspaces.access carries template:read but not template:delete. The
+	// grant's user owns the deployment, so the role permits both and the scope is
+	// all that stands between the client and the deletion.
 	t.Run("IssuedTokenBoundsTheAPI", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -112,11 +100,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 
-		// RFC 6749 §5.1 requires the response to state the granted scope when it
-		// differs from the request. This client asked for nothing and was granted
-		// the app's allowlist, so the response is the only place it learns the
-		// bounds the calls below are about to hit.
-		require.Equal(t, scopeInCatalog, token.Scope)
+		require.Equal(t, scopeInCatalog, token.Scope,
+			"RFC 6749 §5.1: a request that named no scope must be told what it got")
 
 		asApp := codersdk.New(client.URL)
 		asApp.SetSessionToken(token.AccessToken)
@@ -131,11 +116,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 	})
 
-	// A grant that predates the scope columns carries what migration 000569
-	// backfilled onto it: coder:all, which records an unrestricted grant rather
-	// than an absent one. Refreshing one has to keep working and has to keep
-	// meaning unrestricted, so the row is seeded the way the migration leaves
-	// it instead of being written by an exchange this server just ran.
+	// Grants predating the scope columns carry what migration 000569 backfilled:
+	// coder:all. Seeded the way the migration leaves it rather than exchanged.
 	t.Run("BackfilledScopeRefreshesUnrestricted", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -165,11 +147,8 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"an unrestricted grant must still reach what it reached before")
 	})
 
-	// A scope the api_key_scope enum does not define cannot become a key. The
-	// authorize endpoint cannot produce such a row, so the code is seeded
-	// directly: the case covers a row written before the name was removed, or
-	// by a different version of this server. The request itself is well-formed,
-	// so it must not surface as a 500.
+	// Authorization cannot write such a row, so it is seeded: the case covers a
+	// name removed since, or a row written by another version of this server.
 	t.Run("StoredScopeOutsideEnumRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -192,8 +171,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 	})
 }
 
-// appWithSecret is an app seeded straight into the database together with a
-// client secret usable at the token endpoint. The management API registers no
+// appWithSecret is seeded directly because the management API registers no
 // scope allowlist, and the allowlist is what these tests turn.
 type appWithSecret struct {
 	database.OAuth2ProviderApp
@@ -225,11 +203,8 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 	}
 }
 
-// seedRefreshToken writes a refresh token row for an existing grant and returns
-// the secret that redeems it, so a refresh can be exercised without the
-// exchange that would otherwise have written the row. dbgen is not used because
-// it derives expires_at from created_at, which would leave the row expired and
-// fail the refresh before it reaches the scope.
+// Returns the secret that redeems the row. dbgen is unusable here: it derives
+// expires_at from created_at, leaving the row already expired.
 func seedRefreshToken(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, userID uuid.UUID, scope string) string {
 	t.Helper()
 
@@ -257,10 +232,8 @@ func seedRefreshToken(ctx context.Context, t *testing.T, db database.Store, app 
 	return secret.Formatted
 }
 
-// authorizeCode runs a full authorization and returns the issued code with the
-// verifier that redeems it. The query is authorizeQuery's, with the challenge
-// swapped for one whose verifier is kept, since the exchange needs it and
-// authorizeQuery discards its own.
+// Returns the issued code with the verifier that redeems it. authorizeQuery
+// discards its own verifier, so the challenge is swapped for one kept here.
 func authorizeCode(ctx context.Context, t *testing.T, client *codersdk.Client, clientID, scope string) (code, verifier string) {
 	t.Helper()
 
@@ -279,10 +252,8 @@ func authorizeCode(ctx context.Context, t *testing.T, client *codersdk.Client, c
 	return code, verifier
 }
 
-// seedCode writes an authorization code the authorize endpoint would refuse to
-// write. dbgen is not used because it derives expires_at from created_at,
-// which would leave the code already expired and fail the exchange before it
-// reaches the scope it is here to exercise.
+// Writes a code the authorize endpoint would refuse to write. dbgen is unusable
+// for the same reason as in seedRefreshToken.
 func seedCode(ctx context.Context, t *testing.T, db database.Store, appID, userID uuid.UUID, challenge, scope string) string {
 	t.Helper()
 
@@ -322,8 +293,6 @@ func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, ap
 	return requireTokenResponse(t, status, body)
 }
 
-// postTokenRequest posts to the token endpoint and returns the status and body
-// it answered with, so both the granted and rejected cases read the same way.
 func postTokenRequest(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values) (int, string) {
 	t.Helper()
 
@@ -349,8 +318,6 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	return token
 }
 
-// mintedKeyScopes follows a refresh token to the API key issued alongside it
-// and returns the scopes recorded on that key.
 func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
 	t.Helper()
 

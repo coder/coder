@@ -41,25 +41,14 @@ var (
 	// request body and HTTP Basic, but they did not match.
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
 	// errUnmintableScope means the scope persisted against a grant names
-	// something no API key can be minted from: either a name the api_key_scope
-	// enum does not define, or an empty scope list.
+	// something no API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
 )
 
-// scopeStringToAPIKeyScopes converts the space-separated scope persisted on an
-// authorization code or refresh token into the scope list an API key is minted
-// with.
-//
-// Every name is checked against the api_key_scope enum here rather than left
-// to apikey.Generate's own check. Generate returns a bare error that the grant
-// surfaces as a 500, which is the wrong answer for a value that came out of the
-// database: the request was well-formed and the deployment's data is not. This
-// returns errUnmintableScope instead, which Tokens() maps to invalid_scope.
-//
-// The empty case is defensive only. The column is NOT NULL, and every writer
-// (authorization and the backfill) emits at least one non-whitespace name, so
-// a row cannot reach here empty. Treating it as unrestricted rather than as an
-// error would silently widen a grant, so it is rejected too.
+// scopeStringToAPIKeyScopes converts the scope persisted on an authorization
+// code or refresh token into the scope list an API key is minted with. Names
+// are checked here, not in apikey.Generate, whose error would surface as a 500;
+// an empty list is rejected rather than read as unrestricted.
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
@@ -259,10 +248,8 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			return
 		}
 		if errors.Is(err, errUnmintableScope) {
-			// The grant is well-formed; the scope stored against it names
-			// something this deployment cannot mint a key for. Reported as
-			// invalid_scope rather than a 500 so the client sees a defined
-			// OAuth2 failure, with the offending name in the description.
+			// The grant is well-formed and its stored scope is not mintable, so
+			// a defined OAuth2 failure beats a 500.
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
@@ -417,9 +404,7 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// The scope negotiated at authorization time, which is what the key this
-	// code becomes is allowed to do. Without it the key defaults to coder:all
-	// (apikey.Generate), which would discard the negotiation entirely.
+	// Without this the key defaults to coder:all, discarding the negotiation.
 	scopes, err := scopeStringToAPIKeyScopes(dbCode.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
@@ -441,13 +426,8 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 
 	// Grab the user roles so we can perform the exchange as the user.
 	//
-	// This actor is the writer, not the grant. It performs the exchange's own
-	// writes below (delete the code, delete the previous key, InsertAPIKey),
-	// none of which a negotiated scope carries the permissions for: scope is a
-	// hard constraint in the policy, so narrowing this to the granted scope
-	// would deny api_key:create and fail every exchange. What bounds the
-	// issued token is api_keys.scopes, set via apikey.Generate above and read
-	// back on each request by key.ScopeSet().
+	// This actor is the writer, not the grant: narrowing it to the granted scope
+	// would deny api_key:create. api_keys.scopes bounds the issued token.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
@@ -566,8 +546,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// ScopeAll for the same reason as authorizationCodeGrant: this actor writes
-	// the replacement key, it is not the grant the key carries.
+	// ScopeAll for the same reason as in authorizationCodeGrant.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, prevKey.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
@@ -579,8 +558,7 @@ func refreshTokenGrant(ctx context.Context, db database.Store, app database.OAut
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Carry the scope held on the refresh row onto the replacement key so the
-	// refreshed token bears the same authority the original grant did.
+	// A refresh neither widens nor narrows the original grant.
 	scopes, err := scopeStringToAPIKeyScopes(dbToken.Scope)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err

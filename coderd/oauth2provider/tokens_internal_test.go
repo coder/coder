@@ -19,10 +19,6 @@ func parseScopes(scope string) []string {
 	return strings.Fields(strings.TrimSpace(scope))
 }
 
-// The conversion from the persisted scope string to the scope list a key is
-// minted with. The rejections matter more than the happy path: every one of
-// them is a case where the alternative is minting a key with authority the
-// grant never established.
 func TestScopeStringToAPIKeyScopes(t *testing.T) {
 	t.Parallel()
 
@@ -37,19 +33,14 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 		}, scopes)
 	})
 
-	// The scope catalog and the api_key_scope enum are maintained separately.
-	// A name the catalog offers but the enum does not define is negotiable at
-	// authorization and unmintable at exchange, so the client would hold a
-	// code it can never redeem. Driving the whole catalog through the
-	// conversion catches that drift when a name is added on one side only.
+	// The catalog and the api_key_scope enum are maintained separately. A name
+	// negotiable at authorization but unmintable at exchange leaves the client
+	// holding a code it can never redeem.
 	t.Run("EveryCatalogNameMintable", func(t *testing.T) {
 		t.Parallel()
 
-		// ExternalScopeNames omits the backward-compatibility aliases
-		// IsExternalScope accepts, and neither alias is an enum member, so they
-		// are listed here and run through CanonicalScopeName the way
-		// authorization spells them before persisting. A new alias has to be
-		// added here too; the catalog exposes no way to enumerate them.
+		// ExternalScopeNames omits the aliases IsExternalScope accepts, and the
+		// catalog cannot enumerate them, so a new alias has to be added here.
 		names := append(rbac.ExternalScopeNames(), "all", "application_connect")
 		require.NotEmpty(t, names)
 		for _, name := range names {
@@ -63,21 +54,16 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 		}
 	})
 
-	t.Run("UnknownNameRejected", func(t *testing.T) {
+	t.Run("UnknownNameRejectsTheWholeList", func(t *testing.T) {
 		t.Parallel()
 
-		// The valid name alongside it must not be minted on its own: a
-		// partial grant is still a grant nobody negotiated.
 		_, err := scopeStringToAPIKeyScopes("workspace:ssh not_a_real_scope")
 		require.ErrorIs(t, err, errUnmintableScope)
 		require.Contains(t, err.Error(), "not_a_real_scope")
 	})
 
-	// Unreachable through the column, which is NOT NULL and written only by
-	// authorization and the backfill, both of which emit at least one
-	// non-whitespace name. Pinned anyway: an empty list is what apikey.Generate
-	// reads as unrestricted, so treating it as anything but an error here would
-	// widen the grant rather than fail it.
+	// Unreachable through the NOT NULL column, but pinned: apikey.Generate reads
+	// an empty list as unrestricted, so anything but an error widens the grant.
 	t.Run("EmptyRejected", func(t *testing.T) {
 		t.Parallel()
 
