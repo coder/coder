@@ -343,18 +343,9 @@ type RoleOptions struct {
 // legacyRoleNames contains retired built-in role names. They stay reserved so
 // a custom role cannot take a name that older binaries still resolve as a
 // built-in role, which would silently shadow the custom permissions on
-// rollback. Stored role arrays and org default role lists may still contain
-// these names until a data cleanup migration lands, so role expansion and
-// assignment validation treat them as grants of nothing instead of failing.
+// rollback.
 var legacyRoleNames = map[string]struct{}{
 	"agents-access": {},
-}
-
-// IsLegacyRoleName reports whether name is a retired built-in role name that
-// may still appear in stored role arrays.
-func IsLegacyRoleName(name string) bool {
-	_, ok := legacyRoleNames[name]
-	return ok
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -988,12 +979,6 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
-		if IsLegacyRoleName(n.Name) {
-			// Retired role names grant nothing and cannot be re-created as
-			// custom roles, so stale stored grants are dropped instead of
-			// failing expansion.
-			continue
-		}
 		r, err := RoleByName(n)
 		if err != nil {
 			return nil, xerrors.Errorf("get role permissions: %w", err)

@@ -1413,13 +1413,6 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 	grantedRoles := make([]rbac.RoleIdentifier, 0, len(added)+len(removed))
 	grantedRoles = append(grantedRoles, added...)
 	grantedRoles = append(grantedRoles, removed...)
-	// Retired role names may linger in stored role arrays and org default
-	// role lists until a data cleanup migration lands. They expand to no
-	// permissions and cannot be re-created as custom roles, so granting or
-	// revoking them needs no per-role validation.
-	grantedRoles = slices.DeleteFunc(grantedRoles, func(r rbac.RoleIdentifier) bool {
-		return rbac.IsLegacyRoleName(r.Name)
-	})
 	customRoles := make([]rbac.RoleIdentifier, 0)
 	// Validate that the roles being assigned are valid.
 	for _, r := range grantedRoles {
