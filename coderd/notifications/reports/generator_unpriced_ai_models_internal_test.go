@@ -62,8 +62,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		clk.Advance(time.Hour)
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: nothing is sent. The ticker restarts with the process and each
-		// replica runs on its own phase, so the frequency is enforced here.
+		// Then: the persisted last-generated timestamp prevents another report
+		// within the weekly frequency window.
 		require.Empty(t, notifEnq.Sent())
 	})
 
@@ -87,7 +87,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: unreported spend is still accruing, so it is raised again.
+		// Then: the model is still unpriced and in use, so it is reported again.
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 	})
 
@@ -104,8 +104,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 		notifEnq.Clear()
 
-		// Given: two report windows pass with no further use of the model.
-		clk.Advance(2*unpricedAIModelsReportFrequency + time.Minute)
+		// Given: one report window passes with no further use of the model.
+		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 
 		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
