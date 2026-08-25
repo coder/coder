@@ -1118,8 +1118,6 @@ func TestOAuth2ProviderRevokeCrossApp(t *testing.T) {
 	}
 }
 
-// Guards revoke.go's app_id ownership checks against a refactor that
-// reintroduces a join through app_secret_id, which public-client tokens lack.
 func TestOAuth2ProviderPublicClientTokenLifecycle(t *testing.T) {
 	t.Parallel()
 
