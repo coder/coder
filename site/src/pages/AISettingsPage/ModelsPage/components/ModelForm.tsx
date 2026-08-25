@@ -22,6 +22,7 @@ import { ModelFormDialogs } from "./ModelFormDialogs";
 import { ModelFormFields } from "./ModelFormFields";
 import { ModelFormBackLink, ModelFormHeader } from "./ModelFormHeader";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
+import { ModelOrganizationSelect } from "./ModelOrganizationSelect";
 
 const indefiniteArticle = (word: string): string =>
 	/^[aeiou]/i.test(word) ? "an" : "a";
@@ -283,6 +284,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 										: "Set an API key for this provider before adding models."}
 								</p>
 							)}
+							<ModelOrganizationSelect label="Organization" />
 						</div>
 					</div>
 				</div>

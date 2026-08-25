@@ -45,9 +45,9 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 
 		await expect(
-			canvas.getByRole("button", {
-				name: `Organization ${MockDefaultOrganization.display_name}`,
-			}),
+			canvas.getByLabelText(
+				`Organization ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/display name/i)).toHaveValue("Coder");
 		await userEvent.click(

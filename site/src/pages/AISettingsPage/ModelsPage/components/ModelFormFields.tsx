@@ -42,6 +42,7 @@ import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
 import { useOrganizationModelsPath } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
+import { ModelOrganizationSelect } from "./ModelOrganizationSelect";
 
 const CollapsibleSection: FC<{
 	title: string;
@@ -249,6 +250,7 @@ export const ModelFormFields: FC<{
 							</InputGroupAddon>
 						</InputGroup>
 					</div>
+					<ModelOrganizationSelect label="Organization" />
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">

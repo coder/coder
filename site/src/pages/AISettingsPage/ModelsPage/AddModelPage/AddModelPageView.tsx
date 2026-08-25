@@ -6,6 +6,7 @@ import { Loader } from "#/components/Loader/Loader";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { ModelForm } from "../components/ModelForm";
 import { ModelFormBackLink } from "../components/ModelFormHeader";
+import { ModelOrganizationSelect } from "../components/ModelOrganizationSelect";
 
 interface AddModelPageViewProps {
 	isLoading: boolean;
@@ -56,6 +57,7 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 						Please try again.
 					</AlertDescription>
 				</Alert>
+				<ModelOrganizationSelect label="Organization" triggerClassName="w-60" />
 			</div>
 		);
 	}

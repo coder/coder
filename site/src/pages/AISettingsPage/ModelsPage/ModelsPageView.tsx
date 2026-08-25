@@ -43,6 +43,7 @@ import {
 } from "#/modules/aiModels/providerStates";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { paginateItems } from "#/utils/paginateItems";
+import { ModelOrganizationSelect } from "./components/ModelOrganizationSelect";
 import { ModelRow } from "./components/ModelRow";
 import {
 	organizationAddModelPath,
@@ -247,6 +248,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						/>
 					</InputGroup>
 				</div>
+				<ModelOrganizationSelect triggerClassName="w-full sm:w-60" />
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
 						className="w-full shadow-none sm:w-60"

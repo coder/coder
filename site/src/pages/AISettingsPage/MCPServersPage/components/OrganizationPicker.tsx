@@ -1,5 +1,6 @@
 import type { FC } from "react";
 import type { Organization } from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Label } from "#/components/Label/Label";
 import {
 	getOrganizationLabel,
@@ -14,6 +15,7 @@ interface OrganizationPickerProps {
 	onChange?: (organization: Organization) => void;
 	className?: string;
 	disabled?: boolean;
+	showLabel?: boolean;
 	showSingleOrganization?: boolean;
 }
 
@@ -24,6 +26,7 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	onChange,
 	className,
 	disabled,
+	showLabel = true,
 	showSingleOrganization = false,
 }) => {
 	const hasSingleSelectedOrganization =
@@ -41,24 +44,46 @@ export const OrganizationPicker: FC<OrganizationPickerProps> = ({
 	)
 		? organizations
 		: [...organizations, organization];
+	const organizationLabel = getOrganizationLabel(
+		organization,
+		labelOrganizations,
+	);
+	// A picker without a change handler or alternatives is informational, so
+	// render a static value instead of a disabled control with muted text.
+	const isReadOnly = !onChange || hasSingleSelectedOrganization;
 
 	return (
 		<div className={cn("flex w-72 flex-col gap-2", className)}>
-			<Label htmlFor={id}>Organization</Label>
-			<OrganizationAutocomplete
-				id={id}
-				ariaLabel={`Organization ${getOrganizationLabel(organization, labelOrganizations)}`}
-				value={organization}
-				onChange={(org) => {
-					if (org) {
-						onChange?.(org);
-					}
-				}}
-				options={organizations}
-				labelOrganizations={labelOrganizations}
-				required
-				disabled={disabled || !onChange || hasSingleSelectedOrganization}
-			/>
+			{showLabel && <Label htmlFor={id}>Organization</Label>}
+			{isReadOnly ? (
+				<output
+					id={id}
+					aria-label={`Organization ${organizationLabel}`}
+					className="flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary"
+				>
+					<Avatar
+						size="sm"
+						src={organization.icon}
+						fallback={organization.display_name}
+					/>
+					<span className="truncate">{organizationLabel}</span>
+				</output>
+			) : (
+				<OrganizationAutocomplete
+					id={id}
+					ariaLabel={`Organization ${organizationLabel}`}
+					value={organization}
+					onChange={(org) => {
+						if (org) {
+							onChange?.(org);
+						}
+					}}
+					options={organizations}
+					labelOrganizations={labelOrganizations}
+					required
+					disabled={disabled}
+				/>
+			)}
 		</div>
 	);
 };

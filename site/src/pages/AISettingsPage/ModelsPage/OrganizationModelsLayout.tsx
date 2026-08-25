@@ -1,18 +1,9 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import {
-	Outlet,
-	useLocation,
-	useNavigate,
-	useSearchParams,
-} from "react-router";
+import { Outlet, useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
@@ -24,8 +15,6 @@ import {
 
 const OrganizationModelsLayout: FC = () => {
 	const { organizations } = useDashboard();
-	const location = useLocation();
-	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const accessibleOrganizationsQuery =
 		useAccessibleModelOrganizations(organizations);
@@ -73,6 +62,7 @@ const OrganizationModelsLayout: FC = () => {
 		<OrganizationModelsContext.Provider
 			value={{
 				organization: activeOrganization,
+				accessibleOrganizations,
 				permissions: activePermissions,
 				requestedOrganizationDenied:
 					organizationSelection.requestedOrganizationDenied,
@@ -87,28 +77,6 @@ const OrganizationModelsLayout: FC = () => {
 								accessibleOrganizationsQuery.partialError ??
 								permissionsQuery.error
 							}
-						/>
-					</div>
-				)}
-				{accessibleOrganizations.length > 1 && (
-					<div>
-						<OrganizationAutocomplete
-							value={activeOrganization}
-							ariaLabel={`Organization ${getOrganizationLabel(
-								activeOrganization,
-								accessibleOrganizations,
-							)}`}
-							options={accessibleOrganizations}
-							triggerClassName="w-60"
-							optionsTabbable
-							onChange={(organization) => {
-								if (!organization) {
-									return;
-								}
-								const next = new URLSearchParams(searchParams);
-								next.set(modelOrganizationSearchParam, organization.name);
-								void navigate(`${location.pathname}?${next.toString()}`);
-							}}
 						/>
 					</div>
 				)}

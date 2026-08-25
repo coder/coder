@@ -96,6 +96,7 @@ export const splitModelQueryErrors = (
 
 type OrganizationModelsContextValue = {
 	organization: Organization;
+	accessibleOrganizations: readonly Organization[];
 	permissions: OrganizationPermissions | undefined;
 	requestedOrganizationDenied: boolean;
 };

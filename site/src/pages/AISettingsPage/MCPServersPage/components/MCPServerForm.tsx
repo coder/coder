@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
@@ -21,6 +21,7 @@ type MCPServerFormCreateProps = {
 	isSaving: boolean;
 	isDeleting?: false;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -36,6 +37,7 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	organizationPicker?: ReactNode;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
 		serverId: string,
@@ -54,6 +56,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	isSaving,
 	isDeleting = false,
 	canSelectUserOIDC,
+	organizationPicker,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -120,6 +123,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					canSelectUserOIDC={canSelectUserOIDC}
+					organizationPicker={organizationPicker}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}
