@@ -47,7 +47,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					title={
 						<span className="flex items-center gap-2">
 							<span
-								className={cn("truncate", disabled && "text-content-disabled")}
+								className={cn("truncate", disabled && "text-content-secondary")}
 							>
 								{displayName}
 							</span>
