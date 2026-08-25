@@ -2521,10 +2521,15 @@ CREATE TABLE credential_lifecycle_journal (
     entry_id bigint NOT NULL,
     recording_date timestamp with time zone DEFAULT now() NOT NULL,
     effective_date timestamp with time zone DEFAULT now() NOT NULL,
-    actor_type text NOT NULL,
-    actor uuid NOT NULL,
+    actor_type text,
+    actor uuid,
     event text NOT NULL,
-    subject uuid NOT NULL
+    subject uuid NOT NULL,
+    entailed_by_entry bigint,
+    entailed_by_annotation text,
+    CONSTRAINT credential_lifecycle_journal_discharge_has_no_actor CHECK (((event = 'discharge'::text) = (actor IS NULL))),
+    CONSTRAINT credential_lifecycle_journal_discharge_names_its_cause CHECK (((event = 'discharge'::text) = ((entailed_by_entry IS NOT NULL) OR (entailed_by_annotation IS NOT NULL)))),
+    CONSTRAINT credential_lifecycle_journal_entailed_by_one_form CHECK ((NOT ((entailed_by_entry IS NOT NULL) AND (entailed_by_annotation IS NOT NULL))))
 );
 
 COMMENT ON TABLE credential_lifecycle_journal IS 'Journal of persistent state changes to credentials, in the normalized form: this is the entry table. Line tables join to it as credential operations acquire parameters. One journal per entity: sharing one would assert that two lifecycles are the same shape and will remain so. Distinct from audit_logs, which is a separate mechanism recording requests.';
@@ -2532,6 +2537,10 @@ COMMENT ON TABLE credential_lifecycle_journal IS 'Journal of persistent state ch
 COMMENT ON COLUMN credential_lifecycle_journal.entry_id IS 'Identifies the entry. An entry may occupy several lines sharing this value, expressing an atomic group: rotation issues one credential and revokes another as a single event, so that no interval passes without a valid one.';
 
 COMMENT ON COLUMN credential_lifecycle_journal.effective_date IS 'When the event occurred. For an expiry this is the expiry time and not the moment a sweep noticed, so an entry written late records the same fact at the same moment. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.';
+
+COMMENT ON COLUMN credential_lifecycle_journal.entailed_by_entry IS 'The entry this operation followed from, where the thing that entailed it keeps a journal. Exactly one of this and entailed_by_annotation is set on an entailed entry.';
+
+COMMENT ON COLUMN credential_lifecycle_journal.entailed_by_annotation IS 'What entailed this operation, in words, where the thing that entailed it keeps no journal to reference. Annotative: posting never reads it. Replaced by a proper reference once that thing is an entity.';
 
 CREATE TABLE credential_lifecycle_journal_api_key (
     entry_id bigint NOT NULL,

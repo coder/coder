@@ -602,8 +602,8 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		arg := database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       1,
 			EffectiveDate: dbtime.Now(),
-			ActorType:     "user",
-			Actor:         uuid.New(),
+			ActorType:     sql.NullString{String: "user", Valid: true},
+			Actor:         uuid.NullUUID{UUID: uuid.New(), Valid: true},
 			Event:         "issue",
 			Subject:       uuid.New(),
 		}

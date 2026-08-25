@@ -536,3 +536,35 @@ func TestCredentialUse(t *testing.T) {
 		require.Equal(t, newer, row.UsePostingReference.Int64, "the newer entry still holds the row")
 	})
 }
+
+// TestDischargeSaysWhatEntailedIt asserts the shape of the entailing reference:
+// exactly one form, never both and never neither. A discharge that cannot say
+// what ended is refused rather than written, because an entailed operation whose
+// cause is unrecorded is indistinguishable from one nobody bothered to explain.
+func TestDischargeSaysWhatEntailedIt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NeitherFormIsRefused", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, entity.EntailedBy{}.Valid())
+	})
+
+	t.Run("BothFormsAreRefused", func(t *testing.T) {
+		t.Parallel()
+		require.False(t, entity.EntailedBy{Entry: 1, Annotation: "a sandbox ended"}.Valid())
+	})
+
+	t.Run("EitherFormAlone", func(t *testing.T) {
+		t.Parallel()
+		require.True(t, entity.EntailedBy{Entry: 1}.Valid())
+		require.True(t, entity.EntailedBy{Annotation: "a sandbox ended"}.Valid())
+	})
+
+	t.Run("DischargeRefusesAnUnexplainedEnding", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, _ := dbtestutil.NewDB(t)
+		err := entity.DischargeCredential(ctx, db, uuid.New(), entity.EntailedBy{}, time.Time{})
+		require.ErrorContains(t, err, "says what entailed it")
+	})
+}

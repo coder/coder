@@ -52,14 +52,16 @@ const (
 
 // Credential lifecycle events.
 //
-// EventCredentialLapse is observed. It arises when what the credential rests on
-// goes away: its holder ceases to exist, or the authorization it serves ends.
-// Nobody decides it. See "The credential lifecycle" in
-// poc_audit/entity_model.md.
+// `revoke` is commanded and carries the party that withdrew the credential.
+// `lapse` and `discharge` are entailed and carry no actor: a lapse arises when
+// the credential's holder ceases to exist, and a discharge when the thing the
+// credential was accessory to ends while the holder does not. Nobody decides
+// either. See "The credential lifecycle" in poc_audit/entity_model.md.
 const (
-	EventCredentialIssue  Event = "issue"
-	EventCredentialRevoke Event = "revoke"
-	EventCredentialLapse  Event = "lapse"
+	EventCredentialIssue     Event = "issue"
+	EventCredentialRevoke    Event = "revoke"
+	EventCredentialLapse     Event = "lapse"
+	EventCredentialDischarge Event = "discharge"
 )
 
 // Credential use events. Both name a presentation, because both are one: what
@@ -269,10 +271,13 @@ func IssueCredential(ctx context.Context, store database.Store, params IssueCred
 		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
 			EntryID:       entryID,
 			EffectiveDate: effective,
-			ActorType:     string(params.Actor.Type),
-			Actor:         params.Actor.ID,
+			ActorType:     sql.NullString{String: string(params.Actor.Type), Valid: true},
+			Actor:         uuid.NullUUID{UUID: params.Actor.ID, Valid: true},
 			Event:         string(EventCredentialIssue),
 			Subject:       issued.ID,
+			// Issuance is commanded, so nothing entailed it.
+			EntailedByEntry:      sql.NullInt64{},
+			EntailedByAnnotation: sql.NullString{},
 		})
 		if err != nil {
 			return xerrors.Errorf("append issuance entry: %w", err)
@@ -577,6 +582,62 @@ func recordPresentation(ctx context.Context, store database.Store, p Presentatio
 	}, nil)
 }
 
+// optionalActor renders an actor for a journal entry, absent for an entailed
+// operation. The null stands exactly where a normalized form would have had no
+// row, per "The actor column is nullable, and null there means there was no
+// actor" in poc_audit/implementation_patterns.md.
+func optionalActor(actor Ref) (sql.NullString, uuid.NullUUID) {
+	if actor.Type == "" || actor.ID == uuid.Nil {
+		return sql.NullString{}, uuid.NullUUID{}
+	}
+	return sql.NullString{String: string(actor.Type), Valid: true},
+		uuid.NullUUID{UUID: actor.ID, Valid: true}
+}
+
+// EntailedBy says what entailed an operation, in one of the two forms an
+// entailed entry may take.
+//
+// **Exactly one field is set.** Entry names the entry the operation followed
+// from, which is available where the thing that entailed it keeps a journal.
+// Annotation says in words what entailed it, for where that thing keeps none.
+// See "The reference has two forms, and one of them is words" in
+// poc_audit/implementation_patterns.md.
+//
+// **Using the annotation is a standing policy and each use of it is
+// transitory.** It is replaced by a reference once its referent is modeled and
+// journaled.
+type EntailedBy struct {
+	Entry      int64
+	Annotation string
+}
+
+// Valid reports whether exactly one form is present.
+func (e EntailedBy) Valid() bool {
+	return (e.Entry != 0) != (e.Annotation != "")
+}
+
+// DischargeCredential invalidates a credential because the thing it was
+// accessory to has ended, and records it.
+//
+// **Entailed, so there is no actor.** Nobody withdrew the credential and nobody
+// noticed it become pointless; it follows from an ending the record already
+// holds. See "How the credential machine is read" in poc_audit/entity_model.md
+// for the grounds, of which there are four.
+//
+// **This transition conflates those four**, which is permitted while the model
+// is being made and is recorded as outstanding. What distinguishes them today
+// is the annotation.
+//
+// store may be a transaction handle, so a discharge can commit with the ending
+// that caused it.
+func DischargeCredential(ctx context.Context, store database.Store, id uuid.UUID, entailedBy EntailedBy, effectiveAt time.Time) error {
+	if !entailedBy.Valid() {
+		return xerrors.New("a discharge says what entailed it, by entry or in words, and never both")
+	}
+
+	return invalidateCredential(ctx, store, id, Ref{}, EventCredentialDischarge, effectiveAt, entailedBy)
+}
+
 // RevokeCredential invalidates a credential deliberately and records it.
 //
 // **Commanded.** Some party withdrew the credential, whether because it is
@@ -588,7 +649,7 @@ func RevokeCredential(ctx context.Context, store database.Store, id uuid.UUID, a
 		return xerrors.New("an entry needs an actor, so revocation needs one")
 	}
 
-	return invalidateCredential(ctx, store, id, actor, EventCredentialRevoke, time.Time{})
+	return invalidateCredential(ctx, store, id, actor, EventCredentialRevoke, time.Time{}, EntailedBy{})
 }
 
 // LapseCredential invalidates a credential because what it rested on went
@@ -614,7 +675,7 @@ func LapseCredential(ctx context.Context, store database.Store, id uuid.UUID, ac
 		return xerrors.New("an entry needs an actor, so a lapse needs one")
 	}
 
-	return invalidateCredential(ctx, store, id, actor, EventCredentialLapse, effectiveAt)
+	return invalidateCredential(ctx, store, id, actor, EventCredentialLapse, effectiveAt, EntailedBy{})
 }
 
 // invalidateCredential writes the entry and posts it. Both transitions into
@@ -624,7 +685,7 @@ func LapseCredential(ctx context.Context, store database.Store, id uuid.UUID, ac
 // The update is conditioned on the posting reference the caller read, so two
 // posters racing cannot both believe they succeeded. Losing that race is
 // reported as such rather than as success.
-func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, event Event, effectiveAt time.Time) error {
+func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUID, actor Ref, event Event, effectiveAt time.Time, entailedBy EntailedBy) error {
 	effective := effectiveAt
 	if effective.IsZero() {
 		effective = time.Now()
@@ -644,13 +705,16 @@ func invalidateCredential(ctx context.Context, store database.Store, id uuid.UUI
 			return xerrors.Errorf("take an entry identifier: %w", err)
 		}
 
+		actorType, actorID := optionalActor(actor)
 		_, err = tx.InsertCredentialLifecycleJournalEntry(ctx, database.InsertCredentialLifecycleJournalEntryParams{
-			EntryID:       entryID,
-			EffectiveDate: effective,
-			ActorType:     string(actor.Type),
-			Actor:         actor.ID,
-			Event:         string(event),
-			Subject:       id,
+			EntryID:              entryID,
+			EffectiveDate:        effective,
+			ActorType:            actorType,
+			Actor:                actorID,
+			Event:                string(event),
+			Subject:              id,
+			EntailedByEntry:      sql.NullInt64{Int64: entailedBy.Entry, Valid: entailedBy.Entry != 0},
+			EntailedByAnnotation: sql.NullString{String: entailedBy.Annotation, Valid: entailedBy.Annotation != ""},
 		})
 		if err != nil {
 			return xerrors.Errorf("append %s entry: %w", event, err)

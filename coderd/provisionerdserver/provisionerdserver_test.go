@@ -6027,6 +6027,27 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	secondKeyID := strings.Split(secondToken, "-")[0]
 	_, err = db.GetAPIKeyByID(ctx, secondKeyID)
 	require.ErrorIs(t, err, sql.ErrNoRows, "stop must revoke the agent key")
+
+	// The ending reaches the ledger, and reaches it as a revocation. A stop
+	// is a decision, captured in the build, so the entry names the party who
+	// initiated it. A discharge here would claim the workspace had already
+	// ended, which at job acquisition it has not.
+	stopped, err := db.GetCredentialAPIKeyByKeyID(ctx, secondKeyID)
+	require.NoError(t, err, "the credential outlives its mirrored key")
+	stoppedLedger, err := db.GetCredentialLedgerRowByID(ctx, stopped.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.CredentialStateInvalid, stoppedLedger.State)
+
+	stopEntries, err := db.GetCredentialLifecycleJournalEntriesBySubject(ctx,
+		database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: stopped.ID, Limit: 8})
+	require.NoError(t, err)
+	last := stopEntries[len(stopEntries)-1]
+	require.Equal(t, string(entity.EventCredentialRevoke), last.Event)
+	require.True(t, last.Actor.Valid, "a revocation is commanded and names a party")
+	require.Equal(t, user.ID, last.Actor.UUID, "the party is whoever initiated the build")
+	require.False(t, last.EntailedByEntry.Valid)
+	require.False(t, last.EntailedByAnnotation.Valid,
+		"nothing entailed a revocation; it was decided")
 	_, err = db.GetLiveAIAgentByCreationSite(ctx, database.GetLiveAIAgentByCreationSiteParams{
 		CreationSiteType: string(entity.CreationSiteTypeWorkspace),
 		CreationSiteID:   workspace.ID,

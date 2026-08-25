@@ -676,6 +676,37 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 			switch {
 			case isDesignated:
+				// **DEFECT, on the prebuild claim path. This predicate cannot
+				// be satisfied usefully after a claim, and the build fails.**
+				//
+				// Reconstruct it as follows. A prebuilt workspace that opted
+				// in was designated by its own start build, which set
+				// `workspaces.ai_agent_id` and minted its credential. The
+				// claim is itself a start build, and the branch above revokes
+				// that identity: it retires the AI agent and deletes its key.
+				//
+				// Nothing clears the designation. `SetWorkspaceAIAgentID` is
+				// its only writer and only ever sets a value; no statement
+				// sets it null. So `resolveDesignatedAIAgent` reads the same
+				// identifier, fetches the ledger row whatever its state, and
+				// reports designated, arriving here with a retired agent.
+				//
+				// `regenerateAIAgentSessionToken` then calls `MintKey`, which
+				// calls `Resolve`, which refuses a retired agent with
+				// `ErrAIAgentDeleted`. The error fails the job, so **claiming
+				// a prebuilt workspace that was ever designated fails its
+				// build.**
+				//
+				// Pre-existing and not introduced by the ledger work: the
+				// query this replaced did not filter revoked agents either,
+				// and the old `Resolve` refused a deleted one just as this one
+				// refuses a retired one.
+				//
+				// Left alone deliberately. Prebuilds are outside the minimal
+				// proof of concept, so nothing here has been designed for
+				// them yet. The fix is probably to clear the designation when
+				// the identity is revoked, which is a change to what
+				// designation means and not a local repair.
 				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, designated.ID)
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
@@ -692,14 +723,15 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
-			default:
-				if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
-					s.Logger.Error(ctx, "failed to revoke AI agent session token on opt-out build",
-						slog.Error(err), slog.F("workspace_id", workspace.ID))
-				}
 			}
+			// A workspace that is not designated has no AI agent credential to
+			// end. The arm that used to stand here tried to end one, and could
+			// not reach one: the credential is minted in a single place, every
+			// path to that mint designates the workspace first, and nothing
+			// clears a designation. It is gone rather than converted into a
+			// revocation that would never fire.
 		case database.WorkspaceTransitionStop, database.WorkspaceTransitionDelete:
-			if err := s.revokeAIAgentSessionTokens(ctx, workspace); err != nil {
+			if err := s.revokeAIAgentSessionTokens(ctx, workspace, workspaceBuild.InitiatorID); err != nil {
 				s.Logger.Error(ctx, "failed to revoke AI agent session token",
 					slog.Error(err), slog.F("workspace_id", workspace.ID))
 			}
@@ -3363,7 +3395,7 @@ func (s *server) resolveWorkspaceOriginAIAgent(ctx context.Context, workspace da
 func (s *server) deleteAIAgentSessionToken(ctx context.Context, agentID uuid.UUID, tokenName string) error {
 	//nolint:gocritic // Deleting an internal AI agent key requires system access.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	return aiagentidentity.RevokeKey(systemCtx, s.Database, agentID, tokenName)
+	return aiagentidentity.DropKey(systemCtx, s.Database, agentID, tokenName)
 }
 
 // revokeAIAgentSessionTokens is the stop/delete-transition counterpart of
@@ -3374,7 +3406,16 @@ func (s *server) deleteAIAgentSessionToken(ctx context.Context, agentID uuid.UUI
 // live until expiry. Workspaces that predate the marker fall back to the
 // workspace-origin identity. Missing identities are not an error: a
 // workspace that never opted in has nothing to revoke.
-func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace database.Workspace) error {
+// revokeAIAgentSessionTokens ends the workspace's AI agent credential because
+// the workspace is stopping or being deleted.
+//
+// **A revocation, and the actor is whoever initiated the build.** This runs
+// when the job is acquired, so the workspace has neither stopped nor gone; what
+// exists is the decision, captured in the build's transition. The credential
+// ends because of that decision, which makes this commanded rather than
+// entailed. See "How the credential machine is read" in
+// poc_audit/entity_model.md.
+func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace database.Workspace, initiator uuid.UUID) error {
 	var agent database.AIAgentLedger
 	if workspace.AIAgentID.Valid {
 		found, err := s.Database.GetAIAgentLedgerRowByID(ctx, workspace.AIAgentID.UUID)
@@ -3401,7 +3442,10 @@ func (s *server) revokeAIAgentSessionTokens(ctx context.Context, workspace datab
 		agent = found
 	}
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
-	return s.deleteAIAgentSessionToken(ctx, agent.ID, profile.TokenName)
+	//nolint:gocritic // Ending an internal AI agent credential requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	return aiagentidentity.RevokeKey(systemCtx, s.Database, agent.ID, profile.TokenName,
+		entity.Ref{Type: entity.TypeUser, ID: initiator})
 }
 
 func (s *server) revokeAIAgentIdentityForWorkspace(ctx context.Context, workspaceID uuid.UUID, killer uuid.UUID) error {

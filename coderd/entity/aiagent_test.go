@@ -343,7 +343,13 @@ func TestRetireAIAgent(t *testing.T) {
 		require.Len(t, credEntries, 2, "the issuance and the lapse")
 		credLapse := credEntries[1]
 		require.Equal(t, string(entity.EventCredentialLapse), credLapse.Event)
-		require.Equal(t, entity.SystemActor.ID, credLapse.Actor)
+		// Not a discharge and not a revocation. The three endings differ in
+		// what caused them, and a retirement is the holder ceasing, which is
+		// what lapse names. Keeping them distinguishable in the record is the
+		// point of having three.
+		require.NotEqual(t, string(entity.EventCredentialDischarge), credLapse.Event)
+		require.NotEqual(t, string(entity.EventCredentialRevoke), credLapse.Event)
+		require.Equal(t, entity.SystemActor.ID, credLapse.Actor.UUID)
 		require.WithinDuration(t, happened, credLapse.EffectiveDate, time.Second)
 		require.Equal(t, credential.LifecyclePostingReference, credLapse.EntryID)
 	})

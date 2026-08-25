@@ -1261,6 +1261,11 @@ type sqlcQuerier interface {
 	InsertCredentialLifecycleJournalAPIKeyLine(ctx context.Context, arg InsertCredentialLifecycleJournalAPIKeyLineParams) (CredentialLifecycleJournalApiKey, error)
 	// recording_date is absent from this statement on purpose: the column default
 	// supplies it, so no caller can supply, override, or backdate it.
+	//
+	// actor is absent for an entailed operation, and entailed_by_entry or
+	// entailed_by_annotation says what entailed it. Exactly one of those two is
+	// present on an entailed entry and neither is on a commanded one, which the
+	// table's checks enforce.
 	InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error)
 	// The password type's own state, keyed on the ledger row it belongs to. Written
 	// in the same transaction as that row: a ledger row of type password with no

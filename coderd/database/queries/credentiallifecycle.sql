@@ -7,6 +7,11 @@ SELECT
 -- name: InsertCredentialLifecycleJournalEntry :one
 -- recording_date is absent from this statement on purpose: the column default
 -- supplies it, so no caller can supply, override, or backdate it.
+--
+-- actor is absent for an entailed operation, and entailed_by_entry or
+-- entailed_by_annotation says what entailed it. Exactly one of those two is
+-- present on an entailed entry and neither is on a commanded one, which the
+-- table's checks enforce.
 INSERT INTO
 	credential_lifecycle_journal (
 		entry_id,
@@ -14,10 +19,12 @@ INSERT INTO
 		actor_type,
 		actor,
 		event,
-		subject
+		subject,
+		entailed_by_entry,
+		entailed_by_annotation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
 
 -- name: InsertCredentialLedgerRow :one
 INSERT INTO

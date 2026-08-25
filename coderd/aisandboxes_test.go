@@ -341,6 +341,17 @@ func TestAISandboxLifecycleDelete(t *testing.T) {
 
 	// Created occupied, so that emptying the sandbox is a fact of its own
 	// rather than something a reader has to infer from `deleted`.
+	// Captured before the delete, the mirrored key being gone afterwards. By
+	// holder and profile rather than from the response, which carries the
+	// child agent's token and not the AI agent's credential.
+	sandboxProfile := aiagentidentity.SandboxIdentityProfile(fixture.workspace.Workspace.ID, created.ID)
+	mirroredKey, err := fixture.db.GetAPIKeyByName(dbauthz.AsSystemRestricted(ctx), database.GetAPIKeyByNameParams{
+		HolderID:  database.HolderID(created.AIAgentID),
+		TokenName: sandboxProfile.TokenName,
+	})
+	require.NoError(t, err)
+	keyID := mirroredKey.ID
+
 	live, err := fixture.db.GetAISandboxByID(dbauthz.AsSystemRestricted(ctx), created.ID)
 	require.NoError(t, err)
 	require.False(t, live.Deleted)
@@ -356,6 +367,28 @@ func TestAISandboxLifecycleDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, destroyed.Deleted)
 	require.EqualValues(t, 0, destroyed.OccupancyCount, "destroying a sandbox vacates it")
+
+	// The credential's ending reaches the ledger as a discharge. Nobody
+	// withdrew it: it was accessory to the sandbox, and the sandbox is gone.
+	// So the entry carries no actor, and says what ended in words, a sandbox
+	// keeping no journal to reference.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	discharged, err := fixture.db.GetCredentialAPIKeyByKeyID(sysCtx, keyID)
+	require.NoError(t, err, "the credential outlives its mirrored key")
+	ledgerRow, err := fixture.db.GetCredentialLedgerRowByID(sysCtx, discharged.ID)
+	require.NoError(t, err)
+	require.Equal(t, entity.CredentialStateInvalid, ledgerRow.State)
+
+	entries, err := fixture.db.GetCredentialLifecycleJournalEntriesBySubject(sysCtx,
+		database.GetCredentialLifecycleJournalEntriesBySubjectParams{Subject: discharged.ID, Limit: 8})
+	require.NoError(t, err)
+	ending := entries[len(entries)-1]
+	require.Equal(t, string(entity.EventCredentialDischarge), ending.Event)
+	require.False(t, ending.Actor.Valid, "a discharge is entailed and names no party")
+	require.False(t, ending.EntailedByEntry.Valid, "a sandbox keeps no journal to reference")
+	require.True(t, ending.EntailedByAnnotation.Valid)
+	require.Contains(t, ending.EntailedByAnnotation.String, created.ID.String(),
+		"the annotation says which sandbox ended")
 
 	childClient := agentsdk.New(fixture.client.URL, agentsdk.WithFixedToken(created.AgentToken))
 	_, err = childClient.AIEgressPolicy(ctx)

@@ -15370,7 +15370,7 @@ func (q *sqlQuerier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Contex
 
 const getCredentialLifecycleJournalEntriesBySubject = `-- name: GetCredentialLifecycleJournalEntriesBySubject :many
 SELECT
-	entry_id, recording_date, effective_date, actor_type, actor, event, subject
+	entry_id, recording_date, effective_date, actor_type, actor, event, subject, entailed_by_entry, entailed_by_annotation
 FROM
 	credential_lifecycle_journal
 WHERE
@@ -15407,6 +15407,8 @@ func (q *sqlQuerier) GetCredentialLifecycleJournalEntriesBySubject(ctx context.C
 			&i.Actor,
 			&i.Event,
 			&i.Subject,
+			&i.EntailedByEntry,
+			&i.EntailedByAnnotation,
 		); err != nil {
 			return nil, err
 		}
@@ -15683,23 +15685,32 @@ INSERT INTO
 		actor_type,
 		actor,
 		event,
-		subject
+		subject,
+		entailed_by_entry,
+		entailed_by_annotation
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING entry_id, recording_date, effective_date, actor_type, actor, event, subject, entailed_by_entry, entailed_by_annotation
 `
 
 type InsertCredentialLifecycleJournalEntryParams struct {
-	EntryID       int64     `db:"entry_id" json:"entry_id"`
-	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
-	ActorType     string    `db:"actor_type" json:"actor_type"`
-	Actor         uuid.UUID `db:"actor" json:"actor"`
-	Event         string    `db:"event" json:"event"`
-	Subject       uuid.UUID `db:"subject" json:"subject"`
+	EntryID              int64          `db:"entry_id" json:"entry_id"`
+	EffectiveDate        time.Time      `db:"effective_date" json:"effective_date"`
+	ActorType            sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor                uuid.NullUUID  `db:"actor" json:"actor"`
+	Event                string         `db:"event" json:"event"`
+	Subject              uuid.UUID      `db:"subject" json:"subject"`
+	EntailedByEntry      sql.NullInt64  `db:"entailed_by_entry" json:"entailed_by_entry"`
+	EntailedByAnnotation sql.NullString `db:"entailed_by_annotation" json:"entailed_by_annotation"`
 }
 
 // recording_date is absent from this statement on purpose: the column default
 // supplies it, so no caller can supply, override, or backdate it.
+//
+// actor is absent for an entailed operation, and entailed_by_entry or
+// entailed_by_annotation says what entailed it. Exactly one of those two is
+// present on an entailed entry and neither is on a commanded one, which the
+// table's checks enforce.
 func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, arg InsertCredentialLifecycleJournalEntryParams) (CredentialLifecycleJournal, error) {
 	row := q.db.QueryRowContext(ctx, insertCredentialLifecycleJournalEntry,
 		arg.EntryID,
@@ -15708,6 +15719,8 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, 
 		arg.Actor,
 		arg.Event,
 		arg.Subject,
+		arg.EntailedByEntry,
+		arg.EntailedByAnnotation,
 	)
 	var i CredentialLifecycleJournal
 	err := row.Scan(
@@ -15718,6 +15731,8 @@ func (q *sqlQuerier) InsertCredentialLifecycleJournalEntry(ctx context.Context, 
 		&i.Actor,
 		&i.Event,
 		&i.Subject,
+		&i.EntailedByEntry,
+		&i.EntailedByAnnotation,
 	)
 	return i, err
 }

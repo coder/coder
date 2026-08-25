@@ -57,6 +57,9 @@ const (
 	CheckUsersUsernameMinLength                                CheckConstraint = "users_username_min_length"                                    // users
 	CheckCredentialAPIKeyAllowListNotEmpty                     CheckConstraint = "credential_api_key_allow_list_not_empty"                      // credential_api_key
 	CheckCredentialLedgerState                                 CheckConstraint = "credential_ledger_state"                                      // credential_ledger
+	CheckCredentialLifecycleJournalDischargeHasNoActor         CheckConstraint = "credential_lifecycle_journal_discharge_has_no_actor"          // credential_lifecycle_journal
+	CheckCredentialLifecycleJournalDischargeNamesItsCause      CheckConstraint = "credential_lifecycle_journal_discharge_names_its_cause"       // credential_lifecycle_journal
+	CheckCredentialLifecycleJournalEntailedByOneForm           CheckConstraint = "credential_lifecycle_journal_entailed_by_one_form"            // credential_lifecycle_journal
 	CheckCredentialLifecycleJournalAPIKeyLineNonNegative       CheckConstraint = "credential_lifecycle_journal_api_key_line_non_negative"       // credential_lifecycle_journal_api_key
 	CheckCredentialUseJournalEvent                             CheckConstraint = "credential_use_journal_event"                                 // credential_use_journal
 	CheckOrganizationIDNotZero                                 CheckConstraint = "organization_id_not_zero"                                     // custom_roles

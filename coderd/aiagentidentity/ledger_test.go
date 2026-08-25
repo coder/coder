@@ -304,7 +304,7 @@ func TestMintedKeyIsInTheLedger(t *testing.T) {
 		})
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	require.Equal(t, owner.ID, entries[0].Actor)
+	require.Equal(t, owner.ID, entries[0].Actor.UUID)
 
 	// The 24 hour lifetime survives the move. A mirror that wrote its
 	// stand-in for never would pass every other assertion here.

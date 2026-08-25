@@ -5480,11 +5480,15 @@ type CredentialLifecycleJournal struct {
 	EntryID       int64     `db:"entry_id" json:"entry_id"`
 	RecordingDate time.Time `db:"recording_date" json:"recording_date"`
 	// When the event occurred. For an expiry this is the expiry time and not the moment a sweep noticed, so an entry written late records the same fact at the same moment. It is the earlier of the event time and the recording time, which keeps it from ever claiming the journal foresaw something.
-	EffectiveDate time.Time `db:"effective_date" json:"effective_date"`
-	ActorType     string    `db:"actor_type" json:"actor_type"`
-	Actor         uuid.UUID `db:"actor" json:"actor"`
-	Event         string    `db:"event" json:"event"`
-	Subject       uuid.UUID `db:"subject" json:"subject"`
+	EffectiveDate time.Time      `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+	// The entry this operation followed from, where the thing that entailed it keeps a journal. Exactly one of this and entailed_by_annotation is set on an entailed entry.
+	EntailedByEntry sql.NullInt64 `db:"entailed_by_entry" json:"entailed_by_entry"`
+	// What entailed this operation, in words, where the thing that entailed it keeps no journal to reference. Annotative: posting never reads it. Replaced by a proper reference once that thing is an entity.
+	EntailedByAnnotation sql.NullString `db:"entailed_by_annotation" json:"entailed_by_annotation"`
 }
 
 // Lines of the credential journal describing the issuance of an api_key credential. Line numbers are subordinate to the entry and start at zero, as in the denormalized form. With a second line table nothing would enforce that two of them do not claim the same number within one entry, which is a reconciliation rather than a constraint.

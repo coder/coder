@@ -1350,6 +1350,15 @@ The first follows from what the world now is, the second from what the system
 has undertaken to do, and neither is anybody's act, so neither entry carries an
 actor.
 
+**`discharge` currently conflates these four, and that is recorded as
+outstanding.** Four rules reach one state under one name, which "Transitions
+that reach one state may be conflated, and a complete model splits them" in
+`implementation_patterns.md` permits while the model is being made and requires
+to be undone before it is complete. What distinguishes them today is only the
+annotation on the entry, and splitting them now would produce variants whose
+columns are all null, the three journals that would tell them apart not
+existing. **The model is not finished while this stands.**
+
 #### Relative lifespans, and what follows from them
 
 In the proof of concept an AI agent, its authorization, and its credential stand

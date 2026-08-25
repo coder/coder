@@ -317,6 +317,30 @@ boolean. That is the form to use, and the trap is worth naming here because
 this corpus is now in the business of making a previously mandatory column
 optional.
 
+### Transitions that reach one state may be conflated, and a complete model splits them
+
+**A model may be incomplete in this particular way and still be built on.**
+Where two transitions reach the same state by different rules, one name may
+stand for both while the model is being made. The state is right and nothing
+reading the state is wrong; what is coarse is the record of how it was reached.
+
+**A complete model splits them.** Two rules reaching one state are two
+transitions, and one name over both says less than the model already knows.
+Separating them is what completeness requires rather than a refinement of it.
+
+**The permission is about order of implementation, not about the model.** A
+conflation is a thing to be undone, and the model is not finished while one
+stands. Recording which conflations are outstanding is therefore part of the
+work, not bookkeeping beside it.
+
+**Splitting costs nothing in a normalized journal**, where each variant is a
+line table of its own and line tables are per shape already. In a denormalized
+one it would be a reason to normalize.
+
+**Entailment is where this was first met**, and it is the sharpest case, because
+an entailed operation names what entailed it and the shape of that reference
+differs per rule. It is not the only case.
+
 ### An entailed operation's entry names the entries that entailed it
 
 The model requires it, per "An entailed operation records what entailed it".
@@ -328,17 +352,41 @@ reference is an entry identifier qualified by the journal it belongs to, and the
 qualification is by column, the journal being known when the operation is
 defined rather than at runtime.
 
-**An operation is split until each variant's references have a fixed shape.**
-Where one name covers two entailments reached by different rules from different
-journals, that is two transitions wearing one name, and separating them is the
-least hackish of the available answers. The alternatives are a column per
-journal with exactly one non null, or a pair naming the journal and the entry,
-which would apply this corpus's reference rule to records, and records are not
-entities.
+**An entailed operation is split per rule**, per "Transitions that reach one
+state may be conflated, and a complete model splits them" above. **The rule is
+what discriminates, not the journal**: a variant whose entailing thing is not
+yet an entity has no journal to be known by, and is a variant all the same. The
+alternatives are a column per journal with exactly one non null, or a pair
+naming the journal and the entry, which would apply this corpus's reference rule
+to records, and records are not entities.
 
-Splitting costs nothing in a normalized journal, where each variant is a line
-table of its own and line tables are per shape already. In a denormalized one it
-would be a reason to normalize.
+#### The reference has two forms, and one of them is words
+
+An entailing entry can be named only where the thing that entailed the operation
+keeps a journal. Entities are modelled in some order of implementation, so a
+thing modelled early entails operations on things whose entities do not exist
+yet, and there is nothing to name.
+
+**So the reference takes one of two forms: an entry, or an annotation saying in
+words what entailed the operation.** Exactly one is present. Never both, and
+never neither: an entailed operation always says what entailed it, and what
+varies is only whether it can say so by reference.
+
+**The annotation is annotative**, so posting never reads it. It is written for a
+reader, and particularly for a reader deciding whether the reference can now be
+made properly.
+
+**Using an annotation as a placeholder for a proper reference is a standing
+policy. Each placeholder is transitory, until its referent is modelled and
+journaled.** The policy does not expire, because something is always modelled
+before something else; the individual placeholders do, one at a time.
+
+**It is not the alternative declined under "Transitions that reach one state may
+be conflated, and a complete model splits them".** That one is a column per
+journal, discriminating which journal an entailment came from. These two columns
+discriminate nothing of the sort: they say whether the entailing thing is
+modelled, which is a fact about this system's progress rather than about the
+operation.
 
 #### A sibling consequence is not a cause
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"regexp"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entity"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rewrite2026augustlog"
@@ -283,19 +285,32 @@ func (api *API) deleteWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Soft-deleting the child row invalidates its auth token, so the
-	// confined agent can no longer authenticate even if the destroy script
-	// leaves the process running.
-	if err := api.Database.DeleteWorkspaceSubAgentByID(systemCtx, sandbox.ChildAgentID); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		httpapi.InternalServerError(rw, xerrors.Errorf("delete sandbox child agent: %w", err))
-		return
-	}
-	if err := api.deleteAISandboxSessionToken(systemCtx, sandbox); err != nil {
+	// **One transaction, and the sandbox ends first.** The three writes are
+	// one event: the sandbox is destroyed and its contents go with it. Left
+	// separate, a failure between any two leaves a sandbox whose credential
+	// still authenticates, or a credential ended for a sandbox that still
+	// exists, and nothing reconciles either.
+	//
+	// The order within the transaction is not visible outside it and is
+	// chosen for coherence: the sandbox's ending is recorded before the
+	// endings that follow from it, so that each of those follows something
+	// already true rather than something about to be. Nothing here reads what
+	// the earlier writes wrote, so the order carries meaning and not
+	// behavior.
+	err = api.Database.InTx(func(tx database.Store) error {
+		if err := tx.SoftDeleteAISandbox(systemCtx, sandbox.ID); err != nil {
+			return xerrors.Errorf("soft delete AI sandbox: %w", err)
+		}
+		// Soft-deleting the child row invalidates its auth token, so the
+		// confined agent can no longer authenticate even if the destroy
+		// script leaves the process running.
+		if err := tx.DeleteWorkspaceSubAgentByID(systemCtx, sandbox.ChildAgentID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("delete sandbox child agent: %w", err)
+		}
+		return api.dischargeAISandboxCredential(systemCtx, tx, sandbox)
+	}, nil)
+	if err != nil {
 		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if err := api.Database.SoftDeleteAISandbox(systemCtx, sandbox.ID); err != nil {
-		httpapi.InternalServerError(rw, xerrors.Errorf("soft delete AI sandbox: %w", err))
 		return
 	}
 	rewrite2026augustlog.SandboxDeleted(ctx, rewrite2026augustlog.F{
@@ -314,7 +329,7 @@ func (api *API) deleteWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Re
 // existing sandbox, dropping the previous one. MintKey does not replace keys
 // by name, so the stale key is deleted first.
 func (api *API) rotateAISandboxSessionToken(ctx context.Context, workspaceID uuid.UUID, sandbox database.AISandbox) (string, error) {
-	if err := api.deleteAISandboxSessionToken(ctx, sandbox); err != nil {
+	if err := api.deleteAISandboxSessionToken(ctx, api.Database, sandbox); err != nil {
 		return "", err
 	}
 	_, token, err := aiagentidentity.MintKey(ctx, api.Database, sandbox.AIAgentID,
@@ -325,9 +340,32 @@ func (api *API) rotateAISandboxSessionToken(ctx context.Context, workspaceID uui
 	return token, nil
 }
 
-func (api *API) deleteAISandboxSessionToken(ctx context.Context, sandbox database.AISandbox) error {
+// dischargeAISandboxCredential ends the credential issued for one sandbox,
+// because the sandbox it was issued for has been destroyed.
+//
+// **A discharge, not a revocation.** Nobody withdrew the credential. It was
+// accessory to the sandbox, and with the sandbox gone there is nowhere left to
+// act. See "How the credential machine is read" in poc_audit/entity_model.md.
+//
+// The annotation stands in for a reference to the sandbox's own ending, which
+// cannot be named while a sandbox keeps no journal.
+//
+// store may be a transaction handle, so the ending commits with the sandbox's
+// destruction that causes it.
+func (*API) dischargeAISandboxCredential(ctx context.Context, store database.Store, sandbox database.AISandbox) error {
 	profile := aiagentidentity.SandboxIdentityProfile(sandbox.WorkspaceID, sandbox.ID)
-	return aiagentidentity.RevokeKey(ctx, api.Database, sandbox.AIAgentID, profile.TokenName)
+	return aiagentidentity.DischargeKey(ctx, store, sandbox.AIAgentID, profile.TokenName, entity.EntailedBy{
+		Annotation: fmt.Sprintf("sandbox %s destroyed", sandbox.ID),
+	})
+}
+
+// deleteAISandboxSessionToken drops the credential issued for one sandbox
+// without recording an ending, which is what a rotation needs: the credential
+// is superseded rather than finished, and the rotation records both halves as
+// one event once WP13's atomic group exists.
+func (*API) deleteAISandboxSessionToken(ctx context.Context, store database.Store, sandbox database.AISandbox) error {
+	profile := aiagentidentity.SandboxIdentityProfile(sandbox.WorkspaceID, sandbox.ID)
+	return aiagentidentity.DropKey(ctx, store, sandbox.AIAgentID, profile.TokenName)
 }
 
 func validateAISandboxRequest(req agentsdk.CreateAISandboxRequest) []codersdk.ValidationError {

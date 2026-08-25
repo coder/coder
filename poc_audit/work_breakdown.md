@@ -1437,9 +1437,9 @@ then the key it is carried on names its holder.
 
 ### Status
 
-Milestones 1 and 2 complete, 2026-08-23. Milestone 4's minting change went with
-milestone 2 and was not noticed until 2026-08-24; what is left of it is removal.
-Milestone 3 not started.
+Milestones 1 and 2 complete, 2026-08-23. Milestone 3 complete, 2026-08-25.
+Milestone 4's minting change went with milestone 2 and was not noticed until
+2026-08-24; what is left of it is removal.
 
 ### What forces the work
 
@@ -1570,72 +1570,118 @@ makes available. Splitting them takes that state deliberately rather than by
 oversight, and this milestone is what bounds how long it lasts. **Nothing should
 read the ledger as authoritative in between.**
 
-**Three sites, all `discharge`.** Sandbox deletion in `aisandboxes.go`, and
-workspace stop and workspace delete reached through `revokeAIAgentSessionTokens`
-in `provisionerdserver.go`. The grounds differ by site and are stated in "How
-the credential machine is read" in `entity_model.md`.
+### The four sites, and what each is
 
-**Implement `discharge`.** `entity/credential.go` has issue, revoke and lapse
-over a shared `invalidateCredential`, and nothing discharges. The ledger update
-is identical for every transition into `invalid`, so what a discharge adds is an
-entry: its own event, no actor, and a reference to what entailed it.
+Enumerated on 2026-08-24 after the milestone twice named the wrong number. Each
+is stated with what the credential is, since as of milestone 2 every credential
+here is journalled in the ledger and mirrored into `api_keys`, and ending one
+means posting to the ledger and deleting the mirror.
 
-**It must not copy `LapseCredential`'s signature**, which takes an actor and
-refuses to run without one. A status comment on that function records the rework
-this anticipates, and writing a new function to match the neighbour would give
-it that cheat at birth.
+**Site 1, sandbox deletion. A `discharge`.** `deleteWorkspaceAgentAISandbox` in
+`aisandboxes.go`, `tigre` only, Jon Ayers 2026-08-11. The credential was
+accessory to the sandbox it was issued for. **This is the only site whose cause
+is written in the same transaction**, the sandbox's soft delete being one of the
+handler's own writes.
 
-**The two-field entailing reference, pulled in from WP13.** An entry reference
-and an annotative text, exactly one set, never both and never neither. All three
-sites fill the text, neither a sandbox nor a workspace being an entity, and it
-says what ended. Small enough to carry here, and this milestone is its only
-consumer.
+**Sites 2 and 3, workspace stop and workspace delete. A `revoke`.** One call to
+`revokeAIAgentSessionTokens` in `provisionerdserver.go` serving both
+transitions, Jon Ayers 2026-08-10 and 08-11.
 
-**Ordering and atomicity.** Each ending commits in the transaction that causes
-it, with the causing thing recorded first: the sandbox's destruction before its
-credential's discharge, the retirement before the mirrored key is deleted.
-Sharing the transaction closes the window in which the ledger says invalid while
-`api_keys` still authenticates. Both pairs are conceptually simultaneous and are
-ordered for data coherence rather than because one causes the other, which is
-the open question on posting order across ledgers.
+These were first classed `discharge` and are not. The call runs in
+`acquireProtoJob`, when the build job is picked up, so the workspace has neither
+stopped nor been deleted and **the material ending has not happened yet**. What
+has happened is the decision, captured in the build's transition. Eric,
+2026-08-24: the captured intent is the better explanatory hook, and `revoke` is
+then more accurate. It is commanded and carries an actor, for which the
+candidate is the build's initiator; **that it is reachable at this site is
+unverified.**
 
-**Both rotations are excluded**, and extracting their common function belongs
-with the rotation work in WP13 rather than here. **This milestone does not
-depend on it**: nothing is added to the rotation paths either way.
+**Site 4, the opted-out start build. Dead, and to be deleted.** The `default:`
+arm of the start switch, introduced with that switch in `9071fd979b` as the else
+of a two-case decision rather than for its own sake.
 
-**Rotation is where `revoke` happens**, inside the rotation rather than at any
-ending, so posting a bare revoke at those sites would be work the rotation
-rewrite unpicks.
+It can never end anything, which was checked rather than assumed. The
+`ai-ws-<workspace>` credential is minted in exactly one place; every path to
+that mint designates the workspace first; designation is never cleared, its only
+writer setting a value and never null. The arm runs only when the workspace is
+not designated, so the credential cannot exist when it runs. A workspace whose
+agent was made by the sandbox route is the near case, and that agent holds only
+`ai-sb-` credentials, so the lookup finds nothing.
 
-**Where the discharge is posted has to be settled here.** It cannot go inside
-`RevokeKey` unconditionally, because that function is also how a retirement
+### What this milestone builds
+
+**Implement `discharge`.** Done. `entity.DischargeCredential`, entailed, taking
+no actor, over the shared `invalidateCredential`. It does not copy
+`LapseCredential`'s signature, which takes an actor and refuses to run without
+one; a status comment on that function records the rework this anticipates.
+
+**The two-field entailing reference.** Done, migration 000590. An entry
+reference and an annotative text, exactly one set on a discharge, with the actor
+made nullable and a check tying its absence to the event. Site 1 fills the text,
+a sandbox not being an entity.
+
+**One transition, and the conflation is recorded rather than avoided.** The
+grounds for discharge are four rules reaching one state, so a complete model has
+four transitions. This milestone writes one, with the annotation distinguishing
+them, which "Transitions that reach one state may be conflated, and a complete
+model splits them" permits while the model is being made. The conflation is
+recorded in the credential machine's reading in `entity_model.md`.
+
+**The endings get their own function, and `RevokeKey` is unchanged.** Eric,
+2026-08-24, choosing this over moving the mirror deletion into the lapse. A
+discharge cannot be posted inside `RevokeKey`, which is also how a retirement
 deletes the mirrored key after the credential has already lapsed, and a
-retirement must not post both. Either the endings call a function of their own,
-or the mirror deletion moves into the lapse and leaves `RevokeKey` to the
-endings alone. The second is tidier and is a larger change.
+retirement must not post both. With sites 2 and 3 reclassified, `RevokeKey`'s
+remaining callers are two revocations and two retirement cleanups, and its name
+says what it does.
+
+**Site 1's transaction and ordering.** Done. The handler's three writes are one
+transaction and the sandbox's ending is recorded before the endings that follow
+from it, so each follows something already true. Nothing inside reads what the
+earlier writes wrote, so the order carries meaning and not behaviour.
+
+**Sites 2 and 3 need no transaction with their cause**, the cause being a
+decision already recorded elsewhere rather than a write in this request. What
+must be atomic is the posting and the mirror's deletion.
 
 **No handling for a key without a ledger credential.** Every AI agent key is
 minted by `MintKey` and every `MintKey` goes through the ledger, so a key
-without one cannot arise. The lookup's own error is the loud failure, and a
-branch would be code asserting a state that cannot occur.
+without one cannot arise. The lookup's own error is the loud failure.
 
 **The scope is AI agent credentials only.** The six human deletion sites stay as
 they are, which keeps this package to the one holder kind the proof of concept
 scopes.
 
+**Both rotations are excluded**, and extracting their common function belongs
+with the rotation work in WP13. This milestone does not depend on it.
+
 ### Acceptance tests for milestone 3
 
-**Each of the three sites posts a discharge**, whose entry carries no actor and
-an annotative reference naming what ended.
+**Sandbox deletion posts a discharge**, whose entry carries no actor and an
+annotation naming the sandbox that was destroyed.
 
-**A retirement still posts a lapse**, not a discharge, and its reference is the
-retirement entry rather than a text.
+**Workspace stop and workspace delete post a revocation**, whose entry carries
+the build's initiator.
 
-**Nothing outside `RotateKey` and the endings deletes a key an AI agent holds**,
-which is a structural assertion and is what milestone 1 bought.
+**A retirement posts a lapse**, and neither a discharge nor a revocation, so
+that the three endings stay distinguishable in the record.
 
-**A rotation leaves the agent with a usable credential throughout**, which is
-what distinguishes it from an ending and is why it is excluded here.
+**Every ending deletes the mirrored key as well as posting**, the two being one
+act, and a credential ended in the ledger while `api_keys` still authenticates
+is the divergence this milestone exists to prevent.
+
+**A discharge says what entailed it, or is refused.** `EntailedBy` takes exactly
+one form, and neither both nor neither is accepted.
+
+**Nothing outside the endings and the drops deletes a key an AI agent holds**, a
+structural assertion and what milestone 1 bought.
+
+**Three of these were stated wrongly before the sites were enumerated.** The
+list said three discharges, said a lapse names the retirement entry when it
+names nothing, and said a rotation leaves a usable credential throughout when it
+deletes before minting and leaves a real gap. They are corrected here rather
+than quietly, because each was a claim about the code that the code did not
+support.
 
 ### Milestone 4: the key names its holder
 

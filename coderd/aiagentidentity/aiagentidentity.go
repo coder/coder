@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -172,11 +173,16 @@ func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateP
 	return createdUser, nil
 }
 
-// RevokeKey ends one of an AI agent's credentials, named by the token name its
-// profile carries.
+// DropKey deletes one of an AI agent's mirrored keys without recording an
+// ending, named by the token name its profile carries.
 //
-// **This and RevokeAllKeys are the only places an AI agent's credential is
-// ended.** Ending one is currently a delete from api_keys and nothing else;
+// **It records nothing, which is why it is not called Revoke.** Two callers
+// want exactly that: a retirement, where the credential has already lapsed and
+// only the mirror is left, and a rotation, where the credential is superseded
+// rather than finished and both halves belong in one entry once WP13's atomic
+// group exists.
+//
+// **An ending calls RevokeKey or DischargeKey instead.** Ending one is currently a delete from api_keys and nothing else;
 // gathering the callers here is what lets that become a posting to the
 // credential ledger in one place rather than four. Nothing else should delete
 // a key an AI agent holds.
@@ -187,7 +193,7 @@ func mirror(ctx context.Context, tx database.Store, id uuid.UUID, params CreateP
 //
 // The context is used as given. Callers needing system access escalate before
 // calling, which keeps that decision where the caller can see it.
-func RevokeKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string) error {
+func DropKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string) error {
 	key, err := db.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
 		HolderID:  database.HolderID(agentID),
 		TokenName: tokenName,
@@ -204,9 +210,84 @@ func RevokeKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenN
 	return nil
 }
 
-// RevokeAllKeys ends every credential an AI agent holds, which is what the
-// ending of the agent itself calls for. See RevokeKey for why both live here.
-func RevokeAllKeys(ctx context.Context, db database.Store, agentID uuid.UUID) error {
+// RevokeKey ends one of an AI agent's credentials because a party withdrew it,
+// posting the revocation and deleting the mirrored key.
+//
+// **Commanded, so it carries the party.** Its sites are a workspace stopping
+// and a workspace being deleted, where the credential ends because somebody
+// decided the workspace should stop or go, and the decision is captured in the
+// build. The material ending has not happened yet at that point, which is why
+// this is a revocation following a decision rather than a discharge following
+// an ending.
+//
+// store may be a transaction handle.
+func RevokeKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string, actor entity.Ref) error {
+	return endKey(ctx, db, agentID, tokenName, func(credentialID uuid.UUID) error {
+		return entity.RevokeCredential(ctx, db, credentialID, actor)
+	})
+}
+
+// DischargeKey ends one of an AI agent's credentials because the thing it was
+// accessory to has ended, posting the discharge and deleting the mirrored key.
+//
+// **This is the endings' door and DropKey is not.** A retirement also uses
+// DropKey, to delete the mirror after the credential has already lapsed, so a
+// posting inside that function would give a retirement two endings for one
+// credential. Which ending a call is making is said by which function it calls,
+// not by a parameter.
+//
+// `entailedBy` says what ended, and today is always an annotation: neither a
+// sandbox nor a workspace keeps a journal to reference. See "The reference has
+// two forms, and one of them is words" in
+// poc_audit/implementation_patterns.md.
+//
+// store may be a transaction handle, so the ending can commit with the ending
+// that caused it.
+func DischargeKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string, entailedBy entity.EntailedBy) error {
+	return endKey(ctx, db, agentID, tokenName, func(credentialID uuid.UUID) error {
+		return entity.DischargeCredential(ctx, db, credentialID, entailedBy, time.Time{})
+	})
+}
+
+// endKey posts an ending against the credential a mirrored key stands for, and
+// deletes the key. What differs between the endings is the transition, so that
+// is what the caller supplies and everything else is written once.
+//
+// **A credential that is not there is not an error.** More than one ending can
+// apply to the same credential, so this is idempotent rather than reporting
+// that something got there first.
+func endKey(ctx context.Context, db database.Store, agentID uuid.UUID, tokenName string, post func(credentialID uuid.UUID) error) error {
+	key, err := db.GetAPIKeyByName(ctx, database.GetAPIKeyByNameParams{
+		HolderID:  database.HolderID(agentID),
+		TokenName: tokenName,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("get AI agent API key by name: %w", err)
+	}
+
+	// The ledger is the index: it knows which credential this key mirrors. A
+	// key without one cannot arise, every AI agent key being minted through
+	// the ledger, so its absence is an error rather than a case to handle.
+	mirrored, err := db.GetCredentialAPIKeyByKeyID(ctx, key.ID)
+	if err != nil {
+		return xerrors.Errorf("read the credential behind AI agent key %q: %w", tokenName, err)
+	}
+	if err := post(mirrored.ID); err != nil {
+		return xerrors.Errorf("end AI agent credential %q: %w", tokenName, err)
+	}
+	if err := db.DeleteAPIKeyByID(ctx, key.ID); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return xerrors.Errorf("delete AI agent API key: %w", err)
+	}
+	return nil
+}
+
+// DropAllKeys deletes every mirrored key an AI agent holds, recording nothing.
+// Its caller is the orphan sweep, which retires the agent first, so the
+// credentials have already lapsed and only the mirrors remain.
+func DropAllKeys(ctx context.Context, db database.Store, agentID uuid.UUID) error {
 	if err := db.DeleteAPIKeysByHolderID(ctx, database.HolderID(agentID)); err != nil {
 		return xerrors.Errorf("delete AI agent API keys: %w", err)
 	}
