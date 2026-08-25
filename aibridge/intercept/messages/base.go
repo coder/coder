@@ -108,6 +108,30 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.mcpProxy = mcpProxy
 }
 
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage anthropic.Usage) {
+	var metadata recorder.Metadata
+	if usage.ServiceTier != "" {
+		metadata = recorder.Metadata{
+			recorder.MetadataKeyServiceTier: string(usage.ServiceTier),
+		}
+	}
+
+	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		InterceptionID:        i.ID().String(),
+		MsgID:                 msgID,
+		Input:                 usage.InputTokens,
+		Output:                usage.OutputTokens,
+		CacheReadInputTokens:  usage.CacheReadInputTokens,
+		CacheWriteInputTokens: usage.CacheCreationInputTokens,
+		Metadata:              metadata,
+		ExtraTokenTypes: map[string]int64{
+			"web_search_requests":      usage.ServerToolUse.WebSearchRequests,
+			"cache_ephemeral_1h_input": usage.CacheCreation.Ephemeral1hInputTokens,
+			"cache_ephemeral_5m_input": usage.CacheCreation.Ephemeral5mInputTokens,
+		},
+	})
+}
+
 func (i *interceptionBase) CorrelatingToolCallID() *string {
 	return i.reqPayload.correlatingToolCallID()
 }
