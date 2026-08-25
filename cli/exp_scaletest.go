@@ -2310,8 +2310,7 @@ func getScaletestUsersWithPrefix(ctx context.Context, client *codersdk.Client, p
 
 // filterScaletestUsersByPrefix returns the users whose username starts with
 // prefix and that look like scaletest users. It is the in-memory selection
-// behind getScaletestUsersWithPrefix, split out so the prefix-isolation behavior
-// is unit-testable without a server. The username prefix guard matters because
+// behind getScaletestUsersWithPrefix. The username prefix guard matters because
 // the users search matches the term in several fields, not just the username.
 func filterScaletestUsersByPrefix(users []codersdk.User, prefix string) []codersdk.User {
 	filtered := make([]codersdk.User, 0, len(users))

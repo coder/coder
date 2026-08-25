@@ -10,7 +10,7 @@ import (
 )
 
 // TestFilterScaletestUsersByPrefix covers the pure user-selection logic behind
-// notifications --reuse-users: a sub-prefix pool must not pick up users from the
+// notifications --reuse-users: an infix pool must not pick up users from the
 // default pool (isolation), non-scaletest users are ignored, and the username
 // guard rejects users that only match the prefix in another field.
 func TestFilterScaletestUsersByPrefix(t *testing.T) {
@@ -34,7 +34,7 @@ func TestFilterScaletestUsersByPrefix(t *testing.T) {
 		want   []string
 	}{
 		{
-			name:   "sub-prefix isolates its own pool",
+			name:   "infix isolates its own pool",
 			prefix: "scaletest-notif-",
 			want: []string{
 				"scaletest-notif-aaaaaaaa-0",
