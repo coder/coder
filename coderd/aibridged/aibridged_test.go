@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +62,14 @@ func newTestServerWithDialer(t *testing.T, dialer aibridged.Dialer, loggerOption
 			return client, nil
 		}
 	}
-	srv, err := aibridged.New(t.Context(), pool, dialer, logger, testTracer)
+	srv, err := aibridged.New(
+		t.Context(),
+		pool,
+		dialer,
+		logger,
+		testTracer,
+		aibridged.WithMCPGatewayEscalationIntervals(5*time.Millisecond, time.Millisecond),
+	)
 	require.NoError(t, err, "create new aibridged")
 	t.Cleanup(func() {
 		srv.Shutdown(context.Background())

@@ -10,11 +10,14 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
@@ -123,85 +126,185 @@ func TestServeHTTP_MCPGatewayPolicy(t *testing.T) {
 	require.Equal(t, "2", toolUsages[0].GetToolCallId())
 	require.Equal(t, "2", toolUsages[0].GetItemId())
 	require.Empty(t, toolUsages[0].GetInvocationError())
+	require.Equal(t, "permitted", toolUsages[0].GetDisposition())
 
 	require.Equal(t, interceptionIDs[1], toolUsages[1].GetInterceptionId())
 	require.Equal(t, "write", toolUsages[1].GetTool())
 	require.JSONEq(t, "null", toolUsages[1].GetInput())
 	require.Equal(t, upstream.URL, toolUsages[1].GetServerUrl())
 	require.Contains(t, toolUsages[1].GetInvocationError(), `tool "write" denied`)
+	require.Equal(t, "blocked", toolUsages[1].GetDisposition())
 }
 
-// TestServeHTTP_MCPGatewayEscalateRule covers the escalate disposition before
-// the approval hold exists: the tool stays listed, but calls fail closed with
-// a distinct message and are recorded as denied invocations.
-func TestServeHTTP_MCPGatewayEscalateRule(t *testing.T) {
+func TestServeHTTP_MCPGatewayEscalation(t *testing.T) {
 	t.Parallel()
 
-	var upstreamCalls atomic.Int32
-	upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-		var request struct {
-			Method string `json:"method"`
-		}
-		require.NoError(t, json.Unmarshal(body, &request))
-		require.Equal(t, "tools/list", request.Method, "escalated calls must never reach upstream")
-		upstreamCalls.Add(1)
-		rw.Header().Set("Content-Type", "application/json")
-		_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"read"},{"name":"delete_repo"}]}}`))
-	}))
-	t.Cleanup(upstream.Close)
-
-	srv, client, _ := newTestServer(t)
-	initiatorID := uuid.NewString()
-	client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
-		OwnerId:  initiatorID,
-		ApiKeyId: "key-id",
-		Username: "agent",
-	}, nil)
-	client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
-	client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.GetMCPGatewayServerConfigResponse{
-		Found: true,
-		Config: &proto.MCPGatewayServerConfig{
-			Id:        uuid.NewString(),
-			Slug:      "github",
-			Url:       upstream.URL,
-			Transport: "streamable_http",
-			ToolRules: []*proto.MCPGatewayToolRule{
-				{Tool: "delete_repo", Action: "escalate"},
+	setup := func(t *testing.T, upstreamURL string) (*aibridged.Server, *mock.MockDRPCClient, string) {
+		t.Helper()
+		srv, client, _ := newTestServer(t)
+		initiatorID := uuid.NewString()
+		configID := uuid.NewString()
+		client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsAuthorizedResponse{
+			OwnerId:  initiatorID,
+			ApiKeyId: "key-id",
+			Username: "agent",
+		}, nil)
+		client.EXPECT().IsBudgetExceeded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.IsBudgetExceededResponse{}, nil)
+		client.EXPECT().GetMCPGatewayServerConfig(gomock.Any(), gomock.Any()).Return(&proto.GetMCPGatewayServerConfigResponse{
+			Found: true,
+			Config: &proto.MCPGatewayServerConfig{
+				Id:           configID,
+				Slug:         "github",
+				Url:          upstreamURL,
+				Transport:    "streamable_http",
+				AuthType:     "api_key",
+				ApiKeyHeader: "X-Upstream-Key",
+				ApiKeyValue:  "secret",
+				ToolRules: []*proto.MCPGatewayToolRule{
+					{Tool: "delete_repo", Action: "escalate"},
+				},
+				ToolDefault: "enabled",
 			},
-			ToolDefault: "enabled",
-		},
-	}, nil)
-	client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.AuthorizeMCPGatewayResponse{
-		Authorized:  true,
-		InitiatorId: initiatorID,
-	}, nil)
-	client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionResponse{}, nil)
-	var toolUsages []*proto.RecordToolUsageRequest
-	client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).AnyTimes().DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
-		toolUsages = append(toolUsages, in)
-		return &proto.RecordToolUsageResponse{}, nil
+		}, nil)
+		client.EXPECT().AuthorizeMCPGateway(gomock.Any(), gomock.Any()).Return(&proto.AuthorizeMCPGatewayResponse{
+			Authorized:  true,
+			InitiatorId: initiatorID,
+			ApiKeyId:    "key-id",
+		}, nil)
+		client.EXPECT().RecordInterception(gomock.Any(), gomock.Any()).Return(&proto.RecordInterceptionResponse{}, nil)
+		client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).Return(&proto.RecordInterceptionEndedResponse{}, nil)
+		return srv, client, configID
+	}
+
+	t.Run("approved after two waits", func(t *testing.T) {
+		t.Parallel()
+
+		var upstreamCalls atomic.Int32
+		upstream := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			upstreamCalls.Add(1)
+			require.Equal(t, "secret", r.Header.Get("X-Upstream-Key"))
+			body, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			require.JSONEq(t, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{"repo":"example"}}}`, string(body))
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"deleted"}]}}`))
+		}))
+		t.Cleanup(upstream.Close)
+
+		srv, client, configID := setup(t, upstream.URL)
+		escalationID := uuid.NewString()
+		client.EXPECT().CreateMCPGatewayEscalation(gomock.Any(), &proto.CreateMCPGatewayEscalationRequest{
+			Key:               "coder-token",
+			McpServerConfigId: configID,
+			ServerSlug:        "github",
+			ServerUrl:         upstream.URL,
+			Tool:              "delete_repo",
+			Input:             `{"repo":"example"}`,
+			WorkspaceName:     "",
+		}).Return(&proto.CreateMCPGatewayEscalationResponse{
+			Id:        escalationID,
+			ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)),
+		}, nil)
+		var waits atomic.Int32
+		client.EXPECT().WaitMCPGatewayEscalation(gomock.Any(), &proto.WaitMCPGatewayEscalationRequest{Id: escalationID}).Times(2).DoAndReturn(
+			func(context.Context, *proto.WaitMCPGatewayEscalationRequest) (*proto.WaitMCPGatewayEscalationResponse, error) {
+				if waits.Add(1) == 1 {
+					return &proto.WaitMCPGatewayEscalationResponse{Status: "pending"}, nil
+				}
+				return &proto.WaitMCPGatewayEscalationResponse{Status: "approved"}, nil
+			},
+		)
+		var usage *proto.RecordToolUsageRequest
+		client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+			usage = in
+			return &proto.RecordToolUsageResponse{}, nil
+		})
+
+		gateway := httptest.NewServer(srv)
+		t.Cleanup(gateway.Close)
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, gateway.URL+"/mcp/github", bytes.NewBufferString(`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{"repo":"example"}}}`))
+		require.NoError(t, err)
+		request.Header.Set("Authorization", "Bearer coder-token")
+		request.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(request)
+		require.NoError(t, err)
+		defer response.Body.Close()
+		require.Equal(t, http.StatusOK, response.StatusCode)
+		require.Contains(t, response.Header.Get("Content-Type"), "text/event-stream")
+		responseBody, err := io.ReadAll(response.Body)
+		require.NoError(t, err)
+		events := string(responseBody)
+		require.Contains(t, events, ": escalation pending "+escalationID)
+		require.Contains(t, events, ": keepalive")
+		require.Contains(t, events, "event: message\ndata: ")
+		require.Contains(t, events, `"text":"deleted"`)
+		require.Equal(t, int32(1), upstreamCalls.Load())
+		require.NotNil(t, usage)
+		require.Equal(t, "escalated_approved", usage.GetDisposition())
+		require.Equal(t, escalationID, usage.GetEscalationId())
+		require.Empty(t, usage.GetInvocationError())
 	})
-	client.EXPECT().RecordInterceptionEnded(gomock.Any(), gomock.Any()).AnyTimes().Return(&proto.RecordInterceptionEndedResponse{}, nil)
 
-	gateway := httptest.NewServer(srv)
-	t.Cleanup(gateway.Close)
+	t.Run("denied", func(t *testing.T) {
+		t.Parallel()
 
-	// Escalated tools stay visible in tools/list.
-	response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
-	require.Contains(t, string(response), `{"name":"delete_repo"}`)
-	require.Equal(t, int32(1), upstreamCalls.Load())
+		var upstreamCalls atomic.Int32
+		upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			upstreamCalls.Add(1)
+		}))
+		t.Cleanup(upstream.Close)
 
-	// Calls to an escalated tool fail closed until the hold path exists.
-	response = mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{}}}`)
-	require.Contains(t, string(response), "requires human approval")
-	require.Contains(t, string(response), `"disposition":"escalate"`)
-	require.Equal(t, int32(1), upstreamCalls.Load(), "escalated call must not reach upstream")
+		srv, client, _ := setup(t, upstream.URL)
+		escalationID := uuid.NewString()
+		client.EXPECT().CreateMCPGatewayEscalation(gomock.Any(), gomock.Any()).Return(&proto.CreateMCPGatewayEscalationResponse{
+			Id:        escalationID,
+			ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)),
+		}, nil)
+		client.EXPECT().WaitMCPGatewayEscalation(gomock.Any(), &proto.WaitMCPGatewayEscalationRequest{Id: escalationID}).Return(&proto.WaitMCPGatewayEscalationResponse{Status: "denied"}, nil)
+		var usage *proto.RecordToolUsageRequest
+		client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+			usage = in
+			return &proto.RecordToolUsageResponse{}, nil
+		})
 
-	require.Len(t, toolUsages, 1)
-	require.Equal(t, "delete_repo", toolUsages[0].GetTool())
-	require.Contains(t, toolUsages[0].GetInvocationError(), "requires human approval")
+		gateway := httptest.NewServer(srv)
+		t.Cleanup(gateway.Close)
+		response := mcpGatewayRequest(t, gateway.URL, `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{}}}`)
+		events := string(response)
+		require.Contains(t, events, `"error"`)
+		require.Contains(t, events, `"escalation_id":"`+escalationID+`"`)
+		require.Contains(t, events, `"status":"denied"`)
+		require.Zero(t, upstreamCalls.Load())
+		require.NotNil(t, usage)
+		require.Equal(t, "escalated_denied", usage.GetDisposition())
+		require.Equal(t, escalationID, usage.GetEscalationId())
+	})
+
+	t.Run("batch denied locally", func(t *testing.T) {
+		t.Parallel()
+
+		var upstreamCalls atomic.Int32
+		upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			upstreamCalls.Add(1)
+		}))
+		t.Cleanup(upstream.Close)
+
+		srv, client, _ := setup(t, upstream.URL)
+		var usage *proto.RecordToolUsageRequest
+		client.EXPECT().RecordToolUsage(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, in *proto.RecordToolUsageRequest) (*proto.RecordToolUsageResponse, error) {
+			usage = in
+			return &proto.RecordToolUsageResponse{}, nil
+		})
+
+		gateway := httptest.NewServer(srv)
+		t.Cleanup(gateway.Close)
+		response := mcpGatewayRequest(t, gateway.URL, `[{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"delete_repo","arguments":{}}}]`)
+		require.Contains(t, string(response), "escalated tools cannot be called in batches")
+		require.Zero(t, upstreamCalls.Load())
+		require.NotNil(t, usage)
+		require.Equal(t, "blocked", usage.GetDisposition())
+		require.Empty(t, usage.GetEscalationId())
+	})
 }
 
 // TestServeHTTP_MCPGatewaySSEFiltering exercises a strict Streamable HTTP
@@ -323,6 +426,8 @@ func TestServeHTTP_MCPGatewayRecording(t *testing.T) {
 		require.Equal(t, []string{"read", "search"}, []string{usages[0].GetTool(), usages[1].GetTool()})
 		require.Equal(t, "call-a", usages[0].GetToolCallId())
 		require.Equal(t, "22", usages[1].GetToolCallId())
+		require.Equal(t, "permitted", usages[0].GetDisposition())
+		require.Equal(t, "permitted", usages[1].GetDisposition())
 	})
 
 	t.Run("recording failure", func(t *testing.T) {
