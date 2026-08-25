@@ -12157,6 +12157,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "promote queued as member",
+			Status:            database.ChatStatusError,
 		})
 
 		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
