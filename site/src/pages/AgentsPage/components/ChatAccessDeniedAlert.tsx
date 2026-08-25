@@ -18,8 +18,8 @@ export const ChatAccessDeniedAlert: FC = () => {
 		>
 			<AlertTitle>Permission required</AlertTitle>
 			<AlertDescription>
-				You need access to an organization to use Coder Agents. Contact your
-				Coder administrator for access, then refresh this page.{" "}
+				You don't have permission to use Coder Agents. Contact your Coder
+				administrator, then refresh this page.{" "}
 				<Link href={docsLink} target="_blank" rel="noreferrer">
 					View Docs
 				</Link>

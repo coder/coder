@@ -1114,11 +1114,7 @@ export const ProviderRequiresUserApiKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"A provider requires your API key. Add it in provider settings to enable models.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
 			"href",
 			"/agents/settings/api-keys",
@@ -1137,11 +1133,7 @@ export const ProviderMissingAPIKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1156,11 +1148,7 @@ export const ProviderFetchFailed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -2021,7 +2009,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/You need access to an organization/i);
+		await canvas.findByText(/don't have permission to use Coder Agents/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2169,14 +2157,7 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: "No model is available" }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(
 			canvas.getByRole("textbox", { name: "Chat message" }),
 		).toHaveAttribute("aria-disabled", "true");
@@ -2257,7 +2238,7 @@ export const ForbiddenNoOrganizationAccess: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
 		await expect(
-			canvas.getByText(/You need access to an organization/),
+			canvas.getByText(/don't have permission to use Coder Agents/),
 		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
@@ -2311,7 +2292,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		await waitFor(
 			() => {
 				expect(
-					canvas.getByText(/You need access to an organization/i),
+					canvas.getByText(/don't have permission to use Coder Agents/i),
 				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },

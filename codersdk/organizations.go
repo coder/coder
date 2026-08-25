@@ -233,6 +233,11 @@ type CreateTemplateRequest struct {
 	// AgentsAllowed controls whether Coder Agents can create workspaces using
 	// this template. Defaults to true.
 	AgentsAllowed *bool `json:"agents_allowed,omitempty"`
+
+	// AllowWorkspaceRenames permits users to rename workspaces built from this
+	// template. Renaming can be destructive for templates whose Terraform
+	// references the workspace name, so this defaults to false.
+	AllowWorkspaceRenames *bool `json:"allow_workspace_renames,omitempty"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
