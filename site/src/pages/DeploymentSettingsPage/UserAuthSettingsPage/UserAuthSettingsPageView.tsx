@@ -39,16 +39,13 @@ export const UserAuthSettingsPageView = ({
 					<SettingsHeaderTitle>User Authentication</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/oidc-auth")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with OpenID Connect
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with OpenID Connect.
+						Set up authentication to login with OpenID Connect.{" "}
+						<SettingsHeaderDocsLink href={docs("/admin/users/oidc-auth")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -64,16 +61,13 @@ export const UserAuthSettingsPageView = ({
 			</div>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Login with GitHub
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Set up authentication to login with GitHub.
+						Set up authentication to login with GitHub.{" "}
+						<SettingsHeaderDocsLink href={docs("/admin/users/github-auth")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

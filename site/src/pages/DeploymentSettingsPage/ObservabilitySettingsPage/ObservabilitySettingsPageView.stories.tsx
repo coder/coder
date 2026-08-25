@@ -82,9 +82,20 @@ export const OSS: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
-		await expect(
-			canvas.getByRole("link", { name: /Read the docs/ }),
-		).toHaveAttribute("href", docs("/admin/security/audit-logs"));
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(3);
+		await expect(docsLinks[0]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring"),
+		);
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/security/audit-logs"),
+		);
+		await expect(docsLinks[2]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring"),
+		);
 		await expect(
 			canvas.queryByText("Audit Logs Retention"),
 		).not.toBeInTheDocument();

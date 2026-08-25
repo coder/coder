@@ -38,7 +38,8 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 				<SettingsHeader>
 					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Ensure your Coder deployment is secure.
+						Ensure your Coder deployment is secure.{" "}
+						<SettingsHeaderDocsLink href={docs("/admin/security")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -53,13 +54,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 			</div>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink
-							href={docs("/admin/networking#browser-only-connections")}
-						/>
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">
 						Browser-Only Connections{" "}
 						<Badges>
@@ -68,7 +63,10 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other
-						non-browser connections.
+						non-browser connections.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/networking#browser-only-connections")}
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

@@ -78,16 +78,13 @@ const NotificationsPage: FC = () => {
 		<>
 			<title>{pageTitle("Notifications Settings")}</title>
 
-			<SettingsHeader
-				actions={
+			<SettingsHeader>
+				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Control delivery methods for notifications on this deployment.{" "}
 					<SettingsHeaderDocsLink
 						href={docs("/admin/monitoring/notifications")}
 					/>
-				}
-			>
-				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Control delivery methods for notifications on this deployment.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
