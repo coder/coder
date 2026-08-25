@@ -503,12 +503,11 @@ export const UserCompactionThresholdSettings: FC<
 														<Button
 															size="xs"
 															type="button"
+															className="h-6"
 															disabled={hasAnyPending}
 															onClick={handleSaveAll}
 														>
-															{hasAnyPending && (
-																<Spinner loading className="size-4" />
-															)}
+															{hasAnyPending && <Spinner loading size="sm" />}
 															{hasAnyPending
 																? "Saving..."
 																: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}
