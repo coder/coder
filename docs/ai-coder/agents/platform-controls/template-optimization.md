@@ -31,13 +31,10 @@ With this setting, platform teams can apply stricter policies to agent workloads
 
 ## Write discoverable template descriptions
 
-The agent selects templates by reading their names and descriptions, the same
-metadata shown on the templates page in the Coder dashboard. The agent's
-`list_templates` tool ranks matches by query relevance first, then by an
-affinity score that weights the developer's own recent template usage far more
-heavily than organization popularity. It does not inspect the template's
-Terraform to understand what infrastructure is inside. For the ranking details,
-refer to [list_templates](../tools/index.md#how-templates-are-ranked).
+The agent selects templates by reading their names and descriptions, the same metadata shown on the templates page in the Coder dashboard.
+The agent's `list_templates` tool ranks matches by query relevance first, then by an affinity score that weights the developer's own recent template usage far more heavily than organization popularity.
+It does not inspect the template's Terraform to understand what infrastructure is inside.
+For the ranking details, refer to [list_templates](../tools/index.md#how-templates-are-ranked).
 
 This means the template description is the single most important factor in
 whether the agent picks the right template for a given task.
@@ -70,8 +67,8 @@ A good template description tells the agent:
 > [!TIP]
 > If many developers already use a template, the agent is more likely to
 > select it, because organization popularity contributes to the affinity score
-> that orders the shortlist. A well-written description on a popular template
-> is the strongest routing signal you can provide.
+> that orders the shortlist. 
+> A well-written description on a popular template is the strongest routing signal you can provide.
 
 ### Template display names
 

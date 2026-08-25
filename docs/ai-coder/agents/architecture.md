@@ -218,9 +218,7 @@ These tools are conditionally available based on the workspace contents.
 
 ### MCP tool search
 
-This tool runs in the control plane and replaces the full MCP tool schemas with
-a searchable catalog, so a large MCP surface does not consume the context
-window.
+This tool runs in the control plane and replaces the full MCP tool schemas with a searchable catalog, so a large MCP surface does not consume the context window.
 
 | Tool         | What it does                                                                                                                                                                                           |
 |--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
