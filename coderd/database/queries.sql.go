@@ -10373,6 +10373,7 @@ copied AS (
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = $3::uuid
+        AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -10451,6 +10452,7 @@ SELECT
     r.size_bytes, r.status, r.error, r.source_path
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $2::uuid
+    AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
 ORDER BY r.source
 ON CONFLICT (chat_id, source) DO UPDATE SET
     body_kind = EXCLUDED.body_kind,
@@ -10471,9 +10473,9 @@ type InsertAgentContextResourcesIntoChatParams struct {
 // Copies an agent's current context resources onto a single chat. Pair
 // with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 // transaction) to re-pin a chat to its agent's latest snapshot from the
-// refresh endpoint and on agent rebinding. The upsert handles a concurrent
-// agent push inserting a row after the clear under repeatable-read isolation;
-// deterministic source ordering keeps concurrent upserts lock-compatible.
+// refresh endpoint and on agent rebinding. The upsert avoids a unique-key
+// failure when a concurrent hydration inserts a row after the clear; the
+// surrounding transaction retries serialization failures.
 func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error {
 	_, err := q.db.ExecContext(ctx, insertAgentContextResourcesIntoChat, arg.ChatID, arg.AgentID)
 	return err
@@ -11486,128 +11488,6 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
 	return err
-}
-
-const syncChatContextMCPResourcesByAgent = `-- name: SyncChatContextMCPResourcesByAgent :many
-WITH eligible AS (
-    SELECT c.id
-    FROM chats c
-    WHERE c.agent_id = $1::uuid
-        AND c.archived = false
-        -- MCP tools are runtime metadata needed by the next turn even when
-        -- the previous turn left the chat in error or is being interrupted.
-        AND c.context_dirty_since IS NULL
-        AND c.context_aggregate_hash = $2
-),
-current_mcp AS (
-    SELECT r.source, r.body_kind, r.body, r.content_hash, r.size_bytes, r.status, r.error, r.source_path
-    FROM workspace_agent_context_resources r
-    WHERE r.workspace_agent_id = $1::uuid
-        AND r.body_kind IN ('mcp_config', 'mcp_server')
-),
-deleted AS (
-    -- Deleted and upserted are disjoint under this statement's shared
-    -- snapshot: only sources absent from current_mcp can be deleted.
-    DELETE FROM chat_context_resources ccr
-    USING eligible e
-    WHERE ccr.chat_id = e.id
-        AND ccr.body_kind IN ('mcp_config', 'mcp_server')
-        AND EXISTS (
-            SELECT 1 FROM current_mcp present
-            WHERE present.body_kind = 'mcp_server'
-        )
-        AND NOT EXISTS (SELECT 1 FROM current_mcp m WHERE m.source = ccr.source)
-    RETURNING ccr.chat_id
-),
-upserted AS (
-    INSERT INTO chat_context_resources (
-        chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
-    )
-    SELECT
-        e.id, m.source, m.body_kind, m.body, m.content_hash,
-        m.size_bytes, m.status, m.error, m.source_path
-    FROM eligible e
-    CROSS JOIN current_mcp m
-    ORDER BY e.id, m.source
-    ON CONFLICT (chat_id, source) DO UPDATE SET
-        body_kind = EXCLUDED.body_kind,
-        body = EXCLUDED.body,
-        content_hash = EXCLUDED.content_hash,
-        size_bytes = EXCLUDED.size_bytes,
-        status = EXCLUDED.status,
-        error = EXCLUDED.error,
-        source_path = EXCLUDED.source_path,
-        updated_at = now()
-    WHERE (
-        chat_context_resources.body_kind IN ('mcp_config', 'mcp_server')
-        AND (
-            chat_context_resources.body_kind,
-            chat_context_resources.body,
-            chat_context_resources.content_hash,
-            chat_context_resources.size_bytes,
-            chat_context_resources.status,
-            chat_context_resources.error,
-            chat_context_resources.source_path
-        ) IS DISTINCT FROM (
-            EXCLUDED.body_kind,
-            EXCLUDED.body,
-            EXCLUDED.content_hash,
-            EXCLUDED.size_bytes,
-            EXCLUDED.status,
-            EXCLUDED.error,
-            EXCLUDED.source_path
-        )
-    )
-    RETURNING chat_id
-)
-SELECT DISTINCT chat_id
-FROM (
-    SELECT chat_id FROM deleted
-    UNION ALL
-    SELECT chat_id FROM upserted
-) changed
-ORDER BY chat_id
-`
-
-type SyncChatContextMCPResourcesByAgentParams struct {
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
-}
-
-// Keeps the pinned MCP rows (mcp_config and mcp_server) of clean chats
-// in step with resources present in the agent's latest pushed snapshot.
-// MCP resources describe live runtime capabilities and are excluded from
-// the drift hash, so a push that adds them after asynchronous startup, or
-// changes a tool list, leaves pinned hashes untouched and never dirties a
-// chat. Only chats pinned to exactly the pushed hash and not already dirty
-// are touched, and only their MCP-kind rows. Pinned prompt content remains
-// unchanged. Existing MCP rows absent from a push are pruned only when the
-// push includes at least one MCP server resource. An empty startup catalog is
-// transient and the protocol has no MCP-readiness signal that would make
-// deletion safe. Consequently, an authoritative transition to zero servers
-// remains pinned until an explicit refresh. The upsert rewrites a row only
-// when its content actually differs so updated_at is not churned by every push.
-func (q *sqlQuerier) SyncChatContextMCPResourcesByAgent(ctx context.Context, arg SyncChatContextMCPResourcesByAgentParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, syncChatContextMCPResourcesByAgent, arg.AgentID, arg.AggregateHash)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var chat_id uuid.UUID
-		if err := rows.Scan(&chat_id); err != nil {
-			return nil, err
-		}
-		items = append(items, chat_id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many

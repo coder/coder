@@ -414,41 +414,48 @@ func (p *Server) newAdvisorRuntime(
 }
 
 // resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
-// the chat's pinned context snapshot (chat_context_resources). The agent
-// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
-// rows, or one whose workspace advertises no MCP servers, contributes no
-// workspace MCP tools. A read failure is logged and yields no tools rather
-// than aborting the turn.
+// the currently bound agent's live context resources. MCP servers are runtime
+// capabilities rather than pinned prompt content, so changes become visible
+// without refreshing the chat. A read failure is logged and yields no tools
+// rather than aborting the turn.
 func (p *Server) resolveWorkspaceMCPTools(
 	ctx context.Context,
 	logger slog.Logger,
 	chat database.Chat,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
-	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+	agent, err := workspaceCtx.getWorkspaceAgent(ctx)
 	if err != nil {
-		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
+		logger.Warn(ctx, "failed to resolve workspace agent MCP tools",
 			slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil
+	}
+	tools, err := p.liveWorkspaceMCPTools(ctx, agent.ID, workspaceCtx.getWorkspaceConn)
+	if err != nil {
+		logger.Warn(ctx, "failed to read live workspace MCP tools",
+			slog.F("chat_id", chat.ID),
+			slog.F("agent_id", agent.ID),
+			slog.Error(err))
 		return nil
 	}
 	return tools
 }
 
-// pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// context snapshot (chat_context_resources). Each tool still proxies its calls
-// back through the workspace agent connection; the snapshot carries tool
-// definitions, not a way to execute them, so execution requires a reachable
-// agent. Hash-neutral MCP changes synchronize these pinned rows on subsequent
-// agent pushes, so there is no per-chat cache to invalidate and a nil
-// invalidate callback (a 404 no-op) is correct here.
-func (p *Server) pinnedWorkspaceMCPTools(
+// liveWorkspaceMCPTools builds workspace MCP tools from the current context
+// resources pushed by agentID. Each tool proxies calls through the same live
+// workspace agent connection, so no per-chat MCP catalog is retained.
+func (p *Server) liveWorkspaceMCPTools(
 	ctx context.Context,
-	chat database.Chat,
+	agentID uuid.UUID,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) ([]fantasy.AgentTool, error) {
-	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	if agentID == uuid.Nil {
+		return nil, nil
+	}
+	//nolint:gocritic // The chat was authorized before resolving its bound agent's runtime capabilities.
+	resources, err := p.db.ListWorkspaceAgentContextResources(dbauthz.AsChatd(ctx), agentID)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat context resources: %w", err)
+		return nil, xerrors.Errorf("list workspace agent context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
 	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil

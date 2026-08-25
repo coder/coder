@@ -5128,14 +5128,6 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
-func (m queryMetricsStore) SyncChatContextMCPResourcesByAgent(ctx context.Context, arg database.SyncChatContextMCPResourcesByAgentParams) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.SyncChatContextMCPResourcesByAgent(ctx, arg)
-	m.queryLatencies.WithLabelValues("SyncChatContextMCPResourcesByAgent").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncChatContextMCPResourcesByAgent").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	start := time.Now()
 	r0 := m.s.TouchChatDebugRunUpdatedAt(ctx, arg)

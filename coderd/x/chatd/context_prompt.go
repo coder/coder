@@ -1,8 +1,10 @@
 package chatd
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -12,6 +14,7 @@ import (
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -50,17 +53,30 @@ func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool)
 // (see agent/x/agentmcp ToolNameSep).
 const mcpToolNameSeparator = "__"
 
-// mcpToolsFromServerBody decodes a stored mcp_server resource body and returns
-// its tool list for the chat response. The agent prefixes each tool name with
-// "<server>__"; that prefix is stripped so the name reads as the server
-// exposes it. Returns nil when the body has no tools or cannot be decoded.
-func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.ChatContextTool {
+// decodeMCPServerBody decodes an mcp_server resource body and returns the
+// server name it advertises together with its tool list. source is the row's
+// locator and is used as the server name when the body omits one. ok is false
+// when the body cannot be decoded. Shared by the tool-execution path and the
+// API resource listing so both read a pushed server the same way.
+func decodeMCPServerBody(source string, body json.RawMessage) (server string, tools []*agentproto.MCPTool, ok bool) {
 	var decoded agentproto.MCPServerBody
 	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
-		return nil
+		return "", nil, false
 	}
-	tools := decoded.GetTools()
-	if len(tools) == 0 {
+	server = decoded.GetServerName()
+	if server == "" {
+		server = source
+	}
+	return server, decoded.GetTools(), true
+}
+
+// mcpToolsFromServerBody decodes an mcp_server resource body and returns its
+// tool list for the chat response. The agent prefixes each tool name with
+// "<server>__"; that prefix is stripped so the name reads as the server
+// exposes it. Returns nil when the body has no tools or cannot be decoded.
+func mcpToolsFromServerBody(source string, body json.RawMessage) []codersdk.ChatContextTool {
+	server, tools, ok := decodeMCPServerBody(source, body)
+	if !ok || len(tools) == 0 {
 		return nil
 	}
 	prefix := server + mcpToolNameSeparator
@@ -81,30 +97,30 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	return out
 }
 
-// workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
-// resources into execution-ready tool infos. Only OK mcp_server rows
-// contribute. The agent reports tool names unprefixed alongside the server
-// name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
-// and proxy-routable form the live discovery path also produces. The pushed
+// workspaceMCPToolInfosFromResources decodes an agent's live mcp_server
+// resources (workspace_agent_context_resources) into execution-ready tool
+// infos. MCP servers are runtime capabilities of the bound agent rather than
+// pinned prompt content, so the catalog is read from the agent's latest push
+// and a workspace advertising no servers contributes no tools.
+//
+// Only OK mcp_server rows contribute. The agent reports tool names unprefixed
+// alongside the server name, so each tool is re-prefixed to
+// "<server>__<tool>", the model-facing and proxy-routable form. The pushed
 // input schema is a full JSON Schema object; its "properties" and "required"
 // are split out to match the shape the workspace agent's live tool list
 // produces (see agent/x/agentmcp). Tools with an empty name are skipped.
-func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
+func workspaceMCPToolInfosFromResources(resources []database.WorkspaceAgentContextResource) []workspacesdk.MCPToolInfo {
 	var out []workspacesdk.MCPToolInfo
 	for _, r := range resources {
 		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
 			r.Status != database.WorkspaceAgentContextResourceStatusOk {
 			continue
 		}
-		var decoded agentproto.MCPServerBody
-		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
+		server, tools, ok := decodeMCPServerBody(r.Source, r.Body)
+		if !ok {
 			continue
 		}
-		server := decoded.GetServerName()
-		if server == "" {
-			server = r.Source
-		}
-		for _, t := range decoded.GetTools() {
+		for _, t := range tools {
 			name := t.GetName()
 			if name == "" {
 				continue
@@ -297,14 +313,21 @@ func contextResourcesToPrompt(
 	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed
 }
 
-// ContextResources returns the chat's pinned context resource list (metadata
+// ContextResources returns the chat's context resource inventory (metadata
 // only). It is read-only and intended for the single-chat GET handler; list
 // and watch payloads omit this detail to stay lightweight.
 //
-// The returned list is the chat's full pinned inventory (instruction files,
-// skills, and MCP configs/servers), each stamped with its per-resource status
-// so the UI can explain why a resource was dropped from the prompt instead of
-// silently omitting it.
+// The list has two lifetimes. Instruction files and skills are prompt content
+// and come from the chat's pin (chat_context_resources), so they match what
+// the next turn will send even after the workspace drifts. MCP configs and
+// servers are runtime capabilities that only work against a reachable agent,
+// so they are read live from the chat's bound agent
+// (workspace_agent_context_resources): a chat with no bound agent reports
+// none, and a server that appears after asynchronous MCP startup shows up
+// without a refresh. Legacy pinned MCP rows are ignored.
+//
+// Every resource is stamped with its per-resource status so the UI can explain
+// why a resource was dropped instead of silently omitting it.
 func (server *Server) ContextResources(
 	ctx context.Context,
 	chat database.Chat,
@@ -314,34 +337,96 @@ func (server *Server) ContextResources(
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	resources := pinnedContextResources(pinned)
+
+	var liveMCP []codersdk.ChatContextResource
+	if chat.AgentID.Valid {
+		//nolint:gocritic // The chat was authorized before reading its bound agent's runtime capabilities.
+		agentResources, err := server.db.ListWorkspaceAgentContextResources(dbauthz.AsChatd(ctx), chat.AgentID.UUID)
+		if err != nil {
+			// Pinned prompt context remains useful if the live agent inventory is
+			// temporarily unavailable. Report it without MCP rather than dropping
+			// the entire resource list.
+			server.logger.Warn(ctx, "failed to list live workspace MCP context resources",
+				slog.F("chat_id", chat.ID),
+				slog.F("agent_id", chat.AgentID.UUID),
+				slog.Error(err),
+			)
+		} else {
+			liveMCP = liveMCPContextResources(agentResources)
+			resources = append(resources, liveMCP...)
+		}
+	}
+	slices.SortFunc(resources, func(a, b codersdk.ChatContextResource) int {
+		return cmp.Compare(a.Source, b.Source)
+	})
+
 	server.logger.Debug(ctx, "computed chat context resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
+		slog.F("live_mcp_count", len(liveMCP)),
 	)
 	return resources, nil
+}
+
+// liveMCPContextResources converts the bound agent's current MCP rows into the
+// metadata-only resource list reported on a chat. It is the live counterpart
+// to pinnedContextResources: MCP configs and servers describe capabilities the
+// agent can execute right now, so they are reported from the agent's latest
+// push rather than from the chat's prompt pin.
+//
+// Only the MCP kinds contribute; instruction files and skills on the agent are
+// reported from the pin instead. OK mcp_server rows carry their tool list.
+// Non-OK rows are surfaced with Status and Error, with empty body-specific
+// fields, so a server that failed to start is explained rather than omitted.
+// Input order (source ASC from the query) is preserved.
+func liveMCPContextResources(resources []database.WorkspaceAgentContextResource) []codersdk.ChatContextResource {
+	var out []codersdk.ChatContextResource
+	for _, r := range resources {
+		kind, ok := mcpContextResourceKind(r.BodyKind)
+		if !ok {
+			continue
+		}
+		resource := codersdk.ChatContextResource{
+			Source:    r.Source,
+			Kind:      kind,
+			SizeBytes: r.SizeBytes,
+			Status:    codersdk.ChatContextResourceStatus(r.Status),
+			Error:     r.Error,
+		}
+		if r.Status == database.WorkspaceAgentContextResourceStatusOk {
+			resource.Status = codersdk.ChatContextResourceStatusOK
+			if r.BodyKind == database.WorkspaceAgentContextBodyKindMcpServer {
+				resource.Tools = mcpToolsFromServerBody(r.Source, r.Body)
+			}
+		}
+		out = append(out, resource)
+	}
+	return out
 }
 
 // pinnedContextResources converts a chat's pinned context rows into the
 // metadata-only resource list reported on the chat. It is the reporting
 // counterpart to contextResourcesToPrompt: both walk the same rows and share
 // the body decoders, but where the prompt builder keeps only OK instruction
-// files and skills (and ignores everything else), this surfaces the full
-// inventory the user can act on, each stamped with its Status:
+// files and skills, this surfaces the full prompt inventory the user can act
+// on, each stamped with its Status:
 //
-//   - OK instruction files with non-empty (sanitized) content, OK skills with
-//     a name, and OK MCP configs/servers (mcp_server carries its tools).
-//   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
+//   - OK instruction files with non-empty (sanitized) content, and OK skills
+//     with a name.
+//   - Non-OK rows (invalid, unreadable, oversize, excluded) of a prompt kind,
 //     carrying Status and Error so the UI can explain why the resource was
 //     dropped from the prompt instead of silently omitting it. Their
 //     body-specific fields are empty.
 //
-// OK-but-empty instruction files, OK skills with no name, and untracked kinds
-// (reserved plugin/hook/subagent/command) are skipped. Input order (source ASC
-// from the query) is preserved.
+// OK-but-empty instruction files, OK skills with no name, and non-prompt kinds
+// are skipped. MCP rows are non-prompt kinds: they are reported live from the
+// bound agent, so legacy MCP rows left in a chat's pin are ignored here rather
+// than reported as capabilities the agent may no longer have. Input order
+// (source ASC from the query) is preserved.
 func pinnedContextResources(resources []database.ChatContextResource) []codersdk.ChatContextResource {
 	var out []codersdk.ChatContextResource
 	for _, r := range resources {
-		kind, ok := contextResourceKind(r.BodyKind)
+		kind, ok := promptContextResourceKind(r.BodyKind)
 		if !ok {
 			continue
 		}
@@ -382,36 +467,30 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				SkillName:        name,
 				SkillDescription: description,
 			})
-		case database.WorkspaceAgentContextBodyKindMcpConfig:
-			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
-			})
-		case database.WorkspaceAgentContextBodyKindMcpServer:
-			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
-				Tools:     mcpToolsFromServerBody(r.Source, r.Body),
-			})
 		}
 	}
 	return out
 }
 
-// contextResourceKind maps a database body kind to the codersdk kind reported
-// on the chat. ok is false only for kinds chatd does not track yet (the
-// reserved plugin/hook/subagent/command kinds), which are omitted from the
-// resource list.
-func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
+// promptContextResourceKind maps a database body kind to the codersdk kind
+// reported for pinned prompt content. ok is false for every non-prompt kind:
+// the MCP kinds, which are reported live from the bound agent, and the kinds
+// chatd does not track yet (the reserved plugin/hook/subagent/command kinds).
+func promptContextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
 	switch kind {
 	case database.WorkspaceAgentContextBodyKindInstructionFile:
 		return codersdk.ChatContextResourceKindInstructionFile, true
 	case database.WorkspaceAgentContextBodyKindSkill:
 		return codersdk.ChatContextResourceKindSkill, true
+	default:
+		return "", false
+	}
+}
+
+// mcpContextResourceKind maps a database body kind to the codersdk kind
+// reported for live MCP capabilities. ok is false for every non-MCP kind.
+func mcpContextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
+	switch kind {
 	case database.WorkspaceAgentContextBodyKindMcpConfig:
 		return codersdk.ChatContextResourceKindMCPConfig, true
 	case database.WorkspaceAgentContextBodyKindMcpServer:

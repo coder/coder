@@ -174,8 +174,9 @@ type ChatContext struct {
 	Resources []ChatContextResource `json:"resources,omitempty"`
 }
 
-// ChatContextResourceKind classifies a pinned context resource the prompt
-// uses. Only the kinds that contribute to the prompt are reported.
+// ChatContextResourceKind classifies a workspace context resource reported for
+// a chat. Instruction files and skills are pinned prompt content; MCP configs
+// and servers are live capabilities from the currently bound agent.
 type ChatContextResourceKind string
 
 const (
@@ -185,9 +186,10 @@ const (
 	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
 )
 
-// ChatContextResource is one pinned workspace-context resource the chat's
-// prompt is built from. It is metadata only; bodies are omitted. Reported
-// only on the single-chat GET response.
+// ChatContextResource is one workspace-context resource reported for a chat.
+// Instruction files and skills come from the chat's pinned prompt snapshot;
+// MCP configs and servers come from the currently bound agent. It is metadata
+// only; bodies are omitted. Reported only on the single-chat GET response.
 type ChatContextResource struct {
 	// Source is the resource locator: the canonical file path for an
 	// instruction file, the skill directory for a skill, the file path for
@@ -212,7 +214,7 @@ type ChatContextResource struct {
 	Error string `json:"error,omitempty"`
 }
 
-// ChatContextResourceStatus is the health of a pinned context resource,
+// ChatContextResourceStatus is the health of a workspace context resource,
 // mirroring the agent resolver's per-resource status.
 type ChatContextResourceStatus string
 
@@ -224,8 +226,8 @@ const (
 	ChatContextResourceStatusExcluded   ChatContextResourceStatus = "excluded"
 )
 
-// ChatContextTool is one tool exposed by a pinned MCP server, reported on the
-// single-chat GET response. Metadata only; the input schema is omitted.
+// ChatContextTool is one tool exposed by a live workspace MCP server, reported
+// on the single-chat GET response. Metadata only; the input schema is omitted.
 type ChatContextTool struct {
 	// Name is the tool name with the `<server>__` prefix the agent adds
 	// stripped, so it reads as the server exposes it.
@@ -1873,10 +1875,9 @@ const (
 	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
-	// workspace context changed: it drifted from the agent's latest
-	// pushed snapshot, hydration first populated it, or hash-neutral MCP
-	// resources synchronized in place. The chat stays usable; a refresh
-	// re-pins a drifted chat to the latest snapshot.
+	// workspace prompt context changed: it drifted from the agent's latest
+	// pushed snapshot or hydration first populated it. The chat stays usable;
+	// a refresh re-pins a drifted chat to the latest snapshot.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 

@@ -68,6 +68,19 @@ func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBo
 	}
 }
 
+// liveMCPServerResource builds an agent-owned mcp_server row, the live source
+// of MCP capabilities. MCP servers are no longer pinned onto a chat, so tool
+// construction and the reported inventory read these rows instead.
+func liveMCPServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.WorkspaceAgentContextResource {
+	t.Helper()
+	return database.WorkspaceAgentContextResource{
+		Source:   source,
+		BodyKind: database.WorkspaceAgentContextBodyKindMcpServer,
+		Body:     mustMarshalContextBody(t, body),
+		Status:   status,
+	}
+}
+
 func mustStruct(t *testing.T, m map[string]any) *structpb.Struct {
 	t.Helper()
 	s, err := structpb.NewStruct(m)
@@ -586,10 +599,48 @@ func TestPinnedContextResources(t *testing.T) {
 		}, out)
 	})
 
+	t.Run("IgnoresLegacyPinnedMCPRows", func(t *testing.T) {
+		t.Parallel()
+
+		// MCP capabilities are reported live from the bound agent. Rows left
+		// in a chat's pin by an older hydration must not resurface as
+		// capabilities the agent may no longer have.
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+			{
+				Source:    "/home/coder/.mcp.json",
+				BodyKind:  database.WorkspaceAgentContextBodyKindMcpConfig,
+				Status:    database.WorkspaceAgentContextResourceStatusOk,
+				SizeBytes: 670,
+			},
+			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+				ServerName: "github",
+				Tools:      []*agentproto.MCPTool{{Name: "github__create", Description: "Create an issue"}},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+			// A non-OK legacy MCP row is dropped too: its failure belongs to a
+			// snapshot the chat no longer speaks for.
+			mcpServerResource(t, "broken", &agentproto.MCPServerBody{ServerName: "broken"},
+				database.WorkspaceAgentContextResourceStatusUnreadable),
+		}
+
+		out := pinnedContextResources(resources)
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source: "/home/coder/AGENTS.md",
+				Kind:   codersdk.ChatContextResourceKindInstructionFile,
+				Status: codersdk.ChatContextResourceStatusOK,
+			},
+		}, out)
+	})
+}
+
+func TestLiveMCPContextResources(t *testing.T) {
+	t.Parallel()
+
 	t.Run("IncludesMCPConfigAndServer", func(t *testing.T) {
 		t.Parallel()
 
-		resources := []database.ChatContextResource{
+		resources := []database.WorkspaceAgentContextResource{
 			{
 				Source:    "/home/coder/.mcp.json",
 				BodyKind:  database.WorkspaceAgentContextBodyKindMcpConfig,
@@ -611,7 +662,7 @@ func TestPinnedContextResources(t *testing.T) {
 				}),
 			},
 		}
-		out := pinnedContextResources(resources)
+		out := liveMCPContextResources(resources)
 		require.Equal(t, []codersdk.ChatContextResource{
 			{
 				Source:    "/home/coder/.mcp.json",
@@ -632,17 +683,110 @@ func TestPinnedContextResources(t *testing.T) {
 			},
 		}, out)
 	})
+
+	t.Run("SkipsPromptKinds", func(t *testing.T) {
+		t.Parallel()
+
+		// Instruction files and skills stay pinned; the live read must not
+		// duplicate them into the reported inventory.
+		resources := []database.WorkspaceAgentContextResource{
+			{
+				Source:   "/home/coder/AGENTS.md",
+				BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+				Body:     mustMarshalContextBody(t, &agentproto.InstructionFileBody{Content: []byte("be helpful")}),
+				Status:   database.WorkspaceAgentContextResourceStatusOk,
+			},
+			{
+				Source:   "/home/coder/.coder/skills/deploy",
+				BodyKind: database.WorkspaceAgentContextBodyKindSkill,
+				Body:     mustMarshalContextBody(t, &agentproto.SkillMetaBody{Name: "deploy"}),
+				Status:   database.WorkspaceAgentContextResourceStatusOk,
+			},
+		}
+		require.Empty(t, liveMCPContextResources(resources))
+	})
+
+	t.Run("IncludesNonOKWithError", func(t *testing.T) {
+		t.Parallel()
+
+		// A server that failed to start is reported with its reason instead of
+		// being omitted, so the UI can explain the missing tools.
+		broken := liveMCPServerResource(t, "broken", &agentproto.MCPServerBody{},
+			database.WorkspaceAgentContextResourceStatusUnreadable)
+		broken.Error = "failed to connect to MCP server"
+
+		out := liveMCPContextResources([]database.WorkspaceAgentContextResource{broken})
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source: "broken",
+				Kind:   codersdk.ChatContextResourceKindMCPServer,
+				Status: codersdk.ChatContextResourceStatusUnreadable,
+				Error:  "failed to connect to MCP server",
+			},
+		}, out)
+	})
+
+	t.Run("NoResourcesYieldsNil", func(t *testing.T) {
+		t.Parallel()
+
+		require.Empty(t, liveMCPContextResources(nil))
+	})
 }
 
 func TestContextResources(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ReturnsPinnedResources", func(t *testing.T) {
+	t.Run("MergesPinnedPromptAndLiveMCP", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		chatID := uuid.New()
+		agentID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				instructionResource(t, "zzz/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+				// Legacy pinned MCP row: superseded by the live read.
+				mcpServerResource(t, "stale", &agentproto.MCPServerBody{
+					ServerName: "stale",
+					Tools:      []*agentproto.MCPTool{{Name: "stale__gone"}},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
+			Return([]database.WorkspaceAgentContextResource{
+				liveMCPServerResource(t, "aaa", &agentproto.MCPServerBody{
+					ServerName: "aaa",
+					Tools:      []*agentproto.MCPTool{{Name: "aaa__create", Description: "Create an issue"}},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
+		chat := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		resources, err := server.ContextResources(context.Background(), chat)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source: "aaa",
+				Kind:   codersdk.ChatContextResourceKindMCPServer,
+				Status: codersdk.ChatContextResourceStatusOK,
+				Tools:  []codersdk.ChatContextTool{{Name: "create", Description: "Create an issue"}},
+			},
+			{
+				Source: "zzz/AGENTS.md",
+				Kind:   codersdk.ChatContextResourceKindInstructionFile,
+				Status: codersdk.ChatContextResourceStatusOK,
+			},
+		}, resources)
+	})
+
+	t.Run("UnboundAgentReportsNoMCP", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		// No agent is bound, so no live read happens and the chat reports only
+		// its pinned prompt context.
 		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
 			Return([]database.ChatContextResource{
 				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
@@ -669,6 +813,33 @@ func TestContextResources(t *testing.T) {
 		_, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
 		require.Error(t, err)
 	})
+
+	t.Run("LiveListErrorKeepsPinnedPrompt", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		agentID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
+			Return(nil, xerrors.New("boom"))
+		server := newPinServer(t, db)
+
+		chat := database.Chat{ID: chatID, AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		resources, err := server.ContextResources(context.Background(), chat)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.ChatContextResource{
+			{
+				Source: "/home/coder/AGENTS.md",
+				Kind:   codersdk.ChatContextResourceKindInstructionFile,
+				Status: codersdk.ChatContextResourceStatusOK,
+			},
+		}, resources)
+	})
 }
 
 func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
@@ -685,7 +856,7 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 			},
 			"required": []any{"title"},
 		})
-		resources := []database.ChatContextResource{
+		resources := []database.WorkspaceAgentContextResource{
 			// Skipped: a config resource carries no tools.
 			{
 				Source:   "/home/coder/.mcp.json",
@@ -693,7 +864,7 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 				Body:     mustMarshalContextBody(t, &agentproto.MCPConfigBody{}),
 				Status:   database.WorkspaceAgentContextResourceStatusOk,
 			},
-			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+			liveMCPServerResource(t, "github", &agentproto.MCPServerBody{
 				ServerName: "github",
 				Tools: []*agentproto.MCPTool{
 					{Name: "create_issue", Description: "Create an issue", InputSchema: schema},
@@ -702,7 +873,7 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 				},
 			}, database.WorkspaceAgentContextResourceStatusOk),
 			// Skipped: a server that failed to connect is not OK.
-			mcpServerResource(t, "broken", &agentproto.MCPServerBody{ServerName: "broken"},
+			liveMCPServerResource(t, "broken", &agentproto.MCPServerBody{ServerName: "broken"},
 				database.WorkspaceAgentContextResourceStatusUnreadable),
 		}
 
@@ -724,8 +895,8 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 	t.Run("FallsBackToSourceWhenServerNameEmpty", func(t *testing.T) {
 		t.Parallel()
 
-		resources := []database.ChatContextResource{
-			mcpServerResource(t, "playwright", &agentproto.MCPServerBody{
+		resources := []database.WorkspaceAgentContextResource{
+			liveMCPServerResource(t, "playwright", &agentproto.MCPServerBody{
 				Tools: []*agentproto.MCPTool{{Name: "navigate"}},
 			}, database.WorkspaceAgentContextResourceStatusOk),
 		}
@@ -745,8 +916,8 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 			"type":       "object",
 			"properties": map[string]any{},
 		})
-		resources := []database.ChatContextResource{
-			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+		resources := []database.WorkspaceAgentContextResource{
+			liveMCPServerResource(t, "github", &agentproto.MCPServerBody{
 				ServerName: "github",
 				Tools: []*agentproto.MCPTool{
 					{Name: "document_graphql_schema", Description: "Run a GraphQL query", InputSchema: schema},
@@ -763,34 +934,53 @@ func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
 	t.Run("NoMCPServersYieldsNil", func(t *testing.T) {
 		t.Parallel()
 
-		resources := []database.ChatContextResource{
-			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+		resources := []database.WorkspaceAgentContextResource{
+			{
+				Source:   "/home/coder/AGENTS.md",
+				BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+				Body:     mustMarshalContextBody(t, &agentproto.InstructionFileBody{Content: []byte("be helpful")}),
+				Status:   database.WorkspaceAgentContextResourceStatusOk,
+			},
 		}
 		require.Empty(t, workspaceMCPToolInfosFromResources(resources))
 	})
 }
 
-func TestPinnedWorkspaceMCPTools(t *testing.T) {
+func TestLiveWorkspaceMCPTools(t *testing.T) {
 	t.Parallel()
 
-	// getConn is never dialed by these tests: pinnedWorkspaceMCPTools builds
-	// tool definitions from the snapshot and only wires the connection for
-	// later execution.
+	// getConn is never dialed by these tests: liveWorkspaceMCPTools builds
+	// tool definitions from the agent's pushed resources and only wires the
+	// connection for later execution.
 	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("not dialed in this test")
 	}
+
+	t.Run("UnboundAgentYieldsNoTools", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := newPinServer(t, db)
+
+		// A chat with no bound agent has no reachable MCP servers, so no read
+		// is issued at all.
+		tools, err := server.liveWorkspaceMCPTools(context.Background(), uuid.Nil, getConn)
+		require.NoError(t, err)
+		require.Empty(t, tools)
+	})
 
 	t.Run("NoRowsYieldsNoTools", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		chatID := uuid.New()
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-			Return([]database.ChatContextResource{}, nil)
+		agentID := uuid.New()
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
+			Return([]database.WorkspaceAgentContextResource{}, nil)
 		server := newPinServer(t, db)
 
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, err := server.liveWorkspaceMCPTools(context.Background(), agentID, getConn)
 		require.NoError(t, err)
 		require.Empty(t, tools)
 	})
@@ -800,12 +990,12 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		chatID := uuid.New()
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+		agentID := uuid.New()
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
 			Return(nil, xerrors.New("boom"))
 		server := newPinServer(t, db)
 
-		_, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		_, err := server.liveWorkspaceMCPTools(context.Background(), agentID, getConn)
 		require.Error(t, err)
 	})
 
@@ -814,11 +1004,16 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		chatID := uuid.New()
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-			Return([]database.ChatContextResource{
-				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
-				mcpServerResource(t, "github", &agentproto.MCPServerBody{
+		agentID := uuid.New()
+		db.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agentID).
+			Return([]database.WorkspaceAgentContextResource{
+				{
+					Source:   "/home/coder/AGENTS.md",
+					BodyKind: database.WorkspaceAgentContextBodyKindInstructionFile,
+					Body:     mustMarshalContextBody(t, &agentproto.InstructionFileBody{Content: []byte("be helpful")}),
+					Status:   database.WorkspaceAgentContextResourceStatusOk,
+				},
+				liveMCPServerResource(t, "github", &agentproto.MCPServerBody{
 					ServerName: "github",
 					Tools: []*agentproto.MCPTool{
 						{Name: "create_issue", Description: "Create an issue"},
@@ -828,30 +1023,10 @@ func TestPinnedWorkspaceMCPTools(t *testing.T) {
 			}, nil)
 		server := newPinServer(t, db)
 
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		tools, err := server.liveWorkspaceMCPTools(context.Background(), agentID, getConn)
 		require.NoError(t, err)
 		require.Len(t, tools, 2)
 		require.Equal(t, "github__create_issue", tools[0].Info().Name)
 		require.Equal(t, "github__search", tools[1].Info().Name)
-	})
-
-	t.Run("PinWithoutMCPServersIsAuthoritative", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		chatID := uuid.New()
-		// The chat is pinned (an instruction file is present) but the agent
-		// reported no MCP servers: the pin is authoritative, yielding zero
-		// tools without a live pull that could resurrect stale tools.
-		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
-			Return([]database.ChatContextResource{
-				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
-			}, nil)
-		server := newPinServer(t, db)
-
-		tools, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
-		require.NoError(t, err)
-		require.Empty(t, tools)
 	})
 }

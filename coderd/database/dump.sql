@@ -1924,15 +1924,15 @@ CREATE TABLE chat_context_resources (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
+COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned prompt context a chat is hydrated against. Instruction files and skills are copied from workspace_agent_context_resources at chat hydration and context refresh; the pin survives agent replacement and workspace rebuilds.';
 
-COMMENT ON COLUMN chat_context_resources.source IS 'Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.';
+COMMENT ON COLUMN chat_context_resources.source IS 'Canonical source path for a pinned prompt resource.';
 
-COMMENT ON COLUMN chat_context_resources.body_kind IS 'Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
+COMMENT ON COLUMN chat_context_resources.body_kind IS 'Discriminator for the pinned prompt body JSON shape. Currently instruction_file and skill; PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
 
 COMMENT ON COLUMN chat_context_resources.body IS 'protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.';
 
-COMMENT ON COLUMN chat_context_resources.content_hash IS 'sha256 over the resource''s original bytes (or transport-encoded server tool list).';
+COMMENT ON COLUMN chat_context_resources.content_hash IS 'sha256 over the pinned prompt resource original bytes.';
 
 COMMENT ON COLUMN chat_context_resources.size_bytes IS 'Original payload size in bytes; populated regardless of status.';
 

@@ -7315,16 +7315,6 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) SyncChatContextMCPResourcesByAgent(ctx context.Context, arg database.SyncChatContextMCPResourcesByAgentParams) ([]uuid.UUID, error) {
-	// System-level operation: an agent context push fans the MCP resource
-	// sync out across every clean chat pinned to the pushed snapshot, so
-	// it authorizes at the resource level rather than per-chat.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.SyncChatContextMCPResourcesByAgent(ctx, arg)
-}
-
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {

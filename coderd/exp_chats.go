@@ -1474,11 +1474,12 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Enrich the lightweight context summary with the chat's pinned
-	// resources (metadata only). This detail is computed on read and only
-	// attached on the single-chat GET; list and watch payloads stay
-	// lightweight. A failure here is non-fatal: the chat is still usable
-	// without the detail, so we log and return the rest of the response.
+	// Enrich the lightweight context summary with the chat's pinned prompt
+	// resources and its bound agent's live MCP inventory (metadata only). This
+	// detail is computed on read and only attached on the single-chat GET; list
+	// and watch payloads stay lightweight. A failure here is non-fatal: the chat
+	// is still usable without the detail, so we log and return the rest of the
+	// response.
 	if sdkChat.Context != nil && api.chatDaemon != nil {
 		resources, err := api.chatDaemon.ContextResources(ctx, chat)
 		if err != nil {
@@ -2167,11 +2168,12 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(updated, nil, nil)
 
-	// Enrich the context summary with the freshly pinned resources so the
-	// client reflects the refresh immediately, without a full reload. This
-	// mirrors getChat; we pass the re-pinned chat so the detail reflects the
-	// post-refresh state. A failure here is non-fatal: the refresh already
-	// succeeded, so we log and return the rest of the response.
+	// Enrich the context summary with the freshly pinned prompt resources and
+	// the bound agent's live MCP inventory so the client reflects the refresh
+	// immediately, without a full reload. This mirrors getChat; we pass the
+	// re-pinned chat so the prompt detail reflects the post-refresh state. A
+	// failure here is non-fatal: the refresh already succeeded, so we log and
+	// return the rest of the response.
 	if sdkChat.Context != nil && api.chatDaemon != nil {
 		resources, err := api.chatDaemon.ContextResources(ctx, updated)
 		if err != nil {

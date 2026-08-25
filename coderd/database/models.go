@@ -5108,16 +5108,16 @@ type Chat struct {
 	CompactionRequestedAt    sql.NullTime            `db:"compaction_requested_at" json:"compaction_requested_at"`
 }
 
-// Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
+// Per-chat pinned prompt context a chat is hydrated against. Instruction files and skills are copied from workspace_agent_context_resources at chat hydration and context refresh; the pin survives agent replacement and workspace rebuilds.
 type ChatContextResource struct {
 	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-	// Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.
+	// Canonical source path for a pinned prompt resource.
 	Source string `db:"source" json:"source"`
-	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
+	// Discriminator for the pinned prompt body JSON shape. Currently instruction_file and skill; PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
 	BodyKind WorkspaceAgentContextBodyKind `db:"body_kind" json:"body_kind"`
 	// protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.
 	Body json.RawMessage `db:"body" json:"body"`
-	// sha256 over the resource's original bytes (or transport-encoded server tool list).
+	// sha256 over the pinned prompt resource original bytes.
 	ContentHash []byte `db:"content_hash" json:"content_hash"`
 	// Original payload size in bytes; populated regardless of status.
 	SizeBytes int64 `db:"size_bytes" json:"size_bytes"`

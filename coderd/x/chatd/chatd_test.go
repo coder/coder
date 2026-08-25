@@ -1226,9 +1226,8 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	// Workspace MCP tools now come from the agent's pinned snapshot, not live
-	// discovery. Seed the workspace MCP server so chats bound to the agent
-	// hydrate the "workspace-plan-mcp__echo" tool.
+	// Workspace MCP tools come from the bound agent's latest pushed catalog.
+	// Seed the server so the turn resolves "workspace-plan-mcp__echo".
 	seedAgentMCPToolContext(ctx, t, db, agentMCPToolContext{
 		AgentID:         dbAgent.ID,
 		ServerName:      "workspace-plan-mcp",
