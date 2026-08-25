@@ -847,6 +847,12 @@ func SlimRolesFromNames(names []string) []codersdk.SlimRole {
 	convertedRoles := make([]codersdk.SlimRole, 0, len(names))
 
 	for _, name := range names {
+		// Stored role arrays may retain retired built-in role names until
+		// a cleanup migration lands. Hide them so consumers do not display
+		// or resubmit them.
+		if rbac.IsRetiredRoleName(name) {
+			continue
+		}
 		convertedRoles = append(convertedRoles, SlimRoleFromName(name))
 	}
 

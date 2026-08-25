@@ -71,11 +71,17 @@ func TestMembersWithRetiredRole(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	// Seed stale data in the store: the retired agents-access role remains
-	// in a member's role array and in the org's default member roles.
+	// in a member's site-wide and org role arrays and in the org's default
+	// member roles.
 	_, err := db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
 		GrantedRoles: []string{"agents-access"},
 		UserID:       member.ID,
 		OrgID:        owner.OrganizationID,
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserRoles(ctx, database.UpdateUserRolesParams{
+		GrantedRoles: []string{"agents-access"},
+		ID:           member.ID,
 	})
 	require.NoError(t, err)
 
@@ -112,6 +118,16 @@ func TestMembersWithRetiredRole(t *testing.T) {
 		for _, role := range m.Roles {
 			require.NotEqual(t, "agents-access", role.Name)
 		}
+		for _, role := range m.GlobalRoles {
+			require.NotEqual(t, "agents-access", role.Name)
+		}
+	}
+
+	// User payloads hide the stale site-wide grant the same way.
+	userResp, err := client.User(ctx, member.ID.String())
+	require.NoError(t, err)
+	for _, role := range userResp.Roles {
+		require.NotEqual(t, "agents-access", role.Name)
 	}
 
 	// Organization responses hide the stale default role the same way.

@@ -11,7 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -328,6 +331,36 @@ func TestCustomOrganizationRole(t *testing.T) {
 		//nolint:gocritic // owner is required for this
 		_, err := owner.CreateOrganizationRole(ctx, newRole)
 		require.ErrorContains(t, err, "Resource not found")
+	})
+
+	t.Run("DeleteRetiredName", func(t *testing.T) {
+		t.Parallel()
+		db, ps := dbtestutil.NewDB(t)
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{Database: db, Pubsub: ps},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles: 1,
+				},
+			},
+		})
+
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.ScopedRoleOrgAdmin(first.OrganizationID))
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// A custom role that took the name before it became a reserved
+		// retired built-in name. It cannot be created or updated through
+		// the API anymore, but it must remain deletable.
+		dbgen.CustomRole(t, db, database.CustomRole{
+			Name: "agents-access",
+			OrganizationID: uuid.NullUUID{
+				UUID:  first.OrganizationID,
+				Valid: true,
+			},
+		})
+
+		err := orgAdmin.DeleteOrganizationRole(ctx, first.OrganizationID, "agents-access")
+		require.NoError(t, err)
 	})
 
 	t.Run("Delete", func(t *testing.T) {
