@@ -1862,6 +1862,13 @@ milestone 2 was sound.
 structure work is expected to join them before this is planned properly. What
 follows states what forces each and what is unresolved, not how it is done.
 
+**Milestone 2 is closed and wrote no code**, 2026-08-25. What it would have
+journalled turned out to be unsound throughout, so it became documentary. See
+its section, and `credential_expiration.working_state.md` for the reasoning.
+
+**Milestone 3's first step has landed**, 2026-08-25. `RotateKey` exists and both
+sites call it.
+
 **One item has left, complete.** The two-form entailing reference was pulled
 into WP11 milestone 3 and shipped with migration 000590: `entailed_by_entry` and
 `entailed_by_annotation` on the credential journal, never both, and required on
@@ -1961,17 +1968,36 @@ anything. And the `last_used` race at the same site.
 
 ### Milestone 3: the rotation rewrite
 
-**Step one is a common function, and does not wait for anything.**
-`regenerateAIAgentSessionToken` in `provisionerdserver` and
-`rotateAISandboxSessionToken` in `aisandboxes` are substantially the same:
-`RevokeKey` by the profile's token name, then `MintKey` with that profile,
-differing only in which profile and how the agent is reached. Extracting
-`RotateKey` **puts the reason in the function's name**, which is what keeps the
-endings door from having to be told why it was called, and it is a pure refactor
-with no ledger contact.
+**Step one is done**, 2026-08-25. `regenerateAIAgentSessionToken` in
+`provisionerdserver` and `rotateAISandboxSessionToken` in `aisandboxes` were
+substantially the same: `DropKey` by the profile's token name, then `MintKey`
+with that profile, differing only in which profile and how the agent is reached.
+`aiagentidentity.RotateKey` is that pair, and both call it.
+
+**What it buys is that the reason is in the name.** Written out at each site,
+what the two statements amounted to was legible only by inference, and `DropKey`
+cannot be told why it was called. Saying it by which function is called is the
+same rule the endings door follows.
 
 It was split out of WP11 milestone 3 on 2026-08-24, having been put there on the
 mistaken view that rotation was a kind of ending.
+
+**It is behaviour preserving, and the escalation is the part worth checking.**
+`provisionerdserver` escalated for the drop and not the mint, which one function
+cannot reproduce. Escalating the whole call is safe because `MintKey` escalates
+internally for everything it does, `Resolve` included, so the mint sees no
+context it did not already construct for itself.
+
+**One latent divergence closed with it.** The sandbox drop derived its token
+name from `sandbox.WorkspaceID` while the mint beside it used the `workspaceID`
+argument. They agree at the only call site. Had they ever differed the drop
+would have missed and the mint would have left a second key, so unifying them on
+the argument removes a way for the pair to come apart rather than introducing
+one.
+
+**`deleteAISandboxSessionToken` went with it**, having had no other caller.
+`deleteAIAgentSessionToken` stays: `revokeAIAgentIdentity` is its second caller,
+and that one is dropping a key on a retirement rather than rotating.
 
 **Step two needs the atomic group.** `regenerateAIAgentSessionToken` deletes the
 stale key and then mints, two statements outside a transaction in

@@ -359,6 +359,39 @@ func MintKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, prof
 	return key, issued.Authenticator, nil
 }
 
+// RotateKey replaces the credential a profile names, dropping the existing key
+// and minting one under the same token name.
+//
+// **Rotation is not an ending, which is why this drops rather than revokes.**
+// The credential is superseded, not finished: something takes its place at the
+// same name, and nothing about the holder or its authorization changed. Calling
+// an ending here would post a revocation that no party commanded and no ending
+// entailed.
+//
+// **The reason is in the name, and that is the point of the function.** Both
+// halves were written out at each site, so what the two statements together
+// amounted to was legible only by inference. `DropKey` cannot be told why it
+// was called and should not be; the caller says so by which function it calls.
+//
+// **A real gap passes here, and removing it is what this is a step toward.**
+// The drop and the mint are two statements, so an interval exists with no valid
+// credential at that name. The corpus holds that a rotation is one entry naming
+// both credentials, precisely so that the record does not assert the gap the
+// overlap exists to prevent. That needs an entry able to carry two subjects.
+// See WP13 milestone 1 in poc_audit/work_breakdown.md.
+//
+// The context is used as given, as for DropKey. MintKey escalates internally
+// for everything it does, so a caller escalating for the drop escalates the
+// whole call without widening the mint.
+//
+// store may be a transaction handle.
+func RotateKey(ctx context.Context, db database.Store, agentUserID uuid.UUID, profile Profile) (database.APIKey, string, error) {
+	if err := DropKey(ctx, db, agentUserID, profile.TokenName); err != nil {
+		return database.APIKey{}, "", xerrors.Errorf("drop the superseded AI agent key: %w", err)
+	}
+	return MintKey(ctx, db, agentUserID, profile)
+}
+
 // Resolve loads authoritative AI agent metadata and its human owner.
 func Resolve(ctx context.Context, db database.Store, agentUserID uuid.UUID) (ResolvedIdentity, error) {
 	if agentUserID == uuid.Nil {

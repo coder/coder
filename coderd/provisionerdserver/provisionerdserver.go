@@ -3371,15 +3371,12 @@ func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace databa
 // identity continuity rule), while a human opt-in with no marker yet
 // creates or reuses the workspace-origin identity.
 func (s *server) regenerateAIAgentSessionToken(ctx context.Context, workspace database.Workspace, agentID uuid.UUID) (string, error) {
-	// Rotate: MintKey does not replace keys by name, so drop the stale one
-	// first (mirrors deleteSessionTokenForUserAndWorkspace for owner tokens).
 	profile := aiagentidentity.WorkspaceAgentIdentityProfile(workspace.ID)
-	if err := s.deleteAIAgentSessionToken(ctx, agentID, profile.TokenName); err != nil {
-		return "", xerrors.Errorf("delete stale AI agent session token: %w", err)
-	}
-	_, token, err := aiagentidentity.MintKey(ctx, s.Database, agentID, profile)
+	//nolint:gocritic // Deleting an internal AI agent key requires system access.
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	_, token, err := aiagentidentity.RotateKey(systemCtx, s.Database, agentID, profile)
 	if err != nil {
-		return "", xerrors.Errorf("mint AI agent session token: %w", err)
+		return "", xerrors.Errorf("rotate AI agent session token: %w", err)
 	}
 	return token, nil
 }

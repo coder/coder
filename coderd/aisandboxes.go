@@ -329,13 +329,10 @@ func (api *API) deleteWorkspaceAgentAISandbox(rw http.ResponseWriter, r *http.Re
 // existing sandbox, dropping the previous one. MintKey does not replace keys
 // by name, so the stale key is deleted first.
 func (api *API) rotateAISandboxSessionToken(ctx context.Context, workspaceID uuid.UUID, sandbox database.AISandbox) (string, error) {
-	if err := api.deleteAISandboxSessionToken(ctx, api.Database, sandbox); err != nil {
-		return "", err
-	}
-	_, token, err := aiagentidentity.MintKey(ctx, api.Database, sandbox.AIAgentID,
+	_, token, err := aiagentidentity.RotateKey(ctx, api.Database, sandbox.AIAgentID,
 		aiagentidentity.SandboxIdentityProfile(workspaceID, sandbox.ID))
 	if err != nil {
-		return "", xerrors.Errorf("mint sandbox session token: %w", err)
+		return "", xerrors.Errorf("rotate sandbox session token: %w", err)
 	}
 	return token, nil
 }
@@ -357,15 +354,6 @@ func (*API) dischargeAISandboxCredential(ctx context.Context, store database.Sto
 	return aiagentidentity.DischargeKey(ctx, store, sandbox.AIAgentID, profile.TokenName, entity.EntailedBy{
 		Annotation: fmt.Sprintf("sandbox %s destroyed", sandbox.ID),
 	})
-}
-
-// deleteAISandboxSessionToken drops the credential issued for one sandbox
-// without recording an ending, which is what a rotation needs: the credential
-// is superseded rather than finished, and the rotation records both halves as
-// one event once WP13's atomic group exists.
-func (*API) deleteAISandboxSessionToken(ctx context.Context, store database.Store, sandbox database.AISandbox) error {
-	profile := aiagentidentity.SandboxIdentityProfile(sandbox.WorkspaceID, sandbox.ID)
-	return aiagentidentity.DropKey(ctx, store, sandbox.AIAgentID, profile.TokenName)
 }
 
 func validateAISandboxRequest(req agentsdk.CreateAISandboxRequest) []codersdk.ValidationError {
