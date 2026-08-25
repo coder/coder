@@ -13,7 +13,7 @@ With this agent pool, individuals and small teams can experiment with Coder Agen
 
 ## Premium licenses and Agent Hours
 
-A Premium license with the Agent Hours entitlement includes a customizable amount of Agent Time, the measured usage that draws down the entitlement.
+A Premium license includes a preset amount of Agent Time.
 Agent Time is shared across the deployment, allowing unlimited agents to run concurrently while consuming from a shared pool of purchased working hours.
 This usage-based model supports enterprise workloads where large development teams, background automation, and API-triggered tasks can create variable bursts of agent activity.
 
