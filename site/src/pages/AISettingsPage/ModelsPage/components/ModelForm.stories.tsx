@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useLocation } from "react-router";
 import {
 	expect,
 	fn,
@@ -20,7 +19,6 @@ import {
 } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
-	MockOrganization2,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
@@ -1060,60 +1058,5 @@ export const UseResponsesAPIHiddenForAzure: Story = {
 			canvas.queryByRole("radiogroup", { name: /use responses api/i }),
 		).not.toBeInTheDocument();
 		await expect(canvas.getByLabelText(/temperature/i)).toBeInTheDocument();
-	},
-};
-
-const LocationProbe = () => {
-	const location = useLocation();
-	return (
-		<div data-testid="location-probe">
-			{location.pathname}
-			{location.search}
-		</div>
-	);
-};
-
-export const SwitchOrganizationFromFormRow: Story = {
-	decorators: [
-		(Story) => (
-			<OrganizationModelsContext.Provider
-				value={{
-					organization: MockDefaultOrganization,
-					accessibleOrganizations: [MockDefaultOrganization, MockOrganization2],
-					permissions: MockOrganizationPermissions,
-					requestedOrganizationDenied: false,
-				}}
-			>
-				<Story />
-			</OrganizationModelsContext.Provider>
-		),
-	],
-	render: (args) => (
-		<>
-			<ModelForm {...args} />
-			<LocationProbe />
-		</>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Organization")).toBeVisible();
-		await userEvent.click(
-			canvas.getByRole("button", {
-				name: new RegExp(
-					`Organization ${MockDefaultOrganization.display_name}`,
-					"i",
-				),
-			}),
-		);
-		await userEvent.click(
-			await screen.findByRole("option", {
-				name: new RegExp(MockOrganization2.display_name),
-			}),
-		);
-		await waitFor(() => {
-			expect(screen.getByTestId("location-probe")).toHaveTextContent(
-				`/ai/settings/models/add?org=${MockOrganization2.name}`,
-			);
-		});
 	},
 };

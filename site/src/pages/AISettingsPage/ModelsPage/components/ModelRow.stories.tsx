@@ -32,9 +32,7 @@ const meta: Meta<typeof ModelRow> = {
 export default meta;
 type Story = StoryObj<typeof ModelRow>;
 
-// Control case: with an enabled provider and an enabled model, the row
-// renders no status badge at all. Any regression that surfaces a badge for a
-// healthy model shows up here.
+// Control case: a healthy, enabled model renders no status badge at all.
 export const WithProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -46,11 +44,8 @@ export const WithProvider: Story = {
 	},
 };
 
-// When the provider is missing (soft-deleted or otherwise unavailable) the
-// Provider column shows "Unset" and the status cell shows an "Unavailable"
-// notice even though the persisted model.enabled flag is true. An info icon
-// next to the label reveals a tooltip explaining that the connected provider
-// has been deleted.
+// A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
+// notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true },
@@ -73,9 +68,8 @@ export const WithoutProviderForcesDisabled: Story = {
 	},
 };
 
-// When the provider exists but is disabled, the label still renders (the
-// provider is set) but the status cell shows the "Unavailable" notice with a
-// tooltip because the model is not usable.
+// A disabled provider keeps its label but the model shows the "Unavailable"
+// notice because it is not usable.
 export const DisabledProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true, is_default: false },
@@ -99,10 +93,8 @@ export const DisabledProviderForcesDisabled: Story = {
 	},
 };
 
-// A disabled model with an enabled provider shows the "Disabled" badge next
-// to the name (like the "Default" badge) with no status-cell notice. This
-// exercises the enabled=false path so the "Unset" wording is only tied to
-// the missing provider case.
+// enabled=false with a healthy provider: "Disabled" badge beside the name,
+// no "Unavailable" notice, and no "Unset" wording.
 export const DisabledModelWithProvider: Story = {
 	args: {
 		model: { ...mockClaude, enabled: false, is_default: false },

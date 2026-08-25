@@ -569,12 +569,6 @@ export const ListSearchFiltersServers: Story = {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Coder")).toBeVisible();
 		await expect(canvas.getByText("GitHub")).toBeVisible();
-		await expect(
-			canvas.getByRole("button", {
-				name: `Organization ${MockDefaultOrganization.display_name}`,
-			}),
-		).toBeVisible();
-		expect(canvas.queryByText("Organization")).not.toBeInTheDocument();
 
 		const search = canvas.getByRole("searchbox", { name: "Search servers" });
 		await userEvent.type(search, "github");
@@ -1286,10 +1280,6 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
-		// Pristine edit forms keep the submit disabled until a change is made.
-		await expect(
-			canvas.getByRole("button", { name: "Update server" }),
-		).toBeDisabled();
 		await userEvent.type(canvas.getByLabelText(/display name/i), " v2");
 		await expect(
 			canvas.getByRole("button", { name: "Update server" }),

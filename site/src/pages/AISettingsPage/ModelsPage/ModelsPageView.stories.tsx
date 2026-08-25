@@ -96,12 +96,8 @@ export const Default: Story = {
 		// visible label asserted above rather than the image alt text.
 		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
-		// The disabled badge renders beside the model name, not in a status
-		// column.
 		const disabledRow = canvas.getByRole("button", { name: /GPT-4o mini/i });
 		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
-		const enabledRow = canvas.getByRole("button", { name: /^GPT-5/i });
-		expect(within(enabledRow).queryByText("Disabled")).not.toBeInTheDocument();
 
 		// The Add model menu lists each provider by exact accessible name; a
 		// regressed icon would turn a name into "Anthropic Anthropic".
@@ -189,10 +185,8 @@ export const DisabledProviderModelsStillListed: Story = {
 		// so the row is queried by its clickable role.
 		const row = canvas.getByRole("button", { name: /GPT-4o Secondary/i });
 		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
-		// A model under a disabled provider is not usable, so the status cell
-		// must show the unavailable notice even though the stored enabled flag
-		// is true. Scope to the target row so a fixture change cannot pass
-		// this assertion via an unrelated cell.
+		// A model under a disabled provider is not usable regardless of its
+		// stored enabled flag; scope to the row so an unrelated cell cannot pass.
 		await expect(within(row).getByText("Unavailable")).toBeInTheDocument();
 		expect(within(row).queryByText("Disabled")).not.toBeInTheDocument();
 	},

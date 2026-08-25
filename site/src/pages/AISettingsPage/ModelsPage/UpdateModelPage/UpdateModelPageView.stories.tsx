@@ -73,9 +73,8 @@ export const Default: Story = {
 			canvas.getByRole("button", { name: /^update model$/i }),
 		).toBeVisible();
 		await expect(canvas.getByLabelText(/model identifier/i)).toBeEnabled();
-		// The organization is informational on the edit page: switching org
-		// while editing would 404 the model, so it renders as a static value
-		// rather than a picker.
+		// Switching org while editing would 404 the model, so the organization
+		// renders as a static value rather than a picker.
 		await expect(
 			canvas.getByLabelText(
 				`Organization ${MockDefaultOrganization.display_name}`,
