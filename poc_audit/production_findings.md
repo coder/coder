@@ -270,11 +270,33 @@ a failing pre-push is not mistaken for a consequence of this work.
 
 ### F9. Two live defects, found while classifying the holder sites
 
+> **Standing, not scheduled.** Eric, 2026-08-25: not to be worked on now. Neither
+> affects a live demonstration, since both are notifications that go unsent
+> rather than anything a viewer would see. Worth cleaning up eventually and not
+> urgent.
+>
+> **The decision to make before fixing them is a design choice, not a repair.**
+> Either an agent initiated action notifies the owner and names the agent as
+> initiator, which is what the code did while the row existed, or it skips the
+> notification because an agent has nobody to notify. The second is what the
+> credential validation path chose for last seen, and it named a destination for
+> the equivalent fact.
+
 **Created here, by the users row removal, and both verified in code.** Each is
 the same shape: a site fetches the holder's users row, requires it to exist, and
 now finds nothing for an AI agent. Before migration 000592 the row existed, the
 fetch succeeded, and the notification was sent naming the agent. **Now the
 notification is silently dropped and a warning is logged.**
+
+**These sites were already known, and what changed is their behaviour.**
+`rewrite_rbac.md`, under "Twenty one places ask whether the holder is a
+particular user", triages two of them as degrading noisily: "doing a lookup that
+fails and logging it, and in one case sending a notification that would otherwise
+have been suppressed." Almost certainly the same two, described at an earlier
+stage. **The suppression guard not firing was the old symptom; the lookup failing
+is the new one**, and it arrived when the row did not. So this is not a discovery
+so much as a known site crossing into a worse state, which is the more useful way
+to read it: the triage predicted where the pressure would fall.
 
 **`coderd/workspaces.go:1554`, `putWorkspaceDormant`.** The guard
 `apiKey.HolderID.AsUserIDUnchecked() != newWorkspace.OwnerID` is always true for
@@ -296,6 +318,53 @@ and that turns on the same per-function pass still outstanding.
 
 **Neither is a wrong answer, which is why nothing caught them.** They are
 notifications not sent, and no test asserts that one was.
+
+### F9a. Baseline measurements taken at the same point
+
+Recorded so a later count is a comparison rather than a fresh guess. All measured
+on 2026-08-25 at `d44016d4e3`.
+
+**The `is_system` predicates, which are the sibling of the removed `kind`
+filters.** Twenty three occurrences across eight query files, `users.sql` (7),
+`groupmembers.sql` (5), `roles.sql` (4), `user_secrets.sql` (2),
+`organizationmembers.sql` (2), and one each in `insights.sql`, `aiseats.sql` and
+`aiseatstate.sql`, plus eleven reads in Go outside tests and generated code.
+**For comparison, the `kind` filters removed by this work numbered eighteen
+across six files.** So the discriminator that remains is the larger of the two,
+and nothing here has touched it.
+
+**How much of `api_keys` the ledger knows about.** Structurally rather than by row
+count, since a proportion would be specific to one deployment's data. Six
+non-test sites mint an `api_keys` row and **one goes through the ledger**:
+`coderd/entity/credential.go`. The other five are `apikey.go` for a person's
+session key and tokens, `provisionerdserver` for the workspace owner's session
+token, two in `oauth2provider`, and `chatd/synthetickey.go` for the per user
+gateway key. **The ledger's coverage is exactly one kind of credential**, the AI
+agent's, and every other kind in that table is unrecorded.
+
+### F9b. The eight past repairs, and what became of the figure
+
+**The repairs are listed in `overloading_users.md` under "Reference: repairs
+already made".** They belong there, being evidence for that argument rather than
+scoping information.
+
+**The list is a reconstruction, not a recovery.** The figure of eight came from
+tickets or git history, found once and not written down, and the original
+membership is gone. Seven `fix:` commits are defensible; counting the feature
+commits that carried an exclusion takes it past eight, and counting only
+unambiguous repairs leaves it under. **Eight is in range and the exact membership
+is not recoverable.**
+
+**The loss is an instance of the thing being described.** `rewrite_rbac.md` says
+of this debt that "each instance was repaired locally" and "nothing ever
+aggregated into a thing with a name". A list of those repairs was compiled once,
+used once, and not written down.
+
+**The figure is not in the corpus.** The nearest written number is "Eight guard
+chat ownership", in `rewrite_rbac.md`'s triage of twenty one comparison sites,
+which counts guards rather than fixes. Separately, the count of holder decisions
+made by this work is five: four call sites removed plus one made without
+removing a call.
 
 ### F10. The holder decisions already made, and which sites can be reached
 

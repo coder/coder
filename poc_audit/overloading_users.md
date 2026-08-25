@@ -1,9 +1,9 @@
 # Overloading the Users Table
 
 **The thesis.** `users` was converted from a primitive type into a sum type, a
-discriminated union, and the conversion was never named as one. Eric,
-2026-08-25. Everything below is that one problem: how it happened, what it has
-cost, and what it will cost to undo.
+discriminated union, and the conversion was never named as one. Everything below
+is that one problem: how it happened, what it has cost, and what it will cost to
+undo. Written 2026-08-25.
 
 **Who this is for.** Somebody planning work on `main`. **The argument does not
 depend on the experiment during which it was written**, which is the point: this
@@ -321,3 +321,70 @@ count, which dedupes multi argument call groups differently from a text match.
 files, excluding `coderd/database/modelmethods.go` where the method is defined.
 The figure itself is of less use than the rule, and a recount is only meaningful
 against a stated rule.
+
+## Reference: repairs already made
+
+Changes to `main` whose occasion was that `users` is a sum type nobody declared.
+Each was correct where it was made. **In each, an operation written for one
+variant met another, and somebody paid to separate them by hand.** That payment
+is what a declared discriminant and a declared interface would have made
+unnecessary, and this is the record of it being made instead. Dates are author
+dates.
+
+### A non-person included where the code meant people
+
+- 2026-05-13, `341051ceee`, "fix: exclude service accounts from license seat
+  count (#24401)". A non-person was being counted as a paid seat.
+- 2025-07-08, `211393a69c`, "fix: exclude prebuilt workspaces from lifecycle
+  executor (#18762)". One step out from the table: a workspace owned by a
+  non-person reaching a sweep written for workspaces owned by people.
+- 2026-03-04, `cfcb81fb0f`, "fix: user status change chart accommodates DST
+  (#22191)". Carried the exclusion in `insights.sql`, under a title about
+  daylight saving.
+
+### A non-person excluded where it should not have been
+
+- 2025-06-24, `a4f1c64a9b`, "fix: allow dynamic parameters to consider the
+  prebuilds user an owner (#18529)".
+
+**This direction is the one that complicates the prescription.** Having taught
+the system that some rows are not people, somebody then had to teach one query
+that this particular non-person is an owner after all. **A discriminator
+consulted correctly can still give the wrong answer**, because "not a person" and
+"not an owner" are different questions and the flag answers only the first. So
+adding exclusions is not a safe default: each one is a claim about which question
+is being asked, and the claim can be wrong.
+
+### The ownership transfer between a non-person and a person
+
+A prebuilt workspace is created owned by the system user and later claimed, which
+changes the owner. Two repairs, neither part of the original design.
+
+- 2026-04-02, `5b6b7719df`, "fix: make prebuild claiming durable and idempotent
+  (#23108)".
+- 2026-05-10, `aaa0dacdb3`, "fix: infer workspace claim time from build history
+  for /agents delete dialog (#25057)".
+
+### A cleanup the overload prevented
+
+- 2026-07-28, `0e104f38e0`, "fix!: deprecate `login_type=none`, convert existing
+  users to password login (#26851)". The conversion could not be applied to the
+  non-person rows, which a CHECK constraint requires to keep the value being
+  retired.
+
+### What the list is evidence of
+
+**The debt is not prospective.** It has been serviced repeatedly, in small
+amounts, by people working on unrelated things, over more than a year. None of
+these changes was scheduled as work on `users`, and none of them reduced the
+principal.
+
+**Every one of them is the same shape.** An operation assumed a variant; a
+variant it did not expect arrived; the assumption was then written out by hand at
+that one site. **A declared union would have made each of these a compile time or
+schema level question rather than an incident**, and the interest goes on being
+paid until one is declared.
+
+**The instalments are small and the ledger of them is nowhere.** That is what
+makes this debt easy to carry and hard to argue for retiring: no single payment
+was large enough to schedule, and nothing added them up.
