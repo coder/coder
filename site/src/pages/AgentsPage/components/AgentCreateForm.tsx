@@ -617,20 +617,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{mcpServersQuery.error != null && (
 						<ErrorAlert error={mcpServersQuery.error} />
 					)}
-					{organizationId !== "" &&
-						modelsQuery.data !== undefined &&
-						modelsQuery.error == null &&
-						!isModelCatalogLoading &&
-						!hasModelOptions && (
-							<Alert severity="warning">
-								<AlertTitle>No model is available</AlertTitle>
-								<AlertDescription>
-									{hasUserFixableModelProviders
-										? "A provider requires your API key. Add it in provider settings to enable models."
-										: "No chat model is currently available for this organization."}
-								</AlertDescription>
-							</Alert>
-						)}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (

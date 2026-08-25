@@ -1113,11 +1113,7 @@ export const ProviderRequiresUserApiKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"A provider requires your API key. Add it in provider settings to enable models.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
 			"href",
 			"/agents/settings/api-keys",
@@ -1136,11 +1132,7 @@ export const ProviderMissingAPIKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1155,11 +1147,7 @@ export const ProviderFetchFailed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -2173,14 +2161,7 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: "No model is available" }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(
 			canvas.getByRole("textbox", { name: "Chat message" }),
 		).toHaveAttribute("aria-disabled", "true");
