@@ -741,19 +741,20 @@ type DeploymentValues struct {
 	EnableTerraformDebugMode                serpent.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule                  UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
 	WebTerminalRenderer                     serpent.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
-	AllowWorkspaceRenames                   serpent.Bool                         `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
-	Healthcheck                             HealthcheckConfig                    `json:"healthcheck,omitempty" typescript:",notnull"`
-	Retention                               RetentionConfig                      `json:"retention,omitempty" typescript:",notnull"`
-	CLIUpgradeMessage                       serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
-	TermsOfServiceURL                       serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
-	Notifications                           NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
-	AdditionalCSPPolicy                     serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
-	WorkspaceHostnameSuffix                 serpent.String                       `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
-	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
-	EnableAITasks                           serpent.Bool                         `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
-	AI                                      AIConfig                             `json:"ai,omitempty"`
-	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
-	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
+	// Deprecated: Use the per-template allow_workspace_renames setting instead.
+	AllowWorkspaceRenames   serpent.Bool          `json:"allow_workspace_renames,omitempty" typescript:",notnull"`
+	Healthcheck             HealthcheckConfig     `json:"healthcheck,omitempty" typescript:",notnull"`
+	Retention               RetentionConfig       `json:"retention,omitempty" typescript:",notnull"`
+	CLIUpgradeMessage       serpent.String        `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
+	TermsOfServiceURL       serpent.String        `json:"terms_of_service_url,omitempty" typescript:",notnull"`
+	Notifications           NotificationsConfig   `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy     serpent.StringArray   `json:"additional_csp_policy,omitempty" typescript:",notnull"`
+	WorkspaceHostnameSuffix serpent.String        `json:"workspace_hostname_suffix,omitempty" typescript:",notnull"`
+	Prebuilds               PrebuildsConfig       `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
+	EnableAITasks           serpent.Bool          `json:"enable_ai_tasks,omitempty" typescript:",notnull"`
+	AI                      AIConfig              `json:"ai,omitempty"`
+	StatsCollection         StatsCollectionConfig `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder         TemplateBuilderConfig `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -3962,13 +3963,14 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name: "Allow Workspace Renames",
-			Description: "Allow users to rename their workspaces. " +
+			Description: "Deprecated: use the per-template \"Allow workspace renames\" setting instead. " +
+				"While set, it force-enables renames for every template in the deployment. " +
 				"WARNING: Renaming a workspace can cause Terraform resources that depend on the " +
-				"workspace name to be destroyed and recreated, potentially causing data loss. " +
-				"Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.",
+				"workspace name to be destroyed and recreated, potentially causing data loss.",
 			Flag:    "allow-workspace-renames",
 			Env:     "CODER_ALLOW_WORKSPACE_RENAMES",
 			Default: "false",
+			Hidden:  true,
 			Value:   &c.AllowWorkspaceRenames,
 			YAML:    "allowWorkspaceRenames",
 		},

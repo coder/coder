@@ -250,11 +250,17 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, decorateHelpersError{err}
 	}
 
+	// Label and data values are user-controlled while the templates around them
+	// are not, so Markdown structure in a value is neutralized before it reaches
+	// the template. The dispatcher still receives the unescaped payload, because
+	// the webhook contract surfaces enqueued values verbatim.
+	escaped := payload.EscapedForMarkdown()
+
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, escaped, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, escaped, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 

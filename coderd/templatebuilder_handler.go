@@ -556,6 +556,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			UseClassicParameterFlow:      false,
 			CorsBehavior:                 database.CorsBehaviorSimple,
 			AgentsAllowed:                true,
+			AllowWorkspaceRenames:        false,
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
