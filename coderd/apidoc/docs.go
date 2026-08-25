@@ -177,6 +177,26 @@ const docTemplate = `{
                         "description": "Filter by label as key:value. Repeat for multiple (AND logic).",
                         "name": "label",
                         "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "created_at",
+                            "updated_at"
+                        ],
+                        "type": "string",
+                        "description": "Timestamp to sort by. Supplying this or sort_order disables pinned-chat prioritization. Defaults to updated_at when only sort_order is supplied.",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ],
+                        "type": "string",
+                        "description": "Sort direction. Supplying this or sort_by disables pinned-chat prioritization. Defaults to desc when only sort_by is supplied.",
+                        "name": "sort_order",
+                        "in": "query"
                     }
                 ],
                 "responses": {

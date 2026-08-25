@@ -555,6 +555,7 @@ ORDER BY
 WITH cursor_chat AS (
     SELECT
         pin_order,
+        created_at,
         updated_at,
         id
     FROM chats
@@ -589,11 +590,50 @@ WHERE
         ELSE chats_expanded.archived = sqlc.narg('archived') :: boolean
     END
     AND CASE
-        -- Cursor pagination: the last element on a page acts as the cursor.
-        -- The 4-tuple matches the ORDER BY below. All columns sort DESC
-        -- (pin_order is negated so lower values sort first in DESC order),
+        -- Custom timestamp sorts do not prioritize pinned chats. The ID is
+        -- ordered in the same direction as the selected timestamp to provide
+        -- a deterministic cursor when timestamps are equal.
+        WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+            AND @sort_by::text != ''
+            AND @sort_order::text = 'asc' THEN (
+            (
+                CASE @sort_by::text
+                    WHEN 'created_at' THEN chats_expanded.created_at
+                    ELSE chats_expanded.updated_at
+                END,
+                chats_expanded.id
+            ) > (
+                SELECT
+                    CASE @sort_by::text
+                        WHEN 'created_at' THEN cursor_chat.created_at
+                        ELSE cursor_chat.updated_at
+                    END,
+                    cursor_chat.id
+                FROM cursor_chat
+            )
+        )
+        WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+            AND @sort_by::text != '' THEN (
+            (
+                CASE @sort_by::text
+                    WHEN 'created_at' THEN chats_expanded.created_at
+                    ELSE chats_expanded.updated_at
+                END,
+                chats_expanded.id
+            ) < (
+                SELECT
+                    CASE @sort_by::text
+                        WHEN 'created_at' THEN cursor_chat.created_at
+                        ELSE cursor_chat.updated_at
+                    END,
+                    cursor_chat.id
+                FROM cursor_chat
+            )
+        )
+        -- Without a custom sort, preserve the pinned-first default order. All
+        -- columns sort DESC (pin_order is negated so lower values sort first),
         -- which lets us use a single tuple < comparison.
-        WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN @after_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -748,14 +788,27 @@ WHERE
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
-    -- Pinned chats (pin_order > 0) sort before unpinned ones. Within
-    -- pinned chats, lower pin_order values come first. The negation
-    -- trick (-pin_order) keeps all sort columns DESC so the cursor
-    -- tuple < comparison works with uniform direction.
-    CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END DESC,
-    -chats_expanded.pin_order DESC,
-    chats_expanded.updated_at DESC,
-    chats_expanded.id DESC
+    -- Preserve pinned-first ordering only when no custom sort is active.
+    CASE WHEN @sort_by::text = '' THEN
+        CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END
+    END DESC,
+    CASE WHEN @sort_by::text = '' THEN -chats_expanded.pin_order END DESC,
+    CASE WHEN @sort_by::text = '' THEN chats_expanded.updated_at END DESC,
+    CASE WHEN @sort_by::text = '' THEN chats_expanded.id END DESC,
+    CASE WHEN @sort_order::text = 'asc' THEN
+        CASE @sort_by::text
+            WHEN 'created_at' THEN chats_expanded.created_at
+            WHEN 'updated_at' THEN chats_expanded.updated_at
+        END
+    END ASC,
+    CASE WHEN @sort_order::text = 'desc' THEN
+        CASE @sort_by::text
+            WHEN 'created_at' THEN chats_expanded.created_at
+            WHEN 'updated_at' THEN chats_expanded.updated_at
+        END
+    END DESC,
+    CASE WHEN @sort_by::text != '' AND @sort_order::text = 'asc' THEN chats_expanded.id END ASC,
+    CASE WHEN @sort_by::text != '' AND @sort_order::text = 'desc' THEN chats_expanded.id END DESC
 OFFSET @offset_opt
 LIMIT
     -- The chat list is unbounded and expected to grow large.

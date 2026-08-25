@@ -17882,6 +17882,142 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.Equal(t, newRun.ID, remaining.ID)
 }
 
+func TestGetChatsSort(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	store := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	org := dbgen.Organization(t, store, database.Organization{})
+	owner := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         owner.ID,
+	})
+	modelCfg := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		OrganizationID: org.ID,
+		CreatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: owner.ID, Valid: true},
+	})
+
+	chatIDs := []uuid.UUID{
+		uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+		uuid.MustParse("00000000-0000-0000-0000-000000000004"),
+	}
+	for i, id := range chatIDs {
+		dbgen.Chat(t, store, database.Chat{
+			ID:                id,
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             fmt.Sprintf("sort-chat-%d", i),
+		})
+	}
+
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	createdAt := []time.Time{
+		base.Add(time.Hour),
+		base.Add(2 * time.Hour),
+		base.Add(2 * time.Hour),
+		base.Add(3 * time.Hour),
+	}
+	updatedAt := []time.Time{
+		base.Add(8 * time.Hour),
+		base.Add(7 * time.Hour),
+		base.Add(7 * time.Hour),
+		base.Add(6 * time.Hour),
+	}
+	for i, id := range chatIDs {
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chats SET created_at = $1, updated_at = $2 WHERE id = $3",
+			createdAt[i], updatedAt[i], id,
+		)
+		require.NoError(t, err)
+	}
+	require.NoError(t, store.PinChatByID(ctx, chatIDs[0]))
+
+	tests := []struct {
+		name      string
+		sortBy    string
+		sortOrder string
+		want      []uuid.UUID
+	}{
+		{
+			name: "DefaultPinnedFirst",
+			want: []uuid.UUID{chatIDs[0], chatIDs[2], chatIDs[1], chatIDs[3]},
+		},
+		{
+			name:      "CreatedAtAscending",
+			sortBy:    "created_at",
+			sortOrder: "asc",
+			want:      []uuid.UUID{chatIDs[0], chatIDs[1], chatIDs[2], chatIDs[3]},
+		},
+		{
+			name:      "CreatedAtDescending",
+			sortBy:    "created_at",
+			sortOrder: "desc",
+			want:      []uuid.UUID{chatIDs[3], chatIDs[2], chatIDs[1], chatIDs[0]},
+		},
+		{
+			name:      "UpdatedAtAscending",
+			sortBy:    "updated_at",
+			sortOrder: "asc",
+			want:      []uuid.UUID{chatIDs[3], chatIDs[1], chatIDs[2], chatIDs[0]},
+		},
+		{
+			name:      "UpdatedAtDescending",
+			sortBy:    "updated_at",
+			sortOrder: "desc",
+			want:      []uuid.UUID{chatIDs[0], chatIDs[2], chatIDs[1], chatIDs[3]},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+
+			params := database.GetChatsParams{
+				OwnedOnly: true,
+				ViewerID:  owner.ID,
+				SortBy:    tt.sortBy,
+				SortOrder: tt.sortOrder,
+			}
+			rows, err := store.GetChats(ctx, params)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, chatRowIDs(rows))
+
+			params.LimitOpt = 2
+			var paginated []uuid.UUID
+			for range len(tt.want) {
+				page, err := store.GetChats(ctx, params)
+				require.NoError(t, err)
+				if len(page) == 0 {
+					break
+				}
+				pageIDs := chatRowIDs(page)
+				paginated = append(paginated, pageIDs...)
+				params.AfterID = pageIDs[len(pageIDs)-1]
+			}
+			require.Equal(t, tt.want, paginated)
+		})
+	}
+}
+
+func chatRowIDs(rows []database.GetChatsRow) []uuid.UUID {
+	ids := make([]uuid.UUID, len(rows))
+	for i, row := range rows {
+		ids[i] = row.Chat.ID
+	}
+	return ids
+}
+
 func TestGetChatsFilter(t *testing.T) {
 	t.Parallel()
 

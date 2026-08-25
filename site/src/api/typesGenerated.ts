@@ -2686,6 +2686,19 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatListSortField = "created_at" | "updated_at";
+
+export const ChatListSortFields: ChatListSortField[] = [
+	"created_at",
+	"updated_at",
+];
+
+// From codersdk/chats.go
+export type ChatListSortOrder = "asc" | "desc";
+
+export const ChatListSortOrders: ChatListSortOrder[] = ["asc", "desc"];
+
+// From codersdk/chats.go
 export type ChatListSource = "created_by_me" | "shared_with_me";
 
 export const ChatListSources: ChatListSource[] = [
@@ -5930,6 +5943,16 @@ export interface ListChatsOptions extends Pagination {
 	 * Source adds a source: term to Query.
 	 */
 	readonly Source: ChatListSource;
+	/**
+	 * SortBy selects the timestamp used to sort chats. Setting SortBy or
+	 * SortOrder disables pinned-chat prioritization.
+	 */
+	readonly SortBy: ChatListSortField;
+	/**
+	 * SortOrder selects the sort direction. Setting SortBy or SortOrder
+	 * disables pinned-chat prioritization.
+	 */
+	readonly SortOrder: ChatListSortOrder;
 	readonly Labels: Record<string, string>;
 }
 

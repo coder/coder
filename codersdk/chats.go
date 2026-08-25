@@ -1971,6 +1971,22 @@ const (
 	ChatListSourceSharedWithMe ChatListSource = "shared_with_me"
 )
 
+// ChatListSortField controls which timestamp ListChats sorts by.
+type ChatListSortField string
+
+const (
+	ChatListSortFieldCreatedAt ChatListSortField = "created_at"
+	ChatListSortFieldUpdatedAt ChatListSortField = "updated_at"
+)
+
+// ChatListSortOrder controls the direction ListChats sorts in.
+type ChatListSortOrder string
+
+const (
+	ChatListSortOrderAscending  ChatListSortOrder = "asc"
+	ChatListSortOrderDescending ChatListSortOrder = "desc"
+)
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	// Query supports raw chat search terms. If Query includes a source: term,
@@ -1978,7 +1994,13 @@ type ListChatsOptions struct {
 	Query string
 	// Source adds a source: term to Query.
 	Source ChatListSource
-	Labels map[string]string
+	// SortBy selects the timestamp used to sort chats. Setting SortBy or
+	// SortOrder disables pinned-chat prioritization.
+	SortBy ChatListSortField
+	// SortOrder selects the sort direction. Setting SortBy or SortOrder
+	// disables pinned-chat prioritization.
+	SortOrder ChatListSortOrder
+	Labels    map[string]string
 	Pagination
 }
 
@@ -2006,6 +2028,18 @@ func (c *ExperimentalClient) ListChats(ctx context.Context, opts *ListChatsOptio
 				q := r.URL.Query()
 				for k, v := range opts.Labels {
 					q.Add("label", k+":"+v)
+				}
+				r.URL.RawQuery = q.Encode()
+			})
+		}
+		if opts.SortBy != "" || opts.SortOrder != "" {
+			reqOpts = append(reqOpts, func(r *http.Request) {
+				q := r.URL.Query()
+				if opts.SortBy != "" {
+					q.Set("sort_by", string(opts.SortBy))
+				}
+				if opts.SortOrder != "" {
+					q.Set("sort_order", string(opts.SortOrder))
 				}
 				r.URL.RawQuery = q.Encode()
 			})

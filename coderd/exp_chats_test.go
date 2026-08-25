@@ -2051,6 +2051,148 @@ func TestListChats(t *testing.T) {
 		require.Equal(t, memberChats[0].ID, memberChats[0].DiffStatus.ChatID)
 	})
 
+	t.Run("Sort", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		dbChats := make([]database.Chat, 4)
+		for i := range dbChats {
+			dbChats[i] = dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("sort-chat-%d", i),
+				Status:            database.ChatStatusWaiting,
+			})
+		}
+
+		// Make the oldest chat the most recently updated and pin it. Explicit
+		// sorting must ignore the pin, while the default must retain it.
+		dbCtx := dbauthz.AsSystemRestricted(ctx)
+		var err error
+		dbChats[0], err = db.UpdateChatByID(dbCtx, database.UpdateChatByIDParams{
+			ID:    dbChats[0].ID,
+			Title: dbChats[0].Title,
+		})
+		require.NoError(t, err)
+		require.NoError(t, db.PinChatByID(dbCtx, dbChats[0].ID))
+
+		expectedIDs := func(sortBy codersdk.ChatListSortField, sortOrder codersdk.ChatListSortOrder) []uuid.UUID {
+			t.Helper()
+			sorted := slices.Clone(dbChats)
+			slices.SortFunc(sorted, func(a, b database.Chat) int {
+				var comparison int
+				switch sortBy {
+				case codersdk.ChatListSortFieldCreatedAt:
+					comparison = a.CreatedAt.Compare(b.CreatedAt)
+				case codersdk.ChatListSortFieldUpdatedAt:
+					comparison = a.UpdatedAt.Compare(b.UpdatedAt)
+				default:
+					require.FailNow(t, "unexpected sort field", sortBy)
+				}
+				if comparison == 0 {
+					comparison = bytes.Compare(a.ID[:], b.ID[:])
+				}
+				if sortOrder == codersdk.ChatListSortOrderDescending {
+					return -comparison
+				}
+				return comparison
+			})
+
+			ids := make([]uuid.UUID, len(sorted))
+			for i, chat := range sorted {
+				ids[i] = chat.ID
+			}
+			return ids
+		}
+		actualIDs := func(chats []codersdk.Chat) []uuid.UUID {
+			ids := make([]uuid.UUID, len(chats))
+			for i, chat := range chats {
+				ids[i] = chat.ID
+			}
+			return ids
+		}
+
+		defaultChats, err := client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Equal(t, dbChats[0].ID, defaultChats[0].ID)
+
+		tests := []struct {
+			name      string
+			sortBy    codersdk.ChatListSortField
+			sortOrder codersdk.ChatListSortOrder
+			wantBy    codersdk.ChatListSortField
+			wantOrder codersdk.ChatListSortOrder
+		}{
+			{"CreatedAtAscending", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending},
+			{"CreatedAtDescending", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending, codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending},
+			{"UpdatedAtAscending", codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending},
+			{"UpdatedAtDescending", codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderDescending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderDescending},
+			{"SortByDefaultsToDescending", codersdk.ChatListSortFieldCreatedAt, "", codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderDescending},
+			{"SortOrderDefaultsToUpdatedAt", "", codersdk.ChatListSortOrderAscending, codersdk.ChatListSortFieldUpdatedAt, codersdk.ChatListSortOrderAscending},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+					SortBy:    tt.sortBy,
+					SortOrder: tt.sortOrder,
+				})
+				require.NoError(t, err)
+				require.Equal(t, expectedIDs(tt.wantBy, tt.wantOrder), actualIDs(chats))
+			})
+		}
+
+		wantCreatedAscending := expectedIDs(codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortOrderAscending)
+		offsetPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortBy:    codersdk.ChatListSortFieldCreatedAt,
+			SortOrder: codersdk.ChatListSortOrderAscending,
+			Pagination: codersdk.Pagination{
+				Offset: 1,
+				Limit:  2,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantCreatedAscending[1:3], actualIDs(offsetPage))
+
+		firstPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortBy:     codersdk.ChatListSortFieldCreatedAt,
+			SortOrder:  codersdk.ChatListSortOrderAscending,
+			Pagination: codersdk.Pagination{Limit: 2},
+		})
+		require.NoError(t, err)
+		secondPage, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+			SortBy:    codersdk.ChatListSortFieldCreatedAt,
+			SortOrder: codersdk.ChatListSortOrderAscending,
+			Pagination: codersdk.Pagination{
+				AfterID: firstPage[len(firstPage)-1].ID,
+				Limit:   2,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, wantCreatedAscending, actualIDs(append(firstPage, secondPage...)))
+
+		invalidTests := []struct {
+			name      string
+			options   codersdk.ListChatsOptions
+			wantField string
+		}{
+			{"SortBy", codersdk.ListChatsOptions{SortBy: "title"}, "sort_by"},
+			{"SortOrder", codersdk.ListChatsOptions{SortOrder: "sideways"}, "sort_order"},
+		}
+		for _, tt := range invalidTests {
+			t.Run("Invalid"+tt.name, func(t *testing.T) {
+				_, err := client.ListChats(ctx, &tt.options)
+				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+				require.Len(t, sdkErr.Validations, 1)
+				require.Equal(t, tt.wantField, sdkErr.Validations[0].Field)
+			})
+		}
+	})
+
 	t.Run("SourceCreatedByMeAndSharedWithMeExcludesUnsharedReadableChats", func(t *testing.T) {
 		t.Parallel()
 

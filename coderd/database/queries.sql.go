@@ -9429,6 +9429,7 @@ const getChats = `-- name: GetChats :many
 WITH cursor_chat AS (
     SELECT
         pin_order,
+        created_at,
         updated_at,
         id
     FROM chats
@@ -9463,11 +9464,50 @@ WHERE
         ELSE chats_expanded.archived = $6 :: boolean
     END
     AND CASE
-        -- Cursor pagination: the last element on a page acts as the cursor.
-        -- The 4-tuple matches the ORDER BY below. All columns sort DESC
-        -- (pin_order is negated so lower values sort first in DESC order),
+        -- Custom timestamp sorts do not prioritize pinned chats. The ID is
+        -- ordered in the same direction as the selected timestamp to provide
+        -- a deterministic cursor when timestamps are equal.
+        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+            AND $8::text != ''
+            AND $9::text = 'asc' THEN (
+            (
+                CASE $8::text
+                    WHEN 'created_at' THEN chats_expanded.created_at
+                    ELSE chats_expanded.updated_at
+                END,
+                chats_expanded.id
+            ) > (
+                SELECT
+                    CASE $8::text
+                        WHEN 'created_at' THEN cursor_chat.created_at
+                        ELSE cursor_chat.updated_at
+                    END,
+                    cursor_chat.id
+                FROM cursor_chat
+            )
+        )
+        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid
+            AND $8::text != '' THEN (
+            (
+                CASE $8::text
+                    WHEN 'created_at' THEN chats_expanded.created_at
+                    ELSE chats_expanded.updated_at
+                END,
+                chats_expanded.id
+            ) < (
+                SELECT
+                    CASE $8::text
+                        WHEN 'created_at' THEN cursor_chat.created_at
+                        ELSE cursor_chat.updated_at
+                    END,
+                    cursor_chat.id
+                FROM cursor_chat
+            )
+        )
+        -- Without a custom sort, preserve the pinned-first default order. All
+        -- columns sort DESC (pin_order is negated so lower values sort first),
         -- which lets us use a single tuple < comparison.
-        WHEN $7 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -9481,7 +9521,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $8::jsonb IS NOT NULL THEN chats_expanded.labels @> $8::jsonb
+        WHEN $10::jsonb IS NOT NULL THEN chats_expanded.labels @> $10::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -9489,13 +9529,13 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $9::text IS NOT NULL THEN EXISTS (
+        WHEN $11::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($9::text)
+              AND LOWER(cds.url) = LOWER($11::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
@@ -9503,11 +9543,11 @@ WHERE
     -- Filter by title substring (case-insensitive). Applied when the
     -- caller provides a non-empty title_query.
     AND CASE
-        WHEN $10 :: text != '' THEN chats_expanded.title ILIKE '%' || $10 || '%'
+        WHEN $12 :: text != '' THEN chats_expanded.title ILIKE '%' || $12 || '%'
         ELSE true
     END
     AND CASE
-        WHEN $11::boolean IS NOT NULL THEN (
+        WHEN $13::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -9515,7 +9555,7 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $11::boolean
+        ) = $13::boolean
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -9524,7 +9564,7 @@ WHERE
     -- parent, so gitsync populates identical PR state on both; traversing
     -- descendants would be redundant.
     AND CASE
-        WHEN COALESCE(array_length($12::text[], 1), 0) > 0 THEN EXISTS (
+        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
@@ -9534,55 +9574,55 @@ WHERE
                         WHEN cds.pull_request_state = 'open' THEN 'open'
                         ELSE cds.pull_request_state
                     END
-                ) = ANY($12::text[])
+                ) = ANY($14::text[])
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $13::int != 0 THEN EXISTS (
+        WHEN $15::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $13
+                AND cds.pr_number = $15
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $14::text != '' THEN EXISTS (
+        WHEN $16::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $14 || '%'
-                    OR cds.url ILIKE '%' || $14 || '%'
+                    cds.git_remote_origin ILIKE '%' || $16 || '%'
+                    OR cds.url ILIKE '%' || $16 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $15::text != '' THEN EXISTS (
+        WHEN $17::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $15 || '%'
+                AND cds.pull_request_title ILIKE '%' || $17 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $16::text != '' THEN (
+        WHEN $18::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $16)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $16)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -9596,18 +9636,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config = 'simple' AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
+                        OR (cm.search_tsv_config = 'simple' AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
             OR CASE
-                WHEN $16 ~ '^[0-9]{1,18}$' THEN EXISTS (
+                WHEN $18 ~ '^[0-9]{1,18}$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number = $16::bigint
+                        AND cds.pr_number = $18::bigint
                 )
                 ELSE false
             END
@@ -9622,19 +9662,32 @@ WHERE
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
-    -- Pinned chats (pin_order > 0) sort before unpinned ones. Within
-    -- pinned chats, lower pin_order values come first. The negation
-    -- trick (-pin_order) keeps all sort columns DESC so the cursor
-    -- tuple < comparison works with uniform direction.
-    CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END DESC,
-    -chats_expanded.pin_order DESC,
-    chats_expanded.updated_at DESC,
-    chats_expanded.id DESC
-OFFSET $17
+    -- Preserve pinned-first ordering only when no custom sort is active.
+    CASE WHEN $8::text = '' THEN
+        CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END
+    END DESC,
+    CASE WHEN $8::text = '' THEN -chats_expanded.pin_order END DESC,
+    CASE WHEN $8::text = '' THEN chats_expanded.updated_at END DESC,
+    CASE WHEN $8::text = '' THEN chats_expanded.id END DESC,
+    CASE WHEN $9::text = 'asc' THEN
+        CASE $8::text
+            WHEN 'created_at' THEN chats_expanded.created_at
+            WHEN 'updated_at' THEN chats_expanded.updated_at
+        END
+    END ASC,
+    CASE WHEN $9::text = 'desc' THEN
+        CASE $8::text
+            WHEN 'created_at' THEN chats_expanded.created_at
+            WHEN 'updated_at' THEN chats_expanded.updated_at
+        END
+    END DESC,
+    CASE WHEN $8::text != '' AND $9::text = 'asc' THEN chats_expanded.id END ASC,
+    CASE WHEN $8::text != '' AND $9::text = 'desc' THEN chats_expanded.id END DESC
+OFFSET $19
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($18 :: int, 0), 50)
+    COALESCE(NULLIF($20 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -9645,6 +9698,8 @@ type GetChatsParams struct {
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
+	SortBy              string                `db:"sort_by" json:"sort_by"`
+	SortOrder           string                `db:"sort_order" json:"sort_order"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
 	TitleQuery          string                `db:"title_query" json:"title_query"`
@@ -9672,6 +9727,8 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.AfterID,
+		arg.SortBy,
+		arg.SortOrder,
 		arg.LabelFilter,
 		arg.DiffURL,
 		arg.TitleQuery,

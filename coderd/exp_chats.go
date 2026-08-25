@@ -402,6 +402,8 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
+// @Param sort_by query string false "Timestamp to sort by. Supplying this or sort_order disables pinned-chat prioritization. Defaults to updated_at when only sort_order is supplied." Enums(created_at,updated_at)
+// @Param sort_order query string false "Sort direction. Supplying this or sort_by disables pinned-chat prioritization. Defaults to desc when only sort_by is supplied." Enums(asc,desc)
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
 // @Description Experimental: this endpoint is subject to change.
@@ -411,6 +413,37 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 
 	paginationParams, ok := ParsePagination(rw, r)
 	if !ok {
+		return
+	}
+
+	queryParams := r.URL.Query()
+	sortParser := httpapi.NewQueryParamParser()
+	sortBy := codersdk.ChatListSortField(sortParser.String(queryParams, string(codersdk.ChatListSortFieldUpdatedAt), "sort_by"))
+	sortOrder := codersdk.ChatListSortOrder(sortParser.String(queryParams, string(codersdk.ChatListSortOrderDescending), "sort_order"))
+	customSort := queryParams.Has("sort_by") || queryParams.Has("sort_order")
+	if customSort {
+		switch sortBy {
+		case codersdk.ChatListSortFieldCreatedAt, codersdk.ChatListSortFieldUpdatedAt:
+		default:
+			sortParser.Errors = append(sortParser.Errors, codersdk.ValidationError{
+				Field:  "sort_by",
+				Detail: fmt.Sprintf("%q is not a valid sort field", sortBy),
+			})
+		}
+		switch sortOrder {
+		case codersdk.ChatListSortOrderAscending, codersdk.ChatListSortOrderDescending:
+		default:
+			sortParser.Errors = append(sortParser.Errors, codersdk.ValidationError{
+				Field:  "sort_order",
+				Detail: fmt.Sprintf("%q is not a valid sort order", sortOrder),
+			})
+		}
+	}
+	if len(sortParser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: sortParser.Errors,
+		})
 		return
 	}
 
@@ -484,10 +517,16 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		RepoQuery:           searchParams.RepoQuery,
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
+		SortBy:              "",
+		SortOrder:           "",
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
 		LimitOpt: int32(paginationParams.Limit),
+	}
+	if customSort {
+		params.SortBy = string(sortBy)
+		params.SortOrder = string(sortOrder)
 	}
 
 	chatRows, err := api.Database.GetChats(ctx, params)
