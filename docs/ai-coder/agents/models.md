@@ -376,7 +376,7 @@ from the Agents settings page.
 1. Each enabled provider is listed with a status indicator:
    - **Key saved**, your personal key is active and will be used for requests to
      that provider.
-   - **Using shared key**, no personal key is set and Coder is using
+   - **Shared key**, no personal key is set and Coder is using
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.
