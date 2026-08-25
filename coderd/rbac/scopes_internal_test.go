@@ -168,19 +168,17 @@ func TestScopesCoverGuards(t *testing.T) {
 	}
 }
 
-// TestScopesCoverWildcardResourceChecksAction pins that a wildcard resource
-// type is not on its own a grant: {*, read} authorizes read on every resource,
-// not every action on every resource. No ScopeName expands to that shape, since
-// the only wildcard resource the catalog spells is coder:all's {*, *}, so a
-// coverage bug that special-cased a wildcard resource on the granted side would
-// be reachable from no catalog-driven test.
+// TestScopesCoverWildcardResourceChecksAction pins that {*, read} authorizes
+// read on every resource, not every action on every resource. The only
+// wildcard resource the catalog spells is coder:all's {*, *}, so no
+// catalog-driven test reaches this shape.
 func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
 	t.Parallel()
 
 	allowed := []namedScope{{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)}}
 
-	// The wildcard resource does match an unrelated resource, so the assertion
-	// below fails on the action and not on resource matching.
+	// Positive control: the wildcard resource does match an unrelated resource,
+	// so the assertion below fails on the action rather than the resource.
 	covered, err := scopesCoverExpanded(allowed, namedScope{name: "workspace_read", scope: coverableScope(workspaceRead)})
 	require.NoError(t, err)
 	require.True(t, covered)
@@ -189,9 +187,7 @@ func TestScopesCoverWildcardResourceChecksAction(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, covered, "read on every resource must not cover delete")
 
-	// The mirror: a grant on one resource cannot cover a request for read on
-	// every resource. ScopeName inputs reach the action wildcard on the
-	// requested side but never the resource wildcard.
+	// The mirror, on the requested side.
 	covered, err = scopesCoverExpanded(
 		[]namedScope{{name: "workspace_read", scope: coverableScope(workspaceRead)}},
 		namedScope{name: "wildcard_read", scope: coverableScope(wildcardResourceRead)},

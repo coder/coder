@@ -181,20 +181,16 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 
 // consentScopes returns the scope names the consent page lists, and whether the
 // grant is unrestricted. An unrestricted grant lists nothing, since "coder:all"
-// states to a user far less than the page's own full-access wording does.
+// states to a user far less than the page's full-access wording does.
 //
 // The two results are separate because an empty list and an unrestricted grant
-// are opposite facts about a grant. Reporting them in one value would make the
-// page describe the narrowest grant there is as the widest.
-//
-// The negotiated value is canonical and deduplicated by the time it arrives
-// here, so this splits rather than rewrites.
+// are opposite facts: one value for both would describe the narrowest grant
+// there is as the widest.
 func consentScopes(granted string) (names []string, unrestricted bool) {
 	names = strings.Fields(granted)
-	// Presence, not sole occupancy: an allowlist registered as
-	// `coder:all coder:workspaces.access` defaults to both names, and listing
-	// them would show the user `coder:all` while understating a grant that is
-	// in fact unrestricted.
+	// Presence, not sole occupancy: an allowlist of
+	// `coder:all coder:workspaces.access` defaults to both names, and naming
+	// the narrower one would describe an unrestricted grant as bounded.
 	if slices.Contains(names, string(database.ApiKeyScopeCoderAll)) {
 		return nil, true
 	}
@@ -273,18 +269,14 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
-// redirectAuthorizeError returns an authorization error to the client by
-// redirecting to its callback with the error in the query, which is how
-// RFC 6749 §4.1.2.1 says an authorization request fails once the client is
-// known. Delivering it on Coder instead reaches only the user's screen: the
-// client's error handling never runs, and the state it sent is dropped, so it
-// cannot correlate the failure with the request that caused it.
+// redirectAuthorizeError reports an authorization error to the client through
+// its own callback, as RFC 6749 §4.1.2.1 requires once the client is known.
+// Answering on Coder instead reaches only the user's screen: the client's error
+// handling never runs, and without its state it cannot correlate the failure.
 //
-// Only errors raised after extractAuthorizeParams returns may use this. Before
-// that point the redirect URI is whatever the request supplied, and §4.1.2.1
-// requires informing the user rather than redirecting to it. Afterwards it has
-// been exact-matched against the app's registered callback, so the destination
-// is the app's own no matter what the request carried.
+// Only errors raised after extractAuthorizeParams may use this. Before that
+// point the redirect URI is whatever the request supplied; afterwards it has
+// been exact-matched against the app's registered callback.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL *url.URL, state string, code codersdk.OAuth2ErrorCode, description string) {
 	// Copied because the caller's URL is also the consent page's cancel link
 	// and, on the POST side, the success redirect.
@@ -292,8 +284,7 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL
 	query := errorURL.Query()
 	query.Set("error", string(code))
 	query.Set("error_description", description)
-	// RFC 6749 §4.1.2.1 requires the state back exactly as it arrived,
-	// whenever the client sent one.
+	// §4.1.2.1 returns state only when the client sent one.
 	if state != "" {
 		query.Set("state", state)
 	}
@@ -304,12 +295,10 @@ func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, redirectURL
 	http.Redirect(rw, r, errorURL.String(), http.StatusFound)
 }
 
-// logCorruptCallback reports a registered callback URL that this server should
-// never have stored: unparsable, or carrying a scheme both registration paths
-// reject. The response says only that the callback is bad, because the client
-// asking is not the party who can fix it. Without this line an operator's only
-// lead is the request timestamp, which has to be correlated back to a client_id
-// and then to the row.
+// logCorruptCallback reports a registered callback URL this server should never
+// have stored: unparsable, or carrying a scheme registration rejects. The
+// response says only that the callback is bad, since the client asking is not
+// the party who can fix it, which leaves an operator nothing to correlate by.
 func logCorruptCallback(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, err error) {
 	logger.Error(ctx, "oauth2 app has an unusable registered callback URL",
 		slog.Error(err),
@@ -364,14 +353,12 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		}
 
 		// Everything downstream writes this URL somewhere a scheme matters: the
-		// error redirects into a Location header, the cancel link into an href.
-		// Checking once here, immediately after the URI has been exact-matched
-		// against the app's registered callback, is what makes those writes safe.
-		// Checking at each write instead leaves the next one to remember.
+		// error redirect into a Location header, the cancel link into an href.
+		// Checking once here, right after the URI has been exact-matched against
+		// the app's registered callback, is what makes those writes safe.
 		//
-		// 500 for the same reason the POST side answers 500: registration
-		// rejects these schemes, so a stored one is bad server state rather than
-		// a bad request, whichever verb happens to surface it.
+		// 500, not 400: registration rejects these schemes, so a stored one is
+		// bad server state rather than a bad request.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
 			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -408,8 +395,8 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// Negotiate here as well as on POST, so a request that cannot succeed
 		// fails before the consent page renders rather than after the user
 		// clicks Allow. The result also decides what the page states. The
-		// consent form posts back to this URL, so both handlers see the same
-		// query string and reach the same decision.
+		// consent form posts back to this URL, so both handlers reach the same
+		// decision.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
 			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
@@ -420,8 +407,8 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
 		// Set, not Add: a registered callback carrying its own state= would
-		// otherwise hand the client two values from here and one from the error
-		// path, and a client is entitled to reject that as malformed.
+		// otherwise hand the client two values, which it may reject as
+		// malformed.
 		cancelQuery.Set("error", "access_denied")
 		cancelQuery.Set("error_description", "The resource owner or authorization server denied the request")
 		if params.state != "" {
@@ -469,9 +456,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		// The same guarantee the GET side establishes: the scope rejection below
 		// and the success redirect at the end both write this URL into a
 		// Location header, so the scheme is checked once here rather than at
-		// each write. A registered callback reaching this point with a
-		// dangerous scheme is bad server state, not a bad request, since
-		// registration rejects those schemes.
+		// each write.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL); err != nil {
 			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,

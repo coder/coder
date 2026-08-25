@@ -341,9 +341,8 @@ func TestHashOAuth2State(t *testing.T) {
 	})
 }
 
-// consentScopes decides the sentence a user reads before approving a grant, so
-// the case that matters is the one where a listed name would understate the
-// authority being handed over.
+// consentScopes decides what a user reads before approving a grant, so the
+// case that matters is the one where a listed name understates it.
 func TestConsentScopes(t *testing.T) {
 	t.Parallel()
 
@@ -359,28 +358,23 @@ func TestConsentScopes(t *testing.T) {
 			want:    []string{"workspace:ssh", "template:read"},
 		},
 		{
-			// nil, not the name: the page says "full access" instead, which
-			// tells a user more than coder:all does.
+			// nil, not the name: the page says "full access" instead.
 			name:             "UnrestrictedAloneCollapses",
 			granted:          string(database.ApiKeyScopeCoderAll),
 			want:             nil,
 			wantUnrestricted: true,
 		},
 		{
-			// An allowlist registered as `coder:all coder:workspaces.access`
-			// defaults to both names. Listing them would show the very entry
-			// this collapse exists to hide, while describing an unrestricted
-			// grant as if it were bounded by the other name.
+			// Such an allowlist defaults to both names, and naming the
+			// narrower one would describe the grant as bounded.
 			name:             "UnrestrictedAmongOthersCollapses",
 			granted:          string(database.ApiKeyScopeCoderAll) + " coder:workspaces.access",
 			want:             nil,
 			wantUnrestricted: true,
 		},
 		{
-			// The empty grant reaches no caller today, since negotiateScope
-			// returns "" only alongside an error. It is asserted because the
-			// two results must disagree here: a grant carrying no permission
-			// is the one thing that must never be reported as unrestricted.
+			// Unreachable today: negotiateScope returns "" only with an error.
+			// A grant carrying no permission must never read as unrestricted.
 			name:             "EmptyGrantIsNotUnrestricted",
 			granted:          "",
 			want:             []string{},

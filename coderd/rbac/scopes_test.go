@@ -168,9 +168,8 @@ func TestScopesCover(t *testing.T) {
 		},
 		{
 			// The bad name sits behind an entry that already covers the
-			// request, so an implementation that answers as soon as it finds
-			// coverage, or that skips entries it cannot expand, reports true
-			// here.
+			// request, which an implementation answering on the first match
+			// never reaches.
 			name:            "UnknownAllowedScopeErrorsBesideCoveringScope",
 			allowed:         []rbac.ScopeName{rbac.ScopeAll, "not_a_real_scope"},
 			requested:       "workspace:read",
