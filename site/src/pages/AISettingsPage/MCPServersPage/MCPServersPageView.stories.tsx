@@ -58,8 +58,13 @@ export const Default: Story = {
 		await expect(canvas.getByText("GitHub")).toBeInTheDocument();
 		await expect(canvas.getByText("Image")).toBeInTheDocument();
 		await expect(canvas.getByText("API key")).toBeInTheDocument();
-		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		// The disabled badge renders beside the server name, not in a status
+		// column.
+		const disabledRow = canvas.getByRole("button", { name: /Image/i });
+		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
+		const enabledRow = canvas.getByRole("button", { name: /Memory/i });
+		expect(within(enabledRow).queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 

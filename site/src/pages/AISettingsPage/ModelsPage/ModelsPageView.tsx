@@ -275,7 +275,9 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/4">Provider</TableHead>
 						<TableHead className="w-1/4">Context limit</TableHead>
-						<TableHead className="w-40">Status</TableHead>
+						<TableHead className="w-40">
+							<span className="sr-only">Status</span>
+						</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open model</span>
 						</TableHead>

@@ -36,6 +36,11 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 					>
 						{server.display_name}
 					</span>
+					{!enabled && (
+						<Badge variant="default" className="shrink-0">
+							Disabled
+						</Badge>
+					)}
 				</div>
 			</TableCell>
 			<TableCell className="w-1/5 text-sm">
@@ -43,9 +48,6 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 			</TableCell>
 			<TableCell className="w-1/5 text-sm">
 				{AVAILABILITY_LABELS[server.availability] ?? server.availability}
-			</TableCell>
-			<TableCell className="w-32">
-				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>
 			</TableCell>
 			<TableCell className="w-12">
 				{onClick && (

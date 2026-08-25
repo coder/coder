@@ -39,8 +39,12 @@ export const ModelRow: FC<ModelRowProps> = ({
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
 	// Models whose provider is missing or disabled cannot be used, so the
-	// status column reflects that regardless of the persisted enabled flag.
-	const isEffectivelyEnabled = model.enabled && hasProvider && providerEnabled;
+	// status cell surfaces that regardless of the persisted enabled flag.
+	const providerNotice = !hasProvider
+		? "The provider connected to this model has been deleted."
+		: !providerEnabled
+			? "The provider connected to this model is disabled."
+			: null;
 
 	return (
 		<TableRow {...clickableProps}>
@@ -64,6 +68,11 @@ export const ModelRow: FC<ModelRowProps> = ({
 						{model.is_default && (
 							<Badge variant="default" className="shrink-0">
 								Default
+							</Badge>
+						)}
+						{!model.enabled && (
+							<Badge variant="default" className="shrink-0">
+								Disabled
 							</Badge>
 						)}
 					</div>
@@ -102,9 +111,16 @@ export const ModelRow: FC<ModelRowProps> = ({
 				</span>
 			</TableCell>
 			<TableCell>
-				<Badge variant="default">
-					{isEffectivelyEnabled ? "Enabled" : "Disabled"}
-				</Badge>
+				{providerNotice && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Badge variant="warning">Unavailable</Badge>
+						</TooltipTrigger>
+						<TooltipContent side="bottom" className="max-w-[240px]">
+							{providerNotice}
+						</TooltipContent>
+					</Tooltip>
+				)}
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">

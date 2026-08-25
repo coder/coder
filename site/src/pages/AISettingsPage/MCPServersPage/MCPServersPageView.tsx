@@ -138,7 +138,6 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 						<TableHead className="w-1/2">Name</TableHead>
 						<TableHead className="w-1/5">Auth Method</TableHead>
 						<TableHead className="w-1/5">Availability</TableHead>
-						<TableHead className="w-32">Status</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open server</span>
 						</TableHead>
