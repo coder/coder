@@ -20,10 +20,10 @@ import (
 const (
 	// AgentRuntimeInterval is the bucket size of hb_agent_runtime_v1 events.
 	AgentRuntimeInterval = time.Hour
-	// AgentRuntimeWindow is the trailing window scanned for missing buckets.
-	// Buckets still missing beyond this window (e.g. because the deployment
-	// was down for longer) are forfeited, which can only ever undercount
-	// usage.
+	// AgentRuntimeWindow is the trailing window continually scanned for
+	// missing buckets. A separate one-time catch-up handles retained history
+	// before this window. After the catch-up completes, any newly discovered
+	// gap older than the window is forfeited, which can only undercount usage.
 	AgentRuntimeWindow = 7 * 24 * time.Hour
 	// AgentRuntimeEligibilityLag is how long after a bucket closes before it
 	// becomes eligible for generation, giving replicas time to commit
@@ -46,16 +46,19 @@ const (
 
 // Generator reconciles hb_agent_runtime_v1 heartbeat usage events. Unlike
 // Cron jobs, which sample live state when they fire, the Generator derives
-// events from data already persisted in the database, so it can
-// deterministically backfill hours missed while the deployment was down,
-// zero-filling idle hours. Deterministic event IDs make concurrent replicas
+// events from data already persisted in the database. It continually repairs
+// the trailing seven-day window and performs one resumable catch-up over older
+// retained runtime-bearing chat history, zero-filling idle hours. History from
+// before runtime recording began or already hard-deleted chats is unavailable.
+// Deterministic event IDs make concurrent replicas
 // safe without locking: the insert's ON CONFLICT (id) arbiter turns a
 // re-insert of a bucket into a no-op, even when the competing insert is
 // still in flight (once its arbiter index entry is visible, PostgreSQL
 // waits on that transaction and takes the DO NOTHING path if it commits).
 // Only the narrow speculative-insertion race, before the competing row's
 // arbiter entry exists, surfaces a bucket unique violation instead, which
-// generateBucket recognizes as the other replica winning.
+// generateBucket recognizes as the other replica winning. Any existing runtime
+// event seals its hour and is never recalculated or overwritten.
 //
 // Events are generated unconditionally in enterprise builds; the
 // publish_usage_data license flag only gates publishing to Tallyman.
@@ -65,9 +68,11 @@ type Generator struct {
 	db    database.Store
 	ins   agplusage.Inserter
 
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
-	startOnce sync.Once
+	cancel                   context.CancelFunc
+	wg                       sync.WaitGroup
+	startOnce                sync.Once
+	startErr                 error
+	initialRecentWindowStart time.Time
 }
 
 // NewGenerator creates an unstarted Generator.
@@ -80,16 +85,49 @@ func NewGenerator(clock quartz.Clock, log slog.Logger, db database.Store, ins ag
 	}
 }
 
-// Start launches the reconciliation goroutine. Subsequent calls are no-ops;
-// a closed Generator cannot be restarted.
-func (g *Generator) Start(ctx context.Context) {
+// Start ensures the durable historical checkpoint exists, then launches the
+// recent reconciliation and retained-history catch-up goroutines. Subsequent
+// calls return the first call's result; a closed Generator cannot be restarted.
+func (g *Generator) Start(ctx context.Context) error {
 	g.startOnce.Do(func() {
+		// The marker must exist before dbpurge's immediate startup tick so it can
+		// protect retained chat history until the catch-up reaches it.
+		//nolint:gocritic // Startup work requires the usage publisher subject.
+		publisherCtx := dbauthz.AsUsagePublisher(ctx)
+		if err := g.db.EnsureAgentRuntimeBackfillCheckpoint(publisherCtx); err != nil {
+			g.startErr = xerrors.Errorf("ensure agent runtime backfill checkpoint: %w", err)
+			return
+		}
+
+		// Historical catch-up stops at this fixed boundary. The recent loop's
+		// first pass starts at the same boundary even if startup crosses an hour,
+		// preventing an unowned bucket between the two loops.
+		g.initialRecentWindowStart = g.clock.Now().UTC().Truncate(AgentRuntimeInterval).Add(-AgentRuntimeWindow)
+		checkpoint, err := g.db.GetAgentRuntimeBackfillCheckpoint(publisherCtx)
+		if err != nil {
+			g.log.Warn(ctx, "read agent runtime backfill checkpoint at startup", slog.Error(err))
+		} else if checkpoint.Present {
+			state, err := agplusage.ParseAgentRuntimeBackfillState(checkpoint.Value)
+			if err != nil {
+				g.log.Warn(ctx, "parse agent runtime backfill checkpoint at startup", slog.Error(err))
+			} else if state.Status == agplusage.AgentRuntimeBackfillStatusRunning {
+				// A restart may happen after the original fixed boundary has aged
+				// beyond the trailing window. Preserve adjacency by letting the
+				// first recent pass resume at the historical boundary.
+				g.initialRecentWindowStart = *state.EndExclusive
+			}
+		}
+
 		ctx, g.cancel = context.WithCancel(ctx)
-		g.wg.Add(1)
+		g.wg.Add(2)
 		pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceUsageEventGenerator), func(ctx context.Context) {
 			g.run(ctx)
 		})
+		pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceUsageEventGenerator), func(ctx context.Context) {
+			g.runHistoricalCatchup(ctx)
+		})
 	})
+	return g.startErr
 }
 
 // Close stops the Generator and waits for its goroutine to exit.
@@ -111,6 +149,7 @@ func (g *Generator) run(ctx context.Context) {
 	// The random initial delay staggers replicas that start simultaneously.
 	//nolint:gosec // Jitter does not need cryptographic randomness.
 	delay := agentRuntimeStartupDelay + time.Duration(rand.Int63n(int64(agentRuntimeJitter)))
+	earliest := g.initialRecentWindowStart
 	for {
 		timer := g.clock.NewTimer(delay, generatorTimerName)
 
@@ -123,7 +162,10 @@ func (g *Generator) run(ctx context.Context) {
 		case <-timer.C:
 		}
 
-		err := g.generateAgentRuntimeEvents(ctx)
+		err := g.generateAgentRuntimeEvents(ctx, earliest)
+		if err == nil {
+			earliest = time.Time{}
+		}
 		if ctx.Err() != nil {
 			return
 		}
@@ -144,11 +186,13 @@ func (g *Generator) run(ctx context.Context) {
 // missing hourly bucket in the trailing window. Per-bucket errors skip only
 // that bucket; the next tick rescans the whole window, so transient failures
 // self-heal.
-func (g *Generator) generateAgentRuntimeEvents(ctx context.Context) error {
+func (g *Generator) generateAgentRuntimeEvents(ctx context.Context, earliest time.Time) error {
 	now := g.clock.Now().UTC()
 	// Bucket [H, H+1) becomes eligible at H + interval + lag.
 	latestEligible := now.Add(-AgentRuntimeInterval - AgentRuntimeEligibilityLag).Truncate(AgentRuntimeInterval)
-	earliest := now.Truncate(AgentRuntimeInterval).Add(-AgentRuntimeWindow)
+	if earliest.IsZero() {
+		earliest = now.Truncate(AgentRuntimeInterval).Add(-AgentRuntimeWindow)
+	}
 	if latestEligible.Before(earliest) {
 		return nil
 	}
@@ -239,16 +283,21 @@ func (g *Generator) generateBucket(ctx context.Context, bucket time.Time) error 
 	// The deterministic ID makes concurrent inserts of the same bucket
 	// idempotent, and created_at is the bucket start (not the insertion
 	// time) so daily rollups attribute backfilled hours to the correct day.
+	_, err = g.insertAgentRuntimeEvent(ctx, g.db, bucket, runtimeMs)
+	return err
+}
+
+func (g *Generator) insertAgentRuntimeEvent(ctx context.Context, db database.Store, bucket time.Time, runtimeMs int64) (bool, error) {
 	stableID := string(usagetypes.UsageEventTypeHBAgentRuntimeV1) + ":" + bucket.Format(usageEventIDTimeFormat)
-	err = g.ins.InsertHeartbeatUsageEvent(ctx, g.db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
+	err := g.ins.InsertHeartbeatUsageEvent(ctx, db, stableID, bucket, usagetypes.HBAgentRuntime{RuntimeMs: runtimeMs})
 	if database.IsUniqueViolation(err, database.UniqueIndexUsageEventsAgentRuntime) {
 		// Another replica already created this bucket's row. The Generator
 		// doc comment explains why this race reaches the bucket unique
 		// index instead of the insert's ON CONFLICT (id) arbiter.
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return xerrors.Errorf("insert usage event: %w", err)
+		return false, xerrors.Errorf("insert usage event: %w", err)
 	}
-	return nil
+	return true, nil
 }

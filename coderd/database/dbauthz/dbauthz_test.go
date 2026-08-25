@@ -6815,6 +6815,34 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
 	}))
 
+	s.Run("EnsureAgentRuntimeBackfillCheckpoint", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().EnsureAgentRuntimeBackfillCheckpoint(gomock.Any()).Return(nil)
+		check.Args().Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
+	s.Run("GetAgentRuntimeBackfillCheckpoint", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		row := database.GetAgentRuntimeBackfillCheckpointRow{Value: `{}`, Present: true}
+		db.EXPECT().GetAgentRuntimeBackfillCheckpoint(gomock.Any()).Return(row, nil)
+		check.Args().Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
+	s.Run("UpdateAgentRuntimeBackfillCheckpoint", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		db.EXPECT().UpdateAgentRuntimeBackfillCheckpoint(gomock.Any(), `{}`).Return(int64(1), nil)
+		check.Args(`{}`).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
+	}))
+
+	s.Run("GetEarliestChatMessageRuntimeBucket", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().GetEarliestChatMessageRuntimeBucket(gomock.Any()).Return(now, nil)
+		check.Args().Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
+	s.Run("ListMissingChatMessageRuntimeBuckets", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.ListMissingChatMessageRuntimeBucketsParams{StartTime: dbtime.Now(), EndTime: dbtime.Now().Add(time.Hour)}
+		db.EXPECT().ListMissingChatMessageRuntimeBuckets(gomock.Any(), params).Return([]database.ListMissingChatMessageRuntimeBucketsRow{}, nil)
+		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionCreate)
+	}))
+
 	// GetTotalChatMessageRuntimeMsInRange exists solely to compute usage
 	// event payloads, so it asserts usage event creation rather than chat
 	// read permissions.
@@ -6877,6 +6905,45 @@ func TestGetTotalChatMessageRuntimeMsInRange_HumanRolesDenied(t *testing.T) {
 		_, err := dbz.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{})
 		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
 	}
+}
+
+func TestAgentRuntimeBackfillState_HumanRolesDenied(t *testing.T) {
+	t.Parallel()
+
+	orgID := uuid.New()
+	var roles []rbac.RoleIdentifier
+	for _, role := range rbac.SiteBuiltInRoles() {
+		roles = append(roles, role.Identifier)
+	}
+	for _, role := range rbac.OrganizationRoles(orgID) {
+		roles = append(roles, role.Identifier)
+	}
+
+	for _, role := range roles {
+		subj := rbac.Subject{
+			ID:    uuid.NewString(),
+			Roles: rbac.RoleIdentifiers{role},
+			Scope: rbac.ScopeAll,
+		}
+		ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), subj)
+		mDB := dbmock.NewMockStore(gomock.NewController(t))
+		mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+		dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		_, err := dbz.GetAgentRuntimeBackfillCheckpoint(ctx)
+		require.True(t, dbauthz.IsNotAuthorizedError(err), "role %s must be denied", role)
+	}
+}
+
+func TestAgentRuntimeBackfillState_DBPurgeCanRead(t *testing.T) {
+	t.Parallel()
+
+	ctx := dbauthz.AsDBPurge(testutil.Context(t, testutil.WaitShort))
+	mDB := dbmock.NewMockStore(gomock.NewController(t))
+	mDB.EXPECT().Wrappers().Times(1).Return([]string{})
+	mDB.EXPECT().GetAgentRuntimeBackfillCheckpoint(gomock.Any()).Return(database.GetAgentRuntimeBackfillCheckpointRow{}, nil)
+	dbz := dbauthz.New(mDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	_, err := dbz.GetAgentRuntimeBackfillCheckpoint(ctx)
+	require.NoError(t, err)
 }
 
 func (s *MethodTestSuite) TestAIBridge() {

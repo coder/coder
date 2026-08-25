@@ -10190,6 +10190,25 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	return now, err
 }
 
+const getEarliestChatMessageRuntimeBucket = `-- name: GetEarliestChatMessageRuntimeBucket :one
+SELECT (
+    date_trunc('hour', cm.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+)::timestamptz AS earliest_bucket
+FROM chat_messages cm
+WHERE cm.runtime_ms IS NOT NULL
+ORDER BY cm.created_at ASC
+LIMIT 1
+`
+
+// Returns the first retained UTC hour with derivable Agent Time usage. No row
+// is returned when no retained message has runtime data.
+func (q *sqlQuerier) GetEarliestChatMessageRuntimeBucket(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, getEarliestChatMessageRuntimeBucket)
+	var earliest_bucket time.Time
+	err := row.Scan(&earliest_bucket)
+	return earliest_bucket, err
+}
+
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config
@@ -11072,6 +11091,74 @@ func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatI
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMissingChatMessageRuntimeBuckets = `-- name: ListMissingChatMessageRuntimeBuckets :many
+WITH buckets AS (
+    SELECT generate_series(
+        $1::timestamptz,
+        ($2::timestamptz) - INTERVAL '1 hour',
+        INTERVAL '1 hour'
+    )::timestamptz AS bucket
+),
+runtime_by_bucket AS (
+    SELECT
+        (
+            date_trunc('hour', cm.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+        )::timestamptz AS bucket,
+        SUM(cm.runtime_ms)::bigint AS runtime_ms
+    FROM chat_messages cm
+    WHERE cm.created_at >= $1::timestamptz
+      AND cm.created_at < $2::timestamptz
+      AND cm.runtime_ms IS NOT NULL
+    GROUP BY 1
+)
+SELECT
+    buckets.bucket,
+    COALESCE(runtime_by_bucket.runtime_ms, 0)::bigint AS runtime_ms
+FROM buckets
+LEFT JOIN runtime_by_bucket USING (bucket)
+LEFT JOIN usage_events
+    ON usage_events.event_type = 'hb_agent_runtime_v1'
+    AND usage_events.created_at = buckets.bucket
+WHERE usage_events.id IS NULL
+ORDER BY buckets.bucket ASC
+`
+
+type ListMissingChatMessageRuntimeBucketsParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type ListMissingChatMessageRuntimeBucketsRow struct {
+	Bucket    time.Time `db:"bucket" json:"bucket"`
+	RuntimeMs int64     `db:"runtime_ms" json:"runtime_ms"`
+}
+
+// Returns missing hb_agent_runtime_v1 buckets in the bounded, end-exclusive
+// range. The generated series preserves zero-runtime hours, and existing
+// runtime events remain sealed.
+func (q *sqlQuerier) ListMissingChatMessageRuntimeBuckets(ctx context.Context, arg ListMissingChatMessageRuntimeBucketsParams) ([]ListMissingChatMessageRuntimeBucketsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMissingChatMessageRuntimeBuckets, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMissingChatMessageRuntimeBucketsRow
+	for rows.Next() {
+		var i ListMissingChatMessageRuntimeBucketsRow
+		if err := rows.Scan(&i.Bucket, &i.RuntimeMs); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -25600,6 +25687,35 @@ func (q *sqlQuerier) DeleteRuntimeConfig(ctx context.Context, key string) error 
 	return err
 }
 
+const ensureAgentRuntimeBackfillCheckpoint = `-- name: EnsureAgentRuntimeBackfillCheckpoint :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agent_runtime_all_history_catchup_v1', '{"version":1,"status":"pending"}')
+ON CONFLICT (key) DO NOTHING
+`
+
+func (q *sqlQuerier) EnsureAgentRuntimeBackfillCheckpoint(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, ensureAgentRuntimeBackfillCheckpoint)
+	return err
+}
+
+const getAgentRuntimeBackfillCheckpoint = `-- name: GetAgentRuntimeBackfillCheckpoint :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agent_runtime_all_history_catchup_v1'), '')::text AS value,
+    EXISTS(SELECT 1 FROM site_configs WHERE key = 'agent_runtime_all_history_catchup_v1')::boolean AS present
+`
+
+type GetAgentRuntimeBackfillCheckpointRow struct {
+	Value   string `db:"value" json:"value"`
+	Present bool   `db:"present" json:"present"`
+}
+
+func (q *sqlQuerier) GetAgentRuntimeBackfillCheckpoint(ctx context.Context) (GetAgentRuntimeBackfillCheckpointRow, error) {
+	row := q.db.QueryRowContext(ctx, getAgentRuntimeBackfillCheckpoint)
+	var i GetAgentRuntimeBackfillCheckpointRow
+	err := row.Scan(&i.Value, &i.Present)
+	return i, err
+}
+
 const getAnnouncementBanners = `-- name: GetAnnouncementBanners :one
 SELECT value FROM site_configs WHERE key = 'announcement_banners'
 `
@@ -26048,6 +26164,20 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
 	return err
+}
+
+const updateAgentRuntimeBackfillCheckpoint = `-- name: UpdateAgentRuntimeBackfillCheckpoint :one
+UPDATE site_configs
+SET value = $1::text
+WHERE key = 'agent_runtime_all_history_catchup_v1'
+RETURNING 1::bigint AS updated_rows
+`
+
+func (q *sqlQuerier) UpdateAgentRuntimeBackfillCheckpoint(ctx context.Context, value string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, updateAgentRuntimeBackfillCheckpoint, value)
+	var updated_rows int64
+	err := row.Scan(&updated_rows)
+	return updated_rows, err
 }
 
 const upsertAnnouncementBanners = `-- name: UpsertAnnouncementBanners :exec

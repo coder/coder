@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/pproflabel"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -173,6 +174,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge this tick", slog.Error(chatRetentionErr))
 	}
 
+	var agentRuntimeBackfillErr error
+
 	chatDebugRetentionDays, chatDebugRetentionErr := db.GetChatDebugRetentionDays(ctx, codersdk.DefaultChatDebugRetentionDays)
 	purgeChatDebugRuns := chatDebugRetentionErr == nil
 	if chatDebugRetentionErr != nil {
@@ -188,6 +191,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	err := db.InTx(func(tx database.Store) error {
+		// InTx may retry, so do not preserve a checkpoint error from an
+		// aborted transaction attempt.
+		agentRuntimeBackfillErr = nil
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -320,9 +326,29 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
 		if purgeChats {
-			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
-			if err != nil {
-				return xerrors.Errorf("failed to purge chats: %w", err)
+			checkpoint, checkpointErr := tx.GetAgentRuntimeBackfillCheckpoint(ctx)
+			if checkpointErr != nil {
+				agentRuntimeBackfillErr = xerrors.Errorf("read agent runtime catch-up checkpoint: %w", checkpointErr)
+				i.logger.Error(ctx, "failed to read agent runtime catch-up checkpoint: skipping chat purge this tick", slog.Error(checkpointErr))
+			} else {
+				deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
+				protects, state, stateErr := agentRuntimeBackfillProtectsChats(checkpoint, deleteChatsBefore)
+				switch {
+				case stateErr != nil:
+					agentRuntimeBackfillErr = stateErr
+					i.logger.Error(ctx, "invalid agent runtime catch-up checkpoint: skipping chat purge this tick", slog.Error(stateErr))
+				case protects:
+					i.logger.Info(ctx, "agent runtime catch-up is protecting retained chat history: skipping chat purge this tick",
+						slog.F("status", state.Status),
+						slog.F("next_bucket", state.NextBucket),
+						slog.F("delete_chats_before", deleteChatsBefore),
+					)
+				default:
+					purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
+					if err != nil {
+						return xerrors.Errorf("failed to purge chats: %w", err)
+					}
+				}
 			}
 		}
 		if purgeChatDebugRuns && chatDebugRetentionDays > 0 {
@@ -413,9 +439,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			i.chatSearchRowsBackfilled.Add(float64(backfilledChatSearchRows))
 		}
 
-		// chatConfigErr is returned after the tx, so do not record this
-		// iteration as successful when only the deferred config read failed.
-		if i.iterationDuration != nil && chatConfigErr == nil {
+		// Deferred configuration and checkpoint errors are returned after the
+		// transaction, so do not also record the iteration as successful.
+		if i.iterationDuration != nil && errors.Join(chatConfigErr, agentRuntimeBackfillErr) == nil {
 			duration := i.clk.Since(start)
 			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 		}
@@ -429,13 +455,30 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		i.chatSearchStaleDrained = true
 	}
 
-	// Surface the deferred chat-config error so doTick records
-	// the failed iteration metric.
-	if chatConfigErr != nil {
-		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
+	// Surface deferred chat configuration and catch-up checkpoint errors so
+	// doTick records the failed iteration metric after unrelated purges commit.
+	if err := errors.Join(chatConfigErr, agentRuntimeBackfillErr); err != nil {
+		return xerrors.Errorf("chat purge configuration failed this tick: %w", err)
 	}
 
 	return nil
+}
+
+func agentRuntimeBackfillProtectsChats(checkpoint database.GetAgentRuntimeBackfillCheckpointRow, cutoff time.Time) (bool, agplusage.AgentRuntimeBackfillState, error) {
+	if !checkpoint.Present {
+		return false, agplusage.AgentRuntimeBackfillState{}, nil
+	}
+	state, err := agplusage.ParseAgentRuntimeBackfillState(checkpoint.Value)
+	if err != nil {
+		return true, agplusage.AgentRuntimeBackfillState{}, err
+	}
+	if state.Status == agplusage.AgentRuntimeBackfillStatusPending {
+		return true, state, nil
+	}
+	if state.Status == agplusage.AgentRuntimeBackfillStatusComplete {
+		return false, state, nil
+	}
+	return state.NextBucket.Before(cutoff), state, nil
 }
 
 type instance struct {

@@ -157,7 +157,10 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// Usage generation is deliberately not license-gated; the
 		// publish_usage_data license flag only gates publishing to Tallyman.
 		usageGenerator := usage.NewGenerator(quartz.NewReal(), options.Logger.Named("usage-event-generator"), options.Database, *options.UsageInserter.Load())
-		usageGenerator.Start(ctx)
+		if err := usageGenerator.Start(ctx); err != nil {
+			_ = closers.Close()
+			return nil, nil, xerrors.Errorf("start usage event generator: %w", err)
+		}
 		closers.Add(usageGenerator)
 
 		// In-memory AI Bridge Proxy daemon. The bridge daemon itself is

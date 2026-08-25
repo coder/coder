@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	"github.com/coder/coder/v2/testutil"
@@ -83,6 +84,24 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 		OwnerID:           user.ID,
 		LastModelConfigID: mc.ID,
 	})
+
+	// Most generator tests exercise the steady-state loop. Mark the one-time
+	// historical catch-up complete so it cannot add older buckets in parallel;
+	// focused catch-up tests reset this checkpoint to pending.
+	require.NoError(t, db.EnsureAgentRuntimeBackfillCheckpoint(t.Context()))
+	completedAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	checkpoint, err := agplusage.MarshalAgentRuntimeBackfillState(agplusage.AgentRuntimeBackfillState{
+		Version:      agplusage.AgentRuntimeBackfillVersion,
+		Status:       agplusage.AgentRuntimeBackfillStatusComplete,
+		NextBucket:   &completedAt,
+		EndExclusive: &completedAt,
+		CompletedAt:  &completedAt,
+	})
+	require.NoError(t, err)
+	updated, err := db.UpdateAgentRuntimeBackfillCheckpoint(t.Context(), checkpoint)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, updated)
+
 	return &generatorHarness{
 		db:          db,
 		authzDB:     authzDB,
@@ -92,6 +111,25 @@ func newGeneratorHarness(t *testing.T) *generatorHarness {
 		chat:        chat,
 		chat2:       chat2,
 	}
+}
+
+func (h *generatorHarness) setBackfillState(t *testing.T, state agplusage.AgentRuntimeBackfillState) {
+	t.Helper()
+	value, err := agplusage.MarshalAgentRuntimeBackfillState(state)
+	require.NoError(t, err)
+	updated, err := h.db.UpdateAgentRuntimeBackfillCheckpoint(t.Context(), value)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, updated)
+}
+
+func (h *generatorHarness) backfillState(t *testing.T) agplusage.AgentRuntimeBackfillState {
+	t.Helper()
+	checkpoint, err := h.db.GetAgentRuntimeBackfillCheckpoint(t.Context())
+	require.NoError(t, err)
+	require.True(t, checkpoint.Present)
+	state, err := agplusage.ParseAgentRuntimeBackfillState(checkpoint.Value)
+	require.NoError(t, err)
+	return state
 }
 
 func (h *generatorHarness) insertRuntimeMessage(ctx context.Context, t *testing.T, chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
@@ -188,7 +226,7 @@ func TestGenerator(t *testing.T) {
 	defer trap.Close()
 
 	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
-	gen.Start(ctx)
+	require.NoError(t, gen.Start(ctx))
 	defer gen.Close()
 
 	call := trap.MustWait(ctx)
@@ -251,7 +289,7 @@ func TestGenerator(t *testing.T) {
 	// A separate generator started later (e.g. another replica restarting)
 	// finds nothing to do: all buckets in its window already exist.
 	gen2 := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
-	gen2.Start(ctx)
+	require.NoError(t, gen2.Start(ctx))
 	defer gen2.Close()
 	call = trap.MustWait(ctx)
 	call.MustRelease(ctx)
@@ -261,6 +299,155 @@ func TestGenerator(t *testing.T) {
 
 	runtimes2, _ := h.fetchRuntimeEvents(ctx, t)
 	require.Equal(t, runtimes, runtimes2)
+}
+
+func TestGeneratorStartupHourBoundary(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	startTime := time.Date(2025, 3, 10, 14, 59, 0, 0, time.UTC)
+	clock.Set(startTime)
+	initialWindowStart := startTime.Truncate(time.Hour).Add(-usage.AgentRuntimeWindow)
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, initialWindowStart.Add(10*time.Minute), false)
+
+	trap := clock.Trap().NewTimer(generatorTimerName)
+	defer trap.Close()
+	gen := usage.NewGenerator(clock, slogtest.Make(t, nil), h.authzDB, usage.NewDBInserter())
+	require.NoError(t, gen.Start(ctx))
+	defer gen.Close()
+
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	clock.Advance(call.Duration).MustWait(ctx)
+	require.False(t, clock.Now().Before(startTime.Add(time.Minute)), "first pass must cross the hour boundary")
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	require.EqualValues(t, 1000, runtimes[initialWindowStart],
+		"the historical and recent loops must not leave an unowned startup bucket")
+}
+
+func TestGeneratorRestartWhileHistoricalCatchupRunning(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	startTime := time.Date(2025, 3, 20, 14, 0, 0, 0, time.UTC)
+	clock.Set(startTime)
+
+	// The historical boundary was fixed during an earlier startup and has
+	// since aged beyond the current trailing seven-day window.
+	historicalBoundary := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
+	h.setBackfillState(t, agplusage.AgentRuntimeBackfillState{
+		Version:      agplusage.AgentRuntimeBackfillVersion,
+		Status:       agplusage.AgentRuntimeBackfillStatusRunning,
+		NextBucket:   &historicalBoundary,
+		EndExclusive: &historicalBoundary,
+	})
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, historicalBoundary.Add(10*time.Minute), false)
+
+	trap := clock.Trap().NewTimer(generatorTimerName)
+	defer trap.Close()
+	gen := usage.NewGenerator(clock, slogtest.Make(t, nil), h.authzDB, usage.NewDBInserter())
+	require.NoError(t, gen.Start(ctx))
+	defer gen.Close()
+
+	call := trap.MustWait(ctx)
+	call.MustRelease(ctx)
+	clock.Advance(call.Duration).MustWait(ctx)
+	call = trap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	require.EqualValues(t, 1000, runtimes[historicalBoundary],
+		"restart must preserve adjacency with the fixed historical boundary")
+}
+
+func TestGeneratorHistoricalCatchup(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	log := slogtest.Make(t, nil)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	startTime := time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC)
+	clock.Set(startTime)
+
+	earliest := time.Date(2025, 3, 1, 10, 0, 0, 0, time.UTC)
+	poison := earliest.Add(time.Hour)
+	existingBucket := time.Date(2025, 3, 2, 10, 0, 0, 0, time.UTC)
+	endExclusive := startTime.Add(-usage.AgentRuntimeWindow)
+
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, 1000, earliest.Add(10*time.Minute), false)
+	h.insertRuntimeMessage(ctx, t, h.chat.ID, -5, poison.Add(10*time.Minute), false)
+	h.insertRuntimeMessage(ctx, t, h.chat2.ID, 2000, earliest.Add(2*time.Hour+10*time.Minute), true)
+
+	inserter := usage.NewDBInserter()
+	require.NoError(t, inserter.InsertHeartbeatUsageEvent(ctx, h.db,
+		"hb_agent_runtime_v1:"+existingBucket.Format("2006-01-02_15:04:05"),
+		existingBucket, usagetypes.HBAgentRuntime{RuntimeMs: 999}))
+
+	h.setBackfillState(t, agplusage.AgentRuntimeBackfillState{
+		Version: agplusage.AgentRuntimeBackfillVersion,
+		Status:  agplusage.AgentRuntimeBackfillStatusPending,
+	})
+
+	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
+	require.NoError(t, gen.Start(ctx))
+	defer gen.Close()
+
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return h.backfillState(t).Status == agplusage.AgentRuntimeBackfillStatusComplete
+	}, testutil.IntervalFast)
+
+	state := h.backfillState(t)
+	require.Equal(t, endExclusive, *state.NextBucket)
+	require.Equal(t, endExclusive, *state.EndExclusive)
+
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	expected := expectedBuckets(earliest, endExclusive.Add(-time.Hour), map[time.Time]int64{
+		earliest:                    1000,
+		earliest.Add(2 * time.Hour): 2000,
+		existingBucket:              999,
+	})
+	delete(expected, poison)
+	require.Equal(t, expected, runtimes)
+	require.NotContains(t, runtimes, endExclusive, "historical and recent ranges must not overlap")
+
+	// Completion is durable: a restarted generator does not recalculate or
+	// overwrite any existing event.
+	gen2 := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
+	require.NoError(t, gen2.Start(ctx))
+	require.NoError(t, gen2.Close())
+	runtimesAfterRestart, _ := h.fetchRuntimeEvents(ctx, t)
+	require.Equal(t, runtimes, runtimesAfterRestart)
+}
+
+func TestGeneratorHistoricalCatchupNoRetainedRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	h := newGeneratorHarness(t)
+	clock := quartz.NewMock(t)
+	clock.Set(time.Date(2025, 3, 10, 14, 0, 0, 0, time.UTC))
+	h.setBackfillState(t, agplusage.AgentRuntimeBackfillState{
+		Version: agplusage.AgentRuntimeBackfillVersion,
+		Status:  agplusage.AgentRuntimeBackfillStatusPending,
+	})
+
+	gen := usage.NewGenerator(clock, slogtest.Make(t, nil), h.authzDB, usage.NewDBInserter())
+	require.NoError(t, gen.Start(ctx))
+	defer gen.Close()
+
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return h.backfillState(t).Status == agplusage.AgentRuntimeBackfillStatusComplete
+	}, testutil.IntervalFast)
+	runtimes, _ := h.fetchRuntimeEvents(ctx, t)
+	require.Empty(t, runtimes)
 }
 
 // TestGeneratorBackfillAfterDowntime simulates a deployment that was down
@@ -293,7 +480,7 @@ func TestGeneratorBackfillAfterDowntime(t *testing.T) {
 	defer trap.Close()
 
 	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
-	gen.Start(ctx)
+	require.NoError(t, gen.Start(ctx))
 	defer gen.Close()
 
 	call := trap.MustWait(ctx)
@@ -339,7 +526,7 @@ func TestGeneratorInserterArguments(t *testing.T) {
 	defer trap.Close()
 
 	gen := usage.NewGenerator(clock, log, h.authzDB, ins)
-	gen.Start(ctx)
+	require.NoError(t, gen.Start(ctx))
 	defer gen.Close()
 
 	// Each pass requests its next timer only after finishing, so trapping
@@ -399,7 +586,7 @@ func TestGeneratorConcurrentReplicas(t *testing.T) {
 		traps = append(traps, trap)
 
 		gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
-		gen.Start(ctx)
+		require.NoError(t, gen.Start(ctx))
 		// Cleanups run LIFO, so each generator is closed before its trap.
 		t.Cleanup(func() { _ = gen.Close() })
 
@@ -458,7 +645,7 @@ func TestGeneratorPoisonBucket(t *testing.T) {
 	defer trap.Close()
 
 	gen := usage.NewGenerator(clock, log, h.authzDB, usage.NewDBInserter())
-	gen.Start(ctx)
+	require.NoError(t, gen.Start(ctx))
 	defer gen.Close()
 
 	call := trap.MustWait(ctx)

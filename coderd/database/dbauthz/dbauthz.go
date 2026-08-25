@@ -751,7 +751,8 @@ var (
 					rbac.ResourceWorkspaceBuildOrchestration.Type: {policy.ActionDelete},
 					// Chat auto-archive sets archived=true on inactive chats and computes
 					// search_tsv tsvector for chat_messages.
-					rbac.ResourceChat.Type: {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceChat.Type:       {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUsageEvent.Type: {policy.ActionRead},
 					// Purge old boundary logs past the retention period.
 					rbac.ResourceBoundaryLog.Type: {policy.ActionDelete},
 				}),
@@ -2756,6 +2757,13 @@ func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.E
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
+func (q *querier) EnsureAgentRuntimeBackfillCheckpoint(ctx context.Context) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return err
+	}
+	return q.db.EnsureAgentRuntimeBackfillCheckpoint(ctx)
+}
+
 func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
 		return err
@@ -3055,6 +3063,13 @@ func (q *querier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, temp
 		return []database.WorkspaceBuild{}, err
 	}
 	return q.db.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
+}
+
+func (q *querier) GetAgentRuntimeBackfillCheckpoint(ctx context.Context) (database.GetAgentRuntimeBackfillCheckpointRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUsageEvent); err != nil {
+		return database.GetAgentRuntimeBackfillCheckpointRow{}, err
+	}
+	return q.db.GetAgentRuntimeBackfillCheckpoint(ctx)
 }
 
 func (q *querier) GetAllTailnetCoordinators(ctx context.Context) ([]database.TailnetCoordinator, error) {
@@ -3868,6 +3883,13 @@ func (q *querier) GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, cre
 
 func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.GetDeploymentWorkspaceStatsRow, error) {
 	return q.db.GetDeploymentWorkspaceStats(ctx)
+}
+
+func (q *querier) GetEarliestChatMessageRuntimeBucket(ctx context.Context) (time.Time, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.GetEarliestChatMessageRuntimeBucket(ctx)
 }
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
@@ -6980,6 +7002,13 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
+func (q *querier) ListMissingChatMessageRuntimeBuckets(ctx context.Context, arg database.ListMissingChatMessageRuntimeBucketsParams) ([]database.ListMissingChatMessageRuntimeBucketsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceUsageEvent); err != nil {
+		return nil, err
+	}
+	return q.db.ListMissingChatMessageRuntimeBuckets(ctx, arg)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -7436,6 +7465,13 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
+}
+
+func (q *querier) UpdateAgentRuntimeBackfillCheckpoint(ctx context.Context, value string) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateAgentRuntimeBackfillCheckpoint(ctx, value)
 }
 
 func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {

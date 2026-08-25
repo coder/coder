@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -11223,6 +11224,131 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 79, total)
+}
+
+func TestAgentRuntimeHistoricalQueries(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	_, err := db.GetEarliestChatMessageRuntimeBucket(ctx)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Model: "historical-runtime", ContextLimit: 8192})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	insertMessage := func(runtime sql.NullInt64, createdAt time.Time, deleted bool) {
+		t.Helper()
+		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			RuntimeMs:     runtime,
+		})
+		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2, runtime_ms = $3 WHERE id = $4", createdAt, deleted, runtime, msg.ID)
+		require.NoError(t, err)
+	}
+
+	start := time.Date(2025, 3, 10, 10, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+	locSydney, err := time.LoadLocation("Australia/Sydney")
+	require.NoError(t, err)
+
+	// Sydney is UTC+11 on this date, so 21:00 addresses the inclusive UTC
+	// start boundary. The soft-deleted row is included and the NULL row is not.
+	insertMessage(sql.NullInt64{Int64: 1, Valid: true}, time.Date(2025, 3, 10, 21, 0, 0, 0, locSydney), false)
+	insertMessage(sql.NullInt64{Int64: 2, Valid: true}, start.Add(20*time.Minute), true)
+	insertMessage(sql.NullInt64{}, start.Add(30*time.Minute), false)
+	insertMessage(sql.NullInt64{Int64: 4, Valid: true}, start.Add(time.Hour+10*time.Minute), false)
+	insertMessage(sql.NullInt64{Int64: 8, Valid: true}, start.Add(2*time.Hour), false)
+	insertMessage(sql.NullInt64{Int64: 16, Valid: true}, start.Add(3*time.Hour-time.Second), false)
+	insertMessage(sql.NullInt64{Int64: 32, Valid: true}, end, false)
+
+	earliest, err := db.GetEarliestChatMessageRuntimeBucket(ctx)
+	require.NoError(t, err)
+	require.Equal(t, start, earliest.UTC())
+
+	// Existing runtime events seal only their own buckets. An event of another
+	// type at the same time must not suppress the zero-runtime bucket.
+	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		ID:        "historical-runtime-existing",
+		EventType: string(usagetypes.UsageEventTypeHBAgentRuntimeV1),
+		EventData: []byte(`{"runtime_ms":99}`),
+		CreatedAt: start.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	err = db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+		ID:        "historical-runtime-other-type",
+		EventType: "hb_ai_seats_v1",
+		EventData: []byte(`{"count":1}`),
+		CreatedAt: start.Add(3 * time.Hour),
+	})
+	require.NoError(t, err)
+
+	buckets, err := db.ListMissingChatMessageRuntimeBuckets(ctx, database.ListMissingChatMessageRuntimeBucketsParams{
+		StartTime: start.In(locSydney),
+		EndTime:   end.In(locSydney),
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.ListMissingChatMessageRuntimeBucketsRow{
+		{Bucket: start, RuntimeMs: 3},
+		{Bucket: start.Add(2 * time.Hour), RuntimeMs: 24},
+		{Bucket: start.Add(3 * time.Hour), RuntimeMs: 0},
+	}, normalizeHistoricalRuntimeBuckets(buckets))
+}
+
+func normalizeHistoricalRuntimeBuckets(buckets []database.ListMissingChatMessageRuntimeBucketsRow) []database.ListMissingChatMessageRuntimeBucketsRow {
+	for i := range buckets {
+		buckets[i].Bucket = buckets[i].Bucket.UTC()
+	}
+	return buckets
+}
+
+func TestAgentRuntimeBackfillCheckpointQueries(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	checkpoint, err := db.GetAgentRuntimeBackfillCheckpoint(ctx)
+	require.NoError(t, err)
+	require.False(t, checkpoint.Present)
+	require.Empty(t, checkpoint.Value)
+
+	require.NoError(t, db.EnsureAgentRuntimeBackfillCheckpoint(ctx))
+	checkpoint, err = db.GetAgentRuntimeBackfillCheckpoint(ctx)
+	require.NoError(t, err)
+	require.True(t, checkpoint.Present)
+	require.JSONEq(t, agplusage.AgentRuntimeBackfillPendingJSON, checkpoint.Value)
+
+	next := time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC)
+	end := next.Add(24 * time.Hour)
+	value, err := agplusage.MarshalAgentRuntimeBackfillState(agplusage.AgentRuntimeBackfillState{
+		Version:      agplusage.AgentRuntimeBackfillVersion,
+		Status:       agplusage.AgentRuntimeBackfillStatusRunning,
+		NextBucket:   &next,
+		EndExclusive: &end,
+	})
+	require.NoError(t, err)
+	updated, err := db.UpdateAgentRuntimeBackfillCheckpoint(ctx, value)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, updated)
+
+	// Ensure is idempotent and never resets progress.
+	require.NoError(t, db.EnsureAgentRuntimeBackfillCheckpoint(ctx))
+	checkpoint, err = db.GetAgentRuntimeBackfillCheckpoint(ctx)
+	require.NoError(t, err)
+	require.Equal(t, value, checkpoint.Value)
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {

@@ -75,8 +75,16 @@ Coder sends the license JWT and deployment ID as request headers.
 The request body contains one `hb_agent_runtime_v1` event for each UTC hour.
 The `runtime_ms` value is the total Agent Time recorded during that hour.
 Idle hours have a value of `0`.
-If the deployment was offline, Coder backfills missed hours for up to seven days, batching up to 100 events per request.
-Hours missing beyond seven days aren't reported.
+
+Coder continuously backfills missing events from the previous 7 days when a deployment restarts after downtime.
+Coder also performs a one-time, resumable catch-up for older retained chat messages that contain recorded runtime data.
+The catch-up includes zero-runtime hours between the earliest retained runtime-bearing message and the start of the continuous 7-day window.
+It cannot reconstruct Agent Time from before runtime recording began or from chat history that the deployment already hard-deleted.
+
+An existing `hb_agent_runtime_v1` event seals its UTC hour.
+Coder doesn't recalculate or overwrite that event, even if the event was already published or permanently rejected.
+Coder sends only events newer than 30 days to Tallyman, so older catch-up events remain available locally but aren't published.
+Coder batches up to 100 eligible events per publishing request.
 
 The following example reports 1 hour of Agent Time:
 

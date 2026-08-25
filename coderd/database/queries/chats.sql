@@ -2231,6 +2231,51 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
+-- name: GetEarliestChatMessageRuntimeBucket :one
+-- Returns the first retained UTC hour with derivable Agent Time usage. No row
+-- is returned when no retained message has runtime data.
+SELECT (
+    date_trunc('hour', cm.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+)::timestamptz AS earliest_bucket
+FROM chat_messages cm
+WHERE cm.runtime_ms IS NOT NULL
+ORDER BY cm.created_at ASC
+LIMIT 1;
+
+-- name: ListMissingChatMessageRuntimeBuckets :many
+-- Returns missing hb_agent_runtime_v1 buckets in the bounded, end-exclusive
+-- range. The generated series preserves zero-runtime hours, and existing
+-- runtime events remain sealed.
+WITH buckets AS (
+    SELECT generate_series(
+        @start_time::timestamptz,
+        (@end_time::timestamptz) - INTERVAL '1 hour',
+        INTERVAL '1 hour'
+    )::timestamptz AS bucket
+),
+runtime_by_bucket AS (
+    SELECT
+        (
+            date_trunc('hour', cm.created_at AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'
+        )::timestamptz AS bucket,
+        SUM(cm.runtime_ms)::bigint AS runtime_ms
+    FROM chat_messages cm
+    WHERE cm.created_at >= @start_time::timestamptz
+      AND cm.created_at < @end_time::timestamptz
+      AND cm.runtime_ms IS NOT NULL
+    GROUP BY 1
+)
+SELECT
+    buckets.bucket,
+    COALESCE(runtime_by_bucket.runtime_ms, 0)::bigint AS runtime_ms
+FROM buckets
+LEFT JOIN runtime_by_bucket USING (bucket)
+LEFT JOIN usage_events
+    ON usage_events.event_type = 'hb_agent_runtime_v1'
+    AND usage_events.created_at = buckets.bucket
+WHERE usage_events.id IS NULL
+ORDER BY buckets.bucket ASC;
+
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded

@@ -23,6 +23,22 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1);
 -- name: GetDeploymentID :one
 SELECT value FROM site_configs WHERE key = 'deployment_id';
 
+-- name: EnsureAgentRuntimeBackfillCheckpoint :exec
+INSERT INTO site_configs (key, value)
+VALUES ('agent_runtime_all_history_catchup_v1', '{"version":1,"status":"pending"}')
+ON CONFLICT (key) DO NOTHING;
+
+-- name: GetAgentRuntimeBackfillCheckpoint :one
+SELECT
+    COALESCE((SELECT value FROM site_configs WHERE key = 'agent_runtime_all_history_catchup_v1'), '')::text AS value,
+    EXISTS(SELECT 1 FROM site_configs WHERE key = 'agent_runtime_all_history_catchup_v1')::boolean AS present;
+
+-- name: UpdateAgentRuntimeBackfillCheckpoint :one
+UPDATE site_configs
+SET value = @value::text
+WHERE key = 'agent_runtime_all_history_catchup_v1'
+RETURNING 1::bigint AS updated_rows;
+
 -- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1);
 

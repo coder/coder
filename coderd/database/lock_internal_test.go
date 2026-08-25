@@ -21,17 +21,27 @@ func TestChatInstructionLockIDsDistinct(t *testing.T) {
 	}
 
 	sequential := map[string]int64{
-		"LockIDDeploymentSetup":              LockIDDeploymentSetup,
-		"LockIDEnterpriseDeploymentSetup":    LockIDEnterpriseDeploymentSetup,
-		"LockIDDBRollup":                     LockIDDBRollup,
-		"LockIDDBPurge":                      LockIDDBPurge,
-		"LockIDNotificationsReportGenerator": LockIDNotificationsReportGenerator,
-		"LockIDCryptoKeyRotation":            LockIDCryptoKeyRotation,
-		"LockIDReconcilePrebuilds":           LockIDReconcilePrebuilds,
-		"LockIDReconcileSystemRoles":         LockIDReconcileSystemRoles,
-		"LockIDBoundaryUsageStats":           LockIDBoundaryUsageStats,
-		"LockIDAIProvidersEnvSeed":           LockIDAIProvidersEnvSeed,
-		"LockIDChatModelConfigWrites":        LockIDChatModelConfigWrites,
+		"LockIDDeploymentSetup":                LockIDDeploymentSetup,
+		"LockIDEnterpriseDeploymentSetup":      LockIDEnterpriseDeploymentSetup,
+		"LockIDDBRollup":                       LockIDDBRollup,
+		"LockIDDBPurge":                        LockIDDBPurge,
+		"LockIDNotificationsReportGenerator":   LockIDNotificationsReportGenerator,
+		"LockIDCryptoKeyRotation":              LockIDCryptoKeyRotation,
+		"LockIDReconcilePrebuilds":             LockIDReconcilePrebuilds,
+		"LockIDReconcileSystemRoles":           LockIDReconcileSystemRoles,
+		"LockIDBoundaryUsageStats":             LockIDBoundaryUsageStats,
+		"LockIDAIProvidersEnvSeed":             LockIDAIProvidersEnvSeed,
+		"LockIDChatModelConfigWrites":          LockIDChatModelConfigWrites,
+		"LockIDChatCapacityAdmission":          LockIDChatCapacityAdmission,
+		"LockIDAgentRuntimeHistoricalBackfill": LockIDAgentRuntimeHistoricalBackfill,
+	}
+
+	seenSequential := make(map[int64]string, len(sequential))
+	for name, id := range sequential {
+		if previous, ok := seenSequential[id]; ok {
+			t.Fatalf("sequential lock ID %s (%d) collides with %s", name, id, previous)
+		}
+		seenSequential[id] = name
 	}
 
 	// The two generated IDs are pairwise distinct.

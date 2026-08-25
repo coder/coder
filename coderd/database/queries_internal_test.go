@@ -26,3 +26,27 @@ func TestGetTotalUsageHBAgentRuntimeV1QueryEventType(t *testing.T) {
 			"event_data->>'"+field+"'")
 	}
 }
+
+func TestListMissingChatMessageRuntimeBucketsQueryLiterals(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, listMissingChatMessageRuntimeBuckets,
+		string(usagetypes.UsageEventTypeHBAgentRuntimeV1))
+	for field := range (usagetypes.HBAgentRuntime{}).Fields() {
+		require.Contains(t, listMissingChatMessageRuntimeBuckets,
+			"SUM(cm."+field+")")
+	}
+}
+
+func TestAgentRuntimeBackfillCheckpointQueryLiterals(t *testing.T) {
+	t.Parallel()
+
+	const (
+		checkpointKey     = "agent_runtime_all_history_catchup_v1"
+		pendingCheckpoint = `{"version":1,"status":"pending"}`
+	)
+	require.Contains(t, ensureAgentRuntimeBackfillCheckpoint, checkpointKey)
+	require.Contains(t, ensureAgentRuntimeBackfillCheckpoint, pendingCheckpoint)
+	require.Contains(t, getAgentRuntimeBackfillCheckpoint, checkpointKey)
+	require.Contains(t, updateAgentRuntimeBackfillCheckpoint, checkpointKey)
+}

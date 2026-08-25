@@ -1000,6 +1000,14 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	return r0
 }
 
+func (m queryMetricsStore) EnsureAgentRuntimeBackfillCheckpoint(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.EnsureAgentRuntimeBackfillCheckpoint(ctx)
+	m.queryLatencies.WithLabelValues("EnsureAgentRuntimeBackfillCheckpoint").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "EnsureAgentRuntimeBackfillCheckpoint").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	start := time.Now()
 	r0 := m.s.ExpirePrebuildsAPIKeys(ctx, now)
@@ -1325,6 +1333,14 @@ func (m queryMetricsStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Cont
 	r0, r1 := m.s.GetActiveWorkspaceBuildsByTemplateID(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetActiveWorkspaceBuildsByTemplateID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveWorkspaceBuildsByTemplateID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAgentRuntimeBackfillCheckpoint(ctx context.Context) (database.GetAgentRuntimeBackfillCheckpointRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAgentRuntimeBackfillCheckpoint(ctx)
+	m.queryLatencies.WithLabelValues("GetAgentRuntimeBackfillCheckpoint").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAgentRuntimeBackfillCheckpoint").Inc()
 	return r0, r1
 }
 
@@ -2021,6 +2037,14 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	r0, r1 := m.s.GetDeploymentWorkspaceStats(ctx)
 	m.queryLatencies.WithLabelValues("GetDeploymentWorkspaceStats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentWorkspaceStats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetEarliestChatMessageRuntimeBucket(ctx context.Context) (time.Time, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEarliestChatMessageRuntimeBucket(ctx)
+	m.queryLatencies.WithLabelValues("GetEarliestChatMessageRuntimeBucket").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetEarliestChatMessageRuntimeBucket").Inc()
 	return r0, r1
 }
 
@@ -4840,6 +4864,14 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListMissingChatMessageRuntimeBuckets(ctx context.Context, arg database.ListMissingChatMessageRuntimeBucketsParams) ([]database.ListMissingChatMessageRuntimeBucketsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListMissingChatMessageRuntimeBuckets(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListMissingChatMessageRuntimeBuckets").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListMissingChatMessageRuntimeBuckets").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -5238,6 +5270,14 @@ func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.Up
 	m.queryLatencies.WithLabelValues("UpdateAPIKeyByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAPIKeyByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateAgentRuntimeBackfillCheckpoint(ctx context.Context, value string) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAgentRuntimeBackfillCheckpoint(ctx, value)
+	m.queryLatencies.WithLabelValues("UpdateAgentRuntimeBackfillCheckpoint").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAgentRuntimeBackfillCheckpoint").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateChatACLByIDParams) error {

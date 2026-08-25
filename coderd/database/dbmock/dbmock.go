@@ -1726,6 +1726,20 @@ func (mr *MockStoreMockRecorder) EnqueueNotificationMessage(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueNotificationMessage", reflect.TypeOf((*MockStore)(nil).EnqueueNotificationMessage), ctx, arg)
 }
 
+// EnsureAgentRuntimeBackfillCheckpoint mocks base method.
+func (m *MockStore) EnsureAgentRuntimeBackfillCheckpoint(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsureAgentRuntimeBackfillCheckpoint", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnsureAgentRuntimeBackfillCheckpoint indicates an expected call of EnsureAgentRuntimeBackfillCheckpoint.
+func (mr *MockStoreMockRecorder) EnsureAgentRuntimeBackfillCheckpoint(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsureAgentRuntimeBackfillCheckpoint", reflect.TypeOf((*MockStore)(nil).EnsureAgentRuntimeBackfillCheckpoint), ctx)
+}
+
 // ExpirePrebuildsAPIKeys mocks base method.
 func (m *MockStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	m.ctrl.T.Helper()
@@ -2337,6 +2351,21 @@ func (m *MockStore) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, te
 func (mr *MockStoreMockRecorder) GetActiveWorkspaceBuildsByTemplateID(ctx, templateID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveWorkspaceBuildsByTemplateID", reflect.TypeOf((*MockStore)(nil).GetActiveWorkspaceBuildsByTemplateID), ctx, templateID)
+}
+
+// GetAgentRuntimeBackfillCheckpoint mocks base method.
+func (m *MockStore) GetAgentRuntimeBackfillCheckpoint(ctx context.Context) (database.GetAgentRuntimeBackfillCheckpointRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAgentRuntimeBackfillCheckpoint", ctx)
+	ret0, _ := ret[0].(database.GetAgentRuntimeBackfillCheckpointRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAgentRuntimeBackfillCheckpoint indicates an expected call of GetAgentRuntimeBackfillCheckpoint.
+func (mr *MockStoreMockRecorder) GetAgentRuntimeBackfillCheckpoint(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAgentRuntimeBackfillCheckpoint", reflect.TypeOf((*MockStore)(nil).GetAgentRuntimeBackfillCheckpoint), ctx)
 }
 
 // GetAllTailnetCoordinators mocks base method.
@@ -3792,6 +3821,21 @@ func (m *MockStore) GetDeploymentWorkspaceStats(ctx context.Context) (database.G
 func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), ctx)
+}
+
+// GetEarliestChatMessageRuntimeBucket mocks base method.
+func (m *MockStore) GetEarliestChatMessageRuntimeBucket(ctx context.Context) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetEarliestChatMessageRuntimeBucket", ctx)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetEarliestChatMessageRuntimeBucket indicates an expected call of GetEarliestChatMessageRuntimeBucket.
+func (mr *MockStoreMockRecorder) GetEarliestChatMessageRuntimeBucket(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEarliestChatMessageRuntimeBucket", reflect.TypeOf((*MockStore)(nil).GetEarliestChatMessageRuntimeBucket), ctx)
 }
 
 // GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.
@@ -9177,6 +9221,21 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListMissingChatMessageRuntimeBuckets mocks base method.
+func (m *MockStore) ListMissingChatMessageRuntimeBuckets(ctx context.Context, arg database.ListMissingChatMessageRuntimeBucketsParams) ([]database.ListMissingChatMessageRuntimeBucketsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMissingChatMessageRuntimeBuckets", ctx, arg)
+	ret0, _ := ret[0].([]database.ListMissingChatMessageRuntimeBucketsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMissingChatMessageRuntimeBuckets indicates an expected call of ListMissingChatMessageRuntimeBuckets.
+func (mr *MockStoreMockRecorder) ListMissingChatMessageRuntimeBuckets(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMissingChatMessageRuntimeBuckets", reflect.TypeOf((*MockStore)(nil).ListMissingChatMessageRuntimeBuckets), ctx, arg)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -9937,6 +9996,21 @@ func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPI
 func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), ctx, arg)
+}
+
+// UpdateAgentRuntimeBackfillCheckpoint mocks base method.
+func (m *MockStore) UpdateAgentRuntimeBackfillCheckpoint(ctx context.Context, value string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAgentRuntimeBackfillCheckpoint", ctx, value)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAgentRuntimeBackfillCheckpoint indicates an expected call of UpdateAgentRuntimeBackfillCheckpoint.
+func (mr *MockStoreMockRecorder) UpdateAgentRuntimeBackfillCheckpoint(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAgentRuntimeBackfillCheckpoint", reflect.TypeOf((*MockStore)(nil).UpdateAgentRuntimeBackfillCheckpoint), ctx, value)
 }
 
 // UpdateChatACLByID mocks base method.
