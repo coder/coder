@@ -1,5 +1,6 @@
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
+import { Link as RouterLink } from "react-router";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -15,6 +16,8 @@ import { docs } from "#/utils/docs";
 // (AgentRuntimeHoursUnlimitedAllocation in enterprise/coderd/license).
 const unlimitedAllocation = -1;
 
+const minutesPerHour = 60;
+
 // Concurrent chat cap once the hard limit is reached. Mirrors
 // defaultMaxConcurrentRootAgents in coderd/x/chatd; keep in sync.
 const maxConcurrentChatsOverHardLimit = 5;
@@ -26,10 +29,12 @@ type CoderAgentsProductCardProps = {
 	 */
 	allocation?: number;
 	/**
-	 * Hours used in the current usage period, floored to tenths.
+	 * Whole minutes used in the current usage period.
 	 * Undefined when usage does not apply to this license.
 	 */
-	actual?: number;
+	actualMinutes?: number;
+	/** The license is a trial. */
+	isTrial: boolean;
 	/**
 	 * Usage is at or above this license's advisory soft limit, but still
 	 * within the purchased allocation.
@@ -65,20 +70,14 @@ const MetricLabel: FC<{ label: string; tooltip: string }> = ({
 );
 
 const CardContainer: FC<{
+	title: string;
 	className?: string;
 	headerEnd?: ReactNode;
 	children: ReactNode;
-}> = ({ className, headerEnd, children }) => (
-	<div
-		className={cn(
-			"min-w-[320px] flex-1 rounded-sm border px-6 py-4",
-			className,
-		)}
-	>
+}> = ({ title, className, headerEnd, children }) => (
+	<div className={cn("rounded-sm border px-6 py-4", className)}>
 		<div className="flex items-center justify-between gap-3">
-			<div className="text-sm font-medium text-content-primary">
-				Coder Agents
-			</div>
+			<div className="text-sm font-medium text-content-primary">{title}</div>
 			{headerEnd}
 		</div>
 		{children}
@@ -86,22 +85,31 @@ const CardContainer: FC<{
 );
 
 // TODO: placeholder tooltip copy pending product review.
-const totalAgentHoursTooltip =
-	"Total agent runtime hours used out of the hours included in this license.";
+const totalAgentMinutesTooltip =
+	"Total agent runtime minutes used out of the minutes included in this license.";
 const concurrentChatsTooltip =
 	"Number of agents that can run at the same time.";
 const concurrentChatsHardLimitTooltip = `${concurrentChatsTooltip} You've reached your limit: concurrent chats are now capped at ${maxConcurrentChatsOverHardLimit} (down from unlimited).`;
 
-// The value is already floored to tenths, so no rounding happens here.
-const formatHoursUsed = (hours: number) =>
-	hours.toLocaleString("en-US", {
-		minimumFractionDigits: 1,
-		maximumFractionDigits: 1,
-	});
+const formatMinutes = (minutes: number) => minutes.toLocaleString("en-US");
+
+const MinutesUsedMetric: FC<{ actualMinutes?: number }> = ({
+	actualMinutes,
+}) => (
+	<div>
+		<div className="flex items-center gap-1 font-medium text-content-secondary">
+			<span>Agent minutes used</span>
+		</div>
+		<div className="mt-0.5 text-sm font-medium text-content-primary">
+			{actualMinutes === undefined ? "\u2014" : formatMinutes(actualMinutes)}
+		</div>
+	</div>
+);
 
 export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 	allocation,
-	actual,
+	actualMinutes,
+	isTrial,
 	isSoftLimitReached,
 	isExceeded,
 	isHardLimitExceeded,
@@ -112,38 +120,47 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 
 	if (!grantsAgentHours) {
 		return (
-			<CardContainer className="border-dashed border-highlight-purple">
+			<CardContainer
+				title={isTrial ? "Coder Agents Trial" : "Coder Agents"}
+				className="border-dashed border-highlight-purple"
+			>
 				<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
+					<MinutesUsedMetric actualMinutes={actualMinutes} />
 					<div>
 						<MetricLabel
-							label="Max concurrent agents"
+							label={isTrial ? "Concurrent agents" : "Max concurrent agents"}
 							tooltip={concurrentChatsTooltip}
 						/>
 						<div className="mt-0.5 text-sm font-medium text-content-primary">
-							{maxConcurrentChatsOverHardLimit}
+							{isTrial ? "Unlimited" : maxConcurrentChatsOverHardLimit}
 						</div>
 					</div>
-					{actual !== undefined && (
-						<div>
-							<div className="flex items-center gap-1 font-medium text-content-secondary">
-								<span>Agent hours used</span>
-							</div>
-							<div className="mt-0.5 text-sm font-medium text-content-primary">
-								{formatHoursUsed(actual)}
-							</div>
-						</div>
-					)}
 				</div>
-				<Button asChild className="mt-4 w-full">
-					<a href="mailto:sales@coder.com">Upgrade</a>
-				</Button>
+				{isTrial ? (
+					<Button asChild className="mt-4 w-full">
+						<a href="mailto:sales@coder.com">Upgrade</a>
+					</Button>
+				) : (
+					<div className="mt-4 flex items-center gap-3 text-sm">
+						<Link asChild showExternalIcon={false} size="lg">
+							<RouterLink to="/deployment/premium">
+								Try unlimited for 30 days
+							</RouterLink>
+						</Link>
+						<div aria-hidden="true" className="h-4 w-px shrink-0 bg-border" />
+						<Link href={docs("/ai-coder/agents/licensing-usage")} size="lg">
+							View docs
+						</Link>
+					</div>
+				)}
 			</CardContainer>
 		);
 	}
 
 	const isOverage = isExceeded || isHardLimitExceeded;
-	const actualLabel = actual === undefined ? "\u2014" : formatHoursUsed(actual);
-	const hoursValueClassName = isOverage
+	const actualLabel =
+		actualMinutes === undefined ? "\u2014" : formatMinutes(actualMinutes);
+	const minutesValueClassName = isOverage
 		? "text-content-destructive"
 		: isSoftLimitReached
 			? "text-border-warning"
@@ -151,6 +168,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 
 	return (
 		<CardContainer
+			title="Coder Agents"
 			className={cn(
 				"border-solid",
 				isOverage
@@ -169,7 +187,7 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					// The soft limit is otherwise only conveyed by the warning
 					// colors, so announce it for assistive technology too.
 					<span role="status" className="sr-only">
-						Approaching hours limit
+						Approaching minutes limit
 					</span>
 				) : undefined
 			}
@@ -177,16 +195,16 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 			<div className="mt-3 flex flex-wrap gap-x-12 gap-y-3 text-xs">
 				<div>
 					<MetricLabel
-						label="Total Agent hours"
-						tooltip={totalAgentHoursTooltip}
+						label="Total Agent minutes"
+						tooltip={totalAgentMinutesTooltip}
 					/>
 					<div className="mt-0.5 text-sm font-medium text-content-primary">
 						{isUnlimited ? (
 							"Unlimited"
 						) : (
 							<>
-								<span className={hoursValueClassName}>{actualLabel}</span> /{" "}
-								{allocation.toLocaleString("en-US")}
+								<span className={minutesValueClassName}>{actualLabel}</span> /{" "}
+								{formatMinutes(allocation * minutesPerHour)}
 							</>
 						)}
 					</div>

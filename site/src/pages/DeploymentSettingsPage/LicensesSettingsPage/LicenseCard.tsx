@@ -23,6 +23,9 @@ import { CoderAgentsProductCard } from "./CoderAgentsProductCard";
 import { CoderWorkspacesProductCard } from "./CoderWorkspacesProductCard";
 import { isLicenseApplicableForFeatureUsage } from "./licenseApplicability";
 
+const minutesPerHour = 60;
+const unlimitedAgentHoursAllocation = -1;
+
 type LicenseCardProps = {
 	license: GetLicensesResponse;
 	aiGovernanceUserFeature?: Feature;
@@ -92,14 +95,14 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	// negatives are ignored and zero grants the feature disabled.
 	const agentHoursAllocation =
 		license.claims.features.agent_runtime_hours_allocation;
-	// The backend decodes these claims for any feature set, so a
-	// non-Premium license with a usable claim also shows Coder Agents.
-	const hasAgentHoursClaim =
-		agentHoursAllocation !== undefined &&
-		(agentHoursAllocation >= 0 || agentHoursAllocation === -1);
 	const licenseGrantsAgentHours =
 		agentHoursAllocation !== undefined &&
-		(agentHoursAllocation > 0 || agentHoursAllocation === -1);
+		(agentHoursAllocation > 0 ||
+			agentHoursAllocation === unlimitedAgentHoursAllocation);
+	// An agents-only license sells runtime hours without seats, so it
+	// reports minutes where seat-based licenses report users.
+	const isAgentsOnlyLicense =
+		licenseGrantsAgentHours && !license.claims.features.user_limit;
 	// Mirror the backend's threshold validation; invalid claims are
 	// ignored rather than disqualifying the license.
 	const agentHoursSoftLimitClaim =
@@ -151,25 +154,25 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 				agentHoursAllocation === agentRuntimeHoursFeature?.limit);
 	const canUseAgentHoursUsageForThisLicense =
 		isAgentHoursLicenseApplicable && isWinningAgentHoursLicense;
-	// Usage floored to tenths of an hour via integer math so the display
+	// Usage is displayed and compared in whole minutes, so the display
 	// and the exceeded states below flip at the same instant.
 	const agentHoursActualMs = agentRuntimeHoursFeature?.actual_ms;
-	const agentHoursActual =
+	const agentMinutesActual =
 		agentHoursActualMs === undefined
 			? undefined
-			: Math.floor(agentHoursActualMs / 360_000) / 10;
+			: Math.floor(agentHoursActualMs / 60_000);
 	// Licenses without an allocation show deployment-wide usage in their
 	// upgrade card.
-	const agentHoursDisplayActual =
+	const agentMinutesDisplayActual =
 		isAgentHoursLicenseApplicable &&
 		(isWinningAgentHoursLicense || !licenseGrantsAgentHours)
-			? agentHoursActual
+			? agentMinutesActual
 			: undefined;
 	const isAgentHoursHardLimitExceeded =
 		canUseAgentHoursUsageForThisLicense &&
 		agentHoursHardLimit !== undefined &&
-		agentHoursDisplayActual !== undefined &&
-		agentHoursDisplayActual >= agentHoursHardLimit;
+		agentMinutesDisplayActual !== undefined &&
+		agentMinutesDisplayActual >= agentHoursHardLimit * minutesPerHour;
 	// Inclusive: usage equal to the allocation is already over, matching
 	// the backend's "allocation reached" warning boundary.
 	const isAgentHoursExceeded =
@@ -177,8 +180,8 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		!isAgentHoursHardLimitExceeded &&
 		agentHoursAllocation !== undefined &&
 		agentHoursAllocation > 0 &&
-		agentHoursDisplayActual !== undefined &&
-		agentHoursDisplayActual >= agentHoursAllocation;
+		agentMinutesDisplayActual !== undefined &&
+		agentMinutesDisplayActual >= agentHoursAllocation * minutesPerHour;
 	// Advisory only: at or above the soft threshold, still inside the
 	// purchased allocation. Allocation and hard-limit overage supersede
 	// this so the product card never stacks warning on destructive.
@@ -189,9 +192,9 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 		agentHoursAllocation !== undefined &&
 		agentHoursAllocation > 0 &&
 		agentHoursSoftLimit !== undefined &&
-		agentHoursDisplayActual !== undefined &&
-		agentHoursDisplayActual >= agentHoursSoftLimit &&
-		agentHoursDisplayActual < agentHoursAllocation;
+		agentMinutesDisplayActual !== undefined &&
+		agentMinutesDisplayActual >= agentHoursSoftLimit * minutesPerHour &&
+		agentMinutesDisplayActual < agentHoursAllocation * minutesPerHour;
 
 	const statusClassName =
 		isAgentHoursHardLimitExceeded ||
@@ -205,7 +208,7 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 	const statusText = isAgentHoursHardLimitExceeded
 		? "Limit exceeded"
 		: isAgentHoursExceeded
-			? "Agent hours exceeded"
+			? "Agent minutes exceeded"
 			: isAiGovernanceAddOnExceeded
 				? "Add-on exceeded"
 				: isExpired
@@ -215,13 +218,15 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						: "Active";
 	const includesAgents =
 		Boolean(license.claims.trial) || licenseGrantsAgentHours;
-	const includedProducts = isPremium
-		? [
-				"Workspaces",
-				...(hasExplicitAiGovernanceAddOn ? ["AI Governance"] : []),
-				...(includesAgents ? ["Agents"] : []),
-			]
-		: [];
+	const includedProducts = isAgentsOnlyLicense
+		? ["Coder Agents"]
+		: isPremium
+			? [
+					"Workspaces",
+					...(hasExplicitAiGovernanceAddOn ? ["AI Governance"] : []),
+					...(includesAgents ? ["Agents"] : []),
+				]
+			: [];
 	const includedProductsLabel = includedProducts.join(" + ");
 	const headerContent = (
 		<>
@@ -264,12 +269,31 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						{license.claims.trial ? "Trial" : "Standard"}
 					</span>
 				</div>
-				<div className="flex flex-col items-center">
-					<span className="text-content-secondary">Users</span>
-					<span className="text-content-primary user-limit">
-						{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
-					</span>
-				</div>
+				{isAgentsOnlyLicense ? (
+					<div className="flex flex-col items-center">
+						<span className="text-content-secondary">Minutes</span>
+						<span className="text-content-primary agent-minutes">
+							{agentMinutesDisplayActual === undefined
+								? "\u2014"
+								: agentMinutesDisplayActual.toLocaleString("en-US")}{" "}
+							{`/ ${
+								agentHoursAllocation === unlimitedAgentHoursAllocation ||
+								agentHoursAllocation === undefined
+									? "Unlimited"
+									: (agentHoursAllocation * minutesPerHour).toLocaleString(
+											"en-US",
+										)
+							}`}
+						</span>
+					</div>
+				) : (
+					<div className="flex flex-col items-center">
+						<span className="text-content-secondary">Users</span>
+						<span className="text-content-primary user-limit">
+							{userLimitActual} {` / ${currentUserLimit || "Unlimited"}`}
+						</span>
+					</div>
+				)}
 				{license.claims.nbf && (
 					<div className="flex flex-col items-center">
 						<span className="text-content-secondary">Valid From</span>
@@ -360,37 +384,31 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 						<div className="text-sm font-medium text-content-secondary">
 							Products
 						</div>
-						<div className="mt-3 flex flex-wrap gap-3">
-							<CoderWorkspacesProductCard
-								userLimitActual={userLimitActual}
-								userLimitLimit={currentUserLimit}
+						<div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+							{!isAgentsOnlyLicense && (
+								<CoderWorkspacesProductCard
+									userLimitActual={userLimitActual}
+									userLimitLimit={currentUserLimit}
+								/>
+							)}
+							<CoderAgentsProductCard
+								allocation={agentHoursAllocation}
+								actualMinutes={agentMinutesDisplayActual}
+								isTrial={Boolean(license.claims.trial)}
+								isSoftLimitReached={isAgentHoursSoftLimitReached}
+								isExceeded={isAgentHoursExceeded}
+								isHardLimitExceeded={isAgentHoursHardLimitExceeded}
 							/>
-							{(isPremium || hasAgentHoursClaim) && (
-								<CoderAgentsProductCard
-									allocation={agentHoursAllocation}
-									actual={agentHoursDisplayActual}
-									isSoftLimitReached={isAgentHoursSoftLimitReached}
-									isExceeded={isAgentHoursExceeded}
-									isHardLimitExceeded={isAgentHoursHardLimitExceeded}
+							{hasExplicitAiGovernanceAddOn && (
+								<AIGovernanceAddOnCard
+									title="AI Governance"
+									unit="Seats"
+									actual={aiGovernanceDisplayActual}
+									limit={aiGovernanceLimit}
+									isExceeded={isAiGovernanceAddOnExceeded}
 								/>
 							)}
 						</div>
-						{hasExplicitAiGovernanceAddOn && (
-							<>
-								<div className="mt-4 text-sm font-medium text-content-secondary">
-									Add-ons
-								</div>
-								<div className="mt-3 flex flex-wrap gap-3">
-									<AIGovernanceAddOnCard
-										title="AI Governance"
-										unit="Seats"
-										actual={aiGovernanceDisplayActual}
-										limit={aiGovernanceLimit}
-										isExceeded={isAiGovernanceAddOnExceeded}
-									/>
-								</div>
-							</>
-						)}
 					</div>
 				</CollapsibleContent>
 			</div>

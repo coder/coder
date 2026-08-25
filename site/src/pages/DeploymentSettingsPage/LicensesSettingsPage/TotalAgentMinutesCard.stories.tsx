@@ -1,28 +1,28 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { MockAgentRuntimeHoursFeature } from "#/testHelpers/entities";
-import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
+import { TotalAgentMinutesCard } from "./TotalAgentMinutesCard";
 
-const meta: Meta<typeof TotalAgentHoursCard> = {
+const meta: Meta<typeof TotalAgentMinutesCard> = {
 	title:
-		"pages/DeploymentSettingsPage/LicensesSettingsPage/TotalAgentHoursCard",
-	component: TotalAgentHoursCard,
+		"pages/DeploymentSettingsPage/LicensesSettingsPage/TotalAgentMinutesCard",
+	component: TotalAgentMinutesCard,
 	args: {
 		feature: {
 			...MockAgentRuntimeHoursFeature,
-			// 400 hours and 18 minutes: renders as 400.3.
+			// 400 hours and 18 minutes: renders as 24,018 minutes.
 			actual_ms: 400 * 3_600_000 + 18 * 60_000,
 		},
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof TotalAgentHoursCard>;
+type Story = StoryObj<typeof TotalAgentMinutesCard>;
 
 const hoverInfoIcon = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	await userEvent.hover(
-		canvas.getByRole("button", { name: "Total agent hours information" }),
+		canvas.getByRole("button", { name: "Total agent minutes information" }),
 	);
 	return within(canvasElement.ownerDocument.body);
 };
@@ -41,11 +41,11 @@ const expectTooltipText = async (
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("400.3")).toBeInTheDocument();
+		await expect(canvas.getByText("24,018")).toBeInTheDocument();
 		await expect(canvas.getByText(/Warning:/)).toBeInTheDocument();
-		await expect(canvas.getByText("850")).toBeInTheDocument();
+		await expect(canvas.getByText("51,000")).toBeInTheDocument();
 		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
-		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText("60,000")).toBeInTheDocument();
 		await expect(canvas.queryByText(/Limit:/)).not.toBeInTheDocument();
 		await expect(
 			canvas.getByText("(June 1, 2026 - May 31, 2027)"),
@@ -86,11 +86,11 @@ export const ReachedSoftLimit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("850.0")).toBeInTheDocument();
+		await expect(canvas.getAllByText("51,000")).toHaveLength(2);
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your Total Agent minutes for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -105,12 +105,11 @@ export const ReachedAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
-		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getAllByText("60,000")).toHaveLength(2);
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your Total Agent minutes for this license\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
@@ -125,18 +124,18 @@ export const OverAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
-		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText("72,000")).toBeInTheDocument();
+		await expect(canvas.getByText("60,000")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your Total Agent minutes for this license\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
 
-// The extra 6 minutes alone push the tenths value past the whole-hour
-// allocation and flip the reached state.
+// The extra 6 minutes alone push usage past the allocation and flip the
+// reached state.
 export const ReachedAllocationByFraction: Story = {
 	args: {
 		feature: {
@@ -147,11 +146,11 @@ export const ReachedAllocationByFraction: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,000.1")).toBeInTheDocument();
+		await expect(canvas.getByText("60,006")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your Total Agent minutes for this license\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
@@ -170,9 +169,9 @@ export const SoftLimitExactPercent: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("10.0")).toBeInTheDocument();
-		await expect(canvas.getByText("29")).toBeInTheDocument();
-		await expect(canvas.getByText("100")).toBeInTheDocument();
+		await expect(canvas.getByText("600")).toBeInTheDocument();
+		await expect(canvas.getByText("1,740")).toBeInTheDocument();
+		await expect(canvas.getByText("6,000")).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
@@ -193,11 +192,11 @@ export const NearAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("999.0")).toBeInTheDocument();
+		await expect(canvas.getAllByText("59,940")).toHaveLength(2);
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 99\.9% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 99\.9% or more of your Total Agent minutes for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -247,7 +246,7 @@ export const MissingUsagePeriod: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("400.0")).toBeInTheDocument();
+		await expect(canvas.getByText("24,000")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText("(June 1, 2026 - May 31, 2027)"),
 		).not.toBeInTheDocument();
@@ -263,16 +262,16 @@ export const HardCap: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("400.0")).toBeInTheDocument();
+		await expect(canvas.getByText("24,000")).toBeInTheDocument();
 		await expect(canvas.getByText(/Warning:/)).toBeInTheDocument();
-		await expect(canvas.getByText("850")).toBeInTheDocument();
+		await expect(canvas.getByText("51,000")).toBeInTheDocument();
 		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
-		await expect(canvas.getByText("1,000")).toBeInTheDocument();
+		await expect(canvas.getByText("60,000")).toBeInTheDocument();
 		await expect(canvas.getByText(/Limit:/)).toBeInTheDocument();
-		await expect(canvas.getByText("1,500")).toBeInTheDocument();
+		await expect(canvas.getByText("90,000")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent minutes limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
@@ -294,16 +293,16 @@ export const HardCapBetweenSoftLimitAndLimit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("900.0")).toBeInTheDocument();
+		await expect(canvas.getByText("54,000")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent minutes limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 85% or more of your Total Agent hours for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
+			/You've used 85% or more of your Total Agent minutes for this license\. Agent sessions are still working normally, but you'll want to plan for the 100% limit\./,
 		);
 	},
 };
@@ -319,16 +318,16 @@ export const HardCapBetweenLimitAndHardCap: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,200.0")).toBeInTheDocument();
+		await expect(canvas.getByText("72,000")).toBeInTheDocument();
 		await expect(
 			canvas.queryByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent minutes limit reached. Concurrent chats are now limited to 5.",
 			),
 		).not.toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 120% of your Total Agent hours for this license\. Contact sales to receive more Agent hours\./,
+			/You've used 120% of your Total Agent minutes for this license\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
@@ -344,16 +343,16 @@ export const ReachedHardCap: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,600.0")).toBeInTheDocument();
+		await expect(canvas.getByText("96,000")).toBeInTheDocument();
 		await expect(
 			canvas.getByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent minutes limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 160% of your Total Agent hours for this license and reached the hard cap of 1,500 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 160% of your Total Agent minutes for this license and reached the hard cap of 90,000 minutes\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
@@ -370,16 +369,16 @@ export const ReachedCoincidentHardCap: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,000.0")).toBeInTheDocument();
+		await expect(canvas.getAllByText("60,000")).toHaveLength(3);
 		await expect(
 			canvas.getByText(
-				"Agent hours limit reached. Concurrent chats are now limited to 5.",
+				"Agent minutes limit reached. Concurrent chats are now limited to 5.",
 			),
 		).toBeInTheDocument();
 		const body = await hoverInfoIcon(canvasElement);
 		await expectTooltipText(
 			body,
-			/You've used 100% of your Total Agent hours for this license and reached the hard cap of 1,000 hours\. Contact sales to receive more Agent hours\./,
+			/You've used 100% of your Total Agent minutes for this license and reached the hard cap of 60,000 minutes\. Contact sales to receive more Agent minutes\./,
 		);
 	},
 };
@@ -395,7 +394,7 @@ export const Disabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByRole("heading", { name: "Total agent hours" }),
+			canvas.queryByRole("heading", { name: "Total agent minutes" }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -407,13 +406,13 @@ export const Unlimited: Story = {
 			limit: undefined,
 			soft_limit: undefined,
 			actual: 1200,
-			// 1,200 hours and 30 minutes: renders as 1,200.5.
+			// 1,200 hours and 30 minutes: renders as 72,030 minutes.
 			actual_ms: 1200 * 3_600_000 + 30 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("1,200.5")).toBeInTheDocument();
+		await expect(canvas.getByText("72,030")).toBeInTheDocument();
 		await expect(canvas.queryByText(/Warning:/)).not.toBeInTheDocument();
 		await expect(canvas.getByText(/Allocation:/)).toBeInTheDocument();
 		await expect(canvas.getByText("Unlimited")).toBeInTheDocument();

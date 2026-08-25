@@ -25,7 +25,7 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 
 	return (
 		<div
-			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
+			className={`rounded-sm border border-solid py-3 ${
 				isExceeded ? "border-border-destructive" : "border-border"
 			}`}
 		>

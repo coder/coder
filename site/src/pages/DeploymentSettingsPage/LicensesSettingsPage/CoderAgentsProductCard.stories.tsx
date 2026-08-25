@@ -8,7 +8,8 @@ const meta: Meta<typeof CoderAgentsProductCard> = {
 	component: CoderAgentsProductCard,
 	args: {
 		allocation: 20000,
-		actual: 16264.3,
+		actualMinutes: 975_858,
+		isTrial: false,
 		isSoftLimitReached: false,
 		isExceeded: false,
 		isHardLimitExceeded: false,
@@ -25,9 +26,9 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"16,264.3 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("975,858 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -43,21 +44,26 @@ export const Default: Story = {
 export const TooltipInteractions: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);
-		await step("open the Total Agent hours tooltip from keyboard", async () => {
-			await userEvent.tab();
-			await expect(
-				canvas.getByRole("button", { name: "Total Agent hours information" }),
-			).toHaveFocus();
-			await waitFor(async () => {
-				await expect(screen.getByRole("tooltip")).toHaveTextContent(
-					"Total agent runtime hours used out of the hours included in this license.",
-				);
-			});
-			await userEvent.keyboard("{Escape}");
-			await waitFor(async () => {
-				await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-			});
-		});
+		await step(
+			"open the Total Agent minutes tooltip from keyboard",
+			async () => {
+				await userEvent.tab();
+				await expect(
+					canvas.getByRole("button", {
+						name: "Total Agent minutes information",
+					}),
+				).toHaveFocus();
+				await waitFor(async () => {
+					await expect(screen.getByRole("tooltip")).toHaveTextContent(
+						"Total agent runtime minutes used out of the minutes included in this license.",
+					);
+				});
+				await userEvent.keyboard("{Escape}");
+				await waitFor(async () => {
+					await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+				});
+			},
+		);
 		await step("open the Concurrent agents tooltip on hover", async () => {
 			await userEvent.hover(
 				canvas.getByRole("button", { name: "Concurrent agents information" }),
@@ -77,9 +83,9 @@ export const UnlimitedAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"Unlimited",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("Unlimited");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -88,28 +94,28 @@ export const UnlimitedAllocation: Story = {
 
 export const NotProvidingUsage: Story = {
 	args: {
-		actual: undefined,
+		actualMinutes: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"\u2014 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("\u2014 / 1,200,000");
 	},
 };
 
 export const SoftLimitReached: Story = {
 	args: {
-		actual: 16264.3,
+		actualMinutes: 975_858,
 		isSoftLimitReached: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"16,264.3 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("975,858 / 1,200,000");
 		await expect(canvas.getByRole("status")).toHaveTextContent(
-			"Approaching hours limit",
+			"Approaching minutes limit",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
@@ -119,14 +125,14 @@ export const SoftLimitReached: Story = {
 
 export const Exceeded: Story = {
 	args: {
-		actual: 21000,
+		actualMinutes: 1_260_000,
 		isExceeded: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"21,000.0 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,260,000 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -136,14 +142,14 @@ export const Exceeded: Story = {
 
 export const HardLimitExceeded: Story = {
 	args: {
-		actual: 25000,
+		actualMinutes: 1_500_000,
 		isHardLimitExceeded: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"25,000.0 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,500,000 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"5",
 		);
@@ -159,36 +165,83 @@ export const HardLimitExceeded: Story = {
 	},
 };
 
-export const NoAllocation: Story = {
+export const Community: Story = {
 	args: {
 		allocation: undefined,
-		actual: undefined,
+		actualMinutes: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
 		await expect(
 			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
 		await expect(
-			canvas.queryByText(/Agent hours used/),
+			getMetricValue(canvas, "Agent minutes used"),
+		).toHaveTextContent("\u2014");
+		await expect(
+			canvas.getByRole("link", { name: "Try unlimited for 30 days" }),
+		).toHaveAttribute("href", "/deployment/premium");
+		await expect(
+			canvas.getByRole("link", { name: "View docs" }),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining("/ai-coder/agents/licensing-usage"),
+		);
+		await expect(
+			canvas.queryByRole("link", { name: "Upgrade" }),
 		).not.toBeInTheDocument();
-		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
-		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
 	},
 };
 
-export const NoAllocationWithUsage: Story = {
+export const CommunityWithUsage: Story = {
 	args: {
 		allocation: undefined,
-		actual: 1234.5,
+		actualMinutes: 74_070,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
-			"1,234.5",
+		await expect(
+			getMetricValue(canvas, "Agent minutes used"),
+		).toHaveTextContent("74,070");
+	},
+};
+
+export const Trial: Story = {
+	args: {
+		allocation: undefined,
+		actualMinutes: 74_070,
+		isTrial: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Coder Agents Trial")).toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Agent minutes used"),
+		).toHaveTextContent("74,070");
+		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
+			"Unlimited",
+		);
+		await expect(canvas.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+			"href",
+			"mailto:sales@coder.com",
 		);
 		await expect(
-			canvas.getByRole("link", { name: "Upgrade" }),
-		).toBeInTheDocument();
+			canvas.queryByRole("link", { name: "Try unlimited for 30 days" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const TrialWithoutUsage: Story = {
+	args: {
+		allocation: undefined,
+		actualMinutes: undefined,
+		isTrial: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			getMetricValue(canvas, "Agent minutes used"),
+		).toHaveTextContent("\u2014");
 	},
 };

@@ -79,30 +79,34 @@ export const ActiveAIGovernanceAddOnUsage: Story = {
 	},
 };
 
-export const TotalAgentHoursUsage: Story = {
+export const TotalAgentMinutesUsage: Story = {
 	args: {
 		agentRuntimeHoursFeature: {
 			...MockAgentRuntimeHoursFeature,
 			limit: 2000,
 			soft_limit: 1700,
 			actual: 435,
-			// 435 hours and 48 minutes: renders as 435.8.
+			// 435 hours and 48 minutes: renders as 26,148 minutes.
 			actual_ms: 435 * 3_600_000 + 48 * 60_000,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const agentHoursHeading = canvas.getByRole("heading", {
-			name: "Total agent hours",
+		const agentMinutesHeading = canvas.getByRole("heading", {
+			name: "Total agent minutes",
 		});
-		const agentHoursCard = within(agentHoursHeading.closest("section")!);
-		await expect(agentHoursCard.getByText("435.8")).toBeInTheDocument();
-		await expect(agentHoursCard.getByText("2,000")).toBeInTheDocument();
+		const agentMinutesSection = agentMinutesHeading.closest("section");
+		if (!agentMinutesSection) {
+			throw new Error("Total agent minutes card is missing its section");
+		}
+		const agentMinutesCard = within(agentMinutesSection);
+		await expect(agentMinutesCard.getByText("26,148")).toBeInTheDocument();
+		await expect(agentMinutesCard.getByText("120,000")).toBeInTheDocument();
 		const managedAgentsSection = canvas.getByText(
 			"Agent Workspace Builds Disabled",
 		);
 		await expect(
-			agentHoursHeading.compareDocumentPosition(managedAgentsSection) &
+			agentMinutesHeading.compareDocumentPosition(managedAgentsSection) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
 	},

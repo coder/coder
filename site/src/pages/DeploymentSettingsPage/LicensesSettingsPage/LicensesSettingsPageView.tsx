@@ -26,7 +26,7 @@ import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 import { ManagedAgentsConsumption } from "./ManagedAgentsConsumption";
 import { SeatUsageBarCard } from "./SeatUsageBarCard";
-import { TotalAgentHoursCard } from "./TotalAgentHoursCard";
+import { TotalAgentMinutesCard } from "./TotalAgentMinutesCard";
 
 type Props = {
 	showConfetti: boolean;
@@ -193,7 +193,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 							/>
 						</div>
 
-						<TotalAgentHoursCard feature={agentRuntimeHoursFeature} />
+						<TotalAgentMinutesCard feature={agentRuntimeHoursFeature} />
 
 						<ManagedAgentsConsumption
 							managedAgentFeature={managedAgentFeature}

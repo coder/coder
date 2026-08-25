@@ -23,7 +23,7 @@ export const CoderWorkspacesProductCard: FC<
 		: "Unlimited";
 
 	return (
-		<div className="min-w-[320px] flex-1 rounded-sm border border-solid border-border px-6 py-4">
+		<div className="rounded-sm border border-solid border-border px-6 py-4">
 			<div className="text-sm font-medium text-content-primary">
 				Coder Workspaces
 			</div>

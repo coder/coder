@@ -26,6 +26,9 @@ type Story = StoryObj<typeof LicenseCard>;
 const getMetricValue = (canvas: ReturnType<typeof within>, label: string) =>
 	canvas.getByText(label).parentElement?.nextElementSibling;
 
+const getHeaderValue = (canvas: ReturnType<typeof within>, label: string) =>
+	canvas.getByText(label).nextElementSibling;
+
 const getIncludedProducts = (
 	canvas: ReturnType<typeof within>,
 	label: string,
@@ -43,7 +46,12 @@ export const Default: Story = {
 		await expect(canvas.getByText("Standard")).toBeInTheDocument();
 		await expect(canvas.getByText("Products")).toBeInTheDocument();
 		await expect(canvas.getByText("Coder Workspaces")).toBeInTheDocument();
-		await expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
+		// Licenses without an allocation still show the Coder Agents
+		// upsell card.
+		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("link", { name: "Try unlimited for 30 days" }),
+		).toBeInTheDocument();
 		await expect(
 			getIncludedProducts(canvas, "Workspaces"),
 		).not.toBeInTheDocument();
@@ -84,6 +92,11 @@ export const Trial: Story = {
 		await expect(
 			getIncludedProducts(canvas, "Workspaces + Agents"),
 		).toBeInTheDocument();
+		await expect(canvas.getByText("Coder Agents Trial")).toBeInTheDocument();
+		await expect(canvas.getByRole("link", { name: "Upgrade" })).toHaveAttribute(
+			"href",
+			"mailto:sales@coder.com",
+		);
 	},
 };
 
@@ -145,7 +158,7 @@ export const Premium: Story = {
 			entitlement: "entitled",
 			limit: 0,
 			actual: 137,
-			// 137 hours and 18 minutes: renders as 137.3.
+			// 137 hours and 18 minutes: renders as 8,238 minutes.
 			actual_ms: 137 * 3_600_000 + 18 * 60_000,
 		},
 	},
@@ -159,12 +172,12 @@ export const Premium: Story = {
 		await expect(
 			getMetricValue(canvas, "Max concurrent agents"),
 		).toHaveTextContent("5");
-		await expect(getMetricValue(canvas, "Agent hours used")).toHaveTextContent(
-			"137.3",
-		);
-		const upgrade = canvas.getByRole("link", { name: "Upgrade" });
-		await expect(upgrade).toHaveAttribute("href", "mailto:sales@coder.com");
-		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Agent minutes used"),
+		).toHaveTextContent("8,238");
+		await expect(
+			canvas.getByRole("link", { name: "Try unlimited for 30 days" }),
+		).toHaveAttribute("href", "/deployment/premium");
 		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
 	},
 };
@@ -211,8 +224,8 @@ export const PremiumWithAgentHours: Story = {
 			soft_limit: 16000,
 			hard_limit: 25000,
 			actual: 12264,
-			// 12,264 hours and 18 minutes: renders as 12,264.3, below
-			// the 16,000-hour advisory soft limit.
+			// 12,264 hours and 18 minutes: renders as 735,858 minutes,
+			// below the 960,000-minute advisory soft limit.
 			actual_ms: 12_264 * 3_600_000 + 18 * 60_000,
 			usage_period: winningUsagePeriod,
 		},
@@ -220,12 +233,20 @@ export const PremiumWithAgentHours: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
+		// An allocation without a seat claim is an agents-only license.
 		await expect(
-			getIncludedProducts(canvas, "Workspaces + Agents"),
+			getIncludedProducts(canvas, "Coder Agents"),
 		).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"12,264.3 / 20,000",
+		await expect(getHeaderValue(canvas, "Minutes")).toHaveTextContent(
+			"735,858 / 1,200,000",
 		);
+		await expect(canvas.queryByText("Users")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Coder Workspaces"),
+		).not.toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("735,858 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -234,6 +255,40 @@ export const PremiumWithAgentHours: Story = {
 		).not.toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: "View docs" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const AgentHoursWithSeatsKeepsUsersColumn: Story = {
+	args: {
+		license: (() => {
+			const license = premiumLicenseWithAgentHours(20000);
+			return {
+				...license,
+				claims: {
+					...license.claims,
+					features: { ...license.claims.features, user_limit: 10 },
+				},
+			};
+		})(),
+		agentRuntimeHoursFeature: {
+			enabled: true,
+			entitlement: "entitled",
+			limit: 20000,
+			soft_limit: 16000,
+			hard_limit: 25000,
+			actual: 12264,
+			actual_ms: 12_264 * 3_600_000 + 18 * 60_000,
+			usage_period: winningUsagePeriod,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Users")).toBeInTheDocument();
+		await expect(canvas.queryByText("Minutes")).not.toBeInTheDocument();
+		await expect(canvas.getByText("Coder Workspaces")).toBeInTheDocument();
+		await expect(
+			getIncludedProducts(canvas, "Workspaces + Agents"),
 		).toBeInTheDocument();
 	},
 };
@@ -248,8 +303,8 @@ export const PremiumWithAgentHoursSoftLimitReached: Story = {
 			soft_limit: 16000,
 			hard_limit: 25000,
 			actual: 16264,
-			// 16,264 hours and 18 minutes: renders as 16,264.3, at or
-			// above the 16,000-hour advisory soft limit.
+			// 16,264 hours and 18 minutes: renders as 975,858 minutes, at
+			// or above the 960,000-minute advisory soft limit.
 			actual_ms: 16_264 * 3_600_000 + 18 * 60_000,
 			usage_period: winningUsagePeriod,
 		},
@@ -257,11 +312,11 @@ export const PremiumWithAgentHoursSoftLimitReached: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"16,264.3 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("975,858 / 1,200,000");
 		await expect(canvas.getByRole("status")).toHaveTextContent(
-			"Approaching hours limit",
+			"Approaching minutes limit",
 		);
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
@@ -285,10 +340,12 @@ export const PremiumWithAgentHoursExceeded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"21,000.0 / 20,000",
-		);
+		await expect(
+			canvas.getByText("Agent minutes exceeded"),
+		).toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,260,000 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -312,9 +369,9 @@ export const PremiumWithAgentHoursHardLimitExceeded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Limit exceeded")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"25,000.0 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,500,000 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"5",
 		);
@@ -340,10 +397,12 @@ export const PremiumWithAgentHoursAtAllocation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"20,000.0 / 20,000",
-		);
+		await expect(
+			canvas.getByText("Agent minutes exceeded"),
+		).toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,200,000 / 1,200,000");
 	},
 };
 
@@ -356,8 +415,8 @@ export const PremiumWithAgentHoursExceededByFraction: Story = {
 			limit: 20000,
 			soft_limit: 16000,
 			hard_limit: 25000,
-			// The extra 6 minutes render as a tenth past the allocation,
-			// so the display shows fractional overage.
+			// The extra 6 minutes push usage past the allocation, so the
+			// display shows the overage.
 			actual: 20000,
 			actual_ms: 20_000 * 3_600_000 + 6 * 60_000,
 			usage_period: winningUsagePeriod,
@@ -365,10 +424,12 @@ export const PremiumWithAgentHoursExceededByFraction: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Agent hours exceeded")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"20,000.1 / 20,000",
-		);
+		await expect(
+			canvas.getByText("Agent minutes exceeded"),
+		).toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("1,200,006 / 1,200,000");
 	},
 };
 
@@ -387,11 +448,14 @@ export const PremiumWithUnlimitedAgentHours: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
 		await expect(
-			getIncludedProducts(canvas, "Workspaces + Agents"),
+			getIncludedProducts(canvas, "Coder Agents"),
 		).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"Unlimited",
+		await expect(getHeaderValue(canvas, "Minutes")).toHaveTextContent(
+			"975,858 / Unlimited",
 		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("Unlimited");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -415,11 +479,11 @@ export const LowerAgentHoursCardUsesMergedEntitlement: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"\u2014 / 10,000",
-		);
 		await expect(
-			canvas.queryByText("Agent hours exceeded"),
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("\u2014 / 600,000");
+		await expect(
+			canvas.queryByText("Agent minutes exceeded"),
 		).not.toBeInTheDocument();
 	},
 };
@@ -446,9 +510,9 @@ export const ReplacedDuplicateAllocationShowsNoUsage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"\u2014 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("\u2014 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -485,9 +549,9 @@ export const SameIssuedAtDifferentTermEndShowsNoUsage: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Active")).toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"\u2014 / 20,000",
-		);
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("\u2014 / 1,200,000");
 		await expect(getMetricValue(canvas, "Concurrent agents")).toHaveTextContent(
 			"Unlimited",
 		);
@@ -524,16 +588,15 @@ export const EnterpriseWithAgentHours: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Enterprise")).toBeInTheDocument();
-		await expect(canvas.getByText("Coder Agents")).toBeInTheDocument();
 		await expect(
 			getIncludedProducts(canvas, "Workspaces"),
 		).not.toBeInTheDocument();
 		await expect(
-			getIncludedProducts(canvas, "Workspaces + Agents"),
-		).not.toBeInTheDocument();
-		await expect(getMetricValue(canvas, "Total Agent hours")).toHaveTextContent(
-			"12,264.3 / 20,000",
-		);
+			getIncludedProducts(canvas, "Coder Agents"),
+		).toBeInTheDocument();
+		await expect(
+			getMetricValue(canvas, "Total Agent minutes"),
+		).toHaveTextContent("735,858 / 1,200,000");
 	},
 };
 
@@ -559,7 +622,9 @@ export const PremiumWithAIGovernance: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/add-ons/i)).toBeInTheDocument();
+		// The add-on card lives in the Products grid, so no separate
+		// Add-ons section exists.
+		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
 		// Matches both the included-products line and the add-on card title.
 		await expect(canvas.getAllByText(/ai governance/i)).toHaveLength(2);
 		await expect(
@@ -807,6 +872,7 @@ export const EnterpriseDoesNotShowAIGovernanceAddOn: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Add-ons")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("AI Governance")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Seats")).not.toBeInTheDocument();
 	},
 };

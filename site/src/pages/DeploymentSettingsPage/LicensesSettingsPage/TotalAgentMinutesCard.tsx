@@ -11,11 +11,13 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 
-type TotalAgentHoursCardProps = {
+type TotalAgentMinutesCardProps = {
 	feature?: Feature;
 };
 
-export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
+const minutesPerHour = 60;
+
+export const TotalAgentMinutesCard: FC<TotalAgentMinutesCardProps> = ({
 	feature,
 }) => {
 	// A zero-hour allocation arrives with enabled=false, which hides the
@@ -45,32 +47,33 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		);
 	}
 
-	const meteredLimit = limit ?? 0;
-	const usedTenths =
-		actualMs === undefined ? 0 : Math.floor(actualMs / 360_000);
-	const usedHours = usedTenths / 10;
+	const meteredLimit = (limit ?? 0) * minutesPerHour;
+	const usedMinutes =
+		actualMs === undefined ? 0 : Math.floor(actualMs / 60_000);
 	const hardCap =
 		!isUnlimited &&
 		hardLimit !== undefined &&
 		hardLimit > 0 &&
-		hardLimit >= meteredLimit
-			? hardLimit
+		hardLimit * minutesPerHour >= meteredLimit
+			? hardLimit * minutesPerHour
 			: undefined;
+	const softLimitMinutes =
+		softLimit === undefined ? undefined : softLimit * minutesPerHour;
 	const reachedAllocation =
-		!isUnlimited && actualMs !== undefined && usedHours >= meteredLimit;
+		!isUnlimited && actualMs !== undefined && usedMinutes >= meteredLimit;
 	const reachedHardCap =
-		hardCap !== undefined && actualMs !== undefined && usedHours >= hardCap;
+		hardCap !== undefined && actualMs !== undefined && usedMinutes >= hardCap;
 	const reachedSoftLimit =
 		!isUnlimited &&
 		!reachedAllocation &&
 		actualMs !== undefined &&
-		softLimit !== undefined &&
-		usedHours >= softLimit;
+		softLimitMinutes !== undefined &&
+		usedMinutes >= softLimitMinutes;
 	const barScale = hardCap ?? meteredLimit;
 	const usagePercentage = isUnlimited
 		? 100
 		: barScale > 0
-			? Math.min((usedHours / barScale) * 100, 100)
+			? Math.min((usedMinutes / barScale) * 100, 100)
 			: 0;
 	const allocationMarkerPercent =
 		hardCap === undefined
@@ -78,8 +81,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			: Math.min((meteredLimit / hardCap) * 100, 100);
 
 	const softMarkerPercent =
-		!isUnlimited && softLimit !== undefined && barScale > 0
-			? Math.min((softLimit / barScale) * 100, 100)
+		!isUnlimited && softLimitMinutes !== undefined && barScale > 0
+			? Math.min((softLimitMinutes / barScale) * 100, 100)
 			: undefined;
 	const fillClassName = reachedAllocation
 		? "bg-highlight-red"
@@ -87,17 +90,11 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 			? "bg-border-warning"
 			: "bg-highlight-green";
 
-	// Already floored to tenths, so rendering one decimal never rounds.
 	const usedLabel =
-		actualMs === undefined
-			? "N/A"
-			: usedHours.toLocaleString("en-US", {
-					minimumFractionDigits: 1,
-					maximumFractionDigits: 1,
-				});
+		actualMs === undefined ? "N/A" : usedMinutes.toLocaleString("en-US");
 	const warningLabel =
-		!isUnlimited && softLimit !== undefined
-			? softLimit.toLocaleString("en-US")
+		!isUnlimited && softLimitMinutes !== undefined
+			? softLimitMinutes.toLocaleString("en-US")
 			: undefined;
 	const allocationLabel = isUnlimited
 		? "Unlimited"
@@ -115,8 +112,8 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 		(Math.floor((numerator * 1000) / denominator) / 10).toLocaleString("en-US");
 
 	const softLimitPercent =
-		!isUnlimited && softLimit !== undefined && meteredLimit > 0
-			? formatPercent(softLimit, meteredLimit)
+		!isUnlimited && softLimitMinutes !== undefined && meteredLimit > 0
+			? formatPercent(softLimitMinutes, meteredLimit)
 			: undefined;
 
 	// A fading green fill reads as an unmetered allocation rather than
@@ -130,12 +127,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	let tooltip: string;
 	if (reachedAllocation) {
 		const usedPercent =
-			meteredLimit > 0 ? formatPercent(usedTenths, meteredLimit * 10) : "100";
+			meteredLimit > 0 ? formatPercent(usedMinutes, meteredLimit) : "100";
 		tooltip = reachedHardCap
-			? `You've used ${usedPercent}% of your Total Agent hours for this license and reached the hard cap of ${limitLabel} hours. Contact sales to receive more Agent hours.`
-			: `You've used ${usedPercent}% of your Total Agent hours for this license. Contact sales to receive more Agent hours.`;
+			? `You've used ${usedPercent}% of your Total Agent minutes for this license and reached the hard cap of ${limitLabel} minutes. Contact sales to receive more Agent minutes.`
+			: `You've used ${usedPercent}% of your Total Agent minutes for this license. Contact sales to receive more Agent minutes.`;
 	} else if (reachedSoftLimit) {
-		tooltip = `You've used ${softLimitPercent}% or more of your Total Agent hours for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
+		tooltip = `You've used ${softLimitPercent}% or more of your Total Agent minutes for this license. Agent sessions are still working normally, but you'll want to plan for the 100% limit.`;
 	} else if (softLimitPercent !== undefined) {
 		tooltip = `Total time agents have been working across all workspaces this license. A soft-limit warning appears at ${softLimitPercent}%`;
 	} else {
@@ -149,12 +146,12 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 				<div className="flex flex-col gap-2">
 					<div className="flex flex-col gap-0.5">
 						<div className="flex items-center gap-1">
-							<h3 className="text-md m-0 font-medium">Total agent hours</h3>
+							<h3 className="text-md m-0 font-medium">Total agent minutes</h3>
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										aria-label="Total agent hours information"
+										aria-label="Total agent minutes information"
 										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
 									>
 										<InfoIcon className="size-3" />
@@ -186,7 +183,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 								className="h-auto rounded-full text-wrap"
 							>
 								<BanIcon />
-								Agent hours limit reached. Concurrent chats are now limited to
+								Agent minutes limit reached. Concurrent chats are now limited to
 								5.
 							</Badge>
 						</div>
