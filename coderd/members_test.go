@@ -12,6 +12,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -48,6 +50,72 @@ func TestAddMember(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, member.UserID, first.UserID)
 	})
+}
+
+// TestMembersWithLegacyRole verifies that stale grants of retired built-in
+// roles, which linger in the database until a cleanup migration lands, do
+// not break membership management.
+func TestMembersWithLegacyRole(t *testing.T) {
+	t.Parallel()
+
+	// The raw, unauthorized store is required to seed stale data without
+	// tripping the assignment validation under test.
+	db, ps := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	owner := coderdtest.CreateFirstUser(t, client)
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// Seed stale data in the store: the retired agents-access role remains
+	// in a member's role array and in the org's default member roles.
+	_, err := db.UpdateMemberRoles(ctx, database.UpdateMemberRolesParams{
+		GrantedRoles: []string{"agents-access"},
+		UserID:       member.ID,
+		OrgID:        owner.OrganizationID,
+	})
+	require.NoError(t, err)
+
+	org, err := db.GetOrganizationByID(ctx, owner.OrganizationID)
+	require.NoError(t, err)
+	updateOrg := database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: append(org.DefaultOrgMemberRoles, "agents-access"),
+	}
+	_, err = db.UpdateOrganization(ctx, updateOrg)
+	require.NoError(t, err)
+
+	// Requests expand the member's stored roles, including the stale grant.
+	_, err = memberClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+
+	// User creation inserts an organization membership, which validates the
+	// org's default member roles. The stale default must not fail it.
+	coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+	// Restore the defaults so the stale grant is no longer implied and the
+	// next update must validate its removal.
+	updateOrg.DefaultOrgMemberRoles = org.DefaultOrgMemberRoles
+	_, err = db.UpdateOrganization(ctx, updateOrg)
+	require.NoError(t, err)
+
+	// Role updates validate the removed set, which includes the stale
+	// grant. The update must succeed and strip the retired role.
+	updated, err := client.UpdateOrganizationMemberRoles(ctx, owner.OrganizationID, member.ID.String(), codersdk.UpdateRoles{
+		Roles: []string{codersdk.RoleOrganizationAuditor},
+	})
+	require.NoError(t, err)
+	names := make([]string, 0, len(updated.Roles))
+	for _, role := range updated.Roles {
+		names = append(names, role.Name)
+	}
+	require.Contains(t, names, codersdk.RoleOrganizationAuditor)
+	require.NotContains(t, names, "agents-access")
 }
 
 func TestDeleteMember(t *testing.T) {
