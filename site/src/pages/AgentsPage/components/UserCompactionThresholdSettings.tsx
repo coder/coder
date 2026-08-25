@@ -179,10 +179,8 @@ export const UserCompactionThresholdSettings: FC<
 			});
 	};
 
-	// Compute dirty rows: visible rows where the user has typed a valid
-	// value that differs from the current server-side override. Drafts on
-	// rows hidden by the organization picker are kept but not acted on
-	// until their organization is selected again.
+	// Save/cancel act only on visible rows; drafts hidden by the org
+	// picker are kept untouched.
 	const visibleModelIDs = new Set(visibleModels.map((config) => config.id));
 	const dirtyRows: Array<{ modelId: string; value: number }> = [];
 	for (const modelConfig of visibleModels) {
