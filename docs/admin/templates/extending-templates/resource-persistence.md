@@ -52,14 +52,19 @@ Because we depend on `coder_workspace.me.owner`, if the owner changes their
 username, Terraform will recreate the volume (wiping its data!) the next time
 that Coder starts the workspace.
 
-To prevent this, use immutable IDs:
+✅ To prevent this, use immutable IDs:
 
 - `coder_workspace.me.owner_id`
 - `coder_workspace.me.id`
 
-Avoid `coder_workspace.me.name` for the same reason.
-Workspace renaming is disabled by default, but a template admin can enable it.
-Refer to [Workspace renaming](../managing-templates/index.md#workspace-renaming).
+⚠️ Avoid mutable IDs:
+
+- `coder_workspace.me.name`
+- `coder_workspace.me.owner`
+
+Workspace renaming is disabled by default to help prevent this kind of
+destruction, but a template admin can enable it. Refer to
+[Workspace renaming](../managing-templates/index.md#workspace-renaming).
 
 ```tf
 data "coder_workspace" "me" {
