@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -468,12 +469,8 @@ func TestListAIModelPrices(t *testing.T) {
 			Prices: []codersdk.AIModelPriceUpsert{
 				newAIModelPrice("anthropic", "model-a", 1),
 				newAIModelPrice("anthropic", "model-b", 2),
-<<<<<<< HEAD
-				{Provider: "openai", Model: "model-a", InputPrice: new(int64(3))},
-=======
 				{Provider: "openai", Model: "model-a", InputPrice: ptr.Ref(int64(3))},
 				newAIModelPrice("anthropic", "claude-opus-5", 4),
->>>>>>> main
 			},
 		}))
 

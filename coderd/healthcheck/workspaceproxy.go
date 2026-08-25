@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/coder/coder/v2/coderd/healthcheck/health"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
 )
@@ -112,13 +113,10 @@ func (r *WorkspaceProxyReport) appendError(es ...string) {
 	if len(es) == 0 {
 		return
 	}
-	errors := es
 	if r.Error != nil {
-		previous := *r.Error
-		errors = append([]string{previous}, errors...)
+		es = append([]string{*r.Error}, es...)
 	}
-	joined := strings.Join(errors, "\n")
-	r.Error = &joined
+	r.Error = ptr.Ref(strings.Join(es, "\n"))
 }
 
 // calculateSeverity returns:

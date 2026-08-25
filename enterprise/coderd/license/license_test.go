@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -56,14 +57,7 @@ func premiumRuntimeHoursFixture(t *testing.T) (*dbmock.MockStore, *coderdenttest
 		// warning cannot pollute the callers' warning assertions.
 		GraceAt:   dbtime.Now().Add(time.Hour * 24 * 60).Truncate(time.Second),
 		ExpiresAt: dbtime.Now().Add(time.Hour * 24 * 90).Truncate(time.Second),
-<<<<<<< HEAD
-		// The addon marks AI Bridge as explicitly entitled, suppressing
-		// the unrelated "AI Governance add-on is required to use AI
-		// Gateway" warning that Premium would otherwise produce.
-	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, new(int64(80)), new(int64(120)))
-=======
 	}).UserLimit(100).AIGovernanceAddon(100).AgentRuntimeHours(100, ptr.Ref[int64](80), ptr.Ref[int64](120))
->>>>>>> main
 
 	lic := database.License{
 		ID:  1,
@@ -1534,7 +1528,7 @@ func TestLicenseEntitlements(t *testing.T) {
 	agentRuntimeHoursLicense := func(allocation int64, softLimit *int64) *coderdenttest.LicenseOptions {
 		var hard *int64
 		if allocation > 0 {
-			hard = new(allocation + 20)
+			hard = ptr.Ref(allocation + 20)
 		}
 		return enterpriseLicense().UserLimit(100).AgentRuntimeHours(allocation, softLimit, hard)
 	}
@@ -1844,7 +1838,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// arguments here and require they match the feature's UsagePeriod.
 			Name: "AgentRuntimeHours/UsagePeriodBounds",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, from, to time.Time) (int64, error) {
@@ -1868,7 +1862,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// arithmetic is pinned by TestAppendAgentRuntimeHoursWarning.
 			Name: "AgentRuntimeHours/AtSoftLimit",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(80),
@@ -1890,7 +1884,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// warning is emitted rather than both.
 			Name: "AgentRuntimeHours/AtAllocation",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(100),
@@ -1932,7 +1926,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// milliseconds so clients can render the fraction.
 			Name: "AgentRuntimeHours/PartialHourFloored",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -1956,7 +1950,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// while ActualMs preserves the fraction (10.3 hours here).
 			Name: "AgentRuntimeHours/FractionalHours",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -1979,7 +1973,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// Actual and ActualMs clamp to 0.
 			Name: "AgentRuntimeHours/NegativeRuntimeClamped",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -2027,7 +2021,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// entitlements.
 			Name: "AgentRuntimeHours/QueryError",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -2054,7 +2048,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// loudly instead of degrading into an operator-facing message.
 			Name: "AgentRuntimeHours/NilRuntimeFnDevError",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			KeepNilAgentRuntimeMsFn: true,
 			ExpectedErrorContains:   "developer error: no closure provided to measure agent runtime usage",
@@ -2065,7 +2059,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// entitlements error.
 			Name: "AgentRuntimeHours/ContextCanceled",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			CancelContext: true,
 			Arguments: license.FeatureArguments{
@@ -2083,7 +2077,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// with an aggressive statement_timeout.
 			Name: "AgentRuntimeHours/StatementTimeout",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: func(_ context.Context, _, _ time.Time) (int64, error) {
@@ -2103,7 +2097,7 @@ func TestLicenseEntitlements(t *testing.T) {
 			// its thresholds.
 			Name: "AgentRuntimeHours/GracePeriod",
 			Licenses: []*coderdenttest.LicenseOptions{
-				agentRuntimeHoursLicense(100, new(int64(80))).GracePeriod(time.Now()),
+				agentRuntimeHoursLicense(100, ptr.Ref[int64](80)).GracePeriod(time.Now()),
 			},
 			Arguments: license.FeatureArguments{
 				AgentRuntimeMsFn: hoursToMsFn(100),
@@ -3268,9 +3262,9 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled:   true,
-				Limit:     new(int64(100)),
-				SoftLimit: new(int64(80)),
-				HardLimit: new(int64(120)),
+				Limit:     ptr.Ref[int64](100),
+				SoftLimit: ptr.Ref[int64](80),
+				HardLimit: ptr.Ref[int64](120),
 			},
 		},
 		{
@@ -3280,7 +3274,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 		},
 		{
@@ -3294,8 +3288,8 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled:   true,
-				Limit:     new(int64(100)),
-				SoftLimit: new(int64(0)),
+				Limit:     ptr.Ref[int64](100),
+				SoftLimit: ptr.Ref[int64](0),
 			},
 		},
 		{
@@ -3306,7 +3300,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 			expectClaimsIgnored: true,
 		},
@@ -3320,7 +3314,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 			expectClaimsIgnored: true,
 		},
@@ -3332,7 +3326,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 			expectClaimsIgnored: true,
 		},
@@ -3344,8 +3338,8 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled:   true,
-				Limit:     new(int64(100)),
-				HardLimit: new(int64(100)),
+				Limit:     ptr.Ref[int64](100),
+				HardLimit: ptr.Ref[int64](100),
 			},
 		},
 		{
@@ -3356,7 +3350,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 			expectClaimsIgnored: true,
 		},
@@ -3367,7 +3361,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: false,
-				Limit:   new(int64(0)),
+				Limit:   ptr.Ref[int64](0),
 			},
 		},
 		{
@@ -3381,7 +3375,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: false,
-				Limit:   new(int64(0)),
+				Limit:   ptr.Ref[int64](0),
 			},
 			expectClaimsIgnored: true,
 		},
@@ -3467,7 +3461,7 @@ func TestAgentRuntimeHoursClaimTolerance(t *testing.T) {
 			},
 			expectFeature: &codersdk.Feature{
 				Enabled: true,
-				Limit:   new(int64(100)),
+				Limit:   ptr.Ref[int64](100),
 			},
 			expectClaimsIgnored: true,
 		},

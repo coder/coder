@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -698,7 +699,7 @@ func (b *Builder) getWorkspaceTask(store database.Store) (*database.Task, error)
 	t, err := store.GetTaskByWorkspaceID(b.ctx, b.workspace.ID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
-			b.hasTask = new(false)
+			b.hasTask = ptr.Ref(false)
 			//nolint:nilnil // No task exists.
 			return nil, nil
 		}
@@ -706,7 +707,7 @@ func (b *Builder) getWorkspaceTask(store database.Store) (*database.Task, error)
 	}
 
 	b.task = &t
-	b.hasTask = new(true)
+	b.hasTask = ptr.Ref(true)
 	return b.task, nil
 }
 
@@ -1006,8 +1007,7 @@ func (b *Builder) getTemplateVersionParameters() ([]previewtypes.Parameter, erro
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		return nil, xerrors.Errorf("get template version %s parameters: %w", tvID, err)
 	}
-	converted := slice.List(tvp, dynamicparameters.TemplateVersionParameter)
-	b.templateVersionParameters = &converted
+	b.templateVersionParameters = ptr.Ref(slice.List(tvp, dynamicparameters.TemplateVersionParameter))
 	return *b.templateVersionParameters, nil
 }
 
@@ -1246,7 +1246,7 @@ func (b *Builder) getPresetParameterValues() ([]database.TemplateVersionPresetPa
 	if err != nil {
 		return nil, xerrors.Errorf("failed to get preset parameters: %w", err)
 	}
-	b.templateVersionPresetParameterValues = &presetParameters
+	b.templateVersionPresetParameterValues = ptr.Ref(presetParameters)
 	return *b.templateVersionPresetParameterValues, nil
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/cliutil"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
@@ -257,8 +258,7 @@ func (r *RootCmd) Create(opts CreateOptions) *serpent.Command {
 				if err != nil {
 					return err
 				}
-				schedSpec = new(string)
-				*schedSpec = sched.String()
+				schedSpec = ptr.Ref(sched.String())
 			}
 
 			cliBuildParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
