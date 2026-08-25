@@ -141,6 +141,34 @@ Control which tools from a server are available in chat:
 | `tool_allow_list` | If non-empty, only the listed tool names are exposed. An empty list allows all tools. |
 | `tool_deny_list`  | Listed tool names are always blocked, even if they appear in the allow list.          |
 
+### Per-tool dispositions
+
+Requests through the MCP gateway additionally honor per-tool rules and a
+server-wide default, each set to one of three dispositions:
+
+| Disposition | Effect                                                                           |
+|-------------|----------------------------------------------------------------------------------|
+| `enabled`   | The tool is listed and calls are forwarded upstream.                             |
+| `disabled`  | The tool is hidden and calls are denied.                                         |
+| `escalate`  | The tool is listed, but each call is held until the sponsoring user approves it. |
+
+The allow and deny lists apply first: a tool they exclude cannot be
+escalated into existence. `tool_default` decides tools without an explicit
+rule and defaults to `enabled` for chat servers; gateway deployments
+commonly set it to `disabled` or `escalate`.
+
+### Tool call approvals
+
+When an AI agent calls an escalated tool, the gateway holds the request for
+up to five minutes and notifies the sponsoring user (inbox and email) with
+a link to the approvals page at **`/mcp-escalations`**. The user sees the
+tool, server, workspace, and arguments, and approves or denies the call.
+Approval forwards the call upstream with the usual server-side credential
+injection; denial and expiry return a structured error to the model.
+Everything fails closed: an unanswered escalation expires into a denial.
+Only the sponsoring user can resolve their own escalations; AI identity
+tokens cannot reach the approval endpoints.
+
 ## Coder identity headers
 
 MCP servers configured with `forward_coder_headers = true` receive the
