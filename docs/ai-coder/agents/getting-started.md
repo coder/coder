@@ -225,7 +225,7 @@ token volume. Consider:
 
 Community licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-A Premium license with the Agent Hours entitlement does not impose a concurrency limit unless the Agent Hours hard limit is reached.
+A Premium license with Agent Hours does not impose a concurrency limit unless the Agent Hours hard limit is reached.
 If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
 When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
