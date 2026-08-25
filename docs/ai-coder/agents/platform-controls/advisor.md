@@ -39,10 +39,9 @@ deployment-wide.
 | Max output tokens | `0` (server default) | Caps the advisor model's response length. `0` uses the server default of 16,384 tokens. Must be a non-negative integer. |
 
 The advisor model and its reasoning effort are organization-scoped
-[model overrides](../models.md#model-overrides). Configure them on the
-**Defaults & overrides** tab under **AI Settings** > **Models** for the
-selected organization. When no override is set, the advisor reuses the
-root agent's model.
+[model overrides](../models.md#model-overrides).
+Configure them under **AI Settings** > **Coder Agents** (`/ai/settings/coder-agents`) for the selected organization.
+When no override is set, the advisor reuses the root agent's model.
 
 The advisor is not available in plan mode or to subagents.
 Failed advisor invocations refund the per-turn budget.

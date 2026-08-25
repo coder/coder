@@ -20,10 +20,10 @@ the cutoff.
 
 ## Configuration
 
-Navigate to the **Agents** page, open **Settings**, and select the
-**Lifecycle** tab to configure chat debug data retention. The default is 30 days.
-Set the value to `0` to disable debug data retention entirely. The maximum value
-is `3650` days.
+Navigate to **AI Settings** > **Coder Agents** > **Lifecycle** (`/ai/settings/lifecycle`) to configure chat debug data retention.
+The default is 30 days.
+Set the value to `0` to disable debug data retention entirely.
+The maximum value is `3650` days.
 
 Use the admin API to read or update the value:
 

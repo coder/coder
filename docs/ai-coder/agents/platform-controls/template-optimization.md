@@ -17,7 +17,7 @@ Administrators can block individual templates from the template list or from eac
 
 To change which templates agents can use:
 
-1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
+1. Navigate to **AI Settings** > **Coder Agents** > **Templates** (`/ai/settings/templates`).
 2. Toggle the switch for each template.
 
 The same control is available on each template's settings page as **Allow Coder Agents to create workspaces using this template**.

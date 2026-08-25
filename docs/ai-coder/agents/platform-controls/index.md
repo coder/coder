@@ -79,7 +79,7 @@ Python backend services in the payments repo" — platform teams can guide the
 agent toward the correct infrastructure without requiring developers to
 understand template selection at all.
 
-Administrators can also restrict which templates are available to agents at **Agents** > **Settings** > **Manage Agents** > **Templates**.
+Administrators can also restrict which templates are available to agents at **AI Settings** > **Coder Agents** > **Templates** (`/ai/settings/templates`).
 Use the switch for each template in the list.
 The same control is available on each individual template's settings page as **Allow Coder Agents to create workspaces using this template**.
 Templates allow agents by default.
@@ -107,10 +107,9 @@ Administrators can set a default autostop timer for agent-created workspaces
 that do not define one in their template. Template-defined autostop rules always
 take precedence. Active conversations extend the stop time automatically.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Lifecycle**. The maximum configurable value is 30
-days. When disabled, workspaces follow their template's autostop rules (or
-none, if the template does not define any).
+This setting is available under **AI Settings** > **Coder Agents** > **Lifecycle** (`/ai/settings/lifecycle`).
+The maximum configurable value is 30 days.
+When disabled, workspaces follow their template's autostop rules (or none, if the template does not define any).
 
 ### Concurrent agents
 
@@ -155,9 +154,8 @@ Administrators can configure a retention period for archived conversations.
 When enabled, archived conversations and orphaned files older than the
 retention period are automatically purged. The default is 30 days.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Lifecycle**. See [Data Retention](./chat-retention.md)
-for details.
+This setting is available under **AI Settings** > **Coder Agents** > **Lifecycle**.
+Refer to [Data Retention](./chat-retention.md) for details.
 
 ### Experiments
 
