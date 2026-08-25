@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon } from "lucide-react";
+import { EllipsisVerticalIcon, FolderDownIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -230,19 +230,27 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 }) => {
 	const isAtLimit = skills.length >= PERSONAL_SKILLS_MAX_PER_USER;
 	const addSkillAction = (
-		<Button size="sm" onClick={onCreate} disabled={isLoading || isAtLimit}>
+		<Button
+			variant="outline"
+			onClick={onCreate}
+			disabled={isLoading || isAtLimit}
+		>
+			<PlusIcon />
 			Add skill
 		</Button>
 	);
 	const headerActions = (
 		<div className="flex items-center gap-2">
 			<Button
-				size="sm"
 				variant="outline"
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
 			>
-				{isExportingAll && <Spinner className="size-4" loading />}
+				{isExportingAll ? (
+					<Spinner className="size-4" loading />
+				) : (
+					<FolderDownIcon />
+				)}
 				Export all
 			</Button>
 			{addSkillAction}
@@ -305,12 +313,10 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 					) : (
 						skills.map((skill) => (
 							<TableRow key={skill.id}>
-								<TableCell className="font-mono text-content-primary">
-									{skill.name}
-								</TableCell>
+								<TableCell>{skill.name}</TableCell>
 								<TableCell>
 									{skill.description || (
-										<span className="text-content-secondary">
+										<span className="text-content-disabled">
 											No description
 										</span>
 									)}
