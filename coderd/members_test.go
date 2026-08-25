@@ -98,6 +98,24 @@ func TestMembersWithLegacyRole(t *testing.T) {
 	// org's default member roles. The stale default must not fail it.
 	coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+	// Membership responses hide the stale grant so role editors do not
+	// display or resubmit it.
+	members, err := client.OrganizationMembers(ctx, owner.OrganizationID)
+	require.NoError(t, err)
+	for _, m := range members {
+		if m.UserID != member.ID {
+			continue
+		}
+		for _, role := range m.Roles {
+			require.NotEqual(t, "agents-access", role.Name)
+		}
+	}
+
+	// Organization responses hide the stale default role the same way.
+	orgResp, err := client.Organization(ctx, owner.OrganizationID)
+	require.NoError(t, err)
+	require.NotContains(t, orgResp.DefaultOrgMemberRoles, "agents-access")
+
 	// Restore the defaults so the stale grant is no longer implied and the
 	// next update must validate its removal.
 	updateOrg.DefaultOrgMemberRoles = org.DefaultOrgMemberRoles

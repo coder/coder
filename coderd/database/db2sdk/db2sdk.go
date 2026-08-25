@@ -919,11 +919,14 @@ func Organization(organization database.Organization) codersdk.Organization {
 			DisplayName: organization.DisplayName,
 			Icon:        organization.Icon,
 		},
-		Description:           organization.Description,
-		CreatedAt:             organization.CreatedAt,
-		UpdatedAt:             organization.UpdatedAt,
-		IsDefault:             organization.IsDefault,
-		DefaultOrgMemberRoles: organization.DefaultOrgMemberRoles,
+		Description: organization.Description,
+		CreatedAt:   organization.CreatedAt,
+		UpdatedAt:   organization.UpdatedAt,
+		IsDefault:   organization.IsDefault,
+		// Stored default role lists may retain retired built-in role names
+		// until a cleanup migration lands. Hide them so settings forms do
+		// not display or resubmit them.
+		DefaultOrgMemberRoles: slices.DeleteFunc(slices.Clone(organization.DefaultOrgMemberRoles), rbac.IsLegacyRoleName),
 	}
 }
 

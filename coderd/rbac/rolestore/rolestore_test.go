@@ -46,6 +46,30 @@ func TestExpandCustomRoleRoles(t *testing.T) {
 	require.Len(t, roles, 1, "role found")
 }
 
+func TestExpandLegacyRoleName(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	// Simulate a custom role that took the name before it became a
+	// reserved built-in role name. Expanding a stored grant of the
+	// retired name must not resurrect the custom role.
+	dbgen.CustomRole(t, db, database.CustomRole{
+		Name: "agents-access",
+		OrganizationID: uuid.NullUUID{
+			UUID:  org.ID,
+			Valid: true,
+		},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	roles, err := rolestore.Expand(ctx, db, []rbac.RoleIdentifier{{Name: "agents-access", OrganizationID: org.ID}})
+	require.NoError(t, err)
+	require.Empty(t, roles, "retired role names expand to nothing")
+}
+
 func TestPrefetchCustomRoles(t *testing.T) {
 	t.Parallel()
 
