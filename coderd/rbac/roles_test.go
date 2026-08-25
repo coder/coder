@@ -1805,27 +1805,27 @@ func TestDBPurgeBoundaryLogDelete(t *testing.T) {
 	require.Error(t, err, "DBPurge must not read boundary logs")
 }
 
-// TestLegacyRoleNames verifies retired built-in role names stay reserved and
+// TestRetiredRoleNames verifies retired built-in role names stay reserved and
 // that stale stored grants of them expand to nothing instead of failing.
-func TestLegacyRoleNames(t *testing.T) {
+func TestRetiredRoleNames(t *testing.T) {
 	t.Parallel()
 
-	const legacyName = "agents-access"
+	const retiredName = "agents-access"
 	orgID := uuid.New()
 
-	require.True(t, rbac.IsLegacyRoleName(legacyName))
-	// Legacy names stay reserved so custom roles cannot shadow them.
-	require.True(t, rbac.ReservedRoleName(legacyName))
+	require.True(t, rbac.IsRetiredRoleName(retiredName))
+	// Retired names stay reserved so custom roles cannot shadow them.
+	require.True(t, rbac.ReservedRoleName(retiredName))
 
-	// Legacy names do not resolve to a role...
-	_, err := rbac.RoleByName(rbac.RoleIdentifier{Name: legacyName})
+	// Retired names do not resolve to a role...
+	_, err := rbac.RoleByName(rbac.RoleIdentifier{Name: retiredName})
 	require.Error(t, err)
 
 	// ...but stored role arrays may still contain them, so expansion drops
 	// them instead of failing.
 	roles, err := rbac.RoleIdentifiers{
-		{Name: legacyName},
-		{Name: legacyName, OrganizationID: orgID},
+		{Name: retiredName},
+		{Name: retiredName, OrganizationID: orgID},
 		rbac.ScopedRoleOrgAuditor(orgID),
 	}.Expand()
 	require.NoError(t, err)

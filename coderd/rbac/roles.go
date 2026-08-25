@@ -340,27 +340,27 @@ type RoleOptions struct {
 	NoChatSharing        bool
 }
 
-// legacyRoleNames contains retired built-in role names. They stay reserved so
+// retiredRoleNames contains retired built-in role names. They stay reserved so
 // a custom role cannot take a name that older binaries still resolve as a
 // built-in role, which would silently shadow the custom permissions on
 // rollback. Stored role arrays and org default role lists may still contain
 // these names until a data cleanup migration lands, so role expansion and
 // assignment validation treat them as grants of nothing instead of failing.
-var legacyRoleNames = map[string]struct{}{
+var retiredRoleNames = map[string]struct{}{
 	"agents-access": {},
 }
 
-// IsLegacyRoleName reports whether name is a retired built-in role name that
+// IsRetiredRoleName reports whether name is a retired built-in role name that
 // may still appear in stored role arrays.
-func IsLegacyRoleName(name string) bool {
-	_, ok := legacyRoleNames[name]
+func IsRetiredRoleName(name string) bool {
+	_, ok := retiredRoleNames[name]
 	return ok
 }
 
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
-	if _, ok := legacyRoleNames[name]; ok {
+	if _, ok := retiredRoleNames[name]; ok {
 		return true
 	}
 	_, ok := loadBuiltinRoles()[name]
@@ -988,7 +988,7 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
-		if IsLegacyRoleName(n.Name) {
+		if IsRetiredRoleName(n.Name) {
 			// Retired role names grant nothing and cannot be re-created as
 			// custom roles, so stale stored grants are dropped instead of
 			// failing expansion.

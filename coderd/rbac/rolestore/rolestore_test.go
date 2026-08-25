@@ -46,7 +46,7 @@ func TestExpandCustomRoleRoles(t *testing.T) {
 	require.Len(t, roles, 1, "role found")
 }
 
-func TestExpandLegacyRoleName(t *testing.T) {
+func TestExpandRetiredRoleName(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)

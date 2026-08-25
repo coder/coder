@@ -1420,7 +1420,7 @@ func (q *querier) canAssignRoles(ctx context.Context, orgID uuid.UUID, added, re
 	// data (implied org defaults), never via explicit grants, which the
 	// role-update paths reject before reaching this filter.
 	grantedRoles = slices.DeleteFunc(grantedRoles, func(r rbac.RoleIdentifier) bool {
-		return rbac.IsLegacyRoleName(r.Name)
+		return rbac.IsRetiredRoleName(r.Name)
 	})
 	customRoles := make([]rbac.RoleIdentifier, 0)
 	// Validate that the roles being assigned are valid.
@@ -7875,13 +7875,13 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	if err != nil {
 		return database.OrganizationMember{}, err
 	}
-	// Explicitly granting a retired role is rejected. Legacy-name tolerance
+	// Explicitly granting a retired role is rejected. Retired-name tolerance
 	// only covers stored grants and implied org defaults that linger until
 	// the cleanup migration lands; without this check the request would
 	// skip validation and persist a hidden grant that a binary rollback
 	// resolves again.
 	for _, role := range scopedGranted {
-		if rbac.IsLegacyRoleName(role.Name) {
+		if rbac.IsRetiredRoleName(role.Name) {
 			return database.OrganizationMember{}, xerrors.Errorf("role %q is retired and cannot be assigned", role.Name)
 		}
 	}
@@ -7961,6 +7961,15 @@ func (q *querier) UpdateOrganization(ctx context.Context, arg database.UpdateOrg
 			scopedOrgRoleIdentifiers(existing.DefaultOrgMemberRoles, arg.ID),
 			scopedOrgRoleIdentifiers(arg.DefaultOrgMemberRoles, arg.ID),
 		)
+		// Newly added defaults must not include retired names, which
+		// canAssignRoles tolerates only so stale stored defaults keep
+		// working until the cleanup migration lands. Removals stay
+		// tolerated so those stale defaults can be cleaned up.
+		for _, role := range added {
+			if rbac.IsRetiredRoleName(role.Name) {
+				return database.Organization{}, xerrors.Errorf("role %q is retired and cannot be a default role", role.Name)
+			}
+		}
 		if err := q.canAssignRoles(ctx, arg.ID, added, removed); err != nil {
 			return database.Organization{}, err
 		}
@@ -8511,11 +8520,11 @@ func (q *querier) UpdateUserRoles(ctx context.Context, arg database.UpdateUserRo
 		return database.User{}, err
 	}
 
-	// Explicitly granting a retired role is rejected. Legacy-name tolerance
+	// Explicitly granting a retired role is rejected. Retired-name tolerance
 	// only covers stored grants that linger until the cleanup migration
 	// lands.
 	for _, roleName := range arg.GrantedRoles {
-		if rbac.IsLegacyRoleName(roleName) {
+		if rbac.IsRetiredRoleName(roleName) {
 			return database.User{}, xerrors.Errorf("role %q is retired and cannot be assigned", roleName)
 		}
 	}

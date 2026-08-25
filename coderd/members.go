@@ -515,7 +515,7 @@ func convertOrganizationMembers(ctx context.Context, db database.Store, mems []d
 		// cleanup migration lands. They grant nothing, so hide them from
 		// responses to keep role editors from displaying or resubmitting
 		// them.
-		activeRoles := slices.DeleteFunc(slices.Clone(m.Roles), rbac.IsLegacyRoleName)
+		activeRoles := slices.DeleteFunc(slices.Clone(m.Roles), rbac.IsRetiredRoleName)
 		converted = append(converted, codersdk.OrganizationMember{
 			UserID:         m.UserID,
 			OrganizationID: m.OrganizationID,

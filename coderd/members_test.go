@@ -6,14 +6,17 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -52,10 +55,10 @@ func TestAddMember(t *testing.T) {
 	})
 }
 
-// TestMembersWithLegacyRole verifies that stale grants of retired built-in
+// TestMembersWithRetiredRole verifies that stale grants of retired built-in
 // roles, which linger in the database until a cleanup migration lands, do
 // not break membership management.
-func TestMembersWithLegacyRole(t *testing.T) {
+func TestMembersWithRetiredRole(t *testing.T) {
 	t.Parallel()
 
 	// The raw, unauthorized store is required to seed stale data without
@@ -145,6 +148,24 @@ func TestMembersWithLegacyRole(t *testing.T) {
 
 	_, err = client.UpdateUserRoles(ctx, member.ID.String(), codersdk.UpdateRoles{
 		Roles: []string{"agents-access"},
+	})
+	require.ErrorContains(t, err, "retired")
+
+	// Adding the retired role to the org defaults is rejected at the
+	// authorization boundary, mirroring the explicit grant paths. The
+	// authorized store is used on purpose, unlike the raw seeding above.
+	authzdb := dbauthz.New(db, rbac.NewAuthorizer(prometheus.NewRegistry()), testutil.Logger(t), coderdtest.AccessControlStorePointer())
+	ownerUser, err := client.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	ownerSubject := coderdtest.AuthzUserSubjectWithDB(ctx, t, db, ownerUser)
+	_, err = authzdb.UpdateOrganization(dbauthz.As(ctx, ownerSubject), database.UpdateOrganizationParams{
+		ID:                    org.ID,
+		UpdatedAt:             dbtime.Now(),
+		Name:                  org.Name,
+		DisplayName:           org.DisplayName,
+		Description:           org.Description,
+		Icon:                  org.Icon,
+		DefaultOrgMemberRoles: append(org.DefaultOrgMemberRoles, "agents-access"),
 	})
 	require.ErrorContains(t, err, "retired")
 }
