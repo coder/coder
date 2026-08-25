@@ -8,25 +8,26 @@ Prioritize correctness over agreement. State uncertainty instead of guessing, an
 
 Load only the guidance relevant to the task:
 
-| Scope                                               | Guidance                                                |
-|-----------------------------------------------------|---------------------------------------------------------|
-| Development servers, Git, hooks, and routine checks | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
-| API endpoints and Swagger                           | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)               |
-| Go                                                  | [GO.md](.claude/docs/GO.md)                             |
-| Tests and concurrency                               | [TESTING.md](.claude/docs/TESTING.md)                   |
-| Database and SQLC                                   | [DATABASE.md](.claude/docs/DATABASE.md)                 |
-| OAuth2 and authorization                            | [OAUTH2.md](.claude/docs/OAUTH2.md)                     |
-| Architecture                                        | [ARCHITECTURE.md](.claude/docs/ARCHITECTURE.md)         |
-| Troubleshooting                                     | [TROUBLESHOOTING.md](.claude/docs/TROUBLESHOOTING.md)   |
-| Observability                                       | [OBSERVABILITY.md](.claude/docs/OBSERVABILITY.md)       |
-| Isolation, ports, and cleanup                       | [DEV_ISOLATION.md](.claude/docs/DEV_ISOLATION.md)       |
-| Failure reports                                     | [AGENT_FAILURES.md](.claude/docs/AGENT_FAILURES.md)     |
-| PR descriptions                                     | [PR_STYLE_GUIDE.md](.claude/docs/PR_STYLE_GUIDE.md)     |
-| Existing docs prose                                 | [docs style guide](docs/.style/style-guide/README.md)   |
-| Docs scope and routing                              | [content guidelines](docs/.style/content-guidelines.md) |
-| Docs structure and research                         | [DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md) |
-| New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)  |
-| Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                        |
+| Scope                                               | Guidance                                                     |
+|-----------------------------------------------------|--------------------------------------------------------------|
+| Development servers, Git, hooks, and routine checks | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)                    |
+| API endpoints and Swagger                           | [WORKFLOWS.md](.claude/docs/WORKFLOWS.md)                    |
+| Go                                                  | [GO.md](.claude/docs/GO.md)                                  |
+| Tests and concurrency                               | [TESTING.md](.claude/docs/TESTING.md)                        |
+| Database and SQLC                                   | [DATABASE.md](.claude/docs/DATABASE.md)                      |
+| OAuth2 and authorization                            | [OAUTH2.md](.claude/docs/OAUTH2.md)                          |
+| Architecture                                        | [ARCHITECTURE.md](.claude/docs/ARCHITECTURE.md)              |
+| Troubleshooting                                     | [TROUBLESHOOTING.md](.claude/docs/TROUBLESHOOTING.md)        |
+| Observability                                       | [OBSERVABILITY.md](.claude/docs/OBSERVABILITY.md)            |
+| Isolation, ports, and cleanup                       | [DEV_ISOLATION.md](.claude/docs/DEV_ISOLATION.md)            |
+| Failure reports                                     | [AGENT_FAILURES.md](.claude/docs/AGENT_FAILURES.md)          |
+| PR descriptions                                     | [PR_STYLE_GUIDE.md](.claude/docs/PR_STYLE_GUIDE.md)          |
+| Existing docs prose                                 | [docs style guide](docs/.style/style-guide/README.md)        |
+| Docs scope and routing                              | [content guidelines](docs/.style/content-guidelines.md)      |
+| Docs structure and research                         | [DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md)      |
+| New, moved, or restructured docs                    | [write-docs skill](.claude/skills/write-docs/SKILL.md)       |
+| New telemetry events or fields                      | [add-telemetry skill](.claude/skills/add-telemetry/SKILL.md) |
+| Frontend                                            | [site/AGENTS.md](site/AGENTS.md)                             |
 
 For changes under `site/src/`, also read [FRONTEND_PATTERNS.md](.claude/docs/FRONTEND_PATTERNS.md). For chatd work, read [coderd/x/chatd/ARCHITECTURE.md](coderd/x/chatd/ARCHITECTURE.md). When the docs style guide and the content guidelines conflict, the content guidelines govern scope and routing.
 
