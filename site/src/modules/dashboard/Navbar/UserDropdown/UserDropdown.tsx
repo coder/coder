@@ -37,6 +37,7 @@ interface UserDropdownProps {
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	canViewLicenses: boolean;
 }
 
 export const UserDropdown: FC<UserDropdownProps> = ({
@@ -44,6 +45,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	user,
 	supportLinks,
 	onSignOut,
+	canViewLicenses,
 }) => {
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data, isError } = useQuery({
@@ -109,6 +111,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
+					canViewLicenses={canViewLicenses}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>

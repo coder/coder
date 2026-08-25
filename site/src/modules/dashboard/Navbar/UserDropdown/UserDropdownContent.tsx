@@ -22,8 +22,29 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
+import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
+
+const CodernautsSVG = () => (
+	<svg
+		viewBox="0 0 24 24"
+		fill="none"
+		stroke="currentColor"
+		strokeWidth="1.5"
+		strokeLinecap="round"
+		strokeLinejoin="round"
+		xmlns="http://www.w3.org/2000/svg"
+	>
+		<path d="M7,10 L5,15 L19,15 L17,10 Z" />
+		<path d="M8,10 L9,7 L11,5 L13,5 L15,7 L16,10" />
+		<line x1="6" y1="15" x2="4" y2="19" />
+		<line x1="2" y1="19" x2="6" y2="19" />
+		<line x1="18" y1="15" x2="20" y2="19" />
+		<line x1="18" y1="19" x2="22" y2="19" />
+		<path d="M10,15 L10.5,18 L13.5,18 L14,15" />
+	</svg>
+);
 
 interface UserDropdownContentProps {
 	user: TypesGen.User;
@@ -33,6 +54,7 @@ interface UserDropdownContentProps {
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	canViewLicenses?: boolean;
 }
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
@@ -41,6 +63,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	profileExtra,
 	supportLinks,
 	onSignOut,
+	canViewLicenses,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
@@ -95,26 +118,11 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 			)}
 			<DropdownMenuItem asChild>
 				<Link to="/coder-cup">
-					<svg
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						strokeWidth="1.5"
-						strokeLinecap="round"
-						strokeLinejoin="round"
-						xmlns="http://www.w3.org/2000/svg"
-					>
-						<path d="M7,10 L5,15 L19,15 L17,10 Z" />
-						<path d="M8,10 L9,7 L11,5 L13,5 L15,7 L16,10" />
-						<line x1="6" y1="15" x2="4" y2="19" />
-						<line x1="2" y1="19" x2="6" y2="19" />
-						<line x1="18" y1="15" x2="20" y2="19" />
-						<line x1="18" y1="19" x2="22" y2="19" />
-						<path d="M10,15 L10.5,18 L13.5,18 L14,15" />
-					</svg>
+					<CodernautsSVG />
 					<span>Codernauts</span>
 				</Link>
 			</DropdownMenuItem>{" "}
+			<UserDropdownPremiumTrialCTA canViewLicenses={canViewLicenses ?? false} />
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>
 				<TooltipTrigger asChild>

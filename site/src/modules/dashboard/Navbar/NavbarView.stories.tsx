@@ -74,6 +74,7 @@ const meta: Meta<typeof NavbarView> = {
 		},
 		canViewModels: false,
 		canCreateChat: true,
+		canViewLicenses: false,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],

@@ -70,6 +70,7 @@ export const Navbar: React.FC = () => {
 			}}
 			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);
