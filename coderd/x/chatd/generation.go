@@ -459,6 +459,11 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		cleanup := prepared.Cleanup
+		// Every preparation reconnects to MCP; record its connect
+		// outcomes as soon as preparation succeeds so exits that
+		// never reach the action dispatch (decision errors and
+		// actions that skip Ensure) still contribute to the run.
+		input.DebugTurn.RecordMCPConnectSummaries(prepared.Debug)
 		var decision generationDecision
 		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
 			decision = generationDecision{kind: generationActionGenerateAssistant}
@@ -494,12 +499,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
-
-		// Every preparation reconnects to MCP, including ones whose
-		// action below never reaches Ensure; record each
-		// preparation's connect outcomes at the single dispatch
-		// point.
-		input.DebugTurn.RecordMCPConnectSummaries(prepared.Debug)
 
 		var actionErr error
 		switch decision.kind {
