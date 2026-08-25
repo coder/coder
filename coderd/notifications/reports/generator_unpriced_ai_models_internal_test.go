@@ -26,16 +26,9 @@ func TestReportUnpricedAIModels(t *testing.T) {
 
 		ctx, logger, db, _, notifEnq, clk := setup(t)
 		owner := seedOwner(t, db)
-		notifEnq.Clear()
-
-		// Given: a model used without a price before the job ever ran.
 		seedUnpricedUsage(t, db, "anthropic", database.AIProviderTypeAnthropic, "claude-opus-4-8", clk.Now())
-
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: the report covers the preceding week rather than waiting for
-		// another one to pass.
 		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
 		require.Len(t, sent, 1)
 		require.Equal(t, owner.ID, sent[0].UserID)
@@ -57,13 +50,10 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 
-		// When: the generator ticks again well inside the frequency window.
 		notifEnq.Clear()
 		clk.Advance(time.Hour)
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: the persisted last-generated timestamp prevents another report
-		// within the weekly frequency window.
 		require.Empty(t, notifEnq.Sent())
 	})
 
@@ -79,15 +69,11 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 
-		// Given: the admin did not price it and the model is still in use.
 		notifEnq.Clear()
 		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
-
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: the model is still unpriced and in use, so it is reported again.
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 	})
 
@@ -104,13 +90,9 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 		notifEnq.Clear()
 
-		// Given: one report window passes with no further use of the model.
 		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
-
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: a model nobody uses is not worth pricing.
 		require.Empty(t, notifEnq.Sent())
 	})
 
@@ -123,14 +105,9 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
-		// Given: a price arrives by any route. The report derives the unpriced
-		// set from the price table, so it needs no hook into how it was set.
 		seedPrice(ctx, t, db, "anthropic", "claude-opus-4-8")
-
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then
 		require.Empty(t, notifEnq.Sent())
 	})
 
@@ -143,11 +120,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		provider := seedProvider(t, db, "self-hosted", database.AIProviderTypeOpenaiCompat)
 		seedInterception(t, db, initiator, provider, "llama-4", clk.Now())
 
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: openai-compat providers cannot be priced, so reporting them
-		// would be permanent noise.
 		require.Empty(t, notifEnq.Sent())
 	})
 
@@ -162,10 +136,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then
 		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
 		require.Len(t, sent, 2)
 		recipients := []uuid.UUID{sent[0].UserID, sent[1].UserID}
@@ -182,8 +154,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		// Given: more unpriced models than a single report lists. The most used
-		// model is seeded twice so its position in the report is deterministic.
+		// Seed the first model twice so it sorts ahead of the other models.
 		const overflow = 5
 		seedInterception(t, db, initiator, provider, "most-used-model", clk.Now())
 		seedInterception(t, db, initiator, provider, "most-used-model", clk.Now())
@@ -191,10 +162,8 @@ func TestReportUnpricedAIModels(t *testing.T) {
 			seedInterception(t, db, initiator, provider, fmt.Sprintf("model-%03d", i), clk.Now())
 		}
 
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: the models with the most unreported usage survive truncation.
 		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
 		require.Len(t, sent, 1)
 		models := modelsFromPayload(t, sent[0].Data)
@@ -212,18 +181,14 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		// Given: a quiet week, then a week in which one model is used.
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Empty(t, notifEnq.Sent())
 
 		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
 		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
-		// When
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
-		// Then: the empty run still advanced the window, so this report covers
-		// one week rather than every week since usage was last seen.
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 	})
 }
@@ -254,7 +219,6 @@ func seedInterception(t *testing.T, db database.Store, initiator database.User, 
 	}, nil)
 }
 
-// seedUnpricedUsage records use of a model that holds no price.
 func seedUnpricedUsage(t *testing.T, db database.Store, providerName string, providerType database.AIProviderType, model string, startedAt time.Time) {
 	t.Helper()
 	seedInterception(t, db, dbgen.User(t, db, database.User{}), seedProvider(t, db, providerName, providerType), model, startedAt)
@@ -293,8 +257,6 @@ func TestReportUnpricedAIModels_ConcurrentReplicas(t *testing.T) {
 	provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 	seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
 
-	// When: two replicas tick at the same time. Each report holds its own
-	// lock, so this contends only with itself.
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Add(1)
@@ -308,7 +270,5 @@ func TestReportUnpricedAIModels_ConcurrentReplicas(t *testing.T) {
 	}
 	wg.Wait()
 
-	// Then: the advisory lock makes one of them skip, and the persisted
-	// timestamp stops the loser from reporting the same window afterwards.
 	require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 }
