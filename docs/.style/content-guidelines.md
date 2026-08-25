@@ -122,9 +122,10 @@ than visible text, so rung 2 offers nothing to quote, and an admin page
 about auto-archive falls to rung 3: it says chats that are still working or
 waiting on the user are never selected, without naming enum values.
 
-Keep identifiers that fail the test out of the page. When the reviewer needs
-the pointer, give it in the PR discussion (a comment or review thread naming
-the file and symbol), not in the published page.
+Keep identifiers that fail the test out of the page, and name what you
+stripped, with its file and symbol, in the PR discussion (a comment or
+review thread). That gives the reviewer, and whoever re-verifies the
+paraphrase later, the handle without having to re-derive it.
 
 Related rules that draw the same boundary:
 [Describe the current version, for the end user](#describe-the-current-version-for-the-end-user)
