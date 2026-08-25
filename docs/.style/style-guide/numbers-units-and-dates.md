@@ -1,47 +1,66 @@
 # Numbers, units, and dates
 
-Coder documentation uses digits for all numbers in prose, a non-breaking space between a number and its unit, and the `Month Day, Year` date format.
+Coder documentation uses digits for numbers 6 and higher in prose, allows either digits or words for 0 through 5, a non-breaking space between a number and its unit, and the `Month Day, Year` date format.
 The rules on this page set those defaults.
 
-## Digits everywhere
+## Digits for 6 and higher; 0 through 5 either way
 
-Use digits for all numbers in prose, including small whole numbers.
+Use digits for numbers 6 and higher in prose.
 The traditional Chicago-style rule of "spell out one through nine" optimizes for print journalism.
 Digits are more accessible for the international and non-native-English audience that reads Coder docs, scan faster in technical prose, and stay legible through machine translation.
 
-If a sentence would start with a digit, restructure the sentence so a word comes first.
+Numbers 0 through 5 can go either way: write the digit or the word, whichever reads better in the sentence.
+"6 months" and "90 days" read better as digits; "3 parameters" and "three parameters" both read fine, so this page doesn't force a choice below 6.
+
+Two cases override that flexibility:
+
+- **"More than X" and "X or more," for X 0 through 5**: always spell out the word ("more than one," "five or more"), never the digit ("more than 1," "5 or more"). Numbers 6 and higher keep the general digit rule in this construction too ("more than 6," "12 or more").
+- **Literal technical values**, such as an exit code or a status code the reader matches or types verbatim: always use the digit, regardless of range, because the digit is the actual value ("exit code of 0," not "exit code of zero").
+
+If a sentence would start with a digit 6 or higher, restructure the sentence so a word comes first.
 Do not spell out the number to avoid the leading digit.
-Spelling out the number reintroduces the rule the digits-everywhere policy is meant to remove.
+Spelling out a number 6 or higher reintroduces the rule the digits policy is meant to remove.
 
 The rule covers counts, quantities, measurements, and values: the numbers a reader scans for.
-These uses stay spelled out:
-
-- Numbers that describe language itself, like word counts in a grammar discussion ("a contraction joins exactly two words") and numbers mentioned as words ("spell out first through ninth").
-- `One` when it works as `a single` or as a pronoun ("one topic per paragraph," "one of the two forms").
-
+Numbers that describe language itself stay spelled out regardless of value, like word counts in a grammar discussion ("a contraction joins exactly two words") and numbers mentioned as words ("spell out first through ninth").
 Rewriting those as digits changes the register of the sentence without making it easier to scan.
 
 **Do**:
 
-> The agent retries 3 times before giving up.
+> The agent retries 6 times before giving up.
 >
 > Workspaces auto-stop after 8 hours of inactivity.
 >
-> The workspace has 5 connected users.
+> The template has 3 parameters.
+>
+> The template has three parameters.
+>
+> Configure more than one template for the group.
+>
+> Add five or more parameters before continuing.
+>
+> The CLI exits with an exit code of 0 on success and 1 on failure.
 
 **Don't**:
 
-> The agent retries three times before giving up.
+> The agent retries six times before giving up.
 >
 > Workspaces auto-stop after eight hours of inactivity.
 >
-> 5 users connected to the workspace.
+> 90 users connected to the workspace.
+>
+> Configure more than 1 template for the group.
+>
+> Add 5 or more parameters before continuing.
+>
+> The CLI exits with an exit code of zero on success and one on failure.
 
-The first and second **Don't** examples spell out small numbers.
-The third example starts a sentence with a digit.
-Restructure to put a word first ("The workspace has 5 connected users.").
+The first and second **Don't** examples spell out numbers 6 and higher.
+The third example starts a sentence with a digit; restructure to put a word first ("The workspace has 90 connected users."), not spell out `90` to dodge the restructure.
+The fourth and fifth use the digit inside a "more than X" / "X or more" construction, where 0 through 5 always spells out the word.
+The sixth spells out `zero` and `one`, but both are literal exit-code values the reader matches against directly; use the digit there instead.
 
-*Enforced by `Coder.DigitsEverywhere` (planned, ships at `warning` severity because the rule is preference, not hard policy).*
+*Enforced by `Coder.DigitsSixPlus` (planned, ships at `warning` severity because the rule is preference, not hard policy).*
 
 ## Non-breaking space between number and unit
 
@@ -130,7 +149,7 @@ The 12-hour rule is for prose only.
 
 Spell out ordinals `first` through `ninth`.
 Use digits with a suffix for `10th` and higher.
-Ordinals are the one place the digits-everywhere rule makes an exception, because spelled-out ordinals read more naturally in prose at low counts.
+Ordinals are the one place the digits policy makes an exception for numbers 6 through 9, spelling out the word instead of the digit form the cardinal-number rule would otherwise require, because spelled-out ordinals read more naturally in prose at low counts.
 
 **Do**:
 
