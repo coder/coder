@@ -8,10 +8,6 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 )
 
-// TestBaseURLHostname pins the strict contract: only an absolute http
-// or https URL with a hostname yields a hostname. Scheme-less and
-// otherwise malformed values return "" so callers surface the provider
-// as misconfigured rather than routing to a synthesized host.
 func TestBaseURLHostname(t *testing.T) {
 	t.Parallel()
 
