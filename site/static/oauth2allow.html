@@ -71,8 +71,7 @@ links */}}
       #scope-list {
         list-style: none;
         margin-top: 12px;
-        /* The container centres its text, which would land permissions of
-           differing lengths on differing left edges. */
+        /* The container centres its text, which would stagger the left edges. */
         text-align: left;
         padding-left: 8px;
       }
@@ -133,17 +132,15 @@ links */}}
         <span class="user-name">{{ .Username }}</span> account with these
         permissions?
       </p>
-      {{- /* The roles are explicit because WebKit drops implicit list
-      semantics when list-style is none, leaving VoiceOver to announce the
-      permissions as loose text. */}}
+      {{- /* WebKit drops implicit list semantics when list-style is none,
+      leaving VoiceOver to announce the permissions as loose text. */}}
       <ul id="scope-list" role="list">
         {{- range .Scopes }}
         <li role="listitem">{{ . }}</li>
         {{- end }}
       </ul>
       {{- /* Scope identifiers read narrower than they grant: template:read
-      reaches every template in the deployment, not the one in play. Qualified
-      until the page can render a description per scope. */}}
+      reaches every template in the deployment, not the one in play. */}}
       <p id="scope-disclaimer">
         These are technical permission names. Grant them only to an application
         you trust.

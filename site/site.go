@@ -798,16 +798,11 @@ type RenderOAuthAllowData struct {
 	DashboardURL string
 	CSRFToken    string
 	Username     string
-	// Scopes are the permissions the authorization will carry, listed for the
-	// user before they approve it.
+	// Scopes are the permissions listed for the user to approve.
 	Scopes []string
-	// Unrestricted states that the authorization carries full account access.
-	// The page says so in prose rather than listing Scopes, since the name a
-	// full grant carries is not one a user would recognize.
-	//
-	// It is a field of its own because an empty Scopes is the opposite grant.
-	// Deciding by list length would announce full access for the one carrying
-	// no permission at all.
+	// Unrestricted states full account access, which the page says in prose
+	// rather than by name. A field of its own because an empty Scopes is the
+	// opposite grant: deciding by list length would call it full access.
 	Unrestricted bool
 }
 
@@ -818,11 +813,9 @@ type RenderOAuthAllowData struct {
 // This has to be done statically because Golang has to handle the full request.
 // It cannot defer to the FE typescript easily.
 func RenderOAuthAllowPage(rw http.ResponseWriter, r *http.Request, data RenderOAuthAllowData) {
-	// A bounded grant carrying no permission is not something to ask a user to
-	// approve: the page would promise "these permissions" above an empty list.
+	// The page would otherwise promise "these permissions" above an empty list.
 	// Guarded here rather than in the template, which branches on Unrestricted
-	// alone. No caller produces this today; a future one computing the grant
-	// itself is what this is for.
+	// alone. No caller produces this today.
 	if !data.Unrestricted && len(data.Scopes) == 0 {
 		RenderStaticErrorPage(rw, r, ErrorPageData{
 			Status:      http.StatusInternalServerError,
