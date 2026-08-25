@@ -79,6 +79,11 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 	);
 };
 
+type DiffFileProps = CommonEditorProps & {
+	original: string;
+	modified: string;
+};
+
 // Renders the diff editor and owns its model cleanup. Scoping this to its own
 // component means the cleanup effect runs whenever the diff editor unmounts,
 // including when SyntaxHighlighter stays mounted but switches diff -> plain for
@@ -88,9 +93,12 @@ export const SyntaxHighlighter: FC<SyntaxHighlighterProps> = ({
 // the models mid-teardown (which throws), so we dispose them ourselves after
 // React has torn the editor down. Without this the models accumulate unbounded
 // as users open template versions until the tab runs out of memory.
-const DiffFile: FC<
-	{ original: string; modified: string } & CommonEditorProps
-> = ({ original, modified, onMount, ...editorProps }) => {
+const DiffFile: FC<DiffFileProps> = ({
+	original,
+	modified,
+	onMount,
+	...editorProps
+}) => {
 	const diffModelsRef = useRef<{
 		original: Monaco.editor.ITextModel;
 		modified: Monaco.editor.ITextModel;
