@@ -92,7 +92,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					aria-required={required}
 					data-testid="organization-autocomplete"
 					className={cn(
-						"w-full justify-start gap-2 font-normal",
+						"group w-full justify-start gap-2 font-normal",
 						triggerClassName,
 					)}
 				>
@@ -112,7 +112,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
-					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 cursor-pointer text-content-secondary transition-colors group-hover:text-content-primary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
