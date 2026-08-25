@@ -1,4 +1,4 @@
-import { ChevronRightIcon, InfoIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatModel } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -126,22 +126,11 @@ export const ModelRow: FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					<div className="flex items-center gap-1">
-						<span className="truncate text-sm font-medium leading-6 text-content-secondary">
-							Unset
-						</span>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<InfoIcon
-									aria-label="Provider status"
-									className="size-3 text-content-secondary"
-								/>
-							</TooltipTrigger>
-							<TooltipContent side="bottom" className="max-w-[240px]">
-								The provider connected to this model has been deleted.
-							</TooltipContent>
-						</Tooltip>
-					</div>
+					// The Unavailable badge beside the name explains the missing
+					// provider, so "Unset" needs no tooltip of its own.
+					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+						Unset
+					</span>
 				)}
 			</TableCell>
 			<TableCell className="min-w-0">

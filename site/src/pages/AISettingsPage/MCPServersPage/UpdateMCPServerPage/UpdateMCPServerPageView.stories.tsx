@@ -118,6 +118,9 @@ export const DeleteOnly: Story = {
 			name: "Server enabled",
 		});
 		await expect(enabledSwitch).toBeDisabled();
+		await expect(enabledSwitch).toHaveAccessibleDescription(
+			"You do not have permission to update this server.",
+		);
 		await expect(canvas.getByRole("button", { name: "Delete" })).toBeEnabled();
 	},
 };

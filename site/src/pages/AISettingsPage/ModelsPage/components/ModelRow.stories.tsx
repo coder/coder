@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { mockClaude, mockGPT5 } from "../testFixtures";
 import { ModelRow } from "./ModelRow";
@@ -52,19 +52,23 @@ export const WithoutProviderForcesDisabled: Story = {
 		providerLabel: "",
 		hasProvider: false,
 		providerEnabled: false,
+		onClick: fn(),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Unset")).toBeInTheDocument();
-		await expect(canvas.getByText("Unavailable")).toBeInTheDocument();
 		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 
-		const info = canvas.getByLabelText("Provider status");
-		await userEvent.hover(info);
+		// The badge is keyboard-focusable and must open its tooltip without
+		// activating the clickable row.
+		const notice = canvas.getByText("Unavailable");
+		notice.focus();
 		const tooltip = await within(document.body).findByRole("tooltip");
 		await expect(tooltip).toHaveTextContent(
 			"The provider connected to this model has been deleted.",
 		);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onClick).not.toHaveBeenCalled();
 	},
 };
 

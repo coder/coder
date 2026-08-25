@@ -42,6 +42,7 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 			<div className="flex flex-col items-start gap-4">
 				<ModelFormBackLink />
 				<ErrorAlert error={loadError} />
+				<ModelOrganizationSelect label="Organization" triggerClassName="w-60" />
 			</div>
 		);
 	}

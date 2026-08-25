@@ -164,7 +164,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 								) : undefined
 							}
 						/>
-					) : filteredServers.length === 0 ? (
+					) : servers.length > 0 && filteredServers.length === 0 ? (
 						<TableEmpty
 							message="No servers match your search"
 							description="Try a different search term."

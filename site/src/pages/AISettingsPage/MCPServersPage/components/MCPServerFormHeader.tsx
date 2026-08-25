@@ -1,5 +1,5 @@
 import { ArrowLeftIcon } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
@@ -41,6 +41,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	onRequestDelete,
 	onToggleEnabled,
 }) => {
+	const disabledReasonId = useId();
 	return (
 		<>
 			<div className="flex items-center justify-between">
@@ -87,7 +88,13 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 							}}
 							disabled={isDisabled || !onToggleEnabled}
 							aria-label="Server enabled"
+							aria-describedby={onToggleEnabled ? undefined : disabledReasonId}
 						/>
+						{!onToggleEnabled && (
+							<span id={disabledReasonId} className="sr-only">
+								You do not have permission to update this server.
+							</span>
+						)}
 						<span className="text-sm">Enable</span>
 					</div>
 				</div>
