@@ -7,6 +7,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 )
 
@@ -29,6 +30,18 @@ func partitionAmbiguousToolCalls(
 		if err := validateBuiltinToolInput(prepared, toolCall.ToolName, []byte(toolCall.Input)); err != nil {
 			rejected = append(rejected, ambiguousToolResult(toolCall, err))
 			continue
+		}
+		// Canonicalize alternate encodings the tool decoder accepts so a
+		// pre_tool_use consumer authorizes the same structure execution
+		// uses. Normalizing after validation keeps the duplicate-key
+		// check on the original bytes; re-validating checks the keys the
+		// alternate encoding was hiding.
+		if normalized, changed := normalizeBuiltinToolInput(prepared, toolCall.ToolName, []byte(toolCall.Input)); changed {
+			if err := validateBuiltinToolInput(prepared, toolCall.ToolName, normalized); err != nil {
+				rejected = append(rejected, ambiguousToolResult(toolCall, err))
+				continue
+			}
+			toolCall.Input = string(normalized)
 		}
 		allowed = append(allowed, toolCall)
 		allowedIndexes = append(allowedIndexes, i)
@@ -71,6 +84,20 @@ func validateBuiltinToolInput(prepared generationPrepared, toolName string, inpu
 		return toolschema.ValidateUnambiguous(info.Parameters, input)
 	}
 	return nil
+}
+
+// normalizeBuiltinToolInput canonicalizes alternate input encodings the
+// tool decoder accepts, so hooks and execution read one structure. Only
+// builtin tools are normalized; dynamic and MCP inputs are executed by
+// their own servers, which see the original bytes.
+func normalizeBuiltinToolInput(prepared generationPrepared, toolName string, input []byte) (json.RawMessage, bool) {
+	if canonical, aliased := subagentToolNameAliases[toolName]; aliased {
+		toolName = canonical
+	}
+	if !prepared.BuiltinToolNames[toolName] || toolName != chattool.EditFilesToolName {
+		return input, false
+	}
+	return chattool.NormalizeEditFilesInput(input)
 }
 
 // malformedToolResult reports input the tool decoder would reject anyway. It

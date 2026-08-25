@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
 
 func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
@@ -89,6 +90,88 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 		}
 		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
 		require.Len(t, rejected, 1)
+	})
+}
+
+// TestPartitionAmbiguousToolCallsNormalizesEditFiles guards the invariant
+// that a pre_tool_use consumer authorizes the same structure execution
+// decodes: a string-encoded files value is rewritten to the advertised
+// array form before admission, and content the string was hiding gets the
+// same ambiguity checks as plain input.
+func TestPartitionAmbiguousToolCallsNormalizesEditFiles(t *testing.T) {
+	t.Parallel()
+
+	editFiles := chattool.EditFiles(chattool.EditFilesOptions{})
+	prepared := generationPrepared{
+		Tools:            []fantasy.AgentTool{editFiles},
+		BuiltinToolNames: map[string]bool{chattool.EditFilesToolName: true},
+	}
+
+	t.Run("StringEncodedFilesNormalized", func(t *testing.T) {
+		t.Parallel()
+
+		call := fantasy.ToolCallContent{
+			ToolCallID: "call_encoded",
+			ToolName:   chattool.EditFilesToolName,
+			Input:      `{"files":"[{\"path\":\"/a.txt\",\"edits\":[{\"old_text\":\"x\",\"new_text\":\"y\"}]}]"}`,
+		}
+		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{call})
+		require.Empty(t, rejected)
+		require.Len(t, allowed, 1)
+		require.Equal(t, []int{0}, allowedIndexes)
+		require.JSONEq(t,
+			`{"files":[{"path":"/a.txt","edits":[{"old_text":"x","new_text":"y"}]}]}`,
+			allowed[0].Input)
+		var decoded map[string]json.RawMessage
+		require.NoError(t, json.Unmarshal([]byte(allowed[0].Input), &decoded))
+		require.True(t, json.Valid(decoded["files"]))
+		require.Equal(t, byte('['), decoded["files"][0], "files must be forwarded as an array, not a string")
+	})
+
+	t.Run("HiddenAmbiguityRejected", func(t *testing.T) {
+		t.Parallel()
+
+		call := fantasy.ToolCallContent{
+			ToolCallID: "call_hidden",
+			ToolName:   chattool.EditFilesToolName,
+			Input:      `{"files":"[{\"Path\":\"/a.txt\",\"edits\":[{\"old_text\":\"x\",\"new_text\":\"y\"}]}]"}`,
+		}
+		allowed, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{call})
+		require.Empty(t, allowed)
+		require.Len(t, rejected, 1)
+		require.Equal(t, "call_hidden", rejected[0].ToolCallID)
+	})
+
+	t.Run("PlainArrayUntouched", func(t *testing.T) {
+		t.Parallel()
+
+		input := `{"files":[{"path":"/a.txt","edits":[{"old_text":"x","new_text":"y"}]}]}`
+		call := fantasy.ToolCallContent{
+			ToolCallID: "call_plain",
+			ToolName:   chattool.EditFilesToolName,
+			Input:      input,
+		}
+		allowed, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{call})
+		require.Empty(t, rejected)
+		require.Len(t, allowed, 1)
+		require.Equal(t, input, allowed[0].Input, "already-canonical input must pass through byte-identical")
+	})
+
+	t.Run("NonBuiltinUntouched", func(t *testing.T) {
+		t.Parallel()
+
+		input := `{"files":"[{\"path\":\"/a.txt\",\"edits\":[{\"old_text\":\"x\",\"new_text\":\"y\"}]}]"}`
+		call := fantasy.ToolCallContent{
+			ToolCallID: "call_dynamic",
+			ToolName:   chattool.EditFilesToolName,
+			Input:      input,
+		}
+		allowed, _, rejected := partitionAmbiguousToolCalls(generationPrepared{
+			Tools: []fantasy.AgentTool{editFiles},
+		}, []fantasy.ToolCallContent{call})
+		require.Empty(t, rejected)
+		require.Len(t, allowed, 1)
+		require.Equal(t, input, allowed[0].Input, "non-builtin input belongs to its own executor")
 	})
 }
 

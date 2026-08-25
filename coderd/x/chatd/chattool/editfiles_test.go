@@ -822,6 +822,56 @@ func TestEditFiles_StringEncodedFilesRejectsBadContent(t *testing.T) {
 	}
 }
 
+func TestNormalizeEditFilesInput(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		input       string
+		wantChanged bool
+		want        string
+	}{
+		{
+			name:        "StringEncodedArrayNormalized",
+			input:       `{"files":"[{\"path\":\"/a.txt\",\"edits\":[{\"old_text\":\"x\",\"new_text\":\"y\"}]}]"}`,
+			wantChanged: true,
+			want:        `{"files":[{"path":"/a.txt","edits":[{"old_text":"x","new_text":"y"}]}]}`,
+		},
+		{
+			name:  "PlainArrayUnchanged",
+			input: `{"files":[{"path":"/a.txt","edits":[{"old_text":"x","new_text":"y"}]}]}`,
+		},
+		{
+			name:  "FilesMissingUnchanged",
+			input: `{"other":true}`,
+		},
+		{
+			name:  "StringNotJSONUnchanged",
+			input: `{"files":"lib/metrics.ts"}`,
+		},
+		{
+			name:  "StringEncodedObjectUnchanged",
+			input: `{"files":"{\"path\":\"/a.txt\"}"}`,
+		},
+		{
+			name:  "NonObjectInputUnchanged",
+			input: `"files"`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			normalized, changed := chattool.NormalizeEditFilesInput([]byte(tc.input))
+			require.Equal(t, tc.wantChanged, changed)
+			if tc.wantChanged {
+				require.JSONEq(t, tc.want, string(normalized))
+			} else {
+				require.Equal(t, tc.input, string(normalized))
+			}
+		})
+	}
+}
+
 func TestEditFiles_ToolResponseCarriesFileResults(t *testing.T) {
 	t.Parallel()
 
