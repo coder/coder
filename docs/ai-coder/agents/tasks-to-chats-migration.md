@@ -74,8 +74,9 @@ configured once in the control plane:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to **Admin settings** > **AI** > **Models**, select the correct
-   organization, add at least one model, and set it as the default.
+1. Navigate to **Admin settings** > **AI** > **Models**.
+1. Select the correct organization.
+1. Add at least one model, and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 
@@ -509,8 +510,7 @@ confirm the Chats API integration is working end-to-end.
 
 ### 1. Confirm LLM provider connectivity
 
-List the available models in an organization to verify at least one provider is
-configured and reachable:
+List the available models in an organization to verify at least one provider is configured and reachable:
 
 ```sh
 curl -s https://coder.example.com/api/experimental/organizations/$CODER_ORGANIZATION/chats/models \
@@ -641,8 +641,7 @@ curl -s -X PATCH \
 
 Use this checklist to confirm each part of your integration:
 
-- [ ] At least one LLM model is configured in the organization and returned by
-      `/organizations/{organization}/chats/models`
+- [ ] At least one LLM model is configured in the organization and returned by `/organizations/{organization}/chats/models`
 - [ ] `POST /chats` creates a chat and returns a valid `Chat` object
 - [ ] WebSocket stream at `/chats/{chat}/stream` delivers events
 - [ ] Follow-up messages via `/chats/{chat}/messages` are accepted

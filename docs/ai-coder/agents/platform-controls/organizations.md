@@ -42,13 +42,13 @@ Refer to [Models](../models.md) for provider setup and model options.
 
 When a deployment upgrades to a release that scopes models and MCP servers to organizations, Coder moves the existing configuration:
 
-1. Every existing chat model moves to the default organization.
-1. Every existing MCP server moves to the default organization, with its credentials intact.
-1. Every moved model and MCP server stays available to the default organization's **Everyone** group, so current members keep access.
-1. The previous default model becomes the default model of the default organization.
-1. Coder removes the existing admin and personal model overrides.
-1. Coder ignores the previous Advisor model override, so you must set it again.
-1. The deployment-wide template allowlist becomes the per-template **Allow Coder Agents to create workspaces using this template** setting.
+- Every existing chat model moves to the default organization.
+- Every existing MCP server moves to the default organization, with its credentials intact.
+- Every moved model and MCP server stays available to the default organization's **Everyone** group, so current members keep access.
+- The previous default model becomes the default model of the default organization.
+- Coder removes the existing admin and personal model overrides.
+- Coder ignores the previous Advisor model override, so you must set it again.
+- The deployment-wide template allowlist becomes the per-template **Allow Coder Agents to create workspaces using this template** setting.
 
 Other organizations start with no models and no MCP servers.
 Coder copies nothing from the default organization.

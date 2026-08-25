@@ -16,9 +16,9 @@ read-only field when only one organization is available.
 ## Add an MCP server
 
 1. Navigate to **Admin settings** > **AI** > **Coder Agents** > **MCP servers**.
-1. Click **Add server**.
+1. Select **Add server**.
 1. Fill in the configuration fields described below.
-1. Click **Save**.
+1. Select **Save**.
 
 ### Identity
 
@@ -189,6 +189,7 @@ such as API keys and client secrets are redacted in API responses.
 Users with access to an organization's MCP servers can open the **MCP servers**
 settings page. Coder enables the edit controls for the users who can manage the
 selected organization's servers.
+Only deployment administrators can add or update a server that uses **User OIDC Identity** authentication.
 
 Refer to [Organization scope](./organizations.md) for the organization scope of MCP servers and the upgrade behavior.
 

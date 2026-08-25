@@ -62,7 +62,7 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers do not see or interact with it.
+This setting is available under **Admin settings** > **AI** > **Coder Agents** > **Instructions** and is only accessible to administrators. Developers can't access or interact with it.
 
 ### Plan mode instructions
 
@@ -100,10 +100,7 @@ The same control is available outside the dashboard.
 Use `coder templates create --agents-allowed=false` or `coder templates edit --agents-allowed=false <template>` for a single template.
 Use the search filter `agents-allowed:false` on `GET /api/v2/templates` to list the templates that block agents.
 
-See [Template Optimization](./template-optimization.md) for best practices on writing
-discoverable descriptions, restricting template visibility, configuring network
-boundaries, scoping credentials, and designing template parameters for agent
-use.
+Check out [Template Optimization](./template-optimization.md) for best practices on writing discoverable descriptions, restricting template visibility, configuring network boundaries, scoping credentials, and designing template parameters for agent use.
 
 ### MCP servers
 

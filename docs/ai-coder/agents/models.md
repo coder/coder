@@ -57,8 +57,7 @@ A provider is deployment-wide, whilst the models that reference it are organizat
 
 After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
 Select the organization that should own the new model before you add it.
-For provider-specific setup, including AWS Bedrock, refer to
-[AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
+For provider-specific setup, including AWS Bedrock, refer to [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
@@ -167,7 +166,7 @@ The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this m
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add model** and select the provider for the new model.
+1. Select **Add model** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
@@ -175,7 +174,7 @@ The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this m
 1. Set the **Context Limit**, the maximum number of tokens in the model's
    context window (e.g., `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
-1. Click **Save**.
+1. Select **Save**.
 
 <img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the Agents settings">
 

@@ -44,8 +44,7 @@ To configure Coder Agents:
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select the correct organization.
    Coder shows the organization picker when you can access more than 1 organization.
-1. Click **Add model** and configure at least one model with its identifier,
-   display name, and context limit.
+1. Select **Add model** and configure at least one model with its identifier, display name, and context limit.
 
 Coder makes the first model of an organization the default model.
 To change the default later, open a model and select **Set as Coder Agents default model**.
