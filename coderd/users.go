@@ -1357,7 +1357,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
+		CodeDiffDisplayMode:            sanitizeCodeDiffDisplayMode(codeDiffMode),
 		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
@@ -1483,13 +1483,13 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating code diff display mode.", err)
 			}
-			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(updated)
+			settings.CodeDiffDisplayMode = sanitizeCodeDiffDisplayMode(updated)
 		} else {
 			stored, err := tx.GetUserCodeDiffDisplayMode(ctx, user.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
 			}
-			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
+			settings.CodeDiffDisplayMode = sanitizeCodeDiffDisplayMode(stored)
 		}
 
 		if params.AgentChatSendShortcut != "" {
@@ -1569,6 +1569,14 @@ func sanitizeShellToolDisplayMode(raw string) codersdk.AgentDisplayMode {
 	mode := sanitizeAgentDisplayMode(raw)
 	if mode == "" {
 		return codersdk.AgentDisplayModeAlwaysCollapsed
+	}
+	return mode
+}
+
+func sanitizeCodeDiffDisplayMode(raw string) codersdk.AgentDisplayMode {
+	mode := sanitizeAgentDisplayMode(raw)
+	if mode == "" {
+		return codersdk.AgentDisplayModeAuto
 	}
 	return mode
 }

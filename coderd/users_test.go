@@ -2723,7 +2723,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
 		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.ShellToolDisplayMode)
-		require.Empty(t, settings.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("round-trips shell tool display mode", func(t *testing.T) {
