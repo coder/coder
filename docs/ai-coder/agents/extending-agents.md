@@ -17,10 +17,10 @@ The pinned copy is what the agent's system prompt and tool list are built from, 
 The lifecycle of an edit looks like this:
 
 1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
-2. A file watcher notices the change and the agent re-scans after a 250&nbsp;ms debounce, then pushes a new snapshot.
-3. Chats that have not pinned a snapshot yet pin the new one immediately.
-4. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
-5. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
+1. A file watcher notices the change and the agent re-scans after a 250&nbsp;ms debounce, then pushes a new snapshot.
+1. Chats that have not pinned a snapshot yet pin the new one immediately.
+1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
+1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
 
 This is why an in-flight chat can keep using an older snapshot: a push never rewrites a chat's pinned context.
 The pin only moves when the chat is first hydrated or when you refresh it.
@@ -31,12 +31,12 @@ Until startup scripts finish, the agent holds an empty snapshot, so a chat opene
 ### Where the agent looks
 
 Each scan location is a scan root.
-The agent scans:
+The agent scans the following:
 
-- the workspace working directory
+- The workspace working directory
 - `~/.coder` and `~/.coder/skills`
 - `~/.claude/plugins/cache`
-- any additional source you declare through the agent's context sources API
+- Any additional source you declare through the agent's context sources API
 
 Discovery is shallow.
 Instruction files (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`) and `.mcp.json` are read only at the top level of a scan root, and skills are read only from the fixed container directories described below.
@@ -131,10 +131,10 @@ Instructions for the skill go here...
   directory name exactly.
 - `SKILL.md` has a maximum size of 64&nbsp;KB.
   A larger file is reported with an oversize status and contributes no content to the chat.
-- Supporting files have a maximum size of 512&nbsp;KB. Files exceeding the limit
-  are silently truncated.
+- Supporting files have a maximum size of 512&nbsp;KB.
+  Files exceeding the limit are silently truncated.
 
-A skill whose frontmatter is missing, unparsable, not kebab-case, or does not match its directory name is reported as invalid and contributes no instructions.
+A skill with its frontmatter missing, unparsable, not kebab-case, or not matching its directory name is reported as invalid and contributes no instructions.
 
 ### Path safety
 
@@ -166,8 +166,7 @@ Instructions for the skill go here...
 
 Each personal skill is stored as a single `SKILL.md` file containing
 frontmatter and body content. Supporting files are not supported. Each
-`SKILL.md` file can be up to 64&nbsp;KB, and each user can create up to 100
-personal skills.
+`SKILL.md` file can be up to 64&nbsp;KB, and each user can create up to 100 personal skills.
 
 Personal skills are stored in Coder, not in the workspace, so they are not part of a workspace context snapshot and do not depend on a pin or a refresh.
 
@@ -179,9 +178,8 @@ workspace skills instead. Store them in the repo under
 
 Workspace templates can expose custom
 [MCP](https://modelcontextprotocol.io/introduction) tools by placing a
-`.mcp.json` file in the workspace working directory. The agent connects to
-these servers, reports their tools in the context snapshot it pushes, and
-chats register those tools alongside their built-in tools.
+`.mcp.json` file in the workspace working directory.
+The agent connects to these servers, reports their tools in the context snapshot it pushes, and chats register those tools alongside their built-in tools.
 
 ### Configuration
 
