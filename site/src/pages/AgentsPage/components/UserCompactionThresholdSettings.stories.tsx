@@ -315,6 +315,39 @@ export const OrganizationCompactionTriggerWarning: Story = {
 	},
 };
 
+export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
+	args: {
+		// 50% of a 256K summarizer window is exactly 100% of GPT-4o's
+		// 128K window; the warning must survive a draft of 100 because
+		// the backend still binds to the organization trigger.
+		compactionTriggersByOrganizationID: new Map([
+			[
+				MockChatModel.organization_id,
+				{
+					model: compactionModel,
+					trigger: { thresholdPercent: 50, contextLimit: 256_000 },
+					point: 128_000,
+				},
+			],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
+		const row = within(gpt4oRow);
+
+		await userEvent.type(
+			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
+			"100",
+		);
+		await waitFor(() => {
+			expect(
+				row.getByText(/Compaction will trigger earlier at approximately 100%/i),
+			).toBeVisible();
+		});
+	},
+};
+
 export const NoOrganizationCompactionOverride: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

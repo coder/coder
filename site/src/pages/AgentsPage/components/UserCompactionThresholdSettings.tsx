@@ -33,7 +33,6 @@ import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	bindingCompactionTrigger,
 	compactionPointAsPercent,
-	compactionTriggerPoint,
 	type OrganizationCompactionTrigger,
 } from "../compactionTriggers";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
@@ -416,6 +415,10 @@ export const UserCompactionThresholdSettings: FC<
 											modelConfig.context_limit,
 										)
 									: undefined;
+								// The binding helper is authoritative so the warning
+								// matches the backend even when a draft of 100 disables
+								// the chat trigger and the organization point reaches
+								// the chat window.
 								const isOrganizationTriggerEarlier =
 									chatTrigger !== undefined &&
 									organizationTrigger !== undefined &&
@@ -423,9 +426,7 @@ export const UserCompactionThresholdSettings: FC<
 									bindingCompactionTrigger(
 										chatTrigger,
 										organizationTrigger.trigger,
-									) === "organization" &&
-									organizationTrigger.point <
-										compactionTriggerPoint(chatTrigger);
+									) === "organization";
 
 								return (
 									<TableRow key={modelConfig.id}>
