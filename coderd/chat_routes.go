@@ -168,9 +168,13 @@ func (api *API) registerChatStreamRoutes(r chi.Router) {
 	r.Get("/git", api.watchChatGit)
 }
 
-func (api *API) registerMCPServerOAuth2Routes(r chi.Router) {
-	// This callback path is frozen because it is registered with OAuth2 providers.
+func (api *API) registerExperimentalMCPServerOAuth2Routes(r chi.Router) {
+	// TODO(CODAGT-922): migrate provider redirect URIs before promoting this callback.
 	r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
+	api.registerMCPServerOAuth2Routes(r)
+}
+
+func (api *API) registerMCPServerOAuth2Routes(r chi.Router) {
 	// Disconnect stays outside organization routes so former organization
 	// members can delete their stored token after losing config read access.
 	r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)

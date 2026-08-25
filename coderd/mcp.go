@@ -1119,7 +1119,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 // @Param error_description query string false "Provider error description accompanying error."
 // @Produce text/html
 // @Success 200
-// @Router /api/v2/mcp/servers/{mcpServer}/oauth2/callback [get]
+// @Router /api/experimental/mcp/servers/{mcpServer}/oauth2/callback [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.

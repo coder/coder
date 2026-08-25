@@ -1458,7 +1458,7 @@ func New(options *Options) *API {
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r)
+			api.registerExperimentalMCPServerOAuth2Routes(r)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))

@@ -430,7 +430,6 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/api/v2/workspaceagents/me/startup/logs" && comment.method == "patch") ||
 			(comment.router == "/api/v2/licenses/{id}" && comment.method == "delete") ||
 			(comment.router == "/api/v2/debug/coordinator" && comment.method == "get") ||
-			(comment.router == "/api/v2/mcp/servers/{mcpServer}/oauth2/callback" && comment.method == "get") ||
 			(comment.router == "/api/v2/debug/tailnet" && comment.method == "get") ||
 			(comment.router == "/api/v2/workspaces/{workspace}/acl" && comment.method == "patch") ||
 			(comment.router == "/api/v2/init-script/{os}/{arch}" && comment.method == "get") ||

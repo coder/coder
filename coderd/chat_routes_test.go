@@ -41,6 +41,7 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
 		{http.MethodGet, "/api/v2/chats/00000000-0000-0000-0000-000000000000/debug/runs"},
 		{http.MethodGet, "/api/v2/chats/00000000-0000-0000-0000-000000000000/stream/desktop"},
+		{http.MethodGet, "/api/v2/mcp/servers/not-a-uuid/oauth2/callback"},
 		{http.MethodPost, "/api/v2/mcp/http/server"},
 	} {
 		res, err := client.Request(ctx, route.method, route.path, nil)
