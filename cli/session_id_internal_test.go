@@ -66,11 +66,11 @@ func TestClientSessionIDMiddleware(t *testing.T) {
 	// runMiddleware runs clientSessionIDMiddleware around a handler that
 	// captures the resulting invocation, returning it for assertions. The
 	// invocation opts in with the annotationClientSessionID annotation unless
-	// optIn is false.
-	runMiddleware := func(t *testing.T, inv *serpent.Invocation, optIn bool) *serpent.Invocation {
+	// shouldAttachSessionID is false.
+	runMiddleware := func(t *testing.T, inv *serpent.Invocation, shouldAttachSessionID bool) *serpent.Invocation {
 		t.Helper()
 		annotations := serpent.Annotations{}
-		if optIn {
+		if shouldAttachSessionID {
 			annotations = annotations.Mark(annotationClientSessionID, "")
 		}
 		inv.Command = &serpent.Command{Annotations: annotations}
