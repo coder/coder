@@ -2302,19 +2302,25 @@ func getScaletestUsersWithPrefix(ctx context.Context, client *codersdk.Client, p
 			break
 		}
 
-		pageUsers := make([]codersdk.User, 0, len(page.Users))
-		for _, u := range page.Users {
-			// Guard against Search matching the prefix in other fields; require
-			// the username to actually start with it, and confirm it's a
-			// scaletest user.
-			if strings.HasPrefix(u.Username, prefix) && loadtestutil.IsScaleTestUser(u.Username, u.Email) {
-				pageUsers = append(pageUsers, u)
-			}
-		}
-		users = append(users, pageUsers...)
+		users = append(users, filterScaletestUsersByPrefix(page.Users, prefix)...)
 	}
 
 	return users, nil
+}
+
+// filterScaletestUsersByPrefix returns the users whose username starts with
+// prefix and that look like scaletest users. It is the in-memory selection
+// behind getScaletestUsersWithPrefix, split out so the prefix-isolation behavior
+// is unit-testable without a server. The username prefix guard matters because
+// the users search matches the term in several fields, not just the username.
+func filterScaletestUsersByPrefix(users []codersdk.User, prefix string) []codersdk.User {
+	filtered := make([]codersdk.User, 0, len(users))
+	for _, u := range users {
+		if strings.HasPrefix(u.Username, prefix) && loadtestutil.IsScaleTestUser(u.Username, u.Email) {
+			filtered = append(filtered, u)
+		}
+	}
+	return filtered
 }
 
 func parseTemplate(ctx context.Context, client *codersdk.Client, organizationIDs []uuid.UUID, template string) (tpl codersdk.Template, err error) {
