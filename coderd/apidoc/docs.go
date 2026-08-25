@@ -6336,6 +6336,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Model ID",
                         "name": "model",
                         "in": "path",
@@ -6375,6 +6376,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Model ID",
                         "name": "model",
                         "in": "path",
@@ -6417,6 +6419,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Model ID",
                         "name": "model",
                         "in": "path",

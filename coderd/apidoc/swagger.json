@@ -5593,6 +5593,7 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Model ID",
 						"name": "model",
 						"in": "path",
@@ -5630,6 +5631,7 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Model ID",
 						"name": "model",
 						"in": "path",
@@ -5666,6 +5668,7 @@
 					},
 					{
 						"type": "string",
+						"format": "uuid",
 						"description": "Model ID",
 						"name": "model",
 						"in": "path",
