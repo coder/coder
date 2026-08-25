@@ -1757,43 +1757,77 @@ left behind.
 
 ### Status
 
-Not started. **Depends on WP11 milestone 4**: six sites route on
-`users.kind = 'ai_agent'`, and the one that matters, `httpmw/apikey.go`, decides
-by loading the key's holder as a user. That read stops being necessary only once
-the key carries the holder type.
+Not started. **Unblocked**: WP11 milestone 4 removed the site that decided an
+agent by fetching a user and reading its kind, which was what this waited on.
 
 ### What forces the work
 
 The ledger is authoritative for what an AI agent is, and a `users` row still
-decides *that* it is one, supplies its name, and carries a status three sites
-check. Three facts about one agent live in a table the corpus holds should not
-file it. See "A system actor is stored as a user because there was nowhere else
-to put it" in `entity_model.md`, which is the same shape.
+supplies its name, carries a status two sites check, and is what five sites read
+to decide an agent is an agent. Facts about one entity live in a table the
+corpus holds should not file it. See "A system actor is stored as a user because
+there was nowhere else to put it" in `entity_model.md`, which is the same shape.
 
-### What moves
+### The five sites are four different problems
 
-| What the row supplies                                     | Where it goes           |
-|-----------------------------------------------------------|-------------------------|
-| `kind`, routing six sites                                 | the key's `holder_type` |
-| the username, read by the endpoint and as a friendly name | `entity.DisplayName`    |
-| `Deleted` and `Status`, checked at three sites            | the ledger's `state`    |
+Re-measured 2026-08-25, after milestone 4 removed the sixth. Treating them as
+one list is what hid the sequencing.
 
-The username needs no conversion. It is already `entity.DisplayName` of the
-same identifier, one derivation shared with the authorizer, so removing the
-column changes no displayed value.
+**`aibridgedserver.go:823` is the same problem WP11 milestone 4 solved**, in
+another file: it fetches a user and reads its kind to decide whether to resolve
+an AI agent. The answer is the same, to decide by the credential's holder type.
+This is the only remaining instance of that pattern.
 
-### New data
+**`aiagentidentity.go:377`, inside `Resolve`, is the keystone.** The kind check
+and the users-row fetch behind it are what produce `ResolvedIdentity.AgentUser`,
+and two consumers still read it: `chattool/subject.go` and
+`httpmw/workspaceagent.go`, each for the agent's status and its name. `Resolve`
+cannot stop reading a users row until they stop reading `AgentUser`.
 
-None, and nothing structural holds the row in place: `ai_agent_ledger.id` has no
-foreign key to `users`.
+**`apikey.go:67` and `:221` are guards, not routing.** They refuse to create an
+API key for an AI agent user. They are live today, an administrator being able
+to name the agent's row, and become unreachable when the row goes rather than
+needing a replacement.
 
-### What this frees
+**`users.go:1158` is a notification detail.** It suppresses the personal
+notification about a status change, an agent having nobody to notify. It goes
+with the row, and is the one site where a second, similar suppression elsewhere
+in notifications is worth looking for.
 
-**Six `kind = 'human'` filters in `users.sql`** become no-ops.
+**A fifth consumer is not in that list.** `GetAIAgentsByOwner` joins `users` for
+the username, so the AI agents endpoint reads the row too, for a value rather
+than for a decision.
 
-**The `kind` column and the `user_kind` type go entirely, not just the
-`ai_agent` value.** The type is declared on this branch, has exactly two values,
-and with one of them gone the column is a constant. Removing an enum value is
+### Milestone 1: aibridged decides by holder type
+
+The same change as WP11 milestone 4, in `aibridgedserver`. Independent of
+everything below.
+
+### Milestone 2: status moves to the ledger
+
+`chattool/subject.go` and `httpmw/workspaceagent.go` read the agent's `state`
+rather than the users row's `Deleted` and `Status`, and take the name from
+`entity.DisplayName` rather than the row's username.
+
+**This is what frees `Resolve`.** With `AgentUser` unread, the kind check and
+the users-row fetch inside it go, and `ResolvedIdentity` loses a field.
+
+**The status values are not the same fact and the substitution should be
+checked, not assumed.** A users row can be suspended or deleted; a ledger row is
+active or retired. Whether anything can suspend an agent's users row without
+retiring the agent is the question, and if something can, the two are not
+interchangeable.
+
+### Milestone 3: the row goes
+
+`aiagentidentity.Create` stops writing it, the AI agents endpoint derives the
+username instead of joining, and the two guards and the notification suppression
+go with it.
+
+**What this frees.** The six `kind = 'human'` filters in `users.sql` become
+no-ops. **The `kind` column and the `user_kind` type go entirely**, not just the
+`ai_agent` value: the type is declared on this branch and has exactly two
+values, so with one gone the column is a constant. Removing an enum value is
 ordinarily expensive; this one is not, there being no deployment that has it.
 
 **Read `GetAuthorizationUserRoles` before deleting its filter.** That filter is
@@ -1801,15 +1835,24 @@ what currently enforces "an AI agent has no roles of its own" in SQL, so the
 design's convention is load bearing there and is worth understanding before it
 goes.
 
+### New data
+
+None, and nothing structural holds the row in place: `ai_agent_ledger.id` has no
+foreign key to `users`.
+
 ### Acceptance tests
 
-**No AI agent has a `users` row.**
+**No AI agent has a `users` row**, and `InsertAIAgentUser` is gone.
 
-**Authentication, the AI agents endpoint and the chat tool subject all work
-without one**, which are the three consumers that read it today.
+**The four consumers work without one**: the AI bridge, the chat tool subject,
+the workspace agent middleware, and the AI agents endpoint.
 
 **An agent's displayed name is unchanged**, which is what makes the username
 column's removal invisible rather than merely tolerable.
+
+**A retired agent is refused everywhere a suspended or deleted users row was
+refused before**, which is the assertion that the status substitution in
+milestone 2 was sound.
 
 ## WP13. The credential journal's structure
 
@@ -1943,3 +1986,165 @@ once milestone 1 exists.
 **The gap it leaves today has no plausible victim**, the legitimate holder not
 existing during a start build, but it is a true gap and the record should not
 have to assert one where the overlap is the point.
+
+## WP14. An AI agent's own endpoints
+
+### Summary
+
+An `/aiagents/` namespace paralleling `/users/`, whose first and possibly only
+mutating route retires an agent.
+
+### Status
+
+Not started, opened 2026-08-25. **Not part of WP12**, which removes a row where
+this adds a surface. Mixing them would make the row's removal wait on an
+authorization decision.
+
+### What forces the work
+
+**WP12 blocks the user-administration routes against an AI agent target**, which
+is right: those routes are about people, and one of them renames, which would
+break a name the system now derives. But suspending an agent's users row is
+today the only manual way to stop one, so blocking it leaves no off-switch.
+
+The absence is not created by that guard. It is made explicit by it: the
+capability was an accident of an agent being a users row, was indiscriminate,
+being available to any user administrator with no notion of the agent's sponsor,
+and had already stopped working on the API key path.
+
+**`kill` has no honest caller.** Its three sites, an ownership change, a prebuild
+claim and the orphan sweep, are all recorded cheats: none is a party ordering an
+agent's death. An administrator retiring one is what the transition was defined
+for, so this gives an existing concept its first real use rather than adding a
+concept.
+
+### The shape, which is syntax and not yet a definition
+
+```text
+GET    /api/v2/aiagents                          list, admin-scoped
+GET    /api/v2/aiagents/{aiagent}                one agent
+PUT    /api/v2/aiagents/{aiagent}/status/retire  the kill switch
+```
+
+`GET /users/{user}/ai-agents` stays as the owner-scoped list, as
+`/users/{user}/workspaces` coexists with `/workspaces`.
+
+**A route and a verb do not define an endpoint**, which is why the first
+milestone below is about semantics and writes no code. Two questions are already
+apparent, and neither is visible in the syntax above.
+
+**`{aiagent}` resolves an identifier and not a name.** An agent's name is
+derived and exists for logs and display; admitting it as a lookup key would make
+it an identifier again, which is what removing it from `users` was for.
+
+### Only a commanded transition gets a route
+
+The machine has `create`, `finish`, `kill` and `lapse`. `finish` is observed and
+`lapse` entailed, so neither is anybody's to request and neither can have one.
+`create` has its paths already. **That leaves exactly one mutating route.**
+
+The surface falls out of the model rather than being designed against it. The
+rule generalises as a **candidate**: an entity's commanded transitions are the
+ones that could have a route, and which of them should is a separate question.
+The observed and entailed ones are excluded outright, which is the part the
+model settles.
+
+### Milestone 1: what these endpoints mean
+
+**No code.** The syntax above says what may be called and nothing about what
+happens, who may call it, or what the system will decline to do.
+
+**Two questions are already apparent.**
+
+**Whether retiring is refused when it would break something.** A retire bricks a
+designated workspace's next build, for the reason under Risks below. The system
+could perform it anyway, could refuse it, or could refuse it unless overridden.
+Eric, 2026-08-25: refusing is a live option, and choosing it means **setting out
+a policy about when an operation is declined for what it would break**, which is
+a general position and not a property of this endpoint.
+
+**Whether an AI agent may call any of these. It may not.** Eric, 2026-08-25:
+definitely not, on any of them, with future analysis able to permit it later.
+This settles the privilege-laundering risk by rule rather than by scope
+arithmetic, and it applies to the reads as much as to the retire: an agent has
+no business enumerating its siblings.
+
+**What else this milestone owes.** Who may call each endpoint, given that
+ownership is not authorization. What a retire takes with it, the mirrored keys
+being the known case. What is returned, and whether a retired agent is still
+readable, which it must be if the record is to be worth keeping. Whether a
+second retire is an error or a no-op.
+
+### Milestones 2 to 4: one endpoint each
+
+**One milestone per endpoint, implemented separately.** Eric, 2026-08-25: the
+analysis requirements make discoveries certain, and separate landings are what
+let each be addressed where it arises rather than at the end of a batch.
+
+**Milestone 2, `GET /aiagents/{aiagent}`.** The smallest, and it is where the
+`{aiagent}` extractor and the authorization decision first have to be real. Both
+are needed by everything after it, and this is the cheapest place to be wrong
+about them.
+
+**Milestone 3, `GET /aiagents`.** Adds listing, and with it whatever filtering
+and paging the answer to "admin-scoped" turns out to require.
+
+**Milestone 4, `PUT /aiagents/{aiagent}/status/retire`.** The motivating route
+and the only mutating one, taken last because it is the only irreversible one
+and because the two before it settle the extractor and the resource.
+
+**The order is discovery-first, not value-first.** The kill switch is why the
+package exists, so if the absence of an off-switch starts to matter, milestone 4
+can move ahead of the reads at the cost of settling the extractor and the
+authorization under the riskiest route.
+
+### Risks
+
+**A retire bricks a designated workspace's next build, and this is
+demonstrable.** `workspaces.ai_agent_id` is set once and never cleared. A
+designated workspace whose agent is retired reaches `resolveDesignatedAIAgent`,
+which returns the retired row and reports designated, then
+`regenerateAIAgentSessionToken` calls `MintKey`, which calls `Resolve`, which
+refuses a retired agent, and the job fails. The same sequence is documented in
+`provisionerdserver.go` for the prebuild claim path. **This endpoint would make
+a latent defect reachable on purpose**, so clearing the designation is part of
+retiring, not a follow-up.
+
+**An agent could reach its own kill switch, or another's.** An AI agent acts on
+its owner's roles, narrowed by scope and allow list, so a route authorized by the
+owner's permissions may be satisfied by an agent's credential. An agent that can
+retire an agent is the privilege-laundering shape `AI_AGENT_IDENTITY_SPEC.md`
+warns about for issuance.
+
+**Answered by rule in milestone 1**: no AI agent may call any of these
+endpoints. The risk is not that the rule is hard to state but that it is easy to
+implement as scope arithmetic and thereby to leave a path open. It wants a check
+that does not depend on getting an allow list right.
+
+**The authorization story does not exist and touches the policy.** An AI agent
+has no RBAC resource of its own; today it is covered by `ResourceUserObject`
+because it is a users row, and after WP12 it is not. Deciding who may retire
+one, its owner or an administrator or both, is a decision the corpus will not
+make for us: ownership is not authorization. Adding a resource reaches
+`policy.rego`, which is the riskiest surface in this work.
+
+**Retirement is terminal and there is no un-retire.** The machine has no
+transition out of `retired`, deliberately. So the endpoint is irreversible by
+construction, and an accidental or hostile call cannot be undone; the remedy is
+a new agent, which is not the same agent. That is an argument for a narrow
+authorization rather than against the endpoint.
+
+**It is new public surface.** Swagger annotations, `codersdk` methods, generated
+TypeScript, and a contract someone may build against. The `/aiagents/` namespace
+also invites the two read routes to grow filtering and pagination, which is how
+a one-route package becomes four.
+
+### Not in scope
+
+**Un-retiring, and anything resembling it.** If reconstituting an agent is ever
+wanted it is `dormant`, which the machine reserves and does not implement.
+
+**A composition to write once.** Retiring should take the mirrored keys with it,
+as the orphan sweep does with `DropAllKeys`, or the agent stays authenticable
+until somebody notices its credentials. That is the same composition the sweep
+performs and it belongs beside it.
