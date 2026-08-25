@@ -1568,6 +1568,64 @@ func AllChatMessageRoleValues() []ChatMessageRole {
 	}
 }
 
+type ChatMessageSearchTsvConfig string
+
+const (
+	ChatMessageSearchTsvConfigSimple  ChatMessageSearchTsvConfig = "simple"
+	ChatMessageSearchTsvConfigEnglish ChatMessageSearchTsvConfig = "english"
+)
+
+func (e *ChatMessageSearchTsvConfig) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageSearchTsvConfig(s)
+	case string:
+		*e = ChatMessageSearchTsvConfig(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageSearchTsvConfig: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageSearchTsvConfig struct {
+	ChatMessageSearchTsvConfig ChatMessageSearchTsvConfig `json:"chat_message_search_tsv_config"`
+	Valid                      bool                       `json:"valid"` // Valid is true if ChatMessageSearchTsvConfig is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageSearchTsvConfig) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageSearchTsvConfig, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageSearchTsvConfig.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageSearchTsvConfig) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageSearchTsvConfig), nil
+}
+
+func (e ChatMessageSearchTsvConfig) Valid() bool {
+	switch e {
+	case ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageSearchTsvConfigValues() []ChatMessageSearchTsvConfig {
+	return []ChatMessageSearchTsvConfig{
+		ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish,
+	}
+}
+
 type ChatMessageVisibility string
 
 const (
@@ -5245,7 +5303,7 @@ type ChatMessage struct {
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
 	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
-	SearchTsvConfig sql.NullString `db:"search_tsv_config" json:"search_tsv_config"`
+	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 type ChatModelConfig struct {

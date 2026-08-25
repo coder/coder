@@ -352,6 +352,11 @@ CREATE TYPE chat_message_role AS ENUM (
     'tool'
 );
 
+CREATE TYPE chat_message_search_tsv_config AS ENUM (
+    'simple',
+    'english'
+);
+
 CREATE TYPE chat_message_visibility AS ENUM (
     'user',
     'model',
@@ -2055,7 +2060,7 @@ CREATE TABLE chat_messages (
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
     search_tsv tsvector,
-    search_tsv_config text
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';

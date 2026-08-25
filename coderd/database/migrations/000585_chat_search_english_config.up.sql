@@ -7,7 +7,12 @@
 -- sweep rewrites stale rows incrementally, newest first (see
 -- ReindexStaleChatMessagesSearchTsv).
 
-ALTER TABLE chat_messages ADD COLUMN search_tsv_config text;
+-- The Postgres text search configs this system has produced vectors
+-- with. Extend with ALTER TYPE ... ADD VALUE if the config changes
+-- again.
+CREATE TYPE chat_message_search_tsv_config AS ENUM ('simple', 'english');
+
+ALTER TABLE chat_messages ADD COLUMN search_tsv_config chat_message_search_tsv_config;
 
 COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 

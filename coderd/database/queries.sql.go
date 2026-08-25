@@ -10795,31 +10795,31 @@ type InsertChatMessagesParams struct {
 }
 
 type InsertChatMessagesRow struct {
-	ID                  int64                   `db:"id" json:"id"`
-	ChatID              uuid.UUID               `db:"chat_id" json:"chat_id"`
-	ModelConfigID       uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	CreatedAt           time.Time               `db:"created_at" json:"created_at"`
-	Role                ChatMessageRole         `db:"role" json:"role"`
-	Content             pqtype.NullRawMessage   `db:"content" json:"content"`
-	Visibility          ChatMessageVisibility   `db:"visibility" json:"visibility"`
-	InputTokens         sql.NullInt64           `db:"input_tokens" json:"input_tokens"`
-	OutputTokens        sql.NullInt64           `db:"output_tokens" json:"output_tokens"`
-	TotalTokens         sql.NullInt64           `db:"total_tokens" json:"total_tokens"`
-	ReasoningTokens     sql.NullInt64           `db:"reasoning_tokens" json:"reasoning_tokens"`
-	CacheCreationTokens sql.NullInt64           `db:"cache_creation_tokens" json:"cache_creation_tokens"`
-	CacheReadTokens     sql.NullInt64           `db:"cache_read_tokens" json:"cache_read_tokens"`
-	ContextLimit        sql.NullInt64           `db:"context_limit" json:"context_limit"`
-	Compressed          bool                    `db:"compressed" json:"compressed"`
-	CreatedBy           uuid.NullUUID           `db:"created_by" json:"created_by"`
-	ContentVersion      int16                   `db:"content_version" json:"content_version"`
-	TotalCostMicros     sql.NullInt64           `db:"total_cost_micros" json:"total_cost_micros"`
-	RuntimeMs           sql.NullInt64           `db:"runtime_ms" json:"runtime_ms"`
-	Deleted             bool                    `db:"deleted" json:"deleted"`
-	ProviderResponseID  sql.NullString          `db:"provider_response_id" json:"provider_response_id"`
-	Revision            int64                   `db:"revision" json:"revision"`
-	ReasoningEffort     NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	SearchTsv           interface{}             `db:"search_tsv" json:"search_tsv"`
-	SearchTsvConfig     sql.NullString          `db:"search_tsv_config" json:"search_tsv_config"`
+	ID                  int64                          `db:"id" json:"id"`
+	ChatID              uuid.UUID                      `db:"chat_id" json:"chat_id"`
+	ModelConfigID       uuid.NullUUID                  `db:"model_config_id" json:"model_config_id"`
+	CreatedAt           time.Time                      `db:"created_at" json:"created_at"`
+	Role                ChatMessageRole                `db:"role" json:"role"`
+	Content             pqtype.NullRawMessage          `db:"content" json:"content"`
+	Visibility          ChatMessageVisibility          `db:"visibility" json:"visibility"`
+	InputTokens         sql.NullInt64                  `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        sql.NullInt64                  `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         sql.NullInt64                  `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     sql.NullInt64                  `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens sql.NullInt64                  `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     sql.NullInt64                  `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        sql.NullInt64                  `db:"context_limit" json:"context_limit"`
+	Compressed          bool                           `db:"compressed" json:"compressed"`
+	CreatedBy           uuid.NullUUID                  `db:"created_by" json:"created_by"`
+	ContentVersion      int16                          `db:"content_version" json:"content_version"`
+	TotalCostMicros     sql.NullInt64                  `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           sql.NullInt64                  `db:"runtime_ms" json:"runtime_ms"`
+	Deleted             bool                           `db:"deleted" json:"deleted"`
+	ProviderResponseID  sql.NullString                 `db:"provider_response_id" json:"provider_response_id"`
+	Revision            int64                          `db:"revision" json:"revision"`
+	ReasoningEffort     NullChatReasoningEffort        `db:"reasoning_effort" json:"reasoning_effort"`
+	SearchTsv           interface{}                    `db:"search_tsv" json:"search_tsv"`
+	SearchTsvConfig     NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 // Returns the inserted rows in input array order. Ids are allocated before the

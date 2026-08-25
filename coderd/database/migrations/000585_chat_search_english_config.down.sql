@@ -12,6 +12,8 @@ UPDATE chat_messages SET search_tsv = NULL WHERE search_tsv_config = 'english';
 
 ALTER TABLE chat_messages DROP COLUMN search_tsv_config;
 
+DROP TYPE chat_message_search_tsv_config;
+
 -- Restore the original trigger function bodies from 000545.
 
 CREATE OR REPLACE FUNCTION set_chat_message_revision_before()
