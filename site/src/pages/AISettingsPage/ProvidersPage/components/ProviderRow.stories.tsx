@@ -87,8 +87,6 @@ export const NotSupportedInAgents: Story = {
 		const badge = canvas.getByText("Not supported in Agents");
 		await expect(badge).toBeInTheDocument();
 
-		// Hover shows the explanation in the shared tooltip, matching the
-		// warning badge instead of the native title tooltip.
 		await userEvent.hover(badge);
 		const tooltip = await within(document.body).findByRole("tooltip");
 		await expect(tooltip).toHaveTextContent(/AI Gateway proxy/);
