@@ -128,7 +128,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 		>
 			{/* md floor: ~8ch of the workspace name + 3.125rem of chrome
 			 * (padding, status icon, gaps, chevron), matching ModelSelector. */}
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[calc(8ch+3.125rem)]">
+			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[calc(8ch_+_3.125rem)]">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
