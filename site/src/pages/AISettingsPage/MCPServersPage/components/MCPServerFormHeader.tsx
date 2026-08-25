@@ -1,4 +1,9 @@
-import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
+import {
+	ArrowLeftIcon,
+	EllipsisVerticalIcon,
+	Share2Icon,
+	TrashIcon,
+} from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -8,6 +13,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
@@ -39,6 +45,7 @@ interface MCPServerFormHeaderProps {
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
+	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -50,6 +57,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onShareServer,
 	onToggleEnabled,
 }) => {
 	const disabledReasonId = useId();
@@ -59,7 +67,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 		<>
 			<div className="flex items-center justify-between">
 				{listPath && <MCPServerFormBackLink to={listPath} />}
-				{isEditing && server && onRequestDelete && (
+				{isEditing && server && (onRequestDelete || onShareServer) && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -73,13 +81,22 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRequestDelete}
-							>
-								<TrashIcon />
-								Remove
-							</DropdownMenuItem>
+							{onShareServer && (
+								<DropdownMenuItem onClick={onShareServer}>
+									<Share2Icon />
+									Share server
+								</DropdownMenuItem>
+							)}
+							{onShareServer && onRequestDelete && <DropdownMenuSeparator />}
+							{onRequestDelete && (
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onRequestDelete}
+								>
+									<TrashIcon />
+									Remove
+								</DropdownMenuItem>
+							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}

@@ -133,3 +133,46 @@ export const DeleteOnly: Story = {
 		).toBeEnabled();
 	},
 };
+
+export const ShareOnlyAccess: Story = {
+	args: {
+		canShareServer: true,
+		onUpdateServer: undefined,
+		onDeleteServer: undefined,
+		onToggleEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		const serverActions = canvas.getByRole("button", {
+			name: "Server actions",
+		});
+		await userEvent.click(serverActions);
+		expect(
+			body.queryByRole("menuitem", { name: "Remove" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Share server" }),
+		);
+		await expect(
+			await body.findByRole("dialog", { name: "Share server" }),
+		).toBeVisible();
+	},
+};
+
+export const NoShareReadOnlyAccess: Story = {
+	args: {
+		canShareServer: false,
+		onUpdateServer: undefined,
+		onDeleteServer: undefined,
+		onToggleEnabled: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Server actions" }),
+		).not.toBeInTheDocument();
+	},
+};
