@@ -219,13 +219,13 @@ token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
 - Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
-- Monitoring provider dashboards for usage trends during the evaluation.
+- Monitoring provider dashboards for usage trends as adoption grows.
 
 ### Plan for concurrency limits
 
 Community licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-Premium licenses with Agent Hours do not impose a concurrency limit unless the Agent Hours hard limit is reached.
+A Premium license with the Agent Hours entitlement does not impose a concurrency limit unless the Agent Hours hard limit is reached.
 If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
 When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
@@ -242,8 +242,8 @@ Good starting points:
 - **Prototyping** — building proof-of-concept implementations, simple
   dashboards, internal tools.
 
-Set expectations that this is an evaluation period. Developers should still
-review all agent-produced code before merging. The agent is a force
+Set expectations for how the team reviews agent output. Developers should
+still review all agent-produced code before merging. The agent is a force
 multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
@@ -305,20 +305,18 @@ already-running workspace instead of provisioning from scratch.
 
 ## Providing feedback
 
-Coder Agents is a collaborative evaluation between your team and Coder.
-Share feedback — workflow observations, feature requests, bugs, performance
-issues, or operational challenges — through your **customer-specific Slack
-channel** with the Coder team.
+Report bugs and feature requests as
+[GitHub issues](https://github.com/coder/coder/issues/new/choose).
+For deployment-specific problems, such as provider configuration or
+performance in your environment, use your usual Coder support channel.
 
-Good feedback includes:
+Good reports include:
 
-- **What you tried** — the prompt, the template, and the model.
-- **What happened** — the agent's behavior, any errors, unexpected results.
-- **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, `chat_id` values, or links to the Agents page help
+- **What you tried**: the prompt, the template, and the model.
+- **What happened**: the agent's behavior, any errors, and unexpected results.
+- **What you expected**: the outcome you were looking for.
+- **Context**: screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
-
-Your input directly influences product direction.
 
 ## Next steps
 
