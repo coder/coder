@@ -100,11 +100,85 @@ func PlaintextFromMarkdown(markdown string) (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
+// notificationExtensions is an allowlist. Shipped templates use only core
+// CommonMark, so Tables, DefinitionLists, MathJax and Autolink are absent; each
+// is openable from an untrusted label value. Adding one back means revisiting
+// EscapeMarkdown.
+const notificationExtensions = parser.NoIntraEmphasis | parser.HardLineBreak
+
 func HTMLFromMarkdown(markdown string) string {
-	p := parser.NewWithExtensions(parser.CommonExtensions | parser.HardLineBreak) // Added HardLineBreak.
+	return renderHTML(markdown, parser.CommonExtensions|parser.HardLineBreak) // Added HardLineBreak.
+}
+
+// HTMLFromNotificationMarkdown converts a rendered notification body to HTML.
+// Unlike HTMLFromMarkdown it does not autolink bare URLs, because notification
+// bodies interpolate attacker-controlled label values.
+func HTMLFromNotificationMarkdown(markdown string) string {
+	return renderHTML(markdown, notificationExtensions)
+}
+
+// longestURLPath is the longest relative-path prefix parser.IsSafeURL compares
+// against. Derived so a dependency bump that adds a longer one stays correct.
+var longestURLPath = func() int {
+	longest := 0
+	for _, p := range parser.Paths {
+		if len(p) > longest {
+			longest = len(p)
+		}
+	}
+	return longest
+}()
+
+// safeURL wraps parser.IsSafeURL, which slices a destination to each candidate
+// prefix length before checking it is that long, and so panics on a short one
+// with no spare capacity, as "[docs]()" produces. Padding the capacity keeps
+// the slice in bounds; IsSafeURL's own guards still decide the result.
+func safeURL(url []byte) bool {
+	if cap(url) < longestURLPath {
+		padded := make([]byte, len(url), longestURLPath)
+		copy(padded, url)
+		url = padded
+	}
+	return parser.IsSafeURL(url)
+}
+
+// recoverToEscapedSource runs render and, if it panics, returns the source
+// HTML-escaped instead: the notification still arrives, showing Markdown
+// source, and no markup escapes. Kept separate from renderHTML so the recovery
+// is testable, safeURL having closed the only input known to panic.
+func recoverToEscapedSource(markdown string, render func() string) (out string) {
+	defer func() {
+		if r := recover(); r != nil {
+			out = xhtml.EscapeString(markdown)
+		}
+	}()
+	return render()
+}
+
+// renderHTML converts Markdown to HTML. Input is untrusted, so a parser panic
+// is recovered rather than taking down the dispatcher.
+//
+// Safelink silently drops fragment and bare relative destinations, so [a](#x)
+// and [a](docs/x.md) render without an anchor. /path, ./path, mailto: and
+// http(s):// still work.
+func renderHTML(markdown string, extensions parser.Extensions) string {
+	return recoverToEscapedSource(markdown, func() string {
+		return renderHTMLUnsafe(markdown, extensions)
+	})
+}
+
+// renderHTMLUnsafe is renderHTML without the panic guard.
+func renderHTMLUnsafe(markdown string, extensions parser.Extensions) string {
+	p := parser.NewWithExtensions(extensions)
+	p.IsSafeURLOverride = safeURL
 	doc := p.Parse([]byte(markdown))
 	renderer := html.NewRenderer(html.RendererOptions{
-		Flags: html.CommonFlags | html.SkipHTML,
+		// Safelink restricts generated hrefs to trusted schemes, which keeps
+		// javascript: and data: out of rendered output.
+		Flags: html.CommonFlags | html.SkipHTML | html.Safelink,
 	})
+	// Safelink routes every destination through parser.IsSafeURL, which panics
+	// on a short one. The hook lives on the renderer, not on its options.
+	renderer.IsSafeURLOverride = safeURL
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }
