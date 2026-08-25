@@ -604,7 +604,7 @@ func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost 
 		return nil
 	}
 	return &codersdk.AIProviderStatus{Warnings: []string{
-		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, names[0], provider.Name),
+		fmt.Sprintf("hostname %q is claimed by provider %q. If AI Gateway Proxy is enabled, this provider is excluded from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/%s/...).", host, names[0], provider.Name),
 	}}
 }
 
