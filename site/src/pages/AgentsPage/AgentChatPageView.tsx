@@ -192,6 +192,7 @@ interface AgentChatPageViewProps {
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => Promise<void>;
 
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
@@ -373,6 +374,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	handleEditQueuedMessage,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	handleArchiveAgentAction,
@@ -999,6 +1001,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onSend={editing.handleSendFromInput}
 								onDeleteQueuedMessage={handleDeleteQueuedMessage}
 								onPromoteQueuedMessage={handlePromoteQueuedMessage}
+								onEditQueuedMessage={handleEditQueuedMessage}
 								onInterrupt={handleInterrupt}
 								isInputDisabled={isInputDisabled}
 								isSendPending={isSubmissionPending}

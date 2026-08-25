@@ -249,6 +249,7 @@ interface ChatPageInputProps {
 	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
 	isSendPending: boolean;
@@ -317,6 +318,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
 	onInterrupt,
 	isInputDisabled,
 	isSendPending,
@@ -567,6 +569,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
+			onEditQueuedMessage={onEditQueuedMessage}
 			isEditingHistoryMessage={isEditing}
 			onCancelHistoryEdit={onCancelHistoryEdit}
 			userPromptHistory={userPromptHistory}

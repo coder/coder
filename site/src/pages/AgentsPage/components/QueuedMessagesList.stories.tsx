@@ -119,6 +119,38 @@ export const MultiLineTextTruncation: Story = {
 	},
 };
 
+export const ExpandAndCollapseText: Story = {
+	args: {
+		messages: [
+			buildMessage(
+				1,
+				textContent(
+					"First line of the message\nSecond line that should be hidden",
+				),
+			),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", {
+			name: /First line of the message/,
+		});
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.click(toggle);
+		await waitFor(() =>
+			expect(
+				canvas.getByRole("button", { name: /Second line/ }),
+			).toHaveAttribute("aria-expanded", "true"),
+		);
+
+		await userEvent.click(canvas.getByRole("button", { name: /Second line/ }));
+		await waitFor(() =>
+			expect(canvas.queryByText(/Second line/)).not.toBeInTheDocument(),
+		);
+	},
+};
+
 // A message with both text and a file attachment shows the ImageIcon badge.
 export const WithAttachments: Story = {
 	args: {
@@ -155,8 +187,86 @@ export const ActionsExcludeEdit: Story = {
 			canvas.getByRole("button", { name: "Remove from queue" }),
 		).toBeVisible();
 		expect(
-			canvas.queryByRole("button", { name: "Edit" }),
+			canvas.queryByRole("button", { name: "Edit queued message" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const EditAction: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("Run the linter")),
+			buildMessage(2, textContent("Run the formatter")),
+		],
+		onEdit: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editButtons = canvas.getAllByRole("button", {
+			name: "Edit queued message",
+		});
+		await userEvent.click(editButtons[1]);
+		expect(args.onEdit).toHaveBeenCalledWith(2);
+	},
+};
+
+export const EditDisabledWhileComposerHasDraft: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("Run the linter"))],
+		onEdit: fn(),
+		editDisabledReason: "Send or clear the composer to edit a queued message.",
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: "Edit queued message" }),
+		).toBeDisabled();
+		expect(args.onEdit).not.toHaveBeenCalled();
+	},
+};
+
+export const EditDisabledForAttachments: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{ type: "text", text: "Look at this" },
+				{ type: "file", file_id: "file-1", media_type: "image/png" },
+			]),
+			buildMessage(2, textContent("Plain text prompt")),
+		],
+		onEdit: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const editButtons = canvas.getAllByRole("button", {
+			name: "Edit queued message",
+		});
+		expect(editButtons[0]).toBeDisabled();
+		expect(editButtons[1]).toBeEnabled();
+	},
+};
+
+let rejectQueuedEdit: ((error: Error) => void) | undefined;
+
+export const EditRejectionRestoresRow: Story = {
+	args: {
+		messages: [buildMessage(1, textContent("First queued"))],
+		onEdit: () =>
+			new Promise<void>((_, reject) => {
+				rejectQueuedEdit = reject;
+			}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Edit queued message" }),
+		);
+		await waitFor(() =>
+			expect(canvas.queryByText("First queued")).not.toBeInTheDocument(),
+		);
+
+		rejectQueuedEdit?.(new Error("nope"));
+		await waitFor(() => expect(canvas.getByText("First queued")).toBeVisible());
 	},
 };
 
@@ -230,6 +340,8 @@ export const HookNotice: Story = {
 		const trigger = canvas.getByRole("button", {
 			name: "Lifecycle hook notice: Deployment prompts are audited.",
 		});
+		// The expand/collapse control takes the first tab stop.
+		await userEvent.tab();
 		await userEvent.tab();
 		expect(trigger).toHaveFocus();
 		const tooltip = await within(document.body).findByRole("tooltip");

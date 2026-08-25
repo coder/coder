@@ -101,6 +101,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
+import { getEditableContentPayload } from "./components/ChatConversation/messageParsing";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { workspaceSkillsFromChat } from "./components/ChatPageContent";
@@ -585,6 +586,30 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks(fileBlocks ?? []);
 	};
 
+	const loadDraftIntoComposer = (text: string) => {
+		setDraftState({
+			editorInitialValue: text,
+			initialEditorState: undefined,
+		});
+		serializedEditorStateRef.current = undefined;
+		setRemountKey((k) => k + 1);
+		inputValueRef.current = text;
+		if (draftStorageKey) {
+			try {
+				// Plain text is the legacy draft format parseStoredDraft still reads.
+				localStorage.setItem(draftStorageKey, text);
+			} catch {
+				// QuotaExceededError, silently discard the draft.
+			}
+		}
+		// Focus after the remount swaps in the new editor instance.
+		setTimeout(() => {
+			if (!isMobileViewport()) {
+				chatInputRef.current?.focus();
+			}
+		}, 0);
+	};
+
 	const handleCancelHistoryEdit = () => {
 		const savedText = draftBeforeHistoryEdit?.text ?? "";
 		const savedState = draftBeforeHistoryEdit?.editorState;
@@ -725,6 +750,7 @@ export function useConversationEditingState(deps: {
 		editingMessageId,
 		editingFileBlocks,
 		handleEditUserMessage,
+		loadDraftIntoComposer,
 		handleCancelHistoryEdit,
 		handleSendFromInput,
 		handleContentChange,
@@ -1498,6 +1524,28 @@ const AgentChatPage: FC = () => {
 		editing.handleEditUserMessage(...args);
 	};
 
+	const handleEditQueuedMessage = async (id: number) => {
+		const queuedMessage = store
+			.getSnapshot()
+			.queuedMessages.find((message) => message.id === id);
+		if (!queuedMessage) {
+			return;
+		}
+		const { text, fileBlocks } = getEditableContentPayload(
+			queuedMessage.content,
+		);
+		if (fileBlocks && fileBlocks.length > 0) {
+			return;
+		}
+		try {
+			await handleDeleteQueuedMessage(id);
+		} catch (error) {
+			toast.error(getErrorMessage(error, "Failed to edit queued message."));
+			throw error;
+		}
+		editing.loadDraftIntoComposer(text);
+	};
+
 	const chatTitle = chatQuery.data?.title;
 
 	const titleElement = (
@@ -2062,6 +2110,7 @@ const AgentChatPage: FC = () => {
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+			handleEditQueuedMessage={handleEditQueuedMessage}
 			onImplementPlan={handleImplementPlan}
 			onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 			handleArchiveAgentAction={handleArchiveAgentAction}

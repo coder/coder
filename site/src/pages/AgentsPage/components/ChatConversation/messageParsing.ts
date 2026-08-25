@@ -325,14 +325,21 @@ export const getEditableUserMessagePayload = (
 ): {
 	text: string;
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+} => getEditableContentPayload(message.content);
+
+export const getEditableContentPayload = (
+	content: readonly TypesGen.ChatMessagePart[] | undefined,
+): {
+	text: string;
+	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
-	const text = (message.content ?? [])
+	const text = (content ?? [])
 		.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
 		.map((part) => part.text)
 		.join("");
-	const parsed = parseMessageContent(message.content);
+	const parsed = parseMessageContent(content);
 	const fileBlocks = parsed.blocks.filter(isEditableUserMessageFileBlock);
 	return {
 		text,

@@ -3488,6 +3488,92 @@ export const QueuedSendPromotesPreviousHead: Story = {
 	},
 };
 
+const queuedEditChat: TypesGen.Chat = {
+	id: CHAT_ID,
+	...baseChatFields,
+	title: "Queued message edit",
+	status: "running",
+};
+
+const queuedEditMessages: TypesGen.ChatMessagesResponse = {
+	messages: compactCommandMessages.messages,
+	queued_messages: [
+		{
+			...MockChatQueuedMessage,
+			id: 61,
+			chat_id: CHAT_ID,
+			content: [{ type: "text", text: "Queued prompt" }],
+		},
+	],
+	has_more: false,
+};
+
+export const EditQueuedMessageReturnsItToComposer: Story = {
+	parameters: {
+		queries: buildQueries(queuedEditChat, queuedEditMessages, {
+			diffUrl: undefined,
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const deleteSpy = spyOn(
+			API.experimental,
+			"deleteChatQueuedMessage",
+		).mockResolvedValue(undefined);
+		// The delete invalidates the messages query; the refetch must show
+		// the drained queue.
+		spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+			...queuedEditMessages,
+			queued_messages: [],
+		});
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({
+			queued: true,
+			messages: [],
+			queued_message: {
+				...MockChatQueuedMessage,
+				id: 62,
+				chat_id: CHAT_ID,
+				content: [{ type: "text", text: "Queued prompt edited" }],
+			},
+		});
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Edit queued message" }),
+		);
+
+		await waitFor(() => {
+			expect(deleteSpy).toHaveBeenCalledWith(CHAT_ID, 61);
+		});
+		const editor = await canvas.findByTestId("chat-message-input");
+		await waitFor(() => expect(editor).toHaveTextContent("Queued prompt"));
+		expect(
+			canvas.queryByRole("button", { name: "Cancel editing" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Edit queued message" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(editor);
+		await userEvent.type(editor, " edited");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledWith(
+				CHAT_ID,
+				expect.objectContaining({
+					content: [{ type: "text", text: "Queued prompt edited" }],
+				}),
+			);
+		});
+	},
+};
+
 const switchedChat: TypesGen.Chat = {
 	id: SWITCHED_CHAT_ID,
 	...baseChatFields,
