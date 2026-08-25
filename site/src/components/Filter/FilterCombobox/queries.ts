@@ -1,9 +1,9 @@
 import type { FilterOption, SearchResult } from "./types";
 
-export const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
+const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
 	["filterCombobox", "options", categoryKey, query] as const;
 
-export const filterComboboxSearchResultsKey = (query: string) =>
+const filterComboboxSearchResultsKey = (query: string) =>
 	["filterCombobox", "searchResults", query] as const;
 
 /**
