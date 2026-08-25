@@ -1559,7 +1559,6 @@ func New(options *Options) *API {
 				r.Post("/compact", api.compactChat)
 				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
-				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
 				r.Put("/context", api.refreshChatContext)

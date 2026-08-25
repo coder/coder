@@ -70,7 +70,6 @@ const (
 	homeInstructionLookupTimeout = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
-	manualTitlePersistTimeout    = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -2530,23 +2529,6 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RegenerateChatTitle regenerates a chat title from the chat's visible
-// messages, persists it when it changes, and broadcasts the update.
-func (p *Server) RegenerateChatTitle(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	// Reuse chatd's scoped auth context for chat model config reads while
-	// keeping chat ownership authorization at the HTTP layer.
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.regenerateChatTitleWithStore(
-		chatdCtx,
-		p.db,
-		chat,
-	)
-}
-
 // RenameChatTitle persists a user-supplied chat title.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
@@ -2661,40 +2643,6 @@ func (p *Server) generateManualTitleCandidate(
 	}
 
 	return title, nil
-}
-
-func (p *Server) regenerateChatTitleWithStore(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-) (database.Chat, error) {
-	title, err := p.generateManualTitleCandidate(ctx, store, chat)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if title == "" {
-		return chat, nil
-	}
-
-	// Generation already happened; don't let a client disconnect drop the
-	// title write.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), manualTitlePersistTimeout)
-	defer persistCancel()
-
-	updatedChat, wroteTitle, err := persistManualTitle(persistCtx, store, chat, title)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
-	}
-	// Publish only when this regeneration wrote the title. When a
-	// concurrent rename won the race, the rename path already published
-	// the fresher title; re-publishing the re-read row here could
-	// deliver a stale title_change after an even newer rename.
-	if !wroteTitle {
-		return updatedChat, nil
-	}
-
-	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
-	return updatedChat, nil
 }
 
 func (p *Server) prepareManualTitleDebugRun(
@@ -2933,46 +2881,6 @@ func mergeManualTitleMessages(
 		appendUnique(tailMessagesDesc[i])
 	}
 	return merged
-}
-
-// persistManualTitle writes newTitle only if the chat title still
-// matches the caller's snapshot. The returned bool reports whether the
-// title was actually written; it is false when a concurrent writer
-// changed the title first or when newTitle matches the current title.
-// Token usage for manual title generation is not recorded here; AI
-// Gateway tracks it independently, and writing to chat_messages outside
-// the chatstate state machine would break in-flight task fences.
-func persistManualTitle(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	newTitle string,
-) (database.Chat, bool, error) {
-	updatedChat := chat
-	wroteTitle := false
-	err := store.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("lock chat for manual title persist: %w", err)
-		}
-		updatedChat = lockedChat
-		wroteTitle = false
-		if lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
-			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-				ID:    chat.ID,
-				Title: newTitle,
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat title: %w", err)
-			}
-			wroteTitle = true
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		return database.Chat{}, false, err
-	}
-	return updatedChat, wroteTitle, nil
 }
 
 type chatMessage struct {
