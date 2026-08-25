@@ -19,7 +19,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -30,6 +29,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
@@ -264,92 +264,93 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				</Alert>
 			)}
 
-			{error ? (
-				<div className="flex flex-col items-start gap-3">
-					<ErrorAlert error={error} />
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={onRetry}
-						disabled={isRetrying}
-					>
-						{isRetrying && <Spinner className="size-4" loading />}
-						Retry
-					</Button>
-				</div>
-			) : isLoading ? (
-				<Loader />
-			) : (
-				<Table aria-label="Personal skills">
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Description</TableHead>
-							<TableHead>Updated</TableHead>
-							<TableHead className="w-14">
-								<span className="sr-only">Actions</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{skills.length === 0 ? (
-							<TableEmpty
-								message="No personal skills yet"
-								description="Create a personal skill to save reusable agent guidance for your workflows."
-								cta={addSkillAction}
-							/>
-						) : (
-							skills.map((skill) => (
-								<TableRow key={skill.id}>
-									<TableCell className="font-mono text-content-primary">
-										{skill.name}
-									</TableCell>
-									<TableCell>
-										{skill.description || (
-											<span className="text-content-secondary">
-												No description
-											</span>
-										)}
-									</TableCell>
-									<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
-									<TableCell className="text-right">
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													aria-label="Open menu"
-													disabled={downloadingSkillName === skill.name}
-												>
-													{downloadingSkillName === skill.name ? (
-														<Spinner className="size-4" loading />
-													) : (
-														<EllipsisVerticalIcon aria-hidden="true" />
-													)}
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												<DropdownMenuItem onClick={() => onDownload(skill)}>
-													Download
-												</DropdownMenuItem>
-												<DropdownMenuItem onClick={() => onEdit(skill.name)}>
-													Edit
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													className="text-content-destructive focus:text-content-destructive"
-													onClick={() => onDelete(skill)}
-												>
-													Delete&hellip;
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			)}
+			{Boolean(error) && <ErrorAlert error={error} />}
+
+			<Table aria-label="Personal skills">
+				<TableHeader>
+					<TableRow>
+						<TableHead>Name</TableHead>
+						<TableHead>Description</TableHead>
+						<TableHead>Updated</TableHead>
+						<TableHead className="w-14">
+							<span className="sr-only">Actions</span>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody size="lg">
+					{isLoading ? (
+						<TableLoader />
+					) : error ? (
+						<TableEmpty
+							message="Failed to load personal skills"
+							cta={
+								<Button
+									variant="outline"
+									onClick={onRetry}
+									disabled={isRetrying}
+								>
+									{isRetrying && <Spinner className="size-4" loading />}
+									Retry
+								</Button>
+							}
+						/>
+					) : skills.length === 0 ? (
+						<TableEmpty
+							message="No personal skills yet"
+							description="Create a personal skill to save reusable agent guidance for your workflows."
+							cta={addSkillAction}
+						/>
+					) : (
+						skills.map((skill) => (
+							<TableRow key={skill.id}>
+								<TableCell className="font-mono text-content-primary">
+									{skill.name}
+								</TableCell>
+								<TableCell>
+									{skill.description || (
+										<span className="text-content-secondary">
+											No description
+										</span>
+									)}
+								</TableCell>
+								<TableCell>{formatUpdatedAt(skill.updated_at)}</TableCell>
+								<TableCell className="text-right">
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												aria-label="Open menu"
+												disabled={downloadingSkillName === skill.name}
+											>
+												{downloadingSkillName === skill.name ? (
+													<Spinner className="size-4" loading />
+												) : (
+													<EllipsisVerticalIcon aria-hidden="true" />
+												)}
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end">
+											<DropdownMenuItem onClick={() => onDownload(skill)}>
+												Download
+											</DropdownMenuItem>
+											<DropdownMenuItem onClick={() => onEdit(skill.name)}>
+												Edit
+											</DropdownMenuItem>
+											<DropdownMenuItem
+												className="text-content-destructive focus:text-content-destructive"
+												onClick={() => onDelete(skill)}
+											>
+												Delete&hellip;
+											</DropdownMenuItem>
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</TableCell>
+							</TableRow>
+						))
+					)}
+				</TableBody>
+			</Table>
 
 			{editorState?.mode === "create" && (
 				<PersonalSkillEditor
