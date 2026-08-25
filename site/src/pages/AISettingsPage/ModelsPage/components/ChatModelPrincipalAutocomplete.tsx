@@ -44,7 +44,9 @@ export const ChatModelPrincipalAutocomplete: FC<
 
 	const aclAvailableQuery = useQuery({
 		...chatModelACLAvailable(organizationId, modelId, {
-			q: prepareQuery(encodeURI(inputValue)),
+			// URLSearchParams in the API client handles encoding; pre-encoding
+			// here would double-encode (e.g. "a b" becomes q=a%2520b).
+			q: prepareQuery(inputValue),
 			limit: 25,
 		}),
 		enabled: open,
