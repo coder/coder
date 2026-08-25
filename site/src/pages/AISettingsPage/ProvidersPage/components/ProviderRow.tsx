@@ -52,8 +52,8 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 								{displayName}
 							</span>
 							{disabled && (
-								<Badge size="sm" variant="default">
-									Disabled
+								<Badge asChild size="sm" variant="default">
+									<span>Disabled</span>
 								</Badge>
 							)}
 						</span>
@@ -91,13 +91,13 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Badge
+									asChild
 									variant="info"
-									tabIndex={0}
 									onClick={stopPropagation}
 									onKeyDown={stopPropagation}
 									onKeyUp={stopPropagation}
 								>
-									Not supported in Agents
+									<button type="button">Not supported in Agents</button>
 								</Badge>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
@@ -110,14 +110,18 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Badge
+									asChild
 									variant="warning"
-									tabIndex={0}
-									aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
 									onClick={stopPropagation}
 									onKeyDown={stopPropagation}
 									onKeyUp={stopPropagation}
 								>
-									Warning
+									<button
+										type="button"
+										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
+									>
+										Warning
+									</button>
 								</Badge>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">

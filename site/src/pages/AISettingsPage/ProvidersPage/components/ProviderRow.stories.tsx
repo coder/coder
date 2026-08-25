@@ -84,7 +84,9 @@ export const NotSupportedInAgents: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = canvas.getByText("Not supported in Agents");
+		const badge = canvas.getByRole("button", {
+			name: "Not supported in Agents",
+		});
 		await expect(badge).toBeInTheDocument();
 
 		await userEvent.hover(badge);
@@ -139,13 +141,11 @@ export const WithHostnameCollisionWarning: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = canvas.getByText(/warning/i);
+		const badge = canvas.getByRole("button", { name: /^Warning:/ });
 		await expect(badge).toBeInTheDocument();
-		await expect(badge).toHaveAttribute(
-			"aria-label",
+		await expect(badge).toHaveAccessibleName(
 			expect.stringContaining("api.openai.com"),
 		);
-		await expect(badge).toHaveAttribute("tabIndex", "0");
 
 		// Hover shows the tooltip with the warning text.
 		await userEvent.hover(badge);
