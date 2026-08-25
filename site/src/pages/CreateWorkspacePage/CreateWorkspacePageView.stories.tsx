@@ -499,3 +499,74 @@ export const ExternalAuthForAnotherUser: Story = {
 		).not.toBeInTheDocument();
 	},
 };
+
+const classicParameterFlowTemplate = {
+	...MockTemplate,
+	organization_name: "default",
+	name: "docker-template",
+	use_classic_parameter_flow: true,
+};
+
+export const ClassicParameterFlowTemplate: Story = {
+	args: {
+		template: classicParameterFlowTemplate,
+		canUpdateTemplate: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		expect(
+			within(alert).getByText("This template uses the classic parameter flow"),
+		).toBeVisible();
+		expect(
+			within(alert).getByRole("link", {
+				name: /read the dynamic parameters docs/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/admin/templates/extending-templates/dynamic-parameters",
+			),
+		);
+		expect(
+			within(alert).queryByRole("link", { name: /template settings/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ClassicParameterFlowTemplateWithSettingsAction: Story = {
+	args: {
+		template: classicParameterFlowTemplate,
+		canUpdateTemplate: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		const settingsLink = within(alert).getByRole("link", {
+			name: /template settings/i,
+		});
+		expect(settingsLink).toHaveAttribute(
+			"href",
+			"/templates/default/docker-template/settings",
+		);
+	},
+};
+
+export const DynamicParameterFlowTemplate: Story = {
+	args: {
+		template: {
+			...classicParameterFlowTemplate,
+			use_classic_parameter_flow: false,
+		},
+		canUpdateTemplate: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.queryByText("This template uses the classic parameter flow"),
+		).not.toBeInTheDocument();
+	},
+};

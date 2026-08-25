@@ -1,12 +1,14 @@
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
+import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, TemplateExample } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { Badge } from "#/components/Badge/Badge";
 import { DeprecatedBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import {
@@ -18,6 +20,7 @@ import {
 	HelpPopoverText,
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
+import { Link } from "#/components/Link/Link";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -49,6 +52,30 @@ import {
 } from "#/utils/templates";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { type TemplateFilterState, TemplatesFilter } from "./TemplatesFilter";
+
+const ClassicParameterFlowAlert: FC<{ templateCount: number }> = ({
+	templateCount,
+}) => {
+	return (
+		<Alert severity="warning" className="mt-6">
+			<AlertTitle>
+				{templateCount === 1
+					? "1 template still uses the classic parameter flow"
+					: `${templateCount} templates still use the classic parameter flow`}
+			</AlertTitle>
+			<AlertDescription>
+				The classic parameter flow is deprecated. Move these templates to
+				dynamic parameters to get real-time validation, conditional parameters,
+				and richer input types.{" "}
+				<Link
+					href={docs("/admin/templates/extending-templates/dynamic-parameters")}
+				>
+					Read the dynamic parameters docs
+				</Link>
+			</AlertDescription>
+		</Alert>
+	);
+};
 
 const TemplateHelpPopover: FC = () => {
 	return (
@@ -115,12 +142,14 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 };
 
 interface TemplateRowProps {
+	showClassicParameterFlow: boolean;
 	showOrganizations: boolean;
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({
+	showClassicParameterFlow,
 	showOrganizations,
 	template,
 	workspacePermissions,
@@ -148,7 +177,18 @@ const TemplateRow: FC<TemplateRowProps> = ({
 		>
 			<TableCell>
 				<AvatarData
-					title={template.display_name || template.name}
+					title={
+						<span className="flex flex-row items-center gap-2">
+							{template.display_name || template.name}
+							{showClassicParameterFlow &&
+								template.use_classic_parameter_flow && (
+									<Badge variant="warning" size="sm">
+										<TriangleAlertIcon aria-hidden="true" />
+										Classic parameters
+									</Badge>
+								)}
+						</span>
+					}
 					subtitle={template.description}
 					avatar={
 						<Avatar
@@ -215,9 +255,20 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
+	const classicParameterFlowTemplateCount =
+		templates?.filter((template) => template.use_classic_parameter_flow)
+			.length ?? 0;
+	const showClassicParameterFlow =
+		canCreateTemplates && classicParameterFlowTemplateCount > 0;
 
 	return (
 		<Margins className="pb-12">
+			{showClassicParameterFlow && (
+				<ClassicParameterFlowAlert
+					templateCount={classicParameterFlowTemplateCount}
+				/>
+			)}
+
 			<PageHeader
 				actions={
 					canCreateTemplates && (
@@ -283,6 +334,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						templates?.map((template) => (
 							<TemplateRow
 								key={template.id}
+								showClassicParameterFlow={showClassicParameterFlow}
 								showOrganizations={showOrganizations}
 								template={template}
 								workspacePermissions={workspacePermissions}

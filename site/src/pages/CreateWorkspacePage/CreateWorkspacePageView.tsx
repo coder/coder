@@ -15,7 +15,7 @@ import type {
 	FriendlyDiagnostic,
 	PreviewParameter,
 } from "#/api/typesGenerated";
-import { Alert } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
@@ -470,6 +470,38 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
+
+					{template.use_classic_parameter_flow && (
+						<Alert
+							severity="warning"
+							actions={
+								canUpdateTemplate && (
+									<Button asChild size="sm" variant="outline">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings`}
+										>
+											Template settings
+										</RouterLink>
+									</Button>
+								)
+							}
+						>
+							<AlertTitle>
+								This template uses the classic parameter flow
+							</AlertTitle>
+							<AlertDescription>
+								Real-time validation, conditional parameters, and richer input
+								types are unavailable on this form.{" "}
+								<Link
+									href={docs(
+										"/admin/templates/extending-templates/dynamic-parameters",
+									)}
+								>
+									Read the dynamic parameters docs
+								</Link>
+							</AlertDescription>
+						</Alert>
+					)}
 
 					{urlPresetError && (
 						<Alert severity="warning" dismissible>

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -213,5 +214,107 @@ export const WithValidationError: Story = {
 		templates: undefined,
 		examples: undefined,
 		canCreateTemplates: false,
+	},
+};
+
+const classicParameterFlowTemplates = [
+	{
+		...MockTemplate,
+		id: "template-classic-1",
+		name: "classic-one",
+		display_name: "Classic One",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-classic-2",
+		name: "classic-two",
+		display_name: "Classic Two",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
+		id: "template-dynamic",
+		name: "dynamic-one",
+		display_name: "Dynamic One",
+		use_classic_parameter_flow: false,
+	},
+];
+
+export const ClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: classicParameterFlowTemplates,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const alert = canvas.getByRole("alert");
+		expect(
+			within(alert).getByText(
+				"2 templates still use the classic parameter flow",
+			),
+		).toBeVisible();
+		expect(
+			within(alert)
+				.getByRole("link", { name: /dynamic parameters docs/i })
+				.getAttribute("href"),
+		).toContain("/admin/templates/extending-templates/dynamic-parameters");
+
+		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
+		expect(within(classicCell).getByText("Classic parameters")).toBeVisible();
+
+		const dynamicCell = canvas.getByRole("cell", { name: /Dynamic One/ });
+		expect(
+			within(dynamicCell).queryByText("Classic parameters"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SingleClassicParameterFlowWarning: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [
+			classicParameterFlowTemplates[0],
+			classicParameterFlowTemplates[2],
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			within(canvas.getByRole("alert")).getByText(
+				"1 template still uses the classic parameter flow",
+			),
+		).toBeVisible();
+	},
+};
+
+export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Classic parameters")).not.toBeInTheDocument();
+	},
+};
+
+export const WithoutClassicParameterFlowTemplates: Story = {
+	args: {
+		...WithTemplates.args,
+		canCreateTemplates: true,
+		templates: [classicParameterFlowTemplates[2]],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Classic parameters")).not.toBeInTheDocument();
 	},
 };
