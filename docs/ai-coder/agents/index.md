@@ -272,11 +272,9 @@ enabled by an administrator.
 `read_skill` and `read_skill_file` are available when the workspace contains
 skills in its `.agents/skills/` directory.
 
-`propose_plan` and `ask_user_question` are only available while plan mode is
-active. In plan mode, the agent can still inspect the workspace and template
-metadata, execute shell commands for exploration, and read process output.
-`write_file` and `edit_files` remain available only for the chat-specific plan
-file under `.coder/plans/`.
+`propose_plan` and `ask_user_question` are only available while plan mode is active.
+In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
+`write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
 Dynamic, provider-native, and computer-use tools are blocked.
@@ -292,15 +290,6 @@ current setting.
 
 While plan mode is active:
 
-- the agent can inspect repository files, workspace state, and available
-  templates
-- `write_file` and `edit_files` can only modify the chat-specific plan file
-  under `.coder/plans/`
-- `ask_user_question` can gather structured clarification from the user before
-  a plan is proposed
-- `propose_plan` snapshots the current plan file into the transcript so you can
-  review it before implementation starts
-- `execute` and `process_output` remain available for exploration, such as
 - The agent can inspect repository files, workspace state, and available templates.
 - `write_file` and `edit_files` can only modify the chat-specific plan file under `.coder/plans/`.
 - `ask_user_question` can gather structured clarification from the user before a plan is proposed.
