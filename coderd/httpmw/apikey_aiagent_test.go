@@ -163,20 +163,28 @@ func TestAIAgentOwnerAndIdentityLiveness(t *testing.T) {
 	})
 }
 
+// TestAIAgentMissingMetadataFailsClosed asserts that a credential claiming an
+// AI agent holder authenticates nobody when no such agent exists.
+//
+// **What "missing metadata" means changed with the holder type.** The test used
+// to build a users row of kind `ai_agent` holding a key with a user holder, and
+// assert that authentication refused it for having no `ai_agents` row. That
+// state is no longer expressible: what holds a credential is a property of the
+// credential, so a key with a user holder is a user's key whatever its user's
+// kind, and there is no metadata to be missing.
+//
+// The property worth keeping is the fail-closed one, so it is asserted where it
+// now lives: a key that says an AI agent holds it, naming an agent the ledger
+// does not have.
 func TestAIAgentMissingMetadataFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
-	agentUser, err := db.InsertAIAgentUser(ctx, database.InsertAIAgentUserParams{
-		ID:        uuid.New(),
-		Username:  "ai-chat-" + uuid.NewString()[:8],
-		CreatedAt: dbtime.Now(),
-	})
-	require.NoError(t, err)
 
 	keyParams, token, err := apikey.Generate(apikey.CreateParams{
-		UserID:          agentUser.ID,
+		UserID:          uuid.New(),
+		HolderType:      database.HolderTypeAIAgent,
 		LoginType:       database.LoginTypeToken,
 		DefaultLifetime: time.Hour,
 		Scopes:          database.APIKeyScopes{database.ApiKeyScopeChatRead},
@@ -189,7 +197,7 @@ func TestAIAgentMissingMetadataFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusUnauthorized, serveAIAgentKey(t, db, token, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		t.Fatal("AI agent without metadata reached handler")
+		t.Fatal("a key naming an AI agent that does not exist reached handler")
 	})))
 }
 

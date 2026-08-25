@@ -1437,9 +1437,9 @@ then the key it is carried on names its holder.
 
 ### Status
 
-Milestones 1 and 2 complete, 2026-08-23. Milestone 3 complete, 2026-08-25.
+Complete. Milestones 1 and 2 on 2026-08-23, milestones 3 and 4 on 2026-08-25.
 Milestone 4's minting change went with milestone 2 and was not noticed until
-2026-08-24; what is left of it is removal.
+2026-08-24; only its removal was left.
 
 ### What forces the work
 
@@ -1698,15 +1698,20 @@ result. The two do not produce the same subject, and the difference is the point
 rather than a detail to be preserved. What is different from the plan is only
 that nobody chose the moment.
 
-**What remains is removal, and it is smaller than what happened.**
+**Done, 2026-08-25.** The branch that fetched a user and read its kind is gone,
+along with the direct-assignment subject construction inside it. The user path
+now reads the user for existence alone, so that a key naming a user who is not
+there is answered as an invalid credential rather than as a server error.
 
-Delete the branch at `httpmw/apikey.go` that fetches a user and reads its kind,
-and the resolution path behind it that exists to serve it. A freshly minted key
-never reaches it, so it is dead for anything this system now creates.
+**Nothing can reach it again.** `MintKey` is the only minting path for an AI
+agent and issues through the ledger, whose mirror maps an AI agent holder onto
+`ai_agent`. There is no path that gives an agent a user-holder key.
 
-Confirm nothing can reach it again, meaning no path mints a key for an AI agent
-with a user holder type. `MintKey` is the only minting path for an agent, so the
-check is that it stays so.
+**One test changed what it asserts.** `TestAIAgentMissingMetadataFailsClosed`
+built a users row of kind `ai_agent` holding a user-holder key and asserted the
+refusal. That state is no longer expressible, a key with a user holder being a
+user's key whatever its user's kind. The fail-closed property is asserted where
+it now lives: a key naming an AI agent the ledger does not have.
 
 **The finding recorded in `security_findings.md` about the API key subject's
 cached AST is carried by those same lines**, and deleting them is where it is

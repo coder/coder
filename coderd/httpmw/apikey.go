@@ -506,8 +506,12 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		agentActor = &attribution
 	} else {
 		userID, _ := key.UserID()
+		// Read for existence alone. Nothing about the user decides which
+		// subject is built any more, but a key naming a user who is not there
+		// is answered as an invalid credential rather than as a server error,
+		// which is what fetching the roles would give.
 		//nolint:gocritic // Authentication runs before a request actor exists.
-		user, userErr := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
+		_, userErr := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
 		if userErr != nil {
 			if errors.Is(userErr, sql.ErrNoRows) {
 				return nil, invalidAIAgentError("API key user does not exist.")
@@ -522,47 +526,19 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 			}
 		}
 
-		var subjectErr error
-		if user.Kind == database.UserKindAIAgent {
-			// **The identity code's AI agent, which is a users row.** This is
-			// the path above's predecessor and is left exactly as it was. The
-			// two coexist because the two kinds of agent do: one is a row in
-			// this work's ledger and reaches the branch above, the other is a
-			// row in users and reaches here. This goes when the identity code
-			// is rewritten and there is only one kind left.
-			identity, resolveErr := aiagentidentity.Resolve(ctx, cfg.DB, user.ID)
-			if resolveErr != nil {
-				if errors.Is(resolveErr, aiagentidentity.ErrNotAIAgent) ||
-					errors.Is(resolveErr, aiagentidentity.ErrAIAgentDeleted) ||
-					errors.Is(resolveErr, sql.ErrNoRows) {
-					return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
-				}
-				return nil, &ValidateAPIKeyError{
-					Code: http.StatusInternalServerError,
-					Response: codersdk.Response{
-						Message: internalErrorMessage,
-						Detail:  fmt.Sprintf("Internal error resolving AI agent identity. %s", resolveErr.Error()),
-					},
-					Hard: true,
-				}
-			}
-			if identity.AgentUser.Deleted || identity.AgentUser.Status != database.UserStatusActive {
-				return nil, invalidAIAgentError("AI agent user is not active.")
-			}
-			if identity.OwnerUser.Kind != database.UserKindHuman || identity.OwnerUser.Deleted || identity.OwnerUser.Status != database.UserStatusActive {
-				return nil, invalidAIAgentError("AI agent owner is not active.")
-			}
-
-			actor, userStatus, subjectErr = UserRBACSubject(ctx, cfg.DB, identity.OwnerUser.ID, key.ScopeSet())
-			if subjectErr == nil {
-				actor.Type = rbac.SubjectTypeAIAgent
-				actor.FriendlyName = identity.AgentUser.Username
-				resolvedActor := identity.Actor
-				agentActor = &resolvedActor
-			}
-		} else {
-			actor, userStatus, subjectErr = UserRBACSubject(ctx, cfg.DB, userID, key.ScopeSet())
-		}
+		// **A user holds this key, and only a user can.** An AI agent's key
+		// says so in its holder type and took the branch above. There is no
+		// longer a second way to be an AI agent here, so there is no kind to
+		// read and no identity to resolve: what holds a credential is a
+		// property of the credential.
+		//
+		// The branch that used to stand here built an agent's subject by
+		// assigning onto the one UserRBACSubject returned, which carries a
+		// cached rego value that regoValue() short-circuits on, so neither
+		// assignment reached the policy. See P9 in
+		// poc_audit/security_findings.md. Deleting it is where that finding is
+		// answered rather than moved.
+		subject, status, subjectErr := UserRBACSubject(ctx, cfg.DB, userID, key.ScopeSet())
 		if subjectErr != nil {
 			return nil, &ValidateAPIKeyError{
 				Code: http.StatusInternalServerError,
@@ -573,6 +549,7 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				Hard: true,
 			}
 		}
+		actor, userStatus = subject, status
 	}
 
 	return &ValidateAPIKeyResult{
