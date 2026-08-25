@@ -1,7 +1,26 @@
 # MCP Gateway Escalations: Human-in-the-Loop Tool Approval
 
-Status: accepted plan, not yet implemented (except the desktop bridge in
-`coder/sandbox`, which implements the client side of the API contract below).
+Status: accepted plan, implementation in progress on `ais`. The desktop
+bridge in `coder/sandbox` (client side of the API contract below) is done.
+
+## Implementation status
+
+Living checklist; update as slices land. Migration numbers are allocated
+here to prevent collisions between parallel work.
+
+| Slice | Contents                                                                                                                                                                                                          | Status              |
+|-------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| 1     | Tri-state tool rules (`action` on rules + `tool_default`), `mcptools.Evaluate`, gateway lists escalated tools but fail-closed denies calls, migration 000576                                                      | done (`5372142b3d`) |
+| 2     | `mcp_gateway_escalations` table + tool-usage `disposition`/`escalation_id` columns + `resource_type` enum value (migration 000577), notification template (migration 000578), queries, dbauthz, audit table entry | in progress         |
+| 3     | dRPC 1.7 (`CreateMCPGatewayEscalation` incl. notification enqueue, `WaitMCPGatewayEscalation`), gateway SSE hold replacing the interim denial, tool-usage dispositions recorded                                   | pending             |
+| 4     | Management API `GET /api/v2/mcp-gateway/escalations`, `POST .../{id}/approve|deny` (frozen contract below), codersdk client, lazy expiry on read, audit on resolution                                             | pending             |
+| 5     | Approvals page in the site + inbox notification deep link                                                                                                                                                         | pending             |
+| 6     | Demo template example rule + docs                                                                                                                                                                                 | pending             |
+
+V1 scope reductions (revisit later): escalation expiry is a fixed 5
+minutes (no per-server `escalation_timeout` column yet); approve and deny
+are both sponsor-only (no admin deny); grants ("approval sticks") remain
+phase 2; the `watch` SSE endpoint remains an additive upgrade.
 
 Companion to `AI_AGENT_MCP_GATEWAY_SPEC.md`. That spec defines two dispositions
 for MCP tool calls through the gateway: permitted (forwarded upstream) and
