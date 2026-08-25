@@ -48,7 +48,6 @@ func BaseURLHostname(baseURL string) string {
 	if err != nil {
 		return ""
 	}
-	// url.Parse lowercases the scheme, so a direct comparison is enough.
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return ""
 	}
