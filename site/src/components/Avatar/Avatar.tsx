@@ -27,7 +27,6 @@ const avatarVariants = cva(
 			variant: {
 				default: null,
 				icon: "[&_svg]:size-full",
-				emoji: null,
 			},
 		},
 		defaultVariants: {
@@ -53,12 +52,6 @@ const avatarVariants = cva(
 	},
 );
 
-/**
- * Avatar props. The variant prop is resolved internally: built-in emoji
- * sources always render with the emoji variant, overriding any variant passed
- * by the caller, so emojis look the same at call sites whose source is
- * data-dependent and may be an icon, photo, or emoji.
- */
 export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
@@ -85,18 +78,20 @@ export const Avatar: React.FC<AvatarProps> = ({
 }) => {
 	const { externalImages } = useAppearance();
 
-	// Built-in emojis always use the emoji variant, even when a caller
-	// passes another one. See the AvatarProps doc.
-	const resolvedVariant = src?.startsWith("/emojis/") ? "emoji" : variant;
+	const isEmoji = src?.startsWith("/emojis/");
 
 	return (
 		<AvatarPrimitive.Root
 			className={cn(
-				avatarVariants({ size, variant: resolvedVariant, className }),
+				avatarVariants({
+					size,
+					variant: isEmoji ? "default" : variant,
+					className,
+				}),
 			)}
 			style={{
 				...style,
-				padding: resolvedVariant === "emoji" ? "20%" : style?.padding,
+				padding: isEmoji ? "20%" : style?.padding,
 			}}
 			{...props}
 		>
