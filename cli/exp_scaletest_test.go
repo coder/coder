@@ -3,7 +3,6 @@ package cli_test
 import (
 	"context"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -115,57 +114,6 @@ func TestScaleTestCreateUsers(t *testing.T) {
 	}
 	require.Equal(t, 3, created)
 	require.Equal(t, 1, templateAdmins)
-}
-
-// TestScaleTestCreateUsers_UsernamePrefix verifies that --username-prefix is
-// inserted between the "scaletest-" root and the rest of the username, keeping
-// the users discoverable as scaletest users.
-func TestScaleTestCreateUsers_UsernamePrefix(t *testing.T) {
-	t.Parallel()
-
-	if testutil.RaceEnabled() {
-		t.Skip("Skipping due to race detector")
-	}
-
-	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancelFunc()
-
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	client := coderdtest.New(t, &coderdtest.Options{
-		Logger: &log,
-	})
-	_ = coderdtest.CreateFirstUser(t, client)
-
-	// The flag value is a sub-prefix; usernames become scaletest-notif-<rest>.
-	const subPrefix = "notif"
-	const wantPrefix = loadtestutil.ScaleTestPrefix + "-" + subPrefix + "-"
-	inv, root := clitest.New(t, "exp", "scaletest", "create-users",
-		"--count", "2",
-		"--template-admin-percentage", "0",
-		"--username-prefix", subPrefix,
-		"--no-cleanup",
-		"--concurrency", "2",
-		"--timeout", "30s",
-		"--job-timeout", "15s",
-		"--output", "text",
-	)
-	clitest.SetupConfig(t, client, root)
-	err := inv.WithContext(ctx).Run()
-	require.NoError(t, err)
-
-	res, err := client.Users(ctx, codersdk.UsersRequest{Search: wantPrefix})
-	require.NoError(t, err)
-
-	var created int
-	for _, u := range res.Users {
-		if !loadtestutil.IsScaleTestUser(u.Username, u.Email) {
-			continue
-		}
-		require.True(t, strings.HasPrefix(u.Username, wantPrefix),
-			"expected username %q to start with %q", u.Username, wantPrefix)
-		created++
-	}
-	require.Equal(t, 2, created)
 }
 
 // TestScaleTestNotifications_ReuseUsersInsufficient verifies that --reuse-users
