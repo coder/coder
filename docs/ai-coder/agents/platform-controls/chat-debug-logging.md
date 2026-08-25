@@ -11,7 +11,7 @@ Off by default. Three layers control whether it runs for a given chat:
    on for every chat. The runtime admin and user toggles become read-only.
 1. **Runtime admin gate.** With the deployment override unset, the
    *Let users record chat debug logs* toggle decides whether users can opt
-   in. Configure it under **AI Settings** > **Lifecycle**, or at
+   in. Configure it under **Admin settings** > **AI** > **Coder Agents** > **Lifecycle**, or at
    `GET/PUT /api/v2/chats/config/debug-logging`.
 1. **Per-user toggle.** Users with the admin gate enabled can turn debug
    logging on for their own chats from **Agents** > **Settings** > **General**
