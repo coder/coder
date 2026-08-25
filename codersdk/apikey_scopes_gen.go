@@ -59,6 +59,12 @@ const (
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
 	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
+	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
+	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	APIKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	APIKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	APIKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
+	APIKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
 	APIKeyScopeCoderAll                            APIKeyScope = "coder:all"
 	APIKeyScopeCoderApikeysManageSelf              APIKeyScope = "coder:apikeys.manage_self"
 	APIKeyScopeCoderApplicationConnect             APIKeyScope = "coder:application_connect"
@@ -104,6 +110,12 @@ const (
 	APIKeyScopeLicenseCreate                       APIKeyScope = "license:create"
 	APIKeyScopeLicenseDelete                       APIKeyScope = "license:delete"
 	APIKeyScopeLicenseRead                         APIKeyScope = "license:read"
+	APIKeyScopeMcpServerConfigAll                  APIKeyScope = "mcp_server_config:*"
+	APIKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	APIKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
+	APIKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	APIKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	APIKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
 	APIKeyScopeNotificationMessageAll              APIKeyScope = "notification_message:*"
 	APIKeyScopeNotificationMessageCreate           APIKeyScope = "notification_message:create"
 	APIKeyScopeNotificationMessageDelete           APIKeyScope = "notification_message:delete"
@@ -251,6 +263,8 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeApiKeyDelete,
 	APIKeyScopeApiKeyRead,
 	APIKeyScopeApiKeyUpdate,
+	APIKeyScopeChatModelConfigRead,
+	APIKeyScopeChatModelConfigShare,
 	APIKeyScopeCoderAll,
 	APIKeyScopeCoderApikeysManageSelf,
 	APIKeyScopeCoderApplicationConnect,

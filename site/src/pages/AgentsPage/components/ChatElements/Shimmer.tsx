@@ -1,6 +1,6 @@
 import type { MotionProps } from "motion/react";
-import { MotionConfig, motion } from "motion/react";
-import type { ElementType, JSX } from "react";
+import { MotionConfig, MotionConfigContext, motion } from "motion/react";
+import { type ElementType, type JSX, useContext } from "react";
 
 import { cn } from "#/utils/cn";
 
@@ -40,16 +40,21 @@ const ShimmerComponent = ({
 		Component as keyof JSX.IntrinsicElements,
 	);
 
+	// skipAnimations jumps to the final keyframe, which leaves the
+	// gradient offscreen, so hold it centered for captures.
+	const { skipAnimations = false } = useContext(MotionConfigContext);
+
 	const dynamicSpread = (children?.length ?? 0) * spread;
 
 	return (
 		<MotionConfig reducedMotion="user">
 			<MotionComponent
-				data-pixel="ignore"
-				animate={{ backgroundPosition: "0% center" }}
+				animate={{
+					backgroundPosition: skipAnimations ? "50% center" : "0% center",
+				}}
 				className={cn(
 					"relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
-					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--surface-primary)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
+					"[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),hsl(var(--surface-primary)),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat]",
 					className,
 				)}
 				initial={{ backgroundPosition: "100% center" }}

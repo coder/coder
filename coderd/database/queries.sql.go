@@ -2862,9 +2862,11 @@ func (q *sqlQuerier) ExportOrganizationAISpend(ctx context.Context, arg ExportOr
 }
 
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
 WHERE provider = $1 AND model = $2
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+LIMIT 1
 `
 
 type GetAIModelPriceByProviderModelParams struct {
@@ -2872,6 +2874,8 @@ type GetAIModelPriceByProviderModelParams struct {
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for the model, preferring a custom price over
+// the price book.
 func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error) {
 	row := q.db.QueryRowContext(ctx, getAIModelPriceByProviderModel, arg.Provider, arg.Model)
 	var i AIModelPrice
@@ -2884,35 +2888,57 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 		&i.CacheWritePrice,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Source,
 	)
 	return i, err
 }
 
 const getAIModelPrices = `-- name: GetAIModelPrices :many
-SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
+SELECT DISTINCT ON (
+    provider,
+    model,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END
+) provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at, source
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
-        WHEN $1::text != '' THEN
-            provider = $1
+        WHEN $2::text != '' THEN
+            provider = $2
         ELSE true
     END
     -- Filter by model
     AND CASE
-        WHEN $2::text != '' THEN
-            model = $2
+        WHEN $3::text != '' THEN
+            model = $3
         ELSE true
     END
-ORDER BY provider, model
+    -- Filter by source
+    AND CASE
+        WHEN $1::text NOT IN ('', 'all') THEN
+            source = $1::ai_model_price_source
+        ELSE true
+    END
+ORDER BY
+    provider ASC,
+    model ASC,
+    CASE WHEN $1::text = 'all' THEN source::text ELSE '' END ASC,
+    CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
 `
 
 type GetAIModelPricesParams struct {
+	Source   string `db:"source" json:"source"`
 	Provider string `db:"provider" json:"provider"`
 	Model    string `db:"model" json:"model"`
 }
 
+// Returns the price in effect for each model, preferring a custom price over
+// the price book. Filtering by source narrows the rows considered first, so a
+// model carrying both prices reports the one from the named source.
+// The source 'all' reports every row instead. It joins the DISTINCT ON key, so
+// each source forms its own group and nothing collapses. Every other source
+// contributes the same constant, leaving the key as (provider, model).
 func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesParams) ([]AIModelPrice, error) {
-	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Provider, arg.Model)
+	rows, err := q.db.QueryContext(ctx, getAIModelPrices, arg.Source, arg.Provider, arg.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -2929,6 +2955,7 @@ func (q *sqlQuerier) GetAIModelPrices(ctx context.Context, arg GetAIModelPricesP
 			&i.CacheWritePrice,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Source,
 		); err != nil {
 			return nil, err
 		}
@@ -3498,7 +3525,7 @@ func (q *sqlQuerier) IncrementUserAIDailySpend(ctx context.Context, arg Incremen
 
 const upsertAIModelPrices = `-- name: UpsertAIModelPrices :exec
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price
+	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
 	elem->>'provider',
@@ -3506,9 +3533,10 @@ SELECT
 	(elem->>'input_price')::bigint,
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
-FROM jsonb_array_elements($1::jsonb) AS elem
-ON CONFLICT (provider, model) DO UPDATE SET
+	(elem->>'cache_write_price')::bigint,
+	$1::ai_model_price_source
+FROM jsonb_array_elements($2::jsonb) AS elem
+ON CONFLICT (provider, model, source) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -3527,14 +3555,20 @@ WHERE (
 )
 `
 
-// Upsert a batch of (provider, model) rows from a JSON array. Each element
-// must have provider, model, and the four price fields; null prices are
-// written as SQL NULL.
-// A conflicting row is only rewritten when a price differs, so updated_at
-// records when a price last changed. Prices are nullable and a NULL on
-// either side counts as a difference.
-func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
-	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
+type UpsertAIModelPricesParams struct {
+	Source AIModelPriceSource `db:"source" json:"source"`
+	Seed   json.RawMessage    `db:"seed" json:"seed"`
+}
+
+// Upsert a batch of model prices from a JSON array, all recorded under the
+// given source. Each element must have provider, model, and the four price
+// fields, and null prices are written as SQL NULL.
+// Each source keeps its own row, so the price book and a custom price never
+// overwrite each other. A conflicting row is only rewritten when a price
+// differs, so updated_at records when a price last changed. Prices are
+// nullable and a NULL on either side counts as a difference.
+func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, arg UpsertAIModelPricesParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, arg.Source, arg.Seed)
 	return err
 }
 
@@ -6101,7 +6135,7 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
-const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
+const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :one
 UPDATE
     chat_model_configs
 SET
@@ -6110,33 +6144,20 @@ SET
     updated_at = NOW()
 WHERE
     id = $1::uuid
-`
-
-func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigByID, id)
-	return err
-}
-
-const deleteChatModelConfigsByAIProviderID = `-- name: DeleteChatModelConfigsByAIProviderID :exec
-UPDATE
-    chat_model_configs
-SET
-    deleted = TRUE,
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE
-    ai_provider_id = $1::uuid
     AND deleted = FALSE
+RETURNING id
 `
 
-func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByAIProviderID, aiProviderID)
-	return err
+func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deleteChatModelConfigByID, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const getChatModelConfigByID = `-- name: GetChatModelConfigByID :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
 FROM
     chat_model_configs
 WHERE
@@ -6163,19 +6184,25 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.group_acl, cmc.user_acl
 FROM
     chat_model_configs cmc
 LEFT JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.deleted = FALSE
+    AND cmc.organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedChatModelConfigs
+    -- @authorize_filter
 ORDER BY
     ap.type::text ASC,
     cmc.model ASC,
@@ -6183,8 +6210,8 @@ ORDER BY
     cmc.id DESC
 `
 
-func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getChatModelConfigs)
+func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigs, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -6208,6 +6235,69 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.CompressionThreshold,
 			&i.Options,
 			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatModelConfigsByOrganization = `-- name: GetChatModelConfigsByOrganization :many
+SELECT
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
+FROM
+    chat_model_configs
+WHERE
+    organization_id = $1::uuid
+    AND deleted = FALSE
+ORDER BY
+    model ASC,
+    updated_at DESC,
+    id DESC
+`
+
+// All live configs in one organization, unfiltered. Consumed ONLY by
+// ensureDefaultChatModelConfig's default-election read inside the write
+// transaction; authorization is the caller's update-in-org check that every
+// path reaching the election already requires. No @authorize_filter.
+func (q *sqlQuerier) GetChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ChatModelConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getChatModelConfigsByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatModelConfig
+	for rows.Next() {
+		var i ChatModelConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.Model,
+			&i.DisplayName,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.Enabled,
+			&i.IsDefault,
+			&i.Deleted,
+			&i.DeletedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ContextLimit,
+			&i.CompressionThreshold,
+			&i.Options,
+			&i.AIProviderID,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
@@ -6224,16 +6314,17 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 
 const getDefaultChatModelConfig = `-- name: GetDefaultChatModelConfig :one
 SELECT
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
 FROM
     chat_model_configs
 WHERE
     is_default = TRUE
     AND deleted = FALSE
+    AND organization_id = $1::uuid
 `
 
-func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelConfig, error) {
-	row := q.db.QueryRowContext(ctx, getDefaultChatModelConfig)
+func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context, organizationID uuid.UUID) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, getDefaultChatModelConfig, organizationID)
 	var i ChatModelConfig
 	err := row.Scan(
 		&i.ID,
@@ -6251,13 +6342,16 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
 const getEnabledChatModelConfigByID = `-- name: GetEnabledChatModelConfigByID :one
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.group_acl, cmc.user_acl
 FROM
     chat_model_configs cmc
 JOIN
@@ -6291,20 +6385,24 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
-const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
+const getEnabledChatModelConfigsByOrganization = `-- name: GetEnabledChatModelConfigsByOrganization :many
 SELECT
-    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id,
+    cmc.id, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id, cmc.organization_id, cmc.group_acl, cmc.user_acl,
     ap.type::text AS provider
 FROM
     chat_model_configs cmc
 JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
-    cmc.enabled = TRUE
+    cmc.organization_id = $1::uuid
+    AND cmc.enabled = TRUE
     AND cmc.deleted = FALSE
     AND ap.enabled = TRUE
     AND ap.deleted = FALSE
@@ -6315,20 +6413,20 @@ ORDER BY
     cmc.id DESC
 `
 
-type GetEnabledChatModelConfigsRow struct {
+type GetEnabledChatModelConfigsByOrganizationRow struct {
 	ChatModelConfig ChatModelConfig `db:"chat_model_config" json:"chat_model_config"`
 	Provider        string          `db:"provider" json:"provider"`
 }
 
-func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabledChatModelConfigsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
+func (q *sqlQuerier) GetEnabledChatModelConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]GetEnabledChatModelConfigsByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigsByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetEnabledChatModelConfigsRow
+	var items []GetEnabledChatModelConfigsByOrganizationRow
 	for rows.Next() {
-		var i GetEnabledChatModelConfigsRow
+		var i GetEnabledChatModelConfigsByOrganizationRow
 		if err := rows.Scan(
 			&i.ChatModelConfig.ID,
 			&i.ChatModelConfig.Model,
@@ -6345,6 +6443,9 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]GetEnabl
 			&i.ChatModelConfig.CompressionThreshold,
 			&i.ChatModelConfig.Options,
 			&i.ChatModelConfig.AIProviderID,
+			&i.ChatModelConfig.OrganizationID,
+			&i.ChatModelConfig.GroupACL,
+			&i.ChatModelConfig.UserACL,
 			&i.Provider,
 		); err != nil {
 			return nil, err
@@ -6371,7 +6472,10 @@ INSERT INTO chat_model_configs (
     context_limit,
     compression_threshold,
     options,
-    ai_provider_id
+    ai_provider_id,
+    organization_id,
+    group_acl,
+    user_acl
 ) VALUES (
     $1::text,
     $2::text,
@@ -6382,10 +6486,13 @@ INSERT INTO chat_model_configs (
     $7::bigint,
     $8::integer,
     $9::jsonb,
-    $10::uuid
+    $10::uuid,
+    $11::uuid,
+    $12,
+    $13
 )
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
 `
 
 type InsertChatModelConfigParams struct {
@@ -6399,6 +6506,9 @@ type InsertChatModelConfigParams struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
+	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
 }
 
 func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatModelConfigParams) (ChatModelConfig, error) {
@@ -6413,6 +6523,9 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		arg.CompressionThreshold,
 		arg.Options,
 		arg.AIProviderID,
+		arg.OrganizationID,
+		arg.GroupACL,
+		arg.UserACL,
 	)
 	var i ChatModelConfig
 	err := row.Scan(
@@ -6431,6 +6544,9 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -6444,10 +6560,11 @@ SET
 WHERE
     is_default = TRUE
     AND deleted = FALSE
+    AND organization_id = $1::uuid
 `
 
-func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs)
+func (q *sqlQuerier) UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, unsetDefaultChatModelConfigs, organizationID)
 	return err
 }
 
@@ -6469,7 +6586,7 @@ WHERE
     id = $10::uuid
     AND deleted = FALSE
 RETURNING
-    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
 `
 
 type UpdateChatModelConfigParams struct {
@@ -6515,8 +6632,332 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
+}
+
+const updateChatModelConfigACLByID = `-- name: UpdateChatModelConfigACLByID :one
+UPDATE
+    chat_model_configs
+SET
+    group_acl = $1,
+    user_acl = $2,
+    updated_by = $3::uuid,
+    updated_at = NOW()
+WHERE
+    id = $4::uuid
+    AND deleted = FALSE
+RETURNING
+    id, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id, organization_id, group_acl, user_acl
+`
+
+type UpdateChatModelConfigACLByIDParams struct {
+	GroupACL  ChatACL       `db:"group_acl" json:"group_acl"`
+	UserACL   ChatACL       `db:"user_acl" json:"user_acl"`
+	UpdatedBy uuid.NullUUID `db:"updated_by" json:"updated_by"`
+	ID        uuid.UUID     `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatModelConfigACLByID(ctx context.Context, arg UpdateChatModelConfigACLByIDParams) (ChatModelConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateChatModelConfigACLByID,
+		arg.GroupACL,
+		arg.UserACL,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	var i ChatModelConfig
+	err := row.Scan(
+		&i.ID,
+		&i.Model,
+		&i.DisplayName,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.Enabled,
+		&i.IsDefault,
+		&i.Deleted,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ContextLimit,
+		&i.CompressionThreshold,
+		&i.Options,
+		&i.AIProviderID,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const deleteChatOrganizationModelOverride = `-- name: DeleteChatOrganizationModelOverride :exec
+DELETE FROM chat_organization_model_overrides
+WHERE organization_id = $1
+  AND context = $2
+`
+
+type DeleteChatOrganizationModelOverrideParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
+}
+
+func (q *sqlQuerier) DeleteChatOrganizationModelOverride(ctx context.Context, arg DeleteChatOrganizationModelOverrideParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatOrganizationModelOverride, arg.OrganizationID, arg.Context)
+	return err
+}
+
+const getChatOrganizationModelOverride = `-- name: GetChatOrganizationModelOverride :one
+SELECT id, organization_id, context, model_config_id, reasoning_effort
+FROM chat_organization_model_overrides
+WHERE organization_id = $1
+  AND context = $2
+`
+
+type GetChatOrganizationModelOverrideParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
+}
+
+func (q *sqlQuerier) GetChatOrganizationModelOverride(ctx context.Context, arg GetChatOrganizationModelOverrideParams) (ChatOrganizationModelOverride, error) {
+	row := q.db.QueryRowContext(ctx, getChatOrganizationModelOverride, arg.OrganizationID, arg.Context)
+	var i ChatOrganizationModelOverride
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Context,
+		&i.ModelConfigID,
+		&i.ReasoningEffort,
+	)
+	return i, err
+}
+
+const getChatOrganizationModelOverrides = `-- name: GetChatOrganizationModelOverrides :many
+SELECT id, organization_id, context, model_config_id, reasoning_effort
+FROM chat_organization_model_overrides
+WHERE organization_id = $1
+ORDER BY context
+`
+
+func (q *sqlQuerier) GetChatOrganizationModelOverrides(ctx context.Context, organizationID uuid.UUID) ([]ChatOrganizationModelOverride, error) {
+	rows, err := q.db.QueryContext(ctx, getChatOrganizationModelOverrides, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatOrganizationModelOverride
+	for rows.Next() {
+		var i ChatOrganizationModelOverride
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Context,
+			&i.ModelConfigID,
+			&i.ReasoningEffort,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatOrganizationModelOverridesByContext = `-- name: GetChatOrganizationModelOverridesByContext :many
+SELECT
+    o.organization_id,
+    (cmc.id IS NOT NULL AND ap.id IS NOT NULL)::boolean AS model_available,
+    COALESCE(cmc.model, '')::text AS model,
+    COALESCE(ap.type::text, '')::text AS provider_type
+FROM chat_organization_model_overrides o
+JOIN organizations org ON org.id = o.organization_id AND NOT org.deleted
+LEFT JOIN chat_model_configs cmc
+    ON cmc.id = o.model_config_id
+    AND cmc.deleted = FALSE
+    AND cmc.enabled = TRUE
+LEFT JOIN ai_providers ap
+    ON ap.id = cmc.ai_provider_id
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
+WHERE o.context = $1
+ORDER BY o.organization_id
+`
+
+type GetChatOrganizationModelOverridesByContextRow struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	ModelAvailable bool      `db:"model_available" json:"model_available"`
+	Model          string    `db:"model" json:"model"`
+	ProviderType   string    `db:"provider_type" json:"provider_type"`
+}
+
+// Returns every non-deleted organization's override for one context together
+// with the resolved model and provider, for bulk consumers such as telemetry.
+// model_available mirrors GetEnabledChatModelConfigByID: it is false when the
+// referenced config or its provider is disabled or deleted.
+func (q *sqlQuerier) GetChatOrganizationModelOverridesByContext(ctx context.Context, argContext string) ([]GetChatOrganizationModelOverridesByContextRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatOrganizationModelOverridesByContext, argContext)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatOrganizationModelOverridesByContextRow
+	for rows.Next() {
+		var i GetChatOrganizationModelOverridesByContextRow
+		if err := rows.Scan(
+			&i.OrganizationID,
+			&i.ModelAvailable,
+			&i.Model,
+			&i.ProviderType,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatUserModelOverride = `-- name: GetChatUserModelOverride :one
+SELECT id, user_id, organization_id, context, mode, model_config_id, reasoning_effort
+FROM chat_user_model_overrides
+WHERE user_id = $1
+  AND organization_id = $2
+  AND context = $3
+`
+
+type GetChatUserModelOverrideParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Context        string    `db:"context" json:"context"`
+}
+
+func (q *sqlQuerier) GetChatUserModelOverride(ctx context.Context, arg GetChatUserModelOverrideParams) (ChatUserModelOverride, error) {
+	row := q.db.QueryRowContext(ctx, getChatUserModelOverride, arg.UserID, arg.OrganizationID, arg.Context)
+	var i ChatUserModelOverride
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.OrganizationID,
+		&i.Context,
+		&i.Mode,
+		&i.ModelConfigID,
+		&i.ReasoningEffort,
+	)
+	return i, err
+}
+
+const getChatUserModelOverrides = `-- name: GetChatUserModelOverrides :many
+SELECT id, user_id, organization_id, context, mode, model_config_id, reasoning_effort
+FROM chat_user_model_overrides
+WHERE user_id = $1
+  AND organization_id = $2
+ORDER BY context
+`
+
+type GetChatUserModelOverridesParams struct {
+	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) GetChatUserModelOverrides(ctx context.Context, arg GetChatUserModelOverridesParams) ([]ChatUserModelOverride, error) {
+	rows, err := q.db.QueryContext(ctx, getChatUserModelOverrides, arg.UserID, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatUserModelOverride
+	for rows.Next() {
+		var i ChatUserModelOverride
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.OrganizationID,
+			&i.Context,
+			&i.Mode,
+			&i.ModelConfigID,
+			&i.ReasoningEffort,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertChatOrganizationModelOverride = `-- name: UpsertChatOrganizationModelOverride :exec
+INSERT INTO chat_organization_model_overrides
+    (organization_id, context, model_config_id, reasoning_effort)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT ON CONSTRAINT chat_organization_model_overrides_organization_id_context_key
+DO UPDATE SET
+    model_config_id = EXCLUDED.model_config_id,
+    reasoning_effort = EXCLUDED.reasoning_effort
+`
+
+type UpsertChatOrganizationModelOverrideParams struct {
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+}
+
+func (q *sqlQuerier) UpsertChatOrganizationModelOverride(ctx context.Context, arg UpsertChatOrganizationModelOverrideParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatOrganizationModelOverride,
+		arg.OrganizationID,
+		arg.Context,
+		arg.ModelConfigID,
+		arg.ReasoningEffort,
+	)
+	return err
+}
+
+const upsertChatUserModelOverride = `-- name: UpsertChatUserModelOverride :exec
+INSERT INTO chat_user_model_overrides
+    (user_id, organization_id, context, mode, model_config_id, reasoning_effort)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT ON CONSTRAINT chat_user_model_overrides_user_organization_context_key
+DO UPDATE SET
+    mode = EXCLUDED.mode,
+    model_config_id = EXCLUDED.model_config_id,
+    reasoning_effort = EXCLUDED.reasoning_effort
+`
+
+type UpsertChatUserModelOverrideParams struct {
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	Mode            string         `db:"mode" json:"mode"`
+	ModelConfigID   uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
+}
+
+func (q *sqlQuerier) UpsertChatUserModelOverride(ctx context.Context, arg UpsertChatUserModelOverrideParams) error {
+	_, err := q.db.ExecContext(ctx, upsertChatUserModelOverride,
+		arg.UserID,
+		arg.OrganizationID,
+		arg.Context,
+		arg.Mode,
+		arg.ModelConfigID,
+		arg.ReasoningEffort,
+	)
+	return err
 }
 
 const acquireStaleChatDiffStatuses = `-- name: AcquireStaleChatDiffStatuses :many
@@ -8526,22 +8967,22 @@ func (q *sqlQuerier) GetChatMessagesForPromptByChatID(ctx context.Context, chatI
 }
 
 const getChatModelConfigsForTelemetry = `-- name: GetChatModelConfigsForTelemetry :many
-SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default
+SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enabled, cmc.is_default, cmc.organization_id
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false
 `
 
 type GetChatModelConfigsForTelemetryRow struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	Provider     string    `db:"provider" json:"provider"`
-	Model        string    `db:"model" json:"model"`
-	ContextLimit int64     `db:"context_limit" json:"context_limit"`
-	Enabled      bool      `db:"enabled" json:"enabled"`
-	IsDefault    bool      `db:"is_default" json:"is_default"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	Provider       string    `db:"provider" json:"provider"`
+	Model          string    `db:"model" json:"model"`
+	ContextLimit   int64     `db:"context_limit" json:"context_limit"`
+	Enabled        bool      `db:"enabled" json:"enabled"`
+	IsDefault      bool      `db:"is_default" json:"is_default"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-// Returns all model configurations for telemetry snapshot collection.
 // deleted = false guarantees ai_provider_id is non-null, so INNER JOIN is safe.
 func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatModelConfigsForTelemetry)
@@ -8559,6 +9000,7 @@ func (q *sqlQuerier) GetChatModelConfigsForTelemetry(ctx context.Context) ([]Get
 			&i.ContextLimit,
 			&i.Enabled,
 			&i.IsDefault,
+			&i.OrganizationID,
 		); err != nil {
 			return nil, err
 		}
@@ -9547,7 +9989,7 @@ func (q *sqlQuerier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID
 
 const getChatsUpdatedAfter = `-- name: GetChatsUpdatedAfter :many
 SELECT
-    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    c.id, c.owner_id, c.organization_id, c.created_at, c.updated_at, c.status,
     (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
     c.root_chat_id, c.workspace_id,
     c.mode, c.archived, c.last_model_config_id, c.client_type,
@@ -9560,6 +10002,7 @@ WHERE c.updated_at > $1
 type GetChatsUpdatedAfterRow struct {
 	ID                uuid.UUID      `db:"id" json:"id"`
 	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
 	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
 	Status            ChatStatus     `db:"status" json:"status"`
@@ -9588,6 +10031,7 @@ func (q *sqlQuerier) GetChatsUpdatedAfter(ctx context.Context, updatedAfter time
 		if err := rows.Scan(
 			&i.ID,
 			&i.OwnerID,
+			&i.OrganizationID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Status,
@@ -14000,6 +14444,38 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const acquireExternalAuthLinkRefreshLease = `-- name: AcquireExternalAuthLinkRefreshLease :one
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at from acquire_external_auth_link_refresh_lease($1, $2, $3)
+`
+
+type AcquireExternalAuthLinkRefreshLeaseParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	TimeoutMs  int64     `db:"timeout_ms" json:"timeout_ms"`
+}
+
+// Set the lease to expire according to the provided timeout.  If there is
+// already a lease, an exception is raised.
+func (q *sqlQuerier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg AcquireExternalAuthLinkRefreshLeaseParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, acquireExternalAuthLinkRefreshLease, arg.ProviderID, arg.UserID, arg.TimeoutMs)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
+	)
+	return i, err
+}
+
 const deleteExternalAuthLink = `-- name: DeleteExternalAuthLink :exec
 DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
@@ -14015,7 +14491,7 @@ func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExter
 }
 
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetExternalAuthLinkParams struct {
@@ -14038,12 +14514,13 @@ func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAut
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
 
 const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE user_id = $1
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at FROM external_auth_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
@@ -14067,6 +14544,7 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthRefreshTokenKeyID,
 			&i.OAuthExtra,
 			&i.OauthRefreshFailureReason,
+			&i.RefreshLeaseExpiresAt,
 		); err != nil {
 			return nil, err
 		}
@@ -14104,7 +14582,7 @@ INSERT INTO external_auth_links (
     $8,
     $9,
 	$10
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type InsertExternalAuthLinkParams struct {
@@ -14146,42 +14624,71 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
 }
 
+const releaseExternalAuthLinkRefreshLease = `-- name: ReleaseExternalAuthLinkRefreshLease :exec
+UPDATE
+	external_auth_links
+SET
+	refresh_lease_expires_at = NULL
+WHERE
+	provider_id = $1
+	AND user_id = $2
+	AND refresh_lease_expires_at = $3
+`
+
+type ReleaseExternalAuthLinkRefreshLeaseParams struct {
+	ProviderID            string       `db:"provider_id" json:"provider_id"`
+	UserID                uuid.UUID    `db:"user_id" json:"user_id"`
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+}
+
+// The lease is only removed if it is the current lease.
+func (q *sqlQuerier) ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error {
+	_, err := q.db.ExecContext(ctx, releaseExternalAuthLinkRefreshLease, arg.ProviderID, arg.UserID, arg.RefreshLeaseExpiresAt)
+	return err
+}
+
 const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
 UPDATE external_auth_links SET
-    updated_at = $3,
-    oauth_access_token = $4,
-    oauth_access_token_key_id = $5,
-    oauth_refresh_token = $6,
-    oauth_refresh_token_key_id = $7,
-    oauth_expiry = $8,
-	oauth_extra = $9,
-	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
-	-- Any updates to the external auth link, will be assumed to change the state and clear
-	-- any cached errors.
-	oauth_refresh_failure_reason = ''
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
+	updated_at = $4,
+	oauth_access_token = $5,
+	oauth_access_token_key_id = $6,
+	oauth_refresh_token = $7,
+	oauth_refresh_token_key_id = $8,
+	oauth_expiry = $9,
+	oauth_extra = $10,
+	oauth_refresh_failure_reason = $11
+WHERE
+	provider_id = $1
+	AND user_id = $2
+	AND (refresh_lease_expires_at = $3 OR $3 IS NULL)
+RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, refresh_lease_expires_at
 `
 
 type UpdateExternalAuthLinkParams struct {
-	ProviderID             string                `db:"provider_id" json:"provider_id"`
-	UserID                 uuid.UUID             `db:"user_id" json:"user_id"`
-	UpdatedAt              time.Time             `db:"updated_at" json:"updated_at"`
-	OAuthAccessToken       string                `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString        `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string                `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
-	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	ProviderID                string                `db:"provider_id" json:"provider_id"`
+	UserID                    uuid.UUID             `db:"user_id" json:"user_id"`
+	RefreshLeaseExpiresAt     sql.NullTime          `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
+	UpdatedAt                 time.Time             `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken          string                `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID     sql.NullString        `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken         string                `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID    sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry               time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
+	OAuthExtra                pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	OauthRefreshFailureReason string                `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
 }
 
+// If a refresh lease is provided, the row is only updated if the lease matches.
 func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error) {
 	row := q.db.QueryRowContext(ctx, updateExternalAuthLink,
 		arg.ProviderID,
 		arg.UserID,
+		arg.RefreshLeaseExpiresAt,
 		arg.UpdatedAt,
 		arg.OAuthAccessToken,
 		arg.OAuthAccessTokenKeyID,
@@ -14189,6 +14696,7 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.OAuthExtra,
+		arg.OauthRefreshFailureReason,
 	)
 	var i ExternalAuthLink
 	err := row.Scan(
@@ -14203,55 +14711,9 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.RefreshLeaseExpiresAt,
 	)
 	return i, err
-}
-
-const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefreshToken :exec
-UPDATE
-	external_auth_links
-SET
-	-- oauth_refresh_failure_reason can be set to cache the failure reason
-	-- for subsequent refresh attempts.
-	oauth_refresh_failure_reason = $1,
-	oauth_refresh_token = $2,
-	updated_at = $3
-WHERE
-    provider_id = $4
-AND
-    user_id = $5
-AND
-    oauth_refresh_token = $6
-AND
-    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
-    $7 :: text = $7 :: text
-`
-
-type UpdateExternalAuthLinkRefreshTokenParams struct {
-	OauthRefreshFailureReason string    `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
-	OAuthRefreshToken         string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	UpdatedAt                 time.Time `db:"updated_at" json:"updated_at"`
-	ProviderID                string    `db:"provider_id" json:"provider_id"`
-	UserID                    uuid.UUID `db:"user_id" json:"user_id"`
-	OldOauthRefreshToken      string    `db:"old_oauth_refresh_token" json:"old_oauth_refresh_token"`
-	OAuthRefreshTokenKeyID    string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-}
-
-// Optimistic lock: only update the row if the refresh token in the database
-// still matches the one we read before attempting the refresh. This prevents
-// a concurrent caller that lost a token-refresh race from overwriting a valid
-// token stored by the winner.
-func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
-	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
-		arg.OauthRefreshFailureReason,
-		arg.OAuthRefreshToken,
-		arg.UpdatedAt,
-		arg.ProviderID,
-		arg.UserID,
-		arg.OldOauthRefreshToken,
-		arg.OAuthRefreshTokenKeyID,
-	)
-	return err
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -17133,19 +17595,32 @@ func (q *sqlQuerier) DeleteMCPServerUserToken(ctx context.Context, arg DeleteMCP
 	return err
 }
 
-const getEnabledMCPServerConfigs = `-- name: GetEnabledMCPServerConfigs :many
+const deleteMCPServerUserTokensByConfigID = `-- name: DeleteMCPServerUserTokensByConfigID :exec
+DELETE FROM
+    mcp_server_user_tokens
+WHERE
+    mcp_server_config_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteMCPServerUserTokensByConfigID(ctx context.Context, mcpServerConfigID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteMCPServerUserTokensByConfigID, mcpServerConfigID)
+	return err
+}
+
+const getEnabledMCPServerConfigsByOrganization = `-- name: GetEnabledMCPServerConfigsByOrganization :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
+    organization_id = $1::uuid
+    AND enabled = TRUE
 ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigs)
+func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigsByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -17185,6 +17660,9 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
@@ -17199,20 +17677,26 @@ func (q *sqlQuerier) GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServe
 	return items, nil
 }
 
-const getForcedMCPServerConfigs = `-- name: GetForcedMCPServerConfigs :many
+const getEnabledMCPServerConfigsByOrganizationAndIDs = `-- name: GetEnabledMCPServerConfigsByOrganizationAndIDs :many
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 FROM
     mcp_server_configs
 WHERE
-    enabled = TRUE
-    AND availability = 'force_on'
+    organization_id = $1::uuid
+    AND id = ANY($2::uuid[])
+    AND enabled = TRUE
 ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigs)
+type GetEnabledMCPServerConfigsByOrganizationAndIDsParams struct {
+	OrganizationID uuid.UUID   `db:"organization_id" json:"organization_id"`
+	IDs            []uuid.UUID `db:"ids" json:"ids"`
+}
+
+func (q *sqlQuerier) GetEnabledMCPServerConfigsByOrganizationAndIDs(ctx context.Context, arg GetEnabledMCPServerConfigsByOrganizationAndIDsParams) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getEnabledMCPServerConfigsByOrganizationAndIDs, arg.OrganizationID, pq.Array(arg.IDs))
 	if err != nil {
 		return nil, err
 	}
@@ -17252,6 +17736,80 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getForcedMCPServerConfigsByOrganization = `-- name: GetForcedMCPServerConfigsByOrganization :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = $1::uuid
+    AND enabled = TRUE
+    AND availability = 'force_on'
+ORDER BY
+    display_name ASC
+`
+
+func (q *sqlQuerier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getForcedMCPServerConfigsByOrganization, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPServerConfig
+	for rows.Next() {
+		var i MCPServerConfig
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.Slug,
+			&i.Description,
+			&i.IconURL,
+			&i.Transport,
+			&i.Url,
+			&i.AuthType,
+			&i.OAuth2ClientID,
+			&i.OAuth2ClientSecret,
+			&i.OAuth2ClientSecretKeyID,
+			&i.OAuth2AuthURL,
+			&i.OAuth2TokenURL,
+			&i.OAuth2Scopes,
+			&i.APIKeyHeader,
+			&i.APIKeyValue,
+			&i.APIKeyValueKeyID,
+			&i.CustomHeaders,
+			&i.CustomHeadersKeyID,
+			pq.Array(&i.ToolAllowList),
+			pq.Array(&i.ToolDenyList),
+			&i.Availability,
+			&i.Enabled,
+			&i.CreatedBy,
+			&i.UpdatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ModelIntent,
+			&i.AllowInPlanMode,
+			&i.ForwardCoderHeaders,
+			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
@@ -17268,7 +17826,7 @@ func (q *sqlQuerier) GetForcedMCPServerConfigs(ctx context.Context) ([]MCPServer
 
 const getMCPServerConfigByID = `-- name: GetMCPServerConfigByID :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 FROM
     mcp_server_configs
 WHERE
@@ -17310,21 +17868,25 @@ func (q *sqlQuerier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
-const getMCPServerConfigBySlug = `-- name: GetMCPServerConfigBySlug :one
+const getMCPServerConfigByIDForUpdate = `-- name: GetMCPServerConfigByIDForUpdate :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 FROM
     mcp_server_configs
 WHERE
-    slug = $1::text
+    id = $1::uuid
+FOR UPDATE
 `
 
-func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error) {
-	row := q.db.QueryRowContext(ctx, getMCPServerConfigBySlug, slug)
+func (q *sqlQuerier) GetMCPServerConfigByIDForUpdate(ctx context.Context, id uuid.UUID) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigByIDForUpdate, id)
 	var i MCPServerConfig
 	err := row.Scan(
 		&i.ID,
@@ -17358,87 +17920,85 @@ func (q *sqlQuerier) GetMCPServerConfigBySlug(ctx context.Context, slug string) 
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
 
-const getMCPServerConfigs = `-- name: GetMCPServerConfigs :many
+const getMCPServerConfigByOrganizationAndSlug = `-- name: GetMCPServerConfigByOrganizationAndSlug :one
 SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
-FROM
-    mcp_server_configs
-ORDER BY
-    display_name ASC
-`
-
-func (q *sqlQuerier) GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getMCPServerConfigs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []MCPServerConfig
-	for rows.Next() {
-		var i MCPServerConfig
-		if err := rows.Scan(
-			&i.ID,
-			&i.DisplayName,
-			&i.Slug,
-			&i.Description,
-			&i.IconURL,
-			&i.Transport,
-			&i.Url,
-			&i.AuthType,
-			&i.OAuth2ClientID,
-			&i.OAuth2ClientSecret,
-			&i.OAuth2ClientSecretKeyID,
-			&i.OAuth2AuthURL,
-			&i.OAuth2TokenURL,
-			&i.OAuth2Scopes,
-			&i.APIKeyHeader,
-			&i.APIKeyValue,
-			&i.APIKeyValueKeyID,
-			&i.CustomHeaders,
-			&i.CustomHeadersKeyID,
-			pq.Array(&i.ToolAllowList),
-			pq.Array(&i.ToolDenyList),
-			&i.Availability,
-			&i.Enabled,
-			&i.CreatedBy,
-			&i.UpdatedBy,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ModelIntent,
-			&i.AllowInPlanMode,
-			&i.ForwardCoderHeaders,
-			&i.OAuth2RevocationURL,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getMCPServerConfigsByIDs = `-- name: GetMCPServerConfigsByIDs :many
-SELECT
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 FROM
     mcp_server_configs
 WHERE
-    id = ANY($1::uuid[])
+    organization_id = $1::uuid
+    AND slug = $2::text
+`
+
+type GetMCPServerConfigByOrganizationAndSlugParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Slug           string    `db:"slug" json:"slug"`
+}
+
+func (q *sqlQuerier) GetMCPServerConfigByOrganizationAndSlug(ctx context.Context, arg GetMCPServerConfigByOrganizationAndSlugParams) (MCPServerConfig, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerConfigByOrganizationAndSlug, arg.OrganizationID, arg.Slug)
+	var i MCPServerConfig
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.Slug,
+		&i.Description,
+		&i.IconURL,
+		&i.Transport,
+		&i.Url,
+		&i.AuthType,
+		&i.OAuth2ClientID,
+		&i.OAuth2ClientSecret,
+		&i.OAuth2ClientSecretKeyID,
+		&i.OAuth2AuthURL,
+		&i.OAuth2TokenURL,
+		&i.OAuth2Scopes,
+		&i.APIKeyHeader,
+		&i.APIKeyValue,
+		&i.APIKeyValueKeyID,
+		&i.CustomHeaders,
+		&i.CustomHeadersKeyID,
+		pq.Array(&i.ToolAllowList),
+		pq.Array(&i.ToolDenyList),
+		&i.Availability,
+		&i.Enabled,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ModelIntent,
+		&i.AllowInPlanMode,
+		&i.ForwardCoderHeaders,
+		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
+	)
+	return i, err
+}
+
+const getMCPServerConfigsByOrganization = `-- name: GetMCPServerConfigsByOrganization :many
+SELECT
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
+FROM
+    mcp_server_configs
+WHERE
+    organization_id = $1::uuid
+    -- Authorize Filter clause will be injected below in GetAuthorizedMCPServerConfigs
+    -- @authorize_filter
 ORDER BY
     display_name ASC
 `
 
-func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UUID) ([]MCPServerConfig, error) {
-	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByIDs, pq.Array(ids))
+func (q *sqlQuerier) GetMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
+	rows, err := q.db.QueryContext(ctx, getMCPServerConfigsByOrganization, organizationID)
 	if err != nil {
 		return nil, err
 	}
@@ -17478,6 +18038,9 @@ func (q *sqlQuerier) GetMCPServerConfigsByIDs(ctx context.Context, ids []uuid.UU
 			&i.AllowInPlanMode,
 			&i.ForwardCoderHeaders,
 			&i.OAuth2RevocationURL,
+			&i.OrganizationID,
+			&i.GroupACL,
+			&i.UserACL,
 		); err != nil {
 			return nil, err
 		}
@@ -17509,6 +18072,35 @@ type GetMCPServerUserTokenParams struct {
 
 func (q *sqlQuerier) GetMCPServerUserToken(ctx context.Context, arg GetMCPServerUserTokenParams) (MCPServerUserToken, error) {
 	row := q.db.QueryRowContext(ctx, getMCPServerUserToken, arg.MCPServerConfigID, arg.UserID)
+	var i MCPServerUserToken
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.UserID,
+		&i.AccessToken,
+		&i.AccessTokenKeyID,
+		&i.RefreshToken,
+		&i.RefreshTokenKeyID,
+		&i.TokenType,
+		&i.Expiry,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OauthRefreshFailureReason,
+	)
+	return i, err
+}
+
+const getMCPServerUserTokenByID = `-- name: GetMCPServerUserTokenByID :one
+SELECT
+    id, mcp_server_config_id, user_id, access_token, access_token_key_id, refresh_token, refresh_token_key_id, token_type, expiry, created_at, updated_at, oauth_refresh_failure_reason
+FROM
+    mcp_server_user_tokens
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetMCPServerUserTokenByID(ctx context.Context, id uuid.UUID) (MCPServerUserToken, error) {
+	row := q.db.QueryRowContext(ctx, getMCPServerUserTokenByID, id)
 	var i MCPServerUserToken
 	err := row.Scan(
 		&i.ID,
@@ -17574,6 +18166,8 @@ func (q *sqlQuerier) GetMCPServerUserTokensByUserID(ctx context.Context, userID 
 
 const insertMCPServerConfig = `-- name: InsertMCPServerConfig :one
 INSERT INTO mcp_server_configs (
+    id,
+    organization_id,
     display_name,
     slug,
     description,
@@ -17600,11 +18194,13 @@ INSERT INTO mcp_server_configs (
     model_intent,
     allow_in_plan_mode,
     forward_coder_headers,
+    group_acl,
+    user_acl,
     created_by,
     updated_by
 ) VALUES (
-    $1::text,
-    $2::text,
+    $1::uuid,
+    $2::uuid,
     $3::text,
     $4::text,
     $5::text,
@@ -17622,21 +18218,27 @@ INSERT INTO mcp_server_configs (
     $17::text,
     $18::text,
     $19::text,
-    $20::text[],
-    $21::text[],
-    $22::text,
-    $23::boolean,
-    $24::boolean,
+    $20::text,
+    $21::text,
+    $22::text[],
+    $23::text[],
+    $24::text,
     $25::boolean,
     $26::boolean,
-    $27::uuid,
-    $28::uuid
+    $27::boolean,
+    $28::boolean,
+    $29,
+    $30,
+    $31::uuid,
+    $32::uuid
 )
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 `
 
 type InsertMCPServerConfigParams struct {
+	ID                      uuid.UUID      `db:"id" json:"id"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
 	DisplayName             string         `db:"display_name" json:"display_name"`
 	Slug                    string         `db:"slug" json:"slug"`
 	Description             string         `db:"description" json:"description"`
@@ -17663,12 +18265,16 @@ type InsertMCPServerConfigParams struct {
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
+	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 	CreatedBy               uuid.UUID      `db:"created_by" json:"created_by"`
 	UpdatedBy               uuid.UUID      `db:"updated_by" json:"updated_by"`
 }
 
 func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error) {
 	row := q.db.QueryRowContext(ctx, insertMCPServerConfig,
+		arg.ID,
+		arg.OrganizationID,
 		arg.DisplayName,
 		arg.Slug,
 		arg.Description,
@@ -17695,6 +18301,8 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		arg.ModelIntent,
 		arg.AllowInPlanMode,
 		arg.ForwardCoderHeaders,
+		arg.GroupACL,
+		arg.UserACL,
 		arg.CreatedBy,
 		arg.UpdatedBy,
 	)
@@ -17731,6 +18339,9 @@ func (q *sqlQuerier) InsertMCPServerConfig(ctx context.Context, arg InsertMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
 }
@@ -17818,7 +18429,7 @@ SET
 WHERE
     id = $28::uuid
 RETURNING
-    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url
+    id, display_name, slug, description, icon_url, transport, url, auth_type, oauth2_client_id, oauth2_client_secret, oauth2_client_secret_key_id, oauth2_auth_url, oauth2_token_url, oauth2_scopes, api_key_header, api_key_value, api_key_value_key_id, custom_headers, custom_headers_key_id, tool_allow_list, tool_deny_list, availability, enabled, created_by, updated_by, created_at, updated_at, model_intent, allow_in_plan_mode, forward_coder_headers, oauth2_revocation_url, organization_id, group_acl, user_acl
 `
 
 type UpdateMCPServerConfigParams struct {
@@ -17916,8 +18527,39 @@ func (q *sqlQuerier) UpdateMCPServerConfig(ctx context.Context, arg UpdateMCPSer
 		&i.AllowInPlanMode,
 		&i.ForwardCoderHeaders,
 		&i.OAuth2RevocationURL,
+		&i.OrganizationID,
+		&i.GroupACL,
+		&i.UserACL,
 	)
 	return i, err
+}
+
+const updateMCPServerConfigACLByID = `-- name: UpdateMCPServerConfigACLByID :exec
+UPDATE mcp_server_configs
+SET
+    group_acl = $1,
+    user_acl = $2,
+    updated_by = $3::uuid,
+    updated_at = NOW()
+WHERE
+    id = $4::uuid
+`
+
+type UpdateMCPServerConfigACLByIDParams struct {
+	GroupACL  ChatACL   `db:"group_acl" json:"group_acl"`
+	UserACL   ChatACL   `db:"user_acl" json:"user_acl"`
+	UpdatedBy uuid.UUID `db:"updated_by" json:"updated_by"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateMCPServerConfigACLByID(ctx context.Context, arg UpdateMCPServerConfigACLByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateMCPServerConfigACLByID,
+		arg.GroupACL,
+		arg.UserACL,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	return err
 }
 
 const updateMCPServerUserTokenFromRefresh = `-- name: UpdateMCPServerUserTokenFromRefresh :one
@@ -23021,6 +23663,66 @@ func (q *sqlQuerier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID 
 	return items, nil
 }
 
+const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
+SELECT
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+FROM
+	provisioner_jobs
+WHERE
+	id = ANY($1 :: uuid [ ])
+ORDER BY
+	created_at
+`
+
+// Fetches provisioner jobs by their IDs without computing queue position or
+// queue size. Callers that do not need the queue position should prefer this
+// over GetProvisionerJobsByIDsWithQueuePosition, whose window functions over
+// pending jobs and provisioner daemons are comparatively expensive.
+func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ProvisionerJob
+	for rows.Next() {
+		var i ProvisionerJob
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.StartedAt,
+			&i.CanceledAt,
+			&i.CompletedAt,
+			&i.Error,
+			&i.OrganizationID,
+			&i.InitiatorID,
+			&i.Provisioner,
+			&i.StorageMethod,
+			&i.Type,
+			&i.Input,
+			&i.WorkerID,
+			&i.FileID,
+			&i.Tags,
+			&i.ErrorCode,
+			&i.TraceMetadata,
+			&i.JobStatus,
+			&i.LogsLength,
+			&i.LogsOverflowed,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
 WITH filtered_provisioner_jobs AS (
 	-- Step 1: Filter provisioner_jobs
@@ -24912,18 +25614,6 @@ func (q *sqlQuerier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArch
 	return auto_archive_days, err
 }
 
-const getChatCompactionModelOverride = `-- name: GetChatCompactionModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_compaction_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatCompactionModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatCompactionModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
 const getChatComputerUseProvider = `-- name: GetChatComputerUseProvider :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_computer_use_provider'), '') :: text AS provider
@@ -24977,30 +25667,6 @@ func (q *sqlQuerier) GetChatDesktopEnabled(ctx context.Context) (bool, error) {
 	var enable_desktop bool
 	err := row.Scan(&enable_desktop)
 	return enable_desktop, err
-}
-
-const getChatExploreModelOverride = `-- name: GetChatExploreModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_explore_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatExploreModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatExploreModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
-}
-
-const getChatGeneralModelOverride = `-- name: GetChatGeneralModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_general_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatGeneralModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatGeneralModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
 }
 
 const getChatIncludeDefaultSystemPrompt = `-- name: GetChatIncludeDefaultSystemPrompt :one
@@ -25072,6 +25738,36 @@ func (q *sqlQuerier) GetChatRetentionDays(ctx context.Context) (int32, error) {
 	return retention_days, err
 }
 
+const getChatSiteConfigValue = `-- name: GetChatSiteConfigValue :one
+SELECT
+    COALESCE(MAX(site_configs.value), '')::text AS value,
+    COUNT(*) > 0 AS exists
+FROM site_configs
+WHERE site_configs.key = $1
+    AND site_configs.key IN (
+        'agents_chat_retention_days',
+        'agents_chat_debug_retention_days',
+        'agents_chat_auto_archive_days',
+        'agents_workspace_ttl',
+        'agents_computer_use_provider',
+        'agents_chat_debug_logging_allow_users',
+        'agents_chat_personal_model_overrides_enabled'
+    )
+`
+
+type GetChatSiteConfigValueRow struct {
+	Value  string `db:"value" json:"value"`
+	Exists bool   `db:"exists" json:"exists"`
+}
+
+// GetChatSiteConfigValue returns raw text and row presence for an audited chat site configuration.
+func (q *sqlQuerier) GetChatSiteConfigValue(ctx context.Context, configKey string) (GetChatSiteConfigValueRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatSiteConfigValue, configKey)
+	var i GetChatSiteConfigValueRow
+	err := row.Scan(&i.Value, &i.Exists)
+	return i, err
+}
+
 const getChatSystemPrompt = `-- name: GetChatSystemPrompt :one
 SELECT
 	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_system_prompt'), '') :: text AS chat_system_prompt
@@ -25119,18 +25815,6 @@ func (q *sqlQuerier) GetChatSystemPromptConfig(ctx context.Context) (GetChatSyst
 	var i GetChatSystemPromptConfigRow
 	err := row.Scan(&i.ChatSystemPrompt, &i.IncludeDefaultSystemPrompt, &i.IncludeDefaultSystemPromptSet)
 	return i, err
-}
-
-const getChatTitleGenerationModelOverride = `-- name: GetChatTitleGenerationModelOverride :one
-SELECT
-	COALESCE((SELECT value FROM site_configs WHERE key = 'agents_chat_title_generation_model_override'), '') :: text AS model_config_id
-`
-
-func (q *sqlQuerier) GetChatTitleGenerationModelOverride(ctx context.Context) (string, error) {
-	row := q.db.QueryRowContext(ctx, getChatTitleGenerationModelOverride)
-	var model_config_id string
-	err := row.Scan(&model_config_id)
-	return model_config_id, err
 }
 
 const getChatWorkspaceTTL = `-- name: GetChatWorkspaceTTL :one
@@ -25371,16 +26055,6 @@ func (q *sqlQuerier) UpsertChatAutoArchiveDays(ctx context.Context, autoArchiveD
 	return err
 }
 
-const upsertChatCompactionModelOverride = `-- name: UpsertChatCompactionModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_compaction_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_compaction_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatCompactionModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatCompactionModelOverride, value)
-	return err
-}
-
 const upsertChatComputerUseProvider = `-- name: UpsertChatComputerUseProvider :exec
 INSERT INTO site_configs (key, value) VALUES ('agents_computer_use_provider', $1)
 ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_computer_use_provider'
@@ -25446,26 +26120,6 @@ WHERE site_configs.key = 'agents_desktop_enabled'
 
 func (q *sqlQuerier) UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error {
 	_, err := q.db.ExecContext(ctx, upsertChatDesktopEnabled, enableDesktop)
-	return err
-}
-
-const upsertChatExploreModelOverride = `-- name: UpsertChatExploreModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_explore_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_explore_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatExploreModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatExploreModelOverride, value)
-	return err
-}
-
-const upsertChatGeneralModelOverride = `-- name: UpsertChatGeneralModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_general_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_general_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatGeneralModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGeneralModelOverride, value)
 	return err
 }
 
@@ -25544,16 +26198,6 @@ ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat
 
 func (q *sqlQuerier) UpsertChatSystemPrompt(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertChatSystemPrompt, value)
-	return err
-}
-
-const upsertChatTitleGenerationModelOverride = `-- name: UpsertChatTitleGenerationModelOverride :exec
-INSERT INTO site_configs (key, value) VALUES ('agents_chat_title_generation_model_override', $1)
-ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'agents_chat_title_generation_model_override'
-`
-
-func (q *sqlQuerier) UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error {
-	_, err := q.db.ExecContext(ctx, upsertChatTitleGenerationModelOverride, value)
 	return err
 }
 
@@ -30692,24 +31336,6 @@ func (q *sqlQuerier) GetUserChatDebugLoggingEnabled(ctx context.Context, userID 
 	return debug_logging_enabled, err
 }
 
-const getUserChatPersonalModelOverride = `-- name: GetUserChatPersonalModelOverride :one
-SELECT value AS personal_model_override FROM user_configs
-WHERE user_id = $1
-	AND key = $2
-`
-
-type GetUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
-}
-
-func (q *sqlQuerier) GetUserChatPersonalModelOverride(ctx context.Context, arg GetUserChatPersonalModelOverrideParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserChatPersonalModelOverride, arg.UserID, arg.Key)
-	var personal_model_override string
-	err := row.Scan(&personal_model_override)
-	return personal_model_override, err
-}
-
 const getUserCodeDiffDisplayMode = `-- name: GetUserCodeDiffDisplayMode :one
 SELECT
 	value AS code_diff_display_mode
@@ -31210,41 +31836,6 @@ func (q *sqlQuerier) ListUserChatCompactionThresholds(ctx context.Context, userI
 	for rows.Next() {
 		var i UserConfig
 		if err := rows.Scan(&i.UserID, &i.Key, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listUserChatPersonalModelOverrides = `-- name: ListUserChatPersonalModelOverrides :many
-SELECT key, value FROM user_configs
-WHERE user_id = $1
-	AND key LIKE 'chat\_personal\_model\_override:%'
-ORDER BY key
-`
-
-type ListUserChatPersonalModelOverridesRow struct {
-	Key   string `db:"key" json:"key"`
-	Value string `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) ListUserChatPersonalModelOverrides(ctx context.Context, userID uuid.UUID) ([]ListUserChatPersonalModelOverridesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUserChatPersonalModelOverrides, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListUserChatPersonalModelOverridesRow
-	for rows.Next() {
-		var i ListUserChatPersonalModelOverridesRow
-		if err := rows.Scan(&i.Key, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -32022,24 +32613,6 @@ type UpsertUserChatDebugLoggingEnabledParams struct {
 
 func (q *sqlQuerier) UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error {
 	_, err := q.db.ExecContext(ctx, upsertUserChatDebugLoggingEnabled, arg.UserID, arg.DebugLoggingEnabled)
-	return err
-}
-
-const upsertUserChatPersonalModelOverride = `-- name: UpsertUserChatPersonalModelOverride :exec
-INSERT INTO user_configs (user_id, key, value)
-VALUES ($1::uuid, $2::text, $3::text)
-ON CONFLICT ON CONSTRAINT user_configs_pkey
-DO UPDATE SET value = $3::text
-`
-
-type UpsertUserChatPersonalModelOverrideParams struct {
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
-	Key    string    `db:"key" json:"key"`
-	Value  string    `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error {
-	_, err := q.db.ExecContext(ctx, upsertUserChatPersonalModelOverride, arg.UserID, arg.Key, arg.Value)
 	return err
 }
 

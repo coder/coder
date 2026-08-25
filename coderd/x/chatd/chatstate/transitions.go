@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
@@ -281,18 +282,52 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 	})
 }
 
-// messageFromQueuedRow synthesizes a Message from a stored queued row,
-// suitable for promoting into active history.
-func messageFromQueuedRow(q database.ChatQueuedMessage) Message {
+func (tx *Tx) messageFromQueuedRow(chat database.Chat, queued database.ChatQueuedMessage) (Message, error) {
+	modelConfigID, err := tx.resolveQueuedMessageModelConfigID(chat, queued)
+	if err != nil {
+		return Message{}, err
+	}
 	return Message{
 		Role:            database.ChatMessageRoleUser,
-		Content:         pqtype.NullRawMessage{RawMessage: q.Content, Valid: q.Content != nil},
+		Content:         pqtype.NullRawMessage{RawMessage: queued.Content, Valid: queued.Content != nil},
 		Visibility:      database.ChatMessageVisibilityBoth,
-		ModelConfigID:   q.ModelConfigID,
-		ReasoningEffort: q.ReasoningEffort,
-		CreatedBy:       uuid.NullUUID{UUID: q.CreatedBy, Valid: true},
+		ModelConfigID:   modelConfigID,
+		ReasoningEffort: queued.ReasoningEffort,
+		CreatedBy:       uuid.NullUUID{UUID: queued.CreatedBy, Valid: true},
 		ContentVersion:  chatprompt.CurrentContentVersion,
+	}, nil
+}
+
+func (tx *Tx) resolveQueuedMessageModelConfigID(
+	chat database.Chat,
+	queued database.ChatQueuedMessage,
+) (uuid.NullUUID, error) {
+	//nolint:gocritic // Queue promotion needs daemon access to deployment model configuration.
+	ctx := dbauthz.AsChatd(tx.ctx)
+	if queued.ModelConfigID.Valid {
+		config, err := tx.store.GetEnabledChatModelConfigByID(ctx, queued.ModelConfigID.UUID)
+		if err == nil && config.OrganizationID == chat.OrganizationID {
+			return queued.ModelConfigID, nil
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return uuid.NullUUID{}, xerrors.Errorf(
+				"get chat model config %s: %w",
+				queued.ModelConfigID.UUID,
+				err,
+			)
+		}
 	}
+
+	configs, err := tx.store.GetEnabledChatModelConfigsByOrganization(ctx, chat.OrganizationID)
+	if err != nil {
+		return uuid.NullUUID{}, xerrors.Errorf("get default chat model config: %w", err)
+	}
+	for _, config := range configs {
+		if config.ChatModelConfig.IsDefault {
+			return uuid.NullUUID{UUID: config.ChatModelConfig.ID, Valid: true}, nil
+		}
+	}
+	return uuid.NullUUID{}, ErrNoDefaultChatModelConfig
 }
 
 // SetArchivedInput configures [Tx.SetArchived].
@@ -461,7 +496,10 @@ func (tx *Tx) sendMessageE1(chat database.Chat, input SendMessageInput) (SendMes
 	if err != nil {
 		return SendMessageResult{}, err
 	}
-	promoted := messageFromQueuedRow(head)
+	promoted, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return SendMessageResult{}, xerrors.Errorf("resolve promoted queued head: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promoted))
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("insert promoted queued head: %w", err)
@@ -827,7 +865,10 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	if err != nil {
 		return PromoteQueuedMessageResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(target)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, target)
+	if err != nil {
+		return PromoteQueuedMessageResult{}, xerrors.Errorf("resolve promoted queued message: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return PromoteQueuedMessageResult{}, xerrors.Errorf("insert promoted queued message: %w", err)
@@ -1318,7 +1359,10 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("get queue head: %w", err)
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return FinishInterruptionResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
+	}
 	insertedHead, err := tx.insertMessages([]Message{promotedMsg})
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert promoted queue head: %w", err)
@@ -1350,7 +1394,7 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	}, nil
 }
 
-// FinishTurnInput is intentionally empty.
+// FinishTurnInput configures [Tx.FinishTurn].
 type FinishTurnInput struct{}
 
 // FinishTurnResult is returned by [Tx.FinishTurn].
@@ -1388,7 +1432,10 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 	if err != nil {
 		return FinishTurnResult{}, err
 	}
-	promotedMsg := messageFromQueuedRow(head)
+	promotedMsg, err := tx.messageFromQueuedRow(chat, head)
+	if err != nil {
+		return FinishTurnResult{}, xerrors.Errorf("resolve promoted queue head: %w", err)
+	}
 	inserted, err := tx.insertMessages(append(cancels, promotedMsg))
 	if err != nil {
 		return FinishTurnResult{}, xerrors.Errorf("insert promoted queue head: %w", err)

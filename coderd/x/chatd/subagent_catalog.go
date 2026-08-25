@@ -65,6 +65,7 @@ func allSubagentDefinitions() []subagentDefinition {
 				modelConfigID, reasoningEffort, err := p.resolveSubagentModelConfigID(
 					ctx,
 					parent.OwnerID,
+					parent.OrganizationID,
 					codersdk.ChatModelOverrideContextGeneral,
 				)
 				if err != nil {
@@ -90,6 +91,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					resolvedModelConfigID, resolvedReasoningEffort, err := p.resolveSubagentModelConfigID(
 						ctx,
 						turnParent.OwnerID,
+						turnParent.OrganizationID,
 						codersdk.ChatModelOverrideContextExplore,
 					)
 					if err != nil {

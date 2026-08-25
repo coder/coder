@@ -512,8 +512,10 @@ func (b WorkspaceBuildBuilder) doInTX() WorkspaceResponse {
 
 		workspaceAgentID := uuid.NullUUID{}
 		workspaceAppID := uuid.NullUUID{}
-		// Workspace agent and app are only properly set upon job completion
-		if b.jobStatus != database.ProvisionerJobStatusPending && b.jobStatus != database.ProvisionerJobStatusRunning {
+		// Workspace agent and app are only properly set upon job completion, and
+		// only start builds have agents.
+		isStart := b.seed.Transition == "" || b.seed.Transition == database.WorkspaceTransitionStart
+		if isStart && b.jobStatus != database.ProvisionerJobStatusPending && b.jobStatus != database.ProvisionerJobStatusRunning {
 			app := mustWorkspaceAppByWorkspaceAndBuildAndAppID(ownerCtx, b.t, b.db, resp.Workspace.ID, resp.Build.BuildNumber, b.taskAppID)
 			workspaceAgentID = uuid.NullUUID{UUID: app.AgentID, Valid: true}
 			workspaceAppID = uuid.NullUUID{UUID: app.ID, Valid: true}

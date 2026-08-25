@@ -309,7 +309,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
 		}
-		if _, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{PartialMessages: messages}); err != nil {
+		if _, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{
+			PartialMessages: messages,
+		}); err != nil {
 			return xerrors.Errorf("finish interruption: %w", err)
 		}
 		committed, err = store.GetChatByID(ctx, input.ChatID)

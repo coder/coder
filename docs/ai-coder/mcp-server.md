@@ -94,8 +94,8 @@ through `2026-07-28`, does not issue `Mcp-Session-Id` headers, and answers
 `GET` and `DELETE` with `405 Method Not Allowed` (there is no standalone
 server-event stream or explicit session termination, both permitted by the
 specification). The server exposes tools only; MCP resources, prompts,
-structured tool output, elicitation, and the MCP Tasks extension (which is
-unrelated to Coder's task tools) are not implemented.
+structured tool output, elicitation, and the MCP Tasks extension are not
+implemented.
 
 ### Prerequisites
 
@@ -198,7 +198,6 @@ The MCP server exposes tools across several areas:
 - **Template operations**: list, inspect, create, and manage templates and versions
 - **File operations**: read, write, and edit files in a workspace
 - **Workspace interaction**: run commands, forward ports, list apps, and read logs
-- **Task management**: create, list, inspect, and control tasks
 - **Coder Agents chats**: create chats, send messages, read transcripts and status, interrupt, archive, and list available models
 - **User and system**: authenticated user details, tar uploads, and task reporting
 

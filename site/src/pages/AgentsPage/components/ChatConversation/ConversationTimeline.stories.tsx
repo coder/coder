@@ -430,6 +430,7 @@ const defaultArgs: Omit<
 	React.ComponentProps<typeof ConversationTimeline>,
 	"parsedMessages"
 > = {
+	organizationId: "organization-id",
 	subagentTitles: new Map(),
 };
 

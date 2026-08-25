@@ -104,6 +104,10 @@ export const CompactOrgSelector: FC<CompactOrgSelectorProps> = ({
 								>
 									{" "}
 									<Avatar
+										// Decorative: without this the fallback initials join
+										// the option's accessible name once they render, making
+										// name queries and screen-reader output timing-dependent.
+										aria-hidden
 										size="sm"
 										src={org.icon}
 										fallback={org.display_name || org.name}
