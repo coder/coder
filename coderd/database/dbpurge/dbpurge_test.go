@@ -3311,21 +3311,25 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 			require.NoError(t, err)
 			return count
 		}
-		makeStale := func(id int64) {
-			// Simulates a vector produced before the 'english' switch or by
-			// a binary that predates search_tsv_config (e.g. an old replica
-			// winning the dbpurge lock mid rolling upgrade).
+		makeStale := func(id int64, config sql.NullString) {
+			// 'simple' simulates a vector stamped by migration 000585; NULL
+			// simulates a binary that predates search_tsv_config (e.g. an
+			// old replica winning the dbpurge lock mid rolling upgrade).
 			_, err := rawDB.ExecContext(ctx, `
 				UPDATE chat_messages
 				SET search_tsv = to_tsvector('simple', chat_message_search_text(content)),
-				    search_tsv_config = NULL
-				WHERE id = $1`, id)
+				    search_tsv_config = $2
+				WHERE id = $1`, id, config)
 			require.NoError(t, err)
 		}
+		simpleConfig := sql.NullString{String: "simple", Valid: true}
+		nullConfig := sql.NullString{}
 
 		preexisting := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("refactoring the deployment"))
-		makeStale(preexisting.ID)
-		require.Equal(t, 1, countStale())
+		makeStale(preexisting.ID, simpleConfig)
+		oldBinary := createMessage(t, db, deps, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, textContent("rotating the credentials"))
+		makeStale(oldBinary.ID, nullConfig)
+		require.Equal(t, 2, countStale())
 
 		tick := awaitDoTicks(ctx, t, clk, 2)
 		closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
@@ -3334,13 +3338,14 @@ func TestBackfillChatMessagesSearchTsv(t *testing.T) {
 		// latches off the stale scan for the process lifetime.
 		tick()
 		requireTsvFor(ctx, t, rawDB, preexisting.ID, "refactoring the deployment")
+		requireTsvFor(ctx, t, rawDB, oldBinary.ID, "rotating the credentials")
 		require.Zero(t, countStale())
 
 		// A stale row appearing after the latch (old replica racing the
 		// tail of a rolling upgrade) is intentionally not rewritten by
-		// this process; it stays correctly searchable via its recorded
-		// config until a restart re-runs one stale pass.
-		makeStale(preexisting.ID)
+		// this process; it is repaired after a restart re-runs one stale
+		// pass.
+		makeStale(preexisting.ID, nullConfig)
 		tick()
 		require.Equal(t, 1, countStale(), "stale scan must stay latched off after drain")
 		require.NoError(t, closer.Close())

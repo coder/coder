@@ -18333,16 +18333,23 @@ func TestGetChatsSearch(t *testing.T) {
 	pendingChat := createRoot("plain four")
 	insertMsg(pendingChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "elasticsearch indexing")
 
-	// Simulates the post-migration drain window: a vector produced with
-	// the 'simple' config whose search_tsv_config was never stamped
-	// (pre-migration backfill or an old binary mid rolling upgrade).
-	// Such rows must keep their pre-migration exact-form matching until
-	// the sweep rewrites them.
+	// Simulates the post-migration drain window: a vector stamped
+	// 'simple' by the migration keeps exact-form matching until the
+	// sweep rewrites it.
 	staleChat := createRoot("plain stale")
 	staleMsg := insertMsg(staleChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "refactoring codebase")
 	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = NULL WHERE id = $1`,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = 'simple' WHERE id = $1`,
 		staleMsg.ID)
+	require.NoError(t, err)
+
+	// A vector written by a binary that predates search_tsv_config
+	// (NULL config) matches nothing until the sweep rewrites it.
+	oldBinaryChat := createRoot("plain oldbinary")
+	oldBinaryMsg := insertMsg(oldBinaryChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "quantum entanglement notes")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'quantum entanglement notes'), search_tsv_config = NULL WHERE id = $1`,
+		oldBinaryMsg.ID)
 	require.NoError(t, err)
 
 	// Prove role/visibility predicates exclude rows even when search_tsv
@@ -18359,7 +18366,7 @@ func TestGetChatsSearch(t *testing.T) {
 		titleChat.ID, archivedChat.ID, prTitleChat.ID, mergedChat.ID,
 		msgChat.ID, assistantMsgChat.ID, userVisMsgChat.ID,
 		assistantUserVisMsgChat.ID, deletedMsgChat.ID, childParent.ID,
-		ineligibleChat.ID, pendingChat.ID, staleChat.ID,
+		ineligibleChat.ID, pendingChat.ID, staleChat.ID, oldBinaryChat.ID,
 	}
 
 	tests := []struct {
@@ -18384,6 +18391,7 @@ func TestGetChatsSearch(t *testing.T) {
 		// does not until the sweep rewrites the row.
 		{"Message/StaleVectorExactFormMatch", database.GetChatsParams{Search: "refactoring codebase"}, []uuid.UUID{staleChat.ID}},
 		{"Message/StaleVectorNoStemming", database.GetChatsParams{Search: "refactor"}, nil},
+		{"Message/NullConfigNoMatch", database.GetChatsParams{Search: "quantum entanglement"}, nil},
 		{"Message/AssistantRoleMatch", database.GetChatsParams{Search: "grafana tuning"}, []uuid.UUID{assistantMsgChat.ID}},
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},

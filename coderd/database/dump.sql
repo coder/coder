@@ -2067,7 +2067,7 @@ COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort 
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
 
-COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means the vector was written by a binary that predates this column; the dbpurge sweep re-vectorizes rows whose config is not english.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
