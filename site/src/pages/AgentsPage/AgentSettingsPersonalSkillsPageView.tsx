@@ -19,6 +19,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
