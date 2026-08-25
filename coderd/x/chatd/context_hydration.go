@@ -31,13 +31,14 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 
 // HydrateAndMarkChatsDirty implements agentapi.ContextDirtyMarker. It runs
 // inside the PushContextState transaction: it stamps the pushed snapshot hash
-// on chats for the agent that have not been hydrated yet, then flips
+// on chats for the agent that have not been hydrated yet, synchronizes
+// hash-neutral MCP resources into clean chats pinned to that hash, then flips
 // already-pinned chats whose hash differs to dirty. It returns a callback
 // that publishes a context watch event for every chat it touched; the caller
 // invokes it only after the transaction commits, and the callback is a no-op
-// when no chat was hydrated or dirtied. Hydrated chats start clean (no dirty
-// marker), but still need the event: watching clients cached their details
-// without pinned resources and refetch only on context events.
+// when no chat was hydrated, MCP-synchronized, or dirtied. Hydrated chats start
+// clean (no dirty marker), but still need the event: watching clients cached
+// their details without pinned resources and refetch only on context events.
 //
 // The pinned hash on dirtied chats is intentionally left unchanged; the
 // refresh endpoint re-pins it.
@@ -56,6 +57,21 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return nil, xerrors.Errorf("hydrate agent chats context: %w", err)
 	}
 
+	// MCP resources are excluded from the drift hash, so a push that adds or
+	// updates them matches the pinned hash of already-hydrated chats and
+	// dirties nothing. Sync current MCP rows into chats that are clean on the
+	// pushed hash so their tool set converges after asynchronous MCP startup.
+	// Stale rows are pruned only when the push includes a live MCP server.
+	// An empty startup catalog is transient and carries no readiness signal
+	// that makes deletion safe.
+	mcpSynced, err := tx.SyncChatContextMCPResourcesByAgent(ctx, database.SyncChatContextMCPResourcesByAgentParams{
+		AgentID:       agentID,
+		AggregateHash: aggregateHash,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("sync chat context mcp resources: %w", err)
+	}
+
 	dirtied, err := tx.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
@@ -65,9 +81,11 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
 	}
 	// Hydrated chats had a NULL hash and dirtied chats a non-NULL one, so
-	// the two sets never overlap.
-	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied))
+	// those sets never overlap. MCP-synced chats are returned only when rows
+	// actually changed; a just-hydrated chat already matches the pushed rows.
+	touched := make([]uuid.UUID, 0, len(hydrated)+len(mcpSynced)+len(dirtied))
 	touched = append(touched, hydrated...)
+	touched = append(touched, mcpSynced...)
 	for _, d := range dirtied {
 		touched = append(touched, d.ID)
 	}
@@ -75,18 +93,12 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return func() {}, nil
 	}
 
-	// Read the touched chats inside the transaction and capture their rows so
-	// the post-commit callback needs no database access: the published payload
-	// reflects the just-committed state (no re-read a concurrent refresh
-	// could race), and the callback does not depend on the request-scoped
-	// context surviving past commit. Only the transitioned chats are read.
-	touchedChats := make([]database.Chat, 0, len(touched))
-	for _, id := range touched {
-		chat, err := tx.GetChatByID(ctx, id)
-		if err != nil {
-			return nil, xerrors.Errorf("get touched chat %s: %w", id, err)
-		}
-		touchedChats = append(touchedChats, chat)
+	// Capture the touched rows inside the transaction so the post-commit
+	// callback publishes the exact committed state without a database re-read
+	// that could race a concurrent refresh.
+	touchedChats, err := tx.GetChatsByIDsForRunnerSync(ctx, touched)
+	if err != nil {
+		return nil, xerrors.Errorf("get touched chats: %w", err)
 	}
 
 	return func() {

@@ -1118,7 +1118,9 @@ type sqlcQuerier interface {
 	// Copies an agent's current context resources onto a single chat. Pair
 	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
-	// refresh endpoint and on agent rebinding.
+	// refresh endpoint and on agent rebinding. The upsert handles a concurrent
+	// agent push inserting a row after the clear under repeatable-read isolation;
+	// deterministic source ordering keeps concurrent upserts lock-compatible.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -1396,6 +1398,20 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// Keeps the pinned MCP rows (mcp_config and mcp_server) of clean chats
+	// in step with resources present in the agent's latest pushed snapshot.
+	// MCP resources describe live runtime capabilities and are excluded from
+	// the drift hash, so a push that adds them after asynchronous startup, or
+	// changes a tool list, leaves pinned hashes untouched and never dirties a
+	// chat. Only chats pinned to exactly the pushed hash and not already dirty
+	// are touched, and only their MCP-kind rows. Pinned prompt content remains
+	// unchanged. Existing MCP rows absent from a push are pruned only when the
+	// push includes at least one MCP server resource. An empty startup catalog is
+	// transient and the protocol has no MCP-readiness signal that would make
+	// deletion safe. Consequently, an authoritative transition to zero servers
+	// remains pinned until an explicit refresh. The upsert rewrites a row only
+	// when its content actually differs so updated_at is not churned by every push.
+	SyncChatContextMCPResourcesByAgent(ctx context.Context, arg SyncChatContextMCPResourcesByAgentParams) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
