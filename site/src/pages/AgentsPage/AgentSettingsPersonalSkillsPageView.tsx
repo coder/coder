@@ -286,7 +286,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
-					) : error ? (
+					) : skills.length === 0 && error ? (
 						<TableEmpty
 							message="Failed to load personal skills"
 							cta={
@@ -325,7 +325,6 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 												size="icon"
 												variant="subtle"
 												aria-label="Open menu"
-												disabled={downloadingSkillName === skill.name}
 											>
 												{downloadingSkillName === skill.name ? (
 													<Spinner className="size-4" loading />
@@ -335,7 +334,10 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
-											<DropdownMenuItem onClick={() => onDownload(skill)}>
+											<DropdownMenuItem
+												onClick={() => onDownload(skill)}
+												disabled={downloadingSkillName === skill.name}
+											>
 												Download
 											</DropdownMenuItem>
 											<DropdownMenuItem onClick={() => onEdit(skill.name)}>

@@ -60,10 +60,18 @@ export const DownloadingSkill: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const row = canvas.getByRole("row", { name: /review-sql/ });
-		await expect(
+		await userEvent.click(
 			within(row).getByRole("button", { name: "Open menu" }),
-		).toBeDisabled();
+		);
+		const menu = await body.findByRole("menu");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "Download" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "Edit" }),
+		).not.toHaveAttribute("aria-disabled");
 	},
 };
 
@@ -144,6 +152,19 @@ export const ListError: Story = {
 	args: {
 		skills: [],
 		error: new Error("Failed to load personal skills."),
+	},
+};
+
+export const RefetchErrorKeepsRows: Story = {
+	args: {
+		error: new Error("Failed to load personal skills."),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("row", { name: /review-sql/ })).toBeVisible();
+		await expect(
+			canvas.getByText("Failed to load personal skills."),
+		).toBeVisible();
 	},
 };
 
