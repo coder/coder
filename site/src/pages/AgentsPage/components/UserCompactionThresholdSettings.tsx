@@ -112,8 +112,6 @@ export const UserCompactionThresholdSettings: FC<
 		) ??
 		organizationOptions.find((organization) => organization.is_default) ??
 		organizationOptions[0];
-	// Fall back to all models when no organization matches, such as a model
-	// whose organization the user can no longer see.
 	const visibleModels = activeOrganization
 		? enabledModels.filter(
 				(config) => config.organization_id === activeOrganization.id,
