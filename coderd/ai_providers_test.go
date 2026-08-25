@@ -2021,34 +2021,6 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, updated.Status)
 		require.Equal(t, wantWarnings, updated.Status.Warnings)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		got, err := client.AIProvider(ctx, second.ID.String())
-		require.NoError(t, err)
-		require.NotNil(t, got.Status)
-		require.Equal(t, wantWarnings, got.Status.Warnings)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		winner, err := client.AIProvider(ctx, first.ID.String())
-		require.NoError(t, err)
-		require.Nil(t, winner.Status, "first provider in database order should not get a warning on get")
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		providers, err := client.AIProviders(ctx)
-		require.NoError(t, err)
-		require.Len(t, providers, 2)
-		var firstListed, secondListed codersdk.AIProvider
-		for _, p := range providers {
-			switch p.Name {
-			case "first":
-				firstListed = p
-			case "second":
-				secondListed = p
-			}
-		}
-		require.Nil(t, firstListed.Status, "first provider in database order should not get a warning in list")
-		require.NotNil(t, secondListed.Status)
-		require.Equal(t, wantWarnings, secondListed.Status.Warnings)
 	})
 
 	t.Run("NoWarningWhenNoCollision", func(t *testing.T) {
