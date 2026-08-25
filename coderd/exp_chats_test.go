@@ -470,21 +470,42 @@ func TestPostChats(t *testing.T) {
 
 		// In-process platform callbacks must re-check agent and owner
 		// liveness because chat workers are detached from the HTTP gate.
-		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
-			ID:        agent.ID,
-			Status:    database.UserStatusSuspended,
-			UpdatedAt: dbtime.Now(),
+		//
+		// **An agent's liveness is its ledger state.** This used to suspend the
+		// agent's mirrored users row, which stopped meaning anything when
+		// liveness moved to the ledger and became impossible when the row went.
+		// Retirement is the transition that ends an agent, and it is terminal,
+		// so a second agent carries this assertion and the first stays live for
+		// the owner assertions below.
+		retiredChat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID, Content: []codersdk.ChatInputPart{
+				{
+					Type: codersdk.ChatInputPartTypeText,
+					Text: "hello from the retired agent test",
+				},
+			},
 		})
 		require.NoError(t, err)
-		_, _, err = coderd.ChatToolSubject(api, actorCtx, member.ID)
-		require.Error(t, err)
+		retiredAgent, err := db.GetLiveAIAgentByCreationSite(sysCtx, database.GetLiveAIAgentByCreationSiteParams{
+			CreationSiteType: string(entity.CreationSiteTypeChat),
+			CreationSiteID:   retiredChat.ID,
+		})
+		require.NoError(t, err)
+		retiredCtx := aiagentidentity.WithActor(ctx, aiagentidentity.AIAgentActor{
+			AgentUserID: retiredAgent.ID,
+			OwnerUserID: retiredAgent.OwnerID,
+			OriginType:  entity.CreationSiteType(retiredAgent.CreationSiteType),
+			OriginID:    retiredAgent.CreationSiteID,
+		})
+		_, _, err = coderd.ChatToolSubject(api, retiredCtx, member.ID)
+		require.NoError(t, err, "the second agent is live until it is retired")
 
-		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
-			ID:        agent.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
-		})
-		require.NoError(t, err)
+		require.NoError(t, entity.RetireAIAgent(sysCtx, db, retiredAgent.ID,
+			entity.EventAIAgentKill, entity.Ref{Type: entity.TypeUser, ID: member.ID},
+			dbtime.Now()))
+		_, _, err = coderd.ChatToolSubject(api, retiredCtx, member.ID)
+		require.Error(t, err, "a retired agent is refused")
+
 		_, err = db.UpdateUserStatus(sysCtx, database.UpdateUserStatusParams{
 			ID:        member.ID,
 			Status:    database.UserStatusSuspended,

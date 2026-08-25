@@ -72,6 +72,12 @@ on something or you have simply not read the part that answers it.
   ones came out of writing proof of concept code. Carries the policy goals any
   fix must satisfy. Recommendations for work after the proof of
   concept, none of it scheduled.
+- [Findings for Production Work](production_findings.md). Findings that bear on
+  work after the proof of concept, each carrying what motivates fixing it: a
+  defect on its own merits, a change the proof of concept requires, or debt this
+  work created. Security findings stay in `security_findings.md` with their P
+  numbers. Provisional, pending a corpus pass on whether two findings documents
+  is right.
 - [Implementation Patterns](implementation_patterns.md). How journals are
   shaped and what the schema is made to enforce rather than merely document:
   entry identifiers, line numbering, denormalization across lines, and which
