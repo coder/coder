@@ -135,10 +135,10 @@ Queued agents show a banner in the chat and start automatically when capacity fr
 Subtasks delegated by an agent don't count toward this limit.
 Those subtasks run in a separate pool of up to 10 concurrent subtasks.
 
-Deployments with a Premium license can purchase Agent Hours.
-Agent Hours are shared across the deployment, and agents can run concurrently unless the Agent Hours hard limit is reached.
-If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
-When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
+Deployments with a Premium license can purchase Agent Minutes.
+Agent Minutes are shared across the deployment, and agents can run concurrently unless the Agent Minutes hard limit is reached.
+If the Agent Minutes allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
+When the Agent Minutes hard limit is reached, additional agents queue under the concurrency limit.
 
 ### Spend management
 
