@@ -105,6 +105,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 										/>
 									</ComboboxTrigger>
 									<ComboboxContent
+										disablePortal
 										className="max-w-none min-w-[min(100%,320px)]"
 										align="start"
 									>
