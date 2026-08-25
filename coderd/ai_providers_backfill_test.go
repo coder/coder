@@ -29,6 +29,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 	}
 
 	// All DB subtests share one database instance and run sequentially.
+	//nolint:paralleltest // Subtests share one database and each builds on the state left by the previous one.
 	t.Run("DB", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

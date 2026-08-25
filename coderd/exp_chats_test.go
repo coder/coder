@@ -2625,6 +2625,9 @@ func TestListChats(t *testing.T) {
 		}))
 
 		t.Run("MatchesRoot", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/1"`,
 			})
@@ -2634,6 +2637,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("MatchesViaSubAgent", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/2"`,
 			})
@@ -2643,6 +2649,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("CaseInsensitive", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"HTTPS://GITHUB.COM/CODER/CODER/PULL/1"`,
 			})
@@ -2652,6 +2661,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("NoMatch", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"https://github.com/coder/coder/pull/424242"`,
 			})
@@ -2660,6 +2672,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("InvalidURL", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `diff_url:"ftp://example.com/x"`,
 			})
@@ -2669,6 +2684,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("ArchivedFilteredOut", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			// Default archived filter is false, so an archived chat with
 			// a matching diff URL must not surface.
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
@@ -2679,6 +2697,9 @@ func TestListChats(t *testing.T) {
 		})
 
 		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
 				Query: `archived:true diff_url:"https://github.com/coder/coder/pull/3"`,
 			})
@@ -4890,6 +4911,7 @@ func TestGetChatModel(t *testing.T) {
 			{name: "Patch", method: http.MethodPatch, body: codersdk.UpdateChatModelRequest{DisplayName: "wrong organization"}},
 			{name: "Delete", method: http.MethodDelete},
 		} {
+			//nolint:paralleltest // The parent asserts the stored model config after these subtests have attempted to modify it.
 			t.Run(tc.name, func(t *testing.T) {
 				res, err := client.Request(ctx, tc.method, fmt.Sprintf(
 					"/api/experimental/organizations/%s/chats/models/%s",
@@ -4976,6 +4998,9 @@ func TestCreateChatModelConfig(t *testing.T) {
 			{"configured", configuredProvider.ID},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
 				contextLimit := int64(4096)
 				_, err := memberClient.CreateChatModel(ctx, firstUser.OrganizationID, codersdk.CreateChatModelRequest{
 					AIProviderID: &tc.providerID,
@@ -6149,7 +6174,6 @@ func TestUpdateChatModel(t *testing.T) {
 	t.Run("RejectsACLKeys", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
@@ -6165,6 +6189,9 @@ func TestUpdateChatModel(t *testing.T) {
 			{name: "user_acl/null", key: "user_acl", value: nil},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
 				res, err := client.Request(ctx, http.MethodPatch, fmt.Sprintf(
 					"/api/experimental/organizations/%s/chats/models/%s",
 					modelConfig.OrganizationID,

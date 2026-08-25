@@ -2020,6 +2020,8 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		t.Run("Prompt", func(t *testing.T) {
+			t.Parallel()
+
 			logger := testutil.Logger(t)
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)

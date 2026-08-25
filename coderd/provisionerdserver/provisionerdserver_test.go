@@ -1152,6 +1152,8 @@ func TestUpdateJob(t *testing.T) {
 		t.Parallel()
 
 		t.Run("Valid", func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
@@ -1193,6 +1195,8 @@ func TestUpdateJob(t *testing.T) {
 		})
 
 		t.Run("Missing required value", func(t *testing.T) {
+			t.Parallel()
+
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 

@@ -764,6 +764,8 @@ func TestWorkspaceAgentConnectRPC(t *testing.T) {
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
 				client, db := coderdtest.NewWithDatabase(t, nil)
 				user := coderdtest.CreateFirstUser(t, client)
 				r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{

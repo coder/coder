@@ -48,7 +48,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
 
 		tests := []struct {
 			providerType codersdk.AIProviderType
@@ -62,6 +61,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 		}
 		for _, tt := range tests {
 			t.Run(string(tt.providerType), func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
 				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 					Type:    tt.providerType,
 					Name:    "type-preserve-" + string(tt.providerType),

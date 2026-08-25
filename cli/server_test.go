@@ -531,6 +531,7 @@ func TestServer(t *testing.T) {
 				expectGithubDefaultProviderConfigured: true,
 			},
 		} {
+			//nolint:paralleltest // runGitHubProviderTest calls t.Parallel itself; calling it here too would panic.
 			t.Run(tc.name, func(t *testing.T) {
 				runGitHubProviderTest(t, tc)
 			})

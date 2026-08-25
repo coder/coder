@@ -173,7 +173,7 @@ type CreateUserRequest struct {
 	// from being able to use a password or any other authentication method to login.
 	// Deprecated: Set UserLoginType=LoginTypeDisabled instead.
 	DisableLogin   bool      `json:"disable_login"`
-	OrganizationID uuid.UUID `json:"organization_id" validate:"" format:"uuid"`
+	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 }
 
 type CreateUserRequestWithOrgs struct {
@@ -186,7 +186,7 @@ type CreateUserRequestWithOrgs struct {
 	// UserStatus defaults to UserStatusDormant.
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
-	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
+	OrganizationIDs []uuid.UUID `json:"organization_ids" format:"uuid"`
 	// Service accounts are admin-managed accounts that cannot login.
 	ServiceAccount bool `json:"service_account,omitempty"`
 	// Roles is an optional list of site-level roles to assign at creation.
@@ -365,7 +365,7 @@ var ValidAgentDisplayModes = []AgentDisplayMode{
 }
 
 type UpdateUserPasswordRequest struct {
-	OldPassword string `json:"old_password" validate:""`
+	OldPassword string `json:"old_password"`
 	Password    string `json:"password" validate:"required"`
 }
 
@@ -402,7 +402,7 @@ type UpdateUserQuietHoursScheduleRequest struct {
 }
 
 type UpdateRoles struct {
-	Roles []string `json:"roles" validate:""`
+	Roles []string `json:"roles"`
 }
 
 type UserRoles struct {

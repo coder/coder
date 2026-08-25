@@ -510,6 +510,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		t.Parallel()
 
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+
 			client := coderdtest.New(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -526,6 +528,8 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		})
 
 		t.Run("EnterpriseLevelError", func(t *testing.T) {
+			t.Parallel()
+
 			client := coderdtest.New(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)

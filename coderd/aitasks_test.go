@@ -800,7 +800,7 @@ func TestTasks(t *testing.T) {
 
 			statusResponse = agentapisdk.StatusStable
 
-			//nolint:tparallel // Not intended to run in parallel.
+			//nolint:paralleltest,tparallel // Subtests share the parent's task, agent and mutable statusResponse, so they must run in order.
 			t.Run("SendOK", func(t *testing.T) {
 				err = client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "Hello, Agent!",
@@ -808,7 +808,7 @@ func TestTasks(t *testing.T) {
 				require.NoError(t, err, "wanted no error due to healthy sidebar app and stable status")
 			})
 
-			//nolint:tparallel // Not intended to run in parallel.
+			//nolint:paralleltest,tparallel // Subtests share the parent's task, agent and mutable statusResponse, so they must run in order.
 			t.Run("MissingContent", func(t *testing.T) {
 				err = client.TaskSend(ctx, "me", task.ID, codersdk.TaskSendRequest{
 					Input: "",
@@ -1026,7 +1026,7 @@ func TestTasks(t *testing.T) {
 		task, err = client.TaskByID(ctx, task.ID)
 		require.NoError(t, err)
 
-		//nolint:tparallel // Not intended to run in parallel.
+		//nolint:paralleltest,tparallel // Subtests share the parent's task and toggle the mutable shouldReturnError flag.
 		t.Run("OK", func(t *testing.T) {
 			// Fetch logs.
 			resp, err := client.TaskLogs(ctx, "me", task.ID)
@@ -1045,7 +1045,7 @@ func TestTasks(t *testing.T) {
 			assert.Equal(t, "What would you like to work on today?", resp.Logs[2].Content)
 		})
 
-		//nolint:tparallel // Not intended to run in parallel.
+		//nolint:paralleltest,tparallel // Subtests share the parent's task and toggle the mutable shouldReturnError flag.
 		t.Run("UpstreamError", func(t *testing.T) {
 			shouldReturnError = true
 			t.Cleanup(func() { shouldReturnError = false })
@@ -2801,7 +2801,6 @@ func TestPauseTask(t *testing.T) {
 	t.Run("Non-owner role access", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
 		db, ps := dbtestutil.NewDB(t)
 		client := setupClient(t, db, ps, nil)
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -2834,6 +2833,9 @@ func TestPauseTask(t *testing.T) {
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
 				task, _ := setupWorkspaceTask(t, db, owner)
 				userClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, tc.roles...)
 

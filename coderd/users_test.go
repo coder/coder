@@ -2450,6 +2450,7 @@ func TestUserThemeMode(t *testing.T) {
 				themeDark: "xss-payload",
 			},
 		} {
+			//nolint:paralleltest // Subtests share the parent's ctx, which the parent's defer cancels.
 			t.Run(tc.name, func(t *testing.T) {
 				_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
 					ThemePreference: "dark",
@@ -2825,6 +2826,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
 			},
 		} {
+			//nolint:paralleltest // Subtests share the parent's ctx, which the parent's defer cancels.
 			t.Run(tt.name, func(t *testing.T) {
 				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 					ShellToolDisplayMode: tt.mode,
@@ -2855,6 +2857,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
 			},
 		} {
+			//nolint:paralleltest // Subtests share the parent's ctx, which the parent's defer cancels.
 			t.Run(tt.name, func(t *testing.T) {
 				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
 					CodeDiffDisplayMode: tt.mode,

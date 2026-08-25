@@ -422,6 +422,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// Assert all authz properties
+		//nolint:paralleltest // Inspects the authz calls recorded by the parent after workspace creation.
 		t.Run("OnlyOrganizationAuthzCalls", func(t *testing.T) {
 			// Creating workspaces is an organization action. So organization
 			// permissions should be sufficient to complete the action.

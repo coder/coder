@@ -716,6 +716,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		// Sends a bridge request through a mock egress proxy that
 		// mutates X-Forwarded-For, then verifies the SigV4 signature
 		// still matches at the mock Bedrock endpoint.
+		//nolint:paralleltest // Must finish before the next subtest inspects the last request received by the shared mockBedrock.
 		t.Run("bridge SigV4 signature valid", func(t *testing.T) {
 			reqBody, err := sjson.SetBytes(fix.Request(), "stream", false)
 			require.NoError(t, err)
@@ -733,6 +734,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		// the request as-is without SigV4 signing, so proxy headers
 		// are safe to include. ReverseProxy sets its own X-Forwarded-*
 		// headers via SetXForwarded. This verifies they arrive upstream.
+		//nolint:paralleltest // Asserts on the last request received by the shared mockBedrock, so it must run after the subtest above.
 		t.Run("passthrough proxy sets own forwarded headers", func(t *testing.T) {
 			resp, err := bridgeServer.makeRequest(t, http.MethodGet, "/anthropic/v1/models", nil, proxyHeaders)
 			require.NoError(t, err)

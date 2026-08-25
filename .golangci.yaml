@@ -141,6 +141,8 @@ linters:
         - name: redefines-builtin-id
         - name: string-of-int
         - name: struct-tag
+          arguments:
+            - "validate,username,organization_name,template_name,workspace_name,oauth2_app_name,organization_display_name,template_display_name,group_display_name,template_version_name,user_real_name,group_name,gte,http_url,excluded_with"
         - name: superfluous-else
         - name: time-naming
         - name: unconditional-recursion
