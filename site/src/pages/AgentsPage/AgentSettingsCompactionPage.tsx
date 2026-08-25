@@ -51,6 +51,14 @@ const AgentSettingsCompactionPage: FC = () => {
 					]),
 				)
 			}
+			organizationIconByID={
+				new Map(
+					organizations.map((organization) => [
+						organization.id,
+						organization.icon,
+					]),
+				)
+			}
 			modelsError={organizationModels.error ?? organizationModels.partialError}
 			isLoadingModels={organizationModels.isLoading}
 			thresholds={thresholdsQuery.data?.thresholds}

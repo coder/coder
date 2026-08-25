@@ -24,6 +24,9 @@ const baseArgs: AgentSettingsCompactionPageViewProps = {
 	organizationNameByID: new Map<string, string>([
 		[MockDefaultOrganization.id, MockDefaultOrganization.display_name],
 	]),
+	organizationIconByID: new Map<string, string>([
+		[MockDefaultOrganization.id, MockDefaultOrganization.icon],
+	]),
 	modelsError: undefined,
 	isLoadingModels: false,
 	thresholds: [

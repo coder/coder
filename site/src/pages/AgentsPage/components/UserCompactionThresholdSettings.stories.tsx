@@ -62,6 +62,9 @@ const meta = {
 		organizationNameByID: new Map<string, string>([
 			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
 		]),
+		organizationIconByID: new Map<string, string>([
+			[MockChatModel.organization_id, MockDefaultOrganization.icon],
+		]),
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -329,6 +332,9 @@ export const OrganizationFilter: Story = {
 		organizationNameByID: new Map<string, string>([
 			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
 			["org-second", "Second Org"],
+		]),
+		organizationIconByID: new Map<string, string>([
+			[MockChatModel.organization_id, MockDefaultOrganization.icon],
 		]),
 	},
 	play: async ({ canvasElement }) => {

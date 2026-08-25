@@ -2,6 +2,7 @@ import { RotateCcwIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
@@ -39,6 +40,7 @@ interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
 	organizationNameByID: ReadonlyMap<string, string>;
+	organizationIconByID: ReadonlyMap<string, string>;
 	modelsError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -83,6 +85,7 @@ export const UserCompactionThresholdSettings: FC<
 	models,
 	providerTypeByID,
 	organizationNameByID,
+	organizationIconByID,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -107,7 +110,11 @@ export const UserCompactionThresholdSettings: FC<
 			]),
 		).entries(),
 	]
-		.map(([id, name]) => ({ id, name }))
+		.map(([id, name]) => ({
+			id,
+			name,
+			icon: organizationIconByID.get(id) ?? "",
+		}))
 		.sort((a, b) => a.name.localeCompare(b.name));
 	// Fall back to all organizations when the selected one disappears after
 	// a models refetch.
@@ -307,7 +314,14 @@ export const UserCompactionThresholdSettings: FC<
 								<SelectItem value="all">All organizations</SelectItem>
 								{organizationOptions.map((option) => (
 									<SelectItem key={option.id} value={option.id}>
-										{option.name}
+										<span className="flex items-center gap-2">
+											<Avatar
+												size="sm"
+												src={option.icon}
+												fallback={option.name}
+											/>
+											{option.name}
+										</span>
 									</SelectItem>
 								))}
 							</SelectContent>
