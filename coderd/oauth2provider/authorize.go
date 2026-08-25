@@ -239,20 +239,8 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 }
 
 // validatedCallbackURL is a redirect URI that extractAuthorizeParams has
-// exact-matched against the app's registered callback. Every destination this
-// package sends a user to is built from one, and the only producer is the
-// extractor, so a URI the request supplied cannot become a destination.
-//
-// That ordering is the whole of the open-redirect argument for the error
-// redirects below: before the match the URI is attacker-controlled, after it
-// the URI is the app's own no matter what the request carried. The type is
-// what makes the precondition something a caller holds rather than something a
-// comment asks it to remember.
-//
-// It is a guard, not a proof. The field is unexported, so no other package can
-// present an arbitrary URI as a validated one, but this package can still
-// forge one with a composite literal. Inside this file the type narrows the
-// mistake to one that has to be written deliberately.
+// exact-matched against the app's registered callback. Requiring one is what
+// keeps the error redirects below from becoming open redirects.
 type validatedCallbackURL struct {
 	callback *url.URL
 }
@@ -263,13 +251,10 @@ func (c validatedCallbackURL) String() string {
 	return c.callback.String()
 }
 
-// withQuery returns the callback with set applied to its query, plus the state
-// RFC 6749 §4.1.2.1 requires back exactly as it arrived whenever the client
-// sent one.
-//
-// The URL is copied. One callback yields several destinations on a single
-// request, the consent page's cancel link and the error redirect among them,
-// and building the first must not alter the second.
+// withQuery returns a copy of the callback with set applied to its query, plus
+// the state RFC 6749 §4.1.2.1 requires back unchanged whenever the client sent
+// one. Copied because one request builds several destinations from the same
+// callback, the consent page's cancel link and the error redirect among them.
 func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url.URL {
 	destination := *c.callback
 	query := destination.Query()
@@ -284,8 +269,7 @@ func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url
 // errorURL returns the callback carrying an RFC 6749 §4.1.2.1 error.
 //
 // Set, not Add, here and in codeURL: a registered callback may carry its own
-// state=, and appending would hand the client two values for a parameter it
-// reads one of.
+// state=, and appending would hand the client two values.
 func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
 	return c.withQuery(state, func(query url.Values) {
 		query.Set("error", string(code))
@@ -300,17 +284,11 @@ func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
 	})
 }
 
-// redirectAuthorizeError returns an authorization error to the client by
-// redirecting to its callback with the error in the query, which is how
-// RFC 6749 §4.1.2.1 says an authorization request fails once the client is
-// known. Delivering it on Coder instead reaches only the user's screen: the
-// client's error handling never runs, and the state it sent is dropped, so it
-// cannot correlate the failure with the request that caused it.
-//
-// Holding a validatedCallbackURL is what licenses the redirect. Errors raised
-// before extractAuthorizeParams returns cannot reach this function, because
-// there is nothing to build one from; §4.1.2.1 requires informing the user
-// there rather than redirecting to a URI the request supplied.
+// redirectAuthorizeError reports an authorization error through the client's
+// own callback, as RFC 6749 §4.1.2.1 requires once the client is known.
+// Holding a validatedCallbackURL is what licenses the redirect: errors raised
+// before extractAuthorizeParams returns have nothing to build one from, and
+// §4.1.2.1 requires informing the user there instead.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
 	// 302 rather than 307, matching the success redirect below: some external
 	// OAuth2 apps and browsers do not handle 307.

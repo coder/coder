@@ -384,10 +384,6 @@ func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, bas
 	require.Equal(t, expectedStatusCode, resp.StatusCode, "unexpected status code")
 }
 
-// AuthorizeOAuth2AppExpectingRedirectError performs the OAuth2 authorization
-// flow expecting it to fail the way RFC 6749 §4.1.2.1 says an authorization
-// request fails once the client is known: a redirect to the registered
-// callback carrying the error, rather than a response only the user sees.
 func AuthorizeOAuth2AppExpectingRedirectError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError string) {
 	t.Helper()
 

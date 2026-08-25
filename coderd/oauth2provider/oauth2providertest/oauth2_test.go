@@ -468,8 +468,6 @@ func TestOAuth2PKCEPlainMethodRejected(t *testing.T) {
 		CodeChallengeMethod: string(codersdk.OAuth2PKCECodeChallengeMethodPlain),
 	}
 
-	// The client is known by this point, so the rejection reaches it through
-	// its own callback rather than terminating on Coder.
 	oauth2providertest.AuthorizeOAuth2AppExpectingRedirectError(
 		t, client, client.URL.String(), authParams, oauth2providertest.OAuth2ErrorTypes.InvalidRequest,
 	)

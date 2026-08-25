@@ -501,18 +501,6 @@ func TestOAuth2AuthorizeDCRScopeCompatibility(t *testing.T) {
 	})
 }
 
-// TestOAuth2AuthorizeErrorsReachTheClient covers the errors that RFC 6749
-// §4.1.2.1 delivers to the client's registered callback rather than to the
-// user's screen. Each fires only on a malformed request, which is exactly when
-// the client's own error handling is the thing that needs to run: answering on
-// Coder leaves the integrator staring at a page their code never sees, without
-// the state that would tell them which request failed.
-//
-// The sites that must keep answering on Coder are the ones where the callback
-// is not yet trustworthy, and their guards live in
-// TestOAuth2AuthorizeScopeNegotiation: MismatchedRedirectURINotRedirected for
-// both extraction failures, DangerousCallbackSchemeNotRedirected for the
-// invalid registered scheme.
 func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 	t.Parallel()
 
@@ -532,10 +520,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		})
 	}
 
-	// response_type=token is the implicit grant OAuth 2.1 removes. It is a
-	// value the enum accepts, so it reaches the handler's own check rather
-	// than failing in the query parser, which is what makes it the reachable
-	// path for this error code.
 	t.Run("UnsupportedResponseTypeRedirected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -555,11 +539,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
-	// The neighboring path, kept adjacent because the two are one character
-	// apart in the request and worlds apart in where the answer goes: a
-	// response_type the enum does not accept fails inside
-	// extractAuthorizeParams, before the callback has been matched, so it must
-	// still answer on Coder.
 	t.Run("UnparseableResponseTypeNotRedirected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -580,8 +559,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
-	// PKCE 'plain' is refused by OAuth 2.1, and the refusal is the client's to
-	// act on: it is the client that chose the method.
 	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -597,9 +574,6 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 			codersdk.OAuth2ErrorCodeInvalidRequest, "use 'S256'")
 	})
 
-	// The cancel link is built by the same builder as the redirects above, so
-	// this pins that declining still reaches the client as access_denied with
-	// its state, rather than the builder change quietly repointing it.
 	t.Run("CancelLinkCarriesAccessDenied", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -621,8 +595,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 	})
 }
 
-// cancelLinkFromConsentPage extracts the consent page's cancel href. The page
-// is a Go template rather than a component with a test seam, so the href is
+// The consent page is a Go template with no test seam, so the href has to be
 // read back out of the rendered HTML.
 func cancelLinkFromConsentPage(t *testing.T, body string) *url.URL {
 	t.Helper()
@@ -714,10 +687,6 @@ var (
 	reasonScopeNotAllowed  = oauth2provider.ReasonScopeNotAllowed
 )
 
-// requireAuthorizeErrorRedirect asserts the RFC 6749 §4.1.2.1 rejection shape:
-// the client learns of the failure by a redirect to its own registered
-// callback, carrying the error code, a description from the branch the caller
-// named, and the state it sent, and carrying no authorization code.
 func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode codersdk.OAuth2ErrorCode, wantDescription string) {
 	t.Helper()
 
@@ -737,8 +706,6 @@ func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode c
 	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }
 
-// requireInvalidScope is requireAuthorizeErrorRedirect fixed to the scope
-// rejection, whose reasons are the sentinels below rather than free text.
 func requireInvalidScope(t *testing.T, resp *http.Response, wantReason string) {
 	t.Helper()
 
