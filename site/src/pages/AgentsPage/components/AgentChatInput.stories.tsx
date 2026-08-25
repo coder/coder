@@ -1561,7 +1561,7 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — collapses into +N overflow. */
+/** Long workspace name at iPhone SE width collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
