@@ -1,6 +1,11 @@
 import { QueryClient, QueryObserver } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { authorizationKey } from "#/api/queries/authCheck";
+import {
+	organizations,
+	organizationsPermissions,
+} from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatWatchEventKinds } from "#/api/typesGenerated";
 import {
@@ -389,7 +394,9 @@ describe("MCP server ACL query factories", () => {
 	});
 
 	it("gets and sparsely updates an organization-scoped ACL", async () => {
-		const req = { user_roles: { "user-1": "read" as const } };
+		const req: TypesGen.UpdateMCPServerConfigACLRequest = {
+			user_roles: { "user-1": "read" },
+		};
 		vi.mocked(API.experimental.getMCPServerConfigACL).mockResolvedValue(
 			MockMCPServerConfigACL,
 		);
@@ -410,12 +417,12 @@ describe("MCP server ACL query factories", () => {
 			mcpServerConfigACLKey(organization, serverId),
 			mcpServerConfigKey(organization, serverId),
 			mcpServerConfigsKey(organization),
-			["authorization", "mcp-servers"],
-			["organizations", [organization], "permissions"],
+			[...authorizationKey, "mcp-servers"],
+			organizationsPermissions([organization]).queryKey,
 		] as const;
 		const unaffectedKeys = [
-			["organizations"],
-			["organizations", [otherOrganization], "permissions"],
+			organizations().queryKey,
+			organizationsPermissions([otherOrganization]).queryKey,
 		] as const;
 		for (const key of [...keys, ...unaffectedKeys]) {
 			queryClient.setQueryData(key, {});

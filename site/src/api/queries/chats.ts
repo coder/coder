@@ -17,6 +17,7 @@ import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
 } from "./chatMessageEdits";
+import { organizationsPermissions } from "./organizations";
 
 const chatCollectionsKey = ["chats", "collections"] as const;
 
@@ -2537,6 +2538,9 @@ export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
 		variables: UpdateMCPServerConfigACLMutationArgs,
 	) => {
 		const { organization, id } = variables;
+		const permissionsQueryKey = organizationsPermissions([
+			organization,
+		]).queryKey;
 		await Promise.all([
 			queryClient.invalidateQueries({
 				queryKey: mcpServerConfigACLKey(organization, id),
@@ -2553,8 +2557,8 @@ export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
 			queryClient.invalidateQueries({ queryKey: authorizationKey }),
 			queryClient.invalidateQueries({
 				predicate: ({ queryKey }) =>
-					queryKey[0] === "organizations" &&
-					queryKey[2] === "permissions" &&
+					queryKey[0] === permissionsQueryKey[0] &&
+					queryKey[2] === permissionsQueryKey[2] &&
 					Array.isArray(queryKey[1]) &&
 					queryKey[1].includes(organization),
 			}),
