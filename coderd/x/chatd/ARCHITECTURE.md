@@ -1260,17 +1260,15 @@ WHERE id = ANY($1::uuid[]);
 
 ## Relay mechanism
 
-TODO(CODAGT-921): update this section for the /api/v2 promotion. The stream and parts endpoints are dual-mounted under /api/experimental and /api/v2 during the compatibility window, while the internal replica-to-replica relay dial stays on /api/experimental until CODAGT-922 removes the experimental mounts.
-
 We make use of a relay mechanism when there are multiple coderd replicas. If a client connects to the stream endpoint on replica A, but the chat worker that owns the chat is on replica B, the endpoint will connect to replica B and relay streaming message parts.
 
-There exists a `GET /api/experimental/chats/{chat}/stream/parts` endpoint that is responsible exclusively for streaming message parts. That endpoint talks to the chat worker on the same replica to obtain the message parts and relay them to the client.
+There exists a `GET /api/v2/chats/{chat}/stream/parts` endpoint that is responsible exclusively for streaming message parts. That endpoint talks to the chat worker on the same replica to obtain the message parts and relay them to the client.
 
 The flow is:
 
-1. Client connects to the `GET /api/experimental/chats/{chat}/stream` endpoint.
+1. Client connects to the `GET /api/v2/chats/{chat}/stream` endpoint.
 2. The endpoint checks the database to see which replica owns the chat and resolves the replica's address.
-3. The endpoint connects to the `GET /api/experimental/chats/{chat}/stream/parts` endpoint on that replica.
+3. The endpoint connects to the `GET /api/v2/chats/{chat}/stream/parts` endpoint on that replica.
 4. The stream endpoint relays both the full chat state and the streaming message parts to the client.
 
 Some edge cases:
@@ -1296,13 +1294,11 @@ The forwarder must only pass parts for the currently requested episode to the st
 
 ### Parts endpoint
 
-TODO(CODAGT-921): update the endpoint paths in this section for the /api/v2 promotion and compatibility window.
-
 The parts endpoint is a WebSocket endpoint.
 
 Connection setup:
 
-- the URL identifies the chat ID, for example `GET /api/experimental/chats/{chat}/stream/parts`;
+- the URL identifies the chat ID, for example `GET /api/v2/chats/{chat}/stream/parts`;
 - the endpoint accepts the connection regardless of whether the local replica owns the chat;
 - after connecting, the client sends control messages over the WebSocket to choose which episode it wants.
 
