@@ -113,16 +113,6 @@ export const Disabled: Story = {
 	},
 };
 
-export const Enabled: Story = {
-	args: {
-		provider: { ...MockAIProviderOpenAI, enabled: true },
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
-	},
-};
-
 export const SupportedHasNoAgentsLabel: Story = {
 	args: {
 		provider: { ...MockAIProviderOpenAI, enabled: true },
@@ -133,6 +123,7 @@ export const SupportedHasNoAgentsLabel: Story = {
 		await expect(
 			canvas.queryByText("Not supported in Agents"),
 		).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 
