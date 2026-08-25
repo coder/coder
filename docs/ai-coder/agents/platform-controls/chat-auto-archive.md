@@ -7,12 +7,12 @@ out of the separate retention window, at which point they are purged.
 
 ## How it works
 
-The Coder Agents chat worker scans the chat database once an hour for root conversations whose most recent non-deleted message predates the configured auto-archive window, and flips them from "active" to "archived".
-Eligibility is evaluated at UTC day boundaries: all conversations whose last activity falls on the same UTC date are archived together on the first tick after midnight UTC following the expiration of their archive window.
-Cascaded children (chats linked into a larger conversation via `root_chat_id`) are archived alongside their parent so the conversation stays coherent.
+The Coder Agents chat worker scans the chat database once an hour for root conversations where the most recent non-deleted message predates the configured auto-archive window, and flips them from "active" to "archived".
+Eligibility is evaluated at UTC day boundaries: all conversations with last activity falling on the same UTC date are archived together on the first tick after midnight UTC following the expiration of their archive window.
+Cascaded child chats are archived alongside their parent so the conversation stays coherent.
 
 Activity is defined as the most recent non-deleted message in the conversation family, counting messages from every role.
-Root chats whose status indicates ongoing work (`running`, `interrupting`, or `requires_action`) are never selected for auto-archiving.
+Root chats that have ongoing work are never selected for auto-archiving.
 Children inherit their root's archival decision.
 
 Pinned root conversations (those with a non-zero pin order) are never
