@@ -11,6 +11,7 @@ package dbmock
 
 import (
 	context "context"
+	sql "database/sql"
 	json "encoding/json"
 	reflect "reflect"
 	time "time"
@@ -1695,6 +1696,21 @@ func (m *MockStore) EnqueueNotificationMessage(ctx context.Context, arg database
 func (mr *MockStoreMockRecorder) EnqueueNotificationMessage(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueNotificationMessage", reflect.TypeOf((*MockStore)(nil).EnqueueNotificationMessage), ctx, arg)
+}
+
+// ExpireMCPGatewayEscalations mocks base method.
+func (m *MockStore) ExpireMCPGatewayEscalations(ctx context.Context, resolvedAt sql.NullTime) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExpireMCPGatewayEscalations", ctx, resolvedAt)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExpireMCPGatewayEscalations indicates an expected call of ExpireMCPGatewayEscalations.
+func (mr *MockStoreMockRecorder) ExpireMCPGatewayEscalations(ctx, resolvedAt any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpireMCPGatewayEscalations", reflect.TypeOf((*MockStore)(nil).ExpireMCPGatewayEscalations), ctx, resolvedAt)
 }
 
 // ExpirePrebuildsAPIKeys mocks base method.
@@ -4438,6 +4454,21 @@ func (m *MockStore) GetLogoURL(ctx context.Context) (string, error) {
 func (mr *MockStoreMockRecorder) GetLogoURL(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogoURL", reflect.TypeOf((*MockStore)(nil).GetLogoURL), ctx)
+}
+
+// GetMCPGatewayEscalationByID mocks base method.
+func (m *MockStore) GetMCPGatewayEscalationByID(ctx context.Context, id uuid.UUID) (database.MCPGatewayEscalation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPGatewayEscalationByID", ctx, id)
+	ret0, _ := ret[0].(database.MCPGatewayEscalation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPGatewayEscalationByID indicates an expected call of GetMCPGatewayEscalationByID.
+func (mr *MockStoreMockRecorder) GetMCPGatewayEscalationByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPGatewayEscalationByID", reflect.TypeOf((*MockStore)(nil).GetMCPGatewayEscalationByID), ctx, id)
 }
 
 // GetMCPServerConfigByID mocks base method.
@@ -8169,6 +8200,21 @@ func (mr *MockStoreMockRecorder) InsertLicense(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertLicense", reflect.TypeOf((*MockStore)(nil).InsertLicense), ctx, arg)
 }
 
+// InsertMCPGatewayEscalation mocks base method.
+func (m *MockStore) InsertMCPGatewayEscalation(ctx context.Context, arg database.InsertMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertMCPGatewayEscalation", ctx, arg)
+	ret0, _ := ret[0].(database.MCPGatewayEscalation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertMCPGatewayEscalation indicates an expected call of InsertMCPGatewayEscalation.
+func (mr *MockStoreMockRecorder) InsertMCPGatewayEscalation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertMCPGatewayEscalation", reflect.TypeOf((*MockStore)(nil).InsertMCPGatewayEscalation), ctx, arg)
+}
+
 // InsertMCPServerConfig mocks base method.
 func (m *MockStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	m.ctrl.T.Helper()
@@ -9223,6 +9269,21 @@ func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
+// ListMCPGatewayEscalationsBySponsor mocks base method.
+func (m *MockStore) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg database.ListMCPGatewayEscalationsBySponsorParams) ([]database.MCPGatewayEscalation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListMCPGatewayEscalationsBySponsor", ctx, arg)
+	ret0, _ := ret[0].([]database.MCPGatewayEscalation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListMCPGatewayEscalationsBySponsor indicates an expected call of ListMCPGatewayEscalationsBySponsor.
+func (mr *MockStoreMockRecorder) ListMCPGatewayEscalationsBySponsor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPGatewayEscalationsBySponsor", reflect.TypeOf((*MockStore)(nil).ListMCPGatewayEscalationsBySponsor), ctx, arg)
+}
+
 // ListProvisionerKeysByOrganization mocks base method.
 func (m *MockStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	m.ctrl.T.Helper()
@@ -9638,6 +9699,21 @@ func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
+}
+
+// ResolveMCPGatewayEscalation mocks base method.
+func (m *MockStore) ResolveMCPGatewayEscalation(ctx context.Context, arg database.ResolveMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResolveMCPGatewayEscalation", ctx, arg)
+	ret0, _ := ret[0].(database.MCPGatewayEscalation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResolveMCPGatewayEscalation indicates an expected call of ResolveMCPGatewayEscalation.
+func (mr *MockStoreMockRecorder) ResolveMCPGatewayEscalation(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResolveMCPGatewayEscalation", reflect.TypeOf((*MockStore)(nil).ResolveMCPGatewayEscalation), ctx, arg)
 }
 
 // RevokeDBCryptKey mocks base method.

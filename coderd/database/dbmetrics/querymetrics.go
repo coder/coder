@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"slices"
 	"time"
@@ -991,6 +992,14 @@ func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg d
 	m.queryLatencies.WithLabelValues("EnqueueNotificationMessage").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "EnqueueNotificationMessage").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) ExpireMCPGatewayEscalations(ctx context.Context, resolvedAt sql.NullTime) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ExpireMCPGatewayEscalations(ctx, resolvedAt)
+	m.queryLatencies.WithLabelValues("ExpireMCPGatewayEscalations").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ExpireMCPGatewayEscalations").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
@@ -2390,6 +2399,14 @@ func (m queryMetricsStore) GetLogoURL(ctx context.Context) (string, error) {
 	r0, r1 := m.s.GetLogoURL(ctx)
 	m.queryLatencies.WithLabelValues("GetLogoURL").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLogoURL").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetMCPGatewayEscalationByID(ctx context.Context, id uuid.UUID) (database.MCPGatewayEscalation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetMCPGatewayEscalationByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetMCPGatewayEscalationByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetMCPGatewayEscalationByID").Inc()
 	return r0, r1
 }
 
@@ -4361,6 +4378,14 @@ func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.Inser
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertMCPGatewayEscalation(ctx context.Context, arg database.InsertMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMCPGatewayEscalation(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMCPGatewayEscalation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertMCPGatewayEscalation").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertMCPServerConfig(ctx, arg)
@@ -4897,6 +4922,14 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg database.ListMCPGatewayEscalationsBySponsorParams) ([]database.MCPGatewayEscalation, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListMCPGatewayEscalationsBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListMCPGatewayEscalationsBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListMCPGatewayEscalationsBySponsor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListProvisionerKeysByOrganization(ctx, organizationID)
@@ -5102,6 +5135,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, a
 	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
 	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ResolveMCPGatewayEscalation(ctx context.Context, arg database.ResolveMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	start := time.Now()
+	r0, r1 := m.s.ResolveMCPGatewayEscalation(ctx, arg)
+	m.queryLatencies.WithLabelValues("ResolveMCPGatewayEscalation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResolveMCPGatewayEscalation").Inc()
 	return r0, r1
 }
 

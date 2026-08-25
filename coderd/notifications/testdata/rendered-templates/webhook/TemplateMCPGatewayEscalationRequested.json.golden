@@ -1,0 +1,30 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "MCP Tool Call Awaiting Approval",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "Review request",
+        "url": "http://test.com/mcp-escalations"
+      }
+    ],
+    "labels": {
+      "server_slug": "github",
+      "tool": "delete_repo",
+      "workspace_name": "bobby-workspace"
+    },
+    "data": null,
+    "targets": null
+  },
+  "title": "MCP tool \"delete_repo\" on github is awaiting approval",
+  "title_markdown": "MCP tool \"delete_repo\" on github is awaiting approval",
+  "body": "A call to tool delete_repo on MCP server github in workspace bobby-workspace is held awaiting your approval.",
+  "body_markdown": "A call to tool **delete_repo** on MCP server **github** in workspace **bobby-workspace** is held awaiting your approval."
+}

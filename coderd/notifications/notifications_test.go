@@ -1121,6 +1121,23 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateMCPGatewayEscalationRequested",
+			id:   notifications.TemplateMCPGatewayEscalationRequested,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				// Tool arguments are deliberately absent from notification
+				// labels: they can contain secrets and render only on the
+				// authenticated approvals page.
+				Labels: map[string]string{
+					"tool":           "delete_repo",
+					"server_slug":    "github",
+					"workspace_name": "bobby-workspace",
+				},
+			},
+		},
+		{
 			name: "TemplateWorkspaceCreated",
 			id:   notifications.TemplateWorkspaceCreated,
 			payload: types.MessagePayload{

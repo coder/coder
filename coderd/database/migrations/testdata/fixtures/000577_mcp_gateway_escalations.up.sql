@@ -1,0 +1,31 @@
+INSERT INTO mcp_gateway_escalations (
+    id,
+    mcp_server_config_id,
+    server_slug,
+    server_url,
+    tool,
+    input,
+    ai_agent_id,
+    sponsor_user_id,
+    workspace_name,
+    status,
+    created_at,
+    expires_at,
+    resolved_at,
+    resolved_by
+) VALUES (
+    '4ecb6a1f-69da-4aab-a966-17ed50587f7f',
+    '12ca93e8-fd9c-46ec-a696-4d9533c0a8f0',
+    'example-server',
+    'https://mcp.example.com',
+    'read_file',
+    '{"path": "/tmp/example.txt"}'::jsonb,
+    'a4642d3e-54a4-4a55-9574-640c9ddf3fba',
+    '5aab2994-ba3c-46a2-a1e2-21353971b5dc',
+    'example-workspace',
+    'pending',
+    '2024-01-01 00:00:00+00',
+    '2024-01-01 00:05:00+00',
+    NULL,
+    NULL
+);

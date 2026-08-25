@@ -37,6 +37,7 @@ type Auditable interface {
 		database.AISeatState |
 		database.AIProvider |
 		database.AIProviderKey |
+		database.MCPGatewayEscalation |
 		database.MCPServerConfig |
 		database.AIGatewayKey |
 		database.Chat |

@@ -3597,6 +3597,7 @@ const (
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
 	ResourceTypeMcpServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeMcpGatewayEscalation        ResourceType = "mcp_gateway_escalation"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3672,7 +3673,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
-		ResourceTypeMcpServerConfig:
+		ResourceTypeMcpServerConfig,
+		ResourceTypeMcpGatewayEscalation:
 		return true
 	}
 	return false
@@ -3717,6 +3719,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeMcpServerConfig,
+		ResourceTypeMcpGatewayEscalation,
 	}
 }
 
@@ -4902,6 +4905,8 @@ type AIBridgeToolUsage struct {
 	ProviderToolCallID sql.NullString        `db:"provider_tool_call_id" json:"provider_tool_call_id"`
 	// Specific to the OpenAI Responses API: the unique id of the output item that carried the tool call. Distinct from provider_tool_call_id (the call_id correlation key), which is empty for hosted tools. Empty for the chat completions and Anthropic messages APIs, which have no separate item id.
 	ProviderItemID sql.NullString `db:"provider_item_id" json:"provider_item_id"`
+	Disposition    string         `db:"disposition" json:"disposition"`
+	EscalationID   uuid.NullUUID  `db:"escalation_id" json:"escalation_id"`
 }
 
 // Audit log of prompts used by intercepted requests in AI Bridge
@@ -5603,6 +5608,28 @@ type License struct {
 	// exp tracks the claim of the same name in the JWT, and we include it here so that we can easily query for licenses that have not yet expired.
 	Exp  time.Time `db:"exp" json:"exp"`
 	UUID uuid.UUID `db:"uuid" json:"uuid"`
+}
+
+// MCP tool calls held for sponsor approval. Attribution and server columns are snapshots without foreign keys so audit history survives configuration and identity cleanup.
+type MCPGatewayEscalation struct {
+	ID uuid.UUID `db:"id" json:"id"`
+	// MCP server configuration snapshot. Not a foreign key; retained after server configuration deletion.
+	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	ServerSlug        string          `db:"server_slug" json:"server_slug"`
+	ServerUrl         string          `db:"server_url" json:"server_url"`
+	Tool              string          `db:"tool" json:"tool"`
+	Input             json.RawMessage `db:"input" json:"input"`
+	// AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.
+	AIAgentID uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	// Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.
+	SponsorUserID uuid.UUID    `db:"sponsor_user_id" json:"sponsor_user_id"`
+	WorkspaceName string       `db:"workspace_name" json:"workspace_name"`
+	Status        string       `db:"status" json:"status"`
+	CreatedAt     time.Time    `db:"created_at" json:"created_at"`
+	ExpiresAt     time.Time    `db:"expires_at" json:"expires_at"`
+	ResolvedAt    sql.NullTime `db:"resolved_at" json:"resolved_at"`
+	// Resolving user snapshot. Not a foreign key to users; retained after user cleanup.
+	ResolvedBy uuid.NullUUID `db:"resolved_by" json:"resolved_by"`
 }
 
 type MCPServerConfig struct {

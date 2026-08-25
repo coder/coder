@@ -7961,6 +7961,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_gateway_escalation"
 	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
@@ -8000,6 +8001,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_gateway_escalation",
 	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",

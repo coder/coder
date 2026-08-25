@@ -1760,7 +1760,7 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 
 const getAIBridgeToolUsagesByInterceptionID = `-- name: GetAIBridgeToolUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id, disposition, escalation_id
 FROM
 	aibridge_tool_usages
 WHERE
@@ -1792,6 +1792,8 @@ func (q *sqlQuerier) GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, 
 			&i.CreatedAt,
 			&i.ProviderToolCallID,
 			&i.ProviderItemID,
+			&i.Disposition,
+			&i.EscalationID,
 		); err != nil {
 			return nil, err
 		}
@@ -2031,7 +2033,7 @@ INSERT INTO aibridge_tool_usages (
 ) VALUES (
   $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11::jsonb, '{}'::jsonb), $12
 )
-RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
+RETURNING id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id, disposition, escalation_id
 `
 
 type InsertAIBridgeToolUsageParams struct {
@@ -2078,6 +2080,8 @@ func (q *sqlQuerier) InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBr
 		&i.CreatedAt,
 		&i.ProviderToolCallID,
 		&i.ProviderItemID,
+		&i.Disposition,
+		&i.EscalationID,
 	)
 	return i, err
 }
@@ -2869,7 +2873,7 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 
 const listAIBridgeToolUsagesByInterceptionIDs = `-- name: ListAIBridgeToolUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id
+	id, interception_id, provider_response_id, server_url, tool, input, injected, invocation_error, metadata, created_at, provider_tool_call_id, provider_item_id, disposition, escalation_id
 FROM
 	aibridge_tool_usages
 WHERE
@@ -2901,6 +2905,8 @@ func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context
 			&i.CreatedAt,
 			&i.ProviderToolCallID,
 			&i.ProviderItemID,
+			&i.Disposition,
+			&i.EscalationID,
 		); err != nil {
 			return nil, err
 		}
@@ -17796,6 +17802,225 @@ func (q *sqlQuerier) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock i
 	var pg_try_advisory_xact_lock bool
 	err := row.Scan(&pg_try_advisory_xact_lock)
 	return pg_try_advisory_xact_lock, err
+}
+
+const expireMCPGatewayEscalations = `-- name: ExpireMCPGatewayEscalations :execrows
+UPDATE mcp_gateway_escalations
+SET status = 'expired', resolved_at = $1
+WHERE status = 'pending' AND expires_at < $1
+`
+
+func (q *sqlQuerier) ExpireMCPGatewayEscalations(ctx context.Context, resolvedAt sql.NullTime) (int64, error) {
+	result, err := q.db.ExecContext(ctx, expireMCPGatewayEscalations, resolvedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const getMCPGatewayEscalationByID = `-- name: GetMCPGatewayEscalationByID :one
+SELECT id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by FROM mcp_gateway_escalations WHERE id = $1
+`
+
+func (q *sqlQuerier) GetMCPGatewayEscalationByID(ctx context.Context, id uuid.UUID) (MCPGatewayEscalation, error) {
+	row := q.db.QueryRowContext(ctx, getMCPGatewayEscalationByID, id)
+	var i MCPGatewayEscalation
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.ServerSlug,
+		&i.ServerUrl,
+		&i.Tool,
+		&i.Input,
+		&i.AIAgentID,
+		&i.SponsorUserID,
+		&i.WorkspaceName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+	)
+	return i, err
+}
+
+const insertMCPGatewayEscalation = `-- name: InsertMCPGatewayEscalation :one
+INSERT INTO mcp_gateway_escalations (
+    id,
+    mcp_server_config_id,
+    server_slug,
+    server_url,
+    tool,
+    input,
+    ai_agent_id,
+    sponsor_user_id,
+    workspace_name,
+    status,
+    created_at,
+    expires_at,
+    resolved_at,
+    resolved_by
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9,
+    $10,
+    $11,
+    $12,
+    $13,
+    $14
+)
+RETURNING id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by
+`
+
+type InsertMCPGatewayEscalationParams struct {
+	ID                uuid.UUID       `db:"id" json:"id"`
+	MCPServerConfigID uuid.UUID       `db:"mcp_server_config_id" json:"mcp_server_config_id"`
+	ServerSlug        string          `db:"server_slug" json:"server_slug"`
+	ServerUrl         string          `db:"server_url" json:"server_url"`
+	Tool              string          `db:"tool" json:"tool"`
+	Input             json.RawMessage `db:"input" json:"input"`
+	AIAgentID         uuid.UUID       `db:"ai_agent_id" json:"ai_agent_id"`
+	SponsorUserID     uuid.UUID       `db:"sponsor_user_id" json:"sponsor_user_id"`
+	WorkspaceName     string          `db:"workspace_name" json:"workspace_name"`
+	Status            string          `db:"status" json:"status"`
+	CreatedAt         time.Time       `db:"created_at" json:"created_at"`
+	ExpiresAt         time.Time       `db:"expires_at" json:"expires_at"`
+	ResolvedAt        sql.NullTime    `db:"resolved_at" json:"resolved_at"`
+	ResolvedBy        uuid.NullUUID   `db:"resolved_by" json:"resolved_by"`
+}
+
+func (q *sqlQuerier) InsertMCPGatewayEscalation(ctx context.Context, arg InsertMCPGatewayEscalationParams) (MCPGatewayEscalation, error) {
+	row := q.db.QueryRowContext(ctx, insertMCPGatewayEscalation,
+		arg.ID,
+		arg.MCPServerConfigID,
+		arg.ServerSlug,
+		arg.ServerUrl,
+		arg.Tool,
+		arg.Input,
+		arg.AIAgentID,
+		arg.SponsorUserID,
+		arg.WorkspaceName,
+		arg.Status,
+		arg.CreatedAt,
+		arg.ExpiresAt,
+		arg.ResolvedAt,
+		arg.ResolvedBy,
+	)
+	var i MCPGatewayEscalation
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.ServerSlug,
+		&i.ServerUrl,
+		&i.Tool,
+		&i.Input,
+		&i.AIAgentID,
+		&i.SponsorUserID,
+		&i.WorkspaceName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+	)
+	return i, err
+}
+
+const listMCPGatewayEscalationsBySponsor = `-- name: ListMCPGatewayEscalationsBySponsor :many
+SELECT id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by FROM mcp_gateway_escalations
+WHERE sponsor_user_id = $1 AND status = $2
+ORDER BY created_at DESC
+`
+
+type ListMCPGatewayEscalationsBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	Status        string    `db:"status" json:"status"`
+}
+
+func (q *sqlQuerier) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg ListMCPGatewayEscalationsBySponsorParams) ([]MCPGatewayEscalation, error) {
+	rows, err := q.db.QueryContext(ctx, listMCPGatewayEscalationsBySponsor, arg.SponsorUserID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MCPGatewayEscalation
+	for rows.Next() {
+		var i MCPGatewayEscalation
+		if err := rows.Scan(
+			&i.ID,
+			&i.MCPServerConfigID,
+			&i.ServerSlug,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Input,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.WorkspaceName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.ExpiresAt,
+			&i.ResolvedAt,
+			&i.ResolvedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resolveMCPGatewayEscalation = `-- name: ResolveMCPGatewayEscalation :one
+UPDATE mcp_gateway_escalations
+SET status = $2, resolved_at = $3, resolved_by = $4
+WHERE id = $1 AND status = 'pending'
+RETURNING id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by
+`
+
+type ResolveMCPGatewayEscalationParams struct {
+	ID         uuid.UUID     `db:"id" json:"id"`
+	Status     string        `db:"status" json:"status"`
+	ResolvedAt sql.NullTime  `db:"resolved_at" json:"resolved_at"`
+	ResolvedBy uuid.NullUUID `db:"resolved_by" json:"resolved_by"`
+}
+
+func (q *sqlQuerier) ResolveMCPGatewayEscalation(ctx context.Context, arg ResolveMCPGatewayEscalationParams) (MCPGatewayEscalation, error) {
+	row := q.db.QueryRowContext(ctx, resolveMCPGatewayEscalation,
+		arg.ID,
+		arg.Status,
+		arg.ResolvedAt,
+		arg.ResolvedBy,
+	)
+	var i MCPGatewayEscalation
+	err := row.Scan(
+		&i.ID,
+		&i.MCPServerConfigID,
+		&i.ServerSlug,
+		&i.ServerUrl,
+		&i.Tool,
+		&i.Input,
+		&i.AIAgentID,
+		&i.SponsorUserID,
+		&i.WorkspaceName,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedBy,
+	)
+	return i, err
 }
 
 const cleanupDeletedMCPServerIDsFromChats = `-- name: CleanupDeletedMCPServerIDsFromChats :exec

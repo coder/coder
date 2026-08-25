@@ -2721,6 +2721,13 @@ func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.E
 	return q.db.EnqueueNotificationMessage(ctx, arg)
 }
 
+func (q *querier) ExpireMCPGatewayEscalations(ctx context.Context, resolvedAt sql.NullTime) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return 0, err
+	}
+	return q.db.ExpireMCPGatewayEscalations(ctx, resolvedAt)
+}
+
 func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceApiKey); err != nil {
 		return err
@@ -4157,6 +4164,13 @@ func (q *querier) GetLicenses(ctx context.Context) ([]database.License, error) {
 func (q *querier) GetLogoURL(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetLogoURL(ctx)
+}
+
+func (q *querier) GetMCPGatewayEscalationByID(ctx context.Context, id uuid.UUID) (database.MCPGatewayEscalation, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.MCPGatewayEscalation{}, err
+	}
+	return q.db.GetMCPGatewayEscalationByID(ctx, id)
 }
 
 func (q *querier) GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (database.MCPServerConfig, error) {
@@ -6330,6 +6344,13 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
+func (q *querier) InsertMCPGatewayEscalation(ctx context.Context, arg database.InsertMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.MCPGatewayEscalation{}, err
+	}
+	return q.db.InsertMCPGatewayEscalation(ctx, arg)
+}
+
 func (q *querier) InsertMCPServerConfig(ctx context.Context, arg database.InsertMCPServerConfigParams) (database.MCPServerConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.MCPServerConfig{}, err
@@ -6995,6 +7016,13 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
+func (q *querier) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg database.ListMCPGatewayEscalationsBySponsorParams) ([]database.MCPGatewayEscalation, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListMCPGatewayEscalationsBySponsor(ctx, arg)
+}
+
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.ListProvisionerKeysByOrganization)(ctx, organizationID)
 }
@@ -7228,6 +7256,13 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) ResolveMCPGatewayEscalation(ctx context.Context, arg database.ResolveMCPGatewayEscalationParams) (database.MCPGatewayEscalation, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.MCPGatewayEscalation{}, err
+	}
+	return q.db.ResolveMCPGatewayEscalation(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
