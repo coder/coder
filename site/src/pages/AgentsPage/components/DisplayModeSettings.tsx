@@ -80,7 +80,7 @@ const DisplayModeSettings = <T extends string>({
 					}}
 				>
 					<SelectTrigger className="w-44 shrink-0" aria-label={ariaLabel}>
-						<SelectValue />
+						<SelectValue placeholder="Select..." />
 					</SelectTrigger>
 					<SelectContent>
 						{options.map((opt) => (
