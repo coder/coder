@@ -26,7 +26,11 @@ export const GroupMemberBudgetCells: FC<{
 	spend: GroupMemberAISpend | undefined;
 }> = ({ group, userID, spend }) => {
 	const effective = effectiveBudgetGroup(spend, group);
-	const fromOtherGroup = effective.kind === "otherGroup";
+	const fromOtherGroup =
+		effective.kind === "otherGroup" ||
+		(effective.kind === "everyone" &&
+			group.id !== group.organization_id &&
+			Boolean(spend?.effective_budget));
 
 	// A null effective_group_id is a group in another org that can't be
 	// fetched, so only resolve the name when an ID exists.

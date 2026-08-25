@@ -345,12 +345,23 @@ export const EveryoneBudget: Story = {
 			group_budget: null,
 		},
 	},
+	parameters: {
+		queries: [
+			{
+				key: getGroupByIdQueryKey(group.organization_id, {
+					exclude_members: true,
+				}),
+				data: MockEveryoneGroup,
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const cell = await canvas.findByTestId(testId);
 		await expect(cell).toHaveTextContent("$1,250 USD");
-		await expect(cell).toHaveTextContent("Group limit $7,000");
+		await expect(cell).toHaveTextContent("Budget managed by another group");
 		await expect(canvas.getByText("Everyone")).toBeInTheDocument();
+		await expect(canvas.queryByText(/Group limit/)).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/Unlimited/)).not.toBeInTheDocument();
 		await expect(canvas.queryByText(/not allocated/)).not.toBeInTheDocument();
 	},
