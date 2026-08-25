@@ -145,7 +145,7 @@ export const ComboboxItem = ({
 	return (
 		<CommandItem
 			value={value}
-			className={cn(className, "rounded-none")}
+			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);
 				// Toggle behavior: selecting the same value deselects it.
