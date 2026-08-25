@@ -180,8 +180,8 @@ export const OrganizationOnlyRoleCanAccessModels: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Coder Agents" }),
-		).not.toBeInTheDocument();
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toBeVisible();
 	},
 };
 

@@ -106,6 +106,12 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
+		organization={undefined}
+		organizations={[]}
+		onSelectOrganization={fn()}
+		requestedOrganizationDenied={false}
+		isOrganizationAccessLoading={false}
+		canEditDeploymentConfig
 		isAgentRuntimeUsageLoading={false}
 		isAgentRuntimeUsageUnavailable
 		onRetryAgentRuntimeUsage={fn()}
@@ -1249,10 +1255,8 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await userEvent.click(manageAgentsLink);
 
-		await waitFor(() => {
-			expect(
-				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
-			).toBeInTheDocument();
-		});
+		await expect(
+			await screen.findByRole("heading", { name: "Deployment settings" }),
+		).toBeInTheDocument();
 	},
 };
