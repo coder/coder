@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon, FolderDownIcon, PlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -246,11 +246,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				onClick={onExportAll}
 				disabled={isLoading || isExportingAll || skills.length === 0}
 			>
-				{isExportingAll ? (
-					<Spinner className="size-4" loading />
-				) : (
-					<FolderDownIcon />
-				)}
+				{isExportingAll && <Spinner className="size-4" loading />}
 				Export all
 			</Button>
 			{addSkillAction}
