@@ -82,6 +82,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
 
+### Disable workspace agent context sync
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
+- Environment variable: `CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC`
+- CLI flag: [`--disable-workspace-agent-context-sync`](../../reference/cli/server.md#--disable-workspace-agent-context-sync)
+- YAML key: `disableWorkspaceAgentContextSync`
+
 ### Disable workspace sharing
 
 Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.

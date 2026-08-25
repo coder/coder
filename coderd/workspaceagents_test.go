@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
@@ -3241,6 +3242,54 @@ func TestWorkspaceAgentPushContextState(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, resp.GetAccepted())
+}
+
+// TestWorkspaceAgentPushContextStateDisabled verifies the
+// --disable-workspace-agent-context-sync kill switch end to end over a
+// real dRPC connection: the handler's Unimplemented code must survive
+// the transport and be translated by the agent's DRPCPusher into
+// ErrPushUnimplemented, which is what terminates the agent's RunPush
+// loop instead of retrying with backoff. Nothing may be persisted.
+func TestWorkspaceAgentPushContextStateDisabled(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.DisableWorkspaceAgentContextSync = true
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		DeploymentValues: dv,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := aAPI.DRPCConn().Close()
+		require.NoError(t, cErr)
+	}()
+
+	// Push through the same adapter the agent's RunPush loop uses so
+	// the test breaks if either side of the Unimplemented contract
+	// changes.
+	pusher := agentcontext.NewDRPCPusher(aAPI)
+	resp, err := pusher.PushContextState(ctx, &agentcontext.PushRequest{
+		Version: 1,
+		Initial: true,
+	})
+	require.ErrorIs(t, err, agentcontext.ErrPushUnimplemented)
+	require.Nil(t, resp)
+
+	// The rejected push must not have persisted anything.
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
