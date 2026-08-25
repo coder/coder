@@ -1285,9 +1285,16 @@ transition is for.
 `revoke` arises when a party withdraws a credential deliberately, whether
 because it is suspected, superseded, or no longer wanted.
 
-`expire` arises when the clock passes the credential's expiry. Nobody decides it
-and nobody notices it: it follows from the expiry the record already holds, so
-it is entailed, and the entry carries no actor.
+**In dispute, 2026-08-25.** Eric holds that this passage is wrong and that the
+actor is the issuer, acting at a distance to undo what they did before, which
+would make expiry a scheduled revocation rather than an entailed transition. The
+argument, what it costs, and what remains open are in
+`credential_expiration.working_state.md`. The passage stands until that work is
+done, and is not to be relied on meanwhile.
+
+> `expire` arises when the clock passes the credential's expiry. Nobody decides
+> it and nobody notices it: it follows from the expiry the record already holds,
+> so it is entailed, and the entry carries no actor.
 
 **That both of this machine's non commanded transitions turned out to be
 entailed is what the third kind was worth.** Both were classed observed until

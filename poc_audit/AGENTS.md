@@ -67,9 +67,10 @@ on something or you have simply not read the part that answers it.
   actors in scope, sandbox occupancy, identity independence, and attribution.
   Authoritative for "actor", "sandbox", `workspace_agent`, "AI agent", and the
   principal and agent relation.
-- [Security Findings](security_findings.md). Problems P1 to P7 in how the
-  `workspace_agent` credential is issued, stored, and tracked, with the policy
-  goals any fix must satisfy. Recommendations for work after the proof of
+- [Security Findings](security_findings.md). Problems P1 to P11. P1 to P7 concern
+  how the `workspace_agent` credential is issued, stored, and tracked; the later
+  ones came out of writing proof of concept code. Carries the policy goals any
+  fix must satisfy. Recommendations for work after the proof of
   concept, none of it scheduled.
 - [Implementation Patterns](implementation_patterns.md). How journals are
   shaped and what the schema is made to enforce rather than merely document:
@@ -85,6 +86,11 @@ on something or you have simply not read the part that answers it.
   entity exists in code and where that code is. The entity corpus refers to
   implementation only through this file, and no more finely than an entity, so
   that citations into code have one place to rot rather than many.
+- `credential_expiration.working_state.md`. Working material for the credential
+  machine's treatment of expiry, which is unsettled. Holds the reframing of an
+  expiry as a revocation the issuer scheduled, the `entity_model.md` passage
+  that reframing disputes, and findings about the chat gateway's handling of
+  expiry. Working material rather than design.
 - [Work Breakdown](work_breakdown.md). The coding work decomposed into work
   packages, each sized so that completing it produces a passing acceptance
   test. Each package lists its PoC cheats.

@@ -54,6 +54,23 @@ func (p *Server) ensureChatGatewayKeyID(ctx context.Context, chat database.Chat)
 	case err == nil && key.ExpiresAt.After(p.clock.Now().Add(chatAgentKeyRenewMargin)):
 		return key.ID, nil
 	case err == nil:
+		// The extension is deliberately outside the credential ledger's
+		// control, and is the one part of a credential's life that is.
+		//
+		// It changes no state: the credential is valid before and after, so
+		// there is nothing for the ledger to fold. It falsifies nothing
+		// either, the ledger holding no expiry at all: rows are inserted with
+		// a null expires_at, both folds write other variables, and no
+		// statement updates it.
+		//
+		// **Provisional.** An expiry is treated here as a fact about how the
+		// credential is managed rather than as part of the credential. That
+		// treatment is unsettled, as is the classification of expiry itself.
+		// See poc_audit/credential_expiration.working_state.md, which also
+		// records why this mechanism is not repaired in place: an expired key
+		// reaching this arm is extended back into validity, which the model
+		// has no transition for, and that is P11 in
+		// poc_audit/security_findings.md.
 		if err := p.db.UpdateAPIKeyByID(systemCtx, database.UpdateAPIKeyByIDParams{
 			ID:        key.ID,
 			LastUsed:  key.LastUsed,

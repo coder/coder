@@ -1858,11 +1858,31 @@ milestone 2 was sound.
 
 ### Status
 
-**Not yet fully written.** Two milestones are in scope and more journal
+**Not yet fully written.** Three milestones are in scope and more journal
 structure work is expected to join them before this is planned properly. What
 follows states what forces each and what is unresolved, not how it is done.
 
+**One item has left, complete.** The two-form entailing reference was pulled
+into WP11 milestone 3 and shipped with migration 000590: `entailed_by_entry` and
+`entailed_by_annotation` on the credential journal, never both, and required on
+a discharge. The position it needed is in `implementation_patterns.md` under
+"The reference has two forms, and one of them is words".
+
+### The order these are taken in
+
+**Milestone 3's first step is available now** and depends on nothing: extracting
+the common rotation function is a pure refactor. Its second step needs the
+atomic group, so the cheap independent piece can go first. The package's shape
+is one refactor, one restructuring, and two things that sit on the
+restructuring.
+
+**Milestone 2's placement is the open question below**, not its content.
+
 ### Milestone 1: an entry becomes an atomic group
+
+**Still true after migration 000590**, which added the entailing reference and
+made the actor nullable without touching the entry's identity: the primary key
+is `(entry_id)`, and `subject` and `event` remain single and `NOT NULL`.
 
 **The schema claims a capability its primary key forbids.** The comment on
 `credential_lifecycle_journal.entry_id` reads: "An entry may occupy several
@@ -1902,68 +1922,44 @@ subjects, one entry" and never suggesting two actors.
 one entry each. Under lines that is one entry with a line per credential, which
 is what happened: one event ending several credentials.
 
-### Milestone 2: `reissue` acquires an implementation
+### Milestone 2: `reissue` is documented and left alone
 
-**This milestone stays in this package whatever the question below settles.**
-Eric, 2026-08-24. It is a separate milestone from the multiline work rather than
-a part of it, the two sharing a subject rather than a dependency.
+**This milestone no longer writes code.** Eric, 2026-08-25, withdrew for this
+item only the requirement that the solution use the journal, on the evidence
+that the mechanism it would have journalled is unsound throughout and that
+repairing one part of it ahead of the rest would misrepresent the whole. What
+remains is to say so, accurately, in the places a later reader will look.
 
 `reissue` is on the credential machine, `valid` to `valid`, commanded, and
-nothing posts it. Its reading names the case exactly: a credential's validity
-pushed forward rather than replaced, which the chat gateway does because an in
-flight generation may already hold the current identifier.
+nothing posts it. The site is `coderd/x/chatd/synthetickey.go:57`, which extends
+a chat agent key's expiry with `UpdateAPIKeyByID`, writing a new `ExpiresAt`
+straight to `api_keys`.
 
-**The site exists.** `coderd/x/chatd/synthetickey.go:57` extends a chat agent
-key's expiry with `UpdateAPIKeyByID`, writing a new `ExpiresAt` straight to
-`api_keys` where the ledger never sees it.
+**The exemption is narrower than it sounds, and it is checkable.** No state
+transition escapes the ledger; what escapes is a change to an expiry that
+changes no state. **The ledger holds no expiry to be falsified**: rows are
+inserted with a null `expires_at`, both folds write other variables, and nothing
+updates it. So the extension contradicts nothing the ledger says.
 
-**This item belongs to the expiration work as much as to this package**, being
-about an expiry date, and cannot land before that discussion settles what an
-expiry means. See the deferred agenda, which also records the four way tradeoff
-this sits inside.
+**Expiry is provisionally treated as a fact about how a credential is managed
+rather than as part of the credential**, which is why it moves without an entry.
+The reasoning, the alarm clock story that supplies it, the corpus passage now in
+dispute, and the findings behind the judgement that the mechanism is unsound are
+all in `credential_expiration.working_state.md`. They are not repeated here.
 
-**The question that has to be answered before this milestone can proceed.**
-Whether `reissue` becomes a line like the operations in milestone 1. It has one
-subject and so does not need a multiline entry, and on its own it does not force
-the change.
+**Acceptance is documentary.** A comment at the site saying the extension is
+outside journal control, why that is consistent, and that it is provisional; the
+working state file recording the rest; and P11 in `security_findings.md` for the
+one finding that is a defect rather than a design gap.
 
-What the answer decides is ordering, not membership. Landing the two separately
-restructures the journal twice; landing them together makes the expiry
-discussion gate milestone 1 as well, which it otherwise does not. Neither is
-obviously right, and the cost of guessing is paid in a migration.
+**What was going to be here, and is now deferred with the expiry work.** Whether
+`reissue` becomes a line like the operations in milestone 1, which decides
+ordering rather than membership. Whether the definition is too narrow for having
+been written from one instance. Whether reissuance covering more than an expiry
+is a conflation. Whether the material form of an authenticator distinguishes
+anything. And the `last_used` race at the same site.
 
-### Item: an entailed entry's reference has two forms
-
-**An entailed operation's entry names what entailed it**, per
-`implementation_patterns.md`. Sandbox deletion discharges a credential and a
-sandbox has no journal, so there is no entry to name and will not be one until
-the sandbox is an entity.
-
-**Two parallel fields, exactly one of them set.** A reference to an entry, and
-an annotative text. The constraint is that one is present and the other is
-absent: never both, never neither. Eric, 2026-08-24.
-
-Use the entry reference wherever the implementation is mature enough to have
-one, which today is a lapse following a retirement, the retirement entry being
-real. Generate the text where it is not, which today is a discharge following a
-sandbox's destruction. **The two ending kinds therefore differ in which field
-they fill**, and that difference is the visible measure of how far the entity
-work has got.
-
-**The text is annotative and posting never reads it**, per "Annotative fields
-are named so, and posting never reads them" in `implementation_patterns.md`.
-
-**This modifies a position in `implementation_patterns.md`** and that document
-has not been changed. The position as written admits only the entry reference.
-
-### Not written yet
-
-Acceptance tests, the migration's shape, and whether the AI agent and
-authorization journals take the same treatment or keep the form they have. That
-last is the likeliest home for the further journal structure work this package
-is expected to gather.
-
-### Item: the rotation rewrite
+### Milestone 3: the rotation rewrite
 
 **Step one is a common function, and does not wait for anything.**
 `regenerateAIAgentSessionToken` in `provisionerdserver` and
@@ -1986,6 +1982,13 @@ once milestone 1 exists.
 **The gap it leaves today has no plausible victim**, the legitimate holder not
 existing during a start build, but it is a true gap and the record should not
 have to assert one where the overlap is the point.
+
+### Not written yet
+
+Acceptance tests, the migration's shape, and whether the AI agent and
+authorization journals take the same treatment or keep the form they have. That
+last is the likeliest home for the further journal structure work this package
+is expected to gather.
 
 ## WP14. An AI agent's own endpoints
 

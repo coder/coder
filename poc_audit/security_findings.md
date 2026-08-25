@@ -359,6 +359,61 @@ Until then the rule is that an `rbac.Subject` is constructed and never adjusted,
 and a reviewer seeing a field assigned on one should treat it as a defect
 regardless of what the surrounding code appears to achieve.
 
+## 8. An expired credential returning to validity
+
+Found on 2026-08-25 while measuring what the chat gateway does with expiry, and
+reported here rather than fixed. The repair belongs to the rewrite of that
+mechanism, recorded in `credential_expiration.working_state.md`.
+
+### Problem
+
+**P11. An expired API key can be extended back into validity, and the path that
+does it is reached on every generation.** `ensureChatGatewayKeyID` in
+`coderd/x/chatd/synthetickey.go` extends a key in place when it is close to
+expiry. The test is whether the expiry is beyond a renewal margin, which an
+**already expired** key also fails, so it falls into the extension arm and is
+pushed twenty four hours into the future.
+
+Nothing filters it out first. `GetAPIKeyByName` matches on holder and token name
+and does not consider `expires_at`, so the expired row is returned like any
+other. The row remains available until `dbpurge` deletes it at expiry plus the
+API key retention, which defaults to seven days. **So for roughly a week after
+it expires, a chat agent credential is one generation away from being valid
+again.**
+
+**The model has no transition for this.** `invalid` is terminal in the credential
+machine. Expiry reaches it; nothing leaves it. A path that returns a credential
+to validity is not a lifecycle the design admits, which is why this is recorded
+rather than tolerated quietly.
+
+**The same shape exists on the per user synthetic key** in the same file, which
+extends on the same margin test.
+
+**Exposure is bounded, and the bound is not a control.** Reaching the path needs
+the AI agent to still be active, which is checked, and the chat to still accept
+generation, which archiving prevents. Neither of those was put there to stop
+this.
+
+**Nothing is currently falsified by it.** The credential ledger holds no expiry:
+rows are inserted with a null `expires_at`, both folds write other variables,
+and no statement updates it. So the ledger never says `invalid` on expiry and
+cannot be contradicted when a key returns. **That is a property of expiry being
+unimplemented in the ledger, not a mitigation**, and it stops holding the moment
+expiry is journalled.
+
+### Solution
+
+**Do not extend a credential that has already expired.** Mint a replacement
+instead, which is a transition the model has and which the surrounding code
+already performs when no row is found. The reason extension exists, that an in
+flight generation may hold the current key identifier, does not apply once the
+key is expired, because any call made with it is refused anyway.
+
+**This was deliberately not done as part of the proof of concept.** Eric,
+2026-08-25: the repair belongs to the work that restores sanity to chat
+credential expiry, not to the work in flight, and patching one symptom of that
+mechanism ahead of the rest would misrepresent how much of it is sound.
+
 ## Policy
 
 The goals below are what future work on the code must satisfy. They are stated
@@ -394,6 +449,9 @@ P1 through P7 came out of tracing the `register and fetch manifest` arrow in
 `poc_audit/workspace_startup_asbuilt.d2`, not out of a security-specific review.
 It was a design trace that kept turning up the same class of issue. They concern
 the credential a `workspace_agent` uses to authenticate to coderd.
+
+P11 has a third. It came out of asking what a credential expiry is for, which
+turned into measuring what one particular expiry actually does.
 
 P8 has a different origin. It came out of naming a field while writing proof of
 concept code, where the question of what to call the value made it necessary to
