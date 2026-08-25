@@ -128,9 +128,6 @@ export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getAllByText(organizationWithEmptyDisplayName.name).length,
-		).toBeGreaterThan(0);
-		expect(
 			canvas.getByRole("textbox", {
 				name: `GPT-4o compaction threshold for ${organizationWithEmptyDisplayName.name}`,
 			}),
@@ -320,6 +317,61 @@ export const PartialSaveFailure: Story = {
 	},
 };
 
+export const OrganizationFilter: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: "org-second",
+			},
+		],
+		organizationNameByID: new Map<string, string>([
+			[MockChatModel.organization_id, MockDefaultOrganization.display_name],
+			["org-second", "Second Org"],
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const filter = await canvas.findByRole("combobox", {
+			name: "Filter by organization",
+		});
+
+		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+		expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+
+		await userEvent.click(filter);
+		const listbox = await within(document.body).findByRole("listbox");
+		await userEvent.click(within(listbox).getByText("Second Org"));
+
+		await waitFor(() => {
+			expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		});
+
+		await userEvent.click(filter);
+		const reopenedListbox = await within(document.body).findByRole("listbox");
+		await userEvent.click(
+			within(reopenedListbox).getByText("All organizations"),
+		);
+
+		await waitFor(() => {
+			expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		});
+	},
+};
+
+export const SingleOrganizationHidesFilter: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("GPT-4o");
+		expect(
+			canvas.queryByRole("combobox", { name: "Filter by organization" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
@@ -338,9 +390,6 @@ export const PartialModelLoadError: Story = {
 		expect(
 			await canvas.findByText("Failed to load models from one organization"),
 		).toBeVisible();
-		expect(
-			canvas.getAllByText(MockDefaultOrganization.display_name).length,
-		).toBeGreaterThan(0);
 		expect(
 			canvas.getByRole("textbox", {
 				name: `GPT-4o compaction threshold for ${MockDefaultOrganization.display_name}`,

@@ -5,6 +5,13 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -87,9 +94,34 @@ export const UserCompactionThresholdSettings: FC<
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
+	const [organizationFilter, setOrganizationFilter] = useState("all");
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const enabledModels = models.filter((config) => config.enabled);
+	const organizationOptions = [
+		...new Map(
+			enabledModels.map((config) => [
+				config.organization_id,
+				organizationNameByID.get(config.organization_id) ??
+					config.organization_id,
+			]),
+		).entries(),
+	]
+		.map(([id, name]) => ({ id, name }))
+		.sort((a, b) => a.name.localeCompare(b.name));
+	// Fall back to all organizations when the selected one disappears after
+	// a models refetch.
+	const effectiveOrganizationFilter = organizationOptions.some(
+		(option) => option.id === organizationFilter,
+	)
+		? organizationFilter
+		: "all";
+	const visibleModels =
+		effectiveOrganizationFilter === "all"
+			? enabledModels
+			: enabledModels.filter(
+					(config) => config.organization_id === effectiveOrganizationFilter,
+				);
 	const overridesByModelID = new Map(
 		(thresholds ?? []).map(
 			(threshold: TypesGen.UserChatCompactionThreshold) => [
@@ -260,6 +292,27 @@ export const UserCompactionThresholdSettings: FC<
 							)}
 						</p>
 					)}
+					{organizationOptions.length > 1 && (
+						<Select
+							value={effectiveOrganizationFilter}
+							onValueChange={setOrganizationFilter}
+						>
+							<SelectTrigger
+								className="w-56"
+								aria-label="Filter by organization"
+							>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="all">All organizations</SelectItem>
+								{organizationOptions.map((option) => (
+									<SelectItem key={option.id} value={option.id}>
+										{option.name}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -271,7 +324,7 @@ export const UserCompactionThresholdSettings: FC<
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{enabledModels.map((modelConfig) => {
+							{visibleModels.map((modelConfig) => {
 								const existingOverride = overridesByModelID.get(modelConfig.id);
 								const hasOverride = overridesByModelID.has(modelConfig.id);
 								const draftValue =
@@ -300,7 +353,7 @@ export const UserCompactionThresholdSettings: FC<
 									<TableRow key={modelConfig.id}>
 										<TableCell className="text-sm font-medium text-content-primary">
 											<Badge
-												size="sm"
+												size="md"
 												variant="default"
 												className="w-fit"
 												aria-label={`${providerLabel} ${modelName} in ${organizationName}`}
@@ -308,11 +361,6 @@ export const UserCompactionThresholdSettings: FC<
 												<ProviderIcon provider={provider} className="size-4" />
 												{modelName}
 											</Badge>
-											{organizationName && (
-												<span className="mt-0.5 block text-2xs font-normal text-content-secondary">
-													{organizationName}
-												</span>
-											)}
 											{rowError && (
 												<p
 													aria-live="polite"
