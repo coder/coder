@@ -92,7 +92,9 @@ approximations:
   `/insights/templates`.
 
 *Why:* Precise values are what make accuracy checkable; "roughly 5
-minutes" can't drift-fail, but `300s default` can.
+minutes" can't drift-fail, but `300s default` can. Whether an exact value
+belongs on the page at all is a separate question; see
+[Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
 
@@ -106,12 +108,14 @@ reader type or receive it?**
   and for any step where the reader reads a field out of a response or types
   a flag.
 - If no, state the behavior in the target persona's terms and keep the
-  identifier in the PR description's evidence, where the reviewer can check
-  it. Enum values, database column and field names, function and struct
-  names, and internal subsystem names on a page whose reader never sees them
-  are unverifiable by that reader and rot unnoticed. Example: an admin page
-  says "chats with ongoing work are never selected", not "chats with status
-  `running`, `interrupting`, or `requires_action` are excluded".
+  identifier out of the page. When the reviewer needs the pointer, give it in
+  the PR discussion (a comment or review thread naming the file and symbol),
+  not in the published page. Enum values, database column and field
+  names, function and struct names, and internal subsystem names on a page
+  whose reader never sees them are unverifiable by that reader and rot
+  unnoticed. Example: an admin page says "chats with ongoing work are never
+  selected", not "chats with status `running`, `interrupting`, or
+  `requires_action` are excluded".
 
 *Why:* Identifiers the reader never receives can't be confirmed or corrected
 by the reader, and they silently drift when the implementation changes.

@@ -119,9 +119,10 @@ in the content guidelines; they govern. The test is whether the reader types
 or receives the identifier. Application notes:
 
 - Reading the source is how you verify behavior (workflow step 1), not what
-  you publish. When the reader test says "no", the identifiers you copied in
-  step 1 go in the PR description's evidence section, and the page states the
-  behavior in the persona's terms.
+  you publish. When the reader test says "no", the page states the behavior
+  in the persona's terms, and the identifiers you copied in step 1 stay out
+  of the page; hand them to the reviewer as pointers in the PR discussion
+  when asked, per the canonical rule.
 - Reference, API, CLI, and configuration docs usually pass the test, as does
   any step where the reader reads a field from a response, so exact values
   are required there. The test decides, not the page category.
@@ -202,7 +203,7 @@ the whole series as a single review.
       draft vs. ready-for-review).
 - [ ] Implementation identifiers appear only where the reader types or
       receives them; everywhere else the page states behavior in the
-      persona's terms and the identifiers live in the PR's evidence section.
+      persona's terms (see [Evidence versus claim](#evidence-versus-claim)).
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
