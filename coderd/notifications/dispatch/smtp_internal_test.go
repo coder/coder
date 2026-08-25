@@ -13,9 +13,7 @@ import (
 	markdown "github.com/coder/coder/v2/coderd/render"
 )
 
-// appearanceHelpers returns the HTML template's helpers with benign deployment
-// values, so a test asserting on injected markup measures only what the
-// untrusted payload contributed.
+// Benign values, so a test measures only what its own payload injected.
 func appearanceHelpers() map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return "https://coder.example.com" },
@@ -25,32 +23,17 @@ func appearanceHelpers() map[string]any {
 	}
 }
 
-// TestSMTPHTMLTemplateEscapesSubjectAndUserName covers the sinks that Markdown
-// escaping cannot reach. The subject is produced by PlaintextFromMarkdown, which
-// strips Markdown and decodes HTML entities, so an entity-encoded payload in a
-// label arrives at html.gotmpl as raw HTML. "&" is not backslash-escapable in
-// either renderer, so EscapeMarkdown cannot stop it and the fix has to be at the
-// template sink. UserName reaches the same template straight from the unescaped
-// payload the dispatcher is handed.
 func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name string
-		// title is the rendered title template handed to the dispatcher, as
-		// notifier.prepare produces it.
-		title string
-		// userName is the recipient's own display name.
+		name     string
+		title    string
 		userName string
-		// injected is the markup the untrusted value resolves to by the time it
-		// reaches the template. Asserting on the template's own tags would not
-		// work: html.gotmpl legitimately renders anchors in its footer.
 		injected string
 	}{
 		{
-			name: "EntityEncodedAnchorInSubject",
-			// Shape of a template_display_name interpolated into the shipped
-			// title template. PlaintextFromMarkdown decodes the entities.
+			name:     "EntityEncodedAnchorInSubject",
 			title:    `Template "&lt;a href="https://attacker.example/login"&gt;Re-authenticate now&lt;/a&gt;" deleted`,
 			userName: "Bobby",
 			injected: `<a href="https://attacker.example/login">Re-authenticate now</a>`,
@@ -71,8 +54,7 @@ func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			// The two steps SMTPHandler.Dispatcher performs before the HTML
-			// template is rendered.
+			// Decodes the entities, so the title arrives as live markup.
 			subject, err := markdown.PlaintextFromMarkdown(tc.title)
 			require.NoError(t, err)
 
@@ -88,8 +70,6 @@ func TestSMTPHTMLTemplateEscapesSubjectAndUserName(t *testing.T) {
 			got, err := render.GoTemplate(htmlTemplate, payload, appearanceHelpers())
 			require.NoError(t, err)
 
-			// The case has to carry markup, or the assertions below hold
-			// whether or not the template escapes anything.
 			escaped := html.EscapeString(tc.injected)
 			require.NotEqual(t, tc.injected, escaped,
 				"case carries no HTML to escape, so it guards nothing")
