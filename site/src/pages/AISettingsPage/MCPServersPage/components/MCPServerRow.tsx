@@ -31,7 +31,7 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 					<span
 						className={cn(
 							"truncate text-sm font-medium",
-							enabled ? "text-content-primary" : "text-content-disabled",
+							enabled ? "text-content-primary" : "text-content-secondary",
 						)}
 					>
 						{server.display_name}

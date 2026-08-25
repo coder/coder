@@ -75,7 +75,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 								"truncate text-sm font-medium leading-6",
 								model.enabled
 									? "text-content-primary"
-									: "text-content-disabled",
+									: "text-content-secondary",
 							)}
 							title={displayName}
 						>
