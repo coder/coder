@@ -117,9 +117,12 @@ This is the canonical rule
 in the content guidelines; the content guidelines govern, so read the rule
 there. On pages **this change adds or edits**, flag an implementation
 identifier the reader neither types nor receives in that page's task; the
-canonical rule's ladder decides the replacement. A pre-existing violation on
-a page the diff does not touch is not this change's finding; mention it as
-informational context at most, without demanding a fix from this author.
+canonical rule's ladder decides the replacement. When the diff strips or
+paraphrases an identifier, confirm the stripped identifier is named (file
+and symbol) in the commit message or a review comment, and flag the
+omission. A pre-existing violation on a page the diff does not touch is not
+this change's finding; mention it as informational context at most, without
+demanding a fix from this author.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

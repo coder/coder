@@ -367,8 +367,8 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths, for
-   values that belong on the page per
+2. **Be precise** - Use exact numbers, permission names, and API paths for
+   the values that belong on the page per
    [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references

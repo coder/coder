@@ -196,8 +196,8 @@ the whole series as a single review.
       draft vs. ready-for-review).
 - [ ] Identifiers on the page pass the
       [Evidence versus claim](#evidence-versus-claim) test for this page's
-      task, and stripped identifiers are named (file and symbol) in the PR
-      discussion.
+      task, and stripped identifiers are named (file and symbol) in the
+      commit message or a review comment, not the PR description.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 

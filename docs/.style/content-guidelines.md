@@ -93,7 +93,7 @@ approximations:
 
 *Why:* Precise values are what make accuracy checkable; "roughly 5
 minutes" can't drift-fail, but `300s default` can. Whether an exact value
-belongs on the page at all is a separate question; see
+belongs on the page at all is a separate question; refer to
 [Evidence justifies a claim; it does not belong in the claim](#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
 
 ### Evidence justifies a claim; it does not belong in the claim
@@ -116,22 +116,25 @@ applies, testing in order:
    [voice and tone rules](./style-guide/voice-and-tone.md).
 
 Worked example: the chat status enum. API consumers receive the values, so
-the API reference lists them exactly (rung 1). The chat sidebar shows only
-status icons, and the strings behind them are accessibility labels rather
-than visible text, so rung 2 offers nothing to quote, and an admin page
-about auto-archive falls to rung 3: it says chats that are still working or
-waiting on the user are never selected, without naming enum values.
+the API reference lists them exactly (rung 1). In the chat sidebar the
+statuses render as icons whose strings are accessibility labels rather than
+visible text, so a page describing sidebar behavior falls to rung 3 and says
+chats that are still working or waiting on the user are never selected. A
+surface that renders a status as visible text takes rung 2 for that surface.
 
 Keep identifiers that fail the test out of the page, and name what you
-stripped, with its file and symbol, in the PR discussion (a comment or
-review thread). That gives the reviewer, and whoever re-verifies the
-paraphrase later, the handle without having to re-derive it.
+stripped, with its file and symbol, in the commit message or a review
+comment. The commit message stays one `git blame` away from the paragraph,
+so whoever re-verifies the paraphrase later has the handle without
+re-deriving it.
 
 Related rules that draw the same boundary:
 [Describe the current version, for the end user](#describe-the-current-version-for-the-end-user)
-for implementation history, and
+for implementation history,
 [Keep internal-only references out of published docs](./style-guide/word-choice.md#keep-internal-only-references-out-of-published-docs)
-for internal links and ticket IDs.
+for internal links and ticket IDs, and the [routing table](#routing-table),
+which routes whole code-internal topics to engineering docs while this rule
+covers single identifiers inside an otherwise user-facing claim.
 
 *Why:* Any prose can drift, including a paraphrase. The ladder minimizes
 unverifiable drift: an exact value is checkable where the reader receives
@@ -179,7 +182,7 @@ Coder has two related but distinct concepts. Don't conflate them:
   variable. An experiment is either *safe* (ready for users to try) or
   *unsafe* (active development, not designed for users at all).
 - **Feature stages** describe how production-ready a feature is: Early
-  Access, Beta, or General Availability. See
+  Access, Beta, or General Availability. Refer to
   [Feature stages](../install/releases/feature-stages.md).
 
 Practical impact for docs:

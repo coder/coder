@@ -439,15 +439,12 @@ Keep these out of published pages:
 - Internal-only chat threads, design docs, dashboards, runbooks, and wikis.
 - Any link gated behind employee-only access.
 
-The same boundary applies to implementation identifiers such as enum values,
-database column names, and internal symbols: whether one belongs on a page is
-governed by
-[Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-in the content guidelines.
-
 Track the work in the surfaces built for it.
 A pull request description, a commit message, or a code-review comment is the right place to cite an internal issue ID or a private link, because every contributor on that change can read it there.
 The published page stays the same for everyone.
+
+Implementation identifiers, such as enum values, database column names, and internal symbols, follow a related but conditional rule.
+Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim) in the content guidelines.
 
 **Do**:
 
