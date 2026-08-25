@@ -156,7 +156,7 @@ func TestRunnerDebugTurnFinalizeOnce(t *testing.T) {
 	turn.Finalize(ctx)
 }
 
-func TestRunnerDebugTurnEnsureMergesMCPConnectSummaries(t *testing.T) {
+func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -170,13 +170,18 @@ func TestRunnerDebugTurnEnsureMergesMCPConnectSummaries(t *testing.T) {
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
 	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
 
+	var seededSummary []byte
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
-		Return(database.ChatDebugRun{
-			ID:     runID,
-			ChatID: chatID,
-			Kind:   string(chatdebug.KindChatTurn),
-			Status: string(chatdebug.StatusInProgress),
-		}, nil).
+		DoAndReturn(func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.True(t, params.Summary.Valid)
+			seededSummary = params.Summary.RawMessage
+			return database.ChatDebugRun{
+				ID:     runID,
+				ChatID: chatID,
+				Kind:   string(chatdebug.KindChatTurn),
+				Status: string(chatdebug.StatusInProgress),
+			}, nil
+		}).
 		Times(1)
 	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, nil).Times(1)
 	var finalSummary []byte
@@ -210,13 +215,25 @@ func TestRunnerDebugTurnEnsureMergesMCPConnectSummaries(t *testing.T) {
 		Error:      "connect: context deadline exceeded",
 	}}
 
+	// The dispatch point records each preparation before its action
+	// runs, so the first outcome lands before Ensure creates the
+	// run and must be seeded into it.
+	turn.RecordMCPConnectSummaries(&first)
 	turn.Ensure(ctx, database.Chat{ID: chatID}, &first)
 	// A later generation step reconnects and reports a degraded
-	// outcome for the same server; it must survive to the
-	// finalized summary.
-	turn.Ensure(ctx, database.Chat{ID: chatID}, &second)
+	// outcome for the same server; its action may never reach
+	// Ensure, and the outcome must still survive to the finalized
+	// summary.
+	turn.RecordMCPConnectSummaries(&second)
 	turn.RecordOutcome(chatdebug.StatusCompleted)
 	turn.Finalize(ctx)
+
+	var seeded struct {
+		MCPConnect []mcpclient.ConnectSummary `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(seededSummary, &seeded))
+	require.Len(t, seeded.MCPConnect, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, seeded.MCPConnect[0].Outcome)
 
 	var summary struct {
 		MCPConnect []mcpclient.ConnectSummary `json:"mcp_connect"`

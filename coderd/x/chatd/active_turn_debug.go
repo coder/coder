@@ -58,7 +58,6 @@ func (d *runnerDebugTurn) Ensure(
 		return ctx
 	}
 	if d.created {
-		d.mergeMCPConnectSummariesLocked(debug)
 		return d.contextLocked(ctx)
 	}
 	if debug == nil || !debug.Enabled || debug.Service == nil ||
@@ -70,15 +69,16 @@ func (d *runnerDebugTurn) Ensure(
 	seedSummary := chatdebug.SeedSummary(
 		chatdebug.TruncateLabel(debug.TriggerLabel, chatdebug.MaxLabelLength),
 	)
-	// Seed per-server MCP connect outcomes so slow or failing
-	// servers appear in the run instead of as a silent gap before
-	// the first step. Seeded keys survive FinalizeRun's summary
-	// aggregation.
-	if len(debug.MCPConnectSummaries) > 0 {
+	// Carry per-server MCP connect outcomes stashed by
+	// RecordMCPConnectSummaries before the run existed, so slow or
+	// failing servers appear in the run instead of as a silent gap
+	// before the first step. Seeded keys survive FinalizeRun's
+	// summary aggregation.
+	if stashed, ok := d.seedSummary["mcp_connect"]; ok {
 		if seedSummary == nil {
 			seedSummary = make(map[string]any, 1)
 		}
-		seedSummary["mcp_connect"] = debug.MCPConnectSummaries
+		seedSummary["mcp_connect"] = stashed
 	}
 	rootChatID := uuid.Nil
 	if chat.RootChatID.Valid {
@@ -133,13 +133,32 @@ func (d *runnerDebugTurn) Context(ctx context.Context) context.Context {
 	return d.contextLocked(ctx)
 }
 
-// mergeMCPConnectSummariesLocked appends a later preparation's
-// per-server MCP connect outcomes to the seeded mcp_connect key.
-// chatd reconnects to every configured MCP server on each
-// generation step while the run is created only once, so without
-// this merge only the first preparation's outcomes would survive
-// to the finalized run and a server that degrades mid-turn would
-// still be reported as connected.
+// RecordMCPConnectSummaries merges one preparation's per-server MCP
+// connect outcomes into the mcp_connect summary key. It runs at the
+// generation dispatch point so every preparation is recorded,
+// including ones feeding actions that never reach Ensure (local
+// tool execution, requires-action, turn finishing). Outcomes
+// recorded before the run exists are stashed and seeded into the
+// run when Ensure creates it.
+func (d *runnerDebugTurn) RecordMCPConnectSummaries(debug *generationDebug) {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.disabled || d.finalized {
+		return
+	}
+	d.mergeMCPConnectSummariesLocked(debug)
+}
+
+// mergeMCPConnectSummariesLocked appends a preparation's per-server
+// MCP connect outcomes to the mcp_connect summary key. chatd
+// reconnects to every configured MCP server on each generation step
+// while the run is created only once, so without this merge only
+// one preparation's outcomes would survive to the finalized run and
+// a server that degrades mid-turn would still be reported as
+// connected.
 func (d *runnerDebugTurn) mergeMCPConnectSummariesLocked(debug *generationDebug) {
 	if debug == nil || len(debug.MCPConnectSummaries) == 0 {
 		return

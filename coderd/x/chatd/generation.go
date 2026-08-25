@@ -495,6 +495,12 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 
+		// Every preparation reconnects to MCP, including ones whose
+		// action below never reaches Ensure; record each
+		// preparation's connect outcomes at the single dispatch
+		// point.
+		input.DebugTurn.RecordMCPConnectSummaries(prepared.Debug)
+
 		var actionErr error
 		switch decision.kind {
 		case generationActionEnterRequiresAction:
