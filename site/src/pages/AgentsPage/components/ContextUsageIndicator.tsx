@@ -30,6 +30,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
+import type { ResolvedCompactionThreshold } from "../compactionTriggers";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
@@ -41,8 +42,7 @@ export interface AgentContextUsage {
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
 	readonly reasoningTokens?: number;
-	// Percentage (0-100) at which the context will be compacted.
-	readonly compressionThreshold?: number;
+	readonly compactionThreshold?: ResolvedCompactionThreshold;
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
@@ -396,13 +396,11 @@ export const ContextUsageIndicator: FC<{
 				: hasReportedUsage
 					? "Context usage unavailable"
 					: "Context usage will appear after sending a message."}
-			{hasPercent &&
-				usage?.compressionThreshold !== undefined &&
-				usage.compressionThreshold > 0 && (
-					<div className="mt-1 text-content-secondary">
-						{`Compacts at ${usage.compressionThreshold}%`}
-					</div>
-				)}
+			{hasPercent && usage?.compactionThreshold !== undefined && (
+				<div className="mt-1 text-content-secondary">
+					{`Compacts at ${usage.compactionThreshold.percent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage.compactionThreshold.source === "organization" ? " (organization compaction model)" : ""}`}
+				</div>
+			)}
 			{hasContextList && (
 				<div className="mt-2 flex flex-col gap-2 text-content-secondary">
 					{fileItems.length > 0 && (

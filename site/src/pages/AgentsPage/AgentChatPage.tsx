@@ -45,6 +45,7 @@ import {
 	invalidateChatEntity,
 	mcpServerConfigs,
 	openChat,
+	organizationChatModelOverrides,
 	patchChatEntity,
 	promoteChatQueuedMessage,
 	updateChatPlanMode,
@@ -83,6 +84,13 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
+import {
+	bindingCompactionTrigger,
+	compactionPointAsPercent,
+	type OrganizationCompactionTrigger,
+	type ResolvedCompactionThreshold,
+	resolveOrganizationCompactionTrigger,
+} from "./compactionTriggers";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { chatFamilyAllowsArchive } from "./components/ChatActionsMenuItems";
 import {
@@ -753,25 +761,43 @@ const getPersistedDetailError = ({
 	return normalizeChatErrorPayload(chatRecord?.last_error);
 };
 
-/**
- * Resolves the effective compaction threshold for a model configuration,
- * preferring the user's override when set.
- */
 function resolveCompactionThreshold(
 	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
 	models: readonly TypesGen.ChatModel[] | null | undefined,
-): number | undefined {
+	organizationTrigger: OrganizationCompactionTrigger | undefined,
+): ResolvedCompactionThreshold | undefined {
 	if (!modelID || !Array.isArray(models)) return undefined;
-	const config = models.find((c) => c.id === modelID);
+	const config = models.find((candidate) => candidate.id === modelID);
 	if (!config) return undefined;
+
 	const userOverride = userThresholds?.find(
 		(threshold) => threshold.model_config_id === modelID,
 	);
-	if (userOverride) {
-		return userOverride.threshold_percent;
+	const thresholdPercent =
+		userOverride?.threshold_percent ?? config.compression_threshold;
+	const source = userOverride ? "user" : "model";
+	if (organizationTrigger) {
+		const organizationPercent = compactionPointAsPercent(
+			organizationTrigger.point,
+			config.context_limit,
+		);
+		if (
+			organizationPercent !== undefined &&
+			bindingCompactionTrigger(
+				{
+					thresholdPercent,
+					contextLimit: config.context_limit,
+				},
+				organizationTrigger.trigger,
+			) === "organization" &&
+			organizationPercent < thresholdPercent
+		) {
+			return { percent: organizationPercent, source: "organization" };
+		}
 	}
-	return config.compression_threshold;
+
+	return { percent: thresholdPercent, source };
 }
 
 // Compile-time guard: ensures the workspace watcher bailout comparison
@@ -937,6 +963,13 @@ const AgentChatPage: FC = () => {
 
 	const modelsQuery = useQuery(chatModels(chatOrganizationId));
 	const models = modelsQuery.data?.models ?? [];
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(chatOrganizationId),
+	);
+	const organizationCompactionTrigger = resolveOrganizationCompactionTrigger(
+		modelOverridesQuery.data?.overrides,
+		models,
+	);
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
@@ -1375,10 +1408,11 @@ const AgentChatPage: FC = () => {
 			)
 		: undefined;
 
-	const compressionThreshold = resolveCompactionThreshold(
+	const compactionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
 		models,
+		organizationCompactionTrigger,
 	);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
@@ -2057,7 +2091,7 @@ const AgentChatPage: FC = () => {
 			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
-			compressionThreshold={compressionThreshold}
+			compactionThreshold={compactionThreshold}
 			isInputDisabled={isInputDisabled}
 			isSubmissionPending={isSubmissionPending}
 			isInterruptPending={isInterruptPending}

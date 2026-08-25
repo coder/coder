@@ -4,7 +4,10 @@ import {
 	MockChatContextClean,
 	MockChatContextDirty,
 } from "#/testHelpers/chatEntities";
-import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import {
+	type AgentContextUsage,
+	ContextUsageIndicator,
+} from "./ContextUsageIndicator";
 
 const meta: Meta<typeof ContextUsageIndicator> = {
 	title: "pages/AgentsPage/ContextUsageIndicator",
@@ -16,6 +19,54 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
+
+const organizationCompactionUsage: AgentContextUsage = {
+	usedTokens: 64_000,
+	contextLimitTokens: 128_000,
+	compactionThreshold: { percent: 25, source: "organization" },
+};
+const modelCompactionUsage: AgentContextUsage = {
+	usedTokens: 64_000,
+	contextLimitTokens: 128_000,
+	compactionThreshold: { percent: 80, source: "model" },
+};
+
+export const OrganizationCompactionModelBinding: Story = {
+	args: {
+		usage: organizationCompactionUsage,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+		await waitFor(() => {
+			expect(
+				body.getByText("Compacts at 25% (organization compaction model)"),
+			).toBeVisible();
+		});
+	},
+};
+
+export const ChatModelCompactionBinding: Story = {
+	args: {
+		usage: modelCompactionUsage,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.hover(
+			canvas.getByRole("button", { name: /Context usage 50%/i }),
+		);
+		await waitFor(() => {
+			expect(body.getByText("Compacts at 80%")).toBeVisible();
+		});
+		expect(
+			body.queryByText(/organization compaction model/i),
+		).not.toBeInTheDocument();
+	},
+};
 
 // A pinned resource issue flags the ring and appears under Issues.
 export const ResourceIssue: Story = {

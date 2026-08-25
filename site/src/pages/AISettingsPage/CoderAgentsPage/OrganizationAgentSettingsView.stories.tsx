@@ -15,6 +15,18 @@ const alternateModel: TypesGen.ChatModel = {
 	model: "model-two",
 	display_name: "Model Two",
 };
+const smallCompactionModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "compaction-model",
+	model: "compact-mini",
+	display_name: "Compact Mini",
+	context_limit: 32_000,
+	compression_threshold: 50,
+};
+const warningModels = [smallCompactionModel, model, alternateModel];
+const warningOverrides: readonly TypesGen.ChatModelOverrideResponse[] = [
+	{ context: "compaction", model_config_id: model.id },
+];
 const saveGeneralOverride = fn();
 const saveExploreOverride = fn();
 const overrides: readonly TypesGen.ChatModelOverrideResponse[] = [
@@ -104,6 +116,49 @@ export const SetAndUnset: Story = {
 				expect.anything(),
 			);
 		});
+	},
+};
+
+export const CompactionTriggerWarning: Story = {
+	args: {
+		overrides: warningOverrides,
+		enabledModels: warningModels,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const compactionSection = canvas.getByRole("form", { name: "Compaction" });
+		const section = within(compactionSection);
+		expect(
+			section.queryByText(/will compact earlier/i),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(
+			section.getByRole("combobox", { name: /Model One/i }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /Compact Mini/i }),
+		);
+		await waitFor(() => {
+			expect(
+				section.getByText(
+					/Chats using Model One, Model Two will compact earlier/i,
+				),
+			).toBeVisible();
+		});
+		expect(
+			section.getByText(
+				/Compact Mini compacts at 50% of its 32,000-token window/i,
+			),
+		).toBeVisible();
+	},
+};
+
+export const NoCompactionTriggerWarning: Story = {
+	play: async ({ canvasElement }) => {
+		expect(
+			within(canvasElement).queryByText(/will compact earlier/i),
+		).not.toBeInTheDocument();
 	},
 };
 export const AdvisorDisabled: Story = {

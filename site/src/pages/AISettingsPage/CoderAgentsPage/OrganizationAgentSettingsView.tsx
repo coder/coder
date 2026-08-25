@@ -1,6 +1,11 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import {
+	compactionTriggerPoint,
+	isCompactionTriggerEnabled,
+} from "#/pages/AgentsPage/compactionTriggers";
 import type { ProviderInfo } from "#/pages/AgentsPage/utils/modelOptions";
 import { SubagentModelOverrideSettings } from "#/pages/AISettingsPage/CoderAgentsPage/components/SubagentModelOverrideSettings";
 
@@ -64,6 +69,14 @@ const settings: readonly {
 	},
 ];
 
+const formatModelList = (modelNames: readonly string[]) => {
+	const visibleNames = modelNames.slice(0, 3);
+	const remainingCount = modelNames.length - visibleNames.length;
+	return remainingCount > 0
+		? `${visibleNames.join(", ")} and ${remainingCount} more`
+		: visibleNames.join(", ");
+};
+
 const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	overrides,
 	enabledModels,
@@ -83,6 +96,47 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 	const visibleSettings = settings.filter(
 		(setting) => setting.context !== "advisor" || showAdvisor,
 	);
+	const renderCompactionAlert = (selectedModelID: string) => {
+		const compactionModel = enabledModels.find(
+			(model) => model.id === selectedModelID,
+		);
+		if (!compactionModel) {
+			return null;
+		}
+
+		const overrideTrigger = {
+			thresholdPercent: compactionModel.compression_threshold,
+			contextLimit: compactionModel.context_limit,
+		};
+		if (!isCompactionTriggerEnabled(overrideTrigger)) {
+			return null;
+		}
+
+		const overridePoint = compactionTriggerPoint(overrideTrigger);
+		const undercutModelNames = enabledModels.flatMap((model) => {
+			const chatTrigger = {
+				thresholdPercent: model.compression_threshold,
+				contextLimit: model.context_limit,
+			};
+			return isCompactionTriggerEnabled(chatTrigger) &&
+				overridePoint < compactionTriggerPoint(chatTrigger)
+				? [model.display_name.trim() || model.model]
+				: [];
+		});
+		if (undercutModelNames.length === 0) {
+			return null;
+		}
+
+		const compactionModelName =
+			compactionModel.display_name.trim() || compactionModel.model;
+		return (
+			<Alert severity="warning">
+				<AlertDescription>
+					{`Chats using ${formatModelList(undercutModelNames)} will compact earlier than their configured thresholds because ${compactionModelName} compacts at ${compactionModel.compression_threshold}% of its ${compactionModel.context_limit.toLocaleString("en-US")}-token window.`}
+				</AlertDescription>
+			</Alert>
+		);
+	};
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -116,6 +170,11 @@ const OrganizationAgentSettingsView: FC<OrganizationAgentSettingsViewProps> = ({
 							isSaveError={errorContexts.has(setting.context)}
 							saveErrorMessage={`Failed to save ${setting.title.toLowerCase()} override.`}
 							unavailableModelWarning={setting.unavailableModelWarning}
+							renderSelectedModelAlert={
+								setting.context === "compaction"
+									? renderCompactionAlert
+									: undefined
+							}
 							unsetPlaceholder="Use default"
 							disabled={!canEdit}
 						/>
