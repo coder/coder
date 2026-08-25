@@ -100,24 +100,27 @@ belongs on the page at all is a separate question; see
 
 Verifying a behavior against the code does not mean publishing the code's
 vocabulary. For each identifier, ask: **within the task this page documents,
-does the reader type it or receive it?** Then pick the highest rung that
-applies:
+does the reader type it or receive it?** Then pick the first rung that
+applies, testing in order:
 
 1. **Typed or received in this page's task:** document the exact value, per
    [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
    This is the normal case for reference, API, CLI, and configuration
-   content. The same identifier can pass here and fail elsewhere: API
-   consumers receive the chat status enum, so the API reference lists its
-   exact values, while an admin configuring auto-archive never receives
-   those strings.
-2. **Shown a product label instead:** use the label the product shows. The
-   chat sidebar renders statuses as "Working", "Interrupting", and "Requires
-   action", so an admin page describes selection with those labels, not the
-   enum values behind them; the labels are what the reader can verify
-   against their own screen.
-3. **Neither:** describe the behavior in the reader's terms, naming the
-   reader by role as
-   [audience-and-scope](./style-guide/audience-and-scope.md) prescribes.
+   content.
+2. **Shown in the product instead:** use the words the product shows, such
+   as a visible status text, form field label, or button name. What the
+   screen shows is what the reader can verify against it. Confirm the words
+   are rendered as visible text, not only as accessibility labels.
+3. **Neither:** describe the behavior in plain terms of the reader's task,
+   following the
+   [voice and tone rules](./style-guide/voice-and-tone.md).
+
+Worked example: the chat status enum. API consumers receive the values, so
+the API reference lists them exactly (rung 1). The chat sidebar shows only
+status icons, and the strings behind them are accessibility labels rather
+than visible text, so rung 2 offers nothing to quote, and an admin page
+about auto-archive falls to rung 3: it says chats that are still working or
+waiting on the user are never selected, without naming enum values.
 
 Keep identifiers that fail the test out of the page. When the reviewer needs
 the pointer, give it in the PR discussion (a comment or review thread naming
@@ -126,13 +129,13 @@ the file and symbol), not in the published page.
 Related rules that draw the same boundary:
 [Describe the current version, for the end user](#describe-the-current-version-for-the-end-user)
 for implementation history, and
-[Keep internal-only references out of published docs](./style-guide/word-choice.md)
+[Keep internal-only references out of published docs](./style-guide/word-choice.md#keep-internal-only-references-out-of-published-docs)
 for internal links and ticket IDs.
 
 *Why:* Any prose can drift, including a paraphrase. The ladder minimizes
 unverifiable drift: an exact value is checkable where the reader receives
-it, a product label is checkable against the screen, and a paraphrase is the
-fallback, not the default.
+it, visible product wording is checkable against the screen, and a
+paraphrase is the fallback, not the default.
 
 ### Documentation lands with the change
 

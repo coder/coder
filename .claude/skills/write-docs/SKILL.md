@@ -118,9 +118,7 @@ style.
 The canonical rule is
 [Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 in the content guidelines; they govern. Read it there rather than from a
-summary here. One application note: the identifiers you copy in workflow
-step 1 are verification inputs, not page content; the canonical rule's
-ladder decides what appears on the page.
+summary here.
 
 ## What not to write
 

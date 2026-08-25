@@ -248,6 +248,11 @@ Link to specific endpoints:
 
 ## Accuracy Standards
 
+Everything in this section is about how to state a value once it belongs on
+the page; whether it belongs there at all is governed by
+[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines.
+
 ### Specific Numbers Matter
 
 Document exact values from code:
@@ -255,11 +260,6 @@ Document exact values from code:
 - **Thresholds**: "green < 150ms, yellow 150-300ms, red ≥300ms"
 - **Time intervals**: "daily for templates < 5 weeks old, weekly for 5+ weeks"
 - **Counts and limits**: Use precise numbers, not approximations
-
-Exact values apply to claims the reader types or receives. Whether an
-identifier belongs on the page at all is governed by
-[Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
-in the content guidelines.
 
 ### Permission Actions
 
@@ -367,7 +367,9 @@ When you rename or move a doc page, create a PR in coder/coder.com to add the re
 ## Key Principles
 
 1. **Research first** - Verify against actual code implementation
-2. **Be precise** - Use exact numbers, permission names, API paths
+2. **Be precise** - Use exact numbers, permission names, API paths, for
+   values that belong on the page per
+   [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 3. **Visual structure** - Organize around screenshots when available
 4. **Link everything** - Related docs, API endpoints, CLI references
 5. **Manifest inclusion** - Add to manifest.json for navigation
