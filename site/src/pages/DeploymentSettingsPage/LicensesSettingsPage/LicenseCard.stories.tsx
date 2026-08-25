@@ -37,6 +37,13 @@ const getIncludedProducts = (
 		name: (accessibleName: string) => accessibleName === label,
 	});
 
+const productCardTitles = (canvasElement: HTMLElement) =>
+	Array.from(
+		canvasElement.querySelectorAll(
+			".license-card [data-testid='license-product-card-title']",
+		),
+	).map((element) => element.textContent);
+
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -630,6 +637,11 @@ export const PremiumWithAIGovernance: Story = {
 		await expect(
 			getIncludedProducts(canvas, "Workspaces + AI Governance"),
 		).toBeInTheDocument();
+		await expect(productCardTitles(canvasElement)).toEqual([
+			"Coder Workspaces",
+			"AI Governance",
+			"Coder Agents",
+		]);
 		const seatsLabel = canvas.getByText("Seats");
 		const seatsValue = seatsLabel.nextElementSibling;
 		await expect(seatsValue).toHaveTextContent("750 / 1,000");

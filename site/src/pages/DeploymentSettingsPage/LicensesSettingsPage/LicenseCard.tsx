@@ -391,14 +391,6 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 									userLimitLimit={currentUserLimit}
 								/>
 							)}
-							<CoderAgentsProductCard
-								allocation={agentHoursAllocation}
-								actualMinutes={agentMinutesDisplayActual}
-								isTrial={Boolean(license.claims.trial)}
-								isSoftLimitReached={isAgentHoursSoftLimitReached}
-								isExceeded={isAgentHoursExceeded}
-								isHardLimitExceeded={isAgentHoursHardLimitExceeded}
-							/>
 							{hasExplicitAiGovernanceAddOn && (
 								<AIGovernanceAddOnCard
 									title="AI Governance"
@@ -408,6 +400,14 @@ export const LicenseCard: FC<LicenseCardProps> = ({
 									isExceeded={isAiGovernanceAddOnExceeded}
 								/>
 							)}
+							<CoderAgentsProductCard
+								allocation={agentHoursAllocation}
+								actualMinutes={agentMinutesDisplayActual}
+								isTrial={Boolean(license.claims.trial)}
+								isSoftLimitReached={isAgentHoursSoftLimitReached}
+								isExceeded={isAgentHoursExceeded}
+								isHardLimitExceeded={isAgentHoursHardLimitExceeded}
+							/>
 						</div>
 					</div>
 				</CollapsibleContent>

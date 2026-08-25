@@ -32,7 +32,10 @@ export const AIGovernanceAddOnCard: FC<AIGovernanceAddOnCardProps> = ({
 			<div className="flex items-center gap-1 px-6 py-1.5">
 				<div className="flex flex-1 items-center gap-1">
 					<div className="flex items-center gap-1">
-						<span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-content-primary">
+						<span
+							data-testid="license-product-card-title"
+							className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-content-primary"
+						>
 							{title}
 						</span>
 						<Tooltip>

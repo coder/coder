@@ -24,7 +24,10 @@ export const CoderWorkspacesProductCard: FC<
 
 	return (
 		<div className="rounded-sm border border-solid border-border px-6 py-4">
-			<div className="text-sm font-medium text-content-primary">
+			<div
+				data-testid="license-product-card-title"
+				className="text-sm font-medium text-content-primary"
+			>
 				Coder Workspaces
 			</div>
 			<div className="mt-3 text-xs">

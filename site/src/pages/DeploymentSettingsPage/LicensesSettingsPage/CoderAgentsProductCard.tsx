@@ -77,7 +77,12 @@ const CardContainer: FC<{
 }> = ({ title, className, headerEnd, children }) => (
 	<div className={cn("rounded-sm border px-6 py-4", className)}>
 		<div className="flex items-center justify-between gap-3">
-			<div className="text-sm font-medium text-content-primary">{title}</div>
+			<div
+				data-testid="license-product-card-title"
+				className="text-sm font-medium text-content-primary"
+			>
+				{title}
+			</div>
 			{headerEnd}
 		</div>
 		{children}
