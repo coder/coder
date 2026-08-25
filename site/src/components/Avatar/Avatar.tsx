@@ -14,7 +14,6 @@ import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 import { cn } from "#/utils/cn";
-import { isBuiltInEmojiUrl } from "#/utils/emojis";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
@@ -55,10 +54,10 @@ const avatarVariants = cva(
 );
 
 /**
- * Avatar props. The variant prop is resolved internally: sources that
- * isBuiltInEmojiUrl matches always render with the emoji variant, overriding
- * any variant passed by the caller, so emojis look the same at call sites
- * whose source is data-dependent and may be an icon, photo, or emoji.
+ * Avatar props. The variant prop is resolved internally: built-in emoji
+ * sources always render with the emoji variant, overriding any variant passed
+ * by the caller, so emojis look the same at call sites whose source is
+ * data-dependent and may be an icon, photo, or emoji.
  */
 export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
@@ -88,7 +87,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 
 	// Built-in emojis always use the emoji variant, even when a caller
 	// passes another one. See the AvatarProps doc.
-	const resolvedVariant = isBuiltInEmojiUrl(src) ? "emoji" : variant;
+	const resolvedVariant = src?.startsWith("/emojis/") ? "emoji" : variant;
 
 	return (
 		<AvatarPrimitive.Root
