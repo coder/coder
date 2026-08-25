@@ -29,10 +29,9 @@ import (
 // table in the API reference is a superset: it lists internal scopes too.
 const scopeDocsURL = "https://coder.com/docs/admin/users/sessions-tokens#api-key-scopes"
 
-// writeUnrequestableScope answers 400 for a scope name a token may not carry.
-// The two reasons need different words: a name that is no scope at all is a
-// typo the caller fixes by re-spelling it, while an internal scope is a real
-// api_key_scope member that no spelling will make requestable.
+// writeUnrequestableScope answers 400 for a scope name a token may not carry,
+// telling a name that is no scope at all apart from a real api_key_scope member
+// that is internal to Coder.
 func writeUnrequestableScope(ctx context.Context, rw http.ResponseWriter, name rbac.ScopeName) {
 	detail := fmt.Sprintf("unknown API key scope: %q. See %s for the scopes a token may request.", name, scopeDocsURL)
 	if database.APIKeyScope(name).Valid() {
