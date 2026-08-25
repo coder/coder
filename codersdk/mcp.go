@@ -252,6 +252,26 @@ func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid
 	return acl, ReadBodyAsJSON(res, &acl)
 }
 
+// MCPServerConfigACLAvailable returns available users and groups that can be
+// assigned to an MCP server config ACL.
+func (c *Client) MCPServerConfigACLAvailable(ctx context.Context, organizationID, id uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl/available", organizationID, id),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+	var available ACLAvailable
+	return available, ReadBodyAsJSON(res, &available)
+}
+
 // UpdateMCPServerConfigACL applies a sparse ACL update to an MCP server
 // config.
 func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
