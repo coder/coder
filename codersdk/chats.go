@@ -3174,21 +3174,6 @@ func (c *ExperimentalClient) ReconcileInvalidChatState(ctx context.Context, chat
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
-// RegenerateChatTitle requests the server to regenerate the chat's
-// title using richer conversation context.
-func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uuid.UUID) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chatID), nil)
-	if err != nil {
-		return Chat{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return Chat{}, ReadBodyAsError(res)
-	}
-	var chat Chat
-	return chat, ReadBodyAsJSON(res, &chat)
-}
-
 // ProposeChatTitleResponse is returned by the propose-title endpoint.
 type ProposeChatTitleResponse struct {
 	Title string `json:"title"`

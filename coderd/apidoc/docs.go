@@ -1226,7 +1226,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats/{chat}/title/regenerate": {
+        "/api/experimental/chats/{chat}/title/propose": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
@@ -1235,8 +1235,8 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Regenerate chat title",
-                "operationId": "regenerate-chat-title",
+                "summary": "Propose chat title",
+                "operationId": "propose-chat-title",
                 "parameters": [
                     {
                         "type": "string",
@@ -1251,7 +1251,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
+                            "$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
                         }
                     }
                 },
@@ -25180,6 +25180,14 @@ const docTemplate = `{
                 },
                 "enable": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ProposeChatTitleResponse": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
                 }
             }
         },
