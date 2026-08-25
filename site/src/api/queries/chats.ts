@@ -2449,6 +2449,34 @@ export const mcpServerConfig = (organization: string, id: string) => ({
 		API.experimental.getMCPServerConfig(organization, id),
 });
 
+export const mcpServerConfigACLKey = (organization: string, id: string) =>
+	[...mcpServerConfigKey(organization, id), "acl"] as const;
+
+export const mcpServerConfigACL = (organization: string, id: string) => ({
+	queryKey: mcpServerConfigACLKey(organization, id),
+	queryFn: (): Promise<TypesGen.MCPServerConfigACL> =>
+		API.experimental.getMCPServerConfigACL(organization, id),
+	enabled: organization !== "" && id !== "",
+});
+
+export const mcpServerConfigACLAvailableKey = (
+	organization: string,
+	id: string,
+	options: TypesGen.UsersRequest,
+) =>
+	[...mcpServerConfigACLKey(organization, id), "available", options] as const;
+
+export const mcpServerConfigACLAvailable = (
+	organization: string,
+	id: string,
+	options: TypesGen.UsersRequest,
+) => ({
+	queryKey: mcpServerConfigACLAvailableKey(organization, id, options),
+	queryFn: (): Promise<TypesGen.ACLAvailable> =>
+		API.experimental.getMCPServerConfigACLAvailable(organization, id, options),
+	enabled: organization !== "" && id !== "",
+});
+
 const invalidateMCPServerConfigQueries = async (queryClient: QueryClient) => {
 	await queryClient.invalidateQueries({ queryKey: mcpServersKey });
 };
@@ -2488,6 +2516,48 @@ export const deleteMCPServerConfig = (
 		API.experimental.deleteMCPServerConfig(organization, id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type UpdateMCPServerConfigACLMutationArgs = {
+	organization: string;
+	id: string;
+	req: TypesGen.UpdateMCPServerConfigACLRequest;
+};
+
+export const updateMCPServerConfigACL = (queryClient: QueryClient) => ({
+	mutationFn: ({
+		organization,
+		id,
+		req,
+	}: UpdateMCPServerConfigACLMutationArgs) =>
+		API.experimental.updateMCPServerConfigACL(organization, id, req),
+	onSuccess: async (
+		_data: unknown,
+		variables: UpdateMCPServerConfigACLMutationArgs,
+	) => {
+		const { organization, id } = variables;
+		await Promise.all([
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigACLKey(organization, id),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigKey(organization, id),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({
+				queryKey: mcpServerConfigsKey(organization),
+				exact: true,
+			}),
+			queryClient.invalidateQueries({ queryKey: authorizationKey }),
+			queryClient.invalidateQueries({
+				predicate: ({ queryKey }) =>
+					queryKey[0] === "organizations" &&
+					queryKey[2] === "permissions" &&
+					(queryKey[1] as readonly string[]).includes(organization),
+			}),
+		]);
 	},
 });
 

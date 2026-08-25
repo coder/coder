@@ -368,6 +368,8 @@ const mcpServerConfigsPath = (organization: string) =>
 	`/api/experimental/organizations/${encodeURIComponent(organization)}/mcp-servers`;
 const mcpServerConfigPath = (organization: string, id: string) =>
 	`${mcpServerConfigsPath(organization)}/${encodeURIComponent(id)}`;
+const mcpServerConfigACLPath = (organization: string, id: string) =>
+	`${mcpServerConfigPath(organization, id)}/acl`;
 export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
 	`${mcpServerConfigPath(organization, id)}/oauth2/connect`;
 const mcpServerOAuth2DisconnectPath = (id: string) =>
@@ -3984,6 +3986,38 @@ class ExperimentalApiMethods {
 			mcpServerConfigPath(organization, id),
 		);
 		return response.data;
+	};
+
+	getMCPServerConfigACL = async (
+		organization: string,
+		id: string,
+	): Promise<TypesGen.MCPServerConfigACL> => {
+		const response = await this.axios.get<TypesGen.MCPServerConfigACL>(
+			mcpServerConfigACLPath(organization, id),
+		);
+		return response.data;
+	};
+
+	getMCPServerConfigACLAvailable = async (
+		organization: string,
+		id: string,
+		options: TypesGen.UsersRequest,
+	): Promise<TypesGen.ACLAvailable> => {
+		const response = await this.axios.get<TypesGen.ACLAvailable>(
+			getURLWithSearchParams(
+				`${mcpServerConfigACLPath(organization, id)}/available`,
+				options,
+			),
+		);
+		return response.data;
+	};
+
+	updateMCPServerConfigACL = async (
+		organization: string,
+		id: string,
+		req: TypesGen.UpdateMCPServerConfigACLRequest,
+	): Promise<void> => {
+		await this.axios.patch(mcpServerConfigACLPath(organization, id), req);
 	};
 
 	createMCPServerConfig = async (
