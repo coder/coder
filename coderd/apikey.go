@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// scopeDocsURL documents which scopes a token may carry. The api_key_scope enum
+// scopeDocsURL points at the scopes a token may request. The api_key_scope enum
 // table in the API reference is a superset: it lists internal scopes too.
 const scopeDocsURL = "https://coder.com/docs/admin/users/sessions-tokens#api-key-scopes"
 
@@ -86,8 +86,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 
 	// This handler decides only which names may be requested. Rewriting an
 	// accepted alias to the spelling the enum stores belongs to apikey.Generate,
-	// which every caller goes through. Defaulting to coder:all is for backward
-	// compatibility. The plural field wins when both are set.
+	// which every caller goes through. The plural field wins when both are set.
 	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))

@@ -181,91 +181,64 @@ func TestTokenLegacySingularScopeCompat(t *testing.T) {
 	}
 }
 
-// TestTokenLegacyPluralScopeCompat asserts that the plural Scopes field accepts
-// the same legacy names as the singular Scope field covered by
-// TestTokenLegacySingularScopeCompat: IsExternalScope validates both spellings,
-// and codersdk still exports APIKeyScopeAll and APIKeyScopeApplicationConnect
-// for callers to pass. Both must persist canonically, since the api_key_scope
-// enum has no member for either alias and convertAPIKey derives the deprecated
-// singular field by looking for the canonical value. Names IsExternalScope
-// refuses must be rejected here with a 400 rather than reaching apikey.Generate,
-// which validates against the enum and so would accept an internal-only scope.
-// It also pins two properties nothing else covers: the plural field wins when a
-// caller sets both, and the 400 tells a misspelled name apart from an internal
-// one.
-func TestTokenLegacyPluralScopeCompat(t *testing.T) {
+func TestCreateTokenScopes(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name      string
-		requested []codersdk.APIKeyScope
-		// requestedLegacy is sent in the deprecated singular Scope field.
-		requestedLegacy codersdk.APIKeyScope
-		// canonical is the expected contents of the plural Scopes field.
-		canonical []codersdk.APIKeyScope
-		// legacy is the expected deprecated singular Scope field.
-		legacy  codersdk.APIKeyScope
-		wantErr bool
-		// wantDetail is a substring the 400 must carry, so the two rejection
-		// reasons stay distinguishable to the caller.
-		wantDetail string
+		name            string
+		sendScopes      []codersdk.APIKeyScope
+		sendLegacyScope codersdk.APIKeyScope
+		wantScopes      []codersdk.APIKeyScope
+		wantLegacyScope codersdk.APIKeyScope
+		wantErrDetail   string
 	}{
 		{
-			name:      "all",
-			requested: []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
-			canonical: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
-			legacy:    codersdk.APIKeyScopeAll,
+			name:            "alias all is stored as coder:all",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
 		},
 		{
-			name:      "application_connect",
-			requested: []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect},
-			canonical: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApplicationConnect},
-			legacy:    codersdk.APIKeyScopeApplicationConnect,
+			name:            "alias application_connect is stored as coder:application_connect",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeApplicationConnect},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderApplicationConnect},
+			wantLegacyScope: codersdk.APIKeyScopeApplicationConnect,
 		},
 		{
-			// More than one element, so a canonicalization that only handled
-			// single-element requests would fail here.
-			name:      "alias alongside another scope",
-			requested: []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeWorkspaceRead},
-			canonical: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll, codersdk.APIKeyScopeWorkspaceRead},
-			legacy:    codersdk.APIKeyScopeAll,
+			name:            "alias is stored canonically alongside another scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeWorkspaceRead},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll, codersdk.APIKeyScopeWorkspaceRead},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
 		},
 		{
-			// An alias and its canonical spelling are two names on the way in
-			// and one name once stored.
-			name:      "alias and canonical spelling collapse",
-			requested: []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeCoderAll},
-			canonical: []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
-			legacy:    codersdk.APIKeyScopeAll,
+			name:            "alias and canonical spelling collapse to one scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeAll, codersdk.APIKeyScopeCoderAll},
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeCoderAll},
+			wantLegacyScope: codersdk.APIKeyScopeAll,
 		},
 		{
-			// Nothing sends both fields today. Pinning the precedence keeps a
-			// later edit from quietly widening a read-only request to coder:all,
-			// which no other case here would catch.
-			// The singular field is empty because convertAPIKey derives it only
-			// for coder:all and coder:application_connect. That the caller sent
-			// APIKeyScopeAll and reads back nothing is the clearest evidence the
-			// plural field decided the result.
-			name:            "plural wins over singular",
-			requested:       []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
-			requestedLegacy: codersdk.APIKeyScopeAll,
-			canonical:       []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
-			legacy:          "",
+			// The read-only request must not widen to the coder:all sent in the
+			// deprecated field. The legacy field reads back empty because
+			// convertAPIKey derives it only for coder:all and
+			// coder:application_connect.
+			name:            "plural Scopes wins over singular Scope",
+			sendScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			sendLegacyScope: codersdk.APIKeyScopeAll,
+			wantScopes:      []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead},
+			wantLegacyScope: "",
 		},
 		{
-			name:       "unknown scope",
-			requested:  []codersdk.APIKeyScope{"not_a_real_scope"},
-			wantErr:    true,
-			wantDetail: "unknown API key scope",
+			name:          "name that is no scope at all is rejected",
+			sendScopes:    []codersdk.APIKeyScope{"not_a_real_scope"},
+			wantErrDetail: "unknown API key scope",
 		},
 		{
-			// A real api_key_scope member that IsExternalScope refuses, so the
-			// enum check in apikey.Generate would not catch it. Re-spelling it
-			// never helps, so the message must not read like a typo.
-			name:       "internal scope",
-			requested:  []codersdk.APIKeyScope{codersdk.APIKeyScope(database.ApiKeyScopeDebugInfoRead)},
-			wantErr:    true,
-			wantDetail: "is internal and cannot be requested",
+			// A real api_key_scope member that IsExternalScope refuses, so no
+			// re-spelling makes it requestable and the message must not read
+			// like a typo.
+			name:          "internal scope is rejected",
+			sendScopes:    []codersdk.APIKeyScope{codersdk.APIKeyScope(database.ApiKeyScopeDebugInfoRead)},
+			wantErrDetail: "is internal and cannot be requested",
 		},
 	}
 
@@ -277,15 +250,15 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 			_ = coderdtest.CreateFirstUser(t, client)
 
 			_, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-				Scope:  tc.requestedLegacy,
-				Scopes: tc.requested,
+				Scope:  tc.sendLegacyScope,
+				Scopes: tc.sendScopes,
 			})
-			if tc.wantErr {
+			if tc.wantErrDetail != "" {
 				var sdkErr *codersdk.Error
 				require.ErrorAs(t, err, &sdkErr)
 				require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-				require.Contains(t, sdkErr.Detail, string(tc.requested[0]))
-				require.Contains(t, sdkErr.Detail, tc.wantDetail)
+				require.Contains(t, sdkErr.Detail, string(tc.sendScopes[0]))
+				require.Contains(t, sdkErr.Detail, tc.wantErrDetail)
 				return
 			}
 			require.NoError(t, err)
@@ -293,26 +266,21 @@ func TestTokenLegacyPluralScopeCompat(t *testing.T) {
 			keys, err := client.Tokens(ctx, codersdk.Me, codersdk.TokensFilter{})
 			require.NoError(t, err)
 			require.Len(t, keys, 1)
-			require.ElementsMatch(t, tc.canonical, keys[0].Scopes)
-			require.Equal(t, tc.legacy, keys[0].Scope)
+			require.ElementsMatch(t, tc.wantScopes, keys[0].Scopes)
+			require.Equal(t, tc.wantLegacyScope, keys[0].Scope)
 		})
 	}
 }
 
-// TestExternalScopesAreStorable pins the class of bug that
-// TestTokenLegacyPluralScopeCompat pins two instances of: a name the rbac
-// catalog calls public but the api_key_scope enum cannot store is accepted by
-// the handler and then fails inside apikey.Generate. The rbac package cannot
-// check this itself, since database imports rbac and not the other way around.
-//
-// ExternalScopeNames is the set the handler accepts, less the bare aliases, so
-// CanonicalScopeName is a no-op here today. It is kept so an alias added to the
-// list later is still checked against the enum; TestScopeAliases separately
-// requires every alias to point at a name on this list.
+// Lives in this package because database imports rbac, so rbac cannot check its
+// own names against the api_key_scope enum.
 func TestExternalScopesAreStorable(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range rbac.ExternalScopeNames() {
+		// CanonicalScopeName is a no-op today, since ExternalScopeNames omits
+		// the bare aliases. It stays so an alias added to that list later is
+		// still checked against the enum.
 		canonical := rbac.CanonicalScopeName(rbac.ScopeName(name))
 		require.Truef(t, database.APIKeyScope(canonical).Valid(),
 			"external scope %q canonicalizes to %q, which is not an api_key_scope member",

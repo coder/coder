@@ -174,12 +174,7 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
-// TestGenerateScopeNames asserts that Generate treats the singular Scope field
-// and the plural Scopes field alike. Both accept the alias spellings
-// IsExternalScope allows, neither of which is an api_key_scope member, so an
-// alias that reached the enum check unchanged would fail here rather than at
-// the handler that can answer 400.
-func TestGenerateScopeNames(t *testing.T) {
+func TestGenerateCanonicalizesScopeAliases(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
