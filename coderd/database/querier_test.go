@@ -17965,8 +17965,18 @@ func TestGetChatsSort(t *testing.T) {
 			want:      []uuid.UUID{chatIDs[3], chatIDs[2], chatIDs[1], chatIDs[0]},
 		},
 		{
+			name:   "CreatedAtDefaultsToDescending",
+			sortBy: "created_at",
+			want:   []uuid.UUID{chatIDs[3], chatIDs[2], chatIDs[1], chatIDs[0]},
+		},
+		{
 			name:      "UpdatedAtAscending",
 			sortBy:    "updated_at",
+			sortOrder: "asc",
+			want:      []uuid.UUID{chatIDs[3], chatIDs[1], chatIDs[2], chatIDs[0]},
+		},
+		{
+			name:      "AscendingDefaultsToUpdatedAt",
 			sortOrder: "asc",
 			want:      []uuid.UUID{chatIDs[3], chatIDs[1], chatIDs[2], chatIDs[0]},
 		},

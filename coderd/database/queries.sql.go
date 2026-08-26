@@ -9464,50 +9464,51 @@ WHERE
         ELSE chats_expanded.archived = $6 :: boolean
     END
     AND CASE
-        -- Custom timestamp sorts do not prioritize pinned chats. The ID is
-        -- ordered in the same direction as the selected timestamp to provide
-        -- a deterministic cursor when timestamps are equal.
-        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid
-            AND $8::text != ''
-            AND $9::text = 'asc' THEN (
-            (
-                CASE $8::text
-                    WHEN 'created_at' THEN chats_expanded.created_at
-                    ELSE chats_expanded.updated_at
-                END,
-                chats_expanded.id
-            ) > (
-                SELECT
-                    CASE $8::text
-                        WHEN 'created_at' THEN cursor_chat.created_at
-                        ELSE cursor_chat.updated_at
-                    END,
-                    cursor_chat.id
-                FROM cursor_chat
-            )
-        )
-        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid
-            AND $8::text != '' THEN (
-            (
-                CASE $8::text
-                    WHEN 'created_at' THEN chats_expanded.created_at
-                    ELSE chats_expanded.updated_at
-                END,
-                chats_expanded.id
-            ) < (
-                SELECT
-                    CASE $8::text
-                        WHEN 'created_at' THEN cursor_chat.created_at
-                        ELSE cursor_chat.updated_at
-                    END,
-                    cursor_chat.id
-                FROM cursor_chat
-            )
-        )
+        WHEN $7::uuid = '00000000-0000-0000-0000-000000000000'::uuid THEN
+            true
+
+        -- The UI chat list relies on pinned-first ordering and must not use a
+        -- custom sort until pinned chats are handled separately.
+        WHEN $8::text != '' OR $9::text != '' THEN
+            CASE
+                WHEN $9::text = 'asc' THEN
+                    (
+                        CASE $8::text
+                            WHEN 'created_at' THEN chats_expanded.created_at
+                            ELSE chats_expanded.updated_at
+                        END,
+                        chats_expanded.id
+                    ) > (
+                        SELECT
+                            CASE $8::text
+                                WHEN 'created_at' THEN cursor_chat.created_at
+                                ELSE cursor_chat.updated_at
+                            END,
+                            cursor_chat.id
+                        FROM cursor_chat
+                    )
+                ELSE
+                    (
+                        CASE $8::text
+                            WHEN 'created_at' THEN chats_expanded.created_at
+                            ELSE chats_expanded.updated_at
+                        END,
+                        chats_expanded.id
+                    ) < (
+                        SELECT
+                            CASE $8::text
+                                WHEN 'created_at' THEN cursor_chat.created_at
+                                ELSE cursor_chat.updated_at
+                            END,
+                            cursor_chat.id
+                        FROM cursor_chat
+                    )
+            END
+
         -- Without a custom sort, preserve the pinned-first default order. All
         -- columns sort DESC (pin_order is negated so lower values sort first),
         -- which lets us use a single tuple < comparison.
-        WHEN $7::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        ELSE
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -9517,8 +9518,6 @@ WHERE
                 FROM
                     cursor_chat
             )
-        )
-        ELSE true
     END
     AND CASE
         WHEN $10::jsonb IS NOT NULL THEN chats_expanded.labels @> $10::jsonb
@@ -9663,26 +9662,40 @@ WHERE
     -- @authorize_filter
 ORDER BY
     -- Preserve pinned-first ordering only when no custom sort is active.
-    CASE WHEN $8::text = '' THEN
-        CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END
+    CASE
+        WHEN $8::text = '' AND $9::text = '' THEN
+            CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END
     END DESC,
-    CASE WHEN $8::text = '' THEN -chats_expanded.pin_order END DESC,
-    CASE WHEN $8::text = '' THEN chats_expanded.updated_at END DESC,
-    CASE WHEN $8::text = '' THEN chats_expanded.id END DESC,
-    CASE WHEN $9::text = 'asc' THEN
-        CASE $8::text
-            WHEN 'created_at' THEN chats_expanded.created_at
-            WHEN 'updated_at' THEN chats_expanded.updated_at
-        END
+    CASE
+        WHEN $8::text = '' AND $9::text = '' THEN
+            -chats_expanded.pin_order
+    END DESC,
+
+    -- DESC is the default direction, updated_at is the default column.
+    CASE
+        WHEN $9::text != 'asc' THEN
+            CASE $8::text
+                WHEN 'created_at' THEN chats_expanded.created_at
+                WHEN 'updated_at' THEN chats_expanded.updated_at
+                WHEN '' THEN chats_expanded.updated_at
+            END
+    END DESC,
+    CASE
+        WHEN $9::text != 'asc' THEN chats_expanded.id
+    END DESC,
+
+    -- ASC only when explicitly requested.
+    CASE
+        WHEN $9::text = 'asc' THEN
+            CASE $8::text
+                WHEN 'created_at' THEN chats_expanded.created_at
+                WHEN 'updated_at' THEN chats_expanded.updated_at
+                WHEN '' THEN chats_expanded.updated_at
+            END
     END ASC,
-    CASE WHEN $9::text = 'desc' THEN
-        CASE $8::text
-            WHEN 'created_at' THEN chats_expanded.created_at
-            WHEN 'updated_at' THEN chats_expanded.updated_at
-        END
-    END DESC,
-    CASE WHEN $8::text != '' AND $9::text = 'asc' THEN chats_expanded.id END ASC,
-    CASE WHEN $8::text != '' AND $9::text = 'desc' THEN chats_expanded.id END DESC
+    CASE
+        WHEN $9::text = 'asc' THEN chats_expanded.id
+    END ASC
 OFFSET $19
 LIMIT
     -- The chat list is unbounded and expected to grow large.
