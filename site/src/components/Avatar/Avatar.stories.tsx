@@ -53,26 +53,6 @@ export const NonSquaredIcon: Story = {
 	},
 };
 
-export const BuiltInEmojiLgSize: Story = {
-	args: {
-		size: "lg",
-		src: "/emojis/1f64c.png",
-	},
-};
-
-export const BuiltInEmojiMdSize: Story = {
-	args: {
-		src: "/emojis/1f64c.png",
-	},
-};
-
-export const BuiltInEmojiSmSize: Story = {
-	args: {
-		size: "sm",
-		src: "/emojis/1f64c.png",
-	},
-};
-
 export const FallbackLgSize: Story = {
 	args: {
 		src: "",

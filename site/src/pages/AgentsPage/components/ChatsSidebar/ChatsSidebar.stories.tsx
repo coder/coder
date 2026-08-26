@@ -740,7 +740,7 @@ export const SectionHeadersCollapse: Story = {
 		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
-		await expect(canvas.getByText("This Week (1)")).toBeInTheDocument();
+		await expect(canvas.getByText("Past 7 days (1)")).toBeInTheDocument();
 
 		const pinnedToggle = canvas.getByRole("button", {
 			name: "Collapse Pinned section",
