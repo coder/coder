@@ -3657,7 +3657,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4720,7 +4720,7 @@ export const DefaultChatDebugRetentionDays = 30;
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero means disabled; the template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -9925,7 +9925,7 @@ export interface UpdateChatSystemPromptRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
