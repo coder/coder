@@ -210,11 +210,11 @@ To change the default model:
 The Models list reflects whether each model can actually be used:
 
 - When a model's connected provider has been deleted, the **Provider** column
-  shows **Unset** with an info tooltip that reads "The provider connected to
-  this model has been deleted."
-- When a model's provider is missing or disabled, the **Status** column
-  shows **Disabled**, regardless of the model's own enabled setting. Such a
-  model cannot serve chat requests.
+  shows **Unset**.
+- When a model's provider is missing or disabled, an **Unavailable** badge
+  appears beside the model name. The badge's tooltip explains whether the
+  provider was deleted or disabled. Such a model cannot serve chat requests.
+- When a model is disabled, a **Disabled** badge appears beside the model name.
 
 To reconnect a model to a working provider, open the model from the list,
 pick a new provider from the **Provider** dropdown, and click **Save**. The
