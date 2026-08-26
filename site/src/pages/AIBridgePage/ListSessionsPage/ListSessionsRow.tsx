@@ -131,7 +131,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			<TableCell className="w-40">
 				<NetworkCallBadges summary={session.network_calls} />
 			</TableCell>
-			<TableCell className="w-32">
+			<TableCell className="w-24 max-w-24">
 				<Badge className="bg-surface-secondary align-end">
 					{session.threads}
 				</Badge>
