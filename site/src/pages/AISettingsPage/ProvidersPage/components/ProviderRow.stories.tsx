@@ -84,9 +84,17 @@ export const NotSupportedInAgents: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Not supported in Agents"),
-		).toBeInTheDocument();
+		const badge = canvas.getByRole("button", {
+			name: "Not supported in Agents",
+		});
+		await expect(badge).toBeInTheDocument();
+		await userEvent.hover(badge);
+		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+			"tooltip",
+		);
+		await expect(tooltip).toHaveTextContent(
+			"This provider works with the AI Gateway proxy but Coder Agents can't use it.",
+		);
 	},
 };
 
@@ -117,7 +125,7 @@ export const WithHostnameCollisionWarning: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = canvas.getByText(/warning/i);
+		const badge = canvas.getByLabelText(/^Warning: Hostname/);
 		await expect(badge).toBeInTheDocument();
 		await expect(badge).toHaveAttribute(
 			"aria-label",
@@ -127,9 +135,10 @@ export const WithHostnameCollisionWarning: Story = {
 
 		// Hover shows the tooltip with the warning text.
 		await userEvent.hover(badge);
-		await expect(
-			await canvas.findByText(/api\.openai\.com/, {}, { timeout: 2000 }),
-		).toBeInTheDocument();
+		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+			"tooltip",
+		);
+		await expect(tooltip).toHaveTextContent("api.openai.com");
 
 		// Keyboard and mouse activation must not navigate the row.
 		badge.focus();
