@@ -190,6 +190,7 @@ export const NoDeploymentConfig: Story = {
 		permissions: {
 			...MockPermissions,
 			editDeploymentConfig: false,
+			updateAnyTemplate: false,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -203,7 +204,7 @@ export const NoUpdateTemplates: Story = {
 	args: {
 		permissions: {
 			...MockPermissions,
-			updateTemplates: false,
+			updateAnyTemplate: false,
 		},
 	},
 	play: async ({ canvasElement }) => {

@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import { getTemplatesQueryKey } from "#/api/queries/templates";
 import type { Template } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
 	MockTemplate,
 	MockUserOwner,
 	mockApiError,
@@ -40,13 +43,18 @@ const meta = {
 		layout: "fullscreen",
 		user: MockUserOwner,
 		permissions: {
-			editDeploymentConfig: true,
-			updateTemplates: true,
+			updateAnyTemplate: true,
 		},
 		queries: [
 			{
 				key: getTemplatesQueryKey({ q: "" }),
 				data: [MockTemplate],
+			},
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 			},
 		],
 	},
@@ -61,6 +69,12 @@ export const ServerSideFilter: Story = {
 			{
 				key: getTemplatesQueryKey({ q: "" }),
 				data: [MockTemplate, mockSecondTemplate],
+			},
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 			},
 		],
 	},
@@ -96,6 +110,12 @@ export const ConcurrentToggles: Story = {
 			{
 				key: getTemplatesQueryKey({ q: "" }),
 				data: [MockTemplate, mockSecondTemplate],
+			},
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 			},
 		],
 	},
@@ -240,38 +260,46 @@ export const DisplaysFallbackMutationError: Story = {
 	},
 };
 
-export const NoDeploymentConfigPermission: Story = {
+export const OrganizationTemplateAdmin: Story = {
 	parameters: {
 		permissions: {
-			editDeploymentConfig: false,
-			updateTemplates: true,
+			updateAnyTemplate: true,
 			viewAllUsers: true,
 		},
-		queries: [],
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
+		],
 	},
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([]);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
 		spyOn(API, "getUsers").mockResolvedValue({ users: [], count: 0 });
 	},
-	play: async () => {
-		const body = within(document.body);
-		expect(
-			await body.findByText("You don't have permission to view this page"),
-		).toBeInTheDocument();
-		expect(body.queryByText("Test Template")).not.toBeInTheDocument();
-		expect(API.getTemplates).not.toHaveBeenCalled();
-		expect(API.getUsers).not.toHaveBeenCalled();
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Test Template")).toBeVisible();
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
 	},
 };
 
 export const FetchesWhenAllowed: Story = {
 	parameters: {
 		permissions: {
-			editDeploymentConfig: true,
-			updateTemplates: true,
+			updateAnyTemplate: true,
 			viewAllUsers: true,
 		},
-		queries: [],
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
@@ -291,8 +319,7 @@ export const FetchesWhenAllowed: Story = {
 export const NoUpdateTemplatesPermission: Story = {
 	parameters: {
 		permissions: {
-			editDeploymentConfig: true,
-			updateTemplates: false,
+			updateAnyTemplate: false,
 		},
 	},
 	play: async () => {
