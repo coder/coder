@@ -1,5 +1,5 @@
 # Coder.SelectClick - use device-agnostic "select"/"open" instead of "click".
-# See word-choice.md#select-not-click for the rule and its exceptions.
+# Refer to word-choice.md#select-not-click for the rule and its exceptions.
 extends: substitution
 message: "Use '%s' instead of '%s'; it assumes the reader has a mouse. Refer to word-choice.md#select-not-click."
 link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#select-not-click

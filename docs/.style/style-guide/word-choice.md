@@ -348,7 +348,8 @@ If no accessible path exists, that's a product gap to raise with engineering, no
 
 The third **Don't** example names a mouse action with no accessible alternative given, which the fourth **Do** example fixes by adding the keyboard path.
 
-*Enforced by `Coder.SelectClick` at `warning` severity: a substitution rule that suggests `select` or `open` in place of `click`/`clicks`/`clicked`/`clicking`.*
+*Enforced by `Coder.SelectClick` at `warning` severity: a substitution rule that suggests `select` or `open` in place of `click`/`clicks`/`clicked`/`clicking`.
+Two generated API reference pages use "click" as a noun for a recorded analytics event (a funnel "click," an attribution ID that "identifies this click"); that names a logged data point, not an instruction, and the text is generated from a Go source comment and an API operation ID, so fixing it is a separate, larger change outside a docs-style-guide PR.*
 
 ## Don't assume simplicity or difficulty
 
