@@ -272,11 +272,6 @@ type ExecuteLocalToolsOptions struct {
 	Clock              quartz.Clock
 }
 
-// ToolExecutionOutcome is the durable tool-result content from one batch.
-type ToolExecutionOutcome struct {
-	Step PersistedStep
-}
-
 // GenerateCompactionOptions configures one context compaction call.
 type GenerateCompactionOptions struct {
 	Model    fantasy.LanguageModel
@@ -525,7 +520,7 @@ func contentFilterError(provider string, metadata fantasy.ProviderMetadata) erro
 
 // ExecuteLocalTools runs local tool calls and returns durable tool results. It
 // does not retry or persist.
-func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (ToolExecutionOutcome, error) {
+func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (PersistedStep, error) {
 	if opts.Metrics == nil {
 		opts.Metrics = NopMetrics()
 	}
@@ -547,7 +542,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 	// without capturing the publisher at construction time.
 	ctx = WithMessagePartPublisher(ctx, opts.PublishMessagePart)
 	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
+		return PersistedStep{}, ctx.Err()
 	}
 
 	localCalls := make([]fantasy.ToolCallContent, 0, len(opts.ToolCalls))
@@ -557,7 +552,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		}
 	}
 	if len(localCalls) == 0 {
-		return ToolExecutionOutcome{}, nil
+		return PersistedStep{}, nil
 	}
 
 	var result stepResult
@@ -579,12 +574,12 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 			result.content = append(result.content, tr)
 		}
 		if ctx.Err() != nil {
-			return ToolExecutionOutcome{}, ctx.Err()
+			return PersistedStep{}, ctx.Err()
 		}
-		return ToolExecutionOutcome{Step: PersistedStep{
+		return PersistedStep{
 			Content:             result.content,
 			ToolResultCreatedAt: result.toolResultCreatedAt,
-		}}, nil
+		}, nil
 	}
 
 	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
@@ -613,15 +608,15 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		},
 	)
 	if ctx.Err() != nil {
-		return ToolExecutionOutcome{}, ctx.Err()
+		return PersistedStep{}, ctx.Err()
 	}
 	for _, tr := range toolResults {
 		result.content = append(result.content, tr)
 	}
-	return ToolExecutionOutcome{Step: PersistedStep{
+	return PersistedStep{
 		Content:             result.content,
 		ToolResultCreatedAt: result.toolResultCreatedAt,
-	}}, nil
+	}, nil
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
