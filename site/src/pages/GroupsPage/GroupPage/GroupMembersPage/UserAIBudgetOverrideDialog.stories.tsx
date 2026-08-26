@@ -32,7 +32,8 @@ const groupQueries = [
 ];
 
 const meta: Meta<typeof UserAIBudgetOverrideDialog> = {
-	title: "pages/OrganizationGroupsPage/UserAIBudgetOverrideDialog",
+	title:
+		"pages/GroupsPage/GroupPage/GroupMembersPage/UserAIBudgetOverrideDialog",
 	component: UserAIBudgetOverrideDialog,
 	args: {
 		open: true,

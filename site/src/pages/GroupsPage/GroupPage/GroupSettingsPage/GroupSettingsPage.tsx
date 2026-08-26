@@ -13,7 +13,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
-import type { GroupPageOutletContext } from "./GroupPage";
+import type { GroupPageOutletContext } from "../GroupPage";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const budgetFromInput = (dollars: string): number | null =>

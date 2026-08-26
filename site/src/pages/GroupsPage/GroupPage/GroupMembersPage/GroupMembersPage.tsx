@@ -41,13 +41,13 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { cn } from "#/utils/cn";
 import { formatBudgetUSD } from "#/utils/currency";
-import { SpendEstimateDocsLink } from "./AICostControl";
+import { SpendEstimateDocsLink } from "../../AICostControl";
+import { StatusIconTooltip } from "../../StatusIconTooltip";
+import type { GroupPageOutletContext } from "../GroupPage";
 import {
 	effectiveBudgetGroup,
 	GroupMemberBudgetCells,
 } from "./GroupMemberBudgetCells";
-import type { GroupPageOutletContext } from "./GroupPage";
-import { StatusIconTooltip } from "./StatusIconTooltip";
 import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 type MemberWithSpend = ReducedUser & {

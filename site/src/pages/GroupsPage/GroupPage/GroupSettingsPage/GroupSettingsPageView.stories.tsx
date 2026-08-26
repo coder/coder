@@ -5,7 +5,7 @@ import { MockGroup } from "#/testHelpers/entities";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
 const meta: Meta<typeof GroupSettingsPageView> = {
-	title: "pages/OrganizationGroupsPage/GroupSettingsPageView",
+	title: "pages/GroupsPage/GroupPage/GroupSettingsPage/GroupSettingsPageView",
 	component: GroupSettingsPageView,
 	args: {
 		onCancel: fn(),

@@ -41,12 +41,12 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
-import GroupMembersPage from "./GroupMembersPage";
+import GroupMembersPage from "./GroupMembersPage/GroupMembersPage";
 import GroupPage from "./GroupPage";
-import GroupSettingsPage from "./GroupSettingsPage";
+import GroupSettingsPage from "./GroupSettingsPage/GroupSettingsPage";
 
 const meta: Meta<typeof GroupPage> = {
-	title: "pages/OrganizationGroupsPage/GroupPage",
+	title: "pages/GroupsPage/GroupPage",
 	component: GroupPage,
 	decorators: [withDashboardProvider, withAuthProvider],
 	parameters: {

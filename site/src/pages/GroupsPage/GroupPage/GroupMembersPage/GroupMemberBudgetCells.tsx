@@ -8,7 +8,7 @@ import { Badge } from "#/components/Badge/Badge";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { TableCell } from "#/components/Table/Table";
 import { formatBudgetUSD } from "#/utils/currency";
-import { StatusIconTooltip } from "./StatusIconTooltip";
+import { StatusIconTooltip } from "../../StatusIconTooltip";
 
 const EM_DASH = "\u2014";
 

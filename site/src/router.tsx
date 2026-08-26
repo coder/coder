@@ -307,14 +307,16 @@ const GroupsPageProvider = lazy(
 );
 const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const CreateGroupPage = lazy(
-	() => import("./pages/GroupsPage/CreateGroupPage"),
+	() => import("./pages/GroupsPage/CreateGroupPage/CreateGroupPage"),
 );
-const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"));
+const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage/GroupPage"));
 const GroupMembersPage = lazy(
-	() => import("./pages/GroupsPage/GroupMembersPage"),
+	() =>
+		import("./pages/GroupsPage/GroupPage/GroupMembersPage/GroupMembersPage"),
 );
 const GroupSettingsPage = lazy(
-	() => import("./pages/GroupsPage/GroupSettingsPage"),
+	() =>
+		import("./pages/GroupsPage/GroupPage/GroupSettingsPage/GroupSettingsPage"),
 );
 const OrganizationMembersPage = lazy(
 	() =>
@@ -386,10 +388,11 @@ const DeploymentNotificationsPage = lazy(
 		),
 );
 const RequestOTPPage = lazy(
-	() => import("./pages/ResetPasswordPage/RequestOTPPage"),
+	() => import("./pages/ResetPasswordPage/RequestOTPPage/RequestOTPPage"),
 );
 const ChangePasswordPage = lazy(
-	() => import("./pages/ResetPasswordPage/ChangePasswordPage"),
+	() =>
+		import("./pages/ResetPasswordPage/ChangePasswordPage/ChangePasswordPage"),
 );
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),

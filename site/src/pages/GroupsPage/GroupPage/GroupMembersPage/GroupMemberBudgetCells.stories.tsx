@@ -37,7 +37,7 @@ const openInfo = async (canvasElement: HTMLElement) => {
 };
 
 const meta: Meta<typeof GroupMemberBudgetCells> = {
-	title: "pages/OrganizationGroupsPage/GroupMemberBudgetCells",
+	title: "pages/GroupsPage/GroupPage/GroupMembersPage/GroupMemberBudgetCells",
 	component: GroupMemberBudgetCells,
 	args: { group, userID: "member-1" },
 	decorators: [
