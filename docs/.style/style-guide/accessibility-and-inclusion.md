@@ -203,7 +203,7 @@ No Vale rule.*
 Coder docs reach readers on a mouse, a trackpad, a touchscreen, a keyboard, and assistive technology such as screen readers and switch devices.
 Don't assume the reader's input device when describing a UI interaction.
 
-"Select" is the default verb for choosing or activating a UI control, instead of "click," "tap," or "press" (see [Select, not click](./word-choice.md#select-not-click)).
+"Select" is the default verb for choosing or activating a UI control, instead of "click," "tap," or "press" (refer to [Select, not click](./word-choice.md#select-not-click)).
 When a more specific verb names the interaction more precisely, use it instead, as long as it doesn't name a device: "open," "expand," "run," and "choose" are all device-agnostic.
 "Click," "tap," "swipe," and "press [key]" name a device and belong only where the content is specifically about that device.
 
@@ -223,7 +223,7 @@ Exception: content that documents an input method by name describes that method 
 This covers references to a specific mouse button (a right-click context menu), a keyboard shortcut list, a touch-gesture reference, or third-party software that specifically records mouse clicks and keystrokes as part of what it does.
 
 *Documentation-only.
-No Vale rule for the general principle; `Coder.SelectClick` (see [Select, not click](./word-choice.md#select-not-click)) enforces the "click" case specifically, since it's the word this policy is violated with most often.*
+No Vale rule for the general principle; `Coder.SelectClick` (refer to [Select, not click](./word-choice.md#select-not-click)) enforces the "click" case specifically, since it's the word this policy is violated with most often.*
 
 ## Plain English for international readers
 
