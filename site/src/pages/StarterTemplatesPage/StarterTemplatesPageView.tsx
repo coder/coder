@@ -13,15 +13,17 @@ import {
 import type { StarterTemplatesByTag } from "#/utils/starterTemplates";
 import { StarterTemplates } from "./StarterTemplates";
 
-interface CreateTemplateGalleryPageViewProps {
+interface StarterTemplatesPageViewProps {
 	starterTemplatesByTag?: StarterTemplatesByTag;
 	templateBuilderEnabled: boolean;
 	error?: unknown;
 }
 
-export const CreateTemplateGalleryPageView: FC<
-	CreateTemplateGalleryPageViewProps
-> = ({ starterTemplatesByTag, templateBuilderEnabled, error }) => {
+export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
+	starterTemplatesByTag,
+	templateBuilderEnabled,
+	error,
+}) => {
 	return (
 		<Margins className="pb-12">
 			<PageHeader

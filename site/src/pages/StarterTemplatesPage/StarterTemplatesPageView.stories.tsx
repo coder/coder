@@ -5,18 +5,18 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { getTemplatesByTag } from "#/utils/starterTemplates";
-import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
+import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
-const meta: Meta<typeof CreateTemplateGalleryPageView> = {
-	title: "pages/CreateTemplateGalleryPage",
-	component: CreateTemplateGalleryPageView,
+const meta: Meta<typeof StarterTemplatesPageView> = {
+	title: "pages/StarterTemplatesPage",
+	component: StarterTemplatesPageView,
 	args: {
 		templateBuilderEnabled: true,
 	},
 };
 
 export default meta;
-type Story = StoryObj<typeof CreateTemplateGalleryPageView>;
+type Story = StoryObj<typeof StarterTemplatesPageView>;
 
 export const Example: Story = {
 	args: {

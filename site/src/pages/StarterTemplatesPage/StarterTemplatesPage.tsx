@@ -4,9 +4,9 @@ import { deploymentConfig } from "#/api/queries/deployment";
 import { templateExamples } from "#/api/queries/templates";
 import { pageTitle } from "#/utils/page";
 import { getTemplatesByTag } from "#/utils/starterTemplates";
-import { CreateTemplateGalleryPageView } from "./CreateTemplateGalleryPageView";
+import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
 
-const CreateTemplatesGalleryPage: FC = () => {
+const StarterTemplatesPage: FC = () => {
 	const templateExamplesQuery = useQuery(templateExamples());
 	const starterTemplatesByTag = templateExamplesQuery.data
 		? getTemplatesByTag(templateExamplesQuery.data)
@@ -20,7 +20,7 @@ const CreateTemplatesGalleryPage: FC = () => {
 		<>
 			<title>{pageTitle("Create a Template")}</title>
 
-			<CreateTemplateGalleryPageView
+			<StarterTemplatesPageView
 				error={templateExamplesQuery.error}
 				starterTemplatesByTag={starterTemplatesByTag}
 				templateBuilderEnabled={!builderDisabled}
@@ -29,4 +29,4 @@ const CreateTemplatesGalleryPage: FC = () => {
 	);
 };
 
-export default CreateTemplatesGalleryPage;
+export default StarterTemplatesPage;
