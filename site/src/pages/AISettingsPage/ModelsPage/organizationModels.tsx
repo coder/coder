@@ -118,6 +118,27 @@ export const useOrganizationModels = (): OrganizationModelsContextValue => {
 	return context;
 };
 
+export const selectModelOrganizationPath = (
+	pathname: string,
+	organization: Organization,
+	searchParams?: URLSearchParams,
+): string => {
+	const next = new URLSearchParams(searchParams);
+	next.set(modelOrganizationSearchParam, organization.name);
+	return `${pathname}?${next.toString()}`;
+};
+
+export const creatableModelOrganizations = (
+	organizations: readonly Organization[],
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>,
+): readonly Organization[] =>
+	organizations.filter(
+		(organization) =>
+			permissionsByOrganization?.[organization.id]?.createChatModelConfigs,
+	);
+
 const organizationModelSettingsPath = (
 	organization: Organization,
 	suffix: string,

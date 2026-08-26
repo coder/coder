@@ -1,7 +1,13 @@
 import { useFormik } from "formik";
 import { type FC, useRef, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Label } from "#/components/Label/Label";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
@@ -16,13 +22,16 @@ import {
 	parseThresholdInteger,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
 import { getFormHelpers } from "#/utils/formUtils";
-import { useOrganizationModels } from "../organizationModels";
+import {
+	creatableModelOrganizations,
+	selectModelOrganizationPath,
+	useOrganizationModels,
+} from "../organizationModels";
 import { ChatModelSharingDialog } from "./ChatModelSharingDialog";
 import { ModelFormDialogs } from "./ModelFormDialogs";
 import { ModelFormFields } from "./ModelFormFields";
 import { ModelFormBackLink, ModelFormHeader } from "./ModelFormHeader";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
-import { ModelOrganizationSelect } from "./ModelOrganizationSelect";
 
 const indefiniteArticle = (word: string): string =>
 	/^[aeiou]/i.test(word) ? "an" : "a";
@@ -85,7 +94,11 @@ export const ModelForm: FC<ModelFormProps> = ({
 	currentDefaultModel,
 	onToggleEnabled,
 }) => {
-	const { organization } = useOrganizationModels();
+	const { organization, accessibleOrganizations, permissionsByOrganization } =
+		useOrganizationModels();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const initialModel = editingModel ?? duplicateSourceModel;
 	const isEditing = Boolean(editingModel);
 	const isDuplicating = Boolean(duplicateSourceModel) && !isEditing;
@@ -104,6 +117,41 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const canAddModelForSelectedProvider = canManageProviderModels(
 		selectedProviderState ?? undefined,
+	);
+	const creatableOrganizations = creatableModelOrganizations(
+		accessibleOrganizations,
+		permissionsByOrganization,
+	);
+	const addOrganizationField = creatableOrganizations.length > 1 && (
+		<div className="grid gap-1.5">
+			<Label
+				htmlFor="model-form-organization"
+				className="leading-6 text-content-primary"
+			>
+				Organization
+			</Label>
+			<OrganizationAutocomplete
+				id="model-form-organization"
+				value={organization}
+				ariaLabel={`Organization ${getOrganizationLabel(
+					organization,
+					creatableOrganizations,
+				)}`}
+				options={creatableOrganizations}
+				optionsTabbable
+				onChange={(nextOrganization) => {
+					if (nextOrganization) {
+						void navigate(
+							selectModelOrganizationPath(
+								location.pathname,
+								nextOrganization,
+								searchParams,
+							),
+						);
+					}
+				}}
+			/>
+		</div>
 	);
 	const mode: "add" | "edit" | "duplicate" = isEditing
 		? "edit"
@@ -284,10 +332,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 										: "Set an API key for this provider before adding models."}
 								</p>
 							)}
-							<ModelOrganizationSelect
-								label="Organization"
-								requireCreatePermission={!isEditing}
-							/>
+							{addOrganizationField}
 						</div>
 					</div>
 				</div>

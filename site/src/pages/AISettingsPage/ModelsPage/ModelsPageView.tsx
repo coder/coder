@@ -15,6 +15,10 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Select,
@@ -43,11 +47,11 @@ import {
 } from "#/modules/aiModels/providerStates";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { paginateItems } from "#/utils/paginateItems";
-import { ModelOrganizationSelect } from "./components/ModelOrganizationSelect";
 import { ModelRow } from "./components/ModelRow";
 import {
 	organizationAddModelPath,
 	organizationModelPath,
+	selectModelOrganizationPath,
 	useOrganizationModels,
 } from "./organizationModels";
 
@@ -121,7 +125,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 }) => {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const { organization } = useOrganizationModels();
+	const { organization, accessibleOrganizations } = useOrganizationModels();
 	const [page, setPage] = useState(1);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [providerFilter, setProviderFilter] =
@@ -248,7 +252,29 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						/>
 					</InputGroup>
 				</div>
-				<ModelOrganizationSelect triggerClassName="w-full sm:w-60" />
+				{accessibleOrganizations.length > 1 && (
+					<OrganizationAutocomplete
+						value={organization}
+						ariaLabel={`Organization ${getOrganizationLabel(
+							organization,
+							accessibleOrganizations,
+						)}`}
+						options={accessibleOrganizations}
+						triggerClassName="w-full sm:w-60"
+						optionsTabbable
+						onChange={(nextOrganization) => {
+							if (nextOrganization) {
+								void navigate(
+									selectModelOrganizationPath(
+										"/ai/settings/models",
+										nextOrganization,
+										searchParams,
+									),
+								);
+							}
+						}}
+					/>
+				)}
 				<Select value={providerFilter} onValueChange={handleProviderChange}>
 					<SelectTrigger
 						className="w-full shadow-none sm:w-60"
