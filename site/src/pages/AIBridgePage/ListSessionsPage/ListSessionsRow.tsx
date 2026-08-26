@@ -63,9 +63,33 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
 					{session.providers.length > 1 ? (
-						<Badge className="max-w-full">
-							{session.providers.length} providers
-						</Badge>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span>
+										<Badge className="max-w-full">
+											{session.providers.length} providers
+										</Badge>
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="top" align="start">
+									<div className="flex flex-col gap-2">
+										<div className="text-content-primary text-sm font-medium">
+											Providers
+										</div>
+										{session.providers.map((provider) => (
+											<div key={provider} className="flex items-center gap-2">
+												<AIBridgeProviderIcon
+													provider={provider}
+													className="size-icon-xs"
+												/>
+												<span>{getProviderDisplayName(provider)}</span>
+											</div>
+										))}
+									</div>
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					) : session.providers.length === 1 ? (
 						<Badge className="gap-1.5 max-w-full">
 							<div className="flex-shrink-0 flex items-center">
