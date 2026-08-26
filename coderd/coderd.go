@@ -1383,7 +1383,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				api.registerOrganizationChatRoutes(r)
+				api.registerOrganizationChatRoutes(r, chatAPIPrefixExperimental)
 				r.Route("/members/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
 					api.registerOrganizationMemberChatRoutes(r)
@@ -1514,7 +1514,7 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
-				api.registerOrganizationChatRoutes(r)
+				api.registerOrganizationChatRoutes(r, chatAPIPrefixV2)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
