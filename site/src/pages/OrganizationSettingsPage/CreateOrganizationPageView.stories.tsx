@@ -8,6 +8,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
+import { docs } from "#/utils/docs";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const meta: Meta<typeof CreateOrganizationPageView> = {
@@ -58,8 +59,8 @@ export const NotEntitled: Story = {
 			canvas.queryByRole("form", { name: "Organization settings form" }),
 		).not.toBeInTheDocument();
 		await expect(
-			canvas.getByRole("link", { name: "Learn more about premium" }),
-		).toBeVisible();
+			canvas.getByRole("link", { name: /View docs/ }),
+		).toHaveAttribute("href", docs("/admin/users/organizations"));
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 	},

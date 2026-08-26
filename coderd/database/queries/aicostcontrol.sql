@@ -1,12 +1,13 @@
 -- name: UpsertAIModelPrices :exec
--- Upsert a batch of (provider, model) rows from a JSON array. Each element
--- must have provider, model, and the four price fields; null prices are
--- written as SQL NULL.
--- A conflicting row is only rewritten when a price differs, so updated_at
--- records when a price last changed. Prices are nullable and a NULL on
--- either side counts as a difference.
+-- Upsert a batch of model prices from a JSON array, all recorded under the
+-- given source. Each element must have provider, model, and the four price
+-- fields, and null prices are written as SQL NULL.
+-- Each source keeps its own row, so the price book and a custom price never
+-- overwrite each other. A conflicting row is only rewritten when a price
+-- differs, so updated_at records when a price last changed. Prices are
+-- nullable and a NULL on either side counts as a difference.
 INSERT INTO ai_model_prices (
-	provider, model, input_price, output_price, cache_read_price, cache_write_price
+	provider, model, input_price, output_price, cache_read_price, cache_write_price, source
 )
 SELECT
 	elem->>'provider',
@@ -14,9 +15,10 @@ SELECT
 	(elem->>'input_price')::bigint,
 	(elem->>'output_price')::bigint,
 	(elem->>'cache_read_price')::bigint,
-	(elem->>'cache_write_price')::bigint
+	(elem->>'cache_write_price')::bigint,
+	@source::ai_model_price_source
 FROM jsonb_array_elements(@seed::jsonb) AS elem
-ON CONFLICT (provider, model) DO UPDATE SET
+ON CONFLICT (provider, model, source) DO UPDATE SET
 	input_price       = EXCLUDED.input_price,
 	output_price      = EXCLUDED.output_price,
 	cache_read_price  = EXCLUDED.cache_read_price,
@@ -35,12 +37,26 @@ WHERE (
 );
 
 -- name: GetAIModelPriceByProviderModel :one
+-- Returns the price in effect for the model, preferring a custom price over
+-- the price book.
 SELECT *
 FROM ai_model_prices
-WHERE provider = @provider AND model = @model;
+WHERE provider = @provider AND model = @model
+ORDER BY CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC
+LIMIT 1;
 
 -- name: GetAIModelPrices :many
-SELECT *
+-- Returns the price in effect for each model, preferring a custom price over
+-- the price book. Filtering by source narrows the rows considered first, so a
+-- model carrying both prices reports the one from the named source.
+-- The source 'all' reports every row instead. It joins the DISTINCT ON key, so
+-- each source forms its own group and nothing collapses. Every other source
+-- contributes the same constant, leaving the key as (provider, model).
+SELECT DISTINCT ON (
+    provider,
+    model,
+    CASE WHEN @source::text = 'all' THEN source::text ELSE '' END
+) *
 FROM ai_model_prices
     -- Filter by provider
 WHERE CASE
@@ -54,7 +70,17 @@ WHERE CASE
             model = @model
         ELSE true
     END
-ORDER BY provider, model;
+    -- Filter by source
+    AND CASE
+        WHEN @source::text NOT IN ('', 'all') THEN
+            source = @source::ai_model_price_source
+        ELSE true
+    END
+ORDER BY
+    provider ASC,
+    model ASC,
+    CASE WHEN @source::text = 'all' THEN source::text ELSE '' END ASC,
+    CASE WHEN source = 'custom' THEN 0 ELSE 1 END ASC;
 
 -- name: GetGroupAIBudget :one
 SELECT *
@@ -251,10 +277,11 @@ ORDER BY queried_groups.id;
 -- name: GetGroupMembersAISpend :many
 -- Returns each user's AI spend attributed to the queried group, on or after
 -- period_start until NOW. Only current members of the queried group are
--- returned. spend_limit_micros and limit_source are populated only when the
--- queried group is the user's effective budget source. The effective group
--- falls back to the Everyone group, and effective_group_id is null only when
--- that group belongs to a different organization than the queried group.
+-- returned. effective_spend_limit_micros and effective_limit_source describe
+-- the user's effective budget when its group belongs to the queried group's
+-- organization. The effective group falls back to the Everyone group, and
+-- effective_group_id is null only when that group belongs to a different
+-- organization than the queried group.
 -- The period_start parameter is normalized to its UTC calendar day.
 -- TODO(AIGOV-527): unify effective group resolution in a single place.
 WITH queried_group AS (
@@ -317,29 +344,31 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
+visible_effective AS (
+	-- The effective group and budget only when the group belongs to the queried
+	-- group's organization.
+	SELECT
+		effective.user_id,
+		effective.raw_effective_group_id AS group_id,
+		effective.spend_limit_micros,
+		effective.limit_source
 	FROM effective
-	WHERE raw_effective_group_id = @group_id
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 -- Spend is aggregated for the queried group, not the user's effective group.
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source,
+	visible_effective.group_id AS effective_group_id,
+	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective.limit_source AS effective_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
-LEFT JOIN groups effective_group
-	ON effective_group.id = effective.raw_effective_group_id
-	AND effective_group.organization_id = queried_group.organization_id
--- A LEFT JOIN leaves spend_limit_micros and limit_source null for users
--- whose effective budget source is not the queried group.
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN visible_effective
+	ON visible_effective.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = @group_id
@@ -347,9 +376,9 @@ LEFT JOIN ai_user_daily_spend spend
 GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.group_id,
+	visible_effective.spend_limit_micros,
+	visible_effective.limit_source
 ORDER BY effective.user_id;
 
 -- name: GetOverBudgetUsersPerGroup :many

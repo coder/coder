@@ -1,7 +1,7 @@
 import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { Link } from "react-router";
+import { Link as RouterLink } from "react-router";
 import { getVisibleProviderFields } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -18,6 +18,7 @@ import {
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -37,12 +38,14 @@ import type {
 	ModelFormValues,
 } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import type { FormHelpers } from "#/utils/formUtils";
+import { useOrganizationModelsPath } from "../organizationModels";
 import { ModelFormProviderSelect } from "./ModelFormProviderSelect";
 
 const CollapsibleSection: FC<{
 	title: string;
-	description: string;
+	description: ReactNode;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	className?: string;
@@ -94,8 +97,9 @@ export const ModelFormFields: FC<{
 	isDuplicating: boolean;
 	isEditing: boolean;
 	isSaving: boolean;
+	isReadOnly: boolean;
 	canSubmit: boolean;
-	initialModel?: TypesGen.ChatModelConfig;
+	initialModel?: TypesGen.ChatModel;
 	modelField: FormHelpers;
 	contextLimitField: FormHelpers;
 	compressionThresholdField: FormHelpers;
@@ -119,6 +123,7 @@ export const ModelFormFields: FC<{
 	isDuplicating,
 	isEditing,
 	isSaving,
+	isReadOnly,
 	canSubmit,
 	initialModel,
 	modelField,
@@ -134,6 +139,7 @@ export const ModelFormFields: FC<{
 	showAdvanced,
 	setShowAdvanced,
 }) => {
+	const modelsPath = useOrganizationModelsPath();
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
@@ -151,7 +157,9 @@ export const ModelFormFields: FC<{
 						selectedProviderKey={selectedProviderKey}
 						isEditing={mode === "edit"}
 						onProviderChange={onProviderChange}
-						disabled={isDuplicating || providerStates.length === 0}
+						disabled={
+							isDuplicating || isReadOnly || providerStates.length === 0
+						}
 					/>
 					<div className="flex flex-col gap-1">
 						<ModelIdentifierField
@@ -159,7 +167,7 @@ export const ModelFormFields: FC<{
 							modelField={modelField}
 							mode={mode}
 							selectedProvider={selectedProviderType}
-							disabled={isSaving}
+							disabled={isSaving || isReadOnly}
 							controlClassName="shadow-none"
 						/>
 						<label
@@ -172,7 +180,7 @@ export const ModelFormFields: FC<{
 								onCheckedChange={(checked) =>
 									form.setFieldValue("isDefault", checked === true)
 								}
-								disabled={setDefaultDisabled}
+								disabled={setDefaultDisabled || isReadOnly}
 							/>
 							Set as Coder Agents default model
 						</label>
@@ -198,7 +206,7 @@ export const ModelFormFields: FC<{
 							value={displayNameField.value}
 							onChange={displayNameField.onChange}
 							onBlur={displayNameField.onBlur}
-							disabled={isSaving}
+							disabled={isSaving || isReadOnly}
 						/>
 					</div>
 					<div className="grid gap-1.5">
@@ -233,7 +241,7 @@ export const ModelFormFields: FC<{
 								value={contextLimitField.value}
 								onChange={contextLimitField.onChange}
 								onBlur={contextLimitField.onBlur}
-								disabled={isSaving}
+								disabled={isSaving || isReadOnly}
 								aria-invalid={contextLimitField.error}
 							/>
 							<InputGroupAddon align="inline-end">
@@ -246,7 +254,20 @@ export const ModelFormFields: FC<{
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
 					<CollapsibleSection
 						title="Cost estimate"
-						description="Estimated price per million tokens in USD. Prices are read-only."
+						description={
+							<>
+								Estimated price per million tokens in USD. Prices are read-only.{" "}
+								Model prices are managed by AI Gateway.{" "}
+								<Link
+									href={docs(
+										"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+									)}
+									size="sm"
+								>
+									Learn how to configure model prices.
+								</Link>
+							</>
+						}
 						open={showCostEstimate}
 						onOpenChange={setShowCostEstimate}
 						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-4"
@@ -270,13 +291,13 @@ export const ModelFormFields: FC<{
 								provider={selectedProviderState.provider}
 								form={form}
 								fieldErrors={modelConfigFormBuildResult.fieldErrors}
-								disabled={isSaving}
+								disabled={isSaving || isReadOnly}
 							>
 								<ReasoningEffortConfigFields
 									provider={selectedProviderState.provider}
 									form={form}
 									fieldErrors={modelConfigFormBuildResult.fieldErrors}
-									disabled={isSaving}
+									disabled={isSaving || isReadOnly}
 								/>
 							</ModelConfigFields>
 						</CollapsibleSection>
@@ -294,7 +315,7 @@ export const ModelFormFields: FC<{
 							provider={selectedProviderState.provider}
 							form={form}
 							fieldErrors={modelConfigFormBuildResult.fieldErrors}
-							disabled={isSaving}
+							disabled={isSaving || isReadOnly}
 						/>
 						<div className="flex min-w-0 flex-col gap-1.5">
 							<Label
@@ -325,7 +346,7 @@ export const ModelFormFields: FC<{
 									value={compressionThresholdField.value}
 									onChange={compressionThresholdField.onChange}
 									onBlur={compressionThresholdField.onBlur}
-									disabled={isSaving}
+									disabled={isSaving || isReadOnly}
 									aria-invalid={compressionThresholdField.error}
 								/>
 								<InputGroupAddon align="inline-end">
@@ -342,19 +363,21 @@ export const ModelFormFields: FC<{
 				</div>
 
 				<div className="flex items-center justify-end gap-3">
-					<Link to="/ai/settings/models">
+					<RouterLink to={modelsPath}>
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>
-					</Link>
-					<Button type="submit" disabled={!canSubmit}>
-						{isSaving && <Spinner loading />}
-						{isEditing
-							? "Update model"
-							: isDuplicating
-								? "Create duplicate"
-								: "Add Model"}
-					</Button>
+					</RouterLink>
+					{!isReadOnly && (
+						<Button type="submit" disabled={!canSubmit}>
+							{isSaving && <Spinner loading />}
+							{isEditing
+								? "Update model"
+								: isDuplicating
+									? "Create duplicate"
+									: "Add Model"}
+						</Button>
+					)}
 				</div>
 			</form>
 		</div>

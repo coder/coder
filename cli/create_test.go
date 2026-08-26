@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -712,7 +711,7 @@ func TestCreate(t *testing.T) {
 		}))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.UseClassicParameterFlow = ptr.Ref(true)
+			ctr.UseClassicParameterFlow = new(true)
 		})
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -877,7 +876,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 				removeTmpDirUntilSuccessAfterTest(t, tempDir)
 				parameterFile, _ := os.CreateTemp(tempDir, "testParameterFile*.yaml")
 				for _, param := range params {
-					_, err := parameterFile.WriteString(fmt.Sprintf("%s: %s\n", param.name, param.value))
+					_, err := fmt.Fprintf(parameterFile, "%s: %s\n", param.name, param.value)
 					require.NoError(t, err)
 				}
 
@@ -1823,13 +1822,13 @@ func TestCreateValidateRichParameters(t *testing.T) {
 	)
 
 	numberRichParameters := []*proto.RichParameter{
-		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
+		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(3)), ValidationMax: new(int32(10))},
 	}
 
 	numberCustomErrorRichParameters := []*proto.RichParameter{
 		{
 			Name: numberParameterName, Type: "number", Mutable: true,
-			ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10)),
+			ValidationMin: new(int32(3)), ValidationMax: new(int32(10)),
 			ValidationError: "These are values: {min}, {max}, and {value}.",
 		},
 	}

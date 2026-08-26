@@ -16,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -105,16 +104,22 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfigRaw, err := json.Marshal(codersdk.ChatModelCallConfig{
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+				User: new("turn-options-sentinel"),
+			},
+		},
 		ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
-			Default: ptr.Ref(codersdk.ChatModelReasoningEffortLow),
-			Max:     ptr.Ref(codersdk.ChatModelReasoningEffortMedium),
+			Default: new(codersdk.ChatModelReasoningEffortLow),
+			Max:     new(codersdk.ChatModelReasoningEffortMedium),
 		},
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -156,10 +161,24 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(prepared.Cleanup)
 
-	providerOptions, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
+
+	require.NotNil(t, providerOptions.User)
+	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
+	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
+	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
+
+	require.NotNil(t, prepared.Compaction)
+	summaryCall := prepared.Compaction.Options.SummaryCall
+	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
+	require.NotNil(t, summaryCall.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
+	// Non-streaming summaries must not inherit the default output cap the
+	// Anthropic SDK rejects.
+	require.Nil(t, summaryCall.MaxOutputTokens)
 }
 
 func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
@@ -184,15 +203,16 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		},
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
-				User: ptr.Ref("computer-use"),
+				User: new("computer-use"),
 			},
 		},
 	})
 	require.NoError(t, err)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		Options:      modelConfigRaw,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		Options:        modelConfigRaw,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -249,8 +269,8 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	// The computer-use model is Responses-selected by the SDK and its client
 	// ignores the config's forced Chat Completions, so the options must be the
 	// Responses type or the SDK discards them.
-	_, ok := prepared.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.ProviderOptions[fantasyopenai.Name])
+	_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
 
 	// File classification must also key on the substituted model: the
 	// Responses transport drops native text file parts, so the attachment
@@ -285,8 +305,9 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	}, func(p *database.InsertChatModelConfigParams) {
 		p.Enabled = true
 	})
@@ -366,9 +387,10 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
 		})
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:       "gpt-4o-mini",
-			DisplayName: "gpt-4o-mini",
-			Options:     json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			Options:        json.RawMessage(`{"openai_config":{"use_responses_api":false}}`),
+			OrganizationID: org.ID,
 		}, func(p *database.InsertChatModelConfigParams) {
 			p.Enabled = true
 			p.IsDefault = true
@@ -443,10 +465,11 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.Equal(t, lastUserID, result.TriggerMessageID)
 		require.Equal(t, tipID, result.HistoryTipMessageID)
-		require.True(t, result.StatusLabelModel.Valid())
-		require.Equal(t, "openai", result.FallbackProvider)
-		require.Equal(t, "gpt-4o-mini", result.FallbackModel)
-		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelOptions))
+		require.NotNil(t, result.StatusLabelCall)
+		require.True(t, result.StatusLabelCall.model.Valid())
+		require.Equal(t, "openai", result.StatusLabelCall.resolvedProvider)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
 	t.Run("NonWaitingReturnsEmpty", func(t *testing.T) {
@@ -482,13 +505,12 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 			UserID:         user.ID,
 			OrganizationID: org.ID,
 		})
-		// A disabled AI provider makes resolveChatModel fail, exercising the
-		// degraded path that still returns the re-derived text and IDs.
 		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        "gpt-4o-mini",
-			DisplayName:  "gpt-4o-mini",
-			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+			Model:          "gpt-4o-mini",
+			DisplayName:    "gpt-4o-mini",
+			AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+			OrganizationID: org.ID,
 		})
 
 		created, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
@@ -520,9 +542,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "the answer is 42", result.FinalAssistantText)
 		require.NotZero(t, result.TriggerMessageID)
 		require.NotZero(t, result.HistoryTipMessageID)
-		require.False(t, result.StatusLabelModel.Valid())
-		require.Empty(t, result.FallbackProvider)
-		require.Empty(t, result.FallbackModel)
+		require.Nil(t, result.StatusLabelCall)
 	})
 }
 

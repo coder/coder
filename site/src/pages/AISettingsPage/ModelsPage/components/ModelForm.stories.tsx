@@ -17,11 +17,20 @@ import {
 	MockGPT5BelowThresholdModelPrice,
 	MockGPT5ModelPrice,
 } from "#/testHelpers/chatModels";
+import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
+} from "#/testHelpers/entities";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
+import {
+	modelOrganizationSearchParam,
+	OrganizationModelsContext,
+} from "../organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockAzureProviderState,
 	MockDisabledProviderState,
+	MockGoogleProviderState,
 	MockOpenAIProviderState,
 	mockClaude,
 	mockGPT5,
@@ -31,8 +40,8 @@ import { ModelForm } from "./ModelForm";
 
 const onUpdateModel = fn(
 	async (
-		_modelConfigId: string,
-		_req: TypesGen.UpdateChatModelConfigRequest,
+		_modelId: string,
+		_req: TypesGen.UpdateChatModelRequest,
 	): Promise<unknown> => undefined,
 );
 
@@ -45,10 +54,22 @@ const waitForPriceLoading = async (canvas: ReturnType<typeof within>) => {
 	);
 };
 
+const withOrganizationModels = (Story: React.FC) => (
+	<OrganizationModelsContext.Provider
+		value={{
+			organization: MockDefaultOrganization,
+			permissions: MockOrganizationPermissions,
+			requestedOrganizationDenied: false,
+		}}
+	>
+		<Story />
+	</OrganizationModelsContext.Provider>
+);
+
 const meta: Meta<typeof ModelForm> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelForm",
 	component: ModelForm,
-	decorators: [withToaster, withDashboardProvider],
+	decorators: [withToaster, withDashboardProvider, withOrganizationModels],
 	args: {
 		providerStates: [MockOpenAIProviderState, MockAnthropicProviderState],
 		selectedProviderState: MockOpenAIProviderState,
@@ -61,10 +82,21 @@ const meta: Meta<typeof ModelForm> = {
 	parameters: {
 		features: ["aibridge"],
 		reactRouter: reactRouterParameters({
-			location: { path: "/ai/settings/models/add" },
+			location: {
+				path: "/ai/settings/models/add",
+				searchParams: {
+					[modelOrganizationSearchParam]: MockDefaultOrganization.name,
+				},
+			},
 			routing: [
-				{ path: "/ai/settings/models/add", useStoryElement: true },
-				{ path: "/ai/settings/models", element: <div>Models</div> },
+				{
+					path: "/ai/settings/models/add",
+					useStoryElement: true,
+				},
+				{
+					path: "/ai/settings/models",
+					element: <div>Models</div>,
+				},
 			],
 		}),
 	},
@@ -258,6 +290,83 @@ export const Edit: Story = {
 	},
 };
 
+export const ShareOnlyAccess: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canUpdateModel: false,
+		canShareModel: true,
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModelACL").mockResolvedValue({
+			user_roles: {},
+			group_roles: {},
+		});
+		spyOn(API.experimental, "updateChatModelACL").mockResolvedValue();
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [],
+			count: 0,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /^update model$/i }),
+		).toBeNull();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /model actions/i }),
+		);
+		expect(
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("menuitem", { name: /duplicate model/i }),
+		).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: /delete/i })).toBeNull();
+	},
+};
+
+export const FullAccessActions: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canShareModel: true,
+		onDeleteModel: fn(async () => undefined),
+		onDuplicate: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /model actions/i }),
+		);
+		expect(
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("menuitem", { name: /duplicate model/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("menuitem", { name: /delete/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const NoShareReadOnlyAccess: Story = {
+	args: {
+		editingModel: mockGPT5,
+		canUpdateModel: false,
+		canShareModel: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByRole("button", { name: /model actions/i })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: /^update model$/i }),
+		).toBeNull();
+		expect(canvas.getByLabelText(/model identifier/i)).toBeDisabled();
+		expect(canvas.getByRole("combobox", { name: /provider/i })).toBeDisabled();
+	},
+};
+
 export const EditDefaultBadge: Story = {
 	args: {
 		editingModel: { ...mockGPT5, is_default: true, enabled: true },
@@ -445,6 +554,43 @@ export const ReasoningEffortValidationError: Story = {
 	},
 };
 
+// thinking_level and thinking_budget are mutually exclusive on Google
+// models: setting either one disables the other until it is cleared.
+export const GoogleThinkingLevelBudgetMutualExclusion: Story = {
+	args: {
+		providerStates: [MockGoogleProviderState],
+		selectedProviderState: MockGoogleProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /provider configuration/i }),
+		);
+		const budget = canvas.getByLabelText(/thinking config thinking budget/i);
+		const level = canvas.getByRole("combobox", {
+			name: /thinking config thinking level/i,
+		});
+		await expect(budget).toBeEnabled();
+		await expect(level).toBeEnabled();
+
+		await userEvent.click(level);
+		await userEvent.click(await screen.findByRole("option", { name: "Low" }));
+		await expect(budget).toBeDisabled();
+
+		await userEvent.click(level);
+		await userEvent.click(
+			await screen.findByRole("option", { name: "Default" }),
+		);
+		await expect(budget).toBeEnabled();
+
+		await userEvent.type(budget, "2048");
+		await expect(level).toBeDisabled();
+
+		await userEvent.clear(budget);
+		await expect(level).toBeEnabled();
+	},
+};
+
 // The catalog fallback covers an entitled deployment with no matching price
 // book row. Values come from the baked-in catalog and must not be submitted.
 export const CostEstimateFieldsAreImmutable: Story = {
@@ -465,6 +611,19 @@ export const CostEstimateFieldsAreImmutable: Story = {
 		const canvas = within(canvasElement);
 		await userEvent.click(
 			canvas.getByRole("button", { name: /cost estimate/i }),
+		);
+		await expect(
+			canvas.getByText(/model prices are managed by AI Gateway/i),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("link", {
+				name: /learn how to configure model prices/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+			),
 		);
 
 		const expectedValues: [RegExp, string][] = [
@@ -585,9 +744,11 @@ export const CostEstimateDebouncesLivePriceLookup: Story = {
 	},
 };
 
-// On an entitled form the live lookup may override the catalog, so typing
-// into an empty identifier shows the loading placeholder immediately rather
-// than briefly flashing catalog prices before the lookup fires.
+// On an entitled form the live lookup may override the catalog, so
+// committing a catalog model shows the loading placeholder immediately
+// rather than briefly flashing catalog prices before the lookup fires. In
+// add mode the identifier autocomplete only commits the model when an
+// option is selected, so select one instead of typing free text.
 export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 	args: {
 		selectedProviderState: MockAnthropicProviderState,
@@ -602,7 +763,10 @@ export const CostEstimateShowsLoadingWhileDebouncePending: Story = {
 		);
 		await userEvent.type(
 			canvas.getByLabelText(/model identifier/i),
-			"claude-haiku-4-5",
+			"claude-haiku",
+		);
+		await userEvent.click(
+			await screen.findByRole("option", { name: /claude haiku 4\.5/i }),
 		);
 		await waitForPriceLoading(canvas);
 		// The catalog price must not render while the lookup is pending.

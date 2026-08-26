@@ -24,7 +24,6 @@ import {
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
-import { mcpServerOAuth2ConnectPath } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -62,6 +61,7 @@ import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -429,8 +429,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	const mcpPopupRef = useRef<Window | null>(null);
+	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
+		useMCPOAuthFlow({
+			organizationId: chatOrganizationId,
+			onAuthComplete: onMCPAuthComplete,
+			onFlowSuccess: (serverID) => {
+				if (
+					onMCPSelectionChange &&
+					selectedMCPServerIds &&
+					mcpServers?.some(
+						(server) => server.id === serverID && server.enabled,
+					) &&
+					!selectedMCPServerIds.includes(serverID)
+				) {
+					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+				}
+			},
+		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -507,41 +522,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	// Listen for OAuth2 completion postMessage from popup.
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			if (event.origin !== location.origin) return;
-			if (
-				event.data?.type === "mcp-oauth2-complete" &&
-				typeof event.data.serverID === "string"
-			) {
-				setMcpConnectingId(null);
-				onMCPAuthComplete?.(event.data.serverID);
-				mcpPopupRef.current = null;
-			}
-		};
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, [onMCPAuthComplete]);
-
-	// Poll for popup close and clean up on unmount.
-	useEffect(() => {
-		if (!mcpConnectingId || !mcpPopupRef.current) return;
-		const interval = setInterval(() => {
-			if (mcpPopupRef.current?.closed) {
-				setMcpConnectingId(null);
-				mcpPopupRef.current = null;
-			}
-		}, 500);
-		return () => {
-			clearInterval(interval);
-			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
-				mcpPopupRef.current.close();
-				mcpPopupRef.current = null;
-			}
-		};
-	}, [mcpConnectingId]);
-
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
 		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
 		if (checked) {
@@ -551,22 +531,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
-		if (!chatOrganizationId) {
-			return;
-		}
-		setMcpConnectingId(server.id);
-		const connectUrl = mcpServerOAuth2ConnectPath(
-			chatOrganizationId,
-			server.id,
-		);
-		mcpPopupRef.current = window.open(
-			connectUrl,
-			"_blank",
-			"width=900,height=600",
-		);
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -621,16 +585,25 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
+	// When workspace data is available the badge renders as the
+	// interactive WorkspacePill; its overflow-popover fallback uses the
+	// richer attachedWorkspace data when present.
+	let workspacePillBadge: ToolBadgeData | undefined;
+	if (workspace && workspaceAgent && chatId) {
+		workspacePillBadge = attachedWorkspace
+			? { kind: "attached-workspace", ...attachedWorkspace }
+			: { kind: "workspace", name: workspace.name };
+	}
+
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
 	if (shouldOverflowPlanningBadge) {
 		allBadges.push({ kind: "planning" });
 	}
-	// When workspace data is available, WorkspacePill handles
-	// the display (including app dropdown). Otherwise fall back
-	// to the simple attached-workspace ToolBadge.
-	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
+	if (workspacePillBadge) {
+		allBadges.push(workspacePillBadge);
+	} else if (attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
@@ -1190,6 +1163,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					workspaceSkills={workspaceSkills}
 					autoFocus
 					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1396,7 +1370,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	variant="outline"
 																	size="sm"
 																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
+																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null
 																	}
@@ -1452,7 +1426,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:shrink"
+								className="md:h-auto md:w-auto md:shrink"
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1482,24 +1456,37 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
-						{workspace && workspaceAgent && chatId && (
-							<span className="ml-1 sm:ml-0">
-								<WorkspacePill
-									workspace={workspace}
-									agent={workspaceAgent}
-									chatId={chatId}
-									sshCommand={sshCommand}
-									folder={folder}
-									onRemoveWorkspace={removeWorkspaceHandler}
-								/>
-							</span>
-						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
+								if (
+									badge === workspacePillBadge &&
+									workspace &&
+									workspaceAgent &&
+									chatId
+								) {
+									return (
+										<span
+											key="workspace-pill"
+											className={cn(
+												"flex min-w-[calc(8ch_+_3.125rem)] text-xs",
+												isOverflow && "invisible order-1",
+											)}
+										>
+											<WorkspacePill
+												workspace={workspace}
+												agent={workspaceAgent}
+												chatId={chatId}
+												sshCommand={sshCommand}
+												folder={folder}
+												onRemoveWorkspace={removeWorkspaceHandler}
+											/>
+										</span>
+									);
+								}
 								return (
 									<ToolBadge
 										key={badge.kind === "mcp" ? badge.server.id : badge.kind}

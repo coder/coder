@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -23,17 +23,12 @@ const meta: Meta<typeof ProviderRow> = {
 	},
 	decorators: [
 		(Story) => (
-			<Table className="table-fixed" aria-label="AI providers">
+			<Table aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-[42%]">Name</TableHead>
-						<TableHead className="w-[38%]">Base URL</TableHead>
-						<TableHead className="w-20 text-center">
-							<span className="sr-only">Enabled</span>
-						</TableHead>
-						<TableHead className="w-12">
-							<span className="sr-only">Open provider</span>
-						</TableHead>
+						<TableHead className="w-1/3">Name</TableHead>
+						<TableHead className="w-1/3">Base URL</TableHead>
+						<TableHead className="w-22">Status</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -84,9 +79,17 @@ export const NotSupportedInAgents: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Not supported in Agents"),
-		).toBeInTheDocument();
+		const badge = canvas.getByRole("button", {
+			name: "Not supported in Agents",
+		});
+		await expect(badge).toBeInTheDocument();
+		await userEvent.hover(badge);
+		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+			"tooltip",
+		);
+		await expect(tooltip).toHaveTextContent(
+			"This provider works with the AI Gateway Proxy but Coder Agents can't use it.",
+		);
 	},
 };
 
@@ -100,5 +103,59 @@ export const SupportedHasNoAgentsLabel: Story = {
 		await expect(
 			canvas.queryByText("Not supported in Agents"),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const WithHostnameCollisionWarning: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: {
+				warnings: [
+					'Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/openai/... endpoint).',
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = canvas.getByLabelText(/^Warning: Hostname/);
+		await expect(badge).toBeInTheDocument();
+		await expect(badge).toHaveAttribute(
+			"aria-label",
+			expect.stringContaining("api.openai.com"),
+		);
+		await expect(badge).toHaveAttribute("tabIndex", "0");
+
+		// Hover shows the tooltip with the warning text.
+		await userEvent.hover(badge);
+		const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+			"tooltip",
+		);
+		await expect(tooltip).toHaveTextContent("api.openai.com");
+
+		// Keyboard and mouse activation must not navigate the row.
+		badge.focus();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard(" ");
+		await userEvent.click(badge);
+		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
+
+export const EmptyWarnings: Story = {
+	args: {
+		provider: {
+			...MockAIProviderOpenAI,
+			enabled: true,
+			status: { warnings: [] },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText(/warning/i)).not.toBeInTheDocument();
+		// An empty warnings array must not leak a bare "0" into the row.
+		await expect(canvas.queryByText("0")).not.toBeInTheDocument();
 	},
 };

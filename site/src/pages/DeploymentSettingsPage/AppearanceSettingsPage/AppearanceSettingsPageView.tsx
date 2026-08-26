@@ -10,13 +10,15 @@ import {
 } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
 
@@ -46,22 +48,30 @@ export const AppearanceSettingsPageView: FC<
 	const getFieldHelpers = getFormHelpers(form);
 
 	return (
-		<div className="flex flex-col gap-8">
+		<div>
 			<SettingsHeader>
 				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Customize the look and feel of your Coder deployment.
+					Customize the look and feel of your Coder deployment.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{!isEntitled ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="appearance"
 					message="Appearance"
-					description="With a Premium license, you can customize branding and announcement banners for your deployment."
+					description="Configure branding and announcement banners for your deployment."
+					features={[
+						"Custom application name and logo",
+						"Site-wide announcement banners for updates",
+						"Custom branded OIDC sign-in button",
+						"Custom support links in dropdown",
+					]}
 					canViewPremium={canViewPremium}
 				/>
 			) : (
-				<>
+				<div className="flex flex-col gap-8">
 					<VerticalForm
 						onSubmit={form.handleSubmit}
 						aria-label="Appearance settings"
@@ -110,7 +120,7 @@ export const AppearanceSettingsPageView: FC<
 							onSaveAppearance({ announcement_banners: announcementBanners })
 						}
 					/>
-				</>
+				</div>
 			)}
 		</div>
 	);

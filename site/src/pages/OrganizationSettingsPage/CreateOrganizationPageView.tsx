@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import * as Yup from "yup";
-import { getErrorMessage, isApiValidationError } from "#/api/errors";
+import { isApiValidationError } from "#/api/errors";
 import { createOrganization } from "#/api/queries/organizations";
 import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -13,16 +13,18 @@ import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -65,19 +67,13 @@ export const CreateOrganizationPageView: FC<
 			icon: "",
 		},
 		validationSchema,
-		onSubmit: async (values) => {
-			try {
-				await createOrganizationMutation.mutateAsync(values);
-				toast.success(`Organization "${values.name}" created successfully.`);
-				await navigate(`/organizations/${values.name}`);
-			} catch (err) {
-				toast.error(
-					getErrorMessage(
-						err,
-						`Failed to create organization "${values.name}".`,
-					),
-				);
-			}
+		onSubmit: (values) => {
+			createOrganizationMutation.mutate(values, {
+				onSuccess: () => {
+					toast.success(`Organization "${values.name}" created successfully.`);
+					void navigate(`/organizations/${values.name}`);
+				},
+			});
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, error);
@@ -107,14 +103,23 @@ export const CreateOrganizationPageView: FC<
 						<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
 						<SettingsHeaderDescription>
 							Isolate members, templates, and provisioners for a team or
-							project.
+							project.{" "}
+							<SettingsHeaderDocsLink
+								href={docs("/admin/users/organizations")}
+							/>
 						</SettingsHeaderDescription>
 					</SettingsHeader>
 
 					{!isEntitled ? (
-						<PaywallPremium
+						<PremiumPaywall
+							source="multiple_organizations"
 							message="Organizations"
-							description="Isolate members, templates, and provisioners for a team or project within a single Coder deployment."
+							description="Run isolated business units on one deployment, each with its own users, templates, provisioners, and infrastructure."
+							features={[
+								"Isolate provisioners & infrastructure",
+								"Sync org membership from your IdP",
+								"Manage orgs at scale via Terraform",
+							]}
 							canViewPremium={permissions.viewAllLicenses}
 						/>
 					) : (

@@ -1,9 +1,6 @@
 import type { FC, FormEvent } from "react";
 import { useId, useState } from "react";
-import type {
-	ChatModelConfig,
-	UserChatProviderConfig,
-} from "#/api/typesGenerated";
+import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -41,7 +38,7 @@ const getProviderStatus = (
 
 	if (provider.has_central_api_key_fallback) {
 		return {
-			label: "Using shared key",
+			label: "Shared key",
 			variant: "default",
 			note: "The shared deployment key is being used. Add a personal key to use your own.",
 		};
@@ -56,7 +53,7 @@ const getProviderStatus = (
 
 interface ProviderKeyPanelProps {
 	provider: UserChatProviderConfig;
-	models: readonly ChatModelConfig[];
+	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
 	isSaving: boolean;
@@ -136,7 +133,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 						<p className="m-0 text-sm text-content-secondary">{status.note}</p>
 					)}
 				</div>
-				<Badge size="sm" variant={status.variant} className="w-fit">
+				<Badge size="md" variant={status.variant} className="w-fit">
 					{status.label}
 				</Badge>
 			</div>
@@ -198,22 +195,27 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				<p className="m-0 text-sm font-medium text-content-primary">
 					Enabled models
 				</p>
-				{areModelsUnavailable ? (
+				{areModelsUnavailable && enabledModels.length > 0 && (
 					<p className="m-0 text-sm text-content-secondary">
-						Enabled model badges are temporarily unavailable.
+						Some enabled model badges are temporarily unavailable.
 					</p>
-				) : isModelsLoading ? (
+				)}
+				{isModelsLoading ? (
 					<p className="m-0 text-sm text-content-secondary">
 						Loading models...
 					</p>
 				) : enabledModels.length > 0 ? (
 					<div className="flex flex-wrap gap-2">
 						{enabledModels.map((model) => (
-							<Badge key={model.id} size="xs" variant="default">
+							<Badge key={model.id} size="md" variant="default">
 								{model.display_name || model.model}
 							</Badge>
 						))}
 					</div>
+				) : areModelsUnavailable ? (
+					<p className="m-0 text-sm text-content-secondary">
+						Enabled model badges are temporarily unavailable.
+					</p>
 				) : (
 					<p className="m-0 text-sm text-content-secondary">
 						No enabled models configured.
@@ -246,7 +248,7 @@ export interface AgentSettingsAPIKeysPageViewProps {
 	error: unknown;
 	isLoading: boolean;
 	providerItems: readonly AgentSettingsAPIKeysProviderItem[];
-	models: readonly ChatModelConfig[];
+	models: readonly ChatModel[];
 	isModelsLoading: boolean;
 	areModelsUnavailable: boolean;
 	onSave: (providerConfigId: string, apiKey: string) => void;

@@ -7,12 +7,17 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "#/api/queries/idpsync";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -63,24 +68,29 @@ const IdpOrgSyncPage: FC = () => {
 		<>
 			<title>{pageTitle("Organization IdP Sync")}</title>
 
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Organization IdP Sync</h1>
-						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
-							Automatically assign users to an organization based on their IdP
-							claims.
-							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
-								View docs
-							</Link>
-						</p>
-					</div>
-					<ExportPolicyButton syncSettings={settingsQuery.data} />
-				</header>
+			<div>
+				<SettingsHeader
+					actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
+				>
+					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Automatically assign users to an organization based on their IdP
+						claims.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/idp-sync#organization-sync")}
+						/>
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
-					<PaywallPremium
+					<PremiumPaywall
+						source="idp_org_sync"
 						message="IdP Organization Sync"
 						description="Configure organization mappings to synchronize claims in your auth provider to organizations within Coder."
+						features={[
+							"Sync groups & roles automatically",
+							"No manual user assignment",
+							"Works with your OIDC provider",
+						]}
 						canViewPremium={permissions.viewAllLicenses}
 					/>
 				) : (

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import type { SerpentGroup } from "#/api/typesGenerated";
 import { MockPermissions } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
 const introspectionGroup: SerpentGroup = {
@@ -81,9 +82,16 @@ export const OSS: Story = {
 		await expect(
 			canvas.getByRole("link", { name: "Start trial for free" }),
 		).toHaveAttribute("href", "/deployment/premium");
-		await expect(
-			canvas.getByRole("link", { name: "Learn more about premium" }),
-		).toBeVisible();
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(2);
+		await expect(docsLinks[0]).toHaveAttribute(
+			"href",
+			docs("/admin/security/audit-logs"),
+		);
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring"),
+		);
 		await expect(
 			canvas.queryByText("Audit Logs Retention"),
 		).not.toBeInTheDocument();

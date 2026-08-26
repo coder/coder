@@ -87,6 +87,7 @@ export const workspaceSkillsFromChat = (
 };
 
 interface ChatPageTimelineProps {
+	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	initialActiveTurnMaxMessageId?: number;
@@ -109,6 +110,7 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
+	organizationId,
 	store,
 	persistedError,
 	initialActiveTurnMaxMessageId,
@@ -195,6 +197,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
 				<ConversationTimeline
+					organizationId={organizationId}
 					parsedMessages={parsedMessages}
 					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
 					streamState={streamState}
