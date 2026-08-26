@@ -45,6 +45,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
+	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -2409,4 +2410,91 @@ func (n *acquireSignalingInterceptor) AcquireNotificationMessages(ctx context.Co
 	messages, err := n.Store.AcquireNotificationMessages(ctx, params)
 	n.acquiredChan <- struct{}{}
 	return messages, err
+}
+
+// renderCapture records what the notifier renders, so a test can assert on what
+// a dispatcher would receive.
+type renderCapture struct {
+	mu          sync.Mutex
+	title, body string
+	captured    chan struct{}
+	once        sync.Once
+}
+
+func newRenderCapture() *renderCapture {
+	return &renderCapture{captured: make(chan struct{})}
+}
+
+func (c *renderCapture) Dispatcher(_ types.MessagePayload, title, body string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
+	return func(_ context.Context, _ uuid.UUID) (bool, error) {
+		c.mu.Lock()
+		c.title, c.body = title, body
+		c.mu.Unlock()
+		c.once.Do(func() { close(c.captured) })
+		return false, nil
+	}, nil
+}
+
+func (c *renderCapture) wait(t *testing.T) (title, body string) {
+	t.Helper()
+	testutil.TryReceive(testutil.Context(t, testutil.WaitLong), t, c.captured)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.title, c.body
+}
+
+// TestNotificationMarkdownInjection is the end-to-end regression test for
+// https://linear.app/codercom/issue/SEC-93.
+func TestNotificationMarkdownInjection(t *testing.T) {
+	t.Parallel()
+
+	const payload = "Eve\n## URGENT: SSO certificate expiring\n" +
+		"[Re-authenticate now](https://coder-sso.attacker.example/login)"
+
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+	store, pubsub := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	method := database.NotificationMethodSmtp
+	cfg := defaultNotificationsConfig(method)
+	capture := newRenderCapture()
+
+	mgr, err := notifications.NewManager(cfg, store, pubsub, defaultHelpers(), createMetrics(), logger.Named("manager"))
+	require.NoError(t, err)
+	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
+		method:                           capture,
+		database.NotificationMethodInbox: &fakeHandler{},
+	})
+	t.Cleanup(func() {
+		assert.NoError(t, mgr.Stop(ctx))
+	})
+
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	require.NoError(t, err)
+	user := createSampleUser(t, store)
+
+	// WHEN: the notification interpolates an attacker-controlled display name
+	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateUserAccountSuspended, map[string]string{
+		"suspended_account_name":      "eve",
+		"suspended_account_user_name": payload,
+		"initiator":                   "admin",
+		"account_type":                "user",
+	}, "test")
+	require.NoError(t, err)
+
+	mgr.Run(ctx)
+	_, body := capture.wait(t)
+
+	// THEN: the rendered Markdown carries no structure from the display name.
+	html := markdown.HTMLFromNotificationMarkdown(body)
+	plain, err := markdown.PlaintextFromMarkdown(body)
+	require.NoError(t, err)
+
+	for _, tag := range []string{"<a ", "<img ", "<h1", "<h2", "<h3"} {
+		require.NotContains(t, html, tag, "rendered HTML: %s", html)
+	}
+	// The attacker's text still appears, as inert text.
+	require.Contains(t, html, "URGENT: SSO certificate expiring")
+	require.Contains(t, html, "Re-authenticate now")
+	require.NotContains(t, plain, `\`, "escapes must be consumed by the renderer")
 }
