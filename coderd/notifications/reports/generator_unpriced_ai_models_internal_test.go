@@ -105,13 +105,13 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
 
 		notifEnq.Clear()
 		clk.Advance(unpricedAIModelsReportFrequency + time.Minute)
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
@@ -124,7 +124,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Len(t, notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport)), 1)
@@ -136,6 +136,19 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Empty(t, notifEnq.Sent())
 	})
 
+	t.Run("InterceptionWithoutTokenUsage_IsNotReported", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, logger, db, _, notifEnq, clk := setup(t)
+		seedOwner(t, db)
+		initiator := dbgen.User(t, db, database.User{})
+		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
+		seedInterception(t, db, initiator, provider, "mistyped-model", clk.Now())
+
+		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
+		require.Empty(t, notifEnq.Sent())
+	})
+
 	t.Run("PricedModel_IsNotReported", func(t *testing.T) {
 		t.Parallel()
 
@@ -143,7 +156,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 
 		seedPrice(ctx, t, db, "anthropic", "claude-opus-4-8")
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
@@ -158,7 +171,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		seedOwner(t, db)
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "self-hosted", database.AIProviderTypeOpenaiCompat)
-		seedInterception(t, db, initiator, provider, "llama-4", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "llama-4", clk.Now(), 100)
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
@@ -174,7 +187,7 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		member := dbgen.User(t, db, database.User{})
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-		seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 
@@ -194,12 +207,11 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 
-		// Seed the first model twice so it sorts ahead of the other models.
+		// Give the first model more token usage so it sorts ahead of the others.
 		const overflow = 5
-		seedInterception(t, db, initiator, provider, "most-used-model", clk.Now())
-		seedInterception(t, db, initiator, provider, "most-used-model", clk.Now())
+		seedUnpricedModelUsage(t, db, initiator, provider, "most-used-model", clk.Now(), 1_000)
 		for i := range unpricedAIModelsLimit + overflow - 1 {
-			seedInterception(t, db, initiator, provider, fmt.Sprintf("model-%03d", i), clk.Now())
+			seedUnpricedModelUsage(t, db, initiator, provider, fmt.Sprintf("model-%03d", i), clk.Now(), 100)
 		}
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
@@ -244,9 +256,9 @@ func seedProvider(t *testing.T, db database.Store, name string, providerType dat
 	})
 }
 
-func seedInterception(t *testing.T, db database.Store, initiator database.User, provider database.AIProvider, model string, startedAt time.Time) {
+func seedInterception(t *testing.T, db database.Store, initiator database.User, provider database.AIProvider, model string, startedAt time.Time) database.AIBridgeInterception {
 	t.Helper()
-	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+	return dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID:  initiator.ID,
 		Provider:     string(provider.Type),
 		ProviderName: provider.Name,
@@ -255,9 +267,19 @@ func seedInterception(t *testing.T, db database.Store, initiator database.User, 
 	}, nil)
 }
 
-func seedUnpricedUsage(t *testing.T, db database.Store, providerName string, providerType database.AIProviderType, model string, startedAt time.Time) {
+func seedUnpricedModelUsage(t *testing.T, db database.Store, initiator database.User, provider database.AIProvider, model string, createdAt time.Time, inputTokens int64) {
 	t.Helper()
-	seedInterception(t, db, dbgen.User(t, db, database.User{}), seedProvider(t, db, providerName, providerType), model, startedAt)
+	interception := seedInterception(t, db, initiator, provider, model, createdAt)
+	dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+		InterceptionID: interception.ID,
+		InputTokens:    inputTokens,
+		CreatedAt:      createdAt,
+	})
+}
+
+func seedUnpricedUsage(t *testing.T, db database.Store, providerName string, providerType database.AIProviderType, model string, createdAt time.Time) {
+	t.Helper()
+	seedUnpricedModelUsage(t, db, dbgen.User(t, db, database.User{}), seedProvider(t, db, providerName, providerType), model, createdAt, 100)
 }
 
 func seedPrice(ctx context.Context, t *testing.T, db database.Store, provider, model string) {
@@ -291,7 +313,7 @@ func TestReportUnpricedAIModels_ConcurrentReplicas(t *testing.T) {
 	seedOwner(t, db)
 	initiator := dbgen.User(t, db, database.User{})
 	provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
-	seedInterception(t, db, initiator, provider, "claude-opus-4-8", clk.Now())
+	seedUnpricedModelUsage(t, db, initiator, provider, "claude-opus-4-8", clk.Now(), 100)
 
 	var wg sync.WaitGroup
 	for range 2 {

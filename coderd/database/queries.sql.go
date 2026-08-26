@@ -3411,8 +3411,15 @@ const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
 SELECT
 	providers.type::text AS provider_type,
 	interceptions.model AS model,
-	COUNT(*)::bigint AS interception_count
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
 FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
 JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
 	AND providers.deleted = false
@@ -3425,13 +3432,13 @@ WHERE interceptions.started_at >= $1::timestamptz
 			AND prices.model = interceptions.model
 	)
 GROUP BY providers.type, interceptions.model
-ORDER BY interception_count DESC, provider_type ASC, model ASC
+ORDER BY token_count DESC, provider_type ASC, model ASC
 `
 
 type GetUnpricedAIModelsSinceRow struct {
-	ProviderType      string `db:"provider_type" json:"provider_type"`
-	Model             string `db:"model" json:"model"`
-	InterceptionCount int64  `db:"interception_count" json:"interception_count"`
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
 }
 
 // Returns the models used since the given time that hold no price, most used
@@ -3445,7 +3452,7 @@ func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, since time.Ti
 	var items []GetUnpricedAIModelsSinceRow
 	for rows.Next() {
 		var i GetUnpricedAIModelsSinceRow
-		if err := rows.Scan(&i.ProviderType, &i.Model, &i.InterceptionCount); err != nil {
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
