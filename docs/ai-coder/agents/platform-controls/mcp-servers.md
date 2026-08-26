@@ -197,11 +197,13 @@ Refer to [Organization scope](./organizations.md) for the organization scope of 
 
 Each server has a group and user ACL that controls which members can see and
 use it. New servers grant read access to the organization's **Everyone** group,
-so all members have access by default. Admins can remove the Everyone entry and
-grant specific groups or users instead through the API
-(`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`); there is no ACL editor
-in the settings page. ACL management is available in all editions and does not
-require an enterprise entitlement. ACL changes are recorded in the audit log.
+so all members have access by default. Members with MCP server share permission
+can open **Server actions** > **Manage permissions** to remove the Everyone
+entry and grant specific groups or users instead. They can also manage the ACL
+through the API
+(`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
+ACL management is available in all editions and does not require an enterprise
+entitlement. ACL changes are recorded in the audit log.
 
 Revoking access stops a member from newly selecting the server in any chat,
 but chats that already have the server selected keep using it, the same way

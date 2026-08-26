@@ -2,7 +2,7 @@
 
 // From codersdk/templates.go
 /**
- * ACLAvailable is a list of users and groups that can be added to a template
+ * ACLAvailable is a list of users and groups that can be added to a resource
  * ACL.
  */
 export interface ACLAvailable {
