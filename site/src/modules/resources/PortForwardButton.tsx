@@ -229,9 +229,15 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const unsharedListeningPorts = listeningPorts.filter((port) =>
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
-	const visibleListeningPorts = unsharedListeningPorts.filter((port) =>
+	const filteredListeningPorts = unsharedListeningPorts.filter((port) =>
 		port.port.toString().startsWith(portQuery),
 	);
+	const customPort = Number(portQuery);
+	const canUseCustomPort =
+		portQuery !== "" &&
+		customPort >= 9 &&
+		customPort <= 65535 &&
+		filteredListeningPorts.every((port) => port.port !== customPort);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
 		portSharingControlsEnabled && template.max_port_share_level === "owner"
@@ -327,6 +333,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								</SelectContent>
 							</Select>
 							<Combobox
+								value={portNumber || undefined}
+								onValueChange={(value) => setPortNumber(value ?? "")}
 								open={portMenuOpen}
 								onOpenChange={(open) => {
 									setPortMenuOpen(open);
@@ -345,7 +353,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									<ComboboxTrigger asChild>
 										<ComboboxButton
 											type="button"
-											aria-label="Open port picker"
+											aria-label={
+												portNumber
+													? `Connect to port ${portNumber}`
+													: "Connect to port"
+											}
 											className="h-[34px] border-0 shadow-none"
 											selectedOption={
 												portNumber
@@ -364,7 +376,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												disabled={!portNumber}
 											>
 												<ExternalLinkIcon />
-												<span className="sr-only">Connect to port</span>
+												<span className="sr-only">Open selected port</span>
 											</Button>
 										</TooltipTrigger>
 										<TooltipContent disablePortal>
@@ -387,26 +399,18 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 												setPortQuery(value);
 											}
 										}}
-										onKeyDown={(event) => {
-											if (event.key !== "Enter") {
-												return;
-											}
-											const port = Number(portQuery);
-											if (port < 9 || port > 65535) {
-												return;
-											}
-											event.preventDefault();
-											setPortNumber(portQuery);
-											setPortMenuOpen(false);
-										}}
 									/>
 									<ComboboxList>
-										{visibleListeningPorts.map((port) => (
+										{canUseCustomPort && (
+											<ComboboxItem value={portQuery} className="px-3">
+												<span>Use port {portQuery}</span>
+											</ComboboxItem>
+										)}
+										{filteredListeningPorts.map((port) => (
 											<ComboboxItem
 												key={port.port}
 												value={port.port.toString()}
 												className="px-3"
-												onSelect={() => setPortNumber(port.port.toString())}
 											>
 												<RadioIcon />
 												<span>{port.port}</span>
@@ -418,19 +422,19 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									</ComboboxList>
 									<ComboboxEmpty>
 										{portQuery
-											? "Press Enter to use this port."
+											? "Enter a port from 9 to 65535."
 											: "No open ports were detected."}
 									</ComboboxEmpty>
 								</ComboboxContent>
 							</Combobox>
 						</div>
 					</div>
-					{visibleListeningPorts.length === 0 && !portMenuOpen && (
+					{unsharedListeningPorts.length === 0 && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
 							No open ports were detected.
 						</HelpPopoverText>
 					)}
-					{visibleListeningPorts.map((port) => {
+					{unsharedListeningPorts.map((port) => {
 						const url = portForwardURL(
 							host,
 							port.port,

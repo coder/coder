@@ -45,7 +45,7 @@ export const FilterPorts: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const portTrigger = canvas.getByRole("button", {
-			name: "Open port picker",
+			name: "Connect to port",
 		});
 
 		await userEvent.click(portTrigger);
@@ -63,6 +63,7 @@ export const FilterPorts: Story = {
 
 		await userEvent.click(screen.getByRole("option", { name: /8080/ }));
 		await expect(portTrigger).toHaveTextContent("8080");
+		await expect(portTrigger).toHaveAccessibleName("Connect to port 8080");
 		await expect(canvas.getByRole("link", { name: "8080" })).toBeVisible();
 		await expect(canvas.getByRole("link", { name: "4000" })).toBeVisible();
 
@@ -73,9 +74,7 @@ export const FilterPorts: Story = {
 		await userEvent.type(customPortInput, "9999");
 
 		await expect(
-			within(screen.getByRole("dialog")).getByText(
-				"Press Enter to use this port.",
-			),
+			screen.getByRole("option", { name: "Use port 9999" }),
 		).toBeVisible();
 		await userEvent.keyboard("{Enter}");
 		await expect(portTrigger).toHaveTextContent("9999");
