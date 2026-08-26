@@ -33,12 +33,12 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				onClick?.();
 			}}
 		>
-			<TableCell className="max-w-32 min-w-10 flex-1 overflow-auto font-normal">
+			<TableCell className="max-w-32 min-w-10 flex-1 overflow-hidden font-normal">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<span className="inline-flex min-w-0 items-center">
-								<span className="hidden truncate sm:block">
+							<span className="inline-flex min-w-0 max-w-full items-center">
+								<span className="hidden min-w-0 max-w-full truncate sm:block">
 									{session.last_prompt}
 								</span>
 								<MessageSquareTextIcon
