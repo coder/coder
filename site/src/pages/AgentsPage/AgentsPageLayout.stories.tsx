@@ -1274,7 +1274,7 @@ export const SettingsViewCoderAgentsLink: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					/Configure organization model choices and deployment-wide Coder Agents capabilities/,
+					/organization model choices and deployment-wide Coder Agents capabilities/,
 				),
 			).toBeInTheDocument();
 		});
