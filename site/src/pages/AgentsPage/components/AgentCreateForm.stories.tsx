@@ -1229,7 +1229,51 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/ai/settings/models",
+			`/ai/settings/models?org=${MockDefaultOrganization.name}`,
+		);
+	},
+};
+
+export const LocalOrganizationMissingProviderAndModelSetup: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockOrganization2],
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: emptyModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	args: {
+		...defaultArgs,
+		canConfigureAgentSetup: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getAllByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				})[0],
+			).toBeVisible();
+		});
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
+			"href",
+			`/ai/settings/models?org=${MockOrganization2.name}`,
 		);
 	},
 };

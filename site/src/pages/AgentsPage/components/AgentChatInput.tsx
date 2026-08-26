@@ -57,6 +57,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
@@ -408,6 +409,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	slashCommands,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const { organizations } = useDashboard();
+	const chatOrganization = organizations.find(
+		(organization) => organization.id === chatOrganizationId,
+	);
 	const showAgentSetupNotice =
 		aiGatewayDisabled ||
 		(canConfigureAgentSetup
@@ -1074,6 +1079,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin
 							providerCount={providerCount ?? 0}
 							modelCount={modelCount ?? 0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
@@ -1082,6 +1088,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							isAdmin={false}
 							providerCount={0}
 							modelCount={0}
+							organization={chatOrganization}
 							unsupportedProviderNames={unsupportedProviderNames}
 							aiGatewayDisabled={aiGatewayDisabled}
 						/>
