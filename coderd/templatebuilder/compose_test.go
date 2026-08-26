@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestCompose(t *testing.T) {
@@ -605,15 +606,11 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 		"quickstart languages selector options must match the install script's has_language branches")
 }
 
-// TestQuickstartToolchainsPersistUnderHome guards the fix for the every-start
-// reinstall: Go, Node.js, and Java must install under $HOME (the persistent home
-// volume) instead of into the ephemeral container, so a workspace restart reuses
-// them rather than re-fetching them from the network. It asserts the system-level
-// install mechanisms this change removed do not creep back in, and that each of
-// the three toolchains still puts its bin directory under $HOME on PATH, exposed
-// both through the coder_agent env (which reaches every agent-spawned session)
-// and a ~/.profile fallback. Python and C/C++ come from the base image and Rust
-// already persists under ~/.cargo, so they are out of scope here.
+// TestQuickstartToolchainsPersistUnderHome guards the every-start reinstall fix:
+// Go, Node.js, and Java must install under $HOME (the persistent home volume)
+// and reach every session, so a restart reuses them instead of re-fetching from
+// the network. The assertions encode those invariants rather than a blocklist of
+// yesterday's strings, so reintroducing the regression another way still fails.
 func TestQuickstartToolchainsPersistUnderHome(t *testing.T) {
 	t.Parallel()
 
@@ -623,122 +620,155 @@ func TestQuickstartToolchainsPersistUnderHome(t *testing.T) {
 	require.NoError(t, err)
 	script := string(raw)
 
-	// System-level installs that landed in the ephemeral container and so
-	// re-downloaded on every start. None of these may return.
-	for _, ephemeral := range []string{
-		"/usr/local/go",                 // Go unpacked into the system prefix
-		"deb.nodesource.com",            // Node.js installed via apt
-		"apt-get install -y -qq nodejs", // Node.js installed via apt
-		"openjdk",                       // Java installed via apt
-	} {
-		require.NotContains(t, script, ephemeral,
-			"Go/Node.js/Java must persist under $HOME, not reinstall into the ephemeral container")
-	}
+	// The persistent root must be under $HOME, so moving it off the home volume
+	// (e.g. LOCAL_PREFIX="/opt/toolchains") fails here instead of slipping past a
+	// blocklist that only named the old system paths.
+	require.Contains(t, script, `LOCAL_PREFIX="$HOME/.local"`,
+		"network toolchains must root under $HOME so they persist across restarts")
 
-	// Each network toolchain must put its bin directory under the persistent home
-	// volume on PATH, so it survives a restart.
-	for _, persisted := range []string{
-		"$HOME/.local/go/bin",   // Go
-		"$HOME/.local/node/bin", // Node.js
-		"$HOME/.local/java/bin", // Java
+	// Each network toolchain must define its dir under $LOCAL_PREFIX and install
+	// into it via install_tarball. Asserting the install_tarball call (not the
+	// absence of apt) fails a swap to `apt-get install` even with flags the old
+	// blocklist never enumerated.
+	for _, tc := range []struct {
+		name   string
+		dirDef string
+	}{
+		{"NODE_DIR", `NODE_DIR="$LOCAL_PREFIX/node"`},
+		{"GO_DIR", `GO_DIR="$LOCAL_PREFIX/go"`},
+		{"JAVA_DIR", `JAVA_DIR="$LOCAL_PREFIX/java"`},
 	} {
-		require.Contains(t, script, persisted,
-			"expected the toolchain to install under the persistent home volume")
+		require.Contains(t, script, tc.dirDef,
+			"%s must be defined under $LOCAL_PREFIX", tc.name)
+		require.Regexp(t, `install_tarball\s+"[^"]+"\s+"\$`+tc.name+`"`, script,
+			"%s toolchain must install via install_tarball into $%s", tc.name, tc.name)
 	}
 
 	// PATH must reach every session, including the non-login, non-interactive
 	// shells coder ssh and remote IDEs use. The durable mechanism is the
-	// coder_agent env, which the agent applies to every session it spawns
-	// regardless of login or interactivity; ~/.profile (login shells only) is a
-	// fallback for shells the agent does not spawn. Assert the agent env carries
-	// each toolchain bin dir on PATH.
+	// coder_agent env (see main.tf). Parse the PATH value and assert each bin dir
+	// is a real ":"-separated element, so dropping one while mentioning it in a
+	// nearby comment (which a substring match would accept) fails.
 	rc := testRenderContext("quickstart")
 	mainTF, err := templatebuilder.RenderBaseTemplate("quickstart", "main.tf.tmpl", rc)
 	require.NoError(t, err)
-	require.Regexp(t, `PATH\s*=\s*"\$PATH:`, string(mainTF),
-		"coder_agent env must prepend the existing PATH")
+	pathElems := strings.Split(extractAgentEnvPATH(t, string(mainTF)), ":")
+	require.Equal(t, "$PATH", pathElems[0], "coder_agent env PATH must prepend the existing $PATH")
 	for _, binDir := range []string{
-		"$HOME/.local/go/bin",
-		"$HOME/go/bin",
-		"$HOME/.local/node/bin",
-		"$HOME/.local/java/bin",
+		"$HOME/.local/bin",      // pip install --user
+		"$HOME/.cargo/bin",      // rustup
+		"$HOME/.local/go/bin",   // Go
+		"$HOME/go/bin",          // go install targets
+		"$HOME/.local/node/bin", // Node.js
+		"$HOME/.local/java/bin", // Java
 	} {
-		require.Contains(t, string(mainTF), binDir,
-			"coder_agent env PATH must include %s so every agent session sees the toolchain", binDir)
+		require.Contains(t, pathElems, binDir,
+			"coder_agent env PATH must include %s as a path element", binDir)
 	}
 
-	// Keep a ~/.profile fallback for login shells the agent does not spawn, and
-	// do not rely on ~/.bashrc, which returns early in non-interactive shells.
-	require.Contains(t, script, "$HOME/.profile",
-		"the install script should persist PATH to ~/.profile as a login-shell fallback")
+	// JAVA_HOME goes in the same durable env, conditional on Java so it never
+	// points at a missing dir, with a ~/.profile export as the login-shell
+	// fallback.
+	require.Regexp(t, `contains\(local\.languages, "java"\)\s*\?\s*\{[^}]*JAVA_HOME\s*=\s*"\$HOME/\.local/java"`, string(mainTF),
+		"JAVA_HOME must be set in the agent env, conditional on Java being selected")
+	require.Contains(t, script, `export JAVA_HOME=$HOME/.local/java`,
+		"the install script should also persist JAVA_HOME to ~/.profile for login shells")
+
+	// The install script keeps a ~/.profile fallback and must not rely on
+	// ~/.bashrc, which returns early in non-interactive shells.
+	require.Contains(t, script, `PROFILE="$HOME/.profile"`,
+		"the install script should persist to ~/.profile as a login-shell fallback")
 	require.NotContains(t, script, ".bashrc",
 		"~/.bashrc returns early in non-interactive shells; use ~/.profile plus the agent env")
 }
 
-// TestQuickstartInstallScriptRendersValidBash renders the quickstart language
-// install template the way Terraform's templatefile() does, then syntax-checks
-// the result with `bash -n` and lints it with `shellcheck`. The .sh.tftpl
-// extension hides this base from lint/shellcheck and fmt/shfmt (both match only
-// *.sh), so without this test the script has no mechanical coverage: a template
-// edit that renders to broken shell, or a quoting/expansion defect `bash -n`
-// cannot see, would ship silently. This guards the whole file, including the
-// PATH and atomic-install logic other tests only assert on as text.
+// extractAgentEnvPATH returns the value of the PATH assignment in the rendered
+// coder_agent env block.
+func extractAgentEnvPATH(t *testing.T, mainTF string) string {
+	t.Helper()
+	m := regexp.MustCompile(`(?m)^\s*PATH\s*=\s*"([^"]*)"`).FindStringSubmatch(mainTF)
+	require.Len(t, m, 2, "expected a PATH assignment in the rendered coder_agent env")
+	return m[1]
+}
+
+// unescapedInterpolationPattern matches a Terraform ${name} interpolation that
+// is not escaped as $${name}; the char before ${ is captured and must not be $.
+var unescapedInterpolationPattern = regexp.MustCompile(`(^|[^$])\$\{([A-Za-z0-9_]+)\}`)
+
+// TestQuickstartInstallScriptRendersValidBash gives the quickstart install
+// template the mechanical coverage its .sh.tftpl extension hides from
+// lint/shellcheck and fmt/shfmt (both match only *.sh): it verifies the
+// Terraform escaping, then renders the script and checks it with `bash -n` and
+// shellcheck, guarding the whole file including the PATH and atomic-install
+// logic other tests only assert on as text.
 func TestQuickstartInstallScriptRendersValidBash(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS == "windows" {
-		t.Skip("bash is not available on Windows runners")
-	}
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not found in PATH")
-	}
 
 	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
 	require.NoError(t, err)
 	raw, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
 	require.NoError(t, err)
 
-	// Emulate Terraform templatefile(): the only interpolation token in this
-	// file is ${LANGUAGES}, and every shell brace expansion is escaped as
-	// $${...}, which Terraform unescapes to ${...}. Substitute all selectable
-	// languages so every install branch is present in the checked script.
+	// Verify the escaping on the raw template rather than emulating it: the only
+	// interpolation this file passes to templatefile() is ${LANGUAGES}, so every
+	// other ${...} must be escaped as $${...}. An unescaped ${FOO} renders fine
+	// but fails templatefile() at every workspace build, which bash -n cannot see.
+	for _, m := range unescapedInterpolationPattern.FindAllStringSubmatch(string(raw), -1) {
+		require.Equalf(t, "LANGUAGES", m[2],
+			"unescaped Terraform interpolation ${%s}; write shell brace expansions as $${%s}", m[2], m[2])
+	}
+
+	if runtime.GOOS == "windows" {
+		t.Skip("bash and shellcheck are not available on Windows runners")
+	}
+
+	// Emulate Terraform templatefile(): substitute ${LANGUAGES} with every
+	// selectable language so all install branches are present, then unescape
+	// $${ to ${.
 	rendered := strings.ReplaceAll(string(raw), "${LANGUAGES}", "python,nodejs,go,rust,java,cpp")
 	rendered = strings.ReplaceAll(rendered, "$${", "${")
 
-	cmd := exec.Command(bashPath, "-n")
-	cmd.Stdin = strings.NewReader(rendered)
-	out, err := cmd.CombinedOutput()
-	require.NoErrorf(t, err, "rendered install script failed `bash -n`:\n%s", out)
-
-	// shellcheck catches quoting and expansion defects that are valid bash
-	// syntax (so `bash -n` passes) but wrong at runtime, e.g. an unquoted
-	// expansion that word-splits. Skip when the linter is absent so the test
-	// stays hermetic on runners without it.
-	shellcheckPath, err := exec.LookPath("shellcheck")
-	if err != nil {
-		t.Skip("shellcheck not found in PATH")
-	}
-	scCmd := exec.Command(shellcheckPath, "-s", "bash", "-")
-	scCmd.Stdin = strings.NewReader(rendered)
-	scOut, err := scCmd.CombinedOutput()
-	require.NoErrorf(t, err, "rendered install script failed shellcheck:\n%s", scOut)
-}
-
-// stripHCLCommentLines drops whole-line "#" comments so a registry host left in
-// a module source is caught while the "# Module docs (public registry):
-// registry.coder.com/modules/..." links, which legitimately name the public
-// registry, are excluded by construction.
-func stripHCLCommentLines(s string) string {
-	var b strings.Builder
-	for _, line := range strings.Split(s, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "#") {
-			continue
+	t.Run("bash -n", func(t *testing.T) {
+		t.Parallel()
+		bashPath, err := exec.LookPath("bash")
+		if err != nil {
+			t.Skip("bash not found in PATH")
 		}
-		_, _ = b.WriteString(line)
-		_ = b.WriteByte('\n')
-	}
-	return b.String()
+		cmd := exec.CommandContext(t.Context(), bashPath, "-n")
+		cmd.Stdin = strings.NewReader(rendered)
+		out, err := cmd.CombinedOutput()
+		require.NoErrorf(t, err, "rendered install script failed `bash -n`:\n%s", out)
+	})
+
+	t.Run("shellcheck", func(t *testing.T) {
+		t.Parallel()
+		shellcheckPath, err := exec.LookPath("shellcheck")
+		if err != nil {
+			// shellcheck is pre-installed on the Linux CI runners (the lint job's
+			// lint/shellcheck relies on the same ambient binary), so require it
+			// there to keep this coverage from silently vanishing. It is not
+			// guaranteed on the macOS runner image, so skip rather than fail when
+			// it is absent off Linux.
+			if testutil.InCI() && runtime.GOOS == "linux" {
+				t.Fatal("shellcheck must be installed on Linux CI so this coverage cannot silently vanish")
+			}
+			t.Skip("shellcheck not found in PATH")
+		}
+		cmd := exec.CommandContext(t.Context(), shellcheckPath, "-s", "bash", "-")
+		cmd.Stdin = strings.NewReader(rendered)
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			return
+		}
+		// Distinguish a lint finding (exit 1) from a tool or launch failure (any
+		// other exit code), so a broken shellcheck invocation is not misreported
+		// as a defect in the script.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			t.Fatalf("rendered install script failed shellcheck:\n%s", out)
+		}
+		t.Fatalf("could not run shellcheck (%v):\n%s", err, out)
+	})
 }
 
 func TestRenderBaseHonorsRegistryMirror(t *testing.T) {

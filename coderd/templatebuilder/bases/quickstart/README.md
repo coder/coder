@@ -48,6 +48,8 @@ This template provisions:
 
 Files in your home directory (`/home/coder`) persist across workspace restarts, and this template installs language toolchains there so they persist too. The language install script runs on every start and blocks login until it finishes. On the first start it downloads the selected toolchains that are not already in the base image and installs them under your home directory; on later starts it detects the persisted toolchains and reuses them instead of re-downloading. Python and C/C++ ship in the base image, while Go, Node.js, Java, and Rust are installed under `/home/coder` (Rust under `~/.cargo`, the others under `~/.local`). This template assumes the deployment has internet access, since the first install fetches toolchains from the network.
 
+Because a toolchain is reused once it is installed, its version is effectively pinned to whatever the first start downloaded; later starts do not upgrade it, and the persistent home volume keeps it across rebuilds. To move a toolchain to a newer version, delete its directory (for example, `rm -rf ~/.local/go`, `~/.local/node`, or `~/.local/java`) and restart the workspace, which triggers a fresh install.
+
 ## Presets
 
 Select a preset to auto-fill languages for common workflows:

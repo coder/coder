@@ -1,28 +1,27 @@
 #!/bin/bash
-# persist_path_line writes literal $PATH/$HOME strings into ~/.profile, so those
-# arguments are intentionally single-quoted; suppress SC2016 for the whole file.
-# shellcheck disable=SC2016
 set -e
+set -o pipefail
 
 LANGUAGES="${LANGUAGES}"
 APT_UPDATED=false
 MACHINE="$(uname -m)"
 
-# Toolchains that are not baked into codercom/enterprise-base install under $HOME
-# so they persist on the home volume across workspace restarts. Only /home/coder
-# survives a restart, so a toolchain installed to the system (apt, /usr/local)
-# would be re-fetched from the network on every start and block login while it
-# reinstalls. Go, Node.js, and Java therefore install beneath $HOME/.local.
-# Their bin directories reach every workspace session two ways: the base sets
-# PATH in coder_agent.main.env (main.tf), which the agent applies to every
-# session regardless of login or interactivity (coder ssh -- cmd, IDE
-# terminals), and this script also appends them to $HOME/.profile as a fallback
-# for login shells the agent does not spawn. Python and C/C++ ship in the image,
-# and Rust already persists under $HOME/.cargo. This deployment is assumed to
-# have internet access: the first start still downloads the selected toolchains
-# once, then every later start detects and reuses the persisted copies.
+# Go, Node.js, and Java install under $HOME/.local so they persist on the home
+# volume; only /home/coder survives a restart, so a system-level install (apt,
+# /usr/local) would re-download and block login on every start. The -x guards
+# below detect a persisted toolchain and skip reinstalling it. Python and C/C++
+# ship in the base image and Rust persists under $HOME/.cargo. PATH reaches every
+# session through coder_agent.main.env (see main.tf for the owning rationale);
+# the ~/.profile writes here are only a fallback for login shells the agent does
+# not spawn. The first start downloads the selected toolchains once (this
+# deployment is assumed to have internet access).
 LOCAL_PREFIX="$HOME/.local"
 PROFILE="$HOME/.profile"
+
+fail() {
+  echo "$*" >&2
+  exit 1
+}
 
 apt_update() {
   if [ "$APT_UPDATED" = "false" ]; then
@@ -31,30 +30,47 @@ apt_update() {
   fi
 }
 
-# install_tarball URL DEST atomically installs a gzipped tarball at DEST. It
-# extracts into a sibling temp directory and moves it into place only after the
-# download and extraction both succeed, so an interrupted transfer never leaves a
-# half-populated DEST that the -x guards below would treat as already installed.
+# install_tarball URL DEST SHA256 atomically installs a gzipped tarball at DEST.
+# It downloads to a temp file, verifies the sha256 before unpacking (so a
+# truncated or tampered archive is never extracted), unpacks into a sibling temp
+# directory, and moves it into place only on success, so an interrupted install
+# never leaves a half-populated DEST the -x guards would treat as installed.
 # Every tarball here has a single top-level directory, so strip it.
 install_tarball() {
   local url="$1"
   local dest="$2"
+  local sha="$3"
   local tmp="$dest.tmp"
-  rm -rf "$tmp"
+  local archive="$dest.download"
+  mkdir -p "$(dirname "$dest")"
+  rm -rf "$tmp" "$archive"
+  curl -fsSL --retry 3 --retry-connrefused --retry-delay 2 -o "$archive" "$url" \
+    || fail "download failed: $url"
+  echo "$sha  $archive" | sha256sum -c - >/dev/null 2>&1 \
+    || fail "checksum mismatch for $url"
   mkdir -p "$tmp"
-  curl -fsSL "$url" | tar -C "$tmp" --strip-components=1 -xz
+  tar -C "$tmp" --strip-components=1 -xzf "$archive"
+  rm -f "$archive"
   rm -rf "$dest"
   mv "$tmp" "$dest"
 }
 
-# persist_path_line appends LINE to $HOME/.profile unless it is already present,
-# so the edit persists across restarts without being duplicated on every start.
-# ~/.profile is read by login shells only; coder_agent.main.env (main.tf) is what
-# carries PATH into the non-login, non-interactive sessions coder ssh and remote
-# IDEs use, so this write is a fallback for login shells the agent does not spawn.
-persist_path_line() {
+# persist_profile_line appends LINE to ~/.profile unless it is already present,
+# so the edit survives restarts without duplicating. ~/.profile is the
+# login-shell-only fallback; the durable PATH mechanism is coder_agent.main.env
+# (see main.tf).
+persist_profile_line() {
   local line="$1"
-  grep -qxF "$line" "$PROFILE" 2>/dev/null || echo "$line" >>"$PROFILE"
+  if grep -qxF "$line" "$PROFILE" 2>/dev/null; then
+    return 0
+  fi
+  # Guarantee a trailing newline before appending. ~/.profile lives on the
+  # user-owned home volume; an editor that strips the final newline would
+  # otherwise concatenate onto the last line and corrupt the file.
+  if [ -s "$PROFILE" ] && [ -n "$(tail -c1 "$PROFILE")" ]; then
+    echo >>"$PROFILE"
+  fi
+  echo "$line" >>"$PROFILE"
 }
 
 # has_language reports whether NAME is one of the selected languages. It matches
@@ -79,48 +95,65 @@ if has_language python; then
 fi
 
 if has_language nodejs; then
-  NODE_HOME="$LOCAL_PREFIX/node"
-  if [ -x "$NODE_HOME/bin/node" ]; then
-    echo "Node.js: $("$NODE_HOME/bin/node" --version)"
+  NODE_DIR="$LOCAL_PREFIX/node"
+  if [ -x "$NODE_DIR/bin/node" ]; then
+    echo "Node.js: $("$NODE_DIR/bin/node" --version)"
   else
     echo "Installing Node.js 22..."
     case "$MACHINE" in
       x86_64)  NODE_ARCH="x64" ;;
       aarch64) NODE_ARCH="arm64" ;;
-      *)       echo "Unsupported architecture: $MACHINE"; exit 1 ;;
+      *)       fail "Unsupported architecture: $MACHINE" ;;
     esac
-    # The latest-v22.x directory always holds the newest 22.x release; read its
-    # checksum manifest to resolve the exact tarball name for this architecture.
-    NODE_FILE="$(curl -fsSL "https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt" \
-      | grep -o "node-v[0-9.]*-linux-$${NODE_ARCH}.tar.gz" | head -1)"
-    if [ -z "$NODE_FILE" ]; then
-      echo "Could not resolve a Node.js 22 build for $MACHINE"; exit 1
-    fi
-    install_tarball "https://nodejs.org/dist/latest-v22.x/$${NODE_FILE}" "$NODE_HOME"
-    echo "Installed Node.js: $("$NODE_HOME/bin/node" --version)"
+    # Read the checksum manifest for the newest 22.x release to resolve the exact
+    # tarball name and its sha256, then download from the immutable per-version
+    # directory (not the moving latest-v22.x alias) so a release published
+    # between the two requests cannot 404 the download.
+    node_manifest="$(curl -fsSL --retry 3 --retry-connrefused --retry-delay 2 \
+      "https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt")" \
+      || fail "could not reach nodejs.org to resolve a Node.js 22 build; check this workspace's internet access"
+    NODE_FILE="$(grep -om1 "node-v[0-9.]*-linux-$${NODE_ARCH}.tar.gz" <<<"$node_manifest")" || true
+    [ -n "$NODE_FILE" ] || fail "Could not resolve a Node.js 22 build for $MACHINE"
+    NODE_SHA="$(awk -v f="$NODE_FILE" '$2 == f { print $1 }' <<<"$node_manifest")"
+    [ -n "$NODE_SHA" ] || fail "Could not resolve the Node.js checksum for $NODE_FILE"
+    NODE_VER="$${NODE_FILE#node-}"
+    NODE_VER="$${NODE_VER%%-*}"
+    install_tarball "https://nodejs.org/dist/$${NODE_VER}/$${NODE_FILE}" "$NODE_DIR" "$NODE_SHA"
+    echo "Installed Node.js: $("$NODE_DIR/bin/node" --version)"
   fi
-  persist_path_line 'export PATH=$PATH:$HOME/.local/node/bin'
+  # shellcheck disable=SC2016 # literal $PATH/$HOME expand in ~/.profile at login, not here
+  persist_profile_line 'case ":$PATH:" in *":$HOME/.local/node/bin:"*) ;; *) export PATH="$PATH:$HOME/.local/node/bin" ;; esac'
 fi
 
 if has_language go; then
-  GO_BIN="$LOCAL_PREFIX/go/bin/go"
-  if [ -x "$GO_BIN" ]; then
-    echo "Go: $("$GO_BIN" version)"
+  GO_DIR="$LOCAL_PREFIX/go"
+  if [ -x "$GO_DIR/bin/go" ]; then
+    echo "Go: $("$GO_DIR/bin/go" version)"
   else
     echo "Installing Go..."
     case "$MACHINE" in
       x86_64)  GOARCH="amd64" ;;
       aarch64) GOARCH="arm64" ;;
-      *)       echo "Unsupported architecture: $MACHINE"; exit 1 ;;
+      *)       fail "Unsupported architecture: $MACHINE" ;;
     esac
-    GO_VERSION="$(curl -fsSL "https://go.dev/VERSION?m=text" | head -1)"
-    if [ -z "$GO_VERSION" ]; then
-      echo "Could not resolve the latest Go version"; exit 1
-    fi
-    install_tarball "https://go.dev/dl/$${GO_VERSION}.linux-$${GOARCH}.tar.gz" "$LOCAL_PREFIX/go"
-    echo "Installed Go: $("$GO_BIN" version)"
+    go_version_raw="$(curl -fsSL --retry 3 --retry-connrefused --retry-delay 2 \
+      "https://go.dev/VERSION?m=text")" \
+      || fail "could not reach go.dev to resolve the latest Go version; check this workspace's internet access"
+    GO_VERSION="$(head -1 <<<"$go_version_raw")"
+    [ -n "$GO_VERSION" ] || fail "Could not resolve the latest Go version"
+    # go.dev/dl serves an immutable per-version tarball and publishes its sha256
+    # in the release index, so verify against that rather than trusting TLS alone.
+    go_index="$(curl -fsSL --retry 3 --retry-connrefused --retry-delay 2 \
+      "https://go.dev/dl/?mode=json")" \
+      || fail "could not reach go.dev to resolve the Go checksum; check this workspace's internet access"
+    GO_SHA="$(jq -r --arg v "$GO_VERSION" --arg f "$${GO_VERSION}.linux-$${GOARCH}.tar.gz" \
+      '.[] | select(.version == $v) | .files[] | select(.filename == $f) | .sha256' <<<"$go_index")"
+    [ -n "$GO_SHA" ] || fail "Could not resolve the Go checksum for $GO_VERSION ($GOARCH)"
+    install_tarball "https://go.dev/dl/$${GO_VERSION}.linux-$${GOARCH}.tar.gz" "$GO_DIR" "$GO_SHA"
+    echo "Installed Go: $("$GO_DIR/bin/go" version)"
   fi
-  persist_path_line 'export PATH=$PATH:$HOME/.local/go/bin:$HOME/go/bin'
+  # shellcheck disable=SC2016 # literal $PATH/$HOME expand in ~/.profile at login, not here
+  persist_profile_line 'case ":$PATH:" in *":$HOME/.local/go/bin:"*) ;; *) export PATH="$PATH:$HOME/.local/go/bin:$HOME/go/bin" ;; esac'
 fi
 
 if has_language rust; then
@@ -136,21 +169,31 @@ if has_language rust; then
 fi
 
 if has_language java; then
-  JAVA_HOME_DIR="$LOCAL_PREFIX/java"
-  if [ -x "$JAVA_HOME_DIR/bin/java" ]; then
-    echo "Java: $("$JAVA_HOME_DIR/bin/java" --version 2>&1 | head -1)"
+  JAVA_DIR="$LOCAL_PREFIX/java"
+  if [ -x "$JAVA_DIR/bin/java" ]; then
+    echo "Java: $("$JAVA_DIR/bin/java" --version 2>&1 | head -1)"
   else
     echo "Installing Java (Temurin 21)..."
     case "$MACHINE" in
       x86_64)  JAVA_ARCH="x64" ;;
       aarch64) JAVA_ARCH="aarch64" ;;
-      *)       echo "Unsupported architecture: $MACHINE"; exit 1 ;;
+      *)       fail "Unsupported architecture: $MACHINE" ;;
     esac
-    install_tarball "https://api.adoptium.net/v3/binary/latest/21/ga/linux/$${JAVA_ARCH}/jdk/hotspot/normal/eclipse" "$JAVA_HOME_DIR"
-    echo "Installed Java: $("$JAVA_HOME_DIR/bin/java" --version 2>&1 | head -1)"
+    # The Adoptium assets API returns the download link and its sha256 in one
+    # response, so the tarball and its checksum come from the same source.
+    java_asset="$(curl -fsSL --retry 3 --retry-connrefused --retry-delay 2 \
+      "https://api.adoptium.net/v3/assets/latest/21/hotspot?os=linux&architecture=$${JAVA_ARCH}&image_type=jdk&vendor=eclipse")" \
+      || fail "could not reach api.adoptium.net to resolve the Temurin 21 build; check this workspace's internet access"
+    JAVA_URL="$(jq -r '.[0].binary.package.link // empty' <<<"$java_asset")"
+    JAVA_SHA="$(jq -r '.[0].binary.package.checksum // empty' <<<"$java_asset")"
+    { [ -n "$JAVA_URL" ] && [ -n "$JAVA_SHA" ]; } || fail "Could not resolve a Temurin 21 build for $MACHINE"
+    install_tarball "$JAVA_URL" "$JAVA_DIR" "$JAVA_SHA"
+    echo "Installed Java: $("$JAVA_DIR/bin/java" --version 2>&1 | head -1)"
   fi
-  persist_path_line 'export JAVA_HOME=$HOME/.local/java'
-  persist_path_line 'export PATH=$PATH:$HOME/.local/java/bin'
+  # shellcheck disable=SC2016 # literal $HOME expands in ~/.profile at login, not here
+  persist_profile_line 'export JAVA_HOME=$HOME/.local/java'
+  # shellcheck disable=SC2016 # literal $PATH/$HOME expand in ~/.profile at login, not here
+  persist_profile_line 'case ":$PATH:" in *":$HOME/.local/java/bin:"*) ;; *) export PATH="$PATH:$HOME/.local/java/bin" ;; esac'
 fi
 
 if has_language cpp; then
