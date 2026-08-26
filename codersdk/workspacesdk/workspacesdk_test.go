@@ -2,6 +2,7 @@ package workspacesdk_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -143,4 +144,89 @@ type fakeResolver struct {
 func (f *fakeResolver) LookupIP(_ context.Context, network, host string) ([]net.IP, error) {
 	assert.Equal(f.t, "ip6", network)
 	return f.hostMap[host], f.err
+}
+
+// TestFileEdit_MarshalEmitsDeprecatedKeys pins the coderd->agent
+// wire compatibility: the request JSON must keep carrying the
+// pre-rename search/replace keys so running agents on older versions
+// decode edits while coderd upgrades first.
+func TestFileEdit_MarshalEmitsDeprecatedKeys(t *testing.T) {
+	t.Parallel()
+
+	edit := workspacesdk.FileEdit{OldText: "old", NewText: "new", ReplaceAll: true}
+	data, err := json.Marshal(edit)
+	require.NoError(t, err)
+
+	// The pre-rename FileEdit shape an old agent decodes into.
+	var oldAgent struct {
+		Search     string `json:"search"`
+		Replace    string `json:"replace"`
+		ReplaceAll bool   `json:"replace_all"`
+	}
+	require.NoError(t, json.Unmarshal(data, &oldAgent))
+	require.Equal(t, "old", oldAgent.Search)
+	require.Equal(t, "new", oldAgent.Replace)
+	require.True(t, oldAgent.ReplaceAll)
+
+	// The new decode path sees the same values.
+	var round workspacesdk.FileEdit
+	require.NoError(t, json.Unmarshal(data, &round))
+	require.Equal(t, edit, round)
+}
+
+// TestFileEdit_UnmarshalAcceptsDeprecatedKeys pins the decode side
+// of FileEdit's deprecated-key fallback.
+func TestFileEdit_UnmarshalAcceptsDeprecatedKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want workspacesdk.FileEdit
+	}{
+		{
+			name: "OldKeysOnly",
+			in:   `{"search":"old","replace":"new"}`,
+			want: workspacesdk.FileEdit{OldText: "old", NewText: "new"},
+		},
+		{
+			name: "OldKeysWithReplaceAll",
+			in:   `{"search":"old","replace":"new","replace_all":true}`,
+			want: workspacesdk.FileEdit{OldText: "old", NewText: "new", ReplaceAll: true},
+		},
+		{
+			name: "NewKeysWinWhenSet",
+			in:   `{"old_text":"o","new_text":"n","search":"old","replace":"legacy"}`,
+			want: workspacesdk.FileEdit{OldText: "o", NewText: "n"},
+		},
+		{
+			name: "ExplicitEmptyNewTextPreserved",
+			in:   `{"old_text":"o","new_text":"","search":"old","replace":"legacy"}`,
+			want: workspacesdk.FileEdit{OldText: "o", NewText: ""},
+		},
+		{
+			name: "OldKeysDeletion",
+			in:   `{"search":"old","replace":""}`,
+			want: workspacesdk.FileEdit{OldText: "old", NewText: ""},
+		},
+		{
+			name: "CaseVariantsRejected",
+			in:   `{"SEARCH":"old","REPLACE":"new"}`,
+			want: workspacesdk.FileEdit{},
+		},
+		{
+			name: "ExactKeyWinsOverCaseVariant",
+			in:   `{"search":"old","SEARCH":"evil","replace":"new"}`,
+			want: workspacesdk.FileEdit{OldText: "old", NewText: "new"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got workspacesdk.FileEdit
+			require.NoError(t, json.Unmarshal([]byte(tt.in), &got))
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

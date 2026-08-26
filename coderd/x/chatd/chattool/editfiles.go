@@ -2,7 +2,6 @@ package chattool
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -25,73 +24,16 @@ type EditFilesArgs struct {
 }
 
 type editFileEdits struct {
-	Path  string         `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
-	Edits []editFileEdit `json:"edits" description:"Search and replace operations applied to this file in order."`
-}
-
-// editFileEdit uses "old_text"/"new_text" instead of "search"/"replace"
-// because models confused the direction (CODAGT-312). Deprecated
-// "search"/"replace" accepted via UnmarshalJSON; toSDKFiles maps back
-// to "search"/"replace" for agent/agentfiles.
-type editFileEdit struct {
-	OldText    string `json:"old_text" description:"Existing text in the file to replace. Matching is fuzzy: whitespace and indentation differences are tolerated."`
-	NewText    string `json:"new_text" description:"Text that replaces old_text."`
-	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text instead of erroring when it matches more than once."`
-}
-
-// UnmarshalJSON falls back to deprecated "search"/"replace" when
-// "old_text"/"new_text" are empty.
-func (e *editFileEdit) UnmarshalJSON(data []byte) error {
-	var raw struct {
-		OldText    string `json:"old_text"`
-		NewText    string `json:"new_text"`
-		ReplaceAll bool   `json:"replace_all"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	e.OldText = raw.OldText
-	e.NewText = raw.NewText
-	e.ReplaceAll = raw.ReplaceAll
-	if e.OldText != "" && e.NewText != "" {
-		return nil
-	}
-	// The aliases are absent from the advertised schema, so tool-input
-	// validation cannot reject case variants of them the way it does for
-	// declared properties. Matching them exactly keeps the keys this
-	// decoder reads identical to the ones a policy sees.
-	var exact map[string]json.RawMessage
-	if err := json.Unmarshal(data, &exact); err != nil {
-		return err
-	}
-	if err := decodeAlias(exact, "search", &e.OldText); err != nil {
-		return err
-	}
-	return decodeAlias(exact, "replace", &e.NewText)
-}
-
-func decodeAlias(raw map[string]json.RawMessage, key string, target *string) error {
-	value, present := raw[key]
-	if *target != "" || !present {
-		return nil
-	}
-	return json.Unmarshal(value, target)
+	Path  string                  `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
+	Edits []workspacesdk.FileEdit `json:"edits" description:"Edits that replace old text with new text, applied to this file in order."`
 }
 
 func (a EditFilesArgs) toSDKFiles() []workspacesdk.FileEdits {
 	files := make([]workspacesdk.FileEdits, len(a.Files))
 	for i, f := range a.Files {
-		edits := make([]workspacesdk.FileEdit, len(f.Edits))
-		for j, e := range f.Edits {
-			edits[j] = workspacesdk.FileEdit{
-				Search:     e.OldText,
-				Replace:    e.NewText,
-				ReplaceAll: e.ReplaceAll,
-			}
-		}
 		files[i] = workspacesdk.FileEdits{
 			Path:  f.Path,
-			Edits: edits,
+			Edits: f.Edits,
 		}
 	}
 	return files

@@ -1179,10 +1179,67 @@ func DefaultReadFileLinesLimits() ReadFileLinesLimits {
 	}
 }
 
+// FileEdit is a single old_text -> new_text replacement applied
+// to one file. The fields use old_text/new_text instead of the
+// earlier search/replace because models confused the direction
+// (CODAGT-312). MarshalJSON and UnmarshalJSON keep the deprecated
+// search/replace keys on the wire for rollout compatibility; remove
+// both in the first release after Coder Agents GA (2026-09)
+// (CODAGT-483).
 type FileEdit struct {
-	Search     string `json:"search"`
-	Replace    string `json:"replace"`
-	ReplaceAll bool   `json:"replace_all,omitempty"`
+	OldText    string `json:"old_text" description:"Existing text in the file to replace. Matching is fuzzy: whitespace and indentation differences are tolerated."`
+	NewText    string `json:"new_text" description:"Text that replaces old_text."`
+	ReplaceAll bool   `json:"replace_all,omitempty" description:"Replace every match of old_text instead of erroring when it matches more than once."`
+}
+
+// MarshalJSON emits both the current and the deprecated
+// "search"/"replace" keys so agents that predate the rename keep
+// decoding the request while coderd upgrades ahead of running
+// workspaces.
+func (e FileEdit) MarshalJSON() ([]byte, error) {
+	type wire FileEdit
+	return json.Marshal(struct {
+		wire
+		Search  string `json:"search"`
+		Replace string `json:"replace"`
+	}{wire: wire(e), Search: e.OldText, Replace: e.NewText})
+}
+
+// UnmarshalJSON accepts the deprecated "search"/"replace" keys so
+// callers that predate the rename keep working. The fallback applies
+// only when both new fields are empty, which identifies an old-wire
+// caller; if either new field is set, an explicitly empty value
+// (e.g. new_text="" for a deletion) is preserved.
+//
+// The deprecated keys are matched exactly through a raw key map,
+// never folded case-insensitively as struct tags would: the keys
+// this decoder reads must stay identical to the keys a pre_tool_use
+// policy sees, which toolschema.ValidateUnambiguous cannot guarantee
+// for undeclared keys.
+func (e *FileEdit) UnmarshalJSON(data []byte) error {
+	type wire FileEdit
+	var w wire
+	if err := json.Unmarshal(data, &w); err != nil {
+		return err
+	}
+	*e = FileEdit(w)
+	if e.OldText == "" && e.NewText == "" {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return err
+		}
+		if v, ok := raw["search"]; ok {
+			if err := json.Unmarshal(v, &e.OldText); err != nil {
+				return err
+			}
+		}
+		if v, ok := raw["replace"]; ok {
+			if err := json.Unmarshal(v, &e.NewText); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 type FileEdits struct {
@@ -1370,7 +1427,7 @@ func (c *agentConn) SignalProcess(ctx context.Context, id string, signal string)
 	return nil
 }
 
-// EditFiles performs search and replace edits on one or more files.
+// EditFiles replaces old_text with new_text on one or more files.
 // When edits.IncludeDiff is true, the returned FileEditResponse
 // carries a unified diff per edited file.
 func (c *agentConn) EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error) {
