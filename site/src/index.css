@@ -7,6 +7,12 @@
 
 @config "../tailwind.config.js";
 
+/* Preserve Tailwind CSS v3's default ring color and width. */
+@theme {
+	--default-ring-color: rgb(59 130 246 / 0.5);
+	--default-ring-width: 3px;
+}
+
 /* Preserve Tailwind CSS v3 hover behavior on all pointer types. */
 @custom-variant hover (&:hover);
 

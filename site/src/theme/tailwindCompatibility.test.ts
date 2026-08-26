@@ -98,6 +98,33 @@ describe("Tailwind CSS compatibility", () => {
 		}
 	});
 
+	it("preserves Tailwind v3's default ring color and width", async () => {
+		const cssPath = path.resolve(__dirname, "../index.css");
+		const source = `${fs.readFileSync(cssPath, "utf8")}\n@source inline("ring ring-2");`;
+		const result = await postcss([tailwindcss()]).process(source, {
+			from: cssPath,
+		});
+		const root = postcss.parse(result.css);
+		const ringShadows = new Map<string, string>();
+		const ringSelectors = new Set([".ring", ".ring-2"]);
+
+		root.walkRules((rule) => {
+			if (!ringSelectors.has(rule.selector)) {
+				return;
+			}
+			rule.walkDecls("--tw-ring-shadow", (declaration) => {
+				ringShadows.set(rule.selector, declaration.value);
+			});
+		});
+
+		expect(ringShadows.get(".ring")).toContain(
+			"calc(3px + var(--tw-ring-offset-width))",
+		);
+		expect(ringShadows.get(".ring-2")).toContain(
+			"var(--tw-ring-color, rgb(59 130 246 / 0.5))",
+		);
+	});
+
 	it("keeps hover variants outside Tailwind v4's pointer media query", async () => {
 		const cssPath = path.resolve(__dirname, "../index.css");
 		const source = fs.readFileSync(cssPath, "utf8");
