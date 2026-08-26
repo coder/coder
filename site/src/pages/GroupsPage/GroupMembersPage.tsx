@@ -239,7 +239,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	onRemove,
 }) => {
 	const budgetFromOtherOrganization =
-		effectiveBudgetGroup(member.spend, group).kind === "otherOrganization";
+		effectiveBudgetGroup(member.spend, group).kind === "otherOrg";
 
 	return (
 		<TableRow key={member.id}>

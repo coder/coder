@@ -18,7 +18,7 @@ describe("effectiveBudgetGroup", () => {
 
 	it("is other organization when the effective group is masked", () => {
 		expect(effectiveBudgetGroup(mockSpend, group)).toEqual({
-			kind: "otherOrganization",
+			kind: "otherOrg",
 		});
 	});
 
@@ -55,6 +55,6 @@ describe("effectiveBudgetGroup", () => {
 				{ ...mockSpend, effective_group_id: "group-2" },
 				group,
 			),
-		).toEqual({ kind: "other" });
+		).toEqual({ kind: "otherGroup" });
 	});
 });

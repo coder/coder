@@ -26,7 +26,7 @@ export const GroupMemberBudgetCells: FC<{
 	spend: GroupMemberAISpend | undefined;
 }> = ({ group, userID, spend }) => {
 	const effective = effectiveBudgetGroup(spend, group);
-	const fromOtherGroup = effective.kind === "other";
+	const fromOtherGroup = effective.kind === "otherGroup";
 
 	// A null effective_group_id is a group in another org that can't be
 	// fetched, so only resolve the name when an ID exists.
@@ -64,7 +64,7 @@ export const GroupMemberBudgetCells: FC<{
 		case "this":
 			budgetGroup = <Badge size="sm">{badgeName(groupName)}</Badge>;
 			break;
-		case "other":
+		case "otherGroup":
 			// Wait for the name to resolve rather than flashing the fallback.
 			if (isResolvingGroupName) {
 				budgetGroup = <Spinner loading size="sm" />;
@@ -76,7 +76,7 @@ export const GroupMemberBudgetCells: FC<{
 				);
 			}
 			break;
-		case "otherOrganization":
+		case "otherOrg":
 			budgetGroup = (
 				<LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />
 			);
@@ -84,9 +84,9 @@ export const GroupMemberBudgetCells: FC<{
 	}
 
 	let budget: ReactNode = EM_DASH;
-	if (spend && effective.kind === "otherOrganization") {
+	if (spend && effective.kind === "otherOrg") {
 		budget = <LabelWithInfo label={EM_DASH} message={OTHER_ORG_MESSAGE} />;
-	} else if (spend && effective.kind === "other") {
+	} else if (spend && effective.kind === "otherGroup") {
 		if (isResolvingGroupName) {
 			budget = <Spinner loading size="sm" />;
 		} else if (effectiveGroupName) {
@@ -173,8 +173,8 @@ type EffectiveBudgetGroup =
 	| { kind: "none" }
 	| { kind: "everyone" }
 	| { kind: "this" }
-	| { kind: "other" }
-	| { kind: "otherOrganization" };
+	| { kind: "otherGroup" }
+	| { kind: "otherOrg" };
 
 /**
  * Resolves which group governs a member's AI budget:
@@ -182,8 +182,8 @@ type EffectiveBudgetGroup =
  * - "none": spend data is not loaded.
  * - "everyone": the Everyone group governs the budget.
  * - "this": the viewed group governs the budget.
- * - "other": another group in this organization governs the budget.
- * - "otherOrganization": a group in another organization governs the budget.
+ * - "otherGroup": another group in this organization governs the budget.
+ * - "otherOrg": a group in another organization governs the budget.
  */
 export function effectiveBudgetGroup(
 	spend: GroupMemberAISpend | undefined,
@@ -191,9 +191,7 @@ export function effectiveBudgetGroup(
 ): EffectiveBudgetGroup {
 	const groupId = spend?.effective_group_id ?? null;
 	if (groupId === null) {
-		return spend === undefined
-			? { kind: "none" }
-			: { kind: "otherOrganization" };
+		return spend === undefined ? { kind: "none" } : { kind: "otherOrg" };
 	}
 	// Everyone shares the org's id; checked first so it wins when the viewed
 	// group is Everyone itself.
@@ -203,7 +201,7 @@ export function effectiveBudgetGroup(
 	if (groupId === group.id) {
 		return { kind: "this" };
 	}
-	return { kind: "other" };
+	return { kind: "otherGroup" };
 }
 
 const LabelWithInfo: FC<{ label: ReactNode; message: ReactNode }> = ({
