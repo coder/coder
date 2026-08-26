@@ -1767,8 +1767,11 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// TODO: Replace this with "GetAuthorizationUserRoles"
+	// Stored role arrays may retain retired built-in role names until a
+	// cleanup migration lands. Hide them so consumers do not display or
+	// resubmit them.
 	resp := codersdk.UserRoles{
-		Roles:             user.RBACRoles,
+		Roles:             slices.DeleteFunc(slices.Clone(user.RBACRoles), rbac.IsRetiredRoleName),
 		OrganizationRoles: make(map[uuid.UUID][]string),
 	}
 
@@ -1787,7 +1790,7 @@ func (api *API) userRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, mem := range memberships {
-		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = mem.OrganizationMember.Roles
+		resp.OrganizationRoles[mem.OrganizationMember.OrganizationID] = slices.DeleteFunc(slices.Clone(mem.OrganizationMember.Roles), rbac.IsRetiredRoleName)
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

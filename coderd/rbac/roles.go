@@ -343,14 +343,17 @@ type RoleOptions struct {
 // retiredRoleNames contains retired built-in role names. They stay reserved so
 // a custom role cannot take a name that older binaries still resolve as a
 // built-in role, which would silently shadow the custom permissions on
-// rollback.
+// rollback. Role expansion and assignment validation keep treating retired
+// names as grants of nothing so a pre-reservation custom role with the same
+// name cannot be granted or activated again.
 var retiredRoleNames = map[string]struct{}{
 	"agents-access": {},
 }
 
-// IsRetiredRoleName reports whether name is a retired built-in role name. It
-// is reserved against creation and updates, but a custom role that took the
-// name before it was reserved must remain deletable.
+// IsRetiredRoleName reports whether name is a retired built-in role name.
+// Retired names are reserved against creation and updates and are excluded
+// from assignment and expansion; a custom role that took the name before it
+// was reserved remains deletable.
 func IsRetiredRoleName(name string) bool {
 	_, ok := retiredRoleNames[name]
 	return ok
@@ -987,6 +990,12 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
+		if IsRetiredRoleName(n.Name) {
+			// Retired role names grant nothing and cannot be re-created as
+			// custom roles, so stale stored grants are dropped instead of
+			// failing expansion.
+			continue
+		}
 		r, err := RoleByName(n)
 		if err != nil {
 			return nil, xerrors.Errorf("get role permissions: %w", err)
