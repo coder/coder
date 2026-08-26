@@ -286,7 +286,7 @@ export const useFilterCombobox = ({
 		typeaheadQuerySource.length > 0 &&
 		typeaheadQuerySource !== debouncedTypeaheadQuery;
 
-	const suggestionQueries = useQueries({
+	const suggestionOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
 				category.key,
@@ -297,19 +297,33 @@ export const useFilterCombobox = ({
 					isBrowsing,
 			),
 		),
+		// Derive the per-category map and loading/error flags through `combine` so
+		// react-query's structural sharing drives recomputation, instead of the
+		// fresh array wrapper `useQueries` returns each render.
+		combine: (results) => {
+			const optionsByKey = new Map<string, readonly FilterOption[]>();
+			results.forEach((result, index) => {
+				if (result.data) {
+					optionsByKey.set(categories[index].key, result.data);
+				}
+			});
+			return {
+				optionsByKey,
+				isError: results.some((result) => result.isError),
+				// A not-yet-loaded (but not errored) query counts as fetching so the
+				// popup keeps a spinner rather than flashing an empty section.
+				isFetching: results.some(
+					(result) =>
+						result.isFetching || (!result.isError && result.data === undefined),
+				),
+				refetch: () => {
+					for (const result of results) {
+						void result.refetch();
+					}
+				},
+			};
+		},
 	});
-
-	// react-query keeps each query's `data` reference stable between renders,
-	// but useQueries returns a fresh array wrapper every render, so memoizing
-	// on it never hits. The map is tiny (a handful of categories), so build it
-	// directly instead of pretending to memoize.
-	const optionsByKey = new Map<string, readonly FilterOption[]>();
-	for (const [index, category] of categories.entries()) {
-		const options = suggestionQueries[index]?.data;
-		if (options) {
-			optionsByKey.set(category.key, options);
-		}
-	}
 
 	const valueSuggestions =
 		activeCategoryKey !== null || !isBrowsing
@@ -317,26 +331,20 @@ export const useFilterCombobox = ({
 			: collectValueSuggestions(
 					inputValue,
 					categories,
-					optionsByKey,
+					suggestionOptions.optionsByKey,
 					chipValues,
 				);
 
 	// A rejected suggestion query must not leave the popup spinning forever;
 	// treat an error as "done loading" and surface it instead.
 	const suggestionsError =
-		activeCategoryKey === null &&
-		isBrowsing &&
-		suggestionQueries.some((query) => query.isError);
+		activeCategoryKey === null && isBrowsing && suggestionOptions.isError;
 	const valueSuggestionsLoading =
 		activeCategoryKey === null &&
 		isBrowsing &&
 		inputValue.trim().length > 0 &&
 		!suggestionsError &&
-		(typeaheadQueryPending ||
-			suggestionQueries.some(
-				(query) =>
-					query.isFetching || (!query.isError && query.data === undefined),
-			));
+		(typeaheadQueryPending || suggestionOptions.isFetching);
 
 	const searchResultsQuery = useQuery(
 		filterComboboxSearchResults(
@@ -414,9 +422,7 @@ export const useFilterCombobox = ({
 	// Refetch both typeahead sources so one retry covers a failed suggestion
 	// lookup and a failed workspace preview.
 	const retryTypeahead = () => {
-		for (const query of suggestionQueries) {
-			void query.refetch();
-		}
+		suggestionOptions.refetch();
 		void searchResultsQuery.refetch();
 	};
 
