@@ -21658,13 +21658,21 @@
 		"codersdk.GroupMemberAISpend": {
 			"type": "object",
 			"properties": {
+				"effective_budget": {
+					"description": "EffectiveBudget is the spend limit that currently applies to the user.\nNull when no budget applies or the effective group belongs to a different\norganization than the queried group.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIBudgetLimit"
+						}
+					]
+				},
 				"effective_group_id": {
 					"description": "EffectiveGroupID is the user's effective budget group within the queried\ngroup's organization, falling back to the Everyone group when no budget\napplies. Null when the effective group belongs to a different organization\nthan the queried group.",
 					"type": "string",
 					"format": "uuid"
 				},
 				"group_budget": {
-					"description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. Null when the user's budget resolves to another\ngroup or no budget applies to the user.",
+					"description": "GroupBudget is the budget when the queried group is this user's\neffective budget source. When populated, it matches EffectiveBudget. Null\nwhen the user's budget resolves to another group or no budget applies.\nDeprecated: Use EffectiveBudget instead.",
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.AIBudgetLimit"

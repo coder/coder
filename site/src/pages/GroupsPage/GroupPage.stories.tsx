@@ -335,6 +335,10 @@ export const FiltersByMembers: Story = {
 const mockSpend: GroupMemberAISpend = {
 	user_id: "",
 	effective_group_id: MockGroupWithoutMembers.id,
+	effective_budget: {
+		spend_limit_micros: 9_000_000_000,
+		limit_source: "group",
+	},
 	group_budget: { spend_limit_micros: 9_000_000_000, limit_source: "group" },
 	group_spend_micros: 1_345_000_000,
 };
@@ -508,6 +512,7 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 					...mockSpend,
 					user_id: MockUserOwner.id,
 					effective_group_id: null,
+					effective_budget: null,
 					group_budget: null,
 				},
 			]),
@@ -565,6 +570,10 @@ const mockOwnerSpend: GroupMemberAISpend = {
 
 const mockOwnerOverrideSpend: GroupMemberAISpend = {
 	...mockOwnerSpend,
+	effective_budget: {
+		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
+		limit_source: "user_override",
+	},
 	group_budget: {
 		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
 		limit_source: "user_override",
@@ -828,6 +837,7 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-none",
+		effective_budget: { spend_limit_micros: 0, limit_source: "group" },
 		group_budget: { spend_limit_micros: 0, limit_source: "group" },
 		group_spend_micros: 0,
 		effective_group_id: MockGroupWithoutMembers.organization_id,
@@ -835,6 +845,7 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-unlimited",
+		effective_budget: null,
 		group_budget: null,
 		group_spend_micros: 0,
 		effective_group_id: MockGroupWithoutMembers.organization_id,
@@ -848,12 +859,20 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-regular",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 3_235_000_000,
 	},
 	{
 		...mockSpend,
 		user_id: "member-custom",
+		effective_budget: {
+			spend_limit_micros: 9_000_000_000,
+			limit_source: "user_override",
+		},
 		group_budget: {
 			spend_limit_micros: 9_000_000_000,
 			limit_source: "user_override",
@@ -863,12 +882,20 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-near",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 6_735_000_000,
 	},
 	{
 		...mockSpend,
 		user_id: "member-over",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 7_200_000_000,
 	},

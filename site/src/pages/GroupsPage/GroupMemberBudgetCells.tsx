@@ -26,22 +26,23 @@ export const GroupMemberBudgetCells: FC<{
 	spend: GroupMemberAISpend | undefined;
 }> = ({ group, userID, spend }) => {
 	const effective = effectiveBudgetGroup(spend, group);
+	const isEveryoneGroup = spend?.effective_group_id === group.organization_id;
 	const fromOtherGroup = effective.kind === "otherGroup";
 
-	// A null effective_group_id is a group in another org that can't be
-	// fetched, so only resolve the name when an ID exists.
 	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
 		...groupById(spend?.effective_group_id ?? "", {
 			exclude_members: true,
 		}),
-		enabled: fromOtherGroup && Boolean(spend?.effective_group_id),
+		enabled:
+			fromOtherGroup && !isEveryoneGroup && Boolean(spend?.effective_group_id),
 	});
-	const effectiveGroupName =
-		effectiveGroup?.display_name || effectiveGroup?.name;
+	const effectiveGroupName = isEveryoneGroup
+		? "Everyone"
+		: effectiveGroup?.display_name || effectiveGroup?.name;
 	const groupName = group.display_name || group.name;
 	// A user override shows as "(individual)" on the governing group's badge.
 	const badgeName = (name: string) =>
-		spend?.group_budget?.limit_source === "user_override"
+		spend?.effective_budget?.limit_source === "user_override"
 			? `${name} (individual)`
 			: name;
 
@@ -55,7 +56,7 @@ export const GroupMemberBudgetCells: FC<{
 			// so it isn't the unallocated fallback.
 			budgetGroup = (
 				<Badge size="sm">
-					{spend?.group_budget
+					{spend?.effective_budget
 						? badgeName("Everyone")
 						: "Everyone (not allocated)"}
 				</Badge>
@@ -122,7 +123,7 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		}
 	} else if (spend) {
-		const limit = spend.group_budget?.spend_limit_micros ?? null;
+		const limit = spend.effective_budget?.spend_limit_micros ?? null;
 		if (limit === null) {
 			// The effective group has no budget, so no limit applies.
 			budget = (
@@ -138,7 +139,7 @@ export const GroupMemberBudgetCells: FC<{
 			);
 		} else {
 			const limitLabel =
-				spend.group_budget?.limit_source === "user_override"
+				spend.effective_budget?.limit_source === "user_override"
 					? "Custom"
 					: "Group";
 			budget = (
@@ -180,7 +181,7 @@ type EffectiveBudgetGroup =
  * Resolves which group governs a member's AI budget:
  *
  * - "none": spend data is not loaded.
- * - "everyone": the Everyone group governs the budget.
+ * - "everyone": the viewed group is Everyone or Everyone is unlimited.
  * - "this": the viewed group governs the budget.
  * - "otherGroup": another group in this organization governs the budget.
  * - "otherOrg": a group in another organization governs the budget.
@@ -193,10 +194,12 @@ export function effectiveBudgetGroup(
 	if (groupId === null) {
 		return spend === undefined ? { kind: "none" } : { kind: "otherOrg" };
 	}
-	// Everyone shares the org's id; checked first so it wins when the viewed
-	// group is Everyone itself.
+	// A budgeted Everyone group is "otherGroup" when viewing a regular group.
+	// The unlimited fallback remains "everyone" so it renders as not allocated.
 	if (groupId === group.organization_id) {
-		return { kind: "everyone" };
+		return group.id === group.organization_id || !spend?.effective_budget
+			? { kind: "everyone" }
+			: { kind: "otherGroup" };
 	}
 	if (groupId === group.id) {
 		return { kind: "this" };
