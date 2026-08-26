@@ -703,3 +703,44 @@ func marshal(res any) string {
 
 	return string(b)
 }
+
+func TestHeaderTransport_Headers(t *testing.T) {
+	t.Parallel()
+
+	current := "one"
+	inner := &HeaderTransport{
+		Transport:  http.DefaultTransport,
+		Header:     http.Header{"X-Ignored": {"static is unused when HeaderFunc is set"}},
+		HeaderFunc: func() http.Header { return http.Header{"X-Token": {current}} },
+	}
+	outer := &HeaderTransport{
+		Transport: inner,
+		Header:    http.Header{"X-Outer": {"yes"}},
+	}
+
+	require.Equal(t, http.Header{"X-Token": {"one"}}, inner.Headers())
+	require.Equal(t, http.Header{"X-Token": {"one"}, "X-Outer": {"yes"}}, outer.Headers())
+	current = "two"
+	require.Equal(t, "two", outer.Headers().Get("X-Token"), "outer follows the inner transport's refreshed headers")
+
+	rec := &roundTripRecorder{}
+	inner.Transport = rec
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com", nil)
+	require.NoError(t, err)
+	resp, err := outer.RoundTrip(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, "two", rec.header.Get("X-Token"))
+	require.Equal(t, "yes", rec.header.Get("X-Outer"))
+	require.Empty(t, rec.header.Get("X-Ignored"))
+	require.Len(t, rec.header.Values("X-Token"), 1, "each layer adds its own headers once")
+}
+
+type roundTripRecorder struct {
+	header http.Header
+}
+
+func (r *roundTripRecorder) RoundTrip(req *http.Request) (*http.Response, error) {
+	r.header = req.Header.Clone()
+	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Request: req}, nil
+}

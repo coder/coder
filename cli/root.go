@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"text/tabwriter"
 	"time"
@@ -31,6 +32,9 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -68,6 +72,7 @@ const (
 	varToken                   = "token"
 	varHeader                  = "header"
 	varHeaderCommand           = "header-command"
+	varHeaderCommandInterval   = "header-command-interval"
 	varNoOpen                  = "no-open"
 	varNoVersionCheck          = "no-version-warning"
 	varNoFeatureWarning        = "no-feature-warning"
@@ -463,6 +468,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varHeaderCommandInterval,
+			Env:         "CODER_HEADER_COMMAND_INTERVAL",
+			Description: "Re-run the header command at this interval while the process runs, so that long-lived commands such as ssh pick up refreshed values (e.g. short-lived tokens). Set it comfortably below the lifetime of the credentials the command returns. The default of 0 runs it once at startup.",
+			Default:     "0",
+			Value:       serpent.DurationOf(&r.headerCommandInterval),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser when logging in, or starting the server.",
@@ -570,6 +583,8 @@ type RootCmd struct {
 	globalConfig  string
 	header        []string
 	headerCommand string
+
+	headerCommandInterval time.Duration
 
 	forceTTY      bool
 	noOpen        bool
@@ -839,9 +854,11 @@ func (r *RootCmd) TryInitClient(inv *serpent.Invocation) (*codersdk.Client, erro
 }
 
 // HeaderTransport creates a new transport that executes `--header-command`
-// if it is set to add headers for all outbound requests.
-func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
-	return headerTransport(ctx, serverURL, r.header, r.headerCommand)
+// if it is set to add headers for all outbound requests. With
+// `--header-command-interval` the command is re-run in the background
+// until ctx is done.
+func (r *RootCmd) HeaderTransport(ctx context.Context, logger slog.Logger, serverURL *url.URL) (*codersdk.HeaderTransport, error) {
+	return headerTransport(ctx, logger, r.clock, serverURL, r.header, r.headerCommand, r.headerCommandInterval)
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
@@ -868,7 +885,9 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	if !r.noFeatureWarning {
 		transport = wrapTransportWithEntitlementsCheck(transport, inv.Stderr)
 	}
-	headerTransport, err := r.HeaderTransport(ctx, serverURL)
+	// inv.Logger has no sinks by default; header command failures after
+	// startup must reach the user, who otherwise only sees rejected requests.
+	headerTransport, err := r.HeaderTransport(ctx, inv.Logger.AppendSinks(sloghuman.Sink(inv.Stderr)), serverURL)
 	if err != nil {
 		return nil, xerrors.Errorf("create header transport: %w", err)
 	}
@@ -1741,46 +1760,167 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // HeaderTransport creates a new transport that executes `--header-command`
-// if it is set to add headers for all outbound requests.
-func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
+// if it is set to add headers for all outbound requests. When interval is
+// positive the command is re-run at that interval until ctx is done and
+// requests carry the most recent output.
+func headerTransport(ctx context.Context, logger slog.Logger, clk quartz.Clock, serverURL *url.URL, header []string, headerCommand string, interval time.Duration) (*codersdk.HeaderTransport, error) {
 	transport := &codersdk.HeaderTransport{
 		Transport: http.DefaultTransport,
-		Header:    http.Header{},
 	}
-	headers := header
-	if headerCommand != "" {
-		shell := "sh"
-		caller := "-c"
-		if runtime.GOOS == "windows" {
-			shell = "cmd.exe"
-			caller = "/c"
-		}
-		var outBuf bytes.Buffer
-		// #nosec
-		cmd := exec.CommandContext(ctx, shell, caller, headerCommand)
-		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
-		cmd.Stdout = &outBuf
-		cmd.Stderr = io.Discard
-		err := cmd.Run()
+	if headerCommand == "" {
+		hdr, err := parseHeaders(header)
 		if err != nil {
-			return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+			return nil, err
 		}
-		scanner := bufio.NewScanner(&outBuf)
-		for scanner.Scan() {
-			headers = append(headers, scanner.Text())
-		}
-		if err := scanner.Err(); err != nil {
-			return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
-		}
+		transport.Header = hdr
+		return transport, nil
 	}
-	for _, header := range headers {
-		parts := strings.SplitN(header, "=", 2)
-		if len(parts) < 2 {
-			return nil, xerrors.Errorf("split header %q had less than two parts", header)
-		}
-		transport.Header.Add(parts[0], parts[1])
+	if interval > 0 && interval < minHeaderCommandInterval {
+		return nil, xerrors.Errorf("header command interval %s is below the minimum of %s", interval, minHeaderCommandInterval)
 	}
+
+	fetch := func(ctx context.Context) (http.Header, error) {
+		lines, err := runHeaderCommand(ctx, serverURL, headerCommand)
+		if err != nil {
+			return nil, err
+		}
+		return parseHeaders(append(slices.Clone(header), lines...))
+	}
+	// The first run is synchronous so that a broken command fails the
+	// invocation instead of sending requests without the headers.
+	firstRun := clk.Now()
+	hdr, err := fetch(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if interval <= 0 {
+		transport.Header = hdr
+		return transport, nil
+	}
+	transport.HeaderFunc = refreshHeaders(ctx, logger, clk, interval, hdr, firstRun, fetch)
 	return transport, nil
+}
+
+func runHeaderCommand(ctx context.Context, serverURL *url.URL, headerCommand string) ([]string, error) {
+	shell := "sh"
+	caller := "-c"
+	if runtime.GOOS == "windows" {
+		shell = "cmd.exe"
+		caller = "/c"
+	}
+	var outBuf bytes.Buffer
+	// #nosec
+	cmd := exec.CommandContext(ctx, shell, caller, headerCommand)
+	cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
+	cmd.Stdout = &outBuf
+	cmd.Stderr = io.Discard
+	// A grandchild (e.g. a helper the command leaves running) can hold
+	// stdout open after the shell exits or is killed; stop waiting for it.
+	// The shell's own output is complete once it has exited, so hitting the
+	// delay after a successful exit is not an error.
+	cmd.WaitDelay = 5 * time.Second
+	err := cmd.Run()
+	if err != nil && (!errors.Is(err, exec.ErrWaitDelay) || !cmd.ProcessState.Success()) {
+		return nil, xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+	}
+	var lines []string
+	scanner := bufio.NewScanner(&outBuf)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, xerrors.Errorf("scan %v: %w", cmd.Args, err)
+	}
+	return lines, nil
+}
+
+func parseHeaders(lines []string) (http.Header, error) {
+	hdr := http.Header{}
+	for _, line := range lines {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			return nil, xerrors.Errorf("split header %q had less than two parts", line)
+		}
+		hdr.Add(key, value)
+	}
+	return hdr, nil
+}
+
+const (
+	// headerRefreshTick bounds how often refreshHeaders compares the wall-clock
+	// age of the current headers against the refresh interval. Checking age on
+	// a short tick, rather than arming one timer per interval, bounds staleness
+	// after the machine resumes from sleep: timers follow the monotonic clock,
+	// which stops while suspended, so a long timer armed before sleeping fires
+	// late by however long the machine slept.
+	headerRefreshTick        = 10 * time.Second
+	minHeaderCommandInterval = time.Second
+	// minHeaderRefreshTimeout is the least time a background run of the
+	// header command gets before it is abandoned; above it, runs get a
+	// quarter of the interval so that a hung run leaves room for retries
+	// before the previous credentials age out.
+	minHeaderRefreshTimeout = 30 * time.Second
+)
+
+// refreshHeaders re-runs fetch every interval, measured from lastRun, until
+// ctx is done and returns a func yielding the most recent successful result.
+// A failed or timed-out run keeps the previous headers and is retried with
+// exponential backoff capped at interval.
+func refreshHeaders(ctx context.Context, logger slog.Logger, clk quartz.Clock, interval time.Duration, initial http.Header, lastRun time.Time, fetch func(context.Context) (http.Header, error)) func() http.Header {
+	var current atomic.Pointer[http.Header]
+	current.Store(&initial)
+
+	// Tick on an even fraction of interval, rounded up, so that a refresh
+	// lands on the interval itself rather than up to one tick late.
+	n := (interval + headerRefreshTick - 1) / headerRefreshTick
+	tick := (interval + n - 1) / n
+	runTimeout := max(minHeaderRefreshTimeout, interval/4)
+	// Round(0) strips the monotonic reading so that ages are measured on
+	// the wall clock, which does advance across a suspend.
+	lastRun = lastRun.Round(0)
+	var (
+		wait     = interval
+		failures = 0
+	)
+	clk.TickerFunc(ctx, tick, func() error {
+		now := clk.Now().Round(0)
+		// Half a tick of slack so that ticker jitter cannot push a refresh
+		// that is due on this tick to the next one.
+		if since := now.Sub(lastRun); since >= 0 && since < wait-tick/2 {
+			return nil
+		}
+		// Taken before the run so that a slow command errs towards
+		// refreshing early rather than late.
+		lastRun = now
+		runCtx, cancel := context.WithTimeout(ctx, runTimeout)
+		defer cancel()
+		hdr, err := fetch(runCtx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			failures++
+			wait = min(interval, tick<<min(failures-1, 16))
+			// Only the first failure is loud: for interactive commands the
+			// sink is the user's terminal.
+			if failures == 1 {
+				logger.Warn(ctx, "header command failed, keeping previous headers until it succeeds again", slog.F("retry_in", wait), slog.Error(err))
+			} else {
+				logger.Debug(ctx, "header command failed", slog.F("failures", failures), slog.F("retry_in", wait), slog.Error(err))
+			}
+			return nil
+		}
+		if failures > 0 {
+			logger.Warn(ctx, "header command recovered", slog.F("failures", failures))
+		}
+		failures = 0
+		wait = interval
+		current.Store(&hdr)
+		return nil
+	}, "headerCommand")
+	return func() http.Header {
+		return *current.Load()
+	}
 }
 
 // PrintDeprecatedOptions loops through all command options, and

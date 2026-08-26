@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cli/safeexec"
 	"github.com/natefinch/atomic"
@@ -59,6 +60,7 @@ type sshConfigOptions struct {
 	noWildcard             bool
 	header                 []string
 	headerCommand          string
+	headerCommandInterval  time.Duration
 	removedKeys            map[string]bool
 	globalConfigPath       string
 	coderBinaryPath        string
@@ -118,6 +120,7 @@ func (o sshConfigOptions) equal(other sshConfigOptions) bool {
 		o.userHostPrefixExplicit == other.userHostPrefixExplicit &&
 		o.disableAutostart == other.disableAutostart &&
 		o.headerCommand == other.headerCommand &&
+		o.headerCommandInterval == other.headerCommandInterval &&
 		o.hostnameSuffix == other.hostnameSuffix &&
 		o.hostnameSuffixExplicit == other.hostnameSuffixExplicit &&
 		o.noWildcard == other.noWildcard
@@ -145,6 +148,9 @@ func (o sshConfigOptions) writeToBuffer(buf *bytes.Buffer) error {
 	}
 	if o.headerCommand != "" {
 		rootFlags += fmt.Sprintf(" --header-command %q", o.headerCommand)
+	}
+	if o.headerCommandInterval > 0 {
+		rootFlags += fmt.Sprintf(" --header-command-interval %s", o.headerCommandInterval)
 	}
 
 	flags := ""
@@ -292,6 +298,9 @@ func (o sshConfigOptions) asList() (list []string) {
 	if o.headerCommand != "" {
 		list = append(list, fmt.Sprintf("header-command: %s", o.headerCommand))
 	}
+	if o.headerCommandInterval > 0 {
+		list = append(list, fmt.Sprintf("header-command-interval: %s", o.headerCommandInterval))
+	}
 
 	return list
 }
@@ -336,6 +345,7 @@ func (r *RootCmd) configSSH() *serpent.Command {
 			}
 			sshConfigOpts.header = r.header
 			sshConfigOpts.headerCommand = r.headerCommand
+			sshConfigOpts.headerCommandInterval = r.headerCommandInterval
 			// Record whether the user explicitly set these this run, before
 			// any --use-previous-options/prompt logic below may replace
 			// sshConfigOpts wholesale with a prior run's saved options (which
@@ -781,6 +791,9 @@ func sshConfigWriteSectionHeader(w io.Writer, addNewline bool, o sshConfigOption
 	if o.headerCommand != "" {
 		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "header-command", o.headerCommand)
 	}
+	if o.headerCommandInterval > 0 {
+		_, _ = fmt.Fprintf(&ow, "# :%s=%s\n", "header-command-interval", o.headerCommandInterval)
+	}
 	if ow.Len() > 0 {
 		_, _ = fmt.Fprint(w, sshConfigOptionsHeader)
 		_, _ = fmt.Fprint(w, ow.String())
@@ -822,6 +835,8 @@ func sshConfigParseLastOptions(r io.Reader) (o sshConfigOptions) {
 				o.header = append(o.header, parts[1])
 			case "header-command":
 				o.headerCommand = parts[1]
+			case "header-command-interval":
+				o.headerCommandInterval, _ = time.ParseDuration(parts[1])
 			default:
 				// Unknown option, ignore.
 			}

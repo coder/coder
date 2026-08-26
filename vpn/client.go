@@ -161,7 +161,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
 		DERPMap:             connInfo.DERPMap,
-		DERPHeader:          &clonedHeaders,
+		DERPHeaderFunc:      func() http.Header { return clonedHeaders },
 		DERPTLSConfig:       options.DERPTLSConfig,
 		DERPForceWebSockets: connInfo.DERPForceWebSockets,
 		Logger:              options.Logger,

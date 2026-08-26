@@ -540,6 +540,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 						"# :header=X-Test-Header=foo",
 						"# :header=X-Test-Header2=bar",
 						"# :header-command=echo h1=v1 h2=\"v2\" h3='v3'",
+						"# :header-command-interval=5m0s",
 						"#",
 					}, "\n"),
 					strings.Join([]string{
@@ -556,6 +557,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				"--header", "X-Test-Header=foo",
 				"--header", "X-Test-Header2=bar",
 				"--header-command", "echo h1=v1 h2=\"v2\" h3='v3'",
+				"--header-command-interval", "5m",
 			},
 		},
 		{
@@ -715,6 +717,19 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			hasAgent: true,
 			wantConfig: wantConfig{
 				regexMatch: `ProxyCommand .* --header-command "echo h1=v1" ssh .* --ssh-host-prefix coder. %h`,
+			},
+		},
+		{
+			name: "Header command interval",
+			args: []string{
+				"--yes",
+				"--header-command", "echo h1=v1",
+				"--header-command-interval", "10m",
+			},
+			wantErr:  false,
+			hasAgent: true,
+			wantConfig: wantConfig{
+				regexMatch: `ProxyCommand .* --header-command "echo h1=v1" --header-command-interval 10m0s ssh .* --ssh-host-prefix coder. %h`,
 			},
 		},
 		{

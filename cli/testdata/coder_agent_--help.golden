@@ -44,6 +44,11 @@ OPTIONS:
           requests. The command must output each header as `key=value` on its
           own line.
 
+      --agent-header-command-interval duration, $CODER_AGENT_HEADER_COMMAND_INTERVAL (default: 0)
+          Re-run the agent header command at this interval so that refreshed
+          values (e.g. short-lived tokens) are picked up. The default of 0 runs
+          it once at startup.
+
       --block-file-transfer bool, $CODER_AGENT_BLOCK_FILE_TRANSFER (default: false)
           Block file transfer using known applications: nc,rsync,scp,sftp.
 

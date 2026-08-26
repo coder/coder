@@ -880,13 +880,47 @@ func WithQueryParam(key, value string) RequestOption {
 // @typescript-ignore HeaderTransport
 type HeaderTransport struct {
 	Transport http.RoundTripper
-	Header    http.Header
+	// Header is a fixed set of headers. It is ignored when HeaderFunc is set.
+	Header http.Header
+	// HeaderFunc, if set, is consulted on every request instead of Header.
+	// It lets long-running processes pick up refreshed values, e.g.
+	// short-lived tokens from a header command. The returned header must
+	// not be modified.
+	HeaderFunc func() http.Header
 }
 
 var _ http.RoundTripper = &HeaderTransport{}
 
+func (h *HeaderTransport) own() http.Header {
+	if h.HeaderFunc != nil {
+		return h.HeaderFunc()
+	}
+	return h.Header
+}
+
+// Headers returns a copy of the headers currently added to requests,
+// including those of any HeaderTransport this one wraps, in the order
+// RoundTrip adds them. Read headers through this method rather than the
+// fields so that refreshed values are observed.
+func (h *HeaderTransport) Headers() http.Header {
+	merged := h.own().Clone()
+	if merged == nil {
+		merged = http.Header{}
+	}
+	inner, ok := h.Transport.(*HeaderTransport)
+	if !ok {
+		return merged
+	}
+	for k, v := range inner.Headers() {
+		for _, vv := range v {
+			merged.Add(k, vv)
+		}
+	}
+	return merged
+}
+
 func (h *HeaderTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	for k, v := range h.Header {
+	for k, v := range h.own() {
 		for _, vv := range v {
 			req.Header.Add(k, vv)
 		}

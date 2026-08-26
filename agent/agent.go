@@ -1869,10 +1869,10 @@ func (a *agent) createTailnet(
 	keySeed int64,
 ) (_ *tailnet.Conn, err error) {
 	// Inject `CODER_AGENT_HEADER` into the DERP header.
-	var header http.Header
+	var headerFunc func() http.Header
 	if client, ok := a.client.(*agentsdk.Client); ok {
 		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
-			header = headerTransport.Header
+			headerFunc = headerTransport.Headers
 		}
 	}
 	network, err := tailnet.NewConn(&tailnet.Options{
@@ -1880,7 +1880,7 @@ func (a *agent) createTailnet(
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
-		DERPHeader:          &header,
+		DERPHeaderFunc:      headerFunc,
 		DERPTLSConfig:       a.derpTLSConfig,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,

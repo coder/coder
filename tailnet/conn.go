@@ -89,10 +89,12 @@ func init() {
 }
 
 type Options struct {
-	ID         uuid.UUID
-	Addresses  []netip.Prefix
-	DERPMap    *tailcfg.DERPMap
-	DERPHeader *http.Header
+	ID        uuid.UUID
+	Addresses []netip.Prefix
+	DERPMap   *tailcfg.DERPMap
+	// DERPHeaderFunc, if set, returns headers to send on every DERP connect
+	// and netcheck probe.
+	DERPHeaderFunc func() http.Header
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
 	// DERPForceWebSockets determines whether websockets is always used for DERP
@@ -239,8 +241,10 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn := sys.MagicSock.Get()
 	magicConn.SetDERPForceWebsockets(options.DERPForceWebSockets)
 	magicConn.SetBlockEndpoints(options.BlockEndpoints)
-	if options.DERPHeader != nil {
-		magicConn.SetDERPHeader(options.DERPHeader.Clone())
+	if options.DERPHeaderFunc != nil {
+		magicConn.SetDERPGetHeaders(func() http.Header {
+			return options.DERPHeaderFunc().Clone()
+		})
 	}
 	if options.DERPTLSConfig != nil {
 		magicConn.SetDERPTLSConfig(options.DERPTLSConfig)
