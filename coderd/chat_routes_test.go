@@ -54,6 +54,7 @@ func TestChatRoutesCompatibility(t *testing.T) {
 		{http.MethodGet, "/api/v2/chats/config/advisor"},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/debug/runs", chat.ID)},
 		{http.MethodGet, fmt.Sprintf("/api/v2/chats/%s/stream/desktop", chat.ID)},
+		{http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/not-a-uuid/acl/available", firstUser.OrganizationID)},
 		{http.MethodGet, "/api/v2/mcp/servers/not-a-uuid/oauth2/callback"},
 		{http.MethodPost, "/api/v2/mcp/http/server"},
 	} {

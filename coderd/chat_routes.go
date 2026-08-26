@@ -227,7 +227,7 @@ func (api *API) registerUserAIProviderKeyRoutes(r chi.Router) {
 // registerOrganizationChatRoutes mounts the organization-scoped chat and
 // MCP server configuration routes; r must already extract the
 // organization parameter.
-func (api *API) registerOrganizationChatRoutes(r chi.Router) {
+func (api *API) registerOrganizationChatRoutes(r chi.Router, prefix chatAPIPrefix) {
 	r.Route("/mcp-servers", func(r chi.Router) {
 		r.Get("/", api.listMCPServerConfigs)
 		r.Post("/", api.createMCPServerConfig)
@@ -242,8 +242,10 @@ func (api *API) registerOrganizationChatRoutes(r chi.Router) {
 				policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
-			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
-				policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
+			if prefix == chatAPIPrefixV2 {
+				r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
+					policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
+			}
 			r.With(httpmw.ExtractMCPServerConfigParam(api.Database, api.HTTPAuth.Authorize,
 				policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
 		})
