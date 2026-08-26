@@ -2,7 +2,7 @@ import { CheckIcon } from "lucide-react";
 import type React from "react";
 import { createContext, useContext, useState } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
-import { Button } from "#/components/Button/Button";
+import { Button, type ButtonProps } from "#/components/Button/Button";
 import {
 	Command,
 	CommandEmpty,
@@ -69,6 +69,8 @@ interface ComboboxButtonProps extends React.ComponentPropsWithRef<"button"> {
 	width?: number;
 	selectedOption?: SelectFilterOption;
 	placeholder?: string;
+	variant?: ButtonProps["variant"];
+	size?: ButtonProps["size"];
 }
 
 export const ComboboxButton = ({
@@ -77,17 +79,17 @@ export const ComboboxButton = ({
 	width,
 	selectedOption,
 	placeholder,
+	variant = "outline",
+	size,
 	ref,
 	...props
 }: ComboboxButtonProps) => {
 	return (
 		<Button
-			className={cn(
-				"flex items-center justify-between shrink-0 grow gap-2 pr-1.5",
-				className,
-			)}
+			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
 			style={{ flexBasis: width }}
-			variant="outline"
+			variant={variant}
+			size={size}
 			ref={ref}
 			{...props}
 		>
@@ -104,6 +106,7 @@ type ComboboxContentProps = React.ComponentPropsWithRef<
 	typeof PopoverContent
 > & {
 	shouldFilter?: boolean;
+	commandLabel?: string;
 };
 
 export const ComboboxContent = ({
@@ -111,6 +114,7 @@ export const ComboboxContent = ({
 	className,
 	ref,
 	shouldFilter,
+	commandLabel,
 	...props
 }: ComboboxContentProps) => {
 	return (
@@ -122,7 +126,11 @@ export const ComboboxContent = ({
 			)}
 			{...props}
 		>
-			<Command className="bg-surface-secondary" shouldFilter={shouldFilter}>
+			<Command
+				className="bg-surface-secondary"
+				label={commandLabel}
+				shouldFilter={shouldFilter}
+			>
 				{children}
 			</Command>
 		</PopoverContent>
