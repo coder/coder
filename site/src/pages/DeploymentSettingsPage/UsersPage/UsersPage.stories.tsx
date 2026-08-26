@@ -6,15 +6,15 @@ import { groupsQueryKey } from "#/api/queries/groups";
 import { rolesQueryKey } from "#/api/queries/roles";
 import { authMethodsQueryKey, usersKey } from "#/api/queries/users";
 import type { User } from "#/api/typesGenerated";
-import { MockGroups } from "#/pages/UsersPage/storybookData/groups";
-import { MockRoles } from "#/pages/UsersPage/storybookData/roles";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { MockAuthMethodsAll, MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
+import { MockGroups } from "#/testHelpers/users/groups";
+import { MockRoles } from "#/testHelpers/users/roles";
+import { MockUsers } from "#/testHelpers/users/users";
 import UsersPage from "./UsersPage";
 
 const parameters = {
@@ -68,7 +68,7 @@ const parameters = {
 };
 
 const meta: Meta<typeof UsersPage> = {
-	title: "pages/UsersPage",
+	title: "pages/DeploymentSettingsPage/UsersPage",
 	component: UsersPage,
 	parameters,
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],

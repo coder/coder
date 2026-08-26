@@ -17,6 +17,7 @@ import { AISettingsIndexRedirect } from "./pages/AISettingsPage/AISettingsIndexR
 import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDefaultsRedirect";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
+import UsersPage from "./pages/DeploymentSettingsPage/UsersPage/UsersPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginOAuthDevicePage from "./pages/LoginPage/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
@@ -26,7 +27,6 @@ import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirec
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
-import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 
@@ -73,12 +73,22 @@ const SecretsPage = lazy(
 );
 const WorkspaceProxyPage = lazy(
 	() =>
-		import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
+		import(
+			"./pages/DeploymentSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"
+		),
 );
 const CreateUserPage = lazy(
-	() => import("./pages/CreateUserPage/CreateUserPage"),
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/UsersPage/CreateUserPage/CreateUserPage"
+		),
 );
-const EditUserPage = lazy(() => import("./pages/EditUserPage/EditUserPage"));
+const EditUserPage = lazy(
+	() =>
+		import(
+			"./pages/DeploymentSettingsPage/UsersPage/EditUserPage/EditUserPage"
+		),
+);
 const WorkspaceBuildPage = lazy(
 	() => import("./pages/WorkspacePage/WorkspaceBuildPage/WorkspaceBuildPage"),
 );

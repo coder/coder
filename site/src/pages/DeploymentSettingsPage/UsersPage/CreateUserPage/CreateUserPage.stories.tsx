@@ -12,7 +12,7 @@ import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import CreateUserPage from "./CreateUserPage";
 
 const meta = {
-	title: "pages/CreateUserPage/CreateUserPage",
+	title: "pages/DeploymentSettingsPage/UsersPage/CreateUserPage",
 	component: CreateUserPage,
 	decorators: [withToaster, withDashboardProvider],
 	parameters: {

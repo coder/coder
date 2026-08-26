@@ -16,7 +16,7 @@ const mockGroupsByUserId = new Map([
 ]);
 
 const meta: Meta<typeof UsersTable> = {
-	title: "pages/UsersPage/UsersTable",
+	title: "pages/DeploymentSettingsPage/UsersPage/UsersTable",
 	component: UsersTable,
 	args: {},
 };

@@ -3,7 +3,7 @@ import { MockUserOwner } from "#/testHelpers/entities";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 
 const meta: Meta<typeof ResetPasswordDialog> = {
-	title: "pages/UsersPage/ResetPasswordDialog",
+	title: "pages/DeploymentSettingsPage/UsersPage/ResetPasswordDialog",
 	component: ResetPasswordDialog,
 };
 

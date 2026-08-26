@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockTask,
@@ -11,6 +10,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
+import { MockUsers } from "#/testHelpers/users/users";
 import { TasksSidebar } from "./TasksSidebar";
 
 const meta: Meta<typeof TasksSidebar> = {

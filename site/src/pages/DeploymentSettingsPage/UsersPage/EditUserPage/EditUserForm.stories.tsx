@@ -5,7 +5,7 @@ import { mockApiError } from "#/testHelpers/entities";
 import { EditUserForm } from "./EditUserForm";
 
 const meta: Meta<typeof EditUserForm> = {
-	title: "pages/EditUserPage",
+	title: "pages/DeploymentSettingsPage/UsersPage/EditUserPage/EditUserForm",
 	component: EditUserForm,
 	args: {
 		onCancel: action("cancel"),

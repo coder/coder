@@ -15,7 +15,7 @@ import {
 import { CreateUserForm } from "./CreateUserForm";
 
 const meta: Meta<typeof CreateUserForm> = {
-	title: "pages/CreateUserPage",
+	title: "pages/DeploymentSettingsPage/UsersPage/CreateUserPage/CreateUserForm",
 	component: CreateUserForm,
 	args: {
 		onCancel: action("cancel"),

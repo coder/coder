@@ -11,7 +11,7 @@ import {
 import { WorkspaceProxyView } from "./WorkspaceProxyView";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
-	title: "pages/UserSettingsPage/WorkspaceProxyView",
+	title: "pages/DeploymentSettingsPage/WorkspaceProxyPage/WorkspaceProxyView",
 	component: WorkspaceProxyView,
 	args: {
 		showPaywall: false,

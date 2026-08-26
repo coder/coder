@@ -2,9 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import { MockUserOwner } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
+import { MockUsers } from "#/testHelpers/users/users";
 import { UserCombobox } from "./UserCombobox";
 
 const meta: Meta<typeof UserCombobox> = {
