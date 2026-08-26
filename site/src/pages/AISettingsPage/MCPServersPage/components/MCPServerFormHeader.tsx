@@ -6,6 +6,11 @@ import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
 
@@ -42,6 +47,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	onToggleEnabled,
 }) => {
 	const disabledReasonId = useId();
+	const lacksUpdatePermission = isEditing && server && !onToggleEnabled;
 	return (
 		<>
 			<div className="flex items-center justify-between">
@@ -81,16 +87,33 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 						Disabled servers are hidden from agents.
 					</p>
 					<div className="flex shrink-0 items-center gap-2">
-						<Switch
-							checked={server.enabled}
-							onCheckedChange={(checked) => {
-								onToggleEnabled?.(checked);
-							}}
-							disabled={isDisabled || !onToggleEnabled}
-							aria-label="Server enabled"
-							aria-describedby={onToggleEnabled ? undefined : disabledReasonId}
-						/>
-						{!onToggleEnabled && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<span className="inline-flex">
+									<Switch
+										checked={server.enabled}
+										onCheckedChange={(checked) => {
+											onToggleEnabled?.(checked);
+										}}
+										disabled={isDisabled}
+										aria-disabled={lacksUpdatePermission}
+										aria-label="Server enabled"
+										aria-describedby={
+											lacksUpdatePermission ? disabledReasonId : undefined
+										}
+										className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
+									/>
+								</span>
+							</TooltipTrigger>
+							<TooltipContent side="bottom">
+								{lacksUpdatePermission
+									? "You do not have permission to update this server."
+									: server.enabled
+										? "Disable this server. It will be hidden from agents."
+										: "Enable this server. It will be visible to agents."}
+							</TooltipContent>
+						</Tooltip>
+						{lacksUpdatePermission && (
 							<span id={disabledReasonId} className="sr-only">
 								You do not have permission to update this server.
 							</span>

@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
+	MockOrganization2,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
@@ -57,6 +58,36 @@ export const Default: Story = {
 	},
 };
 
+const twoOrgDecorator = (Story: React.FC) => (
+	<OrganizationModelsContext.Provider
+		value={{
+			organization: MockDefaultOrganization,
+			accessibleOrganizations: [MockDefaultOrganization, MockOrganization2],
+			permissions: MockOrganizationPermissions,
+			requestedOrganizationDenied: false,
+		}}
+	>
+		<Story />
+	</OrganizationModelsContext.Provider>
+);
+
+export const WithOrganizationPicker: Story = {
+	decorators: [twoOrgDecorator],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await expect(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		).toBeInTheDocument();
+	},
+};
+
 export const WebSearchDependentFields: Story = {
 	args: { selectedProviderState: MockAnthropicProviderState },
 	play: async ({ canvasElement }) => {
@@ -106,18 +137,30 @@ export const ProviderWithoutConfiguredModels: Story = {
 };
 
 export const ProviderNotFound: Story = {
+	decorators: [twoOrgDecorator],
 	args: { selectedProviderState: null },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Provider not found")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeVisible();
 	},
 };
 
 export const LoadError: Story = {
+	decorators: [twoOrgDecorator],
 	args: { loadError: new Error("Failed to load models") },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Failed to load models")).toBeVisible();
+		await expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeVisible();
 	},
 };
 

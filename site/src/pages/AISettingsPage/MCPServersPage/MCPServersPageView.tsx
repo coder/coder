@@ -1,5 +1,5 @@
 import { PlusIcon, SearchIcon } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -53,18 +53,16 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 }) => {
 	const navigate = useNavigate();
 	const [searchQuery, setSearchQuery] = useState("");
-	const filteredServers = useMemo(() => {
-		const normalizedQuery = searchQuery.trim().toLowerCase();
-		if (normalizedQuery.length === 0) {
-			return servers;
-		}
-		return servers.filter((server) =>
-			[server.display_name, server.slug, server.url]
-				.join(" ")
-				.toLowerCase()
-				.includes(normalizedQuery),
-		);
-	}, [servers, searchQuery]);
+	const normalizedQuery = searchQuery.trim().toLowerCase();
+	const filteredServers =
+		normalizedQuery.length === 0
+			? servers
+			: servers.filter((server) =>
+					[server.display_name, server.slug, server.url]
+						.join(" ")
+						.toLowerCase()
+						.includes(normalizedQuery),
+				);
 	// Disambiguate against every organization sharing the page context:
 	// other creation targets and the currently selected organization.
 	const addButtonLabel =

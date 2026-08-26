@@ -96,7 +96,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 										variant="warning"
 										className="shrink-0"
 										tabIndex={0}
-										aria-label={`Unavailable: ${providerNotice}`}
 										onClick={stopPropagation}
 										onKeyDown={stopPropagation}
 										onKeyUp={stopPropagation}
@@ -126,8 +125,6 @@ export const ModelRow: FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					// The Unavailable badge beside the name explains the missing
-					// provider, so "Unset" needs no tooltip of its own.
 					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
 						Unset
 					</span>

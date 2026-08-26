@@ -1383,7 +1383,10 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
-		await expect(enabledSwitch).toBeDisabled();
+		await expect(enabledSwitch).toHaveAttribute("aria-disabled", "true");
+		await expect(enabledSwitch).toHaveAccessibleDescription(
+			"You do not have permission to update this server.",
+		);
 		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /authentication/i }),
@@ -1433,7 +1436,10 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		const enabledSwitch = canvas.getByRole("switch", {
 			name: "Server enabled",
 		});
-		await expect(enabledSwitch).toBeDisabled();
+		await expect(enabledSwitch).toHaveAttribute("aria-disabled", "true");
+		await expect(enabledSwitch).toHaveAccessibleDescription(
+			"You do not have permission to update this server.",
+		);
 		await expect(canvas.getByLabelText(/^slug/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/display name/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/server url/i)).toBeDisabled();
