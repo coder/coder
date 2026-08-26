@@ -23,17 +23,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get MCP server config ACL
 // @ID get-mcp-server-config-acl
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfigACL
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [get]
 // @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -65,7 +63,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param q query string false "User search query; free-text search also applies to groups"
 // @Param after_id query string false "User after ID" format(uuid)
@@ -161,18 +159,16 @@ func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Requ
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Update MCP server config ACL
 // @ID update-mcp-server-config-acl
 // @Security CoderSessionToken
 // @Tags MCP
 // @Accept json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigACLRequest true "Update MCP server config ACL request"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) patchMCPServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

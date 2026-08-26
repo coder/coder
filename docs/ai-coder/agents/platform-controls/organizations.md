@@ -105,8 +105,8 @@ To change an MCP server's access list, open **Server actions** >
 
 You can also use the API:
 
-- `GET /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
-- `PATCH /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
+- `GET /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
+- `PATCH /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
 
 ## Related pages
 

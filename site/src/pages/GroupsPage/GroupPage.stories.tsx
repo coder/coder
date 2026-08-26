@@ -439,7 +439,7 @@ export const WithoutMemberAIBudgetColumn: Story = {
 	},
 };
 
-export const AIBudgetActionDisabledForOtherGroup: Story = {
+export const AIBudgetActionEnabledForOtherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
 		queries: [
@@ -489,7 +489,7 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 		const menuItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
 		});
-		await expect(menuItem).toHaveAttribute("aria-disabled", "true");
+		await expect(menuItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };
 
@@ -929,14 +929,14 @@ export const AIBudgetShowcase: Story = {
 		await expect(manageItem).not.toHaveAttribute("aria-disabled", "true");
 		await userEvent.keyboard("{Escape}");
 
-		// Another named group does disable it.
+		// Another group in the same organization keeps the action enabled.
 		const otherGroupMenu = await canvas.findAllByRole("button", {
 			name: "Open menu",
 		});
 		await userEvent.click(otherGroupMenu[7]);
-		const disabledItem = await body.findByRole("menuitem", {
+		const otherGroupItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
 		});
-		await expect(disabledItem).toHaveAttribute("aria-disabled", "true");
+		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };
