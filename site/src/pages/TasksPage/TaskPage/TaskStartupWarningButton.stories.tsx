@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TaskStartupWarningButton } from "./TaskStartupWarningButton";
 
 const meta: Meta<typeof TaskStartupWarningButton> = {
-	title: "pages/TaskPage/TaskStartupWarningButton",
+	title: "pages/TasksPage/TaskPage/TaskStartupWarningButton",
 	component: TaskStartupWarningButton,
 	parameters: {
 		layout: "padded",

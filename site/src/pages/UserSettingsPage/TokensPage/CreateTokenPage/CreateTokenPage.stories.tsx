@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import CreateTokenPage from "./CreateTokenPage";
 
 const meta: Meta<typeof CreateTokenPage> = {
-	title: "components/CreateTokenPage",
+	title: "pages/UserSettingsPage/TokensPage/CreateTokenPage",
 	component: CreateTokenPage,
 	parameters: {
 		queries: [

@@ -26,7 +26,7 @@ const mockBuildParameters: WorkspaceBuildParameter[] = [
 ];
 
 const meta: Meta<typeof ModifyPromptDialog> = {
-	title: "pages/TaskPage/ModifyPromptDialog",
+	title: "pages/TasksPage/TaskPage/ModifyPromptDialog",
 	component: ModifyPromptDialog,
 	args: {
 		task: MockTask,

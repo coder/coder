@@ -152,7 +152,7 @@ const getFollowUpDialog = async (canvasElement: HTMLElement) => {
 };
 
 const meta: Meta<typeof TaskPage> = {
-	title: "pages/TaskPage",
+	title: "pages/TasksPage/TaskPage",
 	component: TaskPage,
 	decorators: [withProxyProvider(), withAuthProvider, withDashboardProvider],
 	beforeEach: () => {

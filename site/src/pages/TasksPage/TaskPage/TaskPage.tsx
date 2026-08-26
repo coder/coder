@@ -52,14 +52,14 @@ import { isPauseDisabled } from "#/modules/tasks/taskActions";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import {
+	getActiveTransitionStats,
+	WorkspaceBuildProgress,
+} from "#/pages/WorkspacePage/WorkspaceBuildProgress";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { relativeTime } from "#/utils/time";
 import { getWorkspaceAgents } from "#/utils/workspace";
-import {
-	getActiveTransitionStats,
-	WorkspaceBuildProgress,
-} from "../WorkspacePage/WorkspaceBuildProgress";
 import { FollowUpDialog } from "./FollowUpDialog";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
 import { TaskApps } from "./TaskApps";

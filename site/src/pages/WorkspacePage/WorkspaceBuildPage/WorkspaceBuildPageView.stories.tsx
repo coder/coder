@@ -13,7 +13,7 @@ const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({
 }));
 
 const meta: Meta<typeof WorkspaceBuildPageView> = {
-	title: "pages/WorkspaceBuildPage",
+	title: "pages/WorkspacePage/WorkspaceBuildPage",
 	component: WorkspaceBuildPageView,
 	args: {
 		build: MockWorkspaceBuild,

@@ -18,7 +18,7 @@ import { ModelDefaultsRedirect } from "./pages/AISettingsPage/ModelsPage/ModelDe
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
-import LoginOAuthDevicePage from "./pages/LoginOAuthDevicePage/LoginOAuthDevicePage";
+import LoginOAuthDevicePage from "./pages/LoginPage/LoginOAuthDevicePage/LoginOAuthDevicePage";
 import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
@@ -80,7 +80,7 @@ const CreateUserPage = lazy(
 );
 const EditUserPage = lazy(() => import("./pages/EditUserPage/EditUserPage"));
 const WorkspaceBuildPage = lazy(
-	() => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
+	() => import("./pages/WorkspacePage/WorkspaceBuildPage/WorkspaceBuildPage"),
 );
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"));
 const WorkspaceSchedulePage = lazy(
@@ -101,7 +101,9 @@ const WorkspaceSharingPage = lazy(
 			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
-const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
+const TerminalPage = lazy(
+	() => import("./pages/WorkspacePage/TerminalPage/TerminalPage"),
+);
 const TemplatePermissionsPage = lazy(
 	() =>
 		import(
@@ -189,7 +191,7 @@ const UserOAuth2ProviderSettingsPage = lazy(
 		import("./pages/UserSettingsPage/OAuth2ProviderPage/OAuth2ProviderPage"),
 );
 const TemplateVersionPage = lazy(
-	() => import("./pages/TemplateVersionPage/TemplateVersionPage"),
+	() => import("./pages/TemplatePage/TemplateVersionPage/TemplateVersionPage"),
 );
 const TemplateVersionEditorPage = lazy(
 	() => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
@@ -216,7 +218,10 @@ const WorkspaceSettingsPage = lazy(
 	() => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
 );
 const CreateTokenPage = lazy(
-	() => import("./pages/CreateTokenPage/CreateTokenPage"),
+	() =>
+		import(
+			"./pages/UserSettingsPage/TokensPage/CreateTokenPage/CreateTokenPage"
+		),
 );
 const TemplateDocsPage = lazy(
 	() => import("./pages/TemplatePage/TemplateDocsPage/TemplateDocsPage"),
@@ -404,7 +409,7 @@ import {
 
 const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
-const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
+const TaskPage = lazy(() => import("./pages/TasksPage/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );

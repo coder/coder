@@ -42,7 +42,7 @@ import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/Work
 import { cn } from "#/utils/cn";
 import { formatDate } from "#/utils/time";
 import { displayWorkspaceBuildDuration } from "#/utils/workspace";
-import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner";
+import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner";
 import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";

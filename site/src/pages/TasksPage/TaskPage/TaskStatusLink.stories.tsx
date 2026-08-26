@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TaskStatusLink } from "./TaskStatusLink";
 
 const meta: Meta<typeof TaskStatusLink> = {
-	title: "pages/TaskPage/TaskStatusLink",
+	title: "pages/TasksPage/TaskPage/TaskStatusLink",
 	component: TaskStatusLink,
 	// Add a wrapper to test truncation.
 	decorators: [

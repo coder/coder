@@ -27,7 +27,7 @@ const mockTask: Task = {
 };
 
 const meta: Meta<typeof TaskApps> = {
-	title: "pages/TaskPage/TaskApps",
+	title: "pages/TasksPage/TaskPage/TaskApps",
 	component: TaskApps,
 	decorators: [withProxyProvider()],
 	parameters: {

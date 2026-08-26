@@ -49,7 +49,7 @@ const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 };
 
 const meta = {
-	title: "pages/Terminal",
+	title: "pages/WorkspacePage/TerminalPage",
 	component: RequireAuth,
 	parameters: {
 		layout: "fullscreen",

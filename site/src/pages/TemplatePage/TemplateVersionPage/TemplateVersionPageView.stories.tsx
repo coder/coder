@@ -38,7 +38,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
-	title: "pages/TemplateVersionPage",
+	title: "pages/TemplatePage/TemplateVersionPage",
 	decorators: [withDashboardProvider],
 	component: TemplateVersionPageView,
 	args: defaultArgs,

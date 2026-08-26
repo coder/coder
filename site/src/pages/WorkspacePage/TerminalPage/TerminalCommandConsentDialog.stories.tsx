@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 import { TerminalCommandConsentDialog } from "./TerminalCommandConsentDialog";
 
 const meta: Meta<typeof TerminalCommandConsentDialog> = {
-	title: "pages/Terminal/TerminalCommandConsentDialog",
+	title: "pages/WorkspacePage/TerminalPage/TerminalCommandConsentDialog",
 	component: TerminalCommandConsentDialog,
 	args: {
 		open: true,
