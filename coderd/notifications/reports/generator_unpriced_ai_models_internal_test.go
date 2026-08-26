@@ -26,6 +26,8 @@ func TestReportGenerator_TicksUnpricedAIModels(t *testing.T) {
 	_, logger, db, _, notifEnq, clk := setup(t)
 	seedOwner(t, db)
 
+	// The ticker is reset after each generator run, so this trap signals when
+	// the immediate or ticker-driven run has finished.
 	resetTrap := clk.Trap().TickerReset()
 	defer resetTrap.Close()
 
