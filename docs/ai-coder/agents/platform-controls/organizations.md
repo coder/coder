@@ -102,8 +102,8 @@ Refer to [Manage model permissions](../models.md#manage-model-permissions) for t
 The **MCP servers** page has no access list editor.
 Change an MCP server access list through the API instead:
 
-- `GET /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
-- `PATCH /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
+- `GET /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
+- `PATCH /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl`
 
 ## Related pages
 

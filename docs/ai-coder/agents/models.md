@@ -141,6 +141,10 @@ Create, update, delete, and share permissions control their corresponding action
 
 Members with model share permission can let members and groups in the selected organization use the model.
 
+Model access lists control who can use Coder Agents.
+All organization members except service accounts hold chat permissions, but a member without read access to at least one model in the organization can't use the feature.
+New models grant read access to the whole organization by default.
+
 1. Navigate to **Admin settings** > **AI** > **Models**.
 2. Select the organization that owns the model.
 3. Select the model.
@@ -359,9 +363,9 @@ reject explicit model selection.
 > [!NOTE]
 > Both override layers may change between releases.
 > Admin overrides are available through the API at
-> `/api/experimental/organizations/{organization}/chats/model-overrides`
+> `/api/v2/organizations/{organization}/chats/model-overrides`
 > and personal overrides at
-> `/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides`.
+> `/api/v2/organizations/{organization}/members/{user}/chats/model-overrides`.
 
 ## User API keys (BYOK)
 
