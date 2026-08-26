@@ -366,6 +366,58 @@ which counts guards rather than fixes. Separately, the count of holder decisions
 made by this work is five: four call sites removed plus one made without
 removing a call.
 
+### F9c. The per-function pass, completed
+
+**Result: 27 of the 34 workspace surface sites are reachable by a presented AI
+agent key, and 7 are not.** Against the 180 total, that means **27 need a
+decision and about 153 are renames.**
+
+**The test.** The six workspace scopes are low level, so each grants exactly one
+`(resource, action)` pair on resource type `workspace` and nothing else, and the
+allow list pins the object to one workspace. `httpmw.ExtractWorkspaceParam` is
+the gate on most of these routes: it fetches the workspace through `dbauthz`,
+requiring `workspace:read` on that object.
+
+**Unreachable, seven sites in six functions.**
+
+| Function                                    | Sites | Why                                                              |
+|---------------------------------------------|-------|------------------------------------------------------------------|
+| `postWorkspacesByOrganization`              | 1     | needs `workspace:create`, absent from the profile                |
+| `postUserWorkspaces`                        | 1     | same                                                             |
+| `patchWorkspaceACL`                         | 1     | needs `ActionShare`, absent from every workspace scope           |
+| `templateVersionDynamicParametersWebsocket` | 1     | a template object, absent from the allow list                    |
+| `tasksCreate`                               | 1     | `ExtractOrganizationMembersParam`, an organization member object |
+| `taskGet`                                   | 1     | same                                                             |
+| `workspaceByOwnerAndName`                   | 1     | mounted under a user param                                       |
+
+**Reachable, twenty seven sites in thirteen functions.** `postWorkspaceBuilds`
+internals (5), `workspaces` (4), `putWorkspaceDormant` (4),
+`logTunnelConnection` (4), `tasksList` (2), and one each in `workspace`,
+`watchWorkspace`, `putFavoriteWorkspace`, `deleteFavoriteWorkspace`,
+`patchCancelWorkspaceBuild`, `workspaceApplicationAuth`, `tailnetRPCConn` and
+`connLogInitRequest`.
+
+**Reachable does not mean consequential, and the difference matters for
+sizing.** Several of these are inert once reached: the two favourite handlers
+compare the holder against the workspace owner, and an agent identifier can never
+equal a user identifier, so the comparison always refuses. The `me` resolution in
+`workspaces` and `tasksList` resolves to an identifier that owns nothing, so the
+filter returns an empty set rather than a wrong one. **The sites that do
+something are the ones that write**, and of those the two notification paths are
+already recorded as F9.
+
+**One is a genuine defect rather than an inert site.**
+`workspaceApplicationAuth` mints a new API key with `HolderType` left unset,
+which defaults to a user holder, over an identifier that has no users row. It is
+reachable through `workspace:application_connect`, which the profile carries.
+
+**Confidence.** `putWorkspaceDormant` is verified rather than inferred: the
+notification defect in F9 is an observed agent reaching that handler. The rest
+are inferred from the route, its middleware, and the scope set, without executing
+them. `logTunnelConnection` and `connLogInitRequest` are helpers rather than
+handlers, so they inherit the reachability of the connection paths that call
+them.
+
 ### F10. The holder decisions already made, and which sites can be reached
 
 **Both halves depend on `database.HolderID`, which exists only on this branch**,
@@ -480,15 +532,15 @@ confined to the workspace surface: **34 sites across 20 functions** in
 `workspaces.go`, `workspacebuilds.go`, `workspaceagents.go`, `aitasks.go`,
 `workspaceapps.go`, `workspaceapps/db.go` and `parameters.go`.
 
-**The upper bound is the deliverable, and the per-function pass below was
-deliberately not done**, the shape being enough to size the work.
+**The per-function pass was completed later the same day and is recorded as F9c.**
+It resolves the upper bound of 34 to 27 reachable and 7 not.
 
 **What that pass would establish, if it is ever wanted.** Whether each of those 20
 functions authorizes only a workspace object has to be established one at a
 time; the ones that plainly do not, such as `postWorkspacesByOrganization` and
 `postUserWorkspaces`, need `workspace:create`, which the presented profile does
-not carry. Until that pass is done the honest statement is an upper bound:
-**at most 34 of the 180 need a decision, and the rest are renames.**
+not carry. **That pass is done and is F9c: 27 of the 34 are reachable, so 27 of
+the 180 need a decision and about 153 are renames.**
 
 **A partial classification of those 34 exists and its premise is wrong in one
 respect.** A subagent classified the workspace surface on 2026-08-25 and reached
