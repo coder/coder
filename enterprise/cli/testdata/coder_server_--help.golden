@@ -921,8 +921,11 @@ TEMPLATE BUILDER OPTIONS:
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
       --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
-          The base URL of the module registry used by the template builder for
-          module source paths.
+          The bare host of the module registry the template builder uses for
+          module source paths, optionally with a port (for example
+          "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme
+          is stripped; a path, credentials, query, or fragment is rejected at
+          server start.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid

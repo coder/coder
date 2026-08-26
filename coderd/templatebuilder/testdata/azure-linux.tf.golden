@@ -12,7 +12,7 @@ terraform {
   }
 }
 
-# See https://registry.coder.com/modules/coder/azure-region
+# Module docs (public registry): https://registry.coder.com/modules/coder/azure-region
 module "azure_region" {
   source = "registry.coder.com/coder/azure-region/coder"
 

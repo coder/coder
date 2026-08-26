@@ -151,15 +151,11 @@ resource "coder_script" "install_languages" {
 }
 
 # --- Git clone ---
-# NOTE: base templates render their module sources verbatim, so this pins the
-# public registry (registry.coder.com). Unlike wizard-composed modules, a
-# base-embedded module does not yet honor a deployment's configured module
-# registry mirror; threading that registry through base rendering is tracked as
-# a follow-up.
-
+# Module docs (public registry): https://registry.coder.com/modules/coder/git-clone
 module "git-clone" {
   count    = data.coder_workspace.me.start_count * (data.coder_parameter.git_repo.value != "" ? 1 : 0)
-  source   = "registry.coder.com/coder/git-clone/coder"
+  source   = "{{ .RegistryBase }}/coder/git-clone/coder"
+  # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version  = "~> 2.0"
   agent_id = coder_agent.main.id
   url      = data.coder_parameter.git_repo.value

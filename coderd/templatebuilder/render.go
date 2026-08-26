@@ -6,6 +6,9 @@ import (
 	"regexp"
 	"text/template"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 	"golang.org/x/xerrors"
 )
 
@@ -19,13 +22,23 @@ type ImageOption struct {
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	Variables      map[string]string
+	// RegistryBase is the bare host of the module registry used in rendered
+	// module source paths (e.g. "registry.coder.com"): no scheme, no trailing
+	// slash, never empty. Compose normalizes it from the deployment config
+	// (CODER_TEMPLATE_BUILDER_REGISTRY_URL) via
+	// codersdk.NormalizeTemplateBuilderRegistryURL; direct RenderBaseTemplate
+	// callers must supply an already-normalized host, or the source renders as
+	// "/coder/...".
+	RegistryBase string
+	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.
 type ModuleRenderContext struct {
-	// RegistryBase is the module registry URL from the deployment config
-	// (CODER_TEMPLATE_BUILDER_REGISTRY_URL).
+	// RegistryBase is the bare host of the module registry used in rendered
+	// module source paths (e.g. "registry.coder.com"): no scheme, no trailing
+	// slash, never empty. renderModules passes the host Compose already
+	// normalized from CODER_TEMPLATE_BUILDER_REGISTRY_URL.
 	RegistryBase string
 	// PinnedVersion is the module version from the catalog manifest.
 	PinnedVersion string
@@ -153,4 +166,72 @@ func ExtractModuleNames(hcl []byte) []string {
 		names = append(names, string(m[1]))
 	}
 	return names
+}
+
+// validateRenderedBaseHCL parses rendered base HCL and returns the parser
+// diagnostic when it is malformed. Compose calls this before its module
+// early-return so a base that rendered to invalid HCL (for example, a registry
+// value that slipped past normalization and interpolated badly) fails with the
+// real syntax error instead of shipping a broken main.tf on the zero-module path
+// or failing later with a misleading missing-agent error on the module path.
+func validateRenderedBaseHCL(hclSrc []byte) error {
+	if _, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos); diags.HasErrors() {
+		return xerrors.Errorf("rendered base template is not valid HCL: %w", diags)
+	}
+	return nil
+}
+
+// parseHCLBody parses rendered HCL from one of our curated base templates and
+// returns its top-level body. The input is expected to be valid HCL produced by
+// our own templates; on a parse error it returns nil so callers fail safe.
+// ExtractModuleSources turns a nil body into an empty result, which trips its
+// caller's assertions rather than passing silently.
+func parseHCLBody(hclSrc []byte) *hclsyntax.Body {
+	file, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos)
+	if diags.HasErrors() || file == nil {
+		return nil
+	}
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil
+	}
+	return body
+}
+
+// ExtractModuleSources returns the `source` string of every top-level `module`
+// block in rendered HCL, in declaration order. A module block whose source is
+// not a static string is skipped. Parsing with hclsyntax means commented-out
+// blocks and module-like text inside strings or heredocs are ignored, so the
+// result is exactly the set of sources Terraform would resolve. The input is
+// expected to be rendered output from our own curated base templates, not
+// arbitrary user HCL.
+func ExtractModuleSources(hclSrc []byte) []string {
+	body := parseHCLBody(hclSrc)
+	if body == nil {
+		return nil
+	}
+	var sources []string
+	for _, block := range body.Blocks {
+		if block.Type != "module" {
+			continue
+		}
+		attr, ok := block.Body.Attributes["source"]
+		if !ok {
+			continue
+		}
+		if s, ok := staticString(attr.Expr); ok {
+			sources = append(sources, s)
+		}
+	}
+	return sources
+}
+
+// staticString evaluates an expression expected to be a constant string (no
+// variables or functions) and reports whether it produced one.
+func staticString(expr hcl.Expression) (string, bool) {
+	val, diags := expr.Value(nil)
+	if diags.HasErrors() || val.IsNull() || val.Type() != cty.String {
+		return "", false
+	}
+	return val.AsString(), true
 }

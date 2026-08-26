@@ -155,3 +155,24 @@ func TestMergeModuleVariables(t *testing.T) {
 		require.Equal(t, "13337", merged["port"])
 	})
 }
+
+func TestValidateRenderedBaseHCL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidHCL", func(t *testing.T) {
+		t.Parallel()
+		require.NoError(t, validateRenderedBaseHCL([]byte(`resource "coder_agent" "main" {}`)))
+	})
+
+	t.Run("InvalidHCL", func(t *testing.T) {
+		t.Parallel()
+		// A base that rendered to invalid HCL (for example a registry value that
+		// slipped past normalization and interpolated badly) must fail with the
+		// parser diagnostic rather than being shipped as a broken main.tf. Compose
+		// relies on this backstop on the zero-module path, so the error branch
+		// needs direct coverage.
+		err := validateRenderedBaseHCL([]byte("resource {"))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not valid HCL")
+	})
+}

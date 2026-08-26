@@ -4724,6 +4724,15 @@ export const DefaultChatDebugRetentionDays = 30;
  */
 export const DefaultChatWorkspaceTTL = 0;
 
+// From codersdk/deployment.go
+/**
+ * DefaultTemplateBuilderRegistryURL is the module registry the template builder
+ * uses for module source paths when CODER_TEMPLATE_BUILDER_REGISTRY_URL is unset
+ * or empty. It is a bare host (no scheme, no trailing slash), the shape
+ * NormalizeTemplateBuilderRegistryURL enforces for any operator-supplied value.
+ */
+export const DefaultTemplateBuilderRegistryURL = "registry.coder.com";
+
 // From codersdk/externalauth.go
 export interface DeleteExternalAuthByIDResponse {
 	/**

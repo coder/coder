@@ -16,9 +16,9 @@ variable "project_id" {
   default     = {{ .Variables.project_id }}
 }
 
-# See https://registry.coder.com/modules/coder/gcp-region
+# Module docs (public registry): https://registry.coder.com/modules/coder/gcp-region
 module "gcp_region" {
-  source = "registry.coder.com/coder/gcp-region/coder"
+  source = "{{ .RegistryBase }}/coder/gcp-region/coder"
 
   # This ensures that the latest non-breaking version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = "~> 1.0"

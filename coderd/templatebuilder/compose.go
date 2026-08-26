@@ -10,6 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -53,8 +55,26 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
+	// Normalize and default the registry once here so the base and module render
+	// paths see the same canonical host. codersdk validates the same value at
+	// server start (DeploymentValues.Validate); this is the per-request defense in
+	// depth for direct callers and a belt against a value that slipped past.
+	registryBase, err := codersdk.NormalizeTemplateBuilderRegistryURL(req.RegistryURL)
 	if err != nil {
+		return nil, err
+	}
+
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the rendered base HCL once, before the module early-return, so a base
+	// that rendered to invalid HCL fails here with the parser diagnostic. Without
+	// this, the zero-module path ships a broken main.tf unvalidated, and the module
+	// path below fails with a misleading "no coder_agent resource" error from
+	// ExtractAgentResourceName instead of the real syntax error.
+	if err := validateRenderedBaseHCL(mainTF); err != nil {
 		return nil, err
 	}
 
@@ -84,7 +104,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, agentName)
+	modulesTF, err := renderModules(req.Modules, catalog, registryBase, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +127,15 @@ func formatHCL(src []byte) []byte {
 	return hclwrite.Format(src)
 }
 
-// renderBase renders the base template for the given example ID,
-// merging any user-supplied variable values into the render context.
-func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
+// renderBase renders the base template for the given example ID, merging any
+// user-supplied variable values into the render context. Compose has already
+// normalized registryBase, so it is threaded in unconditionally.
+func renderBase(baseTemplateID string, baseVars map[string]string, registryBase string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
+	renderCtx.RegistryBase = registryBase
 
 	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
 	if err != nil {
@@ -252,7 +274,7 @@ func validateModules(requested []ComposeModule, catalog map[string]ModuleManifes
 func renderModules(
 	requested []ComposeModule,
 	catalog map[string]ModuleManifest,
-	registryURL, agentName string,
+	registryBase, agentName string,
 ) ([]byte, error) {
 	var buf bytes.Buffer
 	for _, cm := range requested {
@@ -268,7 +290,7 @@ func renderModules(
 			return nil, xerrors.Errorf("module %q: %w", cm.ID, err)
 		}
 		modCtx := ModuleRenderContext{
-			RegistryBase:      registryURL,
+			RegistryBase:      registryBase,
 			PinnedVersion:     manifest.PinnedVersion,
 			AgentResourceName: agentName,
 			Variables:         vars,

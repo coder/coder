@@ -1797,7 +1797,7 @@ Disable the template builder feature for guided template creation. When disabled
 
 ### Registry URL
 
-The base URL of the module registry used by the template builder for module source paths.
+The bare host of the module registry the template builder uses for module source paths, optionally with a port (for example "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme is stripped; a path, credentials, query, or fragment is rejected at server start.
 
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server.md#--template-builder-registry-url)

@@ -11,6 +11,8 @@ import (
 	"text/template"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // BaseOS enumerates operating systems for base template filtering.
@@ -232,6 +234,7 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		RegistryBase:   codersdk.DefaultTemplateBuilderRegistryURL,
 		Variables:      vars,
 	}
 }
