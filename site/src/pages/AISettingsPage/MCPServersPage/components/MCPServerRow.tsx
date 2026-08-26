@@ -3,6 +3,12 @@ import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
@@ -45,7 +51,20 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 				{AVAILABILITY_LABELS[server.availability] ?? server.availability}
 			</TableCell>
 			<TableCell className="w-32">
-				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>
+				{enabled ? (
+					<Badge variant="green">Enabled</Badge>
+				) : (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge variant="warning">Disabled</Badge>
+							</TooltipTrigger>
+							<TooltipContent>
+								This server is disabled and won't be available to Coder Agents.
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				)}
 			</TableCell>
 			<TableCell className="w-12">
 				{onClick && (
