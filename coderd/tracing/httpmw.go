@@ -27,18 +27,27 @@ import (
 // a 16-byte identifier encoded as a 32-character hexadecimal string.
 const SessionIDBaggageKey = "client_session_id"
 
-// Middleware adds tracing to http routes.
-func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Handler {
-	// We only want to create spans on the following route patterns, however
-	// we want the middleware to be very high in the middleware stack so it can
-	// capture the entire request.
-	re := patternmatcher.RoutePatterns{
-		"/api",
-		"/api/**",
-		"/@*/*/apps/**",
-		"/%40*/*/apps/**",
-		"/external-auth/*/callback",
-	}.MustCompile()
+// DefaultRoutePatterns are the route patterns coderd and wsproxy trace. The
+// middleware runs high in the stack so it can capture the entire request, but
+// only acts on these patterns.
+var DefaultRoutePatterns = []string{
+	"/api",
+	"/api/**",
+	"/@*/*/apps/**",
+	"/%40*/*/apps/**",
+	"/external-auth/*/callback",
+}
+
+// Middleware adds tracing to http routes. It only acts on requests matching
+// routePatterns, and labels emitted spans with serverName. A nil tracerProvider
+// disables span creation, leaving the middleware to enrich the log context with
+// client_session_id only (as the agent uses it).
+func Middleware(
+	tracerProvider trace.TracerProvider,
+	routePatterns []string,
+	serverName string,
+) func(http.Handler) http.Handler {
+	re := patternmatcher.RoutePatterns(routePatterns).MustCompile()
 
 	if tracerProvider == nil {
 		tracerProvider = noop.NewTracerProvider()
@@ -80,7 +89,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 			// pass the span through the request context and serve the request to the next middleware
 			next.ServeHTTP(sw, r)
 			// capture response data
-			EndHTTPSpan(r, sw.Status, span)
+			EndHTTPSpan(r, sw.Status, span, serverName)
 		})
 	}
 }
@@ -124,19 +133,6 @@ func sessionIDFromQueryString(q url.Values) string {
 	return id
 }
 
-// SessionIDMiddleware reads the client_session_id baggage member from the
-// request and adds it to the log context so downstream request logs can be
-// correlated by session. Unlike Middleware, it does not create spans, emit
-// telemetry, or gate on route patterns.
-func SessionIDMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if sessionID := sessionIDFromHeaders(r.Header); sessionID != "" {
-			r = r.WithContext(slog.With(r.Context(), slog.F("client_session_id", sessionID)))
-		}
-		next.ServeHTTP(rw, r)
-	})
-}
-
 // validSessionID reports whether s is a 32-character lowercase hexadecimal
 // string (a 16-byte value), the encoding the RFC mandates for the session ID.
 // Only lowercase is accepted so that case-sensitive searches correlate
@@ -173,12 +169,13 @@ func StartHTTPSpan(tracer trace.Tracer, rw http.ResponseWriter, r *http.Request,
 }
 
 // EndHTTPSpan captures request and response data after the handler is done.
-func EndHTTPSpan(r *http.Request, status int, span trace.Span) {
+// serverName labels the span's server request attributes.
+func EndHTTPSpan(r *http.Request, status int, span trace.Span, serverName string) {
 	// set the resource name as we get it only once the handler is executed
 	route := chi.RouteContext(r.Context()).RoutePattern()
 	span.SetName(fmt.Sprintf("%s %s", r.Method, route))
 	span.SetAttributes(netconv.Transport("tcp"))
-	span.SetAttributes(httpconv.ServerRequest("coderd", r)...)
+	span.SetAttributes(httpconv.ServerRequest(serverName, r)...)
 	span.SetAttributes(semconv.HTTPRouteKey.String(route))
 
 	// 0 status means one has not yet been sent in which case net/http library will write StatusOK

@@ -20,7 +20,10 @@ func (a *agent) apiHandler() http.Handler {
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
-		tracing.SessionIDMiddleware,
+		// Reuse the coderd tracing middleware with a noop tracer (nil provider):
+		// it emits no spans or telemetry on the agent and only enriches the log
+		// context with client_session_id. Only /api routes are tracked.
+		tracing.Middleware(nil, []string{"/api", "/api/**"}, "agent"),
 		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
 	)
