@@ -14,12 +14,14 @@ const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 		user: MockMenu,
 		template: MockMenu,
 		status: MockMenu,
+		health: MockMenu,
 		organizations: MockMenu,
 	},
 	values: {
 		owner: "me",
 		template: undefined,
 		status: undefined,
+		healthy: undefined,
 	},
 });
 
@@ -31,6 +33,7 @@ const meta: Meta<typeof WorkspacesFilter> = {
 		error: undefined,
 		templateMenu: MockMenu,
 		statusMenu: MockMenu,
+		healthMenu: MockMenu,
 	},
 	decorators: [withDashboardProvider],
 };

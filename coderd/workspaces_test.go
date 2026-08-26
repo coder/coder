@@ -3318,6 +3318,169 @@ func TestWorkspaceFilterManual(t *testing.T) {
 	})
 }
 
+// TestWorkspaceFilterHealthy asserts that the `healthy:` search filter matches
+// the workspace-level health reported by the API, and that it composes with
+// `has-agent:`, which filters raw agent connection statuses.
+func TestWorkspaceFilterHealthy(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{Database: db, Pubsub: ps})
+	api.AgentInactiveDisconnectTimeout = testutil.WaitSuperLong
+	owner := coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	newWorkspace := func(name string, agents int, transition database.WorkspaceTransition) dbfake.WorkspaceResponse {
+		t.Helper()
+		b := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			Name:           name,
+			OwnerID:        owner.UserID,
+			OrganizationID: owner.OrganizationID,
+		}).Seed(database.WorkspaceBuild{Transition: transition})
+		if agents > 0 {
+			b = b.WithAgent(func(existing []*proto.Agent) []*proto.Agent {
+				for i := 1; i < agents; i++ {
+					existing = append(existing, &proto.Agent{
+						Id:   uuid.NewString(),
+						Name: fmt.Sprintf("dev%d", i),
+						Auth: &proto.Agent_Token{Token: uuid.NewString()},
+						Env:  map[string]string{},
+					})
+				}
+				return existing
+			})
+		}
+		return b.Do()
+	}
+	connectAgent := func(agentID uuid.UUID) {
+		t.Helper()
+		now := dbtime.Now()
+		require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               agentID,
+			FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+			LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+			UpdatedAt:        now,
+		}))
+	}
+	disconnectAgent := func(agentID uuid.UUID) {
+		t.Helper()
+		now := dbtime.Now()
+		require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(ctx, database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:               agentID,
+			FirstConnectedAt: sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+			LastConnectedAt:  sql.NullTime{Time: now.Add(-2 * time.Hour), Valid: true},
+			DisconnectedAt:   sql.NullTime{Time: now.Add(-time.Hour), Valid: true},
+			UpdatedAt:        now,
+		}))
+	}
+	setLifecycle := func(agentID uuid.UUID, state database.WorkspaceAgentLifecycleState) {
+		t.Helper()
+		require.NoError(t, db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+			ID:             agentID,
+			LifecycleState: state,
+		}))
+	}
+
+	// Healthy: a single connected agent.
+	connected := newWorkspace("connected", 1, database.WorkspaceTransitionStart)
+	connectAgent(connected.Agents[0].ID)
+
+	// Unhealthy: the agent connected and then dropped its connection.
+	disconnected := newWorkspace("disconnected", 1, database.WorkspaceTransitionStart)
+	disconnectAgent(disconnected.Agents[0].ID)
+
+	// Unhealthy: workspace health uses all-agent semantics, so a single
+	// disconnected agent makes the workspace unhealthy.
+	mixed := newWorkspace("mixed", 2, database.WorkspaceTransitionStart)
+	connectAgent(mixed.Agents[0].ID)
+	disconnectAgent(mixed.Agents[1].ID)
+
+	// Unhealthy: connected, but the startup script failed. This is invisible to
+	// raw connection-status filtering.
+	startError := newWorkspace("start-error", 1, database.WorkspaceTransitionStart)
+	connectAgent(startError.Agents[0].ID)
+	setLifecycle(startError.Agents[0].ID, database.WorkspaceAgentLifecycleStateStartError)
+
+	// Unhealthy: connected, but the agent is shutting down.
+	shuttingDown := newWorkspace("shutting-down", 1, database.WorkspaceTransitionStart)
+	connectAgent(shuttingDown.Agents[0].ID)
+	setLifecycle(shuttingDown.Agents[0].ID, database.WorkspaceAgentLifecycleStateShuttingDown)
+
+	// Healthy: start timeout is a soft issue and does not affect agent health.
+	startTimeout := newWorkspace("start-timeout", 1, database.WorkspaceTransitionStart)
+	connectAgent(startTimeout.Agents[0].ID)
+	setLifecycle(startTimeout.Agents[0].ID, database.WorkspaceAgentLifecycleStateStartTimeout)
+
+	// Healthy: sub-agents do not contribute to workspace health.
+	subAgent := newWorkspace("sub-agent", 1, database.WorkspaceTransitionStart)
+	connectAgent(subAgent.Agents[0].ID)
+	disconnectAgent(dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: subAgent.Agents[0].ResourceID,
+		ParentID:   uuid.NullUUID{UUID: subAgent.Agents[0].ID, Valid: true},
+		Name:       "devcontainer",
+	}).ID)
+
+	// Unhealthy: the agent has never connected.
+	connecting := newWorkspace("connecting", 1, database.WorkspaceTransitionStart)
+
+	// Healthy: a stopped workspace has no agents to report on.
+	stopped := newWorkspace("stopped", 0, database.WorkspaceTransitionStop)
+
+	healthyWorkspaces := []uuid.UUID{
+		connected.Workspace.ID,
+		startTimeout.Workspace.ID,
+		subAgent.Workspace.ID,
+		stopped.Workspace.ID,
+	}
+	unhealthyWorkspaces := []uuid.UUID{
+		disconnected.Workspace.ID,
+		mixed.Workspace.ID,
+		startError.Workspace.ID,
+		shuttingDown.Workspace.ID,
+		connecting.Workspace.ID,
+	}
+
+	workspaceIDs := func(res codersdk.WorkspacesResponse) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, len(res.Workspaces))
+		for _, ws := range res.Workspaces {
+			ids = append(ids, ws.ID)
+		}
+		return ids
+	}
+
+	// The same fixtures must produce the same answer through the reported
+	// workspace health and through the filter.
+	all, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, all.Workspaces, len(healthyWorkspaces)+len(unhealthyWorkspaces))
+	for _, ws := range all.Workspaces {
+		if slices.Contains(healthyWorkspaces, ws.ID) {
+			require.True(t, ws.Health.Healthy, "workspace %q should report healthy", ws.Name)
+			continue
+		}
+		require.True(t, slices.Contains(unhealthyWorkspaces, ws.ID))
+		require.False(t, ws.Health.Healthy, "workspace %q should report unhealthy", ws.Name)
+	}
+
+	healthy, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{FilterQuery: "healthy:true"})
+	require.NoError(t, err)
+	require.ElementsMatch(t, healthyWorkspaces, workspaceIDs(healthy))
+
+	unhealthy, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{FilterQuery: "healthy:false"})
+	require.NoError(t, err)
+	require.ElementsMatch(t, unhealthyWorkspaces, workspaceIDs(unhealthy))
+
+	// healthy and has-agent are independent dimensions that compose. Only the
+	// workspaces that have a connected agent and are still unhealthy match.
+	composed, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{FilterQuery: "healthy:false has-agent:connected"})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{
+		mixed.Workspace.ID,
+		startError.Workspace.ID,
+		shuttingDown.Workspace.ID,
+	}, workspaceIDs(composed))
+}
+
 func TestOffsetLimit(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

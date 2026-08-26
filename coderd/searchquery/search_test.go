@@ -317,28 +317,30 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "HealthyTrue",
 			Query: "healthy:true",
 			Expected: database.GetWorkspacesParams{
-				HasAgentStatuses: []string{"connected"},
+				Healthy: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
 			Name:  "HealthyFalse",
 			Query: "healthy:false",
 			Expected: database.GetWorkspacesParams{
-				HasAgentStatuses: []string{"disconnected", "timeout"},
+				Healthy: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
 			Name:  "HealthyMissing",
 			Query: "",
 			Expected: database.GetWorkspacesParams{
-				HasAgentStatuses: []string{},
+				Healthy: sql.NullBool{},
 			},
 		},
 		{
+			// healthy and has-agent are independent, composable filters.
 			Name:  "HealthyAndHasAgent",
 			Query: "has-agent:connecting healthy:true",
 			Expected: database.GetWorkspacesParams{
-				HasAgentStatuses: []string{"connecting", "connected"},
+				HasAgentStatuses: []string{"connecting"},
+				Healthy:          sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{

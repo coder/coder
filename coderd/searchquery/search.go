@@ -305,15 +305,10 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
 	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
-	// Translate healthy filter to has-agent statuses
-	// healthy:true = connected, healthy:false = disconnected or timeout
-	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
-		if healthy.Bool {
-			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "connected")
-		} else {
-			filter.HasAgentStatuses = append(filter.HasAgentStatuses, "disconnected", "timeout")
-		}
-	}
+	// healthy filters on workspace-level health, which aggregates the health
+	// of top-level agents. has-agent remains the raw connection status
+	// filter, and the two compose.
+	filter.Healthy = parser.NullableBoolean(values, sql.NullBool{}, "healthy")
 
 	type paramMatch struct {
 		name  string

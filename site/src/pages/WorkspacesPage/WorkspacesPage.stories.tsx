@@ -769,6 +769,108 @@ export const OutdatedStoppedAlwaysUpdateHidesStartButton: Story = {
 	},
 };
 
+async function selectFilterOption(
+	canvas: ReturnType<typeof within>,
+	user: ReturnType<typeof userEvent.setup>,
+	menuName: string,
+	optionName: string,
+) {
+	const body = within(document.body);
+	await user.click(await canvas.findByRole("button", { name: menuName }));
+	await user.click(await body.findByRole("option", { name: optionName }));
+}
+
+export const HealthMenuFiltersUnhealthyWorkspaces: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue(MockWorkspacesResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await selectFilterOption(
+			canvas,
+			user,
+			"Select a health state",
+			"Unhealthy",
+		);
+
+		await waitFor(() => {
+			expect(API.getWorkspaces).toHaveBeenCalledWith(
+				expect.objectContaining({ q: "owner:me healthy:false" }),
+			);
+		});
+	},
+};
+
+export const StatusAndHealthFiltersCompose: Story = {
+	parameters: { pixel: { exclude: true } },
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue(MockWorkspacesResponse);
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		await step("Select the Running status", async () => {
+			await selectFilterOption(canvas, user, "Select a status", "Running");
+			await waitFor(() => {
+				expect(API.getWorkspaces).toHaveBeenCalledWith(
+					expect.objectContaining({ q: "owner:me status:running" }),
+				);
+			});
+		});
+
+		await step("Add the Unhealthy health state", async () => {
+			await selectFilterOption(
+				canvas,
+				user,
+				"Select a health state",
+				"Unhealthy",
+			);
+			await waitFor(() => {
+				expect(API.getWorkspaces).toHaveBeenCalledWith(
+					expect.objectContaining({
+						q: "owner:me status:running healthy:false",
+					}),
+				);
+			});
+		});
+	},
+};
+
+export const StatusAndHealthMenusHydrateFromUrl: Story = {
+	parameters: {
+		pixel: { exclude: true },
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/workspaces",
+				searchParams: { filter: "status:running healthy:false" },
+			},
+			routing: [{ path: "/workspaces", useStoryElement: true }],
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaces").mockResolvedValue(MockWorkspacesResponse);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const statusMenu = await canvas.findByRole("button", {
+			name: "Select a status",
+		});
+		const healthMenu = await canvas.findByRole("button", {
+			name: "Select a health state",
+		});
+
+		await waitFor(() => {
+			expect(within(statusMenu).getByText("Running")).toBeInTheDocument();
+			expect(within(healthMenu).getByText("Unhealthy")).toBeInTheDocument();
+		});
+	},
+};
+
 async function selectWorkspaces(
 	canvas: ReturnType<typeof within>,
 	user: ReturnType<typeof userEvent.setup>,

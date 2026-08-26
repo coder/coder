@@ -117,6 +117,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 					filter={filterState.filter}
 					error={error}
 					statusMenu={filterState.menus.status}
+					healthMenu={filterState.menus.health}
 					templateMenu={filterState.menus.template}
 					userMenu={filterState.menus.user}
 					organizationsMenu={filterState.menus.organizations}

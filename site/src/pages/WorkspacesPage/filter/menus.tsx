@@ -147,6 +147,55 @@ export const StatusMenu: FC<StatusMenuProps> = ({ width, menu }) => {
 	);
 };
 
+/** Health Filter Menu */
+
+const healthOptions: SelectFilterOption[] = [
+	{
+		label: "Healthy",
+		value: "true",
+		startIcon: <StatusIndicatorDot variant="success" />,
+	},
+	{
+		label: "Unhealthy",
+		value: "false",
+		startIcon: <StatusIndicatorDot variant="warning" />,
+	},
+];
+
+export const useHealthFilterMenu = ({
+	value,
+	onChange,
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
+	return useFilterMenu({
+		onChange,
+		value,
+		id: "healthy",
+		getSelectedOption: async () =>
+			healthOptions.find((option) => option.value === value) ?? null,
+		getOptions: async () => healthOptions,
+	});
+};
+
+export type HealthFilterMenu = ReturnType<typeof useHealthFilterMenu>;
+
+type HealthMenuProps = Readonly<{
+	width?: number;
+	menu: HealthFilterMenu;
+}>;
+
+export const HealthMenu: FC<HealthMenuProps> = ({ width, menu }) => {
+	return (
+		<SelectFilter
+			width={width}
+			placeholder="All health"
+			label="Select a health state"
+			options={menu.searchOptions}
+			selectedOption={menu.selectedOption ?? undefined}
+			onSelect={menu.selectOption}
+		/>
+	);
+};
+
 const getStatusIndicatorVariant = (
 	status: WorkspaceStatus,
 ): StatusIndicatorDotProps["variant"] => {

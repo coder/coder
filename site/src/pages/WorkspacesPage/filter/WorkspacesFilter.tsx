@@ -16,6 +16,8 @@ import {
 } from "#/modules/tableFiltering/options";
 import { docs } from "#/utils/docs";
 import {
+	type HealthFilterMenu,
+	HealthMenu,
 	type StatusFilterMenu,
 	StatusMenu,
 	type TemplateFilterMenu,
@@ -28,6 +30,7 @@ const workspaceFilterQuery = {
 	running: "status:running",
 	failed: "status:failed",
 	dormant: "dormant:true",
+	unhealthy: "healthy:false",
 	outdated: "outdated:true",
 	shared: "shared:true",
 };
@@ -57,6 +60,10 @@ const PRESET_FILTERS: FilterPreset[] = [
 		name: "Failed workspaces",
 	},
 	{
+		query: workspaceFilterQuery.unhealthy,
+		name: "Unhealthy workspaces",
+	},
+	{
 		query: workspaceFilterQuery.outdated,
 		name: "Outdated workspaces",
 	},
@@ -82,6 +89,7 @@ export type WorkspaceFilterState = {
 		user?: UserFilterMenu;
 		template: TemplateFilterMenu;
 		status: StatusFilterMenu;
+		health: HealthFilterMenu;
 		organizations?: OrganizationsFilterMenu;
 	};
 };
@@ -91,6 +99,7 @@ type WorkspaceFilterProps = Readonly<{
 	error: unknown;
 	templateMenu: TemplateFilterMenu;
 	statusMenu: StatusFilterMenu;
+	healthMenu: HealthFilterMenu;
 
 	userMenu?: UserFilterMenu;
 	organizationsMenu?: OrganizationsFilterMenu;
@@ -101,6 +110,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 	error,
 	templateMenu,
 	statusMenu,
+	healthMenu,
 	userMenu,
 	organizationsMenu,
 }) => {
@@ -126,6 +136,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 					{userMenu && <UserMenu width={width} menu={userMenu} />}
 					<TemplateMenu width={width} menu={templateMenu} />
 					<StatusMenu width={width} menu={statusMenu} />
+					<HealthMenu width={width} menu={healthMenu} />
 					{organizationsActive && (
 						<OrganizationsMenu width={width} menu={organizationsMenu} />
 					)}
@@ -134,6 +145,7 @@ export const WorkspacesFilter: FC<WorkspaceFilterProps> = ({
 			optionsSkeleton={
 				<>
 					{userMenu && <MenuSkeleton />}
+					<MenuSkeleton />
 					<MenuSkeleton />
 					<MenuSkeleton />
 					{organizationsActive && <MenuSkeleton />}

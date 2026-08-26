@@ -26,7 +26,11 @@ import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchStopConfirmation } from "./BatchStopConfirmation";
 import { BatchUpdateModalForm } from "./BatchUpdateModalForm";
 import { useBatchActions } from "./batchActions";
-import { useStatusFilterMenu, useTemplateFilterMenu } from "./filter/menus";
+import {
+	useHealthFilterMenu,
+	useStatusFilterMenu,
+	useTemplateFilterMenu,
+} from "./filter/menus";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 
 // To reduce the number of fetches, we reduce the fetch interval if there are no
@@ -317,6 +321,12 @@ const useWorkspacesFilter = ({
 			filter.update({ ...filter.values, status: option?.value }),
 	});
 
+	const healthMenu = useHealthFilterMenu({
+		value: filter.values.healthy,
+		onChange: (option) =>
+			filter.update({ ...filter.values, healthy: option?.value }),
+	});
+
 	const { showOrganizations } = useDashboard();
 	const organizationsMenu = useOrganizationsFilterMenu({
 		value: filter.values.organization,
@@ -334,6 +344,7 @@ const useWorkspacesFilter = ({
 			user: canFilterByUser ? userMenu : undefined,
 			template: templateMenu,
 			status: statusMenu,
+			health: healthMenu,
 			organizations: showOrganizations ? organizationsMenu : undefined,
 		},
 	};

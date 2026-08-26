@@ -329,6 +329,56 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by workspace health.
+	--
+	-- This mirrors the workspace-level health reported by the API
+	-- (codersdk.Workspace.Health): a workspace is healthy when every
+	-- non-deleted, top-level agent of its latest build is healthy.
+	-- Workspaces without such agents (for example stopped workspaces) are
+	-- healthy, which keeps healthy:true the exact complement of
+	-- healthy:false.
+	--
+	-- An agent is healthy when it is connected and its lifecycle state is
+	-- neither a start error nor shutting down, matching the agent health
+	-- calculation in coderd/database/db2sdk.WorkspaceAgent.
+	AND CASE
+		WHEN sqlc.narg('healthy') :: boolean IS NOT NULL THEN
+			sqlc.narg('healthy') :: boolean = NOT EXISTS (
+				SELECT
+					1
+				FROM
+					workspace_resources
+				JOIN
+					workspace_agents
+				ON
+					workspace_agents.resource_id = workspace_resources.id
+				WHERE
+					workspace_resources.job_id = latest_build.provisioner_job_id AND
+					workspace_agents.deleted = FALSE AND
+					-- Sub-agents (e.g. devcontainer agents) do not affect
+					-- workspace health.
+					workspace_agents.parent_id IS NULL AND
+					NOT (
+						-- Agent is connected.
+						workspace_agents.first_connected_at IS NOT NULL AND
+						workspace_agents.last_connected_at IS NOT NULL AND
+						(
+							workspace_agents.disconnected_at IS NULL OR
+							workspace_agents.disconnected_at < workspace_agents.last_connected_at
+						) AND
+						NOW() - workspace_agents.last_connected_at <= INTERVAL '1 second' * @agent_inactive_disconnect_timeout_seconds :: bigint AND
+						-- Agent lifecycle is not failed or shutting down.
+						workspace_agents.lifecycle_state NOT IN (
+							'start_error'::workspace_agent_lifecycle_state,
+							'shutting_down'::workspace_agent_lifecycle_state,
+							'shutdown_timeout'::workspace_agent_lifecycle_state,
+							'shutdown_error'::workspace_agent_lifecycle_state,
+							'off'::workspace_agent_lifecycle_state
+						)
+					)
+			)
+		ELSE true
+	END
 	-- Filter by dormant workspaces.
 	AND CASE
 		WHEN @dormant :: boolean != 'false' THEN

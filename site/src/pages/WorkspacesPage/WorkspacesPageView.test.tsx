@@ -29,6 +29,7 @@ const createFilterState = (used = false) =>
 			user: mockMenu,
 			template: mockMenu,
 			status: mockMenu,
+			health: mockMenu,
 			organizations: mockMenu,
 		},
 	}) as WorkspaceFilterState;

@@ -68,11 +68,16 @@ The following filters are supported:
 - `outdated` - Filters workspaces using an outdated template version, e.g,
   `outdated:true`
 - `dormant` - Filters workspaces based on the dormant state, e.g `dormant:true`
-- `has-agent` - Only applicable for workspaces in "start" transition. Stopped
-  and deleted workspaces don't have agents. List of supported values
+- `has-agent` - Filters workspaces by raw agent connection status. Only applicable
+  for workspaces in the "start" transition. Stopped and deleted workspaces don't
+  have agents. List of supported values
   `connecting|connected|timeout|disconnected`, e.g, `has-agent:connecting`
 - `id` - Workspace UUID
-- `healthy` - Only applicable for workspaces in "start" transition. `healthy:false` is an alias for `has-agent:timeout,disconnected`, `healthy:true` is an alias for `has-agent:connected`.
+- `healthy` - Filters by workspace-level health. Workspace health aggregates the
+  health of top-level agents and includes connection and lifecycle failures.
+  Workspaces without agents, such as stopped workspaces, are healthy. For
+  example, `status:running healthy:false` returns running workspaces that need
+  attention.
 - `include_agent_metadata` - Not a filter: expands each agent in the API
   response with the named agent metadata keys, e.g,
   `include_agent_metadata:cpu_usage`. Repeat the key to request multiple

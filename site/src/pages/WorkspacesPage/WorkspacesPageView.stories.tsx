@@ -141,12 +141,14 @@ const defaultFilterProps = getDefaultFilterProps<WorkspaceFilterState>({
 		user: MockMenu,
 		template: MockMenu,
 		status: MockMenu,
+		health: MockMenu,
 		organizations: MockMenu,
 	},
 	values: {
 		owner: MockUserOwner.username,
 		template: undefined,
 		status: undefined,
+		healthy: undefined,
 	},
 });
 
