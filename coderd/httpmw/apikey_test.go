@@ -262,7 +262,11 @@ func TestAPIKey(t *testing.T) {
 		// delete_deleted_user_resources would purge it, so suppress the
 		// cleanup trigger transactionally to reconstruct the orphaned
 		// credential this middleware must reject (a row that survived
-		// cleanup past a race, a restored backup, a manual insert).
+		// cleanup past a race, a restored backup, an insert that bypassed
+		// trigger_insert_apikeys). The ALTER TABLE takes a brief ACCESS
+		// EXCLUSIVE lock on users, which can stall other parallel tests
+		// when CODER_PG_CONNECTION_URL points every test at one shared
+		// database.
 		ctx := context.Background()
 		tx, err := sqlDB.BeginTx(ctx, nil)
 		require.NoError(t, err)

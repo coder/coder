@@ -3440,12 +3440,15 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 }
 
 // TestGetAuthorizationUserRolesDeletedUser pins the query's contract for
-// soft-deleted users: the row is still returned, with Deleted set, and the
-// role set intact. Non-authentication callers (provisioner builds resolving a
-// soft-deleted owner's roles to run the delete build, prebuilds, dynamic
-// parameter rendering) depend on the roles; the authentication path rejects
-// the subject in httpmw.UserRBACSubject based on the Deleted column instead
-// of a WHERE filter here.
+// soft-deleted users: the row is still returned, with Deleted set and the
+// site-level roles (including the implied member role) still resolving.
+// Org-scoped roles are gone by then: the cleanup trigger deletes the user's
+// organization_members rows during the soft-delete. Non-authentication
+// callers (provisioner builds resolving a soft-deleted owner's roles to run
+// the delete build, prebuilds, dynamic parameter rendering) depend on the
+// row being returned; the authentication path rejects the subject in
+// httpmw.UserRBACSubject based on the Deleted column instead of a WHERE
+// filter here.
 func TestGetAuthorizationUserRolesDeletedUser(t *testing.T) {
 	t.Parallel()
 
