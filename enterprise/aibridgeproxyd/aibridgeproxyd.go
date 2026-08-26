@@ -28,6 +28,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	aibridgeconfig "github.com/coder/coder/v2/aibridge/config"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 )
 
@@ -132,7 +133,7 @@ type Server struct {
 	// refreshProviders fetches the live provider snapshot on Reload.
 	// Nil disables hot-reload.
 	refreshProviders RefreshProvidersFunc
-	// providerRouter holds the live (mitmHosts, nameByHost) pair.
+	// providerRouter holds the live routing snapshot.
 	providerRouter atomic.Pointer[providerRouter]
 	// allowedPorts is the port allowlist for CONNECT requests. Fixed at
 	// construction; not reloadable.
@@ -149,19 +150,26 @@ type Server struct {
 	metrics *Metrics
 }
 
+type routedProvider struct {
+	name         string
+	providerType string
+}
+
 // providerRouter keeps CONNECT matching and provider lookup in sync.
 type providerRouter struct {
-	mitmHosts  []string          // host:port set the goproxy condition matches against.
-	nameByHost map[string]string // lowercase hostname -> provider name.
+	mitmHosts      []string                  // host:port set the goproxy condition matches against.
+	providerByHost map[string]routedProvider // lowercase hostname -> provider.
 }
 
 // emptyProviderRouter is used before the first Reload (or when the
 // operator deconfigures every provider) so handlers can safely call
 // loadProviderRouter without a nil check.
-var emptyProviderRouter = &providerRouter{nameByHost: map[string]string{}}
+var emptyProviderRouter = &providerRouter{
+	providerByHost: map[string]routedProvider{},
+}
 
-func (r *providerRouter) providerFromHost(host string) string {
-	return r.nameByHost[strings.ToLower(host)]
+func (r *providerRouter) providerFromHost(host string) routedProvider {
+	return r.providerByHost[strings.ToLower(host)]
 }
 
 // requestContext holds metadata propagated through the proxy request/response chain.
@@ -655,13 +663,13 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	provider := s.loadProviderRouter().providerFromHost(ctx.Req.URL.Hostname())
 	// A concurrent Reload can swap the router between CONNECT matching
 	// and provider lookup, so treat a missing mapping as a runtime miss.
-	if provider == "" {
+	if provider.name == "" {
 		logger.Warn(s.ctx, "rejecting CONNECT request with no provider mapping")
 		return goproxy.RejectConnect, host
 	}
 
 	logger = logger.With(
-		slog.F("provider", provider),
+		slog.F("provider", provider.name),
 	)
 
 	proxyAuth := ctx.Req.Header.Get("Proxy-Authorization")
@@ -685,7 +693,7 @@ func (s *Server) authMiddleware(host string, ctx *goproxy.ProxyCtx) (*goproxy.Co
 	ctx.UserData = &requestContext{
 		ConnectSessionID: connectSessionID,
 		CoderToken:       coderToken,
-		Provider:         provider,
+		Provider:         provider.name,
 	}
 
 	logger.Debug(s.ctx, "request CONNECT authenticated")
@@ -936,14 +944,14 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		}
 	}
 	liveProvider := s.loadProviderRouter().providerFromHost(host)
-	if liveProvider == "" || liveProvider != reqCtx.Provider {
+	if liveProvider.name == "" || liveProvider.name != reqCtx.Provider {
 		s.logger.Warn(s.ctx, "provider mapping changed or removed since CONNECT, passing through",
 			slog.F("connect_id", reqCtx.ConnectSessionID.String()),
 			slog.F("host", req.Host),
 			slog.F("method", req.Method),
 			slog.F("path", originalPath),
 			slog.F("connect_provider", reqCtx.Provider),
-			slog.F("live_provider", liveProvider),
+			slog.F("live_provider", liveProvider.name),
 		)
 		return req, nil
 	}
@@ -992,7 +1000,13 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = parsedGatewayTargetURL
 	req.Host = parsedGatewayTargetURL.Host
 
-	injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
+	// Copilot is always BYOK, so every request needs the Coder token to
+	// authenticate with AI Gateway. Other providers only need it for BYOK requests.
+	if liveProvider.providerType == aibridgeconfig.ProviderCopilot {
+		setCopilotAuth(req.Header, reqCtx.CoderToken)
+	} else {
+		injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
+	}
 
 	// Set request ID header to correlate requests between aibridgeproxyd and aibridged.
 	req.Header.Set(agplaibridge.HeaderCoderRequestID, reqCtx.RequestID.String())
@@ -1017,6 +1031,19 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	}
 
 	return req, nil
+}
+
+// setCopilotAuth sets the Coder auth header and removes the Coder token from
+// provider auth headers.
+func setCopilotAuth(headers http.Header, coderToken string) {
+	headers.Set(agplaibridge.HeaderCoderToken, coderToken)
+
+	if extractCoderTokenFromBearerAuth(headers.Get("Authorization")) == coderToken {
+		headers.Del("Authorization")
+	}
+	if strings.TrimSpace(headers.Get("X-Api-Key")) == coderToken {
+		headers.Del("X-Api-Key")
+	}
 }
 
 // injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
