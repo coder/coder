@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
+	"github.com/tidwall/sjson"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
@@ -71,8 +72,11 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	var (
 		response        *responses.Response
 		upstreamErr     error
+		innerLoopErr    error
 		respCopy        responseCopier
 		firstResponseID string
+		cumulativeUsage responses.ResponseUsage
+		usageIterations int
 	)
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
@@ -126,13 +130,15 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		}
 
 		i.recordTokenUsage(ctx, response)
+		cumulativeUsage = sumUsage(cumulativeUsage, response.Usage)
+		usageIterations++
 		i.recordModelThoughts(ctx, response)
 
 		// Check if there any injected tools to invoke.
 		pending := i.getPendingInjectedToolCalls(response)
-		shouldLoop, err = i.handleInnerAgenticLoop(ctx, pending, response)
-		if err != nil {
-			i.sendCustomErr(ctx, w, http.StatusInternalServerError, err)
+		shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, response)
+		if innerLoopErr != nil {
+			i.sendCustomErr(ctx, w, http.StatusInternalServerError, innerLoopErr)
 			shouldLoop = false
 		}
 	}
@@ -142,14 +148,42 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	}
 	i.recordNonInjectedToolUsage(ctx, response)
 
+	// The inner-loop error was already sent to the client. Do not append the
+	// buffered upstream response to it.
+	if innerLoopErr != nil {
+		return innerLoopErr
+	}
+
 	if upstreamErr != nil && !respCopy.responseReceived.Load() {
 		// no response received from upstream, return custom error
 		i.sendCustomErr(ctx, w, http.StatusInternalServerError, upstreamErr)
 		return xerrors.Errorf("failed to connect to upstream: %w", upstreamErr)
 	}
 
-	err = respCopy.forwardResp(w)
+	if usageIterations > 1 && upstreamErr == nil && response != nil {
+		b, readErr := respCopy.readAll()
+		if readErr != nil {
+			forwardErr := respCopy.forwardBytes(w, b)
+			return errors.Join(xerrors.Errorf("failed to read response body: %w", readErr), forwardErr)
+		}
+		updated, setErr := i.setUsage(b, cumulativeUsage)
+		if setErr != nil {
+			forwardErr := respCopy.forwardBytes(w, b)
+			return errors.Join(setErr, forwardErr)
+		}
+		err = respCopy.forwardBytes(w, updated)
+	} else {
+		err = respCopy.forwardResp(w)
+	}
 	return errors.Join(upstreamErr, err)
+}
+
+func (*BlockingResponsesInterceptor) setUsage(raw []byte, usage responses.ResponseUsage) ([]byte, error) {
+	raw, err := sjson.SetBytes(raw, "usage", usage)
+	if err != nil {
+		return nil, xerrors.Errorf("set response usage: %w", err)
+	}
+	return raw, nil
 }
 
 // newResponse routes by credential type, returning the upstream response, the

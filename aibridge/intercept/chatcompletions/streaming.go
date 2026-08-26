@@ -121,6 +121,10 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		stream          *ssestream.Stream[openai.ChatCompletionChunk]
 		lastErr         error
 		interceptionErr error
+
+		// Cumulative token usage across all previous iterations.
+		// Added to the usage of chunk before relaying to the client.
+		cumulativeUsage openai.CompletionUsage
 	)
 
 	// Sum the key attempts across all iterations and record once when the
@@ -224,7 +228,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			}
 
 			// Marshal and relay chunk to client.
-			payload, err := i.marshalChunk(&chunk, i.ID(), processor)
+			payload, err := i.marshalChunk(&chunk, i.ID(), processor, cumulativeUsage)
 			if err != nil {
 				logger.Warn(ctx, "failed to marshal chunk", slog.Error(err), slog.F("chunk", chunk.RawJSON()))
 				lastErr = xerrors.Errorf("marshal chunk: %w", err)
@@ -270,8 +274,14 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			prompt = nil
 		}
 
-		if lastUsage := processor.lastUsage; lastUsage.CompletionTokens > 0 {
-			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
+		if processor.hasUsage {
+			lastUsage := processor.lastUsage
+			// Preserve the existing recording gate, but accumulate every valid
+			// snapshot so later client-visible usage cannot move backwards.
+			if lastUsage.CompletionTokens > 0 {
+				i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
+			}
+			cumulativeUsage = sumUsage(cumulativeUsage, lastUsage)
 		}
 
 		if iterationStarted {
@@ -414,7 +424,7 @@ func (i *StreamingInterception) getInjectedToolByName(name string) *mcp.Tool {
 // is as close to the original as possible. Structs from openai library lack
 // `omitzero/omitempty` annotations which adds additional empty fields
 // when marshaling structs. Those additional empty fields can break Codex client.
-func (i *StreamingInterception) marshalChunk(chunk *openai.ChatCompletionChunk, id uuid.UUID, prc *streamProcessor) ([]byte, error) {
+func (i *StreamingInterception) marshalChunk(chunk *openai.ChatCompletionChunk, id uuid.UUID, prc *streamProcessor, previousUsage openai.CompletionUsage) ([]byte, error) {
 	// Normalize the response ID because injected tool calls span multiple upstream invocations.
 	sj, err := sjson.Set(chunk.RawJSON(), "id", id.String())
 	if err != nil {
@@ -422,7 +432,7 @@ func (i *StreamingInterception) marshalChunk(chunk *openai.ChatCompletionChunk, 
 	}
 
 	if chunk.JSON.Usage.Valid() {
-		sj, err = sjson.Set(sj, "usage", prc.lastUsage)
+		sj, err = sjson.Set(sj, "usage", sumUsage(previousUsage, prc.lastUsage))
 		if err != nil {
 			return nil, xerrors.Errorf("marshal chunk usage failed: %w", err)
 		}
@@ -497,6 +507,7 @@ type streamProcessor struct {
 	getInjectedToolFunc func(string) *mcp.Tool
 
 	lastUsage openai.CompletionUsage
+	hasUsage  bool
 }
 
 func newStreamProcessor(ctx context.Context, logger slog.Logger, isToolInjectedFunc func(string) *mcp.Tool) *streamProcessor {
@@ -520,6 +531,7 @@ func (s *streamProcessor) process(chunk openai.ChatCompletionChunk) bool {
 	// latest valid usage is authoritative. Never sum across chunks.
 	if chunk.JSON.Usage.Valid() {
 		s.lastUsage = chunk.Usage
+		s.hasUsage = true
 	}
 
 	// If the stream has reached a terminal state (i.e. call a tool), and this tool is injected,

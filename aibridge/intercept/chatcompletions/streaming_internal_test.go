@@ -69,7 +69,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 				require.True(t, processor.process(chunk))
 				if chunk.JSON.Usage.Valid() {
 					var err error
-					relayed, err = interceptor.marshalChunk(&chunk, interceptor.ID(), processor)
+					relayed, err = interceptor.marshalChunk(&chunk, interceptor.ID(), processor, openai.CompletionUsage{})
 					require.NoError(t, err)
 				}
 			}
@@ -89,6 +89,36 @@ func TestStreamProcessorUsage(t *testing.T) {
 			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
 		})
 	}
+}
+
+func TestStreamProcessorZeroCompletionUsage(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, otel.Tracer("test"))
+	processor := newStreamProcessor(t.Context(), logger, nil)
+
+	var chunk openai.ChatCompletionChunk
+	require.NoError(t, json.Unmarshal([]byte(`{"id":"chatcmpl-zero-completion","choices":[],"usage":{"prompt_tokens":50,"completion_tokens":0,"total_tokens":50}}`), &chunk))
+	require.True(t, processor.process(chunk))
+	require.True(t, processor.hasUsage)
+
+	previousUsage := openai.CompletionUsage{
+		PromptTokens:     100,
+		CompletionTokens: 10,
+		TotalTokens:      110,
+	}
+	payload, err := interceptor.marshalChunk(&chunk, interceptor.ID(), processor, previousUsage)
+	require.NoError(t, err)
+
+	var relayed struct {
+		Usage openai.CompletionUsage `json:"usage"`
+	}
+	payload = bytes.TrimSuffix(bytes.TrimPrefix(payload, []byte("data: ")), []byte("\n\n"))
+	require.NoError(t, json.Unmarshal(payload, &relayed))
+	require.EqualValues(t, 150, relayed.Usage.PromptTokens)
+	require.EqualValues(t, 10, relayed.Usage.CompletionTokens)
+	require.EqualValues(t, 160, relayed.Usage.TotalTokens)
 }
 
 // Test that when the upstream provider returns an error before streaming starts,

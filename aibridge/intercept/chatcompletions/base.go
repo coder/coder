@@ -246,7 +246,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	})
 }
 
-func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
+func sumUsage(ref openai.CompletionUsage, in openai.CompletionUsage) openai.CompletionUsage {
 	return openai.CompletionUsage{
 		CompletionTokens: ref.CompletionTokens + in.CompletionTokens,
 		PromptTokens:     ref.PromptTokens + in.PromptTokens,
@@ -258,8 +258,9 @@ func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
 			RejectedPredictionTokens: ref.CompletionTokensDetails.RejectedPredictionTokens + in.CompletionTokensDetails.RejectedPredictionTokens,
 		},
 		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
-			AudioTokens:  ref.PromptTokensDetails.AudioTokens + in.PromptTokensDetails.AudioTokens,
-			CachedTokens: ref.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedTokens,
+			AudioTokens:      ref.PromptTokensDetails.AudioTokens + in.PromptTokensDetails.AudioTokens,
+			CachedTokens:     ref.PromptTokensDetails.CachedTokens + in.PromptTokensDetails.CachedTokens,
+			CacheWriteTokens: ref.PromptTokensDetails.CacheWriteTokens + in.PromptTokensDetails.CacheWriteTokens,
 		},
 	}
 }

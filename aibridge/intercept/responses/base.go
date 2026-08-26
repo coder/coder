@@ -57,6 +57,21 @@ type responsesInterceptionBase struct {
 	mcpProxy mcp.ServerProxier
 }
 
+func sumUsage(ref responses.ResponseUsage, in responses.ResponseUsage) responses.ResponseUsage {
+	return responses.ResponseUsage{
+		InputTokens:  ref.InputTokens + in.InputTokens,
+		OutputTokens: ref.OutputTokens + in.OutputTokens,
+		TotalTokens:  ref.TotalTokens + in.TotalTokens,
+		InputTokensDetails: responses.ResponseUsageInputTokensDetails{
+			CachedTokens:     ref.InputTokensDetails.CachedTokens + in.InputTokensDetails.CachedTokens,
+			CacheWriteTokens: ref.InputTokensDetails.CacheWriteTokens + in.InputTokensDetails.CacheWriteTokens,
+		},
+		OutputTokensDetails: responses.ResponseUsageOutputTokensDetails{
+			ReasoningTokens: ref.OutputTokensDetails.ReasoningTokens + in.OutputTokensDetails.ReasoningTokens,
+		},
+	}
+}
+
 // newResponsesService builds the SDK service used for upstream calls.
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
@@ -451,6 +466,14 @@ func (r *responseCopier) readAll() ([]byte, error) {
 
 // forwardResp writes whole response as received to ResponseWriter
 func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
+	b, err := r.readAll()
+	if err != nil {
+		return xerrors.Errorf("failed to read response body: %w", err)
+	}
+	return r.forwardBytes(w, b)
+}
+
+func (r *responseCopier) forwardBytes(w http.ResponseWriter, b []byte) error {
 	// no response was received, nothing to forward
 	if !r.responseReceived.Load() {
 		return nil
@@ -463,11 +486,6 @@ func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
 		w.Header().Set("Retry-After", retryAfter)
 	}
 	w.WriteHeader(r.responseStatus)
-
-	b, err := r.readAll()
-	if err != nil {
-		return xerrors.Errorf("failed to read response body: %w", err)
-	}
 
 	if _, err := w.Write(b); err != nil {
 		return xerrors.Errorf("failed to write response body: %w", err)

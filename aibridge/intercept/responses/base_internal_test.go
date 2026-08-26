@@ -358,6 +358,48 @@ func TestParseJSONArgs(t *testing.T) {
 	}
 }
 
+func TestSumUsage(t *testing.T) {
+	t.Parallel()
+
+	first := oairesponses.ResponseUsage{
+		InputTokens:  100,
+		OutputTokens: 50,
+		TotalTokens:  150,
+		InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
+			CachedTokens:     10,
+			CacheWriteTokens: 20,
+		},
+		OutputTokensDetails: oairesponses.ResponseUsageOutputTokensDetails{
+			ReasoningTokens: 30,
+		},
+	}
+	second := oairesponses.ResponseUsage{
+		InputTokens:  200,
+		OutputTokens: 100,
+		TotalTokens:  300,
+		InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
+			CachedTokens:     1,
+			CacheWriteTokens: 2,
+		},
+		OutputTokensDetails: oairesponses.ResponseUsageOutputTokensDetails{
+			ReasoningTokens: 3,
+		},
+	}
+
+	require.Equal(t, oairesponses.ResponseUsage{
+		InputTokens:  300,
+		OutputTokens: 150,
+		TotalTokens:  450,
+		InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
+			CachedTokens:     11,
+			CacheWriteTokens: 22,
+		},
+		OutputTokensDetails: oairesponses.ResponseUsageOutputTokensDetails{
+			ReasoningTokens: 33,
+		},
+	}, sumUsage(first, second))
+}
+
 func TestRecordTokenUsage(t *testing.T) {
 	t.Parallel()
 

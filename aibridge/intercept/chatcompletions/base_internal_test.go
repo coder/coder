@@ -148,6 +148,60 @@ func TestRecordTokenUsage(t *testing.T) {
 	}
 }
 
+func TestSumUsage(t *testing.T) {
+	t.Parallel()
+
+	first := openai.CompletionUsage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     10,
+			CacheWriteTokens: 20,
+			AudioTokens:      30,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 40,
+			RejectedPredictionTokens: 50,
+			AudioTokens:              60,
+			ReasoningTokens:          70,
+		},
+	}
+	second := openai.CompletionUsage{
+		PromptTokens:     200,
+		CompletionTokens: 100,
+		TotalTokens:      300,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     1,
+			CacheWriteTokens: 2,
+			AudioTokens:      3,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 4,
+			RejectedPredictionTokens: 5,
+			AudioTokens:              6,
+			ReasoningTokens:          7,
+		},
+	}
+
+	require.Equal(t, openai.CompletionUsage{
+		PromptTokens:     300,
+		CompletionTokens: 150,
+		TotalTokens:      450,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     11,
+			CacheWriteTokens: 22,
+			AudioTokens:      33,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 44,
+			RejectedPredictionTokens: 55,
+			AudioTokens:              66,
+			ReasoningTokens:          77,
+		},
+	}, sumUsage(first, second))
+}
+
 func TestScanForCorrelatingToolCallID(t *testing.T) {
 	t.Parallel()
 
