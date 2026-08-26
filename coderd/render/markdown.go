@@ -9,6 +9,7 @@ import (
 	gomarkdown "github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
+	xhtml "golang.org/x/net/html"
 	"golang.org/x/xerrors"
 )
 
