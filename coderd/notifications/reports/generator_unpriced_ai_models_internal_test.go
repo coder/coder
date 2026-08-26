@@ -34,7 +34,7 @@ func TestReportGenerator_TicksUnpricedAIModels(t *testing.T) {
 		require.NoError(t, generator.Close())
 	})
 
-	// Wait for the forced initial run to finish.
+	// The generator runs once immediately without waiting for the ticker delay.
 	resetTrap.MustWait(ctx).MustRelease(ctx)
 	require.Empty(t, notifEnq.Sent())
 
