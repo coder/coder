@@ -248,8 +248,8 @@ Link to specific endpoints:
 
 ## Accuracy Standards
 
-Everything in this section is about how to state a value once it belongs on
-the page; whether it belongs there at all is governed by
+The exact-value instructions in this section are about how to state a value
+once it belongs on the page; whether it belongs there at all is governed by
 [Evidence justifies a claim; it does not belong in the claim](../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 in the content guidelines.
 

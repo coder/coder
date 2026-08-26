@@ -115,14 +115,15 @@ Missing either one is a defect:
 This is the canonical rule
 [Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
 in the content guidelines; the content guidelines govern, so read the rule
-there. On pages **this change adds or edits**, flag an implementation
-identifier the reader neither types nor receives in that page's task; the
-canonical rule's ladder decides the replacement. When the diff strips or
-paraphrases an identifier, confirm the stripped identifier is named (file
-and symbol) in the commit message or a review comment, and flag the
-omission. A pre-existing violation on a page the diff does not touch is not
-this change's finding; mention it as informational context at most, without
-demanding a fix from this author.
+there. On a page **this change adds or edits**, flag an implementation
+identifier the reader neither types nor receives in that page's task, whether
+the diff adds the identifier or leaves it on a line this change touches; the
+canonical rule's ladder decides the replacement. Work from the page content
+in the diff. doc-check does not see commit messages or PR comments, so it
+does not police whether a stripped identifier was disclosed; that pointer is
+the author's to provide for the human reviewer. A pre-existing violation on a
+page the diff does not touch is not this change's finding; mention it as
+informational context at most, without demanding a fix from this author.
 
 ### No emdash, endash, or ` -- ` as punctuation
 

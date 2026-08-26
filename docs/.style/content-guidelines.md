@@ -107,26 +107,34 @@ applies, testing in order:
    [Verify against the code; document exact values](#verify-against-the-code-document-exact-values).
    This is the normal case for reference, API, CLI, and configuration
    content.
-2. **Shown in the product instead:** use the words the product shows, such
-   as a visible status text, form field label, or button name. What the
-   screen shows is what the reader can verify against it. Confirm the words
-   are rendered as visible text, not only as accessibility labels.
+2. **Shown in the product, on a surface this page's task involves:** use the
+   words the product shows there, such as a visible status text, form field
+   label, or button name. What the screen shows is what the reader can verify
+   against it. Confirm the words are rendered as visible text on that
+   surface, not only as accessibility labels.
 3. **Neither:** describe the behavior in plain terms of the reader's task,
    following the
    [voice and tone rules](./style-guide/voice-and-tone.md).
 
+When a page presents several identifiers as one set, resolve the set at the
+lowest rung any member reaches, so the page describes them as one set.
+
 Worked example: the chat status enum. API consumers receive the values, so
-the API reference lists them exactly (rung 1). In the chat sidebar the
-statuses render as icons whose strings are accessibility labels rather than
-visible text, so a page describing sidebar behavior falls to rung 3 and says
-chats that are still working or waiting on the user are never selected. A
-surface that renders a status as visible text takes rung 2 for that surface.
+the API reference lists them exactly (rung 1). An admin page about
+auto-archiving describes chat status as the reader sees it in the sidebar,
+where each status renders as an icon and its text is an accessibility label
+rather than visible text, so that surface gives rung 2 nothing to quote and
+the set falls to rung 3: the page says chats that are still working,
+stopping, or waiting on the user are never archived automatically. A surface
+that renders a status as visible text takes rung 2 for that status.
 
 Keep identifiers that fail the test out of the page, and name what you
-stripped, with its file and symbol, in the commit message or a review
-comment. The commit message stays one `git blame` away from the paragraph,
-so whoever re-verifies the paraphrase later has the handle without
-re-deriving it.
+stripped, with its file and symbol, in the PR discussion so the reviewer can
+check the paraphrase against the source. Treat that pointer as best-effort,
+not a durable record: `coder/coder` squash-merges, so a branch commit
+message does not survive the merge and a review comment does not live in the
+repository. A later re-verifier re-derives the source from the code, the
+same way the author did.
 
 Related rules that draw the same boundary:
 [Describe the current version, for the end user](#describe-the-current-version-for-the-end-user)
