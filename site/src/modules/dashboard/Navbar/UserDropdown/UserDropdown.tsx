@@ -95,7 +95,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="min-w-auto w-[260px]">
+			<DropdownMenuContent align="end" className="w-[260px]">
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}

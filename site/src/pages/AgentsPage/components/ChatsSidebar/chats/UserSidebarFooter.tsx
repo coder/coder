@@ -35,7 +35,7 @@ export const UserSidebarFooter: FC = () => {
 							</span>
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="min-w-auto w-[260px]">
+					<DropdownMenuContent align="start" className="w-[260px]">
 						<UserDropdownContent
 							user={user}
 							buildInfo={buildInfo}

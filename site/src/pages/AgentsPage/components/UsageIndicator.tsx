@@ -169,7 +169,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="min-w-auto w-[240px]">
+			<DropdownMenuContent align="end" className="w-[240px]">
 				{sections.map((section, index) => (
 					<Fragment key={section.id}>
 						{index > 0 && <DropdownMenuSeparator />}
