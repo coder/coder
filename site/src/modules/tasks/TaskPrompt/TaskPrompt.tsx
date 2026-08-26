@@ -329,7 +329,7 @@ const CreateTaskForm: FC<CreateTaskFormProps> = ({ templates, onSuccess }) => {
 										<PromptSelectTrigger
 											id="presetID"
 											tooltip="Preset"
-											className="max-w-full **:data-[slot=preset-name]:truncate **:data-[slot=preset-name]:min-w-0 **:data-[slot=preset-description]:hidden"
+											className="max-w-full [&_[data-slot=preset-name]]:truncate [&_[data-slot=preset-name]]:min-w-0 [&_[data-slot=preset-description]]:hidden"
 										>
 											<SelectValue placeholder="Select a preset" />
 										</PromptSelectTrigger>

@@ -74,7 +74,7 @@ export const YAxisLabel: FC<YAxisLabelProps> = ({ id, ...props }) => {
 			{...props}
 			className={cn(
 				"flex items-center",
-				"*:block *:w-full *:overflow-hidden *:text-ellipsis *:whitespace-nowrap",
+				"[&>*]:block [&>*]:w-full [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap",
 				props.className,
 			)}
 			id={encodeURIComponent(id)}

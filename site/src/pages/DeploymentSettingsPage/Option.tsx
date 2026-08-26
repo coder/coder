@@ -115,7 +115,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&
-					"border-content-link **:data-[slot=option-config-flag]:bg-content-link",
+					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
 				className,
 			)}
 		/>

@@ -208,7 +208,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="**:[[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default **:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:border-solid **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -274,7 +274,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										</span>
 									}
 									className={cn(
-										"p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:leading-[18px] **:[[cmdk-group-heading]]:text-content-secondary",
+										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
 										index > 0 &&
 											"border-0 border-t border-solid border-border-default",
 									)}

@@ -59,7 +59,7 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
-						"*:data-radix-scroll-area-viewport:max-h-(--max-height)",
+						"[&>[data-radix-scroll-area-viewport]]:max-h-(--max-height)",
 					])}
 				>
 					<div
@@ -98,8 +98,8 @@ export const InboxPopover: FC<InboxPopoverProps> = ({
 						notifications.length > 0 ? (
 							<div
 								className={cn([
-									"*:[[role=menuitem]]:border-0 [&>[role=menuitem]:not(:last-child)]:border-b",
-									"*:[[role=menuitem]]:border-solid *:[[role=menuitem]]:border-border",
+									"[&>[role=menuitem]]:border-0 [&>[role=menuitem]:not(:last-child)]:border-b",
+									"[&>[role=menuitem]]:border-solid [&>[role=menuitem]]:border-border",
 								])}
 							>
 								{notifications.map((notification) => (

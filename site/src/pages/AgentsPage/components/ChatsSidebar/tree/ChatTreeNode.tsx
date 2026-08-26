@@ -160,7 +160,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const hoverLayout =
 		"[@media(hover:hover)]:hover:-mx-2 [@media(hover:hover)]:hover:pl-3 [@media(hover:hover)]:hover:pr-3.5 [@media(hover:hover)]:hover:rounded-none";
 	const activeLayout =
-		"has-aria-[aria-current=page]:-mx-2 has-aria-[aria-current=page]:pl-[11px] has-aria-[aria-current=page]:pr-3.5 has-aria-[aria-current=page]:rounded-none has-aria-[aria-current=page]:border-l has-aria-[aria-current=page]:border-content-primary [@media(hover:hover)]:has-aria-[aria-current=page]:hover:pl-[11px]";
+		"has-[[aria-current=page]]:-mx-2 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:pr-3.5 has-[[aria-current=page]]:rounded-none has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:pl-[11px]";
 	const sharedMenuItemProps = {
 		isArchived: chat.archived,
 		isPinned: chat.pin_order > 0,
@@ -194,7 +194,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 						className={cn(
 							"group relative flex min-w-0 select-none pointer-coarse:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-data-[state=open]:bg-surface-tertiary",
-							"has-aria-[aria-current=page]:bg-surface-quaternary/50 has-aria-[aria-current=page]:text-content-primary [@media(hover:hover)]:has-aria-[aria-current=page]:hover:bg-surface-quaternary/50",
+							"has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							hoverLayout,
 							activeLayout,
 						)}
@@ -382,7 +382,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 									</DropdownMenuTrigger>
 									<DropdownMenuContent
 										align="end"
-										className="**:[[role=menuitem]]:text-[13px]"
+										className="[&_[role=menuitem]]:text-[13px]"
 										// The dropdown is portaled to the body, but React
 										// portals bubble events through the React tree, so a
 										// right-click inside the menu would still reach the
@@ -403,7 +403,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 						</div>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="**:[[role=menuitem]]:text-[13px]">
+				<ContextMenuContent className="[&_[role=menuitem]]:text-[13px]">
 					<ChatActionsMenuItems
 						{...sharedMenuItemProps}
 						Item={ContextMenuItem}

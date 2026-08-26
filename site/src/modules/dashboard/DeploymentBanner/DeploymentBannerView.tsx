@@ -247,7 +247,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<VSCodeIcon className="size-icon-xs **:fill-current" />
+									<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
 									{typeof stats?.session_count.vscode === "undefined"
 										? "-"
 										: stats?.session_count.vscode}
@@ -263,7 +263,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<JetBrainsIcon className="size-icon-xs **:fill-current" />
+									<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
 									{typeof stats?.session_count.jetbrains === "undefined"
 										? "-"
 										: stats?.session_count.jetbrains}

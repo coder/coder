@@ -40,7 +40,7 @@ export interface Roles {
  * ie. I wish to communicate an error, I wish to communicate that this is dangerous, etc.
  */
 export interface Role {
-	/** A background color that works best with the corresponding `outline-solid` and `text` colors */
+	/** A background color that works best with the corresponding `outline` and `text` colors */
 	background: string;
 
 	/** A border, or a color for an outlined icon */

@@ -101,9 +101,7 @@ const expectCodeBlock = async (
 
 	const shadowRoot = host.shadowRoot;
 	if (!shadowRoot) {
-		throw new Error(
-			"Expected FileViewer to render code in its shadow-sm root.",
-		);
+		throw new Error("Expected FileViewer to render code in its shadow root.");
 	}
 
 	if (options.highlighted) {
