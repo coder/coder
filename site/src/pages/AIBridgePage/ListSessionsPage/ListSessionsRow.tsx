@@ -1,4 +1,3 @@
-import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -12,7 +11,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
 import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
-import { DATE_FORMAT, formatDateTime } from "#/utils/time";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { TokenBadges } from "../TokenBadges";
 import { getProviderDisplayName } from "../utils";
@@ -113,17 +111,6 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				<Badge className="bg-surface-secondary align-end">
 					{session.threads}
 				</Badge>
-			</TableCell>
-			<TableCell className="w-48 whitespace-nowrap font-normal">
-				<div className="flex items-center justify-between">
-					<span>
-						{formatDateTime(
-							new Date(session.last_active_at),
-							DATE_FORMAT.FULL_DATETIME,
-						)}
-					</span>
-					<ChevronRightIcon className="ml-4 size-icon-sm" />
-				</div>
 			</TableCell>
 		</TableRow>
 	);
