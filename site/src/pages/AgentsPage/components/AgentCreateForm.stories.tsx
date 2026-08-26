@@ -33,7 +33,6 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
-import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
@@ -43,6 +42,8 @@ import {
 	emptyInputStorageKey,
 	selectedOrganizationIdStorageKey,
 } from "./AgentCreateForm";
+
+const persistedAttachmentsKey = "agents.persisted-attachments";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
@@ -2080,7 +2081,7 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 	beforeEach: () => {
 		localStorage.clear();
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsKey,
 			JSON.stringify([
 				{
 					fileId: "file-default-org",
@@ -2291,7 +2292,7 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		// Another org's persisted attachment must survive a visit while
 		// the user has no chat permission anywhere.
 		localStorage.setItem(
-			persistedAttachmentsStorageKey,
+			persistedAttachmentsKey,
 			JSON.stringify([
 				{
 					fileId: "file-other-org",
@@ -2319,9 +2320,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		);
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 		expect(args.onCreateChat).not.toHaveBeenCalled();
-		expect(
-			localStorage.getItem(persistedAttachmentsStorageKey) ?? "",
-		).toContain("file-other-org");
+		expect(localStorage.getItem(persistedAttachmentsKey) ?? "").toContain(
+			"file-other-org",
+		);
 	},
 };
 

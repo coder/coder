@@ -6,8 +6,10 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { type InferType, number, object, string } from "yup";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import { defineStorageKey, jsonCodec } from "#/storage";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
@@ -24,20 +26,38 @@ import {
 } from "../utils/imageBudget";
 import { resizeImageToMaxBytes } from "../utils/resizeImage";
 
-/** @internal Exported for testing. */
-export const persistedAttachmentsStorageKey = "agents.persisted-attachments";
-
 /**
- * Serializable metadata stored in localStorage so that already-uploaded
- * attachments survive page navigations on the create form.
+ * Metadata for already-uploaded create-form attachments so they
+ * survive page navigations without re-uploading.
  */
-interface PersistedAttachment {
-	fileId: string;
-	fileName: string;
-	fileType: string;
-	lastModified: number;
-	organizationId: string;
-}
+const persistedChatAttachmentSchema = object({
+	fileId: string().defined(),
+	fileName: string().defined(),
+	fileType: string().defined(),
+	lastModified: number().defined(),
+	organizationId: string().defined(),
+});
+
+type PersistedChatAttachment = InferType<typeof persistedChatAttachmentSchema>;
+
+// Filters entry-by-entry so one legacy or corrupt record (for example
+// pre-org-scoping data) does not discard valid siblings.
+const parsePersistedChatAttachments = (
+	parsed: unknown,
+): PersistedChatAttachment[] | undefined =>
+	Array.isArray(parsed)
+		? parsed.filter((item): item is PersistedChatAttachment =>
+				persistedChatAttachmentSchema.isValidSync(item, { strict: true }),
+			)
+		: undefined;
+
+const persistedAttachmentsStorage = defineStorageKey<
+	PersistedChatAttachment[] | null
+>({
+	key: "agents.persisted-attachments",
+	codec: jsonCodec(parsePersistedChatAttachments),
+	defaultValue: null,
+});
 
 /**
  * Restore previously persisted attachments from localStorage.
@@ -60,55 +80,46 @@ function restorePersistedAttachments(currentOrgId: string): {
 			previewUrls: new Map(),
 		};
 	}
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
-	if (!stored) {
+	const persisted = persistedAttachmentsStorage.get();
+	if (!persisted || persisted.length === 0) {
+		// Corrupt values decode to null and legacy entries are filtered
+		// out; clear the key so they do not linger (no-op when absent).
+		persistedAttachmentsStorage.remove();
 		return {
 			attachments: [],
 			uploadStates: new Map(),
 			previewUrls: new Map(),
 		};
 	}
-	try {
-		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const matched = persisted.filter((p) => p.organizationId === currentOrgId);
+	const matched = persisted.filter((p) => p.organizationId === currentOrgId);
 
-		if (matched.length !== persisted.length) {
-			if (matched.length > 0) {
-				localStorage.setItem(
-					persistedAttachmentsStorageKey,
-					JSON.stringify(matched),
-				);
-			} else {
-				localStorage.removeItem(persistedAttachmentsStorageKey);
-			}
+	if (matched.length !== persisted.length) {
+		if (matched.length > 0) {
+			persistedAttachmentsStorage.set(matched);
+		} else {
+			persistedAttachmentsStorage.remove();
 		}
-
-		const attachments: File[] = [];
-		const uploadStates = new Map<File, UploadState>();
-		const previewUrls = new Map<File, string>();
-
-		for (const p of matched) {
-			if (!p.fileId || !p.fileName) continue;
-			// Synthetic File used as a Map key only; the existing
-			// file_id is reused at send time.
-			const file = new File([], p.fileName, {
-				type: p.fileType,
-				lastModified: p.lastModified,
-			});
-			attachments.push(file);
-			uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
-			if (p.fileType.startsWith("image/")) {
-				previewUrls.set(file, getChatFileURL(p.fileId));
-			}
-		}
-		return { attachments, uploadStates, previewUrls };
-	} catch {
-		return {
-			attachments: [],
-			uploadStates: new Map(),
-			previewUrls: new Map(),
-		};
 	}
+
+	const attachments: File[] = [];
+	const uploadStates = new Map<File, UploadState>();
+	const previewUrls = new Map<File, string>();
+
+	for (const p of matched) {
+		if (!p.fileId || !p.fileName) continue;
+		// Synthetic File used as a Map key only; the existing
+		// file_id is reused at send time.
+		const file = new File([], p.fileName, {
+			type: p.fileType,
+			lastModified: p.lastModified,
+		});
+		attachments.push(file);
+		uploadStates.set(file, { status: "uploaded", fileId: p.fileId });
+		if (p.fileType.startsWith("image/")) {
+			previewUrls.set(file, getChatFileURL(p.fileId));
+		}
+	}
+	return { attachments, uploadStates, previewUrls };
 }
 
 function addPersistedAttachment(
@@ -116,49 +127,34 @@ function addPersistedAttachment(
 	fileId: string,
 	organizationId: string,
 ) {
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
-	let persisted: PersistedAttachment[];
-	try {
-		persisted = stored ? JSON.parse(stored) : [];
-	} catch {
-		persisted = [];
-	}
-	persisted.push({
-		fileId,
-		fileName: file.name,
-		fileType: file.type,
-		lastModified: file.lastModified,
-		organizationId,
-	});
-	localStorage.setItem(
-		persistedAttachmentsStorageKey,
-		JSON.stringify(persisted),
-	);
+	const persisted = persistedAttachmentsStorage.get() ?? [];
+	persistedAttachmentsStorage.set([
+		...persisted,
+		{
+			fileId,
+			fileName: file.name,
+			fileType: file.type,
+			lastModified: file.lastModified,
+			organizationId,
+		},
+	]);
 }
 
 function removePersistedAttachment(fileId: string) {
-	const stored = localStorage.getItem(persistedAttachmentsStorageKey);
-	if (!stored) {
+	const persisted = persistedAttachmentsStorage.get();
+	if (!persisted) {
 		return;
 	}
-	try {
-		const persisted: PersistedAttachment[] = JSON.parse(stored);
-		const filtered = persisted.filter((p) => p.fileId !== fileId);
-		if (filtered.length > 0) {
-			localStorage.setItem(
-				persistedAttachmentsStorageKey,
-				JSON.stringify(filtered),
-			);
-		} else {
-			localStorage.removeItem(persistedAttachmentsStorageKey);
-		}
-	} catch {
-		localStorage.removeItem(persistedAttachmentsStorageKey);
+	const filtered = persisted.filter((p) => p.fileId !== fileId);
+	if (filtered.length > 0) {
+		persistedAttachmentsStorage.set(filtered);
+	} else {
+		persistedAttachmentsStorage.remove();
 	}
 }
 
 function clearPersistedAttachments() {
-	localStorage.removeItem(persistedAttachmentsStorageKey);
+	persistedAttachmentsStorage.remove();
 }
 
 interface UseFileAttachmentsReturn {
