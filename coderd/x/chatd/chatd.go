@@ -382,7 +382,7 @@ func (p *Server) newAdvisorRuntime(
 		advisor, err = p.resolveModelCall(ctx, modelCallSpec{
 			purpose:         "advisor",
 			chat:            chat,
-			maxOutputTokens: ptr.Ref(maxOutputTokens),
+			maxOutputTokens: &maxOutputTokens,
 			buildOptions:    modelOpts,
 		})
 		if err != nil {

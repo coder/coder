@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -199,11 +198,11 @@ func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk
 		}
 		if validation.Min != nil {
 			//nolint:gosec // No other choice
-			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+			sdkParam.ValidationMin = new(int32(*validation.Min))
 		}
 		if validation.Max != nil {
 			//nolint:gosec // No other choice
-			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+			sdkParam.ValidationMax = new(int32(*validation.Max))
 		}
 	}
 
