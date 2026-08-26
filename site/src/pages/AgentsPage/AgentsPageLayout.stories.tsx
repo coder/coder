@@ -38,7 +38,7 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
-import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
+import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
@@ -56,6 +56,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { rightPanelOpenStorage } from "./storage";
 
 const defaultModelID = "model-config-1";
 
@@ -1079,10 +1080,10 @@ const watchedChatPageParameters = (
 });
 
 const mockAgentChatPageAPIs = () => {
-	localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	localStorage.removeItem(rightPanelOpenStorage.key);
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
-	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	return () => localStorage.removeItem(rightPanelOpenStorage.key);
 };
 
 export const ArchiveWatchEventKeepsOpenChatMounted: Story = {

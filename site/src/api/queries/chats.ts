@@ -12,6 +12,10 @@ import {
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
+import {
+	clearChatStorage,
+	modelConfigReasoningEffortStorage,
+} from "#/pages/AgentsPage/storage";
 import { authorizationKey } from "./authCheck";
 import {
 	projectEditedConversationIntoCache,
@@ -1275,6 +1279,7 @@ export const archiveChat = (queryClient: QueryClient) => ({
 	onSuccess: (_data: unknown, chatId: string) => {
 		applyChatArchiveStateToCaches(queryClient, chatId, true);
 		removeChatFromChatsByWorkspace(queryClient, chatId);
+		clearChatStorage(chatId);
 	},
 	onSettled: (_data: unknown, _error: unknown, chatId: string) => {
 		void invalidateChatListQueries(queryClient);
@@ -2408,6 +2413,7 @@ export const deleteChatModel = (queryClient: QueryClient) => ({
 	mutationFn: ({ organizationId, modelId }: DeleteChatModelMutationArgs) =>
 		API.experimental.deleteChatModel(organizationId, modelId),
 	onSuccess: async (_data: unknown, variables: DeleteChatModelMutationArgs) => {
+		modelConfigReasoningEffortStorage.clear(variables.modelId);
 		await invalidateChatConfigurationQueries(
 			queryClient,
 			variables.organizationId,

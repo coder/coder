@@ -15,7 +15,13 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { defineStorageKey, stringCodec } from "#/storage";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	emptyInputDraftStorage,
+	lastModelConfigIdStorage,
+	modelConfigReasoningEffortStorage,
+} from "../storage";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -26,11 +32,7 @@ import {
 	hasUserFixableProviders,
 	resolveModelSelector,
 } from "../utils/modelOptions";
-import {
-	getReasoningEffortForModel,
-	pickReasoningEffort,
-	saveReasoningEffortForModel,
-} from "../utils/reasoningEffort";
+import { pickReasoningEffort } from "../utils/reasoningEffort";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import {
@@ -46,13 +48,17 @@ import {
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
-/** @internal Exported for testing. */
-export const emptyInputStorageKey = "agents.empty-input";
-/** @internal Exported for testing. */
-export const selectedOrganizationIdStorageKey =
-	"agents.selected-organization-id";
-const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
-const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+const selectedOrganizationIdStorage = defineStorageKey<string | null>({
+	key: "agents.selected-organization-id",
+	codec: stringCodec,
+	defaultValue: null,
+});
+
+const selectedWorkspaceIdStorage = defineStorageKey<string | null>({
+	key: "agents.selected-workspace-id",
+	codec: stringCodec,
+	defaultValue: null,
+});
 
 export type CreateChatOptions = {
 	message: string;
@@ -78,7 +84,7 @@ export type CreateChatOptions = {
  */
 export function useEmptyStateDraft() {
 	const [{ initialInputValue, initialEditorState }] = useState(() => {
-		const draft = parseStoredDraft(localStorage.getItem(emptyInputStorageKey));
+		const draft = parseStoredDraft(emptyInputDraftStorage.get());
 		return {
 			initialInputValue: draft.text,
 			initialEditorState: draft.editorState,
@@ -96,13 +102,9 @@ export function useEmptyStateDraft() {
 		if (!sentRef.current) {
 			const shouldPersist = content.trim() || hasFileReferences;
 			if (shouldPersist) {
-				try {
-					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
-				} catch {
-					// QuotaExceededError, silently discard the draft.
-				}
+				emptyInputDraftStorage.set(serializedEditorState);
 			} else {
-				localStorage.removeItem(emptyInputStorageKey);
+				emptyInputDraftStorage.remove();
 			}
 		}
 	};
@@ -111,7 +113,7 @@ export function useEmptyStateDraft() {
 		// Mark as sent so that editor change events firing during
 		// the async gap cannot re-persist the draft.
 		sentRef.current = true;
-		localStorage.removeItem(emptyInputStorageKey);
+		emptyInputDraftStorage.remove();
 	};
 
 	const resetDraft = () => {
@@ -166,20 +168,18 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		resetDraft,
 	} = useEmptyStateDraft();
 	const [initialLastModelConfigID] = useState(() => {
-		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
+		return lastModelConfigIdStorage.get() ?? "";
 	});
 	// effectiveWorkspaceId nulls a stored selection outside the effective org's
 	// filtered workspace list without deleting it. Preserve the stored value
 	// because the permitted-organizations query may resolve after mount and
 	// change the effective org.
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+		() => selectedWorkspaceIdStorage.get(),
 	);
 	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
 		() => {
-			const storedOrganizationId = localStorage.getItem(
-				selectedOrganizationIdStorageKey,
-			);
+			const storedOrganizationId = selectedOrganizationIdStorage.get();
 			return (
 				organizations.find(
 					(organization) => organization.id === storedOrganizationId,
@@ -278,14 +278,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			return;
 		}
 		if (selectedOrg) {
-			localStorage.setItem(selectedOrganizationIdStorageKey, selectedOrg.id);
+			selectedOrganizationIdStorage.set(selectedOrg.id);
 		} else {
-			localStorage.removeItem(selectedOrganizationIdStorageKey);
+			selectedOrganizationIdStorage.remove();
 		}
 	}, [orgSelectionSettled, selectedOrg]);
 	useEffect(() => {
 		if (selectedWorkspaceId === null) {
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 		}
 	}, [selectedWorkspaceId]);
 	const modelsQuery = useQuery(chatModels(organizationId));
@@ -382,7 +382,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? effectiveRootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
-		const stored = getReasoningEffortForModel(selectedModel);
+		const stored = modelConfigReasoningEffortStorage.forId(selectedModel).get();
 		const efforts = selectedModelOption?.reasoningEfforts;
 		return stored && efforts?.includes(stored) ? stored : undefined;
 	})();
@@ -425,7 +425,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		modelsQuery.data,
 	);
-
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
@@ -443,11 +442,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+			selectedWorkspaceIdStorage.remove();
 			return;
 		}
 		setSelectedWorkspaceId(value);
-		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
+		selectedWorkspaceIdStorage.set(value);
 	};
 
 	const selectOrganization = (organization: TypesGen.Organization) => {
@@ -514,7 +513,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			...current,
 			[selectedModel]: value,
 		}));
-		saveReasoningEffortForModel(selectedModel, value);
+		modelConfigReasoningEffortStorage.forId(selectedModel).set(value);
 	};
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {

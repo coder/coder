@@ -62,8 +62,8 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { pageTitle } from "#/utils/page";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -79,6 +79,7 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { clearChatStorage, emptyInputDraftStorage } from "./storage";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -88,8 +89,6 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
-import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 export interface AgentsPageOutletContext {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -284,8 +283,6 @@ const AgentsPageLayout: FC = () => {
 		onSuccess: (data, chatId) => {
 			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -310,8 +307,8 @@ const AgentsPageLayout: FC = () => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			removeChatFromChatsByWorkspace(queryClient, chatId);
 			clearChatErrorReason(chatId);
-			clearPersistedSidebarTabId(chatId);
-			clearPersistedRightPanelState(chatId);
+			clearChatStorage(chatId);
+			workspaceListeningPortsProtocolStorage.clear(workspaceId);
 			void invalidateChatListQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);
@@ -525,7 +522,7 @@ const AgentsPageLayout: FC = () => {
 		// state and explicitly requests a blank slate.  When navigating
 		// back from a conversation the existing draft is preserved.
 		if (!agentId) {
-			localStorage.removeItem(emptyInputStorageKey);
+			emptyInputDraftStorage.remove();
 		}
 		navigate({ pathname: "/agents", search: location.search });
 	};
