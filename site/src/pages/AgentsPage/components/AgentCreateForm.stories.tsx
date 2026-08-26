@@ -2,6 +2,7 @@ import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
 import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
+import { useLocation } from "react-router";
 import {
 	expect,
 	fn,
@@ -11,6 +12,7 @@ import {
 	waitFor,
 	within,
 } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
@@ -48,6 +50,16 @@ let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>
 >;
 let capturedQueryClient: QueryClient | undefined;
+
+const LocationProbe = () => {
+	const location = useLocation();
+	return (
+		<output aria-label="Current location">
+			{location.pathname}
+			{location.search}
+		</output>
+	);
+};
 
 const permittedOrgsKey = permittedOrganizationsKey({
 	object: { resource_type: "chat", owner_id: "me" },
@@ -1238,6 +1250,13 @@ export const LocalOrganizationMissingProviderAndModelSetup: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: [
+				{ path: "/agents", useStoryElement: true },
+				{ path: "/ai/settings/models", element: <LocationProbe /> },
+			],
+		}),
 		queries: [
 			{
 				key: permittedOrgsKey,
@@ -1271,10 +1290,10 @@ export const LocalOrganizationMissingProviderAndModelSetup: Story = {
 				})[0],
 			).toBeVisible();
 		});
-		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
-			"href",
-			`/ai/settings/models?org=${MockOrganization2.name}`,
-		);
+		await userEvent.click(canvas.getByRole("link", { name: "model" }));
+		await expect(
+			await canvas.findByRole("status", { name: "Current location" }),
+		).toHaveTextContent(`/ai/settings/models?org=${MockOrganization2.name}`);
 	},
 };
 
