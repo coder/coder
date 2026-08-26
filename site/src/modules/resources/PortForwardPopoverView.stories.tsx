@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -38,6 +38,26 @@ export const WithPorts: Story = {
 	args: {
 		listeningPorts: MockListeningPortsResponse.ports,
 		sharedPorts: MockSharedPortsResponse.shares,
+	},
+};
+
+export const FilterPorts: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const portInput = canvas.getByRole("spinbutton", { name: "Port number" });
+
+		await userEvent.type(portInput, "8080");
+
+		await expect(canvas.getByRole("link", { name: "8080" })).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "30000" }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByRole("link", { name: "4000" })).toBeVisible();
+
+		await userEvent.clear(portInput);
+		await userEvent.type(portInput, "9999");
+
+		await expect(canvas.getByText("No matching open ports.")).toBeVisible();
 	},
 };
 

@@ -167,6 +167,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	const [listeningPortProtocol, setListeningPortProtocol] = useState(
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
+	const [portNumber, setPortNumber] = useState("");
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -213,8 +214,11 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 
 	// usePortsData already filters shared ports down to this agent, so only
 	// hide listening ports that are also shared.
-	const filteredListeningPorts = listeningPorts.filter((port) =>
+	const unsharedListeningPorts = listeningPorts.filter((port) =>
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
+	);
+	const visibleListeningPorts = unsharedListeningPorts.filter((port) =>
+		port.port.toString().startsWith(portNumber),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
@@ -302,8 +306,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 								className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
 								onSubmit={(e) => {
 									e.preventDefault();
-									const formData = new FormData(e.currentTarget);
-									const port = Number(formData.get("portNumber"));
+									const port = Number(portNumber);
 									const url = portForwardURL(
 										host,
 										port,
@@ -319,6 +322,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									aria-label="Port number"
 									name="portNumber"
 									type="number"
+									value={portNumber}
+									onChange={(event) => setPortNumber(event.target.value)}
 									placeholder="Connect to port..."
 									min={9}
 									max={65535}
@@ -337,12 +342,14 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 							</form>
 						</div>
 					</div>
-					{filteredListeningPorts.length === 0 && (
+					{visibleListeningPorts.length === 0 && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
-							No open ports were detected.
+							{portNumber
+								? "No matching open ports."
+								: "No open ports were detected."}
 						</HelpPopoverText>
 					)}
-					{filteredListeningPorts.map((port) => {
+					{visibleListeningPorts.map((port) => {
 						const url = portForwardURL(
 							host,
 							port.port,
