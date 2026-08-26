@@ -559,10 +559,12 @@ describe("api.ts", () => {
 
 			const aclPath =
 				"/api/experimental/organizations/organization%2Fid/mcp-servers/server%2Fid/acl";
+			const aclAvailablePath =
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl/available";
 			expect(axiosInstance.get).toHaveBeenNthCalledWith(1, aclPath);
 			expect(axiosInstance.get).toHaveBeenNthCalledWith(
 				2,
-				`${aclPath}/available?q=alice%40example.com&limit=25`,
+				`${aclAvailablePath}?q=alice%40example.com&limit=25`,
 			);
 			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, update);
 		});

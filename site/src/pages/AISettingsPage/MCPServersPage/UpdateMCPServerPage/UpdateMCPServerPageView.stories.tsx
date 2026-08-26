@@ -153,10 +153,10 @@ export const ShareOnlyAccess: Story = {
 			body.queryByRole("menuitem", { name: "Remove" }),
 		).not.toBeInTheDocument();
 		await userEvent.click(
-			await body.findByRole("menuitem", { name: "Share server" }),
+			await body.findByRole("menuitem", { name: "Manage permissions" }),
 		);
 		await expect(
-			await body.findByRole("dialog", { name: "Share server" }),
+			await body.findByRole("dialog", { name: "Server permissions" }),
 		).toHaveAttribute("data-state", "open");
 	},
 };

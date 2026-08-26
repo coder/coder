@@ -83,7 +83,7 @@ export const handlers = [
 	),
 
 	http.get(
-		"/api/experimental/organizations/:organizationId/mcp-servers/:serverId/acl/available",
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl/available",
 		() => HttpResponse.json(M.MockMCPServerConfigACLAvailable),
 	),
 	http.get(

@@ -256,7 +256,7 @@ func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid
 // assigned to an MCP server config ACL.
 func (c *Client) MCPServerConfigACLAvailable(ctx context.Context, organizationID, id uuid.UUID, req UsersRequest) (ACLAvailable, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl/available", organizationID, id),
+		fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s/acl/available", organizationID, id),
 		nil,
 		req.Pagination.asRequestOption(),
 		req.asRequestOption(),

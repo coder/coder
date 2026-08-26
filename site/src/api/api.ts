@@ -370,6 +370,8 @@ const mcpServerConfigPath = (organization: string, id: string) =>
 	`${mcpServerConfigsPath(organization)}/${encodeURIComponent(id)}`;
 const mcpServerConfigACLPath = (organization: string, id: string) =>
 	`${mcpServerConfigPath(organization, id)}/acl`;
+const mcpServerConfigACLAvailablePath = (organization: string, id: string) =>
+	`/api/v2/organizations/${encodeURIComponent(organization)}/mcp-servers/${encodeURIComponent(id)}/acl/available`;
 export const mcpServerOAuth2ConnectPath = (organization: string, id: string) =>
 	`${mcpServerConfigPath(organization, id)}/oauth2/connect`;
 const mcpServerOAuth2DisconnectPath = (id: string) =>
@@ -4005,7 +4007,7 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.ACLAvailable> => {
 		const response = await this.axios.get<TypesGen.ACLAvailable>(
 			getURLWithSearchParams(
-				`${mcpServerConfigACLPath(organization, id)}/available`,
+				mcpServerConfigACLAvailablePath(organization, id),
 				options,
 			),
 		);

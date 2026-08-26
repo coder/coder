@@ -1401,8 +1401,6 @@ func New(options *Options) *API {
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
 							policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
 							policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
 						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
 							policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
@@ -1698,6 +1696,10 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				r.Get("/", api.organization)
+				r.Route("/mcp-servers/{mcpserverconfig}", func(r chi.Router) {
+					r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
+						policy.ActionShare)).Get("/acl/available", api.mcpServerConfigACLAvailable)
+				})
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
 					r.Post("/", api.postTemplateByOrganization)

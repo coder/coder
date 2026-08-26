@@ -84,7 +84,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 							{onShareServer && (
 								<DropdownMenuItem onClick={onShareServer}>
 									<Share2Icon />
-									Share server
+									Manage permissions
 								</DropdownMenuItem>
 							)}
 							{onShareServer && onRequestDelete && <DropdownMenuSeparator />}

@@ -141,9 +141,11 @@ export const EmptyACL: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		expect(
-			await body.findByText("No shared members or groups yet"),
+			await body.findByText("No members or groups have permission yet"),
 		).toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Save sharing" })).toBeDisabled();
+		expect(
+			body.getByRole("button", { name: "Save permissions" }),
+		).toBeDisabled();
 		expect(API.getOrganizationPaginatedMembers).not.toHaveBeenCalled();
 		expect(API.getGroupsByOrganization).not.toHaveBeenCalled();
 	},
@@ -154,7 +156,7 @@ export const Loading: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		expect(await body.findByRole("status")).toHaveTextContent(
-			"Loading server sharing",
+			"Loading server permissions",
 		);
 	},
 };
@@ -164,12 +166,16 @@ export const InitialACLFailureIsBlocking: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		expect(await body.findByText("Unable to load ACL")).toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Save sharing" })).toBeDisabled();
+		expect(
+			body.getByRole("button", { name: "Save permissions" }),
+		).toBeDisabled();
 		expect(
 			body.queryByRole("button", { name: "Search for user or group" }),
 		).not.toBeInTheDocument();
 		expect(
-			body.queryByRole("table", { name: "Shared server members and groups" }),
+			body.queryByRole("table", {
+				name: "Server permissions for members and groups",
+			}),
 		).not.toBeInTheDocument();
 	},
 };
@@ -220,7 +226,9 @@ export const AddUser: Story = {
 				name: new RegExp(MockUserMember.username, "i"),
 			}),
 		).toBeVisible();
-		await userEvent.click(body.getByRole("button", { name: "Save sharing" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Save permissions" }),
+		);
 
 		await waitFor(() =>
 			expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledTimes(
@@ -251,7 +259,9 @@ export const AddGroup: Story = {
 				name: new RegExp(MockGroup2.display_name || MockGroup2.name, "i"),
 			}),
 		).toBeVisible();
-		await userEvent.click(body.getByRole("button", { name: "Save sharing" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Save permissions" }),
+		);
 
 		await waitFor(() =>
 			expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledTimes(
@@ -314,7 +324,9 @@ export const SaveRemovalsAsSparseDelta: Story = {
 				name: `Remove ${MockUserMember.username}`,
 			}),
 		);
-		await userEvent.click(body.getByRole("button", { name: "Save sharing" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Save permissions" }),
+		);
 
 		await waitFor(() =>
 			expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledWith(
@@ -351,7 +363,9 @@ export const CandidateDiscoveryFailureKeepsACLUsable: Story = {
 		await userEvent.click(
 			body.getByRole("button", { name: `Remove ${MockGroup.display_name}` }),
 		);
-		await userEvent.click(body.getByRole("button", { name: "Save sharing" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Save permissions" }),
+		);
 
 		await waitFor(() =>
 			expect(API.experimental.updateMCPServerConfigACL).toHaveBeenCalledWith(
@@ -386,7 +400,7 @@ export const ReopenUsesFreshACL: Story = {
 		await userEvent.click(body.getByRole("button", { name: "Cancel" }));
 		await waitFor(() =>
 			expect(
-				body.queryByRole("dialog", { name: "Share server" }),
+				body.queryByRole("dialog", { name: "Server permissions" }),
 			).not.toBeInTheDocument(),
 		);
 
@@ -425,20 +439,23 @@ export const SaveErrorKeepsEditorOpen: Story = {
 				name: `Remove ${MockGroup.display_name}`,
 			}),
 		);
-		await userEvent.click(body.getByRole("button", { name: "Save sharing" }));
+		await userEvent.click(
+			body.getByRole("button", { name: "Save permissions" }),
+		);
 
 		const alert = await body.findByRole("alert");
 		expect(alert).toHaveTextContent("Unable to save ACL");
-		expect(body.getByRole("dialog", { name: "Share server" })).toHaveAttribute(
-			"data-state",
-			"open",
-		);
+		expect(
+			body.getByRole("dialog", { name: "Server permissions" }),
+		).toHaveAttribute("data-state", "open");
 		expect(
 			body.queryByRole("row", {
 				name: new RegExp(MockGroup.display_name || MockGroup.name, "i"),
 			}),
 		).not.toBeInTheDocument();
-		expect(body.getByRole("button", { name: "Save sharing" })).toBeEnabled();
+		expect(
+			body.getByRole("button", { name: "Save permissions" }),
+		).toBeEnabled();
 		expect(args.onOpenChange).not.toHaveBeenCalledWith(false);
 	},
 };

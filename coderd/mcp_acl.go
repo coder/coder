@@ -60,8 +60,6 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get available MCP server config ACL users and groups
 // @ID get-available-mcp-server-config-acl-users-and-groups
 // @Security CoderSessionToken
@@ -74,7 +72,7 @@ func (api *API) mcpServerConfigACL(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit for users and groups, if 0 returns all candidates"
 // @Param offset query int false "User page offset"
 // @Success 200 {object} codersdk.ACLAvailable
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl/available [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/acl/available [get]
 // @x-apidocgen {"skip": true}
 func (api *API) mcpServerConfigACLAvailable(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

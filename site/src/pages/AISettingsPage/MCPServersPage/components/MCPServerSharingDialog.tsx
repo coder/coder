@@ -94,15 +94,15 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 
 	return (
 		<ResourceSharingDialog
-			title="Share server"
+			title="Server permissions"
 			description={
-				<>Choose which organization members and groups can use {serverName}.</>
+				<>Manage which organization members and groups can use {serverName}.</>
 			}
-			loadingLabel="Loading server sharing"
-			emptyTitle="No shared members or groups yet"
-			tableLabel="Shared server members and groups"
+			loadingLabel="Loading server permissions"
+			emptyTitle="No members or groups have permission yet"
+			tableLabel="Server permissions for members and groups"
 			roleLabel="Read"
-			confirmText="Save sharing"
+			confirmText="Save permissions"
 			data={data}
 			loadError={data ? null : aclQuery.error}
 			refetchError={data ? aclQuery.error : null}
@@ -127,7 +127,7 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 					{ organization: organizationId, id: serverId, req },
 					{
 						onSuccess: () => {
-							toast.success(`Sharing for "${serverName}" updated.`);
+							toast.success(`Permissions for "${serverName}" updated.`);
 							close();
 						},
 					},
