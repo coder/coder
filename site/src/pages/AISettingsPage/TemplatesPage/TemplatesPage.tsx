@@ -45,6 +45,10 @@ const TemplatesPage: FC = () => {
 	const authorizedTemplates = templatesQuery.data?.filter((template) =>
 		authorizedOrganizationIDs.has(template.organization_id),
 	);
+	const refetch = organizationPermissionsQuery.error
+		? organizationPermissionsQuery.refetch
+		: templatesQuery.refetch;
+	const error = organizationPermissionsQuery.error ?? templatesQuery.error;
 	const updateTemplateMutation = useMutation(updateTemplateMeta(queryClient));
 	const [pendingTemplateIDs, setPendingTemplateIDs] = useState<
 		ReadonlySet<string>
@@ -87,8 +91,8 @@ const TemplatesPage: FC = () => {
 				isLoading={
 					organizationPermissionsQuery.isLoading || templatesQuery.isLoading
 				}
-				error={organizationPermissionsQuery.error ?? templatesQuery.error}
-				onRetry={() => void templatesQuery.refetch()}
+				error={error}
+				onRetry={() => void refetch()}
 				onToggleAgentsAllowed={toggleAgentsAllowed}
 				pendingTemplateIDs={pendingTemplateIDs}
 			/>

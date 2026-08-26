@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
@@ -197,6 +197,32 @@ export const NoDeploymentConfig: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByText("Coder Agents")).not.toBeInTheDocument();
 		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
+	},
+};
+
+export const TemplatesForOrganizationAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const templatesLink = canvas.getByRole("link", { name: "Templates" });
+		await expect(templatesLink).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(templatesLink);
+
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "Templates" })).toHaveAttribute(
+				"aria-current",
+				"page",
+			),
+		);
 	},
 };
 

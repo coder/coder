@@ -7,6 +7,8 @@ import type { Template } from "#/api/typesGenerated";
 import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
+	MockNoOrganizationPermissions,
+	MockOrganization2,
 	MockOrganizationPermissions,
 	MockTemplate,
 	MockUserOwner,
@@ -24,6 +26,16 @@ const mockSecondTemplate: Template = {
 	id: "second-template",
 	name: "second-template",
 	display_name: "Second Template",
+};
+
+const mockUnauthorizedTemplate: Template = {
+	...MockTemplate,
+	id: "unauthorized-template",
+	name: "unauthorized-template",
+	display_name: "Unauthorized Template",
+	organization_id: MockOrganization2.id,
+	organization_name: MockOrganization2.name,
+	organization_display_name: MockOrganization2.display_name,
 };
 
 type ToggleDeferreds = {
@@ -266,22 +278,66 @@ export const OrganizationTemplateAdmin: Story = {
 			updateAnyTemplate: true,
 			viewAllUsers: true,
 		},
+		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
 			{
-				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				key: organizationsPermissions([
+					MockDefaultOrganization.id,
+					MockOrganization2.id,
+				]).queryKey,
 				data: {
 					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+					[MockOrganization2.id]: MockNoOrganizationPermissions,
 				},
 			},
 		],
 	},
 	beforeEach: () => {
-		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+		spyOn(API, "getTemplates").mockResolvedValue([
+			MockTemplate,
+			mockUnauthorizedTemplate,
+		]);
 		spyOn(API, "getUsers").mockResolvedValue({ users: [], count: 0 });
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("Test Template")).toBeVisible();
+		expect(canvas.queryByText("Unauthorized Template")).not.toBeInTheDocument();
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
+	},
+};
+
+export const PermissionsRetryRecovers: Story = {
+	parameters: {
+		queries: [],
+	},
+	beforeEach: () => {
+		const checkAuthorization = spyOn(API, "checkAuthorization");
+		checkAuthorization
+			.mockRejectedValueOnce(
+				mockApiError({ message: "Failed to load organization permissions." }),
+			)
+			.mockImplementation(async ({ checks }) =>
+				Object.fromEntries(
+					Object.keys(checks).map((key) => [
+						key,
+						key.endsWith(".updateTemplates"),
+					]),
+				),
+			);
+		spyOn(API, "getTemplates").mockResolvedValue([MockTemplate]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Failed to load templates.")).toBeVisible();
+		expect(API.getTemplates).not.toHaveBeenCalled();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+
+		expect(await canvas.findByText("Test Template")).toBeVisible();
+		await waitFor(() =>
+			expect(API.checkAuthorization).toHaveBeenCalledTimes(2),
+		);
 		await waitFor(() => expect(API.getTemplates).toHaveBeenCalled());
 	},
 };
