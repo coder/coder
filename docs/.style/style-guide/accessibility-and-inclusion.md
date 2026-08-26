@@ -200,7 +200,7 @@ No Vale rule.*
 
 ## Input-device-agnostic language
 
-Coder docs reach readers on a mouse, a trackpad, a touchscreen, a keyboard, and assistive technology such as screen readers and switch devices.
+Coder docs reach readers who use mice, trackpads, touchscreens, keyboards, and assistive technologies such as screen readers and switch devices.
 Don't assume the reader's input device when describing a UI interaction.
 
 "Select" is the default verb for choosing or activating a UI control, instead of "click," "tap," or "press" (refer to [Select, not click](./word-choice.md#select-not-click)).
