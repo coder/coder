@@ -20,8 +20,7 @@ dayjs.extend(relativeTime);
 
 const lastUsedOrNever = (lastUsed: string) => {
 	const t = dayjs(lastUsed);
-	const now = dayjs();
-	return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
+	return t.valueOf() > 0 ? t.fromNow() : "Never";
 };
 
 interface TokensPageViewProps {

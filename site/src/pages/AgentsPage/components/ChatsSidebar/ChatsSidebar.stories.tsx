@@ -22,7 +22,6 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
-import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -40,18 +39,10 @@ const SettingsStateProbe = () => {
 	return <div data-testid="settings-state-from">{from}</div>;
 };
 
-const defaultModelOptions: ModelSelectorOption[] = [
-	{
-		id: "openai:gpt-4o",
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-];
-
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModelConfigs: TypesGen.ChatModel[] = [
 	{
 		id: "config-openai-gpt-4o",
+		organization_id: "my-organization-id",
 		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -99,7 +90,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
-		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
@@ -152,6 +142,66 @@ const ChatsSidebarWithKeybindings = (
 			onSearchDialogOpenChange={handleSearchDialogOpenChange}
 		/>
 	);
+};
+
+const ChatsSidebarWithDeferredModels = (
+	args: ComponentProps<typeof ChatsSidebar>,
+) => {
+	const [modelsResolved, setModelsResolved] = useState(false);
+
+	useEffect(() => {
+		const timeoutID = window.setTimeout(() => setModelsResolved(true), 500);
+		return () => window.clearTimeout(timeoutID);
+	}, []);
+
+	return (
+		<ChatsSidebar
+			{...args}
+			modelConfigs={modelsResolved ? defaultModelConfigs : []}
+			isLoadingModelConfigs={!modelsResolved}
+		/>
+	);
+};
+
+export const ModelNameWaitsForModelsToLoad: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-models-loading",
+				title: "Chat loaded before models",
+			}),
+		],
+	},
+	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Chat loaded before models")).toBeVisible();
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+
+		await waitFor(() => expect(canvas.getByText("GPT-4o")).toBeVisible(), {
+			timeout: 3000,
+		});
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+	},
+};
+
+export const UnavailableHistoricalModel: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-unavailable-model",
+				title: "Historical chat",
+				last_model_config_id: "foreign-model-config",
+			}),
+		],
+		modelConfigs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Historical chat")).toBeVisible();
+		expect(canvas.getByText("Unavailable model")).toBeVisible();
+	},
 };
 
 export const ChatWithTurnSummary: Story = {
@@ -690,7 +740,7 @@ export const SectionHeadersCollapse: Story = {
 		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
-		await expect(canvas.getByText("This Week (1)")).toBeInTheDocument();
+		await expect(canvas.getByText("Past 7 days (1)")).toBeInTheDocument();
 
 		const pinnedToggle = canvas.getByRole("button", {
 			name: "Collapse Pinned section",

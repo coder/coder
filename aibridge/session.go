@@ -62,7 +62,9 @@ func GuessSessionID(client Client, r *http.Request) *string {
 			return sid
 		}
 		return cleanRef(r.Header.Get("session_id"))
-	case ClientMux:
+	case ClientXum:
+		// Header name is intentionally still "X-Mux-Workspace-Id"; Xum keeps the
+		// wire value from before the Mux rename.
 		return cleanRef(r.Header.Get("X-Mux-Workspace-Id"))
 	case ClientZed:
 		return nil // Zed does not send a session ID from Zed Agent or Text Thread.

@@ -71,7 +71,6 @@ export type TemplateBuilderWizardState = {
 	baseTemplateId: string | null;
 	baseVariableValues: Record<string, string>;
 	modules: TemplateBuilderComposeModule[];
-	organizationId?: string;
 	hasProvisioners: boolean | undefined;
 	name: string;
 	displayName: string;
@@ -144,7 +143,7 @@ export type WizardAction =
 	  }
 	| {
 			type: "SET_CUSTOMIZATION";
-			field: "organizationId" | "name" | "displayName" | "description" | "icon";
+			field: "name" | "displayName" | "description" | "icon";
 			value: string;
 	  }
 	| { type: "SET_HAS_PROVISIONERS"; value: boolean | undefined }
@@ -211,12 +210,9 @@ export function wizardReducer(
 				hasProvisioners: action.value,
 			};
 		case "RESET_CUSTOMIZATIONS":
-			// Reset only organization and provisioner detection so re-entering the
-			// step re-runs org auto-select cleanly. The base-derived fields are
-			// left intact (they are re-seeded by SET_BASE when the base changes).
+			// Re-detect provisioners when the step is re-entered.
 			return {
 				...state,
-				organizationId: undefined,
 				hasProvisioners: undefined,
 			};
 		case "RESET":
@@ -253,18 +249,31 @@ export const toComposeRequest = (
 };
 
 /**
- * Project wizard state into the API request shape for the
- * create-template endpoint.
+ * Values owned by the Formik-backed customizations step. Kept separate from
+ * the reducer state, which only seeds their initial (base-derived) defaults.
+ */
+export type CustomizationsFormValues = {
+	organization_id: string;
+	name: string;
+	display_name: string;
+	description: string;
+	icon: string;
+};
+
+/**
+ * Project wizard state and the submitted customization values into the API
+ * request shape for the create-template endpoint.
  */
 export const toCreateTemplateRequest = (
 	state: TemplateBuilderWizardState,
+	customizations: CustomizationsFormValues,
 ): TemplateBuilderCreateTemplateRequest => {
 	return {
 		...toComposeRequest(state),
-		organization_id: state.organizationId ?? "",
-		name: state.name,
-		display_name: state.displayName || undefined,
-		description: state.description || undefined,
-		icon: state.icon || undefined,
+		organization_id: customizations.organization_id,
+		name: customizations.name,
+		display_name: customizations.display_name || undefined,
+		description: customizations.description || undefined,
+		icon: customizations.icon || undefined,
 	};
 };

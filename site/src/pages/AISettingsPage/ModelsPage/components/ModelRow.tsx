@@ -1,6 +1,6 @@
 import { ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC } from "react";
-import type { ChatModelConfig } from "#/api/typesGenerated";
+import type { ChatModel } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
@@ -13,7 +13,7 @@ import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 
 type ModelRowProps = {
-	model: ChatModelConfig;
+	model: ChatModel;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
 	hasProvider: boolean;

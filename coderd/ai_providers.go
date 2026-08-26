@@ -15,6 +15,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -79,6 +80,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	namesByHost := buildHostnameCollisionMap(rows)
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
@@ -90,6 +92,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		sdk.Status = aiProviderHostnameWarningFromMap(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -131,6 +134,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -252,6 +256,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, row)
 	httpapi.Write(ctx, rw, http.StatusCreated, sdk)
 }
 
@@ -445,6 +450,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	sdk.Status = aiProviderHostnameWarningFromDB(ctx, api.Logger, api.Database, updated)
 	httpapi.Write(ctx, rw, http.StatusOK, sdk)
 }
 
@@ -554,6 +560,73 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		return database.AIProvider{}, errAIProviderInvalidName
 	}
 	return store.GetAIProviderByName(ctx, idOrName)
+}
+
+// buildHostnameCollisionMap returns a map from normalized hostname to
+// the names of enabled, non-deleted providers sharing that hostname,
+// in the order the database returned them (ORDER BY name ASC). The
+// first name is the proxy winner and does not get a warning; later
+// names do.
+func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
+	namesByHost := make(map[string][]string)
+	for _, row := range rows {
+		if !row.Enabled || row.Deleted {
+			continue
+		}
+		host := aibridged.BaseURLHostname(row.BaseUrl)
+		if host == "" {
+			continue
+		}
+		namesByHost[host] = append(namesByHost[host], row.Name)
+	}
+	return namesByHost
+}
+
+// aiProviderHostnameWarningFromMap is the pure helper for the list
+// handler. namesByHost is the pre-built collision map from the outer
+// rows, in database order (ORDER BY name ASC). Only providers whose
+// name appears after another enabled provider on the same hostname
+// get a warning; the first provider in database order does not.
+func aiProviderHostnameWarningFromMap(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
+	if !provider.Enabled || provider.Deleted {
+		return nil
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return nil
+	}
+	names := namesByHost[host]
+	if len(names) < 2 {
+		return nil
+	}
+	// The first name in database order is the proxy winner.
+	if provider.Name == names[0] {
+		return nil
+	}
+	return &codersdk.AIProviderStatus{Warnings: []string{
+		fmt.Sprintf("hostname %q is claimed by provider %q; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/%s/...) instead", host, names[0], provider.Name),
+	}}
+}
+
+// aiProviderHostnameWarningFromDB fetches enabled, non-deleted
+// providers to determine whether the given provider is excluded from
+// proxy routing by hostname collision. Used by the single-row handlers
+// (Get, Create, Update) where one extra query is not N+1.
+func aiProviderHostnameWarningFromDB(ctx context.Context, logger slog.Logger, store database.Store, provider database.AIProvider) *codersdk.AIProviderStatus {
+	if !provider.Enabled || provider.Deleted {
+		return nil
+	}
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
+	if host == "" {
+		return nil
+	}
+	enabledProviders, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	if err != nil {
+		logger.Error(ctx, "load AI providers for hostname warnings", slog.Error(err))
+		return nil
+	}
+	namesByHost := buildHostnameCollisionMap(enabledProviders)
+	return aiProviderHostnameWarningFromMap(provider, namesByHost)
 }
 
 // writeAIProviderError translates an error from the AI provider

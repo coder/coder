@@ -145,7 +145,7 @@ type shortTextCandidate struct {
 }
 
 func selectPreferredConfiguredShortTextModelConfig(
-	configs []database.GetEnabledChatModelConfigsRow,
+	configs []database.GetEnabledChatModelConfigsByOrganizationRow,
 ) (database.ChatModelConfig, bool) {
 	for _, preferred := range preferredTitleModels {
 		for _, config := range configs {
@@ -551,9 +551,6 @@ func validateGeneratedTitle(title string) error {
 	if title == "" {
 		return xerrors.New("generated title was empty")
 	}
-	if len(strings.Fields(title)) > 8 {
-		return xerrors.New("generated title exceeded 8 words")
-	}
 	return nil
 }
 
@@ -652,10 +649,19 @@ func titlePasteText(
 	return pasteText, nil
 }
 
+// titleMaxWords caps generated titles at the prompt's stated 2-8 word
+// budget. Quickgen pins temperature, so a model that overshoots the
+// budget for a given conversation keeps overshooting on retry; keeping
+// the first words of an otherwise good title beats failing generation.
+const titleMaxWords = 8
+
 func normalizeTitleOutput(title string) string {
 	title = normalizeShortTextOutput(title)
 	if title == "" {
 		return ""
+	}
+	if words := strings.Fields(title); len(words) > titleMaxWords {
+		title = strings.Join(words[:titleMaxWords], " ")
 	}
 	return truncateRunes(title, 80)
 }
@@ -833,6 +839,26 @@ func renderManualTitlePrompt(
 	return prompt.String()
 }
 
+// manualTitleGenerationTimeout bounds the model call for manual title
+// generation so a slow or hung provider cannot hold the rename dialog's
+// Generate request indefinitely.
+const manualTitleGenerationTimeout = 30 * time.Second
+
+// ErrManualTitleTimedOut marks a manual title failure caused by an expired
+// title-generation deadline, as opposed to an unrelated error that merely
+// wraps context.DeadlineExceeded. The handler maps it to a friendly 504.
+var ErrManualTitleTimedOut = xerrors.New("manual title generation timed out")
+
+// markManualTitleTimeout tags err with ErrManualTitleTimedOut when it stems
+// from a deadline so the handler can distinguish a genuine title timeout from
+// other failures.
+func markManualTitleTimeout(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.Join(ErrManualTitleTimedOut, err)
+}
+
 func generateManualTitle(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -858,7 +884,7 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
-	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	titleCtx, cancel := context.WithTimeout(ctx, manualTitleGenerationTimeout)
 	defer cancel()
 
 	userInput := strings.TrimSpace(latestUserMsg)
@@ -874,6 +900,14 @@ func generateManualTitle(
 		userInput,
 	)
 	if err != nil {
+		// Tag genuine attempt-deadline expiry so the handler can map it to a
+		// friendly 504. A provider failure can wrap an unrelated transport
+		// deadline while titleCtx is still live; leave that untagged so it
+		// keeps its provider-failure surface.
+		if errors.Is(err, context.DeadlineExceeded) &&
+			errors.Is(titleCtx.Err(), context.DeadlineExceeded) {
+			return "", markManualTitleTimeout(err)
+		}
 		return "", err
 	}
 

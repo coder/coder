@@ -76,6 +76,16 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
 	}
 
+	// Usage sums runtime_ms across rows, so the batch window is billed
+	// once on a dedicated record instead of an arbitrary member row.
+	stamp, ok, err := batchUsageMessage(input.modelConfigID, contentVersion, input.step.BatchRuntime, input.step.BatchBilledCalls)
+	if err != nil {
+		return stepMessagesForCommit{}, err
+	}
+	if ok {
+		messages = append(messages, stamp)
+	}
+
 	return stepMessagesForCommit{
 		Messages:       messages,
 		VisibleIndexes: visibleMessageIndexes(messages),
@@ -223,6 +233,54 @@ func nullInt64IfNonZero(value int64) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: value, Valid: true}
+}
+
+// toolBatchUsagePartType marks the dedicated billing record for a local
+// tool batch. Internal to chatd: the row is persisted with model
+// visibility so it never reaches the API or SSE, and prompt replay drops
+// it because the part converts to no provider content.
+const toolBatchUsagePartType codersdk.ChatMessagePartType = "tool-batch-usage"
+
+// toolBatchUsagePayload is the audit payload stored on the usage record.
+// It duplicates the row's runtime_ms so the billed window survives in
+// content for debugging, alongside how many call intervals produced it.
+type toolBatchUsagePayload struct {
+	BilledMs    int64 `json:"billed_ms"`
+	BilledCalls int   `json:"billed_calls"`
+}
+
+// batchUsageMessage builds the single model-invisible row that carries a
+// local tool batch's billed runtime. Usage sums runtime_ms across rows,
+// so a dedicated record keeps real tool results free of batch-level
+// runtime. Completed and interrupted batches share this helper. Returns
+// false when the batch bills no whole millisecond.
+func batchUsageMessage(
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+	runtime time.Duration,
+	billedCalls int,
+) (chatstate.Message, bool, error) {
+	runtimeMs := runtime.Milliseconds()
+	if runtimeMs <= 0 {
+		return chatstate.Message{}, false, nil
+	}
+	payload, err := json.Marshal(toolBatchUsagePayload{
+		BilledMs:    runtimeMs,
+		BilledCalls: billedCalls,
+	})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage payload: %w", err)
+	}
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:   toolBatchUsagePartType,
+		Result: payload,
+	}})
+	if err != nil {
+		return chatstate.Message{}, false, xerrors.Errorf("marshal tool batch usage part: %w", err)
+	}
+	msg := baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityModel, modelConfigID, contentVersion, content)
+	msg.RuntimeMs = sql.NullInt64{Int64: runtimeMs, Valid: true}
+	return msg, true, nil
 }
 
 func visibleMessageIndexes(messages []chatstate.Message) []int {
@@ -631,13 +689,8 @@ type partialMessageConversionState struct {
 	toolResults     map[string]*partialToolResult
 	toolResultOrder []string
 	answered        map[string]bool
-	// modelStreamedAssistant records whether any assistant part came
-	// from the model stream itself (text, reasoning, tool calls,
-	// sources). Tool execution also publishes assistant-role file
-	// parts for attachments; those alone must not attract the
-	// attempt's runtime, because tool batches are not billable. The
-	// buffer episode only carries a runtime when a provider stream
-	// was opened, so this is a second gate rather than the only one.
+	// modelStreamedAssistant distinguishes streamed content from tool
+	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
 }
 

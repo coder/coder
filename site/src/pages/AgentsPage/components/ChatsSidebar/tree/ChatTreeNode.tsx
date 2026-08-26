@@ -58,8 +58,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 		visibleChatIDs,
 		normalizedSearch,
 		expandedById,
-		modelOptions,
 		modelConfigs,
+		isLoadingModelConfigs,
 		chatErrorReasons,
 		activeChatId,
 		isArchiving,
@@ -83,7 +83,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 	const modelName = getModelDisplayName(
 		chat.last_model_config_id,
 		modelConfigs,
-		modelOptions,
+		isLoadingModelConfigs,
 	);
 	const errorReason =
 		chat.status === "error"
@@ -91,7 +91,8 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
 	const isStreaming = chat.status === "running";
-	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	const streamingSubtitle =
+		isStreaming && modelName ? `${modelName} streaming…` : undefined;
 	const staleTurnSummaryReleaseMs = 10_000;
 	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
 		isStreaming ? lastTurnSummary : undefined,

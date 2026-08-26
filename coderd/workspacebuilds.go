@@ -1110,6 +1110,36 @@ type workspaceBuildsData struct {
 	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
 
+// provisionerJobsByIDs fetches provisioner jobs by ID, shaped as
+// GetProvisionerJobsByIDsWithQueuePositionRow so callers can treat the result
+// uniformly. When the selection requests the queue position it uses
+// GetProvisionerJobsByIDsWithQueuePosition, whose queue position and size are
+// computed with window functions over pending jobs and provisioner daemons and
+// are comparatively expensive. Otherwise, it uses the cheaper
+// GetProvisionerJobsByIDs and leaves QueuePosition and QueueSize zero.
+func (api *API) provisionerJobsByIDs(ctx context.Context, jobIDs []uuid.UUID, cfg jobRelated) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	if cfg.QueuePosition {
+		return api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
+			IDs:             jobIDs,
+			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
+		})
+	}
+
+	provisionerJobs, err := api.Database.GetProvisionerJobsByIDs(ctx, jobIDs)
+	if err != nil {
+		return nil, err
+	}
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0, len(provisionerJobs))
+	for _, job := range provisionerJobs {
+		jobs = append(jobs, database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ID:             job.ID,
+			CreatedAt:      job.CreatedAt,
+			ProvisionerJob: job,
+		})
+	}
+	return jobs, nil
+}
+
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild, cfg latestBuildRelated) (workspaceBuildsData, error) {
 	jobIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
 	for _, build := range workspaceBuilds {
@@ -1122,10 +1152,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	)
 	if cfg.Job != nil {
 		var err error
-		jobs, err = api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, database.GetProvisionerJobsByIDsWithQueuePositionParams{
-			IDs:             jobIDs,
-			StaleIntervalMS: provisionerdserver.StaleInterval.Milliseconds(),
-		})
+		jobs, err = api.provisionerJobsByIDs(ctx, jobIDs, *cfg.Job)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
 		}

@@ -1,29 +1,22 @@
-import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
-import type { ModelSelectorOption } from "../../ChatElements";
+import type { Chat, ChatModel } from "#/api/typesGenerated";
+import { isUnsetModelRef } from "../../../utils/modelOptions";
 import { asString } from "../../ChatElements/runtimeTypeUtils";
 
 export const getModelDisplayName = (
 	lastModelConfigID: Chat["last_model_config_id"] | undefined,
-	modelConfigs: readonly ChatModelConfig[],
-	modelOptions: readonly ModelSelectorOption[],
+	modelConfigs: readonly ChatModel[],
+	isLoadingModelConfigs = false,
 ) => {
-	const normalizedModelConfigID = asString(lastModelConfigID).trim();
-	if (!normalizedModelConfigID) {
+	if (isUnsetModelRef(lastModelConfigID)) {
 		return "Default model";
 	}
 
-	const modelOption = modelOptions.find(
-		(option) => option.id === normalizedModelConfigID,
-	);
-	if (modelOption?.displayName) {
-		return modelOption.displayName;
-	}
-
+	const normalizedModelConfigID = asString(lastModelConfigID).trim();
 	const modelConfig = modelConfigs.find(
 		(config) => config.id === normalizedModelConfigID,
 	);
 	if (!modelConfig) {
-		return "Default model";
+		return isLoadingModelConfigs ? undefined : "Unavailable model";
 	}
 
 	const displayName = asString(modelConfig.display_name).trim();
