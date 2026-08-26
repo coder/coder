@@ -42,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -96,7 +97,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -224,7 +225,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, workspaces, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -313,7 +314,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -1562,7 +1563,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -2140,7 +2141,7 @@ func (api *API) watchWorkspace(
 			return
 		}
 
-		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
+		data, err := api.workspaceData(ctx, []database.Workspace{workspace}, wsrelated.All())
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
 				Type: codersdk.ServerSentEventTypeError,
@@ -2678,7 +2679,7 @@ func (api *API) allowWorkspaceSharing(ctx context.Context, rw http.ResponseWrite
 // does not have the correct perms to read a given template, the template will
 // not be returned.
 // So the caller must check the templates & users exist before using them.
-func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg workspaceRelated) (workspaceData, error) {
+func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspace, cfg wsrelated.Config) (workspaceData, error) {
 	workspaceIDs := make([]uuid.UUID, 0, len(workspaces))
 	templateIDs := make([]uuid.UUID, 0, len(workspaces))
 	for _, workspace := range workspaces {
@@ -2714,7 +2715,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 			return nil
 		})
 	}
-	if cfg.LatestBuild.appStatuses() {
+	if cfg.LatestBuild.AppStatuses() {
 		eg.Go(func() (err error) {
 			// This query must be run as system restricted to be efficient.
 			// nolint:gocritic
