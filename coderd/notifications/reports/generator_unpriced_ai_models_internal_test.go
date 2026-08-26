@@ -16,7 +16,47 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestReportGenerator_TicksUnpricedAIModels(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_, logger, db, _, notifEnq, clk := setup(t)
+	seedOwner(t, db)
+
+	// The ticker is reset after each generator run, so this trap signals when
+	// the immediate or ticker-driven run has finished.
+	resetTrap := clk.Trap().TickerReset()
+	defer resetTrap.Close()
+
+	generator := NewReportGenerator(ctx, logger, db, notifEnq, clk)
+	t.Cleanup(func() {
+		require.NoError(t, generator.Close())
+	})
+
+	// The generator runs once immediately without waiting for the ticker delay.
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	require.Empty(t, notifEnq.Sent())
+
+	// The initial run records the current time. Backdate it beyond the weekly
+	// frequency so the report is eligible on the next 15-minute ticker run.
+	require.NoError(t, db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
+		NotificationTemplateID: notifications.TemplateAIModelsUnpricedReport,
+		LastGeneratedAt:        clk.Now().Add(-unpricedAIModelsReportFrequency - time.Minute),
+	}))
+	seedUnpricedUsage(t, db, "anthropic", database.AIProviderTypeAnthropic, "claude-opus-4-8", clk.Now())
+
+	// Advance to the first ticker-driven run and wait for it to finish.
+	advance := clk.Advance(delay)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	advance.MustWait(ctx)
+
+	sent := notifEnq.Sent()
+	require.Len(t, sent, 1)
+	require.Equal(t, notifications.TemplateAIModelsUnpricedReport, sent[0].TemplateID)
+}
 
 func TestReportUnpricedAIModels(t *testing.T) {
 	t.Parallel()
