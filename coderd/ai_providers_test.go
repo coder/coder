@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // keyIDs extracts the IDs from a slice of AIProviderKey responses, in
@@ -1892,13 +1893,22 @@ func TestAIProvidersBedrockExternalID(t *testing.T) {
 func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 	t.Parallel()
 
+	newClient := func(t *testing.T, proxyEnabled bool) *codersdk.Client {
+		t.Helper()
+		return coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
+				values.AI.BridgeProxyConfig.Enabled = serpent.Bool(proxyEnabled)
+			}),
+		})
+	}
+
 	t.Run("CreateGetListReturnsWarning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := newClient(t, true)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". If AI Gateway Proxy is enabled, this provider is excluded from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/...).`}
+		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1952,11 +1962,11 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 	t.Run("UpdateReturnsWarningOnEnable", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := newClient(t, true)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". If AI Gateway Proxy is enabled, this provider is excluded from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/...).`}
+		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1988,11 +1998,11 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 	t.Run("UpdateBaseURLReturnsWarning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := newClient(t, true)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". If AI Gateway Proxy is enabled, this provider is excluded from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/...).`}
+		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -2023,9 +2033,42 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		require.Equal(t, wantWarnings, updated.Status.Warnings)
 	})
 
+	t.Run("ProxyDisabledReturnsNoWarning", func(t *testing.T) {
+		t.Parallel()
+		client := newClient(t, false)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "first",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		second, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "second",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v2",
+		})
+		require.NoError(t, err)
+		require.Nil(t, second.Status)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		providers, err := client.AIProviders(ctx)
+		require.NoError(t, err)
+		for _, provider := range providers {
+			require.Nil(t, provider.Status)
+		}
+	})
+
 	t.Run("NoWarningWhenNoCollision", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := newClient(t, true)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -2052,7 +2095,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 	t.Run("UpdateSelfNoWarning", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := newClient(t, true)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 

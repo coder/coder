@@ -110,7 +110,7 @@ export const WithHostnameCollisionWarning: Story = {
 			enabled: true,
 			status: {
 				warnings: [
-					'hostname "api.openai.com" is claimed by provider "first". If AI Gateway Proxy is enabled, this provider is excluded from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/openai/...).',
+					'hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/openai/... endpoint).',
 				],
 			},
 		},
