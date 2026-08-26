@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge/prices/providers"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -374,7 +375,10 @@ func reportUnpricedAIModels(ctx context.Context, logger slog.Logger, db database
 	}
 
 	// Fetch the models used without a price.
-	unpricedModels, err := db.GetUnpricedAIModelsSince(ctx, dbtime.Time(since).UTC())
+	unpricedModels, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
+		Since:              dbtime.Time(since).UTC(),
+		PriceableProviders: providers.SupportedStrings(),
+	})
 	if err != nil {
 		return xerrors.Errorf("unable to fetch unpriced AI models: %w", err)
 	}

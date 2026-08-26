@@ -3427,7 +3427,7 @@ JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
 	AND providers.deleted = false
 WHERE interceptions.started_at >= $1::timestamptz
-	AND providers.type != 'openai-compat'
+	AND providers.type::text = ANY($2::text[])
 	AND NOT EXISTS (
 		SELECT 1
 		FROM ai_model_prices AS prices
@@ -3438,6 +3438,11 @@ GROUP BY providers.type, interceptions.model
 ORDER BY token_count DESC, provider_type ASC, model ASC
 `
 
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
 type GetUnpricedAIModelsSinceRow struct {
 	ProviderType string `db:"provider_type" json:"provider_type"`
 	Model        string `db:"model" json:"model"`
@@ -3446,8 +3451,8 @@ type GetUnpricedAIModelsSinceRow struct {
 
 // Returns the models used since the given time that hold no price, most used
 // first. openai-compat providers cannot be priced, so their models are excluded.
-func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, since time.Time) ([]GetUnpricedAIModelsSinceRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, since)
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
 	if err != nil {
 		return nil, err
 	}
