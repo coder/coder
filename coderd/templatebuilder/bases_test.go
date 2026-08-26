@@ -164,3 +164,23 @@ func TestBasePrerequisites(t *testing.T) {
 		require.Empty(t, templatebuilder.BasePrerequisites("nonexistent"))
 	})
 }
+
+// TestBaseIncludedModules asserts the derived catalog-module list per base. The
+// values are derived from each base's rendered main.tf.tmpl, so this locks in
+// which module blocks each base bundles.
+func TestBaseIncludedModules(t *testing.T) {
+	t.Parallel()
+
+	// Quickstart renders a single `module "git-clone"` block.
+	require.Equal(t, []string{"git-clone"}, templatebuilder.BaseIncludedModules("quickstart"))
+
+	// The docker base bundles no module blocks of its own.
+	require.Empty(t, templatebuilder.BaseIncludedModules("docker"))
+
+	// Bases that render only non-catalog module blocks (e.g. the azure_region
+	// helper) bundle no catalog modules, so nothing is reserved.
+	require.Empty(t, templatebuilder.BaseIncludedModules("azure-linux"))
+
+	// Unknown IDs derive nothing.
+	require.Nil(t, templatebuilder.BaseIncludedModules("some-unknown-id"))
+}

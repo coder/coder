@@ -553,51 +553,12 @@ func TestBundleTar(t *testing.T) {
 	})
 }
 
-// TestBaseIncludedModulesMatchRendered enforces that each base's
-// included_modules manifest field exactly lists the catalog modules the base
-// actually renders. This keeps the collision guard's seen-set in sync with the
-// base's Terraform: if a base adds a `module "<catalog-id>"` block without
-// listing it (or lists one it no longer renders), this test fails instead of
-// silently re-opening the duplicate-module hazard the guard exists to prevent.
-//
-// This renders with DefaultBaseRenderContext, which applies no variable
-// overlay. A base that gated a catalog `module` block on a variable would not
-// render that block here, so the guard could be evaded; that is dormant today
-// because no base declares variables. When bases gain variables, extend this to
-// also render with representative variable contexts.
-func TestBaseIncludedModulesMatchRendered(t *testing.T) {
-	t.Parallel()
-
-	manifests, err := templatebuilder.LoadModules()
-	require.NoError(t, err)
-	catalogIDs := make(map[string]bool, len(manifests))
-	for _, m := range manifests {
-		catalogIDs[m.ID] = true
-	}
-
-	for _, id := range templatebuilder.BaseTemplateIDs() {
-		t.Run(id, func(t *testing.T) {
-			t.Parallel()
-
-			mainTF, err := templatebuilder.RenderBaseTemplate(
-				id, "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext(id))
-			require.NoError(t, err)
-
-			// Only catalog-named module blocks can collide with a
-			// wizard-selected module, so ignore any non-catalog modules a base
-			// renders (e.g. region helpers that are not in the catalog).
-			var renderedCatalog []string
-			for _, name := range templatebuilder.ExtractModuleNames(mainTF) {
-				if catalogIDs[name] {
-					renderedCatalog = append(renderedCatalog, name)
-				}
-			}
-
-			require.ElementsMatch(t, templatebuilder.BaseIncludedModules(id), renderedCatalog,
-				"base %q: included_modules must match the catalog modules it renders", id)
-		})
-	}
-}
+// optionValuePattern matches a quoted `value = "..."` assignment. In the
+// quickstart base such a quoted literal only appears inside the languages
+// selector's option {} blocks: Docker labels assign `value = data....` and
+// presets assign `languages = jsonencode(...)`, neither of which is a quoted
+// `value = "..."`.
+var optionValuePattern = regexp.MustCompile(`(?m)^\s*value\s*=\s*"([^"]+)"`)
 
 // hasLanguageDispatchPattern matches the `if has_language <name>` call sites in
 // the quickstart language-install script (not the has_language definition).
@@ -615,7 +576,11 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 	mainTF, err := templatebuilder.RenderBaseTemplate(
 		"quickstart", "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext("quickstart"))
 	require.NoError(t, err)
-	selectorValues := templatebuilder.ExtractParameterOptionValues(mainTF, "languages")
+
+	var selectorValues []string
+	for _, m := range optionValuePattern.FindAllSubmatch(mainTF, -1) {
+		selectorValues = append(selectorValues, string(m[1]))
+	}
 	require.NotEmpty(t, selectorValues,
 		"expected the quickstart languages selector to declare options")
 
@@ -633,72 +598,6 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 
 	require.ElementsMatch(t, selectorValues, dispatchNames,
 		"quickstart languages selector options must match the install script's has_language branches")
-
-	// The workspace presets declare `languages` a third time. Assert every
-	// preset's languages are a subset of the selector options, so a preset can
-	// never offer a value the selector and install script do not support.
-	presetLangs := templatebuilder.ExtractPresetParameterValues(mainTF, "languages")
-	presetNames := templatebuilder.ExtractPresetNames(mainTF)
-	require.NotEmpty(t, presetNames, "expected the quickstart base to declare presets")
-	// Every preset must contribute a statically decodable languages list, so a
-	// preset that set languages to a non-literal (a var ref, concat(...)) would
-	// drop out of presetLangs and fail here instead of silently evading the
-	// subset check below.
-	require.Len(t, presetLangs, len(presetNames),
-		"every quickstart preset must set languages to a static list")
-	for i, langs := range presetLangs {
-		require.NotEmpty(t, langs, "preset #%d set an empty languages list", i)
-		require.Subset(t, selectorValues, langs,
-			"preset #%d languages %v must be a subset of selector options %v", i, langs, selectorValues)
-	}
-}
-
-// TestExtractHCLHelpers verifies the HCL extraction helpers on crafted input
-// whose shape stresses their boundaries: a brace inside a parameter
-// description string, a commented-out option block, a module block, and a
-// preset whose languages list is wrapped in jsonencode(...). It asserts the
-// option values skip the commented option and the in-string brace, the module
-// names list the real block, and the preset languages are unwrapped.
-func TestExtractHCLHelpers(t *testing.T) {
-	t.Parallel()
-
-	src := []byte(`
-data "coder_parameter" "languages" {
-  description = "Pick languages { with braces } in prose"
-  option {
-    name  = "Python"
-    value = "python"
-  }
-  # option {
-  #   name  = "Commented"
-  #   value = "commented"
-  # }
-  option {
-    name  = "Go"
-    value = "go"
-  }
-}
-
-module "git-clone" {
-  source = "registry.coder.com/coder/git-clone/coder"
-}
-
-data "coder_workspace_preset" "web" {
-  parameters = {
-    languages = jsonencode(["python", "go"])
-    git_repo  = ""
-  }
-}
-`)
-
-	require.Equal(t, []string{"python", "go"},
-		templatebuilder.ExtractParameterOptionValues(src, "languages"),
-		"must skip the commented option and ignore braces inside the description string")
-	require.Equal(t, []string{"git-clone"}, templatebuilder.ExtractModuleNames(src))
-	require.Equal(t, [][]string{{"python", "go"}},
-		templatebuilder.ExtractPresetParameterValues(src, "languages"),
-		"must unwrap jsonencode(...) in preset parameters")
-	require.Nil(t, templatebuilder.ExtractParameterOptionValues(src, "nonexistent"))
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.

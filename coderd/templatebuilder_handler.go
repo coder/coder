@@ -86,17 +86,14 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Order bases alphabetically by display name, then group Quickstart next to
-	// Docker (see groupQuickstartBeforeDocker for the rationale).
+	// Order bases by display name, tiebreaking on ID so the order is total and
+	// deterministic even if two bases ever share a display name.
 	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
-		// Tiebreak on ID so the order is total and deterministic even if two
-		// bases ever share a display name.
 		return cmp.Or(
 			cmp.Compare(a.Name, b.Name),
 			cmp.Compare(a.ID, b.ID),
 		)
 	})
-	bases = groupQuickstartBeforeDocker(bases)
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
@@ -121,37 +118,6 @@ func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.Templa
 		})
 	}
 	return out
-}
-
-const (
-	quickstartBaseID = "quickstart"
-	dockerBaseID     = "docker"
-)
-
-// groupQuickstartBeforeDocker returns bases reordered so the Coder Quickstart
-// base sits immediately before the Docker base, preserving the relative order
-// of all other bases. Quickstart is a Docker-based starter template, so it is
-// grouped next to Docker rather than left in its default alphabetical slot.
-// The input is returned unchanged if either base is absent.
-func groupQuickstartBeforeDocker(bases []codersdk.TemplateBuilderBase) []codersdk.TemplateBuilderBase {
-	qsIdx := slices.IndexFunc(bases, func(b codersdk.TemplateBuilderBase) bool {
-		return b.ID == quickstartBaseID
-	})
-	if qsIdx == -1 {
-		return bases
-	}
-	quickstart := bases[qsIdx]
-
-	// Remove quickstart from a copy, then reinsert it directly before docker.
-	rest := slices.Delete(slices.Clone(bases), qsIdx, qsIdx+1)
-	dockerIdx := slices.IndexFunc(rest, func(b codersdk.TemplateBuilderBase) bool {
-		return b.ID == dockerBaseID
-	})
-	if dockerIdx == -1 {
-		// Docker base not present; leave quickstart in its sorted position.
-		return bases
-	}
-	return slices.Insert(rest, dockerIdx, quickstart)
 }
 
 // @Summary List template builder modules
@@ -205,7 +171,7 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
 			continue
 		}
-		// Skip modules the base already includes (see BaseManifest.IncludedModules).
+		// Skip modules the base already includes (see BaseIncludedModules).
 		if baseModules[m.ID] {
 			continue
 		}

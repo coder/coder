@@ -201,7 +201,7 @@ func loadCatalogMap() (map[string]ModuleManifest, error) {
 
 // validateModules checks that all requested modules exist, are
 // OS-compatible, have no duplicates, do not collide with a module the base
-// already includes (see BaseManifest.IncludedModules), and have no conflicts.
+// already includes (see BaseIncludedModules), and have no conflicts.
 func validateModules(requested []ComposeModule, catalog map[string]ModuleManifest, baseOS BaseOS, baseModules []string) error {
 	// Seed the seen-set with the modules the base already declares so the
 	// base and wizard-selected modules occupy a disjoint namespace.

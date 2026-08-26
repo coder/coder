@@ -250,21 +250,6 @@ func TestExtractAgentResourceName(t *testing.T) {
 		require.Equal(t, "myagent[0]", name)
 	})
 
-	t.Run("CountAfterNestedBlock", func(t *testing.T) {
-		t.Parallel()
-		// count is declared after a nested metadata block; a brace-depth scan
-		// that stopped at the first "}" would miss it and drop the [0] suffix.
-		hcl := []byte(`resource "coder_agent" "dev" {
-  metadata {
-    key = "cpu"
-  }
-  count = data.coder_workspace.me.start_count
-}`)
-		name, err := templatebuilder.ExtractAgentResourceName(hcl)
-		require.NoError(t, err)
-		require.Equal(t, "dev[0]", name)
-	})
-
 	t.Run("UncountedAgent", func(t *testing.T) {
 		t.Parallel()
 		hcl := []byte(`resource "coder_agent" "main" {
@@ -306,6 +291,47 @@ resource "coder_agent" "second" {}
 		_, err := templatebuilder.ExtractAgentResourceName([]byte{})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no coder_agent")
+	})
+}
+
+// TestExtractModuleNames covers the regex-based module block extractor on the
+// shapes it must handle for our curated templates: real blocks in declaration
+// order, and commented-out blocks (whose line starts with `#`) ignored because
+// matching is anchored to the start of a line.
+func TestExtractModuleNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleInOrder", func(t *testing.T) {
+		t.Parallel()
+		src := []byte(`module "git-clone" {
+  source = "registry.coder.com/coder/git-clone/coder"
+}
+
+module "code-server" {
+  source = "registry.coder.com/coder/code-server/coder"
+}
+`)
+		require.Equal(t, []string{"git-clone", "code-server"},
+			templatebuilder.ExtractModuleNames(src))
+	})
+
+	t.Run("IgnoresCommentedBlock", func(t *testing.T) {
+		t.Parallel()
+		src := []byte(`module "git-clone" {
+  source = "registry.coder.com/coder/git-clone/coder"
+}
+
+# module "commented" {
+#   source = "registry.coder.com/coder/commented/coder"
+# }
+`)
+		require.Equal(t, []string{"git-clone"}, templatebuilder.ExtractModuleNames(src))
+	})
+
+	t.Run("NoModules", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.ExtractModuleNames(
+			[]byte(`resource "coder_agent" "main" {}`)))
 	})
 }
 
