@@ -17,7 +17,7 @@
 	"runArgs": ["--cap-add=SYS_PTRACE"],
 	"customizations": {
 		"vscode": {
-			"extensions": ["biomejs.biome"]
+			"extensions": ["oxc.oxc-vscode"]
 		},
 		"coder": {
 			"apps": [

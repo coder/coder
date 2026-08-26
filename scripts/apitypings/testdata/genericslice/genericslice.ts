@@ -6,7 +6,7 @@ export interface Bar {
 }
 
 // From codersdk/genericslice.go
-// biome-ignore lint lint/complexity/noUselessTypeConstraint: golang does 'any' for generics, typescript does not like it
+// oxlint-disable-next-line typescript/no-unnecessary-type-constraint -- golang does 'any' for generics, typescript does not like it
 export interface Foo<R extends any> {
     readonly Slice: readonly R[];
     readonly TwoD: readonly R[][];

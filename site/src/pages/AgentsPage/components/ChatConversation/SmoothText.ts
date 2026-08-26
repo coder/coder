@@ -291,12 +291,10 @@ const graphemeSegmenter: GraphemeSegmenterInstance | null = (() => {
 	try {
 		const Seg = (Intl as Record<string, unknown>).Segmenter;
 		if (typeof Seg === "function") {
-			return new (
-				Seg as new (
-					locales?: string,
-					options?: { granularity?: string },
-				) => GraphemeSegmenterInstance
-			)(undefined, {
+			return new (Seg as new (
+				locales?: string,
+				options?: { granularity?: string },
+			) => GraphemeSegmenterInstance)(undefined, {
 				granularity: "grapheme",
 			});
 		}

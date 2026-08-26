@@ -40,12 +40,10 @@ const templates = [
 		active_user_count: 1,
 		agents_allowed: false,
 	},
-].map(
-	(template): TypesGen.Template => ({
-		...MockTemplate,
-		...template,
-	}),
-);
+].map((template): TypesGen.Template => ({
+	...MockTemplate,
+	...template,
+}));
 
 const filterState = getDefaultFilterProps<TemplateFilterState>({
 	menus: {},

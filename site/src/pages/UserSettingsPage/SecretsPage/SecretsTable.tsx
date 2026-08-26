@@ -224,7 +224,7 @@ const EnabledToggle: FC<EnabledToggleProps> = ({
 				{/*
 				 * Wrap the disabled Switch in a focusable span so the
 				 * tooltip can be triggered by keyboard and pointer.
-				 * biome-ignore lint/a11y/noNoninteractiveTabindex: needed to
+				 * oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- needed to
 				 * surface the tooltip on a disabled control via keyboard focus.
 				 */}
 				<span tabIndex={0} className="inline-flex">

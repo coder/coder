@@ -65,11 +65,23 @@ func main() {
 
 	TSMutations(ts)
 
-	output, err := ts.Serialize()
+	output, err := serializeTypescript(ts)
 	if err != nil {
 		log.Fatalf("serialize: %v", err)
 	}
 	_, _ = fmt.Println(output)
+}
+
+func serializeTypescript(ts *guts.Typescript) (string, error) {
+	output, err := ts.Serialize()
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(
+		output,
+		"// biome-ignore lint lint/complexity/noUselessTypeConstraint:",
+		"// oxlint-disable-next-line typescript/no-unnecessary-type-constraint --",
+	), nil
 }
 
 func TSMutations(ts *guts.Typescript) {

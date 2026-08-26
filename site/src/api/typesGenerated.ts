@@ -5509,8 +5509,7 @@ export interface GroupAIBudget {
  * the active budget period.
  */
 export interface GroupAISpend
-	extends AISpendPeriodWindow,
-		OrganizationGroupAISpend {}
+	extends AISpendPeriodWindow, OrganizationGroupAISpend {}
 
 // From codersdk/groups.go
 export interface GroupArguments {
@@ -10530,8 +10529,7 @@ export interface UserAIProviderKeyConfig {
  * the active budget period.
  */
 export interface UserAISpendStatus
-	extends UserAIBudgetSummary,
-		AISpendPeriodWindow {
+	extends UserAIBudgetSummary, AISpendPeriodWindow {
 	/**
 	 * CurrentSpendMicros is the user's spend on their effective group over
 	 * the current budget period.

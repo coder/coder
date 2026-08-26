@@ -54,9 +54,11 @@ const renderTemplateSchedulePage = async () => {
 // ends in _ms, and makes those properties optional. Defined as mapped type to
 // ensure this stays in sync as TemplateScheduleFormValues changes
 type FillAndSubmitConfig = {
-	[Key in keyof TemplateScheduleFormValues as Key extends `${string}_ms`
-		? Key
-		: never]?: TemplateScheduleFormValues[Key] | undefined;
+	[
+		Key in keyof TemplateScheduleFormValues as Key extends `${string}_ms`
+			? Key
+			: never
+	]?: TemplateScheduleFormValues[Key] | undefined;
 };
 
 const fillAndSubmitForm = async ({

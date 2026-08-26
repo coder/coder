@@ -73,8 +73,8 @@ const AISessionListPage: FC = () => {
 		explicitTimeRange === null
 			? "last_24h"
 			: lastPicked?.preset !== undefined &&
-					sameSecond(lastPicked.start, timeRange.start) &&
-					sameSecond(lastPicked.end, timeRange.end)
+				  sameSecond(lastPicked.start, timeRange.start) &&
+				  sameSecond(lastPicked.end, timeRange.end)
 				? lastPicked.preset
 				: undefined;
 

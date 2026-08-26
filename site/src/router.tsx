@@ -85,28 +85,20 @@ const WorkspaceBuildPage = lazy(
 const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"));
 const WorkspaceSchedulePage = lazy(
 	() =>
-		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
-		),
+		import("./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"),
 );
 const WorkspaceParametersPage = lazy(
 	() =>
-		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
-		),
+		import("./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"),
 );
 const WorkspaceSharingPage = lazy(
 	() =>
-		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
-		),
+		import("./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"),
 );
 const TerminalPage = lazy(() => import("./pages/TerminalPage/TerminalPage"));
 const TemplatePermissionsPage = lazy(
 	() =>
-		import(
-			"./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
-		),
+		import("./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"),
 );
 const TemplateResourcesPage = lazy(
 	() =>
@@ -120,63 +112,43 @@ const OverviewPage = lazy(
 );
 const SecuritySettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/SecuritySettingsPage/SecuritySettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/SecuritySettingsPage/SecuritySettingsPage"),
 );
 const AppearanceSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/AppearanceSettingsPage/AppearanceSettingsPage"),
 );
 const UserAuthSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"),
 );
 const ExternalAuthSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"),
 );
 const OAuth2AppsSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/OAuth2AppsSettingsPage"),
 );
 const EditOAuth2AppPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"
-		),
+		import("./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/EditOAuth2AppPage"),
 );
 const CreateOAuth2AppPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"
-		),
+		import("./pages/DeploymentSettingsPage/OAuth2AppsSettingsPage/CreateOAuth2AppPage"),
 );
 const NetworkSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/NetworkSettingsPage/NetworkSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/NetworkSettingsPage/NetworkSettingsPage"),
 );
 const ObservabilitySettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/ObservabilitySettingsPage/ObservabilitySettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/ObservabilitySettingsPage/ObservabilitySettingsPage"),
 );
 const AIGovernanceSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/AIGovernanceSettingsPage/AIGovernanceSettingsPage"),
 );
 const ExternalAuthPage = lazy(
 	() => import("./pages/ExternalAuthPage/ExternalAuthPage"),
@@ -208,9 +180,7 @@ const TemplateBuilderPage = lazy(
 );
 const TemplateVariablesPage = lazy(
 	() =>
-		import(
-			"./pages/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"
-		),
+		import("./pages/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"),
 );
 const WorkspaceSettingsPage = lazy(
 	() => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
@@ -230,33 +200,23 @@ const TemplateVersionsPage = lazy(
 );
 const TemplateSchedulePage = lazy(
 	() =>
-		import(
-			"./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
-		),
+		import("./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"),
 );
 const TemplateParametersPage = lazy(
 	() =>
-		import(
-			"./pages/TemplateSettingsPage/TemplateParametersPage/TemplateParametersPage"
-		),
+		import("./pages/TemplateSettingsPage/TemplateParametersPage/TemplateParametersPage"),
 );
 const TemplateSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
-		),
+		import("./pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"),
 );
 const LicensesSettingsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/LicensesSettingsPage/LicensesSettingsPage"
-		),
+		import("./pages/DeploymentSettingsPage/LicensesSettingsPage/LicensesSettingsPage"),
 );
 const AddNewLicensePage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/LicensesSettingsPage/AddNewLicensePage"
-		),
+		import("./pages/DeploymentSettingsPage/LicensesSettingsPage/AddNewLicensePage"),
 );
 const OrganizationRedirect = lazy(
 	() => import("./pages/OrganizationSettingsPage/OrganizationRedirect"),
@@ -294,15 +254,11 @@ const OrganizationIdPSyncPage = lazy(
 );
 const CreateEditRolePage = lazy(
 	() =>
-		import(
-			"./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage"
-		),
+		import("./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage"),
 );
 const ProvisionersPage = lazy(
 	() =>
-		import(
-			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
-		),
+		import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -335,9 +291,7 @@ const UserNotificationsPage = lazy(
 );
 const DeploymentNotificationsPage = lazy(
 	() =>
-		import(
-			"./pages/DeploymentSettingsPage/NotificationsPage/NotificationsPage"
-		),
+		import("./pages/DeploymentSettingsPage/NotificationsPage/NotificationsPage"),
 );
 const RequestOTPPage = lazy(
 	() => import("./pages/ResetPasswordPage/RequestOTPPage"),
@@ -350,15 +304,11 @@ const IdpOrgSyncPage = lazy(
 );
 const ProvisionerKeysPage = lazy(
 	() =>
-		import(
-			"./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"
-		),
+		import("./pages/OrganizationSettingsPage/OrganizationProvisionerKeysPage/OrganizationProvisionerKeysPage"),
 );
 const ProvisionerJobsPage = lazy(
 	() =>
-		import(
-			"./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"
-		),
+		import("./pages/OrganizationSettingsPage/OrganizationProvisionerJobsPage/OrganizationProvisionerJobsPage"),
 );
 const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
@@ -427,15 +377,11 @@ const AISettingsProvidersPage = lazy(
 );
 const AISettingsUpdateProviderPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"
-		),
+		import("./pages/AISettingsPage/ProvidersPage/UpdateProviderPage/UpdateProviderPage"),
 );
 const AISettingsAddProviderPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
-		),
+		import("./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"),
 );
 const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
@@ -464,15 +410,11 @@ const AISettingsMCPServersPage = lazy(
 );
 const AISettingsAddMCPServerPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/MCPServersPage/AddMCPServerPage/AddMCPServerPage"
-		),
+		import("./pages/AISettingsPage/MCPServersPage/AddMCPServerPage/AddMCPServerPage"),
 );
 const AISettingsUpdateMCPServerPage = lazy(
 	() =>
-		import(
-			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
-		),
+		import("./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"),
 );
 
 const GlobalLayout = () => {

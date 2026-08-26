@@ -28,7 +28,7 @@ Use the TypeScript language server when available for definitions, references, t
 | Unit tests       | `pnpm test`                                             |
 | One unit file    | `pnpm test path/to/file.test.ts`                        |
 | Typecheck        | `pnpm lint:types`                                       |
-| Biome check      | `pnpm check`                                            |
+| Format/lint check | `pnpm check`                                            |
 | Lint             | `pnpm lint`                                             |
 | Fix lint         | `pnpm lint:fix`                                         |
 | Format           | `pnpm format`                                           |
@@ -48,7 +48,7 @@ Some end-to-end tests require a license. The Storybook MCP at `http://localhost:
 
 ## TypeScript and data flow
 
-- Use ES modules and Biome. Prefer `for...of` over `forEach`.
+- Use ES modules with oxfmt and oxlint. Prefer `for...of` over `forEach`.
 - Access browser globals directly. This is a client-only SPA, so do not guard them with `typeof window` or similar checks.
 - Components must not call API functions directly. Use established React Query definitions and key hierarchies.
 - Use `mutate()` with callbacks when the result does not need to be awaited. Do not swallow mutation failures in empty catches.

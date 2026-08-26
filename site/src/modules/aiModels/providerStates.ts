@@ -49,5 +49,5 @@ export const canManageProviderModels = (
 ): boolean =>
 	Boolean(
 		providerState?.providerDescriptor.enabled &&
-			(providerState.hasEffectiveAPIKey || providerState.allowUserAPIKey),
+		(providerState.hasEffectiveAPIKey || providerState.allowUserAPIKey),
 	);

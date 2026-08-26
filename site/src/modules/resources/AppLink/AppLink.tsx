@@ -219,10 +219,12 @@ export const AppLink: FC<AppLinkProps> = ({
 };
 
 const shareDetails: {
-	[SharingLevel in TypesGen.WorkspaceAppSharingLevel as Exclude<
-		SharingLevel,
-		"owner"
-	>]: { shareTooltip: string; shareIcon: LucideIcon };
+	[
+		SharingLevel in TypesGen.WorkspaceAppSharingLevel as Exclude<
+			SharingLevel,
+			"owner"
+		>
+	]: { shareTooltip: string; shareIcon: LucideIcon };
 } = {
 	authenticated: {
 		shareTooltip: "Shared with all authenticated users",

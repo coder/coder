@@ -85,7 +85,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- periodic refresh
 	const lastAggregated = useMemo(() => {
 		if (!stats) {
 			return;

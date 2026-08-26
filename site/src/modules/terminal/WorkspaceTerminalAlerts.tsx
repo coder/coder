@@ -53,7 +53,7 @@ export const WorkspaceTerminalAlerts = ({
 			) : lifecycleState === "starting" ? (
 				<LoadingScriptsAlert />
 			) : lifecycleState === "ready" &&
-				prevLifecycleState.current === "starting" ? (
+			  prevLifecycleState.current === "starting" ? (
 				<LoadedScriptsAlert />
 			) : null}
 		</div>

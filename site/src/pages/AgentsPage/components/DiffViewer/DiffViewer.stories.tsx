@@ -9,30 +9,30 @@ import { parseDiffString } from "../DiffViewer/parseDiff";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 import { generateLargeDiff } from "./testHelpers";
 
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const sampleDiff = [
-"diff --git a/src/main.ts b/src/main.ts",
-"index abc1234..def5678 100644",
-"--- a/src/main.ts",
-"+++ b/src/main.ts",
-"@@ -1,5 +1,7 @@",
-" import { start } from \"./server\";",
-"+import { logger } from \"./logger\";",
-"",
-" const port = 3000;",
-"+logger.info(\"Starting server...\");",
-" start(port);",
-"diff --git a/src/server.ts b/src/server.ts",
-"index 1111111..2222222 100644",
-"--- a/src/server.ts",
-"+++ b/src/server.ts",
-"@@ -10,3 +10,5 @@",
-"   app.listen(port, () => {",
-"     console.log(\"Listening on port \" + port);",
-"   });",
-"+",
-"+  return app;",
-" }",
+	"diff --git a/src/main.ts b/src/main.ts",
+	"index abc1234..def5678 100644",
+	"--- a/src/main.ts",
+	"+++ b/src/main.ts",
+	"@@ -1,5 +1,7 @@",
+	' import { start } from "./server";',
+	'+import { logger } from "./logger";',
+	"",
+	" const port = 3000;",
+	'+logger.info("Starting server...");',
+	" start(port);",
+	"diff --git a/src/server.ts b/src/server.ts",
+	"index 1111111..2222222 100644",
+	"--- a/src/server.ts",
+	"+++ b/src/server.ts",
+	"@@ -10,3 +10,5 @@",
+	"   app.listen(port, () => {",
+	'     console.log("Listening on port " + port);',
+	"   });",
+	"+",
+	"+  return app;",
+	" }",
 ].join("\n");
 const parsedFiles = parseDiffString(sampleDiff);
 const firstFileName = parsedFiles[0]?.name ?? "";
@@ -102,23 +102,23 @@ export const WithSelectedLines: Story = {
 // Diff with two non-adjacent hunks in one file, producing a
 // mid-file separator that should remain visible even though
 // leading separators are hidden.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const multiHunkDiff = [
-"diff --git a/src/app.ts b/src/app.ts",
-"index aaa1111..bbb2222 100644",
-"--- a/src/app.ts",
-"+++ b/src/app.ts",
-"@@ -3,4 +3,5 @@",
-" import { db } from \"./db\";",
-" import { logger } from \"./logger\";",
-"+import { metrics } from \"./metrics\";",
-" ",
-" const app = express();",
-"@@ -20,3 +21,4 @@",
-" app.listen(port, () => {",
-"   console.log(\"Listening on port \" + port);",
-"+  metrics.record(\"server.start\");",
-" });",
+	"diff --git a/src/app.ts b/src/app.ts",
+	"index aaa1111..bbb2222 100644",
+	"--- a/src/app.ts",
+	"+++ b/src/app.ts",
+	"@@ -3,4 +3,5 @@",
+	' import { db } from "./db";',
+	' import { logger } from "./logger";',
+	'+import { metrics } from "./metrics";',
+	" ",
+	" const app = express();",
+	"@@ -20,3 +21,4 @@",
+	" app.listen(port, () => {",
+	'   console.log("Listening on port " + port);',
+	'+  metrics.record("server.start");',
+	" });",
 ].join("\n");
 const multiHunkFiles = parseDiffString(multiHunkDiff);
 
@@ -156,20 +156,20 @@ export const WithAnnotation: Story = {
 
 // Diff with a change block (both deletions and additions) for
 // testing cross-side selection in split view.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const changeDiff = [
-"diff --git a/src/config.ts b/src/config.ts",
-"index abc1234..def5678 100644",
-"--- a/src/config.ts",
-"+++ b/src/config.ts",
-"@@ -1,5 +1,5 @@",
-" const config = {",
-"-  port: 3000,",
-"-  host: \"localhost\",",
-"+  port: 8080,",
-"+  host: \"0.0.0.0\",",
-"   debug: false,",
-" };",
+	"diff --git a/src/config.ts b/src/config.ts",
+	"index abc1234..def5678 100644",
+	"--- a/src/config.ts",
+	"+++ b/src/config.ts",
+	"@@ -1,5 +1,5 @@",
+	" const config = {",
+	"-  port: 3000,",
+	'-  host: "localhost",',
+	"+  port: 8080,",
+	'+  host: "0.0.0.0",',
+	"   debug: false,",
+	" };",
 ].join("\n");
 const changeFiles = parseDiffString(changeDiff);
 const changeFileName = changeFiles[0]?.name ?? "";
@@ -249,20 +249,20 @@ const expectAnnotationTextarea = async ({
 // Diff where deletion and addition line numbers are wildly
 // different (hunk header: @@ -508,4 +218,4 @@). Deletion
 // lines are 509-510, addition lines are 219-220.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const mismatchedLinesDiff = [
-"diff --git a/src/big.ts b/src/big.ts",
-"index abc1234..def5678 100644",
-"--- a/src/big.ts",
-"+++ b/src/big.ts",
-"@@ -508,6 +218,6 @@ function process() {",
-"   return result;",
-"-  const old1 = true;",
-"-  const old2 = false;",
-"+  const new1 = true;",
-"+  const new2 = false;",
-"   cleanup();",
-" }",
+	"diff --git a/src/big.ts b/src/big.ts",
+	"index abc1234..def5678 100644",
+	"--- a/src/big.ts",
+	"+++ b/src/big.ts",
+	"@@ -508,6 +218,6 @@ function process() {",
+	"   return result;",
+	"-  const old1 = true;",
+	"-  const old2 = false;",
+	"+  const new1 = true;",
+	"+  const new2 = false;",
+	"   cleanup();",
+	" }",
 ].join("\n");
 const mismatchedFiles = parseDiffString(mismatchedLinesDiff);
 const mismatchedFileName = mismatchedFiles[0]?.name ?? "";
@@ -315,22 +315,22 @@ export const CrossSideMismatchedLineNumbersUnified: Story = {
 
 // Backward same-side selection (start > end). The user clicks
 // line 9 then shift-clicks line 5 on the additions side.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const backwardSelectionDiff = [
-"diff --git a/src/utils.ts b/src/utils.ts",
-"index abc1234..def5678 100644",
-"--- a/src/utils.ts",
-"+++ b/src/utils.ts",
-"@@ -3,4 +3,9 @@",
-" import { foo } from \"./foo\";",
-" import { bar } from \"./bar\";",
-"+import { baz } from \"./baz\";",
-"+import { qux } from \"./qux\";",
-"+import { quux } from \"./quux\";",
-"+import { corge } from \"./corge\";",
-"+import { grault } from \"./grault\";",
-" ",
-" export function main() {",
+	"diff --git a/src/utils.ts b/src/utils.ts",
+	"index abc1234..def5678 100644",
+	"--- a/src/utils.ts",
+	"+++ b/src/utils.ts",
+	"@@ -3,4 +3,9 @@",
+	' import { foo } from "./foo";',
+	' import { bar } from "./bar";',
+	'+import { baz } from "./baz";',
+	'+import { qux } from "./qux";',
+	'+import { quux } from "./quux";',
+	'+import { corge } from "./corge";',
+	'+import { grault } from "./grault";',
+	" ",
+	" export function main() {",
 ].join("\n");
 const backwardFiles = parseDiffString(backwardSelectionDiff);
 const backwardFileName = backwardFiles[0]?.name ?? "";
@@ -406,20 +406,20 @@ export const CrossSideAdditionsToDeletions: Story = {
 // 1. The arrow between old and new names is vertically centered
 // 2. The stat-count pills remain visible (not clipped)
 // 3. File names truncate with ellipsis
-// biome-ignore format: raw diff string must preserve exact whitespace
+// oxfmt-ignore: raw diff string must preserve exact whitespace
 const renameDiff = [
-"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
-"similarity index 95%",
-"rename from site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
-"rename to site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
-"index abc1234..def5678 100644",
-"--- a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
-"+++ b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
-"@@ -1,3 +1,3 @@",
-" export function DefaultLimitSection() {",
-"-  return null;",
-"+  return <div />;",
-" }",
+	"diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+	"similarity index 95%",
+	"rename from site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+	"rename to site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+	"index abc1234..def5678 100644",
+	"--- a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx",
+	"+++ b/site/src/pages/AgentsPage/components/SpendingTab/DefaultLimitSection.tsx",
+	"@@ -1,3 +1,3 @@",
+	" export function DefaultLimitSection() {",
+	"-  return null;",
+	"+  return <div />;",
+	" }",
 ].join("\n");
 const renameFiles = parseDiffString(renameDiff);
 

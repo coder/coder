@@ -35,8 +35,8 @@ const AddMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id];
 				return Boolean(
 					organizationPermissions?.viewMCPServerConfigs ||
-						organizationPermissions?.updateMCPServerConfig ||
-						organizationPermissions?.deleteMCPServerConfig,
+					organizationPermissions?.updateMCPServerConfig ||
+					organizationPermissions?.deleteMCPServerConfig,
 				);
 			});
 	const creatableOrganizations = permissions.editDeploymentConfig
@@ -76,8 +76,8 @@ const AddMCPServerPage: FC = () => {
 		permissions.editDeploymentConfig ||
 		Boolean(
 			organizationPermissions?.viewMCPServerConfigs ||
-				organizationPermissions?.updateMCPServerConfig ||
-				organizationPermissions?.deleteMCPServerConfig,
+			organizationPermissions?.updateMCPServerConfig ||
+			organizationPermissions?.deleteMCPServerConfig,
 		);
 	const canCreate =
 		permissions.editDeploymentConfig ||
@@ -86,7 +86,7 @@ const AddMCPServerPage: FC = () => {
 		permissions.editDeploymentConfig ||
 		Boolean(
 			organizationPermissions?.updateMCPServerConfig ||
-				organizationPermissions?.deleteMCPServerConfig,
+			organizationPermissions?.deleteMCPServerConfig,
 		);
 	const canOpenAnyServerList =
 		permissions.editDeploymentConfig ||
@@ -108,7 +108,7 @@ const AddMCPServerPage: FC = () => {
 			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&
-				!organizationPermissionsQuery.data ? (
+			  !organizationPermissionsQuery.data ? (
 				<Loader />
 			) : creatableOrganizations.length === 0 || requestedOrganizationDenied ? (
 				<RequirePermission isFeatureVisible={false} />

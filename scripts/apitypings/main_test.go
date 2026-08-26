@@ -57,7 +57,7 @@ func TestGeneration(t *testing.T) {
 
 			TSMutations(ts)
 
-			output, err := ts.Serialize()
+			output, err := serializeTypescript(ts)
 			require.NoError(t, err)
 
 			golden := filepath.Join(dir, f.Name()+".ts")

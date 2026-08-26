@@ -135,7 +135,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	// Reset scroll whenever the active step changes, including on browser
 	// back/forward (popstate) where button click handlers would not fire.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll must reset when step changes
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- scroll must reset when step changes
 	useEffect(() => {
 		window.scrollTo(0, 0);
 	}, [currentStep.id]);
@@ -264,7 +264,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	// Runs after the scroll-reset effect above (declared earlier, so it fires
 	// first). Scrolls the requested module into view once module-settings
 	// has rendered.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: run on step change
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- run on step change
 	useEffect(() => {
 		if (currentStep.id !== "module-settings") {
 			return;

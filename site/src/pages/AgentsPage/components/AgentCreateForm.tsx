@@ -588,8 +588,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 								</AlertDescription>
 							</Alert>
 						) : isApiError(createError) &&
-							createError.response.status === 403 &&
-							isChatHookDeniedResponse(createError.response.data) ? (
+						  createError.response.status === 403 &&
+						  isChatHookDeniedResponse(createError.response.data) ? (
 							<Alert severity="info">
 								<AlertDescription>
 									{createError.response.data.message}

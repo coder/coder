@@ -4378,25 +4378,25 @@ describe("archive mutation entity retention", () => {
 	it.each([
 		{ name: "archiveChat", factory: archiveChat, archived: true },
 		{ name: "unarchiveChat", factory: unarchiveChat, archived: false },
-	])("$name onSuccess never removes the entity family", ({
-		factory,
-		archived,
-	}) => {
-		const queryClient = createTestQueryClient();
-		const chatId = "chat-1";
-		queryClient.setQueryData(
-			chatEntityKey(chatId),
-			makeChat(chatId, { archived: !archived }),
-		);
-		queryClient.setQueryData(chatMessagesKey(chatId), []);
+	])(
+		"$name onSuccess never removes the entity family",
+		({ factory, archived }) => {
+			const queryClient = createTestQueryClient();
+			const chatId = "chat-1";
+			queryClient.setQueryData(
+				chatEntityKey(chatId),
+				makeChat(chatId, { archived: !archived }),
+			);
+			queryClient.setQueryData(chatMessagesKey(chatId), []);
 
-		const mutation = factory(queryClient);
-		mutation.onSuccess(undefined, chatId);
-		mutation.onSettled(undefined, undefined, chatId);
+			const mutation = factory(queryClient);
+			mutation.onSuccess(undefined, chatId);
+			mutation.onSettled(undefined, undefined, chatId);
 
-		expect(
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
-		).toMatchObject({ archived });
-		expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
-	});
+			expect(
+				queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)),
+			).toMatchObject({ archived });
+			expect(queryClient.getQueryData(chatMessagesKey(chatId))).toBeDefined();
+		},
+	);
 });

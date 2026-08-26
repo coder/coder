@@ -83,7 +83,7 @@ const CoderAgentsPage: FC = () => {
 		organizationPermissionsQuery.error == null ? (
 			<Loader />
 		) : activeOrganization &&
-			organizationPermissionsQuery.data !== undefined ? (
+		  organizationPermissionsQuery.data !== undefined ? (
 			<OrganizationAgentSettings
 				organization={activeOrganization}
 				canEdit={

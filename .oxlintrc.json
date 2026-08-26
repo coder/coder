@@ -1,0 +1,129 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"categories": {
+		"correctness": "error"
+	},
+	"plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "jsx-a11y"],
+	"rules": {
+		"jsx-a11y/no-static-element-interactions": "off",
+		"no-console": [
+			"error",
+			{
+				"allow": ["error", "info", "warn"]
+			}
+		],
+		"no-else-return": "error",
+		"no-unused-vars": [
+			"warn",
+			{
+				"argsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_",
+				"ignoreRestSiblings": true,
+				"varsIgnorePattern": "^_"
+			}
+		],
+		"no-restricted-imports": [
+			"error",
+			{
+				"paths": [
+					{
+						"name": "react",
+						"importNames": ["forwardRef"],
+						"message": "React 19 no longer requires forwardRef. Use ref as a prop instead."
+					},
+					{
+						"name": "@pierre/diffs",
+						"importNames": [
+							"parsePatchFiles",
+							"processPatch",
+							"processFile",
+							"parseDiffFromFile"
+						],
+						"message": "Parse diffs through parseDiffString so every rendered file carries a content-derived cache key (pierrecomputer/pierre#1052)."
+					},
+					{
+						"name": "lodash",
+						"message": "Use lodash/<name> instead."
+					}
+				]
+			}
+		],
+		"one-var": ["error", "never"],
+		"react-hooks/exhaustive-deps": "error",
+		"typescript/no-explicit-any": "error",
+		"typescript/no-inferrable-types": "error",
+		"typescript/no-non-null-assertion": "off",
+		"typescript/prefer-as-const": "error",
+		"typescript/prefer-enum-initializers": "error",
+		"unicorn/prefer-number-properties": "error",
+		"jsx-a11y/control-has-associated-label": "off",
+		"jsx-a11y/heading-has-content": "off",
+		"jsx-a11y/iframe-has-title": "off",
+		"jsx-a11y/interactive-supports-focus": "off",
+		"jsx-a11y/no-autofocus": "off",
+		"jsx-a11y/no-noninteractive-element-interactions": "off",
+		"jsx-a11y/no-noninteractive-tabindex": "off",
+		"jsx-a11y/prefer-tag-over-role": "off",
+		"jsx-a11y/role-has-required-aria-props": "off",
+		"jsx-a11y/role-supports-aria-props": "off",
+		"no-irregular-whitespace": "off",
+		"no-unused-expressions": "off",
+		"oxc/erasing-op": "off",
+		"react/error-boundaries": "off",
+		"react/globals": "off",
+		"react/immutability": "off",
+		"react/preserve-manual-memoization": "off",
+		"react/purity": "off",
+		"react/refs": "off",
+		"react/set-state-in-effect": "off",
+		"react/static-components": "off",
+		"typescript/no-this-alias": "off",
+		"unicorn/no-new-array": "off",
+		"unicorn/no-thenable": "off",
+		"unicorn/no-useless-fallback-in-spread": "off",
+		"unicorn/no-useless-spread": "off"
+	},
+	"overrides": [
+		{
+			"files": [
+				"**/DiffViewer/parseDiff.ts",
+				"**/DiffViewer/parseDiff.test.ts",
+				"**/components/Separator/Separator.tsx"
+			],
+			"rules": {
+				"no-restricted-imports": "off"
+			}
+		},
+		{
+			"files": ["**/api/queries/templates.ts", "**/testHelpers/entities.ts"],
+			"rules": {
+				"typescript/no-inferrable-types": "off"
+			}
+		},
+		{
+			"files": [
+				"**/AISettingsPage/ModelsPage/components/ChatModelSharingDialog.tsx",
+				"**/CreateTokenPage/CreateTokenForm.tsx",
+				"**/CreateWorkspacePage/CreateWorkspacePage.tsx",
+				"**/CreateWorkspacePage/CreateWorkspacePageView.tsx",
+				"**/TemplateBuilder/ModuleSelectStep.tsx",
+				"**/TemplateBuilder/TemplateBuilderPage.tsx",
+				"**/TemplateBuilder/TemplateCustomizationsStep.tsx",
+				"**/modules/dashboard/DeploymentBanner/DeploymentBannerView.tsx",
+				"**/UserSettingsPage/NotificationsPage/NotificationsPage.tsx",
+				"**/components/ChatsSidebar/dialogs/RenameChatDialog.tsx",
+				"**/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions.tsx"
+			],
+			"rules": {
+				"react-hooks/exhaustive-deps": "off"
+			}
+		},
+		{
+			"files": ["**/modules/tasks/TasksSidebar/UserCombobox.stories.tsx"],
+			"rules": {
+				"no-unused-vars": "off"
+			}
+		}
+	],
+	"ignorePatterns": ["site/e2e/**/*Generated.ts", "site/scripts/*.mjs"]
+}

@@ -5,8 +5,9 @@
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 import { cn } from "#/utils/cn";
 
-interface ScrollAreaProps
-	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
+interface ScrollAreaProps extends React.ComponentPropsWithRef<
+	typeof ScrollAreaPrimitive.Root
+> {
 	scrollBarClassName?: string;
 	horizontalScrollBarClassName?: string;
 	/** Extra thumb classes; also reaches the thumb's `::before` hit-target. */

@@ -94,12 +94,10 @@ const GroupMembersPage: FC = () => {
 	);
 	// Join each member with its spend (undefined when loading, failed, or
 	// omitted by the backend) so each row gets a single object.
-	const membersWithSpend = members.map(
-		(member): MemberWithSpend => ({
-			...member,
-			spend: spendByUserId.get(member.id),
-		}),
-	);
+	const membersWithSpend = members.map((member): MemberWithSpend => ({
+		...member,
+		spend: spendByUserId.get(member.id),
+	}));
 	const aiBudgetNote = [
 		"Approximate monthly AI spend for this user.",
 		// Spend resets at period_end, rendered in the viewer's local time.

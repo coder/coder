@@ -78,9 +78,9 @@ function defaultInit(url: string, protocols?: string | string[]): WebSocket {
 	return new WebSocket(url, protocols);
 }
 
-export class OneWayWebSocket<TData = unknown>
-	implements OneWayWebSocketApi<TData>
-{
+export class OneWayWebSocket<
+	TData = unknown,
+> implements OneWayWebSocketApi<TData> {
 	readonly #socket: WebSocket;
 	readonly #errorListeners = new Set<(e: Event) => void>();
 	readonly #messageListenerWrappers = new Map<

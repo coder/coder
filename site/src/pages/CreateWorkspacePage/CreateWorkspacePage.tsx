@@ -312,7 +312,7 @@ const CreateWorkspacePage: FC = () => {
 
 	const hasAllRequiredExternalAuth = Boolean(
 		!isLoadingExternalAuth &&
-			externalAuth?.every((auth) => auth.optional || auth.authenticated),
+		externalAuth?.every((auth) => auth.optional || auth.authenticated),
 	);
 
 	const presetResolved =

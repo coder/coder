@@ -67,7 +67,7 @@ export const SelectModel: Story = {
 - Use generated types from `api/typesGenerated.ts` for all API data. Never
   re-declare a type that the backend already generates.
 - If a component requires a prop to function, make the prop required.
-- Avoid `@ts-ignore` and `biome-ignore` suppression comments. Seek a
+- Avoid `@ts-ignore` and `oxlint-disable` suppression comments. Seek a
   better-typed alternative first, and document why when one is unavoidable.
 
 **Incorrect:**

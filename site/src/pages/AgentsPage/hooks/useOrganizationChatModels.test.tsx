@@ -90,8 +90,9 @@ describe("useOrganizationChatModels", () => {
 	});
 
 	it("stays loading until every organization request settles", async () => {
-		let resolveSecond: (value: OrganizationChatModelsResponse) => void =
-			() => {};
+		let resolveSecond: (
+			value: OrganizationChatModelsResponse,
+		) => void = () => {};
 		const secondResponse = new Promise<OrganizationChatModelsResponse>(
 			(resolve) => {
 				resolveSecond = resolve;

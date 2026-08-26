@@ -480,7 +480,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		previousRemountKeyRef.current = remountKey;
 		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
 		// would force it into the dep array; the React Compiler stabilises
-		// callbacks but biome's react-hooks lint does not.
+		// callbacks but oxlint's react-hooks lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
 		cycleHistorySnapshotRef.current = null;
@@ -1583,14 +1583,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								</TooltipContent>
 							</Tooltip>
 						)}
-						{isInterruptPending && isStreaming && (
-							// The disabled Stop button is skipped by Tab order, so the
-							// pending interruption is also announced through a live
-							// region and a tooltip.
-							<span role="status" className="sr-only">
-								Interrupting. Waiting for the agent to stop.
-							</span>
-						)}
+						{isInterruptPending &&
+							isStreaming && (
+								// The disabled Stop button is skipped by Tab order, so the
+								// pending interruption is also announced through a live
+								// region and a tooltip.
+								<span role="status" className="sr-only">
+									Interrupting. Waiting for the agent to stop.
+								</span>
+							)}
 						{!isStreaming && (
 							<Tooltip>
 								<TooltipTrigger asChild>

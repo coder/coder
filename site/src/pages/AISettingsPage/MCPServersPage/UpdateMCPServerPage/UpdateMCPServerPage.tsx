@@ -45,7 +45,7 @@ const UpdateMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id];
 				return Boolean(
 					organizationPermissions?.updateMCPServerConfig ||
-						organizationPermissions?.deleteMCPServerConfig,
+					organizationPermissions?.deleteMCPServerConfig,
 				);
 			});
 	const requestedOrganizationName = searchParams.get(orgSearchParam);
@@ -106,7 +106,7 @@ const UpdateMCPServerPage: FC = () => {
 			{organizationPermissionsQuery.isLoadingError ? (
 				<ErrorAlert error={organizationPermissionsQuery.error} />
 			) : !permissions.editDeploymentConfig &&
-				!organizationPermissionsQuery.data ? (
+			  !organizationPermissionsQuery.data ? (
 				<Loader />
 			) : (
 				<RequirePermission

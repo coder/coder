@@ -52,7 +52,7 @@ jobs:
         with:
           install-args: "go node pnpm"
 
-      # Needed by catalog generation, which formats its output with biome.
+      # Needed by catalog generation, which formats its output with oxfmt.
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
 

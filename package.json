@@ -10,9 +10,10 @@
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.10",
 		"markdown-table-formatter": "^1.6.1",
 		"markdownlint-cli2": "^0.16.0",
+		"oxfmt": "0.65.0",
+		"oxlint": "1.80.0",
 		"quicktype": "^23.0.0"
 	},
 	"pnpm": {

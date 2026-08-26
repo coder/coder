@@ -1,0 +1,34 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"tabWidth": 2,
+	"printWidth": 80,
+	"singleQuote": false,
+	"jsxSingleQuote": false,
+	"quoteProps": "as-needed",
+	"trailingComma": "all",
+	"semi": true,
+	"arrowParens": "always",
+	"bracketSameLine": false,
+	"bracketSpacing": true,
+	"sortPackageJson": false,
+	"ignorePatterns": [
+		"**/pnpm-lock.yaml",
+		"**/static/*.html",
+		"**/*.md",
+		"**/*.yaml",
+		"**/*.yml",
+		"**/*.toml",
+		"**/testdata/**",
+		"site/e2e/**/*Generated.ts",
+		"site/scripts/*.mjs"
+	],
+	"overrides": [
+		{
+			"files": ["**/*.json", "**/*.jsonc"],
+			"options": {
+				"trailingComma": "none"
+			}
+		}
+	]
+}
