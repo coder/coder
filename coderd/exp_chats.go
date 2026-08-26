@@ -6906,7 +6906,6 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
-// @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -7169,7 +7168,6 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
-// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
