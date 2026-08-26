@@ -94,14 +94,14 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				ref={contentRef}
-				// `top` is pinned (rather than the default `top-1/2 -translate-y-1/2`)
+				// `top` is pinned instead of using the default vertical centering
 				// so the dialog doesn't re-center when its content height changes
 				// between the empty hint, loading skeleton, and results states.
 				// 218px is half of the tallest content height (~436px: p-6 padding +
 				// input + gap-4 + summary + space-y-3 + the 300px scroll area in
 				// ChatSearchResults). The max(1rem, ...) clamp keeps the dialog
 				// fully visible on short viewports.
-				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-[560px] translate-y-0 gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
+				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-[560px] [transform:translateX(-50%)] gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
 				// Suppress the open/close animation. The `animate-in`/`animate-out`
 				// rules applied via CVA in `dialogVariants` outrank Tailwind class
 				// overrides, so we disable them with an inline style to avoid the

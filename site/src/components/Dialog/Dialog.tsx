@@ -35,7 +35,7 @@ const DialogOverlay: React.FC<
 const dialogVariants = cva(
 	`fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-full max-w-lg gap-6 overflow-y-auto
 	border border-solid bg-surface-primary p-8 shadow-lg duration-200 sm:rounded-lg
-	translate-x-[-50%] translate-y-[-50%] outline-hidden
+	[transform:translate(-50%,-50%)] outline-hidden
 	data-[state=open]:animate-in data-[state=closed]:animate-out
 	data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
 	data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95
@@ -85,7 +85,7 @@ export const DialogHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-y-5 text-center sm:text-left",
+				"flex flex-col space-y-5 text-center sm:text-left",
 				className,
 			)}
 			{...props}
@@ -100,7 +100,7 @@ export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col-reverse sm:flex-row sm:justify-end gap-2",
+				"flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
 				className,
 			)}
 			{...props}
@@ -189,10 +189,7 @@ export const DialogDescription: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Description
-			className={cn(
-				"m-0 text-sm text-content-secondary font-medium",
-				className,
-			)}
+			className={cn("text-sm text-content-secondary font-medium", className)}
 			{...props}
 		/>
 	);

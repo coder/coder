@@ -7,13 +7,66 @@
 
 @config "../tailwind.config.js";
 
-/*
-  The default border color has changed to `currentcolor` in Tailwind CSS v4,
-  so we've added these compatibility styles to make sure everything still
-  looks the same as it did with Tailwind CSS v3.
+/* Preserve Tailwind CSS v3 hover behavior on all pointer types. */
+@custom-variant hover (&:hover);
 
-  If we ever want to remove these styles, we need to add an explicit border
-  color utility to any element that depends on these defaults.
+@font-face {
+	font-family: "seti";
+	src: url("/seti.woff") format("woff");
+	font-weight: normal;
+	font-style: normal;
+	font-display: swap;
+}
+
+/*
+  Tailwind CSS v4 emits zero-specificity logical-end spacing. Preserve the v3
+  sibling selectors so existing margins, hidden children, and direction match.
+*/
+@utility space-x-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-x-reverse: 0;
+		margin-right: calc(--spacing(--value(number)) * var(--tw-space-x-reverse));
+		margin-left: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-x-reverse))
+		);
+	}
+}
+
+@utility space-y-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-y-reverse: 0;
+		margin-top: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-y-reverse))
+		);
+		margin-bottom: calc(--spacing(--value(number)) * var(--tw-space-y-reverse));
+	}
+}
+
+@utility divide-y {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-divide-y-reverse: 0;
+		border-top-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
+		border-bottom-width: calc(1px * var(--tw-divide-y-reverse));
+	}
+}
+
+@utility divide-solid {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-style: solid;
+	}
+}
+
+@utility divide-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-color: --value(--color-*);
+	}
+}
+
+/*
+  Preserve the Tailwind CSS v3 Preflight defaults that the existing interface
+  relies on.
 */
 @layer base {
 	*,
@@ -22,6 +75,76 @@
 	::backdrop,
 	::file-selector-button {
 		border-color: var(--color-gray-200, currentcolor);
+	}
+
+	button:not(:disabled),
+	[role="button"]:not(:disabled) {
+		cursor: pointer;
+	}
+
+	button,
+	select {
+		text-transform: none;
+	}
+
+	input,
+	select,
+	textarea {
+		background-color: revert-layer;
+	}
+
+	button,
+	input:where([type="button"], [type="reset"], [type="submit"]) {
+		background-color: transparent;
+		background-image: none;
+	}
+
+	input::placeholder,
+	textarea::placeholder {
+		color: #9ca3af;
+	}
+
+	th,
+	td {
+		padding: revert-layer;
+	}
+
+	dialog {
+		margin: revert-layer;
+	}
+
+	[type="search"] {
+		-webkit-appearance: textfield;
+		outline-offset: -2px;
+	}
+
+	::-webkit-date-and-time-value {
+		min-height: revert-layer;
+		text-align: revert-layer;
+	}
+
+	::-webkit-datetime-edit {
+		display: revert-layer;
+	}
+
+	::-webkit-datetime-edit-fields-wrapper {
+		padding: revert-layer;
+	}
+
+	::-webkit-datetime-edit,
+	::-webkit-datetime-edit-year-field,
+	::-webkit-datetime-edit-month-field,
+	::-webkit-datetime-edit-day-field,
+	::-webkit-datetime-edit-hour-field,
+	::-webkit-datetime-edit-minute-field,
+	::-webkit-datetime-edit-second-field,
+	::-webkit-datetime-edit-millisecond-field,
+	::-webkit-datetime-edit-meridiem-field {
+		padding-block: revert-layer;
+	}
+
+	::-webkit-calendar-picker-indicator {
+		line-height: revert-layer;
 	}
 }
 
@@ -136,16 +259,6 @@
 
 @utility text-xs-mono {
 	@apply text-xs font-mono font-medium;
-}
-
-@layer utilities {
-	@font-face {
-		font-family: "seti";
-		src: url("/seti.woff") format("woff");
-		font-weight: normal;
-		font-style: normal;
-		font-display: swap;
-	}
 }
 
 @layer base {
@@ -493,5 +606,52 @@
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+/* Remove Tailwind CSS v4's competing zero-specificity spacing declarations. */
+@layer utilities {
+	:where(.space-y-0 > :not(:last-child)),
+	:where(.space-y-0\.5 > :not(:last-child)),
+	:where(.space-y-1 > :not(:last-child)),
+	:where(.space-y-1\.5 > :not(:last-child)),
+	:where(.space-y-2 > :not(:last-child)),
+	:where(.space-y-3 > :not(:last-child)),
+	:where(.space-y-4 > :not(:last-child)),
+	:where(.space-y-5 > :not(:last-child)),
+	:where(.space-y-6 > :not(:last-child)) {
+		margin-block-start: revert-layer;
+		margin-block-end: revert-layer;
+	}
+
+	:where(.space-x-2 > :not(:last-child)),
+	:where(.space-x-4 > :not(:last-child)) {
+		margin-inline-start: revert-layer;
+		margin-inline-end: revert-layer;
+	}
+
+	:where(.divide-y > :not(:last-child)) {
+		border-top-width: revert-layer;
+		border-bottom-width: revert-layer;
+		border-top-style: revert-layer;
+		border-bottom-style: revert-layer;
+	}
+
+	:where(.divide-solid > :not(:last-child)) {
+		--tw-border-style: revert-layer;
+		border-style: revert-layer;
+	}
+
+	:where(.divide-border > :not(:last-child)),
+	:where(.hover\:divide-surface-tertiary:hover > :not(:last-child)) {
+		border-color: revert-layer;
+	}
+
+	@media (width >= 40rem) {
+		:where(.sm\:space-x-0 > :not(:last-child)),
+		:where(.sm\:space-x-2 > :not(:last-child)) {
+			margin-inline-start: revert-layer;
+			margin-inline-end: revert-layer;
+		}
 	}
 }

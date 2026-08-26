@@ -722,7 +722,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 											</div>
 											<div
 												className={cn(
-													"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
+													"shrink-0 flex items-center gap-2 pl-2 pr-3",
 													"border-solid border-0 border-b border-l",
 												)}
 											>
