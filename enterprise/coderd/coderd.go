@@ -63,6 +63,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	agpltailnet "github.com/coder/coder/v2/tailnet"
 	"github.com/coder/quartz"
@@ -84,8 +85,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
-	if options.Options.Authorizer == nil {
-		options.Options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
+	if options.Authorizer == nil {
+		options.Authorizer = rbac.NewCachingAuthorizer(options.PrometheusRegistry)
 		if buildinfo.IsDev() {
 			options.Authorizer = rbac.Recorder(options.Authorizer)
 		}
@@ -98,12 +99,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.Entitlements == nil {
 		options.Entitlements = entitlements.New()
 	}
-	if options.Options.UsageInserter == nil {
-		options.Options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
+	if options.UsageInserter == nil {
+		options.UsageInserter = &atomic.Pointer[agplusage.Inserter]{}
 	}
-	if options.Options.UsageInserter.Load() == nil {
+	if options.UsageInserter.Load() == nil {
 		collector := usage.NewDBInserter()
-		options.Options.UsageInserter.Store(&collector)
+		options.UsageInserter.Store(&collector)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -206,7 +207,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// chat processor receives it.
 	replicaHTTPClient := replicaRelayHTTPClient(options.HTTPClient, meshTLSConfig)
 	if replicaHTTPClient == nil {
-		replicaHTTPClient = options.Options.HTTPClient
+		replicaHTTPClient = options.HTTPClient
 	}
 	if replicaHTTPClient == nil {
 		replicaHTTPClient = http.DefaultClient
@@ -214,7 +215,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// Use a closure that captures api by reference so it can access
 	// api.AGPL.ID after coderd.New is called. The parts dialer is
 	// only invoked from stream subscriptions, which happen after init.
-	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
+	options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
@@ -222,10 +223,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		},
 	})
 
-	options.Options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
+	options.ChatAgentCapacityUnlock = entchatd.NewAgentCapacityUnlock(options.Entitlements)
 
 	api.AGPL = coderd.New(options.Options)
 	api.aiSeatTracker = aiseats.New(options.Database, api.Logger.Named("aiseats"), quartz.NewReal(), &api.AGPL.Auditor)
+	api.trialer = trialer.New(options.Database, trialer.LicenseRequestURL, options.LicenseKeys)
 	api.AGPL.AISeatTracker = api.aiSeatTracker
 	defer func() {
 		if err != nil {
@@ -233,7 +235,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		}
 	}()
 
-	api.AGPL.Options.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
+	api.AGPL.ParseLicenseClaims = func(rawJWT string) (email string, trial bool, err error) {
 		c, err := license.ParseClaims(rawJWT, Keys)
 		if err != nil {
 			return "", false, err
@@ -252,7 +254,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.tailnetService, err = tailnet.NewClientService(agpltailnet.ClientServiceOptions{
 		Logger:                  api.Logger.Named("tailnetclient"),
 		CoordPtr:                &api.AGPL.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
+		DERPMapUpdateFrequency:  api.DERPMapUpdateFrequency,
 		DERPMapFn:               api.AGPL.DERPMap,
 		NetworkTelemetryHandler: api.AGPL.NetworkTelemetryBatcher.Handler,
 		ResumeTokenProvider:     api.AGPL.CoordinatorResumeTokenProvider,
@@ -379,6 +381,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
 			r.Post("/", api.postLicense)
+			r.Post("/trial", api.postTrialLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
 		})
@@ -889,6 +892,8 @@ type API struct {
 	AGPL *coderd.API
 	*Options
 
+	trialer *trialer.Trialer
+
 	// ctx is canceled immediately on shutdown, it can be used to abort
 	// interruptible tasks.
 	ctx    context.Context
@@ -935,13 +940,13 @@ func (api *API) Close() error {
 		_ = api.derpMesh.Close()
 	}
 
-	if api.Options.CheckInactiveUsersCancelFunc != nil {
-		api.Options.CheckInactiveUsersCancelFunc()
+	if api.CheckInactiveUsersCancelFunc != nil {
+		api.CheckInactiveUsersCancelFunc()
 	}
 
 	// Close the connection logger to flush any remaining batched
 	// entries before shutting down the database connection.
-	if cl, ok := api.Options.ConnectionLogger.(io.Closer); ok {
+	if cl, ok := api.ConnectionLogger.(io.Closer); ok {
 		_ = cl.Close()
 	}
 
@@ -1087,7 +1092,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 				api.replicaManager.SetCallback("derp", func() {
 					// Only update DERP mesh if the built-in server is enabled.
-					if api.Options.DeploymentValues.DERP.Server.Enable {
+					if api.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
 						for _, replica := range api.replicaManager.DERPReplicasThisRegion() {
 							// Don't add replicas with an empty relay address.
@@ -1102,7 +1107,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				})
 			} else {
 				coordinator = agpltailnet.NewCoordinator(api.Logger)
-				if api.Options.DeploymentValues.DERP.Server.Enable {
+				if api.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
 				api.replicaManager.SetCallback("derp", func() {
@@ -1163,7 +1168,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureControlSharedPorts); shouldUpdate(initial, changed, enabled) {
-			var ps agplportsharing.PortSharer = agplportsharing.DefaultPortSharer
+			ps := agplportsharing.DefaultPortSharer
 			if enabled {
 				ps = portsharing.NewEnterprisePortSharer()
 			}

@@ -184,7 +184,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		AgentStatsRefreshInterval: api.AgentStatsRefreshInterval,
 		DisableDirectConnections:  api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		DerpForceWebSockets:       api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		DerpMapUpdateFrequency:    api.Options.DERPMapUpdateFrequency,
+		DerpMapUpdateFrequency:    api.DERPMapUpdateFrequency,
 		ExternalAuthConfigs:       api.ExternalAuthConfigs,
 		Experiments:               api.Experiments,
 		LifecycleMetrics:          api.lifecycleMetrics,
@@ -192,6 +192,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 		ContextDirtyMarker:   contextDirtyMarker,
+		ContextSyncDisabled:  api.DeploymentValues.DisableWorkspaceAgentContextSync.Value(),
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{

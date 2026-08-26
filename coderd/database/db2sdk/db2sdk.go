@@ -1741,6 +1741,7 @@ func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
 		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
 		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
 		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
 		CreatedAt:       dbPrice.CreatedAt,
 		UpdatedAt:       dbPrice.UpdatedAt,
 	}

@@ -33,7 +33,7 @@ following third-party references:
 ## Tools
 
 This repository runs [Vale](https://vale.sh/) on `docs/` as part of CI to enforce prose style.
-The configuration is the repo-root `.vale.ini`, and the curated rule set is documented in [`docs/.style/style-guide/`](../../.style/style-guide/README.md).
+The configuration is the repo-root `.vale.ini`, and the curated rule set is documented in [`docs/.style/style-guide/`](https://github.com/coder/coder/tree/main/docs/.style/style-guide).
 Run the same checks locally with `make lint/prose`.
 Vale runs in advisory mode in this iteration: warnings surface as inline PR annotations, but they don't block the build.
 

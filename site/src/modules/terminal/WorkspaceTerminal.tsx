@@ -338,8 +338,9 @@ export const WorkspaceTerminal = ({
 			window.removeEventListener("resize", refit);
 			resizeObserver.disconnect();
 			fitAddonRef.current = undefined;
-			nextTerminal.dispose();
 			setTerminal(undefined);
+			// xterm queues its initial viewport synchronization in a timer.
+			window.setTimeout(() => nextTerminal.dispose(), 0);
 		};
 	}, [
 		isVisible,

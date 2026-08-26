@@ -14,11 +14,11 @@ import {
 	chatEntityKey,
 	chatListKey,
 	chatMessagesKey,
-	chatModelConfigs,
-	chatModelsKey,
 	chatPromptsKey,
 	mcpServerConfigsKey,
+	organizationChatModelsKey,
 	toChatListParams,
+	userChatProviderConfigsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -28,7 +28,10 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -38,12 +41,14 @@ import {
 	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
+import { setupMatchMedia } from "#/testHelpers/matchMedia";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
@@ -71,6 +76,7 @@ const AgentChatPageLayout: FC = () => {
 							requestUnpinAgent: () => {},
 							isArchiving: false,
 							archivingChatId: undefined,
+							activeChatChildren: undefined,
 							isSidebarCollapsed: false,
 							onToggleSidebarCollapsed: () => {},
 							onExpandSidebar: () => {},
@@ -89,6 +95,9 @@ const AgentChatPageLayout: FC = () => {
 const CHAT_ID = "chat-1";
 const SWITCHED_CHAT_ID = "chat-2";
 const MODEL_CONFIG_ID = "model-config-1";
+const STALE_MODEL_CONFIG_ID = "stale-model-config";
+const DISABLED_DEFAULT_MODEL_CONFIG_ID = "disabled-default-model-config";
+const RECOVERY_MODEL_CONFIG_ID = "recovery-model-config";
 
 const AgentChatSwitchHarness: FC = () => {
 	const navigate = useNavigate();
@@ -122,39 +131,50 @@ const mockWorkspace: TypesGen.Workspace = {
 	},
 };
 
-const mockModelCatalog: TypesGen.ChatModelsResponse = {
-	providers: [
+const mockModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [
 		{
-			provider: "openai",
-			available: true,
-			models: [
-				{
-					id: "openai:gpt-4o",
-					provider: "openai",
-					model: "gpt-4o",
-					display_name: "GPT-4o",
-				},
-			],
+			...MockChatModel,
+			id: MODEL_CONFIG_ID,
+			organization_id: "test-org-id",
+			model: "gpt-4o",
+			display_name: "GPT-4o",
+			is_default: true,
+			model_config: {
+				reasoning_effort: { default: "medium", max: "high" },
+			},
+			reasoning_efforts: ["low", "medium", "high"],
+			created_at: "2026-02-18T00:00:00.000Z",
+			updated_at: "2026-02-18T00:00:00.000Z",
 		},
 	],
+	providers: [MockChatModelProviderDescriptor],
 	unsupported_providers: [],
 };
 
-const mockModelConfigs: TypesGen.ChatModelConfig[] = [
-	{
-		...MockChatModelConfig,
-		id: MODEL_CONFIG_ID,
-		model: "gpt-4o",
-		display_name: "GPT-4o",
-		is_default: true,
-		model_config: {
-			reasoning_effort: { default: "medium", max: "high" },
+const foreignOnlyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...mockModelCatalog,
+	models: [
+		{
+			...MockChatModel,
+			id: "foreign-model-config",
+			organization_id: "foreign-org-id",
+			model: "gpt-4o",
+			display_name: "GPT-4o",
+			is_default: true,
 		},
-		reasoning_efforts: ["low", "medium", "high"],
-		created_at: "2026-02-18T00:00:00.000Z",
-		updated_at: "2026-02-18T00:00:00.000Z",
-	},
-];
+	],
+};
+
+const userApiKeyRequiredModelCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...mockModelCatalog,
+		providers: mockModelCatalog.providers.map((provider) => ({
+			...provider,
+			available: false,
+			unavailable_reason: "user_api_key_required",
+		})),
+	};
 
 const baseChatFields = {
 	organization_id: "test-org-id",
@@ -176,6 +196,30 @@ const baseChatFields = {
 	summary: null,
 	children: [],
 } as const;
+
+const recoveryModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...mockModelCatalog,
+	models: [
+		{
+			...MockChatModel,
+			id: DISABLED_DEFAULT_MODEL_CONFIG_ID,
+			organization_id: baseChatFields.organization_id,
+			model: "gpt-4o",
+			display_name: "Disabled local default",
+			enabled: false,
+			is_default: true,
+		},
+		{
+			...MockChatModel,
+			id: RECOVERY_MODEL_CONFIG_ID,
+			organization_id: baseChatFields.organization_id,
+			model: "gpt-4.1",
+			display_name: "Usable local model",
+			enabled: true,
+			is_default: false,
+		},
+	],
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -304,8 +348,25 @@ const buildQueries = (
 			key: workspaceByIdKey(mockWorkspace.id),
 			data: mockWorkspace,
 		},
-		{ key: chatModelsKey, data: mockModelCatalog },
-		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
+		{
+			key: organizationChatModelsKey(chat.organization_id),
+			data: mockModelCatalog,
+		},
+		{
+			key: userChatProviderConfigsKey,
+			data: [
+				{
+					provider_id: "provider-1",
+					provider: "openai",
+					display_name: "OpenAI",
+					icon: "",
+					enabled: true,
+					has_user_api_key: false,
+					has_central_api_key_fallback: true,
+					byok_enabled: true,
+				},
+			],
+		},
 		{
 			key: mcpServerConfigsKey(chat.organization_id),
 			data: opts?.mcpServers ?? [],
@@ -1307,6 +1368,179 @@ export const WithMessageHistory: Story = {
 	},
 };
 
+export const StaleEditedModelUsesUsableLocalModel: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Recovered edit model chat",
+						status: "waiting",
+						last_model_config_id: STALE_MODEL_CONFIG_ID,
+					},
+					{
+						messages: [
+							{
+								...MockChatMessage,
+								id: 5,
+								chat_id: CHAT_ID,
+								model_config_id: STALE_MODEL_CONFIG_ID,
+								content: [{ type: "text", text: "Edit this request" }],
+							},
+						],
+						queued_messages: [],
+						has_more: false,
+					},
+				),
+				organizationChatModelsKey(baseChatFields.organization_id),
+			),
+			{
+				key: organizationChatModelsKey(baseChatFields.organization_id),
+				data: recoveryModelCatalog,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue({
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Recovered edit model chat",
+			status: "waiting",
+			last_model_config_id: STALE_MODEL_CONFIG_ID,
+		});
+		spyOn(API.experimental, "editChatMessage").mockResolvedValue({
+			message: {
+				...MockChatMessage,
+				id: 5,
+				chat_id: CHAT_ID,
+				model_config_id: RECOVERY_MODEL_CONFIG_ID,
+				content: [{ type: "text", text: "Edit this request" }],
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const modelSelector = canvas.getByRole("combobox", {
+			name: "Usable local model",
+		});
+		expect(modelSelector).toBeVisible();
+		await userEvent.click(modelSelector);
+		const modelListbox = await body.findByRole("listbox");
+		expect(
+			within(modelListbox).getByRole("option", {
+				name: /Usable local model/,
+			}),
+		).toBeInTheDocument();
+		expect(
+			within(modelListbox).queryByRole("option", {
+				name: /Disabled local default/,
+			}),
+		).not.toBeInTheDocument();
+		await userEvent.click(modelSelector);
+		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Save Edit" }));
+		await waitFor(() => {
+			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
+		});
+		expect(API.experimental.editChatMessage).toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.objectContaining({
+				model_config_id: RECOVERY_MODEL_CONFIG_ID,
+			}),
+		);
+		expect(API.experimental.editChatMessage).not.toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.not.objectContaining({ model_config_id: expect.anything() }),
+		);
+	},
+};
+
+export const StaleHistoricalModelUsesLocalDefault: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Recovered model chat",
+				status: "waiting",
+				last_model_config_id: "foreign-model-config",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockResolvedValue({ queued: false, messages: [] });
+		expect(
+			canvas.getByRole("status", {
+				name: "The model used by this chat is not available. A usable model is selected for new messages.",
+			}),
+		).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+		const editor = canvas.getByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("Use a local model");
+		await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+		await waitFor(() => {
+			expect(sendSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(sendSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({ model_config_id: MODEL_CONFIG_ID }),
+		);
+		expect(sendSpy).not.toHaveBeenCalledWith(
+			CHAT_ID,
+			expect.objectContaining({ model_config_id: "foreign-model-config" }),
+		);
+	},
+};
+
+export const NoLocalModelDisablesGeneration: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Unavailable model chat",
+						status: "waiting",
+						last_model_config_id: "foreign-model-config",
+					},
+					{ messages: [], queued_messages: [], has_more: false },
+				),
+				organizationChatModelsKey(baseChatFields.organization_id),
+			),
+			{
+				key: organizationChatModelsKey(baseChatFields.organization_id),
+				data: foreignOnlyModelCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+		expect(
+			canvas.getByRole("status", {
+				name: "The model used by this chat is not available. Generation is disabled because no usable model is available.",
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
 export const RootChatShareActionAvailable: Story = {
 	parameters: {
 		queries: buildQueries(
@@ -1373,16 +1607,11 @@ const capacityPollingChat: TypesGen.Chat = {
 
 export const QueuedForCapacityAfterPolling: Story = {
 	parameters: {
-		queries: [
-			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
-			{
-				key: chatMessagesKey(CHAT_ID),
-				data: {
-					pages: [{ messages: [], queued_messages: [], has_more: false }],
-					pageParams: [undefined],
-				},
-			},
-		],
+		queries: buildQueries(
+			capacityPollingChat,
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue({
@@ -1609,6 +1838,109 @@ export const PlanModeFromChatState: Story = {
 		await waitFor(() => {
 			expect(canvas.queryByText("Planning")).not.toBeInTheDocument();
 		});
+	},
+};
+
+/**
+ * A right panel left open from a wide viewport must not hide chat on
+ * narrow viewports; the panel is suppressed until explicitly opened.
+ */
+export const NarrowViewportShowsChatOverOpenPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByRole("region", { name: "Messages" })).toBeVisible();
+		});
+		expect(
+			canvas.queryByRole("tab", { name: "Summary" }),
+		).not.toBeInTheDocument();
+
+		// Explicitly toggling the panel while narrow clears the suppression.
+		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
+		const user = userEvent.setup();
+		await user.click(canvas.getByRole("button", { name: "Toggle panel" }));
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
+	},
+};
+
+let narrowingMedia: ReturnType<typeof setupMatchMedia> | undefined;
+
+/**
+ * A panel expanded on a wide viewport must not stay fullscreen when the
+ * window narrows: suppression hides it, expansion included, and chat
+ * takes over. The breakpoint crossing is simulated by stubbing
+ * matchMedia because the story viewport cannot change mid-play.
+ */
+export const NarrowingSuppressesExpandedPanel: Story = {
+	beforeEach: () => {
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		narrowingMedia = setupMatchMedia({ [belowLgViewportMediaQuery]: false });
+		return () => {
+			narrowingMedia?.restore();
+			narrowingMedia = undefined;
+			localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+		};
+	},
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Build a feature",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+
+		const messagesRegion = canvas.getByRole("region", { name: "Messages" });
+		await user.click(canvas.getByRole("button", { name: "Expand panel" }));
+		await waitFor(() => {
+			expect(messagesRegion.checkVisibility()).toBe(false);
+		});
+
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, true);
+		await waitFor(() => {
+			expect(messagesRegion.checkVisibility()).toBe(true);
+		});
+		// The suppressed panel is display:none, so its tab is no longer
+		// accessible to role queries.
+		expect(
+			canvas.queryByRole("tab", { name: "Summary" }),
+		).not.toBeInTheDocument();
+
+		// Widening again restores the persisted panel, still expanded.
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
@@ -2985,7 +3317,10 @@ export const SlashCompactCommandSubmits: Story = {
 		await userEvent.keyboard("/compact");
 		// First Enter accepts the highlighted menu entry; second Enter
 		// submits the composer.
-		expect(await within(document.body).findByText("Commands")).toBeVisible();
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByRole("option", { name: /\/compact/i })).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3051,7 +3386,9 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		// visibility rather than asserting it once.
 		await waitFor(() => {
 			expect(
-				within(document.body).getByText("Personal compact skill"),
+				within(document.body).getByRole("option", {
+					name: /personal compact skill/i,
+				}),
 			).toBeVisible();
 		});
 		await userEvent.keyboard("{Enter}");
@@ -3405,6 +3742,79 @@ export const RemoveLastMCPServer: Story = {
 	},
 };
 
+const mcpEditableUserMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	chat_id: CHAT_ID,
+	content: [{ type: "text", text: "Edit this request" }],
+};
+
+/**
+ * An MCP server toggled on while editing a message must ride along in
+ * the edit request.
+ */
+export const EditAppliesMCPServerSelection: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Edit applies MCP selection",
+				status: "waiting",
+				mcp_server_ids: [],
+			},
+			{
+				messages: [mcpEditableUserMessage],
+				queued_messages: [],
+				has_more: false,
+			},
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const editSpy = spyOn(
+			API.experimental,
+			"editChatMessage",
+		).mockResolvedValue({
+			message: { ...mcpEditableUserMessage, id: 6 },
+		});
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Edit message" }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("switch", {
+				name: `Enable ${MockMCPServerConfig.display_name}`,
+			}),
+		);
+		// Close the plus menu via its trigger; Escape would exit edit mode.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Save Edit" }),
+		);
+
+		await waitFor(() => {
+			expect(editSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(editSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.objectContaining({
+				mcp_server_ids: [MockMCPServerConfig.id],
+			}),
+		);
+	},
+};
+
 /**
  * The send flow renders the durable user row once the server accepts the
  * prompt, before the assistant turn produces any output.
@@ -3557,6 +3967,88 @@ export const ErrorRetryRecovers: Story = {
 		});
 		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
 		expect(parameters.getChatCallsForChat()).toBeGreaterThanOrEqual(2);
+	},
+};
+
+export const ModelEndpointFailureKeepsHistoryReadable: Story = {
+	parameters: {
+		queries: withoutQuery(
+			buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					title: "Model endpoint failure",
+					status: "waiting",
+				},
+				{
+					messages: [
+						{
+							id: 1,
+							chat_id: CHAT_ID,
+							created_at: "2026-02-18T00:01:00.000Z",
+							role: "user",
+							content: [{ type: "text", text: "Readable history line" }],
+						},
+					],
+					queued_messages: [],
+					has_more: false,
+				},
+			),
+			organizationChatModelsKey(baseChatFields.organization_id),
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockRejectedValueOnce(
+			mockServerError,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Readable history line")).toBeVisible();
+		expect(await canvas.findByText("Internal server error.")).toBeVisible();
+		expect(canvas.queryByText("Failed to load chat")).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).toHaveAttribute("aria-disabled", "true");
+	},
+};
+
+export const ProviderRequiresUserApiKey: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{
+						id: CHAT_ID,
+						...baseChatFields,
+						title: "Provider requires user API key",
+						status: "waiting",
+					},
+					{
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+				),
+				organizationChatModelsKey(baseChatFields.organization_id),
+			),
+			{
+				key: organizationChatModelsKey(baseChatFields.organization_id),
+				data: userApiKeyRequiredModelCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("status", {
+				name: "The model used by this chat is not available. Add your API key in provider settings to enable models.",
+			}),
+		).toBeVisible();
+		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
+			"href",
+			"/agents/settings/api-keys",
+		);
 	},
 };
 

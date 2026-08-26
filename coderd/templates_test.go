@@ -1144,7 +1144,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Equal(t, codersdk.WorkspaceAgentPortShareLevelPublic, template.MaxPortShareLevel)
 
-		var level codersdk.WorkspaceAgentPortShareLevel = codersdk.WorkspaceAgentPortShareLevelAuthenticated
+		level := codersdk.WorkspaceAgentPortShareLevelAuthenticated
 		req := codersdk.UpdateTemplateMeta{
 			MaxPortShareLevel: &level,
 		}
@@ -1842,6 +1842,38 @@ func TestPatchTemplateMeta(t *testing.T) {
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.NoError(t, err)
 		assert.False(t, updated.DisableModuleCache, "expected false")
+	})
+
+	t.Run("AllowWorkspaceRenames", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.False(t, template.AllowWorkspaceRenames, "default is false")
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		req := codersdk.UpdateTemplateMeta{
+			AllowWorkspaceRenames: ptr.Ref(true),
+		}
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.True(t, updated.AllowWorkspaceRenames, "expected true")
+
+		// Omitting the field preserves the existing value.
+		req.AllowWorkspaceRenames = nil
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		updated, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		assert.True(t, updated.AllowWorkspaceRenames, "expected true")
+
+		req.AllowWorkspaceRenames = ptr.Ref(false)
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, req)
+		require.NoError(t, err)
+		assert.False(t, updated.AllowWorkspaceRenames, "expected false")
 	})
 
 	t.Run("SupportEmptyOrDefaultFields", func(t *testing.T) {

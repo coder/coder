@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAdvisorRunAdvice(t *testing.T) {
@@ -425,12 +424,12 @@ func TestNewRuntimeValidation(t *testing.T) {
 			errText: "advisor max output tokens must be positive",
 		},
 		{
-			name: "MismatchedModelConfigMaxOutputTokens",
+			name: "MismatchedCallTemplateMaxOutputTokens",
 			cfg: chatadvisor.RuntimeConfig{
 				Model:           model,
 				MaxUsesPerRun:   1,
 				MaxOutputTokens: matchingTokens,
-				ModelConfig: codersdk.ChatModelCallConfig{
+				CallTemplate: fantasy.Call{
 					MaxOutputTokens: &mismatchedTokens,
 				},
 			},
@@ -473,7 +472,7 @@ func TestNewRuntimeDeepClonesOpenAIResponsesProviderOptions(t *testing.T) {
 				}), nil
 			},
 		},
-		ProviderOptions: parentProviderOpts,
+		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   1,
 		MaxOutputTokens: 64,
 	})
@@ -532,7 +531,7 @@ func TestAdvisorRunDisablesStoreAndIsConsistentAcrossCalls(t *testing.T) {
 				}), nil
 			},
 		},
-		ProviderOptions: parentProviderOpts,
+		CallTemplate:    fantasy.Call{ProviderOptions: parentProviderOpts},
 		MaxUsesPerRun:   2,
 		MaxOutputTokens: 64,
 	})

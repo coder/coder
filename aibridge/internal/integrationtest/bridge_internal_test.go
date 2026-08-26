@@ -36,7 +36,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/intercept"
-	"github.com/coder/coder/v2/aibridge/intercept/messages"
+	"github.com/coder/coder/v2/aibridge/intercept/bedrocksig"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -378,7 +378,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 
 				// Verify PRM attribution is appended to the User-Agent header.
 				ua := received[0].Header.Get("User-Agent")
-				require.Contains(t, ua, messages.BedrockPRMUserAgent,
+				require.Contains(t, ua, bedrocksig.PRMUserAgent,
 					"expected AWS PRM attribution in User-Agent header")
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
@@ -437,7 +437,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			"signature must be scoped to the bedrock-mantle service")
 
 		require.Contains(t, received[0].Header.Get("User-Agent"),
-			messages.BedrockPRMUserAgent)
+			bedrocksig.PRMUserAgent)
 
 		interceptions := bridgeServer.Recorder.RecordedInterceptions()
 		require.Len(t, interceptions, 1)
@@ -1172,13 +1172,13 @@ func TestSessionIDTracking(t *testing.T) {
 	}{
 		// Session in header.
 		{
-			name:            "mux",
+			name:            "xum",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientMux,
-			expectSessionID: "mux-workspace-321",
+			expectedClient:  aibridge.ClientXum,
+			expectSessionID: "xum-workspace-321",
 			header: http.Header{
-				"User-Agent":         []string{"mux/1.0.0"},
-				"X-Mux-Workspace-Id": []string{"mux-workspace-321"},
+				"User-Agent":         []string{"xum/1.0.0"},
+				"X-Mux-Workspace-Id": []string{"xum-workspace-321"},
 			},
 		},
 		// Session in body.
