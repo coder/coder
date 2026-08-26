@@ -255,7 +255,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 				className="max-w-[440px] p-6 sm:p-6"
 				aria-describedby={undefined}
 			>
-				<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
+				<DialogHeader className="flex-row items-center justify-between gap-y-0 sm:flex-row">
 					<DialogTitle className="text-lg">Rename chat</DialogTitle>
 					{onPropose && (
 						<Button
