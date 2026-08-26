@@ -34,15 +34,6 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 	return (
 		<>
 			<title>{pageTitle("Add server", "AI Settings")}</title>
-			<OrganizationPicker
-				id="mcp-add-organization"
-				className="mb-6"
-				organizations={organizations}
-				organization={organization}
-				onChange={onSelectOrganization}
-				disabled={isSaving}
-				showSingleOrganization
-			/>
 			{canCreate ? (
 				<MCPServerForm
 					listPath={
@@ -50,16 +41,39 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 					}
 					isSaving={isSaving}
 					canSelectUserOIDC={canSelectUserOIDC}
+					organizationPicker={
+						<OrganizationPicker
+							id="mcp-add-organization"
+							className="w-full"
+							organizations={organizations}
+							organization={organization}
+							onChange={onSelectOrganization}
+							disabled={isSaving}
+							showSingleOrganization
+						/>
+					}
 					onCreateServer={onCreateServer}
 					onCancel={canViewServerList ? onCancel : undefined}
 				/>
 			) : (
-				<Alert severity="error" prominent>
-					<AlertTitle>You cannot add servers to this organization</AlertTitle>
-					<AlertDescription>
-						Choose an organization where you have permission to add MCP servers.
-					</AlertDescription>
-				</Alert>
+				<>
+					<OrganizationPicker
+						id="mcp-add-organization"
+						className="mb-6"
+						organizations={organizations}
+						organization={organization}
+						onChange={onSelectOrganization}
+						disabled={isSaving}
+						showSingleOrganization
+					/>
+					<Alert severity="error" prominent>
+						<AlertTitle>You cannot add servers to this organization</AlertTitle>
+						<AlertDescription>
+							Choose an organization where you have permission to add MCP
+							servers.
+						</AlertDescription>
+					</Alert>
+				</>
 			)}
 		</>
 	);
