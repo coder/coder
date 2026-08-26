@@ -15,6 +15,8 @@
  * server-persisted setting instead.
  */
 
+import type { Schema } from "yup";
+
 export type PersistResult =
 	| { ok: true }
 	| { ok: false; reason: "quota" | "unavailable" | "invalid" };
@@ -27,7 +29,7 @@ type StorageArea = "local" | "session";
  * input so reads fall back to the key's default value. T is the
  * non-null value type; key handles layer null-for-absence on top.
  */
-type StorageCodec<T> = {
+export type StorageCodec<T> = {
 	decode: (raw: string) => T | undefined;
 	encode: (value: T) => string;
 };
@@ -106,6 +108,25 @@ export const jsonCodec = <T>(
 	decode: (raw) => {
 		try {
 			return validate(JSON.parse(raw));
+		} catch {
+			return undefined;
+		}
+	},
+	encode: (value) => JSON.stringify(value),
+});
+
+/**
+ * JSON codec whose shape is declared as a Yup schema. Validation is
+ * strict (no type coercion); the decoded value is rebuilt via cast so
+ * unknown properties from older builds never leak through.
+ */
+export const yupCodec = <T>(schema: Schema<T>): StorageCodec<T> => ({
+	decode: (raw) => {
+		try {
+			const parsed: unknown = JSON.parse(raw);
+			return schema.isValidSync(parsed, { strict: true })
+				? schema.cast(parsed, { stripUnknown: true })
+				: undefined;
 		} catch {
 			return undefined;
 		}
