@@ -5421,6 +5421,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, resp.Members[0].EffectiveGroupID)
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
@@ -5428,10 +5429,12 @@ func TestGroupMembersAISpend(t *testing.T) {
 	tests := []struct {
 		name                  string
 		groupLimit            int64
+		everyoneLimit         int64
 		overrideLimit         int64
 		spent                 int64
 		wantEffectiveGroup    bool
 		wantEffectiveEveryone bool
+		wantEffectiveBudget   *codersdk.AIBudgetLimit
 		wantGroupBudget       *codersdk.AIBudgetLimit
 		wantSpendMicros       int64
 	}{
@@ -5439,6 +5442,10 @@ func TestGroupMembersAISpend(t *testing.T) {
 			name:               "BudgetZeroSpend",
 			groupLimit:         1_000_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
@@ -5449,6 +5456,10 @@ func TestGroupMembersAISpend(t *testing.T) {
 			groupLimit:         1_000_000_000,
 			spent:              250_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 1_000_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 1_000_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
@@ -5459,9 +5470,22 @@ func TestGroupMembersAISpend(t *testing.T) {
 			name:               "OverrideBudget",
 			overrideLimit:      500_000_000,
 			wantEffectiveGroup: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 500_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
 			wantGroupBudget: &codersdk.AIBudgetLimit{
 				SpendLimitMicros: 500_000_000,
 				LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+			},
+		},
+		{
+			name:                  "EveryoneBudget",
+			everyoneLimit:         750_000_000,
+			wantEffectiveEveryone: true,
+			wantEffectiveBudget: &codersdk.AIBudgetLimit{
+				SpendLimitMicros: 750_000_000,
+				LimitSource:      codersdk.AIBudgetLimitSourceGroup,
 			},
 		},
 		{
@@ -5504,6 +5528,12 @@ func TestGroupMembersAISpend(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
+			if tt.everyoneLimit > 0 {
+				_, err := adminClient.UpsertGroupAIBudget(ctx, group.OrganizationID, codersdk.UpsertGroupAIBudgetRequest{
+					SpendLimitMicros: tt.everyoneLimit,
+				})
+				require.NoError(t, err)
+			}
 			if tt.overrideLimit > 0 {
 				_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
 					GroupID:          group.ID,
@@ -5540,6 +5570,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 			default:
 				require.Nil(t, got.Members[0].EffectiveGroupID)
 			}
+			require.Equal(t, tt.wantEffectiveBudget, got.Members[0].EffectiveBudget)
 			require.Equal(t, tt.wantGroupBudget, got.Members[0].GroupBudget)
 			require.Equal(t, tt.wantSpendMicros, got.Members[0].GroupSpendMicros)
 		})
@@ -5599,6 +5630,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org effective group must be masked even for the owner")
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(0), resp.Members[0].GroupSpendMicros)
 	})
@@ -5657,6 +5689,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, resp.Members, 1)
 		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 		require.Nil(t, resp.Members[0].EffectiveGroupID, "cross-org fallback effective group must be masked")
+		require.Nil(t, resp.Members[0].EffectiveBudget)
 		require.Nil(t, resp.Members[0].GroupBudget)
 		require.Equal(t, int64(100_000_000), resp.Members[0].GroupSpendMicros)
 	})
@@ -5687,6 +5720,7 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Len(t, got.Members, 1)
 		require.Equal(t, targetUser.ID, got.Members[0].UserID)
 		require.Equal(t, &group.OrganizationID, got.Members[0].EffectiveGroupID)
+		require.Nil(t, got.Members[0].EffectiveBudget)
 		require.Nil(t, got.Members[0].GroupBudget)
 		require.Equal(t, int64(0), got.Members[0].GroupSpendMicros)
 	})

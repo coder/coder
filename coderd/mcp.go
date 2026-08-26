@@ -145,11 +145,10 @@ func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Success 200 {array} codersdk.MCPServerConfig
-// @Router /api/experimental/organizations/{organization}/mcp-servers [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers [get]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
@@ -286,12 +285,11 @@ func (api *API) mcpServerConfigReadInKeyScope(r *http.Request, organizationID uu
 // @Tags MCP
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param request body codersdk.CreateMCPServerConfigRequest true "Create MCP server config request"
 // @Success 201 {object} codersdk.MCPServerConfig
-// @Router /api/experimental/organizations/{organization}/mcp-servers [post]
+// @Router /api/v2/organizations/{organization}/mcp-servers [post]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -514,12 +512,11 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags MCP
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerConfig
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig} [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [get]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -602,13 +599,12 @@ func (api *API) getMCPServerConfigForMutation(rw http.ResponseWriter, r *http.Re
 // @Tags MCP
 // @Accept json
 // @Produce json
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Param request body codersdk.UpdateMCPServerConfigRequest true "Update MCP server config request"
 // @Success 200 {object} codersdk.MCPServerConfig
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig} [patch]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [patch]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -968,12 +964,11 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 // @ID delete-mcp-server-config
 // @Security CoderSessionToken
 // @Tags MCP
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig} [delete]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig} [delete]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := api.Auditor.Load()
@@ -1022,17 +1017,17 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// Redirects the user to the MCP server's OAuth2 authorization URL.
+//
 // @Summary Initiate MCP server OAuth2 connect
 // @ID initiate-mcp-server-oauth2-connect
 // @Security CoderSessionToken
 // @Tags MCP
-// @Param organization path string true "Organization ID" format(uuid)
+// @Param organization path string true "Organization name or ID"
 // @Param mcpserverconfig path string true "MCP server config ID" format(uuid)
 // @Success 307
-// @Router /api/experimental/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect [get]
+// @Router /api/v2/organizations/{organization}/mcp-servers/{mcpserverconfig}/oauth2/connect [get]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// Redirects the user to the MCP server's OAuth2 authorization URL.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) {
@@ -1111,21 +1106,21 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	http.Redirect(rw, r, authURL, http.StatusTemporaryRedirect)
 }
 
+// Exchanges the authorization code for tokens and stores them.
+//
 // @Summary Handle MCP server OAuth2 callback
 // @ID handle-mcp-server-oauth2-callback
 // @Security CoderSessionToken
 // @Tags MCP
-// @Produce html
 // @Param mcpServer path string true "MCP server config ID" format(uuid)
 // @Param code query string false "Authorization code issued by the provider. Required together with state on success."
 // @Param state query string false "Opaque state issued by the connect endpoint. Required together with code on success."
 // @Param error query string false "Provider error code. Present instead of code when authorization fails."
 // @Param error_description query string false "Provider error description accompanying error."
+// @Produce text/html
 // @Success 200
 // @Router /api/experimental/mcp/servers/{mcpServer}/oauth2/callback [get]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// Exchanges the authorization code for tokens and stores them.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request) {
@@ -1326,6 +1321,9 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 	</script></body></html>`))
 }
 
+// Removes the user's stored OAuth2 token for an MCP server.
+// Provider revocation is best-effort and cannot block local deletion.
+//
 // @Summary Disconnect MCP server OAuth2 token
 // @ID disconnect-mcp-server-oauth2-token
 // @Security CoderSessionToken
@@ -1333,11 +1331,8 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 // @Produce json
 // @Param mcpServer path string true "MCP server config ID" format(uuid)
 // @Success 200 {object} codersdk.MCPServerOAuth2DisconnectResponse
-// @Router /api/experimental/mcp/servers/{mcpServer}/oauth2/disconnect [delete]
+// @Router /api/v2/mcp/servers/{mcpServer}/oauth2/disconnect [delete]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-// Removes the user's stored OAuth2 token for an MCP server.
-// Provider revocation is best-effort and cannot block local deletion.
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1569,6 +1564,8 @@ func (api *API) markMCPTokenRefreshFailure(
 // external authorization servers, so it must not change when other MCP
 // routes move. The route registration in coderd.go and the OAuth cookie
 // Path values must stay aligned with it.
+// TODO(CODAGT-922): define a migration story before moving registered
+// redirect URIs to /api/v2.
 func mcpServerOAuth2CallbackPath(configID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", configID)
 }
@@ -1702,9 +1699,29 @@ type mcpOAuth2Discovery struct {
 // protectedResourceMetadata represents the response from a
 // Protected Resource Metadata endpoint per RFC 9728 §2.
 type protectedResourceMetadata struct {
-	Resource             string   `json:"resource"`
-	AuthorizationServers []string `json:"authorization_servers"`
-	ScopesSupported      []string `json:"scopes_supported,omitempty"`
+	Resource             resourceIdentifiers `json:"resource"`
+	AuthorizationServers []string            `json:"authorization_servers"`
+	ScopesSupported      []string            `json:"scopes_supported,omitempty"`
+}
+
+// resourceIdentifiers tolerates both a single JSON string and an
+// array of strings. RFC 9728 §2 defines "resource" as a string, but
+// some servers (e.g. GitLab's official MCP server) return an array
+// when the metadata document covers multiple resources.
+type resourceIdentifiers []string
+
+func (r *resourceIdentifiers) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*r = resourceIdentifiers{single}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(data, &many); err != nil {
+		return xerrors.New("resource must be a string or an array of strings")
+	}
+	*r = resourceIdentifiers(many)
+	return nil
 }
 
 // authServerMetadata represents the response from an Authorization
