@@ -1235,9 +1235,12 @@ func (e *FileEdit) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// FileEdits carries the model-facing schema descriptions so the
+// chat tool's generated schema includes per-field guidance; see
+// FileEdit for the removal target.
 type FileEdits struct {
-	Path  string     `json:"path"`
-	Edits []FileEdit `json:"edits"`
+	Path  string     `json:"path" description:"The absolute path of the file to edit, for example /home/coder/project/main.go."`
+	Edits []FileEdit `json:"edits" description:"Edits that replace old text with new text, applied to this file in order."`
 }
 
 type FileEditRequest struct {
