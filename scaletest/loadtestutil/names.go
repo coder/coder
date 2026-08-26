@@ -21,12 +21,24 @@ const (
 // The username follows the pattern: scaletest-<random>-<id>
 // The email follows the pattern: <random>-<id>@scaletest.local
 func GenerateUserIdentifier(id string) (username, email string, err error) {
+	return GenerateUserIdentifierWithPrefix(ScaleTestPrefix+"-", id)
+}
+
+// GenerateUserIdentifierWithPrefix generates a username and email for scale
+// testing using a caller-supplied username prefix. The username follows the
+// pattern: <prefix><random>-<id>. Callers are expected to keep the "scaletest-"
+// root in prefix so users created with a custom prefix are still discovered by
+// IsScaleTestUser and the scaletest cleanup command; a caller-chosen infix
+// is inserted between the root and the random suffix (for example prefix
+// "scaletest-asdf-" yields scaletest-asdf-<random>-<id>). The email keeps the
+// scaletest domain regardless (<random>-<id>@scaletest.local).
+func GenerateUserIdentifierWithPrefix(prefix, id string) (username, email string, err error) {
 	randStr, err := cryptorand.String(DefaultRandLength)
 	if err != nil {
 		return "", "", err
 	}
 
-	username = fmt.Sprintf("%s-%s-%s", ScaleTestPrefix, randStr, id)
+	username = fmt.Sprintf("%s%s-%s", prefix, randStr, id)
 	email = fmt.Sprintf("%s-%s%s", randStr, id, EmailDomain)
 	return username, email, nil
 }

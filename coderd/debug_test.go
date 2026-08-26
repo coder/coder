@@ -272,8 +272,12 @@ func TestHealthSettings(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// given
-		adminClient := coderdtest.New(t, nil)
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			// Mocked to avoid depending on DERP probe timing.
+			HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
+				return &healthsdk.HealthcheckReport{Time: time.Now()}
+			},
+		})
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		expected := healthsdk.HealthSettings{
@@ -307,8 +311,12 @@ func TestHealthSettings(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// given
-		adminClient := coderdtest.New(t, nil)
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			// Mocked to avoid depending on DERP probe timing.
+			HealthcheckFunc: func(context.Context, string, *healthcheck.Progress) *healthsdk.HealthcheckReport {
+				return &healthsdk.HealthcheckReport{Time: time.Now()}
+			},
+		})
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		initial := healthsdk.HealthSettings{

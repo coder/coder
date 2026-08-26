@@ -2792,6 +2792,14 @@ func (m queryMetricsStore) GetProvisionerJobTimingsByJobID(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetProvisionerJobsByIDs").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg database.GetProvisionerJobsByIDsWithQueuePositionParams) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobsByIDsWithQueuePosition(ctx, arg)
@@ -5021,6 +5029,14 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	r0, r1 := m.s.RegisterWorkspaceProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("RegisterWorkspaceProxy").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RegisterWorkspaceProxy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
+	m.queryLatencies.WithLabelValues("ReindexStaleChatMessagesSearchTsv").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReindexStaleChatMessagesSearchTsv").Inc()
 	return r0, r1
 }
 

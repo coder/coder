@@ -610,15 +610,14 @@ type sqlcQuerier interface {
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	// Returns each user's AI spend attributed to the queried group, on or after
 	// period_start until NOW. Only current members of the queried group are
-	// returned. spend_limit_micros and limit_source are populated only when the
-	// queried group is the user's effective budget source. The effective group
-	// falls back to the Everyone group, and effective_group_id is null only when
-	// that group belongs to a different organization than the queried group.
+	// returned. effective_spend_limit_micros and effective_limit_source describe
+	// the user's effective budget when its group belongs to the queried group's
+	// organization. The effective group falls back to the Everyone group, and
+	// effective_group_id is null only when that group belongs to a different
+	// organization than the queried group.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
-	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-	// whose effective budget source is not the queried group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
@@ -771,6 +770,11 @@ type sqlcQuerier interface {
 	// Blocks until the row is available for update.
 	GetProvisionerJobByIDWithLock(ctx context.Context, id uuid.UUID) (ProvisionerJob, error)
 	GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uuid.UUID) ([]ProvisionerJobTiming, error)
+	// Fetches provisioner jobs by their IDs without computing queue position or
+	// queue size. Callers that do not need the queue position should prefer this
+	// over GetProvisionerJobsByIDsWithQueuePosition, whose window functions over
+	// pending jobs and provisioner daemons are comparatively expensive.
+	GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]ProvisionerJob, error)
 	GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, arg GetProvisionerJobsByIDsWithQueuePositionParams) ([]GetProvisionerJobsByIDsWithQueuePositionRow, error)
 	GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error)
 	GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error)
@@ -1348,6 +1352,7 @@ type sqlcQuerier interface {
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	// The lease is only removed if it is the current lease.
 	ReleaseExternalAuthLinkRefreshLease(ctx context.Context, arg ReleaseExternalAuthLinkRefreshLeaseParams) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)

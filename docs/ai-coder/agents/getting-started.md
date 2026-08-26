@@ -17,18 +17,23 @@ Before you begin, confirm the following:
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
-- **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
-  This role is granted **per organization**. Owners and organization admins can
-  assign it from **Admin settings** > **Organizations** > _[your organization]_ >
-  **Members**. See [Grant Coder Agents User](#step-2-grant-coder-agents-user)
-  below.
+- **Access to configure models** in each organization where you configure models.
+  The **Organization Admin** role and the **Owner** role include this access.
+  A custom role with model configuration access also works.
+- **Organization membership** for each user who uses Coder Agents.
+  Users also need read access to at least one model in the organization.
+  New models are shared with the whole organization by default; to restrict who can use Coder Agents, narrow the model access lists.
+  See [Manage model permissions](./models.md#manage-model-permissions).
 
 ## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
-> Configuring providers, models, and system prompts requires the
-> **Owner** role (Coder administrator). Non-admin users cannot access the
-> admin Settings panel or modify deployment-level Agents configuration.
+> Deployment administrators configure providers and deployment settings.
+> Users with model configuration access in an organization configure that organization's models.
+> Coder enables the edit controls for the organization that you select.
+> Coder shows the deployment settings only to deployment administrators.
+> Users with model access can view the relevant Models and Coder Agents pages.
+> Users with MCP server access can open the MCP servers page.
 
 To configure Coder Agents:
 
@@ -36,9 +41,16 @@ To configure Coder Agents:
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and configure at least one model with its identifier, display
-   name, and context limit.
-1. Click the **star icon** next to a model to set it as the default.
+1. Select the correct organization.
+   Coder shows the organization picker when you can access more than 1 organization.
+1. Select **Add model** and configure at least one model with its identifier, display name, and context limit.
+
+Coder makes the first model of an organization the default model.
+To change the default later, open a model and select **Set as Coder Agents default model**.
+
+Each organization has its own model list and its own default model.
+Repeat the model steps in every organization that uses Coder Agents.
+Refer to [Organization scope](./platform-controls/organizations.md) for the settings that stay deployment-wide.
 
 Detailed instructions for each provider and model option are in the
 [Models](./models.md) documentation.
@@ -47,65 +59,7 @@ Detailed instructions for each provider and model option are in the
 > Start with a single frontier model to validate your setup before adding
 > additional providers.
 
-## Step 2: Grant Coder Agents User
-
-The **Coder Agents User** role controls which users can interact with Coder
-Agents. The role is assigned **per organization**, so a user must be granted
-it in each organization where they need access. Members do not have it by
-default.
-
-Owners always have full access and do not need the role. Repeat the following
-steps for each user who needs access in each organization.
-
-**Dashboard (individual):**
-
-1. Open **Admin settings** > **Organizations** in the Coder dashboard, then
-   select the organization where you want to grant access.
-1. The **Members** tab opens by default. Find the user in the table.
-1. Click the **Roles** cell for that user to open the role editor.
-1. Toggle on **Coder Agents User** and save.
-
-> [!TIP]
-> If your deployment has multiple organizations, repeat this for each
-> organization where the user needs access.
-
-**CLI (bulk, per organization):**
-
-Granting the role via CLI is org-scoped. The `edit-roles` command **replaces**
-the member's full set of org roles, so include every role you want them to
-keep. To grant `agents-access` to a single user while preserving their
-existing org roles:
-
-```sh
-ORG="my-org"
-USER="alice"
-ROLES=$(coder organizations members list -O "$ORG" -o json \
-  | jq -r --arg user "$USER" \
-      '.[] | select(.username == $user) | [.roles[].name, "agents-access"]
-      | unique | join(" ")')
-# shellcheck disable=SC2086
-coder organizations members edit-roles "$USER" -O "$ORG" $ROLES
-```
-
-To grant the role to every member of an organization while preserving their
-existing roles:
-
-```sh
-ORG="my-org"
-coder organizations members list -O "$ORG" -o json \
-  | jq -c '.[] | {user_id, roles: [.roles[].name]}' \
-  | while read -r row; do
-      user_id=$(echo "$row" | jq -r '.user_id')
-      roles=$(echo "$row" | jq -r '(.roles + ["agents-access"]) | unique | join(" ")')
-      # shellcheck disable=SC2086
-      coder organizations members edit-roles "$user_id" -O "$ORG" $roles
-    done
-```
-
-You can also set the organization with the `CODER_ORGANIZATION` environment
-variable instead of `-O`.
-
-## Step 3: Start your first Coder Agent
+## Step 2: Start your first Coder Agent
 
 1. Go to the **Agents** page in the Coder dashboard.
 1. Select a model from the dropdown (your default will be pre-selected).
@@ -189,7 +143,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
+Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -219,13 +173,13 @@ token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
 - Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
-- Monitoring provider dashboards for usage trends during the evaluation.
+- Monitoring provider dashboards for usage trends as adoption grows.
 
 ### Plan for concurrency limits
 
 Community licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-Premium licenses with Agent Hours do not impose a concurrency limit unless the Agent Hours hard limit is reached.
+A Premium license with Agent Hours does not impose a concurrency limit unless the Agent Hours hard limit is reached.
 If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
 When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
@@ -242,9 +196,9 @@ Good starting points:
 - **Prototyping** — building proof-of-concept implementations, simple
   dashboards, internal tools.
 
-Set expectations that this is an evaluation period. Developers should still
-review all agent-produced code before merging. The agent is a force
-multiplier, not a replacement for developer judgment.
+Set expectations for how the team reviews agent output.
+Developers should still review all agent-produced code before merging.
+The agent is a force multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
 
@@ -305,20 +259,16 @@ already-running workspace instead of provisioning from scratch.
 
 ## Providing feedback
 
-Coder Agents is a collaborative evaluation between your team and Coder.
-Share feedback — workflow observations, feature requests, bugs, performance
-issues, or operational challenges — through your **customer-specific Slack
-channel** with the Coder team.
+Report bugs and feature requests as [GitHub issues](https://github.com/coder/coder/issues/new/choose).
+For deployment-specific problems, such as provider configuration or performance in your environment, use your usual Coder support channel.
 
-Good feedback includes:
+Good reports include:
 
-- **What you tried** — the prompt, the template, and the model.
-- **What happened** — the agent's behavior, any errors, unexpected results.
-- **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, `chat_id` values, or links to the Agents page help
+- **What you tried**: the prompt, the template, and the model.
+- **What happened**: the agent's behavior, any errors, and unexpected results.
+- **What you expected**: the outcome you were looking for.
+- **Context**: screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
-
-Your input directly influences product direction.
 
 ## Next steps
 

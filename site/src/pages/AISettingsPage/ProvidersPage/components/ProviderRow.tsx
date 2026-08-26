@@ -68,18 +68,31 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				<div className="flex flex-wrap items-center gap-1">
 					{provider.enabled && <Badge variant="default">Enabled</Badge>}
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
-						<Badge
-							variant="info"
-							title="This provider works with the AI Gateway proxy but Coder Agents can't use it."
-						>
-							Not supported in Agents
-						</Badge>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									variant="info"
+									role="button"
+									tabIndex={0}
+									onClick={stopPropagation}
+									onKeyDown={stopPropagation}
+									onKeyUp={stopPropagation}
+								>
+									Not supported in Agents
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This provider works with the AI Gateway Proxy but Coder Agents
+								can't use it.
+							</TooltipContent>
+						</Tooltip>
 					)}
 					{provider.status?.warnings && provider.status.warnings.length > 0 && (
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<Badge
 									variant="warning"
+									role="button"
 									tabIndex={0}
 									aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
 									onClick={stopPropagation}
@@ -89,7 +102,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 									Warning
 								</Badge>
 							</TooltipTrigger>
-							<TooltipContent>
+							<TooltipContent className="max-w-xs">
 								{provider.status.warnings.map((warning) => (
 									<p key={warning}>{warning}</p>
 								))}

@@ -1079,6 +1079,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
+	s.Run("ReindexStaleChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
+		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
 		check.Args().Asserts()
@@ -5607,6 +5611,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		ids := []uuid.UUID{uuid.New()}
 		dbm.EXPECT().GetWorkspaceAgentLogSourcesByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentLogSource{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{}
+		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{}, nil).AnyTimes()
+		check.Args(ids).Asserts()
 	}))
 	s.Run("GetProvisionerJobsByIDsWithQueuePosition", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetProvisionerJobsByIDsWithQueuePositionParams{}

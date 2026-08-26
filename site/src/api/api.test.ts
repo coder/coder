@@ -195,6 +195,7 @@ describe("api.ts", () => {
 					members: ids.map((id) => ({
 						user_id: id,
 						effective_group_id: null,
+						effective_budget: null,
 						group_budget: null,
 						group_spend_micros: 0,
 					})),
@@ -449,6 +450,18 @@ describe("api.ts", () => {
 
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
 			expect(result).toStrictEqual(responseData);
+		});
+
+		it("rejects chat model responses without a models array", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: { providers: [], unsupported_providers: [] },
+			});
+
+			await expect(
+				API.experimental.getChatModels(organizationId),
+			).rejects.toThrow(
+				"Invalid chat models response: models must be an array.",
+			);
 		});
 
 		it.each<[string, () => Promise<unknown>]>([
