@@ -865,6 +865,26 @@ func TestSearchUsers(t *testing.T) {
 			},
 		},
 		{
+			Name:  "UsernameFilter",
+			Query: "username:Alice",
+			Expected: database.GetUsersParams{
+				ExactUsername: "alice",
+				Status:        []database.UserStatus{},
+				RbacRole:      []string{},
+				LoginType:     []database.LoginType{},
+			},
+		},
+		{
+			Name:  "EmailFilter",
+			Query: "email:Alice@Example.com",
+			Expected: database.GetUsersParams{
+				ExactEmail: "alice@example.com",
+				Status:     []database.UserStatus{},
+				RbacRole:   []string{},
+				LoginType:  []database.LoginType{},
+			},
+		},
+		{
 			Name:  "NameFilterWithOtherParams",
 			Query: "name:John status:active role:owner",
 			Expected: database.GetUsersParams{
@@ -1272,6 +1292,55 @@ func TestSearchTasks(t *testing.T) {
 				require.Len(t, errs, 0, "expected no error")
 				require.Equal(t, c.Expected, values, "expected values")
 			}
+		})
+	}
+}
+
+func TestSearchChatsFrontendEmitted(t *testing.T) {
+	t.Parallel()
+
+	// These query shapes must match the emitters in
+	// site/src/pages/AgentsPage/components/ChatsSidebar/dialogs/searchQuery.ts
+	// and site/src/api/queries/chats.ts.
+	testCases := []struct {
+		name  string
+		query string
+	}{
+		{name: "SearchSingleWord", query: `search:"fix"`},
+		{name: "SearchMultipleWords", query: `search:"fix auth"`},
+		{name: "SearchColon", query: `search:"fix:lint"`},
+		{name: "SearchURL", query: `search:"http://example.com"`},
+		{name: "SearchUnicode", query: `search:"日本語"`},
+		{name: "SearchOperators", query: `search:"fix race OR deadlock -timeout"`},
+		{name: "SearchPunctuationOnly", query: `search:"!!!"`},
+		{name: "SearchOperatorWord", query: `search:"or"`},
+		{name: "HasUnread", query: "has_unread:true"},
+		{name: "Archived", query: "archived:true"},
+		{name: "PRStatuses", query: "pr_status:open,merged"},
+		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
+		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
+		{name: "SidebarDefault", query: "archived:false"},
+		{name: "SidebarUnread", query: "archived:false has_unread:true"},
+		{
+			name:  "SidebarFiltered",
+			query: "archived:false pr_status:draft,closed source:created_by_me,shared_with_me",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(testCase.query)
+			require.Empty(t, errs)
+		})
+	}
+
+	rejectedQueries := []string{"pr_status:banana", "has_unread:maybe"}
+	for _, query := range rejectedQueries {
+		t.Run("Rejects"+query, func(t *testing.T) {
+			t.Parallel()
+			_, errs := searchquery.Chats(query)
+			require.NotEmpty(t, errs)
 		})
 	}
 }

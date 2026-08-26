@@ -21,31 +21,25 @@ Refer to the [Agent API reference](./agent-api/index.md).
 
 A process-level firewall that enforces domain and verb allowlists on AI agent processes inside a workspace and streams audit logs to `coderd`.
 It was previously named Agent Boundaries and uses a sandbox backend, `nsjail` by default or `landjail`.
-This feature requires the AI Governance Add-On.
+This feature requires a Premium license.
 Refer to [Agent Firewall](../ai-coder/agent-firewall/index.md).
-
-### Agent Workspace Build
-
-A metered workspace build performed on behalf of an AI agent.
-Community and Premium deployments include 1,000 for proof-of-concept use, and the AI Governance Add-On expands the allowance.
-Refer to [AI Governance](../ai-coder/ai-governance.md).
 
 ### AI Gateway
 
 An LLM gateway in `coderd` that authenticates users, forwards traffic to providers such as OpenAI and Anthropic, audits prompts and tool invocations, and centralizes MCP administration.
 It was previously named AI Bridge and runs the `aibridged` component in memory inside `coderd`.
-This feature requires the AI Governance Add-On.
+This feature requires a Premium license.
 Refer to [AI Gateway](../ai-coder/ai-gateway/index.md).
 
 ### AI Gateway Proxy
 
 An HTTP proxy component, `aibridgeproxyd`, for AI clients that cannot override their base URL, such as GitHub Copilot.
-This feature requires the AI Governance Add-On.
+This feature requires a Premium license.
 Refer to [AI Gateway Proxy](../ai-coder/ai-gateway/ai-gateway-proxy/index.md).
 
-### AI Governance Add-On
+### AI Governance
 
-A separate per-user license for Premium customers, purchased on top of a Premium subscription, that unlocks AI Gateway and Agent Firewall and expands Agent Workspace Build allowances.
+Included with a Premium license, AI Governance unlocks AI Gateway and Agent Firewall.
 Refer to [AI Governance](../ai-coder/ai-governance.md).
 
 ### Air-gapped deployment
@@ -100,11 +94,6 @@ The agent loop runs in the control plane, and developers work through the dashbo
 Not to be confused with a [workspace agent](#workspace-agent) or the [`coder_agent`](#coder_agent) resource.
 Refer to [Coder Agents](../ai-coder/agents/index.md).
 
-### Coder Agents User
-
-The per-organization role that a member needs to use [Coder Agents](#coder-agents).
-Refer to [Coder Agents](../ai-coder/agents/index.md).
-
 ### Coder CLI
 
 The single `coder` binary used for admin and user operations.
@@ -123,14 +112,8 @@ Refer to [Coder Desktop](../user-guides/desktop/index.md).
 
 ### Coder extension for VS Code
 
-The editor extension that connects VS Code, and forks such as Cursor and Windsurf, to Coder workspaces.
+The editor extension that connects VS Code, and forks such as Cursor and Devin Desktop (formerly Windsurf), to Coder workspaces.
 Refer to [VS Code](../user-guides/workspace-access/vscode.md).
-
-### Coder Tasks
-
-An earlier interface for running coding agents such as Claude Code and Aider inside workspaces.
-Coder Tasks is deprecated: it moves to a 12-month Extended Support Release for Premium customers and is removed from new releases starting with v2.37, with [Coder Agents](#coder-agents) as the long-term replacement.
-Refer to [Coder Tasks](../ai-coder/tasks.md).
 
 ### `coder_agent`
 
@@ -165,7 +148,7 @@ Refer to the [`codersdk` package](https://pkg.go.dev/github.com/coder/coder/v2/c
 
 ### Coding agent
 
-An AI agent that reads and writes code on a developer's behalf, such as Claude Code, run through Coder Tasks or Coder Agents.
+An AI agent that reads and writes code on a developer's behalf, such as Claude Code or Coder Agents.
 Refer to [AI in Coder](../ai-coder/index.md).
 
 ### Community
@@ -186,11 +169,6 @@ Refer to [Connection logs](../admin/monitoring/connection-logs.md).
 
 The collective term for `coderd`, its provisioners, and its database.
 The control plane also runs the agent loop for [Coder Agents](#coder-agents).
-
-### Custom agent
-
-A coding agent you integrate with Coder yourself, beyond the built-in options.
-Refer to [Custom agents](../ai-coder/custom-agents.md).
 
 ### Custom roles
 
@@ -514,7 +492,7 @@ Refer to [Support bundle](../support/support-bundle.md).
 
 ### Supported editors and IDEs
 
-The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Windsurf](../user-guides/workspace-access/windsurf.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Fleet](../user-guides/workspace-access/jetbrains/fleet.md).
+The editors and IDEs that connect to Coder workspaces, including [VS Code](../user-guides/workspace-access/vscode.md), [code-server](../user-guides/workspace-access/code-server.md), [Cursor](../user-guides/workspace-access/cursor.md), [Devin Desktop](../user-guides/workspace-access/devin-desktop.md), [Antigravity](../user-guides/workspace-access/antigravity.md), [Zed](../user-guides/workspace-access/zed.md), and JetBrains IDEs through [Gateway](../user-guides/workspace-access/jetbrains/gateway.md) and [Toolbox](../user-guides/workspace-access/jetbrains/toolbox.md).
 
 ### Swagger
 

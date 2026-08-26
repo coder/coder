@@ -87,7 +87,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
@@ -204,6 +203,7 @@ type Options struct {
 	NotificationsEnqueuer              notifications.Enqueuer
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
+	ChatFileTokenKeyCache              cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
 	Acquirer                           *provisionerdserver.Acquirer
 	TelemetryReporter                  telemetry.Reporter
@@ -693,6 +693,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			Acquirer:                           options.Acquirer,
 			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
 			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
+			ChatFileTokenKeyCache:              options.ChatFileTokenKeyCache,
 			ProvisionerdServerMetrics:          options.ProvisionerdServerMetrics,
 			WorkspaceBuilderMetrics:            options.WorkspaceBuilderMetrics,
 		}
@@ -983,7 +984,7 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		OrganizationIDs: organizationIDs,
 		// Always create users as active in tests to ignore an extra audit log
 		// when logging in.
-		UserStatus: ptr.Ref(codersdk.UserStatusActive),
+		UserStatus: new(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)
@@ -1531,8 +1532,8 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, templateID uuid.UUID
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
 		Name:              RandomUsername(t),
-		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
-		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutostartSchedule: new("CRON_TZ=US/Central 30 9 * * 1-5"),
+		TTLMillis:         new((8 * time.Hour).Milliseconds()),
 		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
@@ -1864,6 +1865,10 @@ func DeploymentValues(t testing.TB, mut ...func(*codersdk.DeploymentValues)) *co
 	opts := cfg.Options()
 	err := opts.SetDefaults()
 	require.NoError(t, err)
+	// Tasks ship disabled. Tests exercise the enabled behavior by default so
+	// the Tasks suite keeps running; tests for the disabled path opt out
+	// explicitly via the mutators.
+	cfg.EnableAITasks = true
 	for _, fn := range mut {
 		fn(cfg)
 	}

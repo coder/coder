@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_model_price_source AS ENUM (
+    'default',
+    'custom'
+);
+
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
     'anthropic',
@@ -273,7 +278,19 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'mcp_server_config:*',
+    'mcp_server_config:create',
+    'mcp_server_config:read',
+    'mcp_server_config:update',
+    'mcp_server_config:delete',
+    'mcp_server_config:share',
+    'chat_model_config:*',
+    'chat_model_config:create',
+    'chat_model_config:read',
+    'chat_model_config:update',
+    'chat_model_config:delete',
+    'chat_model_config:share'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -333,6 +350,11 @@ CREATE TYPE chat_message_role AS ENUM (
     'user',
     'assistant',
     'tool'
+);
+
+CREATE TYPE chat_message_search_tsv_config AS ENUM (
+    'simple',
+    'english'
 );
 
 CREATE TYPE chat_message_visibility AS ENUM (
@@ -398,7 +420,8 @@ CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume',
-    'nats_ca'
+    'nats_ca',
+    'chat_files_token'
 );
 
 CREATE TYPE display_app AS ENUM (
@@ -597,7 +620,11 @@ CREATE TYPE resource_type AS ENUM (
     'user_skill',
     'ai_gateway_key',
     'user_ai_budget_override',
-    'oauth2_provider_settings'
+    'oauth2_provider_settings',
+    'chat_instruction_settings',
+    'mcp_server_config',
+    'chat_model_config',
+    'chat_operational_settings'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -722,6 +749,60 @@ CREATE TYPE workspace_transition AS ENUM (
     'stop',
     'delete'
 );
+
+CREATE TABLE external_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb,
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
+    refresh_lease_expires_at timestamp with time zone
+);
+
+COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
+
+COMMENT ON COLUMN external_auth_links.refresh_lease_expires_at IS 'Indicates a replica is refreshing the token; prevents concurrent refreshes.';
+
+CREATE FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) RETURNS SETOF external_auth_links
+    LANGUAGE plpgsql
+    AS $$
+DECLARE r external_auth_links;
+BEGIN
+	UPDATE external_auth_links
+	SET
+		refresh_lease_expires_at = NOW() + (timeout_ms || ' ms')::interval
+	WHERE
+		provider_id = arg_provider_id
+		AND user_id = arg_user_id
+		AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at < NOW())
+	RETURNING * INTO r;
+	-- Got the lease, return the one row.
+	IF FOUND THEN
+		RETURN NEXT r;
+		RETURN;
+	END IF;
+	-- Differentiate between unable to get the lease and the row being gone.
+	IF EXISTS (SELECT 1 FROM external_auth_links WHERE provider_id = arg_provider_id AND user_id = arg_user_id) THEN
+		RAISE EXCEPTION 'row is currently leased by another replica'
+			USING ERRCODE = 'check_violation',
+				CONSTRAINT = 'external_auth_link_active_lease';
+	END IF;
+	-- Row is gone, return nothing.
+	RETURN;
+END;
+$$;
+
+COMMENT ON FUNCTION acquire_external_auth_link_refresh_lease(arg_provider_id text, arg_user_id uuid, timeout_ms bigint) IS 'Acquire a lease on the external auth link and return the row. If there is already an active lease, an exception is raised.';
 
 CREATE FUNCTION aggregate_usage_event() RETURNS trigger
     LANGUAGE plpgsql
@@ -1403,6 +1484,7 @@ BEGIN
 
         cmp := NEW;
         cmp.search_tsv := OLD.search_tsv;
+        cmp.search_tsv_config := OLD.search_tsv_config;
         IF OLD IS NOT DISTINCT FROM cmp THEN
             RETURN NEW;
         END IF;
@@ -1420,7 +1502,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv as it is not relevant to chatd''s processing loop.';
+COMMENT ON FUNCTION set_chat_message_revision_before() IS 'Component of chatd. Updates chat_snapshot_version when any fields of chat_messages change. Excludes changes to search_tsv and search_tsv_config as they are not relevant to chatd''s processing loop.';
 
 CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
     LANGUAGE plpgsql
@@ -1472,7 +1554,7 @@ BEGIN
         SELECT DISTINCT n.chat_id
         FROM chat_message_history_new_rows n
         JOIN chat_message_history_old_rows o ON o.id = n.id
-        WHERE (to_jsonb(o) - 'search_tsv') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv')
+        WHERE (to_jsonb(o) - 'search_tsv' - 'search_tsv_config') IS DISTINCT FROM (to_jsonb(n) - 'search_tsv' - 'search_tsv_config')
     ) AS affected
     WHERE c.id = affected.chat_id
       AND (
@@ -1483,7 +1565,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv.';
+COMMENT ON FUNCTION update_chat_history_after_message_update() IS 'Component of chatd. Updates history_version and generation_attempt on chats when chat_messages is updated. Excludes changes to search_tsv and search_tsv_config.';
 
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
@@ -1510,6 +1592,7 @@ CREATE TABLE ai_model_prices (
     cache_write_price bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source ai_model_price_source NOT NULL,
     CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
     CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
     CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
@@ -1517,6 +1600,8 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
+
+COMMENT ON COLUMN ai_model_prices.source IS 'Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.';
 
 CREATE TABLE ai_provider_keys (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1974,12 +2059,15 @@ CREATE TABLE chat_messages (
     provider_response_id text,
     revision bigint NOT NULL,
     reasoning_effort chat_reasoning_effort,
-    search_tsv tsvector
+    search_tsv tsvector,
+    search_tsv_config chat_message_search_tsv_config
 );
 
 COMMENT ON COLUMN chat_messages.reasoning_effort IS 'Stores the selected effort for the turn triggered by this message.';
 
 COMMENT ON COLUMN chat_messages.search_tsv IS 'Used for full text search. NULL initially, populated async via background job.';
+
+COMMENT ON COLUMN chat_messages.search_tsv_config IS 'Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.';
 
 CREATE SEQUENCE chat_messages_id_seq
     START WITH 1
@@ -2006,9 +2094,23 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    organization_id uuid NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
-    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
+    CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0)),
+    CONSTRAINT chat_model_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT chat_model_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
+);
+
+CREATE TABLE chat_organization_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    model_config_id uuid NOT NULL,
+    reasoning_effort text,
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
 );
 
 CREATE SEQUENCE chat_queued_messages_position_seq
@@ -2061,6 +2163,19 @@ CREATE SEQUENCE chat_usage_limit_config_id_seq
     CACHE 1;
 
 ALTER SEQUENCE chat_usage_limit_config_id_seq OWNED BY chat_usage_limit_config.id;
+
+CREATE TABLE chat_user_model_overrides (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    context text NOT NULL,
+    mode text NOT NULL,
+    model_config_id uuid,
+    reasoning_effort text,
+    CONSTRAINT chat_user_model_overrides_context_check CHECK ((context = ANY (ARRAY['root'::text, 'general'::text, 'explore'::text]))),
+    CONSTRAINT chat_user_model_overrides_mode_check CHECK ((mode = ANY (ARRAY['model'::text, 'chat_default'::text, 'deployment_default'::text]))),
+    CONSTRAINT chat_user_model_overrides_model_requires_config_check CHECK (((mode = 'model'::text) = (model_config_id IS NOT NULL)))
+);
 
 CREATE TABLE chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -2324,26 +2439,6 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
-CREATE TABLE external_auth_links (
-    provider_id text NOT NULL,
-    user_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    oauth_access_token text NOT NULL,
-    oauth_refresh_token text NOT NULL,
-    oauth_expiry timestamp with time zone NOT NULL,
-    oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text,
-    oauth_extra jsonb,
-    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
-);
-
-COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
-
-COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
-
-COMMENT ON COLUMN external_auth_links.oauth_refresh_failure_reason IS 'This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.';
-
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -2512,9 +2607,14 @@ CREATE TABLE mcp_server_configs (
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
     forward_coder_headers boolean DEFAULT false NOT NULL,
     oauth2_revocation_url text DEFAULT ''::text NOT NULL,
+    organization_id uuid NOT NULL,
+    group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
-    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
+    CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
+    CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
 CREATE TABLE mcp_server_user_tokens (
@@ -2596,7 +2696,9 @@ CREATE TABLE oauth2_provider_app_codes (
     code_challenge text,
     code_challenge_method text,
     state_hash text,
-    redirect_uri text
+    redirect_uri text,
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_codes_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON TABLE oauth2_provider_app_codes IS 'Codes are meant to be exchanged for access tokens.';
@@ -2610,6 +2712,8 @@ COMMENT ON COLUMN oauth2_provider_app_codes.code_challenge_method IS 'PKCE chall
 COMMENT ON COLUMN oauth2_provider_app_codes.state_hash IS 'SHA-256 hash of the OAuth2 state parameter, stored to prevent state reflection attacks.';
 
 COMMENT ON COLUMN oauth2_provider_app_codes.redirect_uri IS 'The redirect_uri provided during authorization, to be verified during token exchange (RFC 6749 §4.1.3).';
+
+COMMENT ON COLUMN oauth2_provider_app_codes.scope IS 'Space-separated scope negotiated at authorization time, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant.';
 
 CREATE TABLE oauth2_provider_app_secrets (
     id uuid NOT NULL,
@@ -2633,7 +2737,9 @@ CREATE TABLE oauth2_provider_app_tokens (
     api_key_id text NOT NULL,
     audience text,
     user_id uuid NOT NULL,
-    app_id uuid NOT NULL
+    app_id uuid NOT NULL,
+    scope text NOT NULL,
+    CONSTRAINT oauth2_provider_app_tokens_scope_not_empty CHECK ((scope <> ''::text))
 );
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.refresh_hash IS 'Refresh tokens provide a way to refresh an access token (API key). An expired API key can be refreshed if this token is not yet expired, meaning this expiry can outlive an API key.';
@@ -2643,6 +2749,8 @@ COMMENT ON COLUMN oauth2_provider_app_tokens.audience IS 'Token audience binding
 COMMENT ON COLUMN oauth2_provider_app_tokens.user_id IS 'Denormalized user ID for performance optimization in authorization checks';
 
 COMMENT ON COLUMN oauth2_provider_app_tokens.app_id IS 'Denormalized app ID so ownership checks (e.g. revocation) do not need to join through app_secret_id, which is NULL for public clients.';
+
+COMMENT ON COLUMN oauth2_provider_app_tokens.scope IS 'Space-separated scope granted to this token, drawn from the api_key_scope vocabulary. Always set; coder:all records an unrestricted grant. Later phases will narrow this on refresh and never widen it.';
 
 CREATE TABLE oauth2_provider_apps (
     id uuid NOT NULL,
@@ -3463,7 +3571,8 @@ CREATE TABLE templates (
     cors_behavior cors_behavior DEFAULT 'simple'::cors_behavior NOT NULL,
     disable_module_cache boolean DEFAULT false NOT NULL,
     time_til_autostop_notify bigint DEFAULT 0 NOT NULL,
-    agents_allowed boolean DEFAULT true NOT NULL
+    agents_allowed boolean DEFAULT true NOT NULL,
+    allow_workspace_renames boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -3489,6 +3598,8 @@ COMMENT ON COLUMN templates.use_classic_parameter_flow IS 'Determines whether to
 COMMENT ON COLUMN templates.time_til_autostop_notify IS 'How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.';
 
 COMMENT ON COLUMN templates.agents_allowed IS 'Whether Coder Agents can create workspaces using this template.';
+
+COMMENT ON COLUMN templates.allow_workspace_renames IS 'Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.';
 
 CREATE VIEW template_with_names AS
  SELECT templates.id,
@@ -3524,6 +3635,7 @@ CREATE VIEW template_with_names AS
     templates.disable_module_cache,
     templates.time_til_autostop_notify,
     templates.agents_allowed,
+    templates.allow_workspace_renames,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(visible_users.name, ''::text) AS created_by_name,
@@ -3544,7 +3656,8 @@ CREATE TABLE usage_events (
     publish_started_at timestamp with time zone,
     published_at timestamp with time zone,
     failure_message text,
-    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text])))
+    CONSTRAINT usage_event_type_check CHECK ((event_type = ANY (ARRAY['dc_managed_agents_v1'::text, 'hb_ai_seats_v1'::text, 'hb_agent_runtime_v1'::text]))),
+    CONSTRAINT usage_events_agent_runtime_hour_aligned CHECK (((event_type <> 'hb_agent_runtime_v1'::text) OR (date_trunc('hour'::text, timezone('UTC'::text, created_at)) = timezone('UTC'::text, created_at))))
 );
 
 COMMENT ON TABLE usage_events IS 'usage_events contains usage data that is collected from the product and potentially shipped to the usage collector service.';
@@ -4258,7 +4371,7 @@ ALTER TABLE ONLY ai_gateway_keys
     ADD CONSTRAINT ai_gateway_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_model_prices
-    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model, source);
 
 ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
@@ -4324,7 +4437,16 @@ ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_id_key UNIQUE (organization_id, id);
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_context_key UNIQUE (organization_id, context);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
@@ -4334,6 +4456,12 @@ ALTER TABLE ONLY chat_usage_limit_config
 
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_singleton_key UNIQUE (singleton);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_organization_context_key UNIQUE (user_id, organization_id, context);
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_pkey PRIMARY KEY (id);
@@ -4393,10 +4521,10 @@ ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
+    ADD CONSTRAINT mcp_server_configs_organization_id_slug_key UNIQUE (organization_id, slug);
 
 ALTER TABLE ONLY mcp_server_configs
-    ADD CONSTRAINT mcp_server_configs_slug_key UNIQUE (slug);
+    ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY mcp_server_user_tokens
     ADD CONSTRAINT mcp_server_user_tokens_mcp_server_config_id_user_id_key UNIQUE (mcp_server_config_id, user_id);
@@ -4809,7 +4937,9 @@ CREATE INDEX idx_chat_model_configs_ai_provider_id ON chat_model_configs USING b
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
-CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
+CREATE INDEX idx_chat_model_configs_organization_id ON chat_model_configs USING btree (organization_id);
+
+CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree (organization_id) WHERE ((is_default = true) AND (deleted = false));
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -4833,7 +4963,7 @@ CREATE INDEX idx_chats_title_fts ON chats USING gin (to_tsvector('simple'::regco
 
 COMMENT ON INDEX idx_chats_title_fts IS 'Used for full text search. Defined over all rows of the chats table.';
 
-CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
+CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (((parent_chat_id IS NULL)), status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
@@ -4860,6 +4990,8 @@ CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifi
 CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
 
 CREATE INDEX idx_mcp_server_configs_forced ON mcp_server_configs USING btree (enabled, availability) WHERE ((enabled = true) AND (availability = 'force_on'::text));
+
+CREATE INDEX idx_mcp_server_configs_organization_id ON mcp_server_configs USING btree (organization_id);
 
 CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING btree (user_id);
 
@@ -4891,7 +5023,7 @@ CREATE INDEX idx_template_versions_has_ai_task ON template_versions USING btree 
 
 CREATE UNIQUE INDEX idx_unique_preset_name ON template_version_presets USING btree (name, template_version_id);
 
-CREATE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
+CREATE UNIQUE INDEX idx_usage_events_agent_runtime ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_agent_runtime_v1'::text);
 
 CREATE INDEX idx_usage_events_ai_seats ON usage_events USING btree (event_type, created_at) WHERE (event_type = 'hb_ai_seats_v1'::text);
 
@@ -5190,10 +5322,28 @@ ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
 
 ALTER TABLE ONLY chat_model_configs
+    ADD CONSTRAINT chat_model_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_organization_model_overrides
+    ADD CONSTRAINT chat_organization_model_overrides_organization_model_config_fke FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_organization_model_config_fkey FOREIGN KEY (organization_id, model_config_id) REFERENCES chat_model_configs(organization_id, id);
+
+ALTER TABLE ONLY chat_user_model_overrides
+    ADD CONSTRAINT chat_user_model_overrides_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chats
     ADD CONSTRAINT chats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE SET NULL;
@@ -5284,6 +5434,9 @@ ALTER TABLE ONLY mcp_server_configs
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_oauth2_client_secret_key_id_fkey FOREIGN KEY (oauth2_client_secret_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY mcp_server_configs
+    ADD CONSTRAINT mcp_server_configs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL;

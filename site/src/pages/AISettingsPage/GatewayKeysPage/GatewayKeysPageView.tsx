@@ -3,11 +3,10 @@ import type { FC } from "react";
 import type { AIGatewayKey } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -20,6 +19,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { relativeTime } from "#/utils/time";
@@ -59,15 +59,22 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 				<SettingsHeaderDescription>
 					Keys authenticate standalone AI Gateway replicas to this deployment.
 					The key value is shown only once when created.{" "}
-					<Link href={docs("/ai-coder/ai-gateway")}>View docs</Link>
+					<SettingsHeaderDocsLink
+						href={docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{showPaywall && (
-				<PaywallPremium
+				<PremiumPaywall
+					source="ai_gateway_keys"
 					message="AI Gateway"
-					description="Authenticate standalone AI Gateway replicas to your deployment. You need a Premium license with AI Gateway enabled to use this feature."
-					documentationLink={docs("/ai-coder/ai-gateway")}
+					description="Authenticate standalone AI Gateway replicas securely."
+					features={[
+						"Authenticate without shared secrets",
+						"Works inside coderd or standalone",
+						"Independently scale, rotate, or revoke keys per deployment",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

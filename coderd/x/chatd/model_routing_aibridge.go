@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -84,9 +85,8 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	return t.base.RoundTrip(cloned)
 }
 
-// ValidateAIGatewayProviderModel rejects slash-namespaced models on
-// OpenRouter-like providers typed as openai, where the provider type
-// strips the vendor prefix.
+// ValidateAIGatewayProviderModel rejects slash-namespaced models when an
+// OpenRouter-like gateway is configured with the OpenAI provider type.
 func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) error {
 	if provider.Type != database.AIProviderTypeOpenai {
 		return nil
@@ -106,7 +106,7 @@ func isOpenRouterLikeAIGatewayProvider(provider database.AIProvider) bool {
 	if strings.EqualFold(strings.TrimSpace(provider.Name), "openrouter") {
 		return true
 	}
-	host := chatprovider.ProviderBaseURLHostname(provider.BaseUrl)
+	host := aibridged.BaseURLHostname(provider.BaseUrl)
 	return host == "openrouter.ai" || strings.HasSuffix(host, ".openrouter.ai")
 }
 
@@ -166,11 +166,7 @@ func (p *Server) newModel(
 	}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
-	callConfig, err := parseModelConfigOptions(req.ConfigOptions)
-	if err != nil {
-		return chatprovider.Model{}, err
-	}
-	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, callConfig)
+	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	return newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -178,7 +174,7 @@ func (p *Server) newModel(
 		req.UserAgent,
 		extraHeaders,
 		&http.Client{Transport: baseRT},
-		callConfig.OpenAIConfig,
+		req.CallConfig.OpenAIConfig,
 	)
 }
 

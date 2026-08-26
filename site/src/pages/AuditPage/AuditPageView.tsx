@@ -10,11 +10,12 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
 import { Table, TableBody } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { Timeline } from "#/components/Timeline/Timeline";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { AuditFilter } from "./AuditFilter";
@@ -57,7 +58,10 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 						<AuditHelpPopover />
 					</div>
 				</PageHeaderTitle>
-				<PageHeaderSubtitle>View events in your audit log.</PageHeaderSubtitle>
+				<PageHeaderSubtitle>
+					View events in your audit log.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+				</PageHeaderSubtitle>
 			</PageHeader>
 
 			{isAuditLogVisible ? (
@@ -83,10 +87,15 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
 					</PaginationContainer>
 				</>
 			) : (
-				<PaywallPremium
+				<PremiumPaywall
+					source="audit_log"
 					message="Audit logs"
-					description="Audit logs allow you to monitor user operations on your deployment. You need a Premium license to use this feature."
-					documentationLink={docs("/admin/security/audit-logs")}
+					description="See exactly who changed what and when, with every workspace, template, and user action logged for compliance and incident response."
+					features={[
+						"Configurable retention & auto-purge",
+						"API export to Splunk, Datadog & more",
+						"Meets SOC 2 & HIPAA audit requirements",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			)}

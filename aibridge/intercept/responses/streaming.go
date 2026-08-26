@@ -63,7 +63,7 @@ func (*StreamingResponsesInterceptor) Streaming() bool {
 }
 
 func (i *StreamingResponsesInterceptor) TraceAttributes(r *http.Request) []attribute.KeyValue {
-	return i.responsesInterceptionBase.baseTraceAttributes(r, true)
+	return i.baseTraceAttributes(r, true)
 }
 
 func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *http.Request) (outErr error) {
@@ -241,6 +241,14 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			return err
 		}
 
+		// Record token usage for every iteration, whether or not tools are
+		// injected. Usage is reported by upstream independently of the MCP
+		// proxy, so gating this on the proxy drops usage entirely for
+		// deployments that run without one.
+		if completedResponse != nil {
+			i.recordTokenUsage(ctx, completedResponse)
+		}
+
 		if i.mcpProxy != nil && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
 			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
@@ -248,9 +256,6 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 				i.sendCustomErr(ctx, w, http.StatusInternalServerError, innerLoopErr)
 				shouldLoop = false
 			}
-
-			// Record token usage for each inner loop iteration
-			i.recordTokenUsage(ctx, completedResponse)
 		}
 
 		i.recordModelThoughts(ctx, completedResponse)

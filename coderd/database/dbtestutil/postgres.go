@@ -197,8 +197,8 @@ func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, db *sql
 		// Template database already exists and we successfully created the new database.
 		return nil
 	}
-	tplDbDoesNotExistOccurred := strings.Contains(err.Error(), "template database") && strings.Contains(err.Error(), "does not exist")
-	if (tplDbDoesNotExistOccurred && !emptyTemplateDBName) || !tplDbDoesNotExistOccurred {
+	tplDBDoesNotExistOccurred := strings.Contains(err.Error(), "template database") && strings.Contains(err.Error(), "does not exist")
+	if (tplDBDoesNotExistOccurred && !emptyTemplateDBName) || !tplDBDoesNotExistOccurred {
 		// First and case: user passed a templateDBName that doesn't exist.
 		// Second and case: some other error.
 		return xerrors.Errorf("create db with template: %w", err)
@@ -273,26 +273,26 @@ func createAndInitDatabase(t TBSubset, connParams ConnectionParams, db *sql.DB, 
 	if _, err := db.Exec("CREATE DATABASE " + tmpDBName); err != nil {
 		return xerrors.Errorf("create tmp db: %w", err)
 	}
-	tmpDbURL := ConnectionParams{
+	tmpDBURL := ConnectionParams{
 		Username: connParams.Username,
 		Password: connParams.Password,
 		Host:     connParams.Host,
 		Port:     connParams.Port,
 		DBName:   tmpDBName,
 	}.DSN()
-	tmpDb, err := sql.Open("postgres", tmpDbURL)
+	tmpDB, err := sql.Open("postgres", tmpDBURL)
 	if err != nil {
 		return xerrors.Errorf("connect to template db: %w", err)
 	}
 	defer func() {
-		if err := tmpDb.Close(); err != nil {
+		if err := tmpDB.Close(); err != nil {
 			t.Logf("failed to close temp db: %s\n", err.Error())
 		}
 	}()
-	if err := initialize(tmpDb); err != nil {
+	if err := initialize(tmpDB); err != nil {
 		return xerrors.Errorf("initialize: %w", err)
 	}
-	if err := tmpDb.Close(); err != nil {
+	if err := tmpDB.Close(); err != nil {
 		return xerrors.Errorf("close template db: %w", err)
 	}
 	if _, err := db.Exec("ALTER DATABASE " + tmpDBName + " RENAME TO " + name); err != nil {

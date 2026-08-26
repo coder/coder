@@ -23,6 +23,35 @@ export const canViewTemplates = (permissions: Permissions): boolean => {
 	return permissions.viewTemplates !== false || canViewWorkspaces(permissions);
 };
 
+export const canAccessAnyChatModelConfig = (
+	permissions: Permissions | undefined,
+): boolean => {
+	return (
+		permissions !== undefined &&
+		(permissions.viewAnyChatModelConfig ||
+			permissions.createAnyChatModelConfig ||
+			permissions.editAnyChatModelConfig ||
+			permissions.deleteAnyChatModelConfig ||
+			permissions.shareAnyChatModelConfig)
+	);
+};
+
+/**
+ * Whether the user can open the Coder Agents settings page at
+ * /ai/settings/coder-agents. Deployment admins manage deployment-wide
+ * agent settings, and organization model admins manage their
+ * organizations' model configurations on the same page.
+ */
+export const canAccessCoderAgentsSettings = (
+	permissions: Permissions | undefined,
+): boolean => {
+	return (
+		permissions !== undefined &&
+		(permissions.editDeploymentConfig ||
+			canAccessAnyChatModelConfig(permissions))
+	);
+};
+
 export const canViewDeploymentSettings = (
 	permissions: Permissions | undefined,
 ): permissions is Permissions => {
@@ -35,7 +64,8 @@ export const canViewDeploymentSettings = (
 			permissions.viewNotificationTemplate ||
 			permissions.viewOrganizationIDPSyncSettings ||
 			permissions.viewAnyAIProvider ||
-			permissions.viewAIGatewayKeys)
+			permissions.viewAIGatewayKeys ||
+			canAccessAnyChatModelConfig(permissions))
 	);
 };
 

@@ -6,11 +6,10 @@ import {
 	ProvisionerKeyIDUserAuth,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -22,6 +21,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import type { Permissions } from "#/modules/permissions";
 import { docs } from "#/utils/docs";
 import { ProvisionerKeyRow } from "./ProvisionerKeyRow";
@@ -55,15 +55,21 @@ export const OrganizationProvisionerKeysPageView: FC<
 				<SettingsHeaderTitle>Provisioner Keys</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Manage provisioner keys used to authenticate provisioner instances.{" "}
-					<Link href={docs("/admin/provisioners")}>View docs</Link>
+					<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{showPaywall ? (
-				<PaywallPremium
+				<PremiumPaywall
+					source="provisioner_keys"
 					message="Provisioners"
-					description="Provisioners run your Terraform to create templates and workspaces. You need a Premium license to use this feature for multiple organizations."
-					documentationLink={docs("/admin/provisioners")}
+					description="Scoped authentication keys for org provisioners."
+					features={[
+						"Scoped per organization & tag",
+						"Recommended provisioner authentication",
+						"Rotate keys without downtime",
+						"Fully isolated per organization",
+					]}
 					canViewPremium={permissions.viewAllLicenses}
 				/>
 			) : (

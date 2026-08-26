@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	natspubsub "github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -92,6 +91,12 @@ func TestEntitlements(t *testing.T) {
 		// Enable all features
 		features := make(license.Features)
 		for _, feature := range codersdk.FeatureNames {
+			if feature == codersdk.FeatureAgentRuntimeHours {
+				// The feature name is not a valid license claim; the
+				// feature is encoded as its allocation claim.
+				features[license.ClaimAgentRuntimeHoursAllocation] = 1
+				continue
+			}
 			features[feature] = 1
 		}
 		features[codersdk.FeatureUserLimit] = 100
@@ -1235,7 +1240,7 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 				DontAddFirstUser: false,
 				DontAddLicense:   false,
 				Options: &coderdtest.Options{
-					Logger:                   ptr.Ref(logger.Named("server1")),
+					Logger:                   new(logger.Named("server1")),
 					Database:                 store,
 					Pubsub:                   ps,
 					DeploymentValues:         dv,
@@ -1251,7 +1256,7 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 				DontAddFirstUser: true,
 				DontAddLicense:   true,
 				Options: &coderdtest.Options{
-					Logger:           ptr.Ref(logger.Named("server2")),
+					Logger:           new(logger.Named("server2")),
 					Database:         store,
 					Pubsub:           ps,
 					DeploymentValues: dv,

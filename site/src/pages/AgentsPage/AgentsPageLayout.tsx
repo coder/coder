@@ -1,4 +1,4 @@
-import { type FC, type RefObject, useEffect, useRef, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -24,8 +24,6 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
-	chatModelConfigs,
-	chatModels,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -47,7 +45,6 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
@@ -55,13 +52,14 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
+	getDefaultOrganizationId,
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -80,9 +78,9 @@ import {
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
-	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
@@ -90,10 +88,6 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import {
-	getModelOptionsFromConfigs,
-	providerInfoByIDFromUserConfigs,
-} from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -112,6 +106,13 @@ export interface AgentsPageOutletContext {
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
+	/**
+	 * The active chat's children from the chat list cache, which watch
+	 * events keep fresh. The entity cache's embedded children are only a
+	 * fetch-time snapshot, so gating archive actions on them could leave
+	 * the actions disabled after a child finishes.
+	 */
+	activeChatChildren: readonly TypesGen.Chat[] | undefined;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	/** Opens the shared rename dialog so both menus drive the same instance. */
 	onOpenRenameDialog?: (chat: TypesGen.Chat) => void;
@@ -119,8 +120,6 @@ export interface AgentsPageOutletContext {
 	onToggleSidebarCollapsed: () => void;
 	onExpandSidebar: () => void;
 	onChatReady: () => void;
-	/** Ref attached to the chat scroll container by AgentChatPage. */
-	scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
@@ -165,7 +164,14 @@ const AgentsPageLayout: FC = () => {
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
+	// The personal-overrides feature flag is deployment-wide but read through
+	// an organization-scoped endpoint, so fall back to any accessible
+	// organization for users outside the default organization.
+	const personalOverridesOrganizationId =
+		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
+	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
@@ -229,15 +235,11 @@ const AgentsPageLayout: FC = () => {
 			sources: sidebarFilters.sources,
 		}),
 	);
-	// Model queries are kept here for the sidebar, which displays
-	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently, and react-query
-	// deduplicates the requests.
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
 	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
+		userChatPersonalModelOverrides(personalOverridesOrganizationId),
 	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
@@ -325,7 +327,7 @@ const AgentsPageLayout: FC = () => {
 				deleteBuild,
 			);
 		},
-		onError: (error, { workspaceId }) => {
+		onError: (error, { chatId, workspaceId }) => {
 			notifyArchiveAndDeleteFailed(
 				queryClient.getQueryData<TypesGen.Workspace>(
 					workspaceByIdKey(workspaceId),
@@ -333,19 +335,16 @@ const AgentsPageLayout: FC = () => {
 				error,
 				(path) => navigate(path),
 			);
-			// Archive failed after the delete already ran; refresh
-			// workspace state so consumers see the deletion.
-			if (error instanceof ArchiveAndDeleteError && error.step === "archive") {
-				void invalidateWorkspaceMutationQueries(queryClient, {
-					organizationName,
-					username: user.username,
-				});
-			}
+			// The archive may have committed server-side even when the
+			// request appeared to fail (transport errors), and on delete
+			// failures the chat stays archived; refetch every chat
+			// collection so all caches converge on the server.
+			void invalidateChatListQueries(queryClient);
+			void invalidateChatEntity(queryClient, chatId);
+			void invalidateChatsByWorkspace(queryClient);
+			void invalidateChatSearches(queryClient);
 		},
 	});
-	const [pendingArchiveChatId, setPendingArchiveChatId] = useState<
-		string | null
-	>(null);
 	const [pendingArchiveAndDelete, setPendingArchiveAndDelete] = useState<{
 		chatId: string;
 		workspaceId: string;
@@ -388,11 +387,6 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
-	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -403,34 +397,11 @@ const AgentsPageLayout: FC = () => {
 		(archiveAndDeleteMutation.isPending
 			? archiveAndDeleteMutation.variables?.chatId
 			: undefined);
-	// A chat in any of these statuses has an in-flight run that
-	// archiving would interrupt, so ask for confirmation first.
-	const isActiveChat = (chat: TypesGen.Chat | undefined) =>
-		chat?.status === "running" ||
-		chat?.status === "interrupting" ||
-		chat?.status === "requires_action";
 	const requestArchiveAgent = (chatId: string) => {
 		if (isArchiving) {
 			return;
 		}
-		const chat =
-			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId)) ??
-			chatList.find((candidate) => candidate.id === chatId);
-		if (chat === undefined || isActiveChat(chat)) {
-			setPendingArchiveChatId(chatId);
-			return;
-		}
 		archiveAgentMutation.mutate(chatId);
-	};
-	const handleConfirmArchiveAgent = () => {
-		if (!pendingArchiveChatId || isArchiving) {
-			return;
-		}
-		archiveAgentMutation.mutate(pendingArchiveChatId, {
-			onSettled: () => {
-				setPendingArchiveChatId(null);
-			},
-		});
 	};
 
 	// Track the active chat ID in a ref so the watchChats
@@ -744,8 +715,6 @@ const AgentsPageLayout: FC = () => {
 		]),
 	);
 
-	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-
 	// State for the shared rename-chat dialog. Lifted here so both the
 	// sidebar menu and the chat top bar open the same dialog instance.
 	const [chatPendingRename, setChatPendingRename] =
@@ -763,12 +732,12 @@ const AgentsPageLayout: FC = () => {
 		requestReorderPinnedAgent,
 		isArchiving,
 		archivingChatId,
+		activeChatChildren: chatList.find((c) => c.id === agentId)?.children,
 		onOpenRenameDialog: setChatPendingRename,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed: handleToggleSidebarCollapsed,
 		onExpandSidebar: () => setIsSidebarCollapsed(false),
 		onChatReady: () => {},
-		scrollContainerRef,
 	};
 
 	return (
@@ -793,8 +762,8 @@ const AgentsPageLayout: FC = () => {
 						chats={chatList}
 						currentUserId={user.id}
 						chatErrorReasons={sidebarChatErrorReasons}
-						modelOptions={catalogModelOptions}
-						modelConfigs={chatModelConfigsQuery.data ?? []}
+						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
 						onArchiveAgent={requestArchiveAgent}
 						onUnarchiveAgent={requestUnarchiveAgent}
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
@@ -824,6 +793,7 @@ const AgentsPageLayout: FC = () => {
 							personalModelOverridesQuery.data?.enabled
 						}
 						isAdmin={isAgentsAdmin}
+						canManageAgentSettings={canManageAgentSettings}
 					/>
 				</ResizableChatsSidebarFrame>
 				<div
@@ -840,16 +810,6 @@ const AgentsPageLayout: FC = () => {
 					<Outlet context={outletContextValue} />
 				</div>
 			</div>
-			<ConfirmDialog
-				open={pendingArchiveChatId !== null}
-				onClose={() => setPendingArchiveChatId(null)}
-				onConfirm={handleConfirmArchiveAgent}
-				type="delete"
-				confirmText="Archive"
-				confirmLoading={archiveAgentMutation.isPending}
-				title="Archive agent?"
-				description="This agent is currently running. Archiving it will interrupt the current run."
-			/>
 			<DeleteDialog
 				key={pendingWorkspaceName}
 				isOpen={deleteDialogOpen}

@@ -40,20 +40,21 @@ func (rt *Runtime) RunAdvisor(
 	if !rt.tryAcquire() {
 		return AdvisorResult{
 			Type:          ResultTypeLimitReached,
+			Advice:        LimitReachedAdvice,
 			RemainingUses: 0,
 		}, nil
 	}
 
 	// resetProviderOptionsForNestedCall mutates its argument; give it a
 	// clone so the Runtime's stored options stay unchanged across calls.
-	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
-	resetProviderOptionsForNestedCall(nestedProviderOptions)
+	nestedCall := rt.cfg.CallTemplate
+	nestedCall.ProviderOptions = cloneProviderOptions(rt.cfg.CallTemplate.ProviderOptions)
+	resetProviderOptionsForNestedCall(nestedCall.ProviderOptions)
 
 	assistantOpts := chatloop.GenerateAssistantOptions{
-		Model:           rt.cfg.Model,
-		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
-		ModelConfig:     rt.cfg.ModelConfig,
-		ProviderOptions: nestedProviderOptions,
+		Model:        rt.cfg.Model,
+		Messages:     BuildAdvisorMessages(question, conversationSnapshot),
+		CallTemplate: nestedCall,
 	}
 	if opts != nil && opts.OnAdviceDelta != nil {
 		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {

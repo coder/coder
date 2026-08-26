@@ -10,7 +10,6 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -376,7 +375,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		const description = "wow, this organization description is so updated!"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Description: ptr.Ref(description),
+			Description: new(description),
 		})
 
 		require.NoError(t, err)
@@ -406,7 +405,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 
 		const icon = "/emojis/1f48f-1f3ff.png"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Icon: ptr.Ref(icon),
+			Icon: new(icon),
 		})
 
 		require.NoError(t, err)
@@ -445,7 +444,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 		// Verify functionality is lost.
 		const icon = "/emojis/1f48f-1f3ff.png"
 		o, err = client.UpdateOrganization(ctx, o.Name, codersdk.UpdateOrganizationRequest{
-			Icon: ptr.Ref(icon),
+			Icon: new(icon),
 		})
 		require.ErrorContains(t, err, "Multiple Organizations is a Premium feature")
 	})
@@ -468,7 +467,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			// Writing exactly the deployment default is a no-op and must be allowed.
 			//nolint:gocritic // Only owners can update organization settings.
 			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-				DefaultOrgMemberRoles: ptr.Ref(rbac.DefaultOrgMemberRoles()),
+				DefaultOrgMemberRoles: new(rbac.DefaultOrgMemberRoles()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, rbac.DefaultOrgMemberRoles(), updated.DefaultOrgMemberRoles)
@@ -489,7 +488,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			// Empty array represents a Gateway Accounts organization.
 			//nolint:gocritic // Only owners can update organization settings.
 			updated, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-				DefaultOrgMemberRoles: ptr.Ref([]string{}),
+				DefaultOrgMemberRoles: new([]string{}),
 			})
 			require.NoError(t, err)
 			require.Empty(t, updated.DefaultOrgMemberRoles)
@@ -513,7 +512,7 @@ func TestPatchOrganizationsByUser(t *testing.T) {
 			// RoleNameFromString downstream.
 			//nolint:gocritic // Only owners can update organization settings.
 			_, err := client.UpdateOrganization(ctx, o.ID.String(), codersdk.UpdateOrganizationRequest{
-				DefaultOrgMemberRoles: ptr.Ref([]string{"not-a-built-in-role"}),
+				DefaultOrgMemberRoles: new([]string{"not-a-built-in-role"}),
 			})
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)

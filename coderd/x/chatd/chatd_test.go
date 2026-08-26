@@ -23,8 +23,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
-	mcpgo "github.com/mark3labs/mcp-go/mcp"
-	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
@@ -46,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -61,6 +59,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 	"github.com/coder/coder/v2/provisioner/echo"
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -81,6 +80,40 @@ func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *at
 
 func openAIToolName(tool chattest.OpenAITool) string {
 	return cmp.Or(tool.Function.Name, tool.Name, tool.Type)
+}
+
+func newTestMCPServer(name string) *mcp.Server {
+	return mcp.NewServer(&mcp.Implementation{Name: name, Version: "1.0.0"}, nil)
+}
+
+func addTestMCPTextTool(server *mcp.Server, name, description, outputPrefix string) {
+	server.AddTool(&mcp.Tool{
+		Name:        name,
+		Description: description,
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"input": map[string]any{
+					"type":        "string",
+					"description": "The input string",
+				},
+			},
+			"required": []string{"input"},
+		},
+	}, func(_ context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		var arguments map[string]any
+		_ = json.Unmarshal(req.Params.Arguments, &arguments)
+		input, _ := arguments["input"].(string)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: outputPrefix + input}},
+		}, nil
+	})
+}
+
+func testMCPHTTPHandler(server *mcp.Server) http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return server
+	}, &mcp.StreamableHTTPOptions{Stateless: true})
 }
 
 func mustChatLastErrorRawMessage(t testing.TB, payload codersdk.ChatError) pqtype.NullRawMessage {
@@ -127,7 +160,7 @@ func recordOpenAIRequest(req *chattest.OpenAIRequest) recordedOpenAIRequest {
 
 	var contentLength int64
 	if req.Request != nil {
-		contentLength = req.Request.ContentLength
+		contentLength = req.ContentLength
 	}
 
 	return recordedOpenAIRequest{
@@ -244,7 +277,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	// Create a root chat whose first model call will spawn a subagent.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -366,24 +399,12 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 
 	// Start an external MCP server whose tools should remain available to the
 	// root plan-mode chat but stay hidden from plan-mode subagents.
-	mcpSrv := mcpserver.NewMCPServer("plan-root-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-root-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
-	mcpConfig, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+	mcpConfig, err := client.CreateMCPServerConfig(ctx, user.OrganizationID, codersdk.CreateMCPServerConfigRequest{
 		DisplayName:     "Plan Root MCP",
 		Slug:            "plan-root-mcp",
 		Transport:       "streamable_http",
@@ -424,7 +445,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -565,7 +586,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	_, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -661,38 +682,14 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("external-snapshot-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("external-snapshot-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
-	secondMCP := mcpserver.NewMCPServer("second-mcp", "1.0.0")
-	secondMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	secondMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(secondMCP))
+	secondMCP := newTestMCPServer("second-mcp")
+	addTestMCPTextTool(secondMCP, "echo", "Echoes the input", "echo: ")
+	secondMCPServer := httptest.NewServer(testMCPHTTPHandler(secondMCP))
 	defer secondMCPServer.Close()
 
 	var (
@@ -734,18 +731,20 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 		},
 	)
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "External Snapshot MCP",
-		Slug:        "external-snapshot-mcp",
-		Url:         externalMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "External Snapshot MCP",
+		Slug:           "external-snapshot-mcp",
+		Url:            externalMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Second MCP",
-		Slug:        "second-mcp",
-		Url:         secondMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Second MCP",
+		Slug:           "second-mcp",
+		Url:            secondMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -805,6 +804,7 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -842,21 +842,9 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	externalMCP := mcpserver.NewMCPServer("root-explore-runtime-mcp", "1.0.0")
-	externalMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	externalMCPServer := httptest.NewServer(mcpserver.NewStreamableHTTPServer(externalMCP))
+	externalMCP := newTestMCPServer("root-explore-runtime-mcp")
+	addTestMCPTextTool(externalMCP, "echo", "Echoes the input", "echo: ")
+	externalMCPServer := httptest.NewServer(testMCPHTTPHandler(externalMCP))
 	defer externalMCPServer.Close()
 
 	var (
@@ -879,11 +867,12 @@ func TestRootExploreChatStaysBuiltinOnlyAtRuntime(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Root Explore Runtime MCP",
-		Slug:        "root-explore-runtime-mcp",
-		Url:         externalMCPServer.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Root Explore Runtime MCP",
+		Slug:           "root-explore-runtime-mcp",
+		Url:            externalMCPServer.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
@@ -1024,21 +1013,9 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	newEchoMCPServer := func(name string) *httptest.Server {
 		t.Helper()
 
-		mcpSrv := mcpserver.NewMCPServer(name, "1.0.0")
-		mcpSrv.AddTools(mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("echo",
-				mcpgo.WithDescription("Echoes the input"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("echo: " + input), nil
-			},
-		})
-		mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+		mcpSrv := newTestMCPServer(name)
+		addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 		t.Cleanup(mcpTS.Close)
 		return mcpTS
 	}
@@ -1086,22 +1063,25 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 	parentConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Parent MCP",
-		Slug:        "runtime-parent-mcp",
-		Url:         parentTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Runtime Parent MCP",
+		Slug:           "runtime-parent-mcp",
+		Url:            parentTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	injectedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Runtime Injected MCP",
-		Slug:        "runtime-injected-mcp",
-		Url:         injectedTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Runtime Injected MCP",
+		Slug:           "runtime-injected-mcp",
+		Url:            injectedTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
@@ -1183,53 +1163,15 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	echoMCP := mcpserver.NewMCPServer("plan-visibility-echo", "1.0.0")
-	echoMCP.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	echoTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(echoMCP))
+	echoMCP := newTestMCPServer("plan-visibility-echo")
+	addTestMCPTextTool(echoMCP, "echo", "Echoes the input", "echo: ")
+	echoTS := httptest.NewServer(testMCPHTTPHandler(echoMCP))
 	t.Cleanup(echoTS.Close)
 
-	filteredMCP := mcpserver.NewMCPServer("plan-visibility-filtered", "1.0.0")
-	filteredMCP.AddTools(
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("visible",
-				mcpgo.WithDescription("Visible tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("visible: " + input), nil
-			},
-		},
-		mcpserver.ServerTool{
-			Tool: mcpgo.NewTool("hidden",
-				mcpgo.WithDescription("Hidden tool"),
-				mcpgo.WithString("input",
-					mcpgo.Description("The input string"),
-					mcpgo.Required(),
-				),
-			),
-			Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-				input, _ := req.GetArguments()["input"].(string)
-				return mcpgo.NewToolResultText("hidden: " + input), nil
-			},
-		},
-	)
-	filteredTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(filteredMCP))
+	filteredMCP := newTestMCPServer("plan-visibility-filtered")
+	addTestMCPTextTool(filteredMCP, "visible", "Visible tool", "visible: ")
+	addTestMCPTextTool(filteredMCP, "hidden", "Hidden tool", "hidden: ")
+	filteredTS := httptest.NewServer(testMCPHTTPHandler(filteredMCP))
 	t.Cleanup(filteredTS.Close)
 
 	var (
@@ -1253,6 +1195,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	approvedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID:  org.ID,
 		DisplayName:     "Plan Approved MCP",
 		Slug:            "plan-approved-mcp",
 		Url:             echoTS.URL,
@@ -1262,14 +1205,16 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	})
 
 	blockedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Plan Blocked MCP",
-		Slug:        "plan-blocked-mcp",
-		Url:         echoTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Plan Blocked MCP",
+		Slug:           "plan-blocked-mcp",
+		Url:            echoTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	filteredConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID:  org.ID,
 		DisplayName:     "Plan Filtered MCP",
 		Slug:            "plan-filtered-mcp",
 		Url:             filteredTS.URL,
@@ -1302,6 +1247,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -2262,6 +2208,147 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
 }
 
+func TestEditMessage_MCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	optionalConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Optional MCP",
+		Slug:           "optional-mcp",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "edit-mcp-server-ids",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       []uuid.UUID{},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	latestUserMessageID := func(chatID uuid.UUID) int64 {
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+		var id int64
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleUser && !message.Deleted {
+				id = message.ID
+			}
+		}
+		require.NotZero(t, id)
+		return id
+	}
+
+	// An edit that provides MCP server IDs replaces the selection.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit with mcp")},
+		MCPServerIDs:    &[]uuid.UUID{optionalConfig.ID},
+	})
+	require.NoError(t, err)
+
+	dbChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// A nil selection preserves the persisted one.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit without mcp")},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// An edit that clears the list cannot remove a force_on server
+	// (Cure53 CDM-02-010 parity with the send path).
+	forcedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit clearing mcp")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{forcedConfig.ID}, dbChat.MCPServerIDs,
+		"force_on MCP server must survive an emptied mcp_server_ids edit")
+
+	// Explore child chats keep the spawn-time MCP snapshot immutable.
+	exploreContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("explore"),
+	})
+	require.NoError(t, err)
+	createdExplore, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: chat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "explore-mcp-immutable",
+		Mode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		MCPServerIDs: []uuid.UUID{optionalConfig.ID},
+		ClientType:   database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        exploreContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	exploreChat := createdExplore.Chat
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          exploreChat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(exploreChat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit explore")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs,
+		"explore subagent MCP snapshot must be immutable after spawn")
+}
+
 // TestEditMessageDebugCleanupDeletesPreEditRuns verifies that
 // EditMessage schedules the chat debug cleanup goroutine when debug
 // logging is enabled and that it deletes debug runs tied to the
@@ -2459,12 +2546,12 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
 
 	toolName := "my_dynamic_tool"
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        toolName,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type:       "object",
-			Properties: map[string]any{},
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
 		},
 	}})
 	require.NoError(t, err)
@@ -2969,15 +3056,15 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3765,15 +3852,15 @@ func TestDynamicToolCallPausesAndResumes(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -3935,15 +4022,15 @@ func TestDynamicToolNamedProposePlanRemainsAvailableOutsidePlanMode(t *testing.T
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 	})
 
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "propose_plan",
 		Description: "A dynamic tool whose name collides with the hidden built-in.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -4052,15 +4139,15 @@ func TestDynamicToolCallMixedWithBuiltIn(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -4194,15 +4281,15 @@ func TestSubmitToolResultsConcurrency(t *testing.T) {
 	})
 
 	// Create a chat with a dynamic tool.
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+	dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 		Name:        "my_dynamic_tool",
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"input": map[string]any{"type": "string"},
 			},
-			Required: []string{"input"},
+			"required": []string{"input"},
 		},
 	}})
 	require.NoError(t, err)
@@ -4518,7 +4605,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -4673,7 +4760,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	// Create a chat with the stopped workspace pre-associated.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -5639,6 +5726,65 @@ func TestActiveServer_ManualCompaction(t *testing.T) {
 		require.Equal(t, int32(2), streamCount.Load())
 	})
 
+	t.Run("compacts an errored chat and clears last_error", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, ps := dbtestutil.NewDB(t)
+		var compactionRequests atomic.Int32
+		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+			body := anthropicRequestBody(t, *req)
+			if !req.Stream {
+				if strings.Contains(body, "You are performing a context compaction") {
+					compactionRequests.Add(1)
+					return anthropicCompactionResponse(compactionSummary)
+				}
+				return chattest.AnthropicNonStreamingResponse("title")
+			}
+			return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("assistant answer")...)
+		})
+		user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello from the user")
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		machine := chatstate.NewChatMachine(db, ps, chat.ID)
+		require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.FinishError(chatstate.FinishErrorInput{
+				LastError: mustChatLastErrorRawMessage(t, codersdk.ChatError{
+					Message: "input length exceeds the maximum allowed input length",
+					Kind:    codersdk.ChatErrorKindGeneric,
+				}),
+			})
+			return err
+		}))
+		chat, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusError, chat.Status)
+		require.True(t, chat.LastError.Valid)
+
+		compacted, err := server.CompactChat(ctx, chat)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusRunning, compacted.Status)
+		require.False(t, compacted.LastError.Valid,
+			"requesting compaction from the error state clears last_error")
+
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.False(t, chat.CompactionRequestedAt.Valid)
+		require.Equal(t, int32(1), compactionRequests.Load(), "one forced compaction call")
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		promptMessages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+		require.NoError(t, err)
+		compressed := compressedChatSummarizedMessages(t, append(promptMessages, messages...))
+		require.Len(t, compressed.summaries, 1,
+			"prompt history contains the compressed summary boundary")
+	})
+
 	t.Run("busy chat rejects manual compaction", func(t *testing.T) {
 		t.Parallel()
 
@@ -5758,9 +5904,10 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 	seedOverrideModel := func(ctx context.Context, t *testing.T, db database.Store, chatModel database.ChatModelConfig, modelName, effort string, contextLimit int64) database.ChatModelConfig {
 		t.Helper()
 		overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Model:        modelName,
-			AIProviderID: chatModel.AIProviderID,
-			ContextLimit: contextLimit,
+			Model:          modelName,
+			AIProviderID:   chatModel.AIProviderID,
+			ContextLimit:   contextLimit,
+			OrganizationID: chatModel.OrganizationID,
 		})
 		overrideModel = updateChatModelCallConfig(t, db, overrideModel, codersdk.ChatModelCallConfig{
 			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
@@ -5768,7 +5915,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: overrideModel.OrganizationID,
+			Context:        string(codersdk.ChatModelOverrideContextCompaction),
+			ModelConfigID:  overrideModel.ID,
+		}))
 		return overrideModel
 	}
 
@@ -6045,7 +6196,7 @@ func TestActiveServer_AnthropicModelReasoningEffort(t *testing.T) {
 			model.Model = tt.model
 			model = updateChatModelContextLimit(t, db, model)
 			model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
-				MaxOutputTokens: ptr.Ref(int64(4096)),
+				MaxOutputTokens: new(int64(4096)),
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 					Default: &tt.effort,
 					Max:     &tt.effort,
@@ -6439,6 +6590,15 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 				require.False(t, result.ProviderExecuted)
 			}
 		}
+
+		// Batch runtime bills a dedicated model-only usage row, so no
+		// user-visible tool row ever carries runtime.
+		messages := chatMessages(ctx, t, db, chat.ID)
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleTool {
+				require.False(t, msg.RuntimeMs.Valid)
+			}
+		}
 	})
 }
 
@@ -6675,12 +6835,12 @@ func setupToolExecutionAgentConn(
 
 func dynamicToolJSON(t *testing.T, name string) []byte {
 	t.Helper()
-	encoded, err := json.Marshal([]mcpgo.Tool{{
+	encoded, err := json.Marshal([]mcp.Tool{{
 		Name:        name,
 		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
 				"query": map[string]any{"type": "string"},
 			},
 		},
@@ -6870,6 +7030,45 @@ func TestActiveServer_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 275, Valid: true}, last.TotalTokens)
 	require.Equal(t, sql.NullInt64{Int64: 30, Valid: true}, last.CacheCreationTokens)
 	require.Equal(t, sql.NullInt64{Int64: 150, Valid: true}, last.CacheReadTokens)
+}
+
+func TestActiveServer_AnthropicPersistsPerRequestUsage(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(_ *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunksWithMessageUsages(
+			chattest.AnthropicUsage{
+				InputTokens:              2,
+				CacheReadInputTokens:     139956,
+				CacheCreationInputTokens: 7770,
+			},
+			chattest.AnthropicUsage{
+				InputTokens:              4,
+				CacheReadInputTokens:     287682,
+				CacheCreationInputTokens: 15556,
+				OutputTokens:             4996,
+			},
+			"cached response",
+		)...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+	})
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	messages := chatMessages(ctx, t, db, chat.ID)
+	last := messages[len(messages)-1]
+	require.Equal(t, database.ChatMessageRoleAssistant, last.Role)
+	require.Equal(t, sql.NullInt64{Int64: 139956, Valid: true}, last.CacheReadTokens)
+	require.Equal(t, sql.NullInt64{Int64: 7770, Valid: true}, last.CacheCreationTokens)
+	require.Equal(t, sql.NullInt64{Int64: 2, Valid: true}, last.InputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4996, Valid: true}, last.OutputTokens)
+	require.Equal(t, sql.NullInt64{Int64: 4998, Valid: true}, last.TotalTokens)
 }
 
 func TestActiveServer_ChatTurnDebugRunRecordsStreamStep(t *testing.T) {
@@ -7153,7 +7352,7 @@ func TestActiveServer_AnthropicContext1MBetaHeader(t *testing.T) {
 		generationRequests := runChat(t, &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-					Context1MEnabled: ptr.Ref(true),
+					Context1MEnabled: new(true),
 				},
 			},
 		})
@@ -7593,10 +7792,10 @@ func TestActiveServer_ExclusiveToolPolicy(t *testing.T) {
 		})
 		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 		seedAdvisorConfig(ctx, t, db, codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
-		dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
+		dynamicToolsJSON, err := json.Marshal([]mcp.Tool{{
 			Name:        "mcp_tool",
 			Description: "dynamic test tool",
-			InputSchema: mcpgo.ToolInputSchema{Type: "object", Properties: map[string]any{"q": map[string]any{"type": "string"}}},
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
 		}})
 		require.NoError(t, err)
 
@@ -8461,6 +8660,14 @@ func newDebugEnabledTestServer(
 	return server
 }
 
+// withoutMCPToolSearch disables the mcp-tool-search experiment so a
+// test exercises direct MCP tool advertisement instead of deferral.
+func withoutMCPToolSearch(cfg *chatd.Config) {
+	cfg.Experiments = slices.DeleteFunc(slices.Clone(cfg.Experiments), func(experiment codersdk.Experiment) bool {
+		return experiment == codersdk.ExperimentMCPToolSearch
+	})
+}
+
 // newActiveTestServer creates a chatd server that actively polls for
 // and processes pending chats. Use this instead of newTestServer when
 // the test needs the chat loop to actually run. Optional config
@@ -8733,8 +8940,9 @@ func seedChatDependenciesWithProvider(
 		BaseUrl:     baseURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
-		IsDefault:    true,
+		AIProviderID:   uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:      true,
+		OrganizationID: org.ID,
 	})
 	return user, org, model
 }
@@ -8771,8 +8979,9 @@ func seedChatDependenciesWithProviderPolicy(
 	})
 
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
-		IsDefault:    true,
+		AIProviderID:   uuid.NullUUID{UUID: providerConfig.ID, Valid: true},
+		IsDefault:      true,
+		OrganizationID: org.ID,
 	})
 
 	return user, org, providerConfig, model
@@ -8849,13 +9058,23 @@ func insertChatModelConfigWithCallConfig(
 			Type: database.AIProviderType(provider),
 		})
 	}
+	organizations, err := db.GetOrganizationsByUserID(context.Background(), database.GetOrganizationsByUserIDParams{
+		UserID: userID,
+		Deleted: sql.NullBool{
+			Bool:  false,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, organizations, 1)
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
-		Model:        model,
-		DisplayName:  model,
-		CreatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
-		UpdatedBy:    uuid.NullUUID{UUID: userID, Valid: true},
-		Options:      options,
+		AIProviderID:   uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+		Model:          model,
+		DisplayName:    model,
+		CreatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: userID, Valid: true},
+		Options:        options,
+		OrganizationID: organizations[0].ID,
 	})
 }
 
@@ -10054,9 +10273,10 @@ func seedAIGatewayOpenAITestDependencies(
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		IsDefault:    true,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		IsDefault:      true,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	})
 	_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
 		ID:           uuid.New(),
@@ -10377,6 +10597,421 @@ func (d *panicOnInTxDB) InTx(f func(database.Store) error, opts *database.TxOpti
 	return d.Store.InTx(f, opts)
 }
 
+func TestMCPToolSearchGenerationFlows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("search activates tools within and across turns", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("search-mcp")
+		addTestMCPTextTool(mcpSrv, "alpha", "Alpha deferred action", "alpha: ")
+		addTestMCPTextTool(mcpSrv, "beta", "Beta deferred action", "beta: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var (
+			streamCount atomic.Int32
+			requestsMu  sync.Mutex
+			requests    []recordedOpenAIRequest
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			requestsMu.Unlock()
+			switch streamCount.Add(1) {
+			case 1:
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"names":["search-mcp__alpha","search-mcp__beta"]}`),
+				)
+			default:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Search MCP",
+			Slug:           "search-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "deferred search",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("find deferred actions"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			ModelConfigID: model.ID,
+			Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue")},
+			BusyBehavior:  chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requestsMu.Lock()
+		recorded := append([]recordedOpenAIRequest(nil), requests...)
+		requestsMu.Unlock()
+		require.Len(t, recorded, 3)
+		require.Contains(t, recorded[0].Tools, "read_file")
+		require.Contains(t, recorded[0].Tools, chattool.FindToolsName)
+		require.NotContains(t, recorded[0].Tools, "search-mcp__alpha")
+		require.NotContains(t, recorded[0].Tools, "search-mcp__beta")
+		for _, request := range recorded[1:] {
+			require.Contains(t, request.Tools, chattool.FindToolsName)
+			require.Contains(t, request.Tools, "search-mcp__alpha")
+			require.Contains(t, request.Tools, "search-mcp__beta")
+			require.Less(t,
+				slices.Index(request.Tools, "search-mcp__alpha"),
+				slices.Index(request.Tools, "search-mcp__beta"),
+			)
+		}
+	})
+
+	t.Run("direct call activates schema on next step", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("direct-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo deferred input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var (
+			streamCount atomic.Int32
+			requestsMu  sync.Mutex
+			requests    []recordedOpenAIRequest
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			requestsMu.Unlock()
+			if streamCount.Add(1) == 1 {
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk("direct-mcp__echo", `{"input":"hello"}`),
+				)
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Direct MCP",
+			Slug:           "direct-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "direct deferred call",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("call the deferred tool directly"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requestsMu.Lock()
+		recorded := append([]recordedOpenAIRequest(nil), requests...)
+		requestsMu.Unlock()
+		require.Len(t, recorded, 2)
+		require.NotContains(t, recorded[0].Tools, "direct-mcp__echo")
+		require.Contains(t, recorded[1].Tools, "direct-mcp__echo")
+		require.True(t, openAIMessagesContain(recorded[1].Messages, "echo: hello"))
+	})
+
+	t.Run("partition-denied find_tools calls count toward call totals", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("count-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var streamCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				// Malformed JSON input: partitioned into a synthetic
+				// denial before ExecuteLocalTools, so the tool's own
+				// handler and decode never see this call.
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"`),
+				)
+			default:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Count MCP",
+			Slug:           "count-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		reg := prometheus.NewRegistry()
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.PrometheusRegistry = reg
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "count denied find_tools",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("search"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
+	})
+
+	t.Run("hook-denied find_tools calls count toward call totals", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("hooked-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		var streamCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			switch streamCount.Add(1) {
+			case 1:
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"]}`),
+				)
+			default:
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			}
+		})
+		consumer := preToolUseConsumer(t, func(data agenthooks.PreToolUseData) string {
+			require.Equal(t, chattool.FindToolsName, data.ToolName)
+			return `{"permission":{"decision":"deny","reason":"blocked by policy"}}`
+		})
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Hooked MCP",
+			Slug:           "hooked-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		reg := prometheus.NewRegistry()
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			cfg.PrometheusRegistry = reg
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "count hook-denied find_tools",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("search"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
+	})
+
+	t.Run("admission-failed find_tools calls count toward call totals", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		mcpSrv := newTestMCPServer("failing-mcp")
+		addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+		mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+		t.Cleanup(mcpTS.Close)
+
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(chattool.FindToolsName, `{"queries":["echo"]}`),
+			)
+		})
+		// A pre_tool_use dispatch failure errors admission before the
+		// step commits, so the call never reaches executeLocalTools.
+		consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var request agenthooks.Request
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			if request.Type != agenthooks.EventPreToolUse {
+				_, err := w.Write([]byte(`{}`))
+				require.NoError(t, err)
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		t.Cleanup(consumer.Close)
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: org.ID,
+			DisplayName:    "Failing MCP",
+			Slug:           "failing-mcp",
+			Url:            mcpTS.URL,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		})
+		reg := prometheus.NewRegistry()
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+			cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+			cfg.PrometheusRegistry = reg
+		})
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			Title:          "count admission-failed find_tools",
+			ModelConfigID:  model.ID,
+			MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("search"),
+			},
+		})
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+		requireChatdMetricCounter(t, reg, "coderd_chatd_find_tools_calls_total", 1, nil)
+	})
+
+	t.Run("experiment gates deferral regardless of catalog size", func(t *testing.T) {
+		t.Parallel()
+
+		run := func(t *testing.T, experimentEnabled bool) []byte {
+			t.Helper()
+			db, ps := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			mcpSrv := newTestMCPServer("small-mcp")
+			addTestMCPTextTool(mcpSrv, "echo", "Echo input", "echo: ")
+			mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+			t.Cleanup(mcpTS.Close)
+			var toolsJSON []byte
+			var toolsMu sync.Mutex
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				encoded, err := json.Marshal(req.Tools)
+				require.NoError(t, err)
+				toolsMu.Lock()
+				toolsJSON = encoded
+				toolsMu.Unlock()
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			model.ContextLimit = 100_000
+			model = updateChatModelContextLimit(t, db, model)
+			mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+				OrganizationID: org.ID,
+				DisplayName:    "Small MCP",
+				Slug:           "small-mcp",
+				Url:            mcpTS.URL,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			})
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				if !experimentEnabled {
+					withoutMCPToolSearch(cfg)
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				Title:          "small deferred catalog",
+				ModelConfigID:  model.ID,
+				MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("finish"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			toolsMu.Lock()
+			defer toolsMu.Unlock()
+			return append([]byte(nil), toolsJSON...)
+		}
+
+		toolNames := func(t *testing.T, toolsJSON []byte) []string {
+			t.Helper()
+			var tools []struct {
+				Function struct {
+					Name string `json:"name"`
+				} `json:"function"`
+			}
+			require.NoError(t, json.Unmarshal(toolsJSON, &tools))
+			names := make([]string, 0, len(tools))
+			for _, tool := range tools {
+				names = append(names, tool.Function.Name)
+			}
+			return names
+		}
+
+		withoutExperiment := toolNames(t, run(t, false))
+		require.Contains(t, withoutExperiment, "small-mcp__echo",
+			"without the experiment the MCP schema is advertised directly")
+		require.NotContains(t, withoutExperiment, chattool.FindToolsName)
+
+		withExperiment := toolNames(t, run(t, true))
+		require.Contains(t, withExperiment, chattool.FindToolsName,
+			"the experiment defers every MCP schema behind find_tools, even a small catalog")
+		require.NotContains(t, withExperiment, "small-mcp__echo")
+	})
+}
+
 // TestMCPServerToolInvocation verifies that when a chat has
 // mcp_server_ids set, the chat loop connects to those MCP servers,
 // discovers their tools, and the LLM can invoke them.
@@ -10392,21 +11027,9 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// Start a real MCP server that exposes an "echo" tool.
-	mcpSrv := mcpserver.NewMCPServer("test-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	mcpTS := httptest.NewServer(mcpHTTP)
 	t.Cleanup(mcpTS.Close)
 
@@ -10461,11 +11084,12 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	// happen after seedChatDependencies so user.ID exists for
 	// the foreign key.
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
-		DisplayName: "Test MCP",
-		Slug:        "test-mcp",
-		Url:         mcpTS.URL,
-		CreatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:   uuid.NullUUID{UUID: user.ID, Valid: true},
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
@@ -10481,6 +11105,7 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -10574,21 +11199,9 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-mode-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-mode-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10634,6 +11247,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID:  org.ID,
 		DisplayName:     "Plan Mode MCP",
 		Slug:            "plan-mode-mcp",
 		Url:             mcpTS.URL,
@@ -10643,6 +11257,7 @@ func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 	})
 
@@ -10679,21 +11294,9 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	mcpSrv := mcpserver.NewMCPServer("plan-workflow-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpTS := httptest.NewServer(mcpserver.NewStreamableHTTPServer(mcpSrv))
+	mcpSrv := newTestMCPServer("plan-workflow-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
 	t.Cleanup(mcpTS.Close)
 
 	var (
@@ -10744,6 +11347,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID:  org.ID,
 		DisplayName:     "Plan Workflow MCP",
 		Slug:            "plan-workflow-mcp",
 		Url:             mcpTS.URL,
@@ -10769,6 +11373,7 @@ func TestPlanModeRootChatApprovedExternalMCPWorkflowCanReachProposePlan(t *testi
 		}).AnyTimes()
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -10879,21 +11484,9 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// Start a real MCP server with an auth middleware that only
 	// accepts the fresh access token. An expired token (or any
 	// other value) gets a 401.
-	mcpSrv := mcpserver.NewMCPServer("authed-mcp", "1.0.0")
-	mcpSrv.AddTools(mcpserver.ServerTool{
-		Tool: mcpgo.NewTool("echo",
-			mcpgo.WithDescription("Echoes the input"),
-			mcpgo.WithString("input",
-				mcpgo.Description("The input string"),
-				mcpgo.Required(),
-			),
-		),
-		Handler: func(_ context.Context, req mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
-			input, _ := req.GetArguments()["input"].(string)
-			return mcpgo.NewToolResultText("echo: " + input), nil
-		},
-	})
-	mcpHTTP := mcpserver.NewStreamableHTTPServer(mcpSrv)
+	mcpSrv := newTestMCPServer("authed-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpHTTP := testMCPHTTPHandler(mcpSrv)
 	// Wrap with auth check.
 	authMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -10955,6 +11548,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	// Seed the MCP server config with OAuth2 auth pointing to our
 	// mock token endpoint.
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
 		DisplayName:    "Authed MCP",
 		Slug:           "authed-mcp",
 		Url:            mcpTS.URL,
@@ -10988,6 +11582,7 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			require.Equal(t, dbAgent.ID, agentID)
@@ -11082,6 +11677,7 @@ func TestMCPServerOAuth2TokenRefreshFailureGraceful(t *testing.T) {
 	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
 
 	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
 		DisplayName:    "Broken MCP",
 		Slug:           "broken-mcp",
 		Url:            "http://127.0.0.1:0/does-not-exist",
@@ -11703,7 +12299,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		)
 	})
 
-	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
+	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
 
 	workspaceID := workspace.ID
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -11888,7 +12484,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 		want      string
 	}{
 		{name: "PreservesByDefault", want: "low"},
-		{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+		{name: "Overrides", requested: new("high"), want: "high"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -11904,7 +12500,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 				OrganizationID:     org.ID,
 				Title:              "edit-reasoning-effort",
 				ModelConfigID:      model.ID,
-				ReasoningEffort:    ptr.Ref("low"),
+				ReasoningEffort:    new("low"),
 				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
 			})
 			require.NoError(t, err)
@@ -11985,6 +12581,235 @@ func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
 	storedChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
+}
+
+func TestQueuedCompletionResolvesOrganizationModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TurnCompletion", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		firstRunStarted := make(chan struct{})
+		allowFirstRunFinish := make(chan struct{})
+		var requestCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if requestCount.Add(1) == 1 {
+				chunks := make(chan chattest.OpenAIChunk, 1)
+				go func() {
+					defer close(chunks)
+					select {
+					case <-firstRunStarted:
+					default:
+						close(firstRunStarted)
+					}
+					<-allowFirstRunFinish
+					chunks <- chattest.OpenAITextChunks("first done")[0]
+				}()
+				return chattest.OpenAIResponse{StreamingChunks: chunks}
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("second done")...)
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
+		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		testutil.TryReceive(ctx, t, firstRunStarted)
+		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		close(allowFirstRunFinish)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		var queuedMessage database.ChatMessage
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleUser {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			if len(parts) == 1 && parts[0].Text == "queued" {
+				queuedMessage = message
+			}
+		}
+		require.NotZero(t, queuedMessage.ID)
+		require.Equal(t, localDefault.ID, queuedMessage.ModelConfigID.UUID)
+	})
+
+	t.Run("InterruptionCompletion", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		streamStarted := make(chan struct{})
+		var requestCount atomic.Int32
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+			if requestCount.Add(1) == 1 {
+				chunks := make(chan chattest.OpenAIChunk, 1)
+				go func() {
+					defer close(chunks)
+					select {
+					case <-streamStarted:
+					default:
+						close(streamStarted)
+					}
+					<-req.Context().Done()
+				}()
+				return chattest.OpenAIResponse{StreamingChunks: chunks}
+			}
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("second done")...)
+		})
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		})
+		user, org, localDefault := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, localDefault.ID, "first")
+		testutil.TryReceive(ctx, t, streamStarted)
+		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+		current, err := db.GetChatByID(ctx, chat.ID)
+		require.NoError(t, err)
+		_, err = server.InterruptChat(ctx, current)
+		require.NoError(t, err)
+		waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+		messages := chatMessages(ctx, t, db, chat.ID)
+		var queuedMessage database.ChatMessage
+		for _, message := range messages {
+			if message.Role != database.ChatMessageRoleUser {
+				continue
+			}
+			parts, err := chatprompt.ParseContent(message)
+			require.NoError(t, err)
+			if len(parts) == 1 && parts[0].Text == "queued" {
+				queuedMessage = message
+			}
+		}
+		require.NotZero(t, queuedMessage.ID)
+		require.Equal(t, localDefault.ID, queuedMessage.ModelConfigID.UUID)
+	})
+}
+
+func TestQueuedPromotionResolvesOrganizationModel(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ExplicitPromotion", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, localDefault := seedChatDependencies(t, db)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: localDefault.ID,
+			Title:             "resolve explicit queued promotion",
+			Status:            database.ChatStatusError,
+		})
+		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+
+		result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			QueuedMessageID: queued.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, localDefault.ID, result.PromotedMessage.ModelConfigID.UUID)
+	})
+
+	t.Run("ErrorStateSendPromotion", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, localDefault := seedChatDependencies(t, db)
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: localDefault.ID,
+			Title:             "resolve error send promotion",
+			Status:            database.ChatStatusError,
+		})
+		insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+
+		result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:       chat.ID,
+			CreatedBy:    user.ID,
+			Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("new")},
+			BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, result.InsertedMessages)
+		promoted := result.InsertedMessages[len(result.InsertedMessages)-1]
+		require.Equal(t, localDefault.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("NoLocalDefaultKeepsQueuedRow", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		foreignModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: foreignModel.ID,
+			Title:             "keep unresolved queued row",
+			Status:            database.ChatStatusError,
+		})
+		queued := insertQueuedMessage(ctx, t, db, chat.ID, user.ID, foreignModel.ID, "queued")
+
+		_, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+			ChatID:          chat.ID,
+			CreatedBy:       user.ID,
+			QueuedMessageID: queued.ID,
+		})
+		require.ErrorIs(t, err, chatd.ErrNoDefaultChatModelConfig)
+		rows, err := db.GetChatQueuedMessages(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, queued.ID, rows[0].ID)
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Empty(t, messages)
+	})
+}
+
+func insertQueuedMessage(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	createdBy uuid.UUID,
+	modelConfigID uuid.UUID,
+	text string,
+) database.ChatQueuedMessage {
+	t.Helper()
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
+	require.NoError(t, err)
+	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+		ChatID:        chatID,
+		Content:       content.RawMessage,
+		ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+		CreatedBy:     createdBy,
+	})
+	require.NoError(t, err)
+	return queued
 }
 
 func TestPromoteQueuedPreservesReasoningEffort(t *testing.T) {
@@ -12806,16 +13631,18 @@ func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
 	})
 
 	mA := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		DisplayName:  "Model A",
-		Enabled:      true,
-		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		DisplayName:    "Model A",
+		Enabled:        true,
+		AIProviderID:   uuid.NullUUID{UUID: cpA.ID, Valid: true},
+		OrganizationID: org.ID,
 	})
 	mB := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "gpt-4o-mini",
-		DisplayName:  "Model B",
-		Enabled:      true,
-		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+		Model:          "gpt-4o-mini",
+		DisplayName:    "Model B",
+		Enabled:        true,
+		AIProviderID:   uuid.NullUUID{UUID: cpB.ID, Valid: true},
+		OrganizationID: org.ID,
 	})
 
 	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {

@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
@@ -40,21 +41,21 @@ type generationPrepared struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 
-	Model             chatprovider.Model
-	Prompt            []fantasy.Message
-	Tools             []fantasy.AgentTool
-	ActiveTools       []string
-	ProviderTools     []chatloop.ProviderTool
-	ModelRoute        aiGatewayModelRoute
-	ModelBuildOptions modelBuildOptions
+	Model              chatprovider.Model
+	Prompt             []fantasy.Message
+	Tools              []fantasy.AgentTool
+	ActiveTools        []string
+	AllowInactiveTools map[string]bool
+	ProviderTools      []chatloop.ProviderTool
+	ModelRoute         aiGatewayModelRoute
+	ModelBuildOptions  modelBuildOptions
 
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
 
 	ModelConfigID        uuid.UUID
-	ModelConfig          codersdk.ChatModelCallConfig
-	ProviderOptions      fantasy.ProviderOptions
+	CallTemplate         fantasy.Call
 	ContextLimitFallback int64
 
 	DynamicToolNames   map[string]bool
@@ -731,8 +732,7 @@ func (s *taskStarter) generateAssistant(
 		ActiveTools:          prepared.ActiveTools,
 		ProviderTools:        prepared.ProviderTools,
 		ContextLimitFallback: prepared.ContextLimitFallback,
-		ModelConfig:          prepared.ModelConfig,
-		ProviderOptions:      prepared.ProviderOptions,
+		CallTemplate:         prepared.CallTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
@@ -781,21 +781,69 @@ func (s *taskStarter) admitStepToolCalls(
 	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
+	// An admission error discards the whole batch before it can be
+	// committed, so its find_tools calls would otherwise never reach
+	// the executeLocalTools counter; count them at each error exit.
+	countBatch := func() {
+		if !prepared.BuiltinToolNames[chattool.FindToolsName] {
+			return
+		}
+		for _, toolCall := range toolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	// Check the full batch first: a call removed below still occupies its ID
 	// in the step, so filtering before this would hide the collision.
 	if err := chathooks.RejectDuplicateToolUseIDs(toolCalls); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
+	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
 	if err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	preflight.Denied = append(preflight.Denied, ambiguous...)
+	// Calls denied at admission persist synthetic results with the
+	// assistant step, so they never surface as unresolved calls where
+	// executeLocalTools counts find_tools invocations; count them here.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, result := range preflight.Denied {
+			if result.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
+	}
 	return preflight, nil
+}
+
+// bufferToolBillingRecorder translates a dispatch index in the filtered batch
+// back to the unresolved-call position the buffer episode keys timings by.
+type bufferToolBillingRecorder struct {
+	allowedIndexes []int
+	recordStart    func(callIndex int, startedAt time.Time)
+	recordComplete func(callIndex int, completedAt time.Time)
+}
+
+func (r *bufferToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordStart(r.allowedIndexes[dispatchIndex], startedAt)
+}
+
+func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
+		return
+	}
+	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -805,10 +853,23 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
+	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames)
 	allowed := decision.localToolCalls
+	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
-	if !exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames) {
-		allowed, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	if !exclusiveRejected {
+		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+	}
+	// find_tools calls are counted here, at the single point every
+	// model-emitted call passes through, because rejections upstream of
+	// the tool (partition denials, hook denials, exclusive-policy
+	// batches) never reach its handler or OnCall.
+	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+		for _, toolCall := range decision.localToolCalls {
+			if toolCall.ToolName == chattool.FindToolsName {
+				s.server.metrics.FindToolsCallsTotal.Inc()
+			}
+		}
 	}
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -821,20 +882,32 @@ func (s *taskStarter) executeLocalTools(
 		provider = prepared.Model.Provider()
 		modelName = prepared.Model.ModelID()
 	}
-	var outcome chatloop.ToolExecutionOutcome
+	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
 	if len(allowed) > 0 {
+		var billingRecorder chatloop.ToolBillingRecorder
+		if !exclusiveRejected {
+			billingRecorder = &bufferToolBillingRecorder{
+				allowedIndexes: allowedIndexes,
+				recordStart:    attempt.recordToolStart,
+				recordComplete: attempt.recordToolCompletion,
+			}
+		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
+			AllowInactiveTools: prepared.AllowInactiveTools,
 			ProviderTools:      prepared.ProviderTools,
 			ToolCalls:          allowed,
+			ObservedToolCalls:  decision.localToolCalls,
 			ExclusiveToolNames: prepared.ExclusiveToolNames,
 			BuiltinToolNames:   prepared.BuiltinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
+			UnbilledToolNames:  unbilledSubagentToolNames,
+			BillingRecorder:    billingRecorder,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -847,18 +920,19 @@ func (s *taskStarter) executeLocalTools(
 		// the tool run; its failure surfaces as a tool result error. The
 		// step still commits so a sibling tool that already ran keeps its
 		// result and is not re-executed, and the turn fails afterwards.
-		if hookErr := chathooks.DispatchFailureFromResults(outcome.Step.Content); hookErr != nil {
+		if hookErr := chathooks.DispatchFailureFromResults(outcome.Content); hookErr != nil {
 			spawnDispatchErr = chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
 		}
 	}
-	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Step.Content)
+	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
 	for _, result := range denied {
-		outcome.Step.Content = append(outcome.Step.Content, result)
+		outcome.Content = append(outcome.Content, result)
 	}
-	chathooks.RestoreToolCallOrder(outcome.Step.Content, decision.localToolCalls)
+	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
+	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
-		step:               stepDataFromPersisted(outcome.Step),
+		step:               step,
 		toolNameToConfigID: prepared.ToolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
@@ -919,7 +993,15 @@ func (s *taskStarter) generateCompaction(
 	compactionOpts := prepared.Compaction.Options
 	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
 	if override := prepared.Compaction.Override; override != nil {
-		overrideModel, err := s.server.buildCompactionOverrideModel(ctx, prepared.Chat, override.Config, prepared.ModelBuildOptions)
+		// A usable override that fails to build is a hard generation failure.
+		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
+			purpose:          "compaction",
+			chat:             prepared.Chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     prepared.ModelBuildOptions,
+		})
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
@@ -930,15 +1012,15 @@ func (s *taskStarter) generateCompaction(
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
 		compactionOpts.ResolvedModel = overrideModel.resolvedModel
-		compactionOpts.ModelConfigID = overrideModel.modelConfig.ID
-		compactionOpts.ProviderOptions = overrideModel.providerOptions
+		compactionOpts.ModelConfigID = overrideModel.dbConfig.ID
+		compactionOpts.SummaryCall = compactionSummaryCall(overrideModel)
 		compactionOpts.Messages = sanitizeCompactionPrompt(
 			ctx,
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
 			prepared.Compaction.ChatModelConfig,
-			overrideModel.modelConfig,
+			overrideModel.dbConfig,
 		)
 	}
 	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
@@ -1047,6 +1129,12 @@ type generationAttempt struct {
 	// can bill the window the step would have reported. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	startModelInvocation func()
+	// recordToolStart stamps an occurrence's actual start; serial calls may
+	// start after dispatch. It is always non-nil after beginGenerationAttempt.
+	recordToolStart func(callIndex int, startedAt time.Time)
+	// recordToolCompletion stamps an occurrence's completion. It is always
+	// non-nil after beginGenerationAttempt.
+	recordToolCompletion func(callIndex int, completedAt time.Time)
 	// closeEpisode closes the attempt's buffer episode. It is always
 	// non-nil when beginGenerationAttempt succeeds.
 	closeEpisode func()
@@ -1092,6 +1180,12 @@ func (s *taskStarter) beginGenerationAttempt(
 		},
 		startModelInvocation: func() {
 			_ = s.opts.MessagePartBuffer.StartModelInvocation(key)
+		},
+		recordToolStart: func(callIndex int, startedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolStart(key, callIndex, startedAt)
+		},
+		recordToolCompletion: func(callIndex int, completedAt time.Time) {
+			_ = s.opts.MessagePartBuffer.RecordToolCompletion(key, callIndex, completedAt)
 		},
 		closeEpisode: func() {
 			_ = s.opts.MessagePartBuffer.CloseEpisode(key)
@@ -1502,6 +1596,8 @@ func stepDataFromPersisted(step chatloop.PersistedStep) stepData {
 		Usage:                step.Usage,
 		ContextLimit:         step.ContextLimit,
 		Runtime:              step.Runtime,
+		BatchRuntime:         step.BatchRuntime,
+		BatchBilledCalls:     step.BatchBilledCalls,
 		ToolCallCreatedAt:    step.ToolCallCreatedAt,
 		ToolResultCreatedAt:  step.ToolResultCreatedAt,
 		ReasoningStartedAt:   step.ReasoningStartedAt,

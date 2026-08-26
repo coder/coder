@@ -22,15 +22,6 @@ Deprecated options are listed at the end of each section.
 
 ## General
 
-### Allow workspace renames
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
-
-- Environment variable: `CODER_ALLOW_WORKSPACE_RENAMES`
-- CLI flag: [`--allow-workspace-renames`](../../reference/cli/server.md#--allow-workspace-renames)
-- YAML key: `allowWorkspaceRenames`
-- Default value: `false`
-
 ### Cache directory
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
@@ -81,6 +72,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - Environment variable: `CODER_DISABLE_PATH_APPS`
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
+
+### Disable workspace agent context sync
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
+- Environment variable: `CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC`
+- CLI flag: [`--disable-workspace-agent-context-sync`](../../reference/cli/server.md#--disable-workspace-agent-context-sync)
+- YAML key: `disableWorkspaceAgentContextSync`
 
 ### Disable workspace sharing
 
@@ -502,15 +501,6 @@ The upgrade message to display to users when a client/server mismatch is detecte
 - Environment variable: `CODER_CLI_UPGRADE_MESSAGE`
 - CLI flag: [`--cli-upgrade-message`](../../reference/cli/server.md#--cli-upgrade-message)
 - YAML key: `client.cliUpgradeMessage`
-
-### Hide AI tasks
-
-Hide AI tasks from the dashboard.
-
-- Environment variable: `CODER_HIDE_AI_TASKS`
-- CLI flag: [`--hide-ai-tasks`](../../reference/cli/server.md#--hide-ai-tasks)
-- YAML key: `client.hideAITasks`
-- Default value: `false`
 
 ### SSH config options
 
@@ -1592,6 +1582,14 @@ OIDC claim field to use as the name.
 - CLI flag: [`--oidc-name-field`](../../reference/cli/server.md#--oidc-name-field)
 - YAML key: `oidc.nameField`
 - Default value: `name`
+
+### Redirect URL
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
+- Environment variable: `CODER_OIDC_REDIRECT_URL`
+- CLI flag: [`--oidc-redirect-url`](../../reference/cli/server.md#--oidc-redirect-url)
+- YAML key: `oidc.oidc-redirect-url`
 
 ### Regex group filter
 

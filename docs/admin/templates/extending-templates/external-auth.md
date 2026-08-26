@@ -9,6 +9,8 @@ service that requires authentication.
 
 External auth providers are configured using environment variables in the Coder
 Control Plane. See
+[External Authentication](../../external-auth/index.md) for how to configure
+them.
 
 ## Git Providers
 

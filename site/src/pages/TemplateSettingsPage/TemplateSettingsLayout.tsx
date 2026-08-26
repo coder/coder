@@ -60,7 +60,14 @@ export const TemplateSettingsLayout: FC = () => {
 	}
 
 	const error = templateQuery.isError || permissionsQuery.isError;
-	const template = templateQuery.data;
+	// We override `organization_name` here because we may have fallen back to
+	// `"default"` while fetching if the deployment does not have the
+	// organizations feature enabled, and so we need to make sure consumers do the
+	// same when invalidating queries.
+	const template = {
+		...templateQuery.data,
+		organization_name: organizationName,
+	};
 
 	return (
 		<>

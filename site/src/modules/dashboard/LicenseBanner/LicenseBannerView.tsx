@@ -25,6 +25,10 @@ export interface LicenseBannerLink {
 export interface LicenseBannerMessage {
 	message: string;
 	variant: LicenseBannerVariant;
+	// Diagnostics about the license or the usage measurement rather than
+	// about usage itself. They keep the "License notices" heading even when
+	// they are the only message, since the muted text needs that context.
+	kind?: "diagnostic";
 	link?: LicenseBannerLink;
 }
 
@@ -70,10 +74,20 @@ const getBannerVariant = (
 	return hasProminentWarning ? "warningProminent" : "warning";
 };
 
-const bannerTitle = (variant: LicenseBannerVariant): string =>
-	variant === "error"
-		? "License errors require attention"
-		: "Your license limits have been exceeded";
+// The muted "warning" variant means every message is an advisory or
+// diagnostic, so the heading must not assert a limit was hit. The prominent
+// heading says "reached" rather than "exceeded" because some limit warnings
+// fire at exact equality, which "reached" covers in both cases.
+const bannerTitle = (variant: LicenseBannerVariant): string => {
+	switch (variant) {
+		case "error":
+			return "License errors require attention";
+		case "warningProminent":
+			return "Your license limits have been reached";
+		case "warning":
+			return "License notices";
+	}
+};
 
 const bannerRole = (variant: LicenseBannerVariant): "alert" | "status" =>
 	variant === "error" ? "alert" : "status";
@@ -138,6 +152,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 	const bannerVariant = getBannerVariant(messages);
 	const visibleMessages = messages.slice(0, 2);
 	const hiddenMessages = messages.slice(2);
+	// A lone diagnostic keeps the heading: without it the muted banner is an
+	// unexplained sentence. Other single messages stay heading-less.
+	const showHeading = !isSingleMessage || messages[0].kind === "diagnostic";
 
 	return (
 		<div
@@ -151,20 +168,20 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
 					/>
 				</div>
 				<div className="flex min-w-0 flex-1 flex-col gap-2">
+					{showHeading && (
+						<div className="text-sm font-semibold leading-6 text-content-primary">
+							{bannerTitle(bannerVariant)}
+						</div>
+					)}
 					{isSingleMessage ? (
 						<div className="flex min-h-6 items-center text-xs leading-4 text-content-primary">
 							<LicenseMessageText entry={messages[0]} />
 						</div>
 					) : (
-						<>
-							<div className="text-sm font-semibold leading-6 text-content-primary">
-								{bannerTitle(bannerVariant)}
-							</div>
-							<ExpandableLicenseMessageList
-								hiddenMessages={hiddenMessages}
-								visibleMessages={visibleMessages}
-							/>
-						</>
+						<ExpandableLicenseMessageList
+							hiddenMessages={hiddenMessages}
+							visibleMessages={visibleMessages}
+						/>
 					)}
 				</div>
 			</div>

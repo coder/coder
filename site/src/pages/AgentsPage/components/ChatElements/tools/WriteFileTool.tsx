@@ -1,9 +1,9 @@
-import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
 import {
@@ -76,6 +76,8 @@ export const WriteFileTool: React.FC<{
 								? "max-h-[80vh]"
 								: "max-h-64"
 						}
+						viewportTabIndex={0}
+						viewportAriaLabel={`Diff of ${path}`}
 						scrollBarClassName="w-1.5"
 					>
 						<FileDiff

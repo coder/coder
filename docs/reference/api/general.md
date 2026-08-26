@@ -111,10 +111,10 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 ### Responses
 
-| Status | Meaning                                                                 | Description              | Schema                                           |
-|--------|-------------------------------------------------------------------------|--------------------------|--------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                       |                                                  |
-| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request Entity Too Large | [codersdk.Response](schemas.md#codersdkresponse) |
+| Status | Meaning                                                                 | Description                 | Schema                                           |
+|--------|-------------------------------------------------------------------------|-----------------------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)                 | OK                          |                                                  |
+| 413    | [Payload Too Large](https://tools.ietf.org/html/rfc7231#section-6.5.11) | Request body exceeds 64 KiB | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -311,6 +311,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
+    "disable_workspace_agent_context_sync": true,
     "disable_workspace_sharing": true,
     "docs_url": {
       "forceQuery": true,
@@ -325,6 +326,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "scheme": "string",
       "user": {}
     },
+    "enable_ai_tasks": true,
     "enable_authz_recording": true,
     "enable_terraform_debug_mode": true,
     "ephemeral_deployment": true,
@@ -351,6 +353,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "mcp_tool_deny_regex": "string",
           "mcp_url": "string",
           "no_refresh": true,
+          "redirect_url": "string",
           "regex": "string",
           "revoke_url": "string",
           "scopes": [
@@ -370,7 +373,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "refresh": 0,
       "threshold_database": 0
     },
-    "hide_ai_tasks": true,
     "http_address": "string",
     "http_cookies": {
       "host_prefix": true,

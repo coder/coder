@@ -722,6 +722,16 @@ The custom text to show on the error page informing about disabled OIDC signups.
 
 OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the well-known configuration. This flag disables that requirement, and can lead to an insecure OIDC configuration. It is not recommended to use this flag.
 
+### --oidc-redirect-url
+
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>url</code>                      |
+| Environment | <code>$CODER_OIDC_REDIRECT_URL</code> |
+| YAML        | <code>oidc.oidc-redirect-url</code>   |
+
+Optional override of the default redirect url which uses the deployment's access url. Useful in situations where a deployment has more than 1 domain. Using this setting can also break OIDC, so use with caution.
+
 ### --telemetry
 
 |             |                                      |
@@ -1206,6 +1216,16 @@ Disable workspace sharing. Workspace ACL checking is disabled and only owners ca
 
 Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
 
+### --disable-workspace-agent-context-sync
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>bool</code>                                        |
+| Environment | <code>$CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC</code> |
+| YAML        | <code>disableWorkspaceAgentContextSync</code>            |
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
 ### --session-duration
 
 |             |                                              |
@@ -1349,17 +1369,6 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 | Default     | <code>canvas</code>                       |
 
 The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
-
-### --allow-workspace-renames
-
-|             |                                             |
-|-------------|---------------------------------------------|
-| Type        | <code>bool</code>                           |
-| Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
-| YAML        | <code>allowWorkspaceRenames</code>          |
-| Default     | <code>false</code>                          |
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
 
 ### --health-check-refresh
 
@@ -1727,17 +1736,6 @@ The upper limit of attempts to send a notification.
 | Default     | <code>1m0s</code>                                               |
 
 How often to reconcile workspace prebuilds state.
-
-### --hide-ai-tasks
-
-|             |                                   |
-|-------------|-----------------------------------|
-| Type        | <code>bool</code>                 |
-| Environment | <code>$CODER_HIDE_AI_TASKS</code> |
-| YAML        | <code>client.hideAITasks</code>   |
-| Default     | <code>false</code>                |
-
-Hide AI tasks from the dashboard.
 
 ### --chat-debug-logging-enabled
 

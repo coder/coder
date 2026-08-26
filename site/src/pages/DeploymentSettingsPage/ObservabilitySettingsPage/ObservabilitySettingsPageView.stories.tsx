@@ -1,10 +1,17 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import type { SerpentGroup } from "#/api/typesGenerated";
+import { MockPermissions } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
 
-const group: SerpentGroup = {
+const introspectionGroup: SerpentGroup = {
 	name: "Introspection",
+	description: "",
+};
+
+const retentionGroup: SerpentGroup = {
+	name: "Retention",
 	description: "",
 };
 
@@ -14,9 +21,20 @@ const meta: Meta<typeof ObservabilitySettingsPageView> = {
 	args: {
 		options: [
 			{
+				name: "Audit Logs Retention",
+				description:
+					"How long audit log entries are retained. Set to 0 to disable (keep indefinitely).",
+				value: 0,
+				group: retentionGroup,
+				flag: "audit-logs-retention",
+				env: "CODER_AUDIT_LOGS_RETENTION",
+				yaml: "audit_logs",
+				hidden: false,
+			},
+			{
 				name: "Verbose",
 				value: true,
-				group,
+				group: introspectionGroup,
 				flag: "verbose",
 				flag_shorthand: "v",
 				hidden: false,
@@ -40,13 +58,13 @@ const meta: Meta<typeof ObservabilitySettingsPageView> = {
 				description:
 					"Serve prometheus metrics on the address defined by prometheus address.",
 				value: true,
-				group: { ...group },
+				group: { ...introspectionGroup },
 				flag: "prometheus-enable",
 				hidden: false,
 			},
 		],
 		featureAuditLogEnabled: true,
-		isPremium: false,
+		canViewPremium: MockPermissions.viewAllLicenses,
 	},
 };
 
@@ -56,38 +74,52 @@ type Story = StoryObj<typeof ObservabilitySettingsPageView>;
 export const Page: Story = {};
 
 export const OSS: Story = {
-	args: { featureAuditLogEnabled: false, isPremium: false },
+	args: { featureAuditLogEnabled: false },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const alert = canvas.getByRole("alert");
-		await expect(alert).toBeVisible();
-		await expect(within(alert).getByText("Premium")).toBeVisible();
+		await expect(canvas.getByText("Audit Logging")).toBeVisible();
 		await expect(
-			within(alert).getByRole("link", {
-				name: "Read the Audit Logs documentation",
-			}),
+			canvas.getByRole("link", { name: "Start trial for free" }),
+		).toHaveAttribute("href", "/deployment/premium");
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(2);
+		await expect(docsLinks[0]).toHaveAttribute(
+			"href",
+			docs("/admin/security/audit-logs"),
+		);
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring"),
+		);
+		await expect(
+			canvas.queryByText("Audit Logs Retention"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OSSWithoutLicenseAccess: Story = {
+	args: { featureAuditLogEnabled: false, canViewPremium: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText(/contact your deployment administrator/i),
 		).toBeVisible();
-		await expect(canvas.queryByText("Enterprise")).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
 	},
 };
 
-export const Premium: Story = {
-	args: { featureAuditLogEnabled: true, isPremium: true },
+export const Entitled: Story = {
+	args: { featureAuditLogEnabled: true },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		await expect(canvas.getByText("Premium")).toBeVisible();
-	},
-};
-
-export const EnterpriseAuditLogs: Story = {
-	args: { featureAuditLogEnabled: true, isPremium: false },
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-
-		await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
-		await expect(canvas.getByText("Enterprise")).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Start trial for free" }),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Audit Logs Retention")).toBeVisible();
 	},
 };

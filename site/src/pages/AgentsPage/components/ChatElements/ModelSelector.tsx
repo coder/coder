@@ -68,7 +68,7 @@ interface ModelSelectorProps {
 	onReasoningEffortChange?: (value: string) => void;
 }
 
-const formatContextLimit = (tokens: number): string => {
+export const formatContextLimit = (tokens: number): string => {
 	if (tokens >= 1_000_000) {
 		const m = tokens / 1_000_000;
 		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
@@ -162,14 +162,30 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					role="combobox"
 					type="button"
 					variant="subtle"
+					// min-w floor: ~8ch of the label plus 3.125rem of fixed chrome
+					// stay visible before truncation kicks in.
 					className={cn(
-						"h-8 min-w-0 shrink justify-start gap-0.5 border-0 bg-transparent px-1 text-xs font-medium shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link md:w-auto md:shrink-0 md:gap-1.5 [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+						"h-7 min-w-[calc(8ch_+_3.125rem)] shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
 				>
-					<span className="truncate">{triggerLabel}</span>
-					<ChevronDownIcon open={open} className="size-icon-sm" />
+					<span className="flex min-w-0 items-center gap-1">
+						{selectedModel && (
+							<span
+								className="flex shrink-0 items-center"
+								data-testid="model-selector-trigger-icon"
+							>
+								<ProviderIcon
+									provider={selectedModel.provider}
+									icon={selectedModel.providerIcon}
+									className="size-3 shrink-0"
+								/>
+							</span>
+						)}
+						<span className="truncate">{triggerLabel}</span>
+					</span>
+					<ChevronDownIcon open={open} />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
@@ -182,11 +198,9 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
-					// On touch devices, auto-focusing the search input pops the
-					// software keyboard as soon as the picker opens, hiding the
-					// model list behind it. Only keep the WAI-ARIA combobox
-					// focus-into-input behavior for fine pointers (keyboard and
-					// mouse users on desktop).
+					// Touch devices auto-focus search on open, and the software
+					// keyboard hides the model list. Keep the WAI-ARIA combobox
+					// focus-into-input behavior for fine pointers only.
 					if (matchMedia("(pointer: coarse)").matches) {
 						event.preventDefault();
 					}

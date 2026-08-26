@@ -121,7 +121,7 @@ func TestWaitBuffer_ConcurrentWrites(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := range iterations {
-				_, _ = wb.Write([]byte(fmt.Sprintf("w%d-%d ", i, j)))
+				_, _ = fmt.Fprintf(wb, "w%d-%d ", i, j)
 			}
 		}()
 	}

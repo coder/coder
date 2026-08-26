@@ -5,6 +5,7 @@ import {
 	useEffect,
 	useReducer,
 	useRef,
+	useState,
 } from "react";
 
 import { useQuery } from "react-query";
@@ -46,8 +47,12 @@ import {
 	WIZARD_STEPS,
 } from "./steps";
 import { TemplateAlternatives } from "./TemplateAlternatives";
-import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
 import {
+	TEMPLATE_CUSTOMIZATIONS_FORM_ID,
+	TemplateCustomizationsStep,
+} from "./TemplateCustomizationsStep";
+import {
+	type CustomizationsFormValues,
 	initWizardState,
 	type SelectedBaseMeta,
 	type TemplateBuilderWizardState,
@@ -59,7 +64,10 @@ interface TemplateBuilderPageViewProps {
 	error: unknown;
 	basesData: TemplateBuilderBasesResponse | undefined;
 	preselectedBase?: SelectedBaseMeta;
-	onCreateTemplate: (state: TemplateBuilderWizardState) => void;
+	onCreateTemplate: (
+		state: TemplateBuilderWizardState,
+		customizations: CustomizationsFormValues,
+	) => void;
 	createError: Error | null;
 	isCreating: boolean;
 	onClearCreateError?: () => void;
@@ -104,6 +112,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	);
 	const currentIndex = nearestVisible(clampedIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
+
+	// The highest sidebar group the user has reached. It never shrinks on
+	// backward navigation, so completed steps stay green and clickable in the
+	// SelectionSummary sidebar like a browser back-stack.
+	const [maxReachedGroup, setMaxReachedGroup] = useState<1 | 2 | 3>(
+		currentStep.group,
+	);
+	if (currentStep.group > maxReachedGroup) {
+		setMaxReachedGroup(currentStep.group);
+	}
 
 	// Rewrite the URL whenever it disagrees with the resolved step.
 	useEffect(() => {
@@ -154,11 +172,27 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	const handleNext = () => {
-		if (isLastStep) {
-			onCreateTemplate(state);
+		navigateToStep(nextIndex);
+	};
+
+	// Sidebar step labels and the base-template row call this to jump to a
+	// specific wizard step. Skipped steps resolve to the nearest visible one
+	// (so jumping to base-parameters lands on base-infra when the base has no
+	// parameters).
+	const navigateToStepId = (stepId: StepId) => {
+		const target = WIZARD_STEPS.findIndex((s) => s.id === stepId);
+		if (target < 0) {
 			return;
 		}
-		navigateToStep(nextIndex);
+		if (currentStep.id === "customizations" && stepId !== "customizations") {
+			dispatch({ type: "RESET_CUSTOMIZATIONS" });
+			onClearCreateError?.();
+		}
+		navigateToStep(nearestVisible(target, state));
+	};
+
+	const handleCreate = (values: CustomizationsFormValues) => {
+		onCreateTemplate(state, values);
 	};
 
 	const handleProvisionerStatusChange = useCallback(
@@ -278,6 +312,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							handleProvisionerStatusChange,
 							handleDeselectModule,
 							registerModuleRef,
+							handleCreate,
 						)}
 					</div>
 
@@ -290,9 +325,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue}>
-							{isLastStep ? "Create Template" : "Continue"}
-						</Button>
+						{isLastStep ? (
+							<Button
+								type="submit"
+								form={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
+								disabled={state.hasProvisioners === false}
+							>
+								Create Template
+							</Button>
+						) : (
+							<Button onClick={handleNext} disabled={!canContinue}>
+								Continue
+							</Button>
+						)}
 					</div>
 
 					{currentStep.id === "base-infra" && <TemplateAlternatives />}
@@ -302,6 +347,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
+						maxReachedStep={maxReachedGroup}
+						onNavigateStep={navigateToStepId}
 						onNavigateModule={navigateToModule}
 						selectedTemplate={
 							state.selectedBase
@@ -332,6 +379,7 @@ function renderStepContent(
 	onProvisionerStatusChange: (value: boolean | undefined) => void,
 	onRemoveModule: (moduleId: string) => void,
 	registerModuleRef: (moduleId: string, node: HTMLDivElement | null) => void,
+	onCreate: (values: CustomizationsFormValues) => void,
 ): ReactNode {
 	switch (stepId) {
 		case "base-infra":
@@ -387,13 +435,7 @@ function renderStepContent(
 					{createError != null && <ErrorAlert error={createError} />}
 					<TemplateCustomizationsStep
 						state={state}
-						onChangeField={(field, value) =>
-							dispatch({
-								type: "SET_CUSTOMIZATION",
-								field,
-								value,
-							})
-						}
+						onCreate={onCreate}
 						onProvisionerStatusChange={onProvisionerStatusChange}
 					/>
 				</>
@@ -426,7 +468,7 @@ function computeCanContinue(
 				moduleVarMap,
 			);
 		case "customizations":
-			return state.name.trim() !== "" && state.hasProvisioners !== false;
+			return state.hasProvisioners !== false;
 		default:
 			return true;
 	}

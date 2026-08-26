@@ -24,34 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-func TestProviderBaseURLHostname(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		baseURL string
-		want    string
-	}{
-		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
-		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
-		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
-		{name: "Empty", baseURL: "", want: ""},
-		{name: "Invalid", baseURL: "://", want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.want, chatprovider.ProviderBaseURLHostname(tt.baseURL))
-		})
-	}
-}
 
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
@@ -360,17 +337,17 @@ func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
 	}{
 		{
 			name:  "Summarized",
-			input: ptr.Ref(" SUMMARIZED "),
-			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+			input: new(" SUMMARIZED "),
+			want:  new(fantasyanthropic.ThinkingDisplaySummarized),
 		},
 		{
 			name:  "Omitted",
-			input: ptr.Ref("omitted"),
-			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+			input: new("omitted"),
+			want:  new(fantasyanthropic.ThinkingDisplayOmitted),
 		},
 		{
 			name:  "InvalidReturnsNil",
-			input: ptr.Ref("summary"),
+			input: new("summary"),
 		},
 		{
 			name:  "NilInputReturnsNil",
@@ -393,7 +370,7 @@ func TestProviderOptionsForCall_AnthropicThinkingDisplay(t *testing.T) {
 	providerOptions := chatprovider.ProviderOptionsForCall(chatprovider.Model{}, codersdk.ChatModelCallConfig{
 		ProviderOptions: &codersdk.ChatModelProviderOptions{
 			Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-				ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+				ThinkingDisplay: new(" SUMMARIZED "),
 			},
 		},
 	}, nil)
@@ -403,6 +380,207 @@ func TestProviderOptionsForCall_AnthropicThinkingDisplay(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, anthropicOptions.ThinkingDisplay)
 	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
+}
+
+func TestGoogleThinkingLevelFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasygoogle.ThinkingLevel
+	}{
+		{
+			name:  "Minimal",
+			input: new(" MINIMAL "),
+			want:  new(fantasygoogle.ThinkingLevelMinimal),
+		},
+		{
+			name:  "Low",
+			input: new("low"),
+			want:  new(fantasygoogle.ThinkingLevelLow),
+		},
+		{
+			name:  "Medium",
+			input: new("Medium"),
+			want:  new(fantasygoogle.ThinkingLevelMedium),
+		},
+		{
+			name:  "High",
+			input: new("high"),
+			want:  new(fantasygoogle.ThinkingLevelHigh),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: new("ultra"),
+		},
+		{
+			name:  "EmptyReturnsNil",
+			input: new(" "),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.GoogleThinkingLevelFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsForCall_GoogleThinkingConfig(t *testing.T) {
+	t.Parallel()
+
+	googleModel := chatprovider.NewModel(&chattest.FakeModel{
+		ProviderName: fantasygoogle.Name,
+		ModelName:    "gemini-3.7-flash",
+	}, nil)
+
+	t.Run("PinnedLevelWithoutEffortConfig", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: new(" MEDIUM "),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelMedium, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("PinnedLevelDroppedForGemini25", func(t *testing.T) {
+		t.Parallel()
+
+		gemini25 := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-2.5-flash",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini25, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel:   new("medium"),
+						IncludeThoughts: new(true),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.Nil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.True(t, *googleOptions.ThinkingConfig.IncludeThoughts)
+	})
+
+	t.Run("PinnedLevelClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: new("minimal"),
+					},
+				},
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelLow, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("EffortClampedForGemini3Pro", func(t *testing.T) {
+		t.Parallel()
+
+		gemini3Pro := chatprovider.NewModel(&chattest.FakeModel{
+			ProviderName: fantasygoogle.Name,
+			ModelName:    "gemini-3-pro-preview",
+		}, nil)
+
+		providerOptions := chatprovider.ProviderOptionsForCall(gemini3Pro, codersdk.ChatModelCallConfig{
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, new(codersdk.ChatModelReasoningEffortMedium))
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelHigh, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("EffortOverridesPinnedLevel", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingLevel: new("medium"),
+					},
+				},
+			},
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, new(codersdk.ChatModelReasoningEffortHigh))
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.NotNil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+		require.Equal(t, fantasygoogle.ThinkingLevelHigh, *googleOptions.ThinkingConfig.ThinkingLevel)
+	})
+
+	t.Run("ConfiguredBudgetSuppressesEffortLevel", func(t *testing.T) {
+		t.Parallel()
+
+		providerOptions := chatprovider.ProviderOptionsForCall(googleModel, codersdk.ChatModelCallConfig{
+			ProviderOptions: &codersdk.ChatModelProviderOptions{
+				Google: &codersdk.ChatModelGoogleProviderOptions{
+					ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{
+						ThinkingBudget: new(int64(2048)),
+					},
+				},
+			},
+			ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
+				Default: new(codersdk.ChatModelReasoningEffortMedium),
+				Max:     new(codersdk.ChatModelReasoningEffortHigh),
+			},
+		}, nil)
+
+		googleOptions, ok := providerOptions[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
+		require.True(t, ok)
+		require.NotNil(t, googleOptions.ThinkingConfig)
+		require.Equal(t, int64(2048), *googleOptions.ThinkingConfig.ThinkingBudget)
+		require.Nil(t, googleOptions.ThinkingConfig.ThinkingLevel)
+	})
 }
 
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
@@ -449,231 +627,6 @@ func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 			require.True(t, ok)
 			require.False(t, resolved.Available)
 			require.Equal(t, tt.wantReason, resolved.UnavailableReason)
-		})
-	}
-}
-
-func TestListConfiguredModels_PolicyAwareAvailability(t *testing.T) {
-	t.Parallel()
-
-	configuredProvider := func(provider string, apiKey string) chatprovider.ConfiguredProvider {
-		return chatprovider.ConfiguredProvider{
-			ProviderID: uuid.New(),
-			Provider:   provider,
-			APIKey:     apiKey,
-		}
-	}
-	enabledProviders := func(providers ...string) map[string]struct{} {
-		result := make(map[string]struct{}, len(providers))
-		for _, provider := range providers {
-			result[chatprovider.NormalizeProvider(provider)] = struct{}{}
-		}
-		return result
-	}
-
-	catalog := chatprovider.NewModelCatalog()
-	tests := []struct {
-		name                   string
-		configuredProviders    []chatprovider.ConfiguredProvider
-		configuredModels       []chatprovider.ConfiguredModel
-		availabilityByProvider map[string]chatprovider.ProviderAvailability
-		enabledProviders       map[string]struct{}
-		want                   codersdk.ChatModelsResponse
-	}{
-		{
-			name: "PolicyUnavailableOverridesConfiguredKey",
-			configuredProviders: []chatprovider.ConfiguredProvider{
-				configuredProvider(fantasyopenai.Name, "sk-central"),
-			},
-			configuredModels: []chatprovider.ConfiguredModel{{
-				Provider: fantasyopenai.Name,
-				Model:    "gpt-4",
-			}},
-			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
-				fantasyopenai.Name: {
-					Available:         false,
-					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-				},
-			},
-			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:          fantasyopenai.Name,
-				Available:         false,
-				UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-				Models: []codersdk.ChatModel{{
-					ID:          fantasyopenai.Name + ":gpt-4",
-					Provider:    fantasyopenai.Name,
-					Model:       "gpt-4",
-					DisplayName: "gpt-4",
-				}},
-			}}},
-		},
-		{
-			name: "PolicyAvailableMarksProviderAvailable",
-			configuredProviders: []chatprovider.ConfiguredProvider{
-				configuredProvider(fantasyanthropic.Name, "sk-central"),
-			},
-			configuredModels: []chatprovider.ConfiguredModel{{
-				Provider: fantasyanthropic.Name,
-				Model:    "claude-3-5-sonnet",
-			}},
-			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
-				fantasyanthropic.Name: {Available: true},
-			},
-			enabledProviders: enabledProviders(fantasyanthropic.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:  fantasyanthropic.Name,
-				Available: true,
-				Models: []codersdk.ChatModel{{
-					ID:          fantasyanthropic.Name + ":claude-3-5-sonnet",
-					Provider:    fantasyanthropic.Name,
-					Model:       "claude-3-5-sonnet",
-					DisplayName: "claude-3-5-sonnet",
-				}},
-			}}},
-		},
-		{
-			name: "DisabledProviderOmitted",
-			configuredProviders: []chatprovider.ConfiguredProvider{
-				configuredProvider(fantasyanthropic.Name, "sk-anthropic"),
-				configuredProvider(fantasyopenai.Name, "sk-openai"),
-			},
-			configuredModels: []chatprovider.ConfiguredModel{
-				{Provider: fantasyanthropic.Name, Model: "claude-3-5-sonnet"},
-				{Provider: fantasyopenai.Name, Model: "gpt-4"},
-			},
-			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
-				fantasyanthropic.Name: {Available: true},
-				fantasyopenai.Name:    {Available: true},
-			},
-			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:  fantasyopenai.Name,
-				Available: true,
-				Models: []codersdk.ChatModel{{
-					ID:          fantasyopenai.Name + ":gpt-4",
-					Provider:    fantasyopenai.Name,
-					Model:       "gpt-4",
-					DisplayName: "gpt-4",
-				}},
-			}}},
-		},
-		{
-			name: "MissingAvailabilityDefaultsToMissingAPIKey",
-			configuredProviders: []chatprovider.ConfiguredProvider{
-				configuredProvider(fantasyopenai.Name, "sk-central"),
-			},
-			configuredModels: []chatprovider.ConfiguredModel{{
-				Provider: fantasyopenai.Name,
-				Model:    "gpt-4o",
-			}},
-			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:          fantasyopenai.Name,
-				Available:         false,
-				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-				Models: []codersdk.ChatModel{{
-					ID:          fantasyopenai.Name + ":gpt-4o",
-					Provider:    fantasyopenai.Name,
-					Model:       "gpt-4o",
-					DisplayName: "gpt-4o",
-				}},
-			}}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, ok := catalog.ListConfiguredModels(
-				tt.configuredProviders,
-				tt.configuredModels,
-				tt.availabilityByProvider,
-				tt.enabledProviders,
-			)
-			require.True(t, ok)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestListConfiguredProviderAvailability_PolicyAwareFiltering(t *testing.T) {
-	t.Parallel()
-
-	enabledProviders := func(providers ...string) map[string]struct{} {
-		result := make(map[string]struct{}, len(providers))
-		for _, provider := range providers {
-			result[chatprovider.NormalizeProvider(provider)] = struct{}{}
-		}
-		return result
-	}
-
-	catalog := chatprovider.NewModelCatalog()
-	tests := []struct {
-		name                   string
-		availabilityByProvider map[string]chatprovider.ProviderAvailability
-		enabledProviders       map[string]struct{}
-		want                   codersdk.ChatModelsResponse
-	}{
-		{
-			name: "EnabledProvidersUsePolicyAvailability",
-			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
-				fantasyanthropic.Name: {
-					Available:         false,
-					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-				},
-				fantasyopenai.Name: {Available: true},
-			},
-			enabledProviders: enabledProviders(fantasyanthropic.Name, fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{
-				{
-					Provider:          fantasyanthropic.Name,
-					Available:         false,
-					UnavailableReason: codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired,
-					Models:            []codersdk.ChatModel{},
-				},
-				{
-					Provider:  fantasyopenai.Name,
-					Available: true,
-					Models:    []codersdk.ChatModel{},
-				},
-			}},
-		},
-		{
-			name: "DisabledSupportedProviderOmitted",
-			availabilityByProvider: map[string]chatprovider.ProviderAvailability{
-				fantasyanthropic.Name: {Available: true},
-				fantasyopenai.Name:    {Available: true},
-			},
-			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:  fantasyopenai.Name,
-				Available: true,
-				Models:    []codersdk.ChatModel{},
-			}}},
-		},
-		{
-			name:             "MissingAvailabilityDefaultsToMissingAPIKey",
-			enabledProviders: enabledProviders(fantasyopenai.Name),
-			want: codersdk.ChatModelsResponse{Providers: []codersdk.ChatModelProvider{{
-				Provider:          fantasyopenai.Name,
-				Available:         false,
-				UnavailableReason: codersdk.ChatModelProviderUnavailableMissingAPIKey,
-				Models:            []codersdk.ChatModel{},
-			}}},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			got := catalog.ListConfiguredProviderAvailability(
-				tt.availabilityByProvider,
-				tt.enabledProviders,
-			)
-			require.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -1410,11 +1363,11 @@ func TestBetaHeadersFromCallConfig(t *testing.T) {
 		{name: "NilProviderOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{}, want: nil},
 		{name: "NilAnthropicOptions", provider: fantasyanthropic.Name, config: &codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{}}, want: nil},
 		{name: "Unset", provider: fantasyanthropic.Name, config: configWith1M(nil), want: nil},
-		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(false)), want: nil},
-		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(ptr.Ref(true)), want: beta},
-		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(ptr.Ref(true)), want: beta},
-		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(ptr.Ref(true)), want: nil},
-		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(ptr.Ref(true)), want: nil},
+		{name: "Disabled", provider: fantasyanthropic.Name, config: configWith1M(new(false)), want: nil},
+		{name: "EnabledAnthropic", provider: fantasyanthropic.Name, config: configWith1M(new(true)), want: beta},
+		{name: "EnabledBedrock", provider: fantasybedrock.Name, config: configWith1M(new(true)), want: beta},
+		{name: "EnabledOpenAI", provider: fantasyopenai.Name, config: configWith1M(new(true)), want: nil},
+		{name: "EnabledUnknownProvider", provider: "does-not-exist", config: configWith1M(new(true)), want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1729,11 +1682,11 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			wantModel:    "anthropic/claude-opus-4.6",
 		},
 		{
-			name:         "OpenAIHintStripsCanonicalPrefix",
+			name:         "OpenAIHintPreservesCanonicalPrefix",
 			modelName:    "anthropic/claude-opus-4.6",
 			providerHint: fantasyopenai.Name,
-			wantProvider: fantasyanthropic.Name,
-			wantModel:    "claude-opus-4.6",
+			wantProvider: fantasyopenai.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
 		},
 		{
 			name:         "OpenAIHintPreservesUnknownSlashNamespace",
@@ -1743,11 +1696,39 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			wantModel:    "meta-llama/llama-3-70b",
 		},
 		{
-			name:         "AnthropicHintStripsCanonicalPrefix",
+			name:         "AnthropicHintPreservesCanonicalPrefix",
 			modelName:    "anthropic/claude-4-5-sonnet",
 			providerHint: fantasyanthropic.Name,
 			wantProvider: fantasyanthropic.Name,
-			wantModel:    "claude-4-5-sonnet",
+			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "AnthropicHintPreservesBedrockNamespace",
+			modelName:    "bedrock/claude-opus-4-8",
+			providerHint: fantasyanthropic.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "bedrock/claude-opus-4-8",
+		},
+		{
+			name:         "AnthropicHintPreservesDoubleBedrockNamespace",
+			modelName:    "bedrock/bedrock/claude-opus-4-8",
+			providerHint: fantasyanthropic.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "bedrock/bedrock/claude-opus-4-8",
+		},
+		{
+			name:         "AnthropicHintPreservesColonCanonicalRef",
+			modelName:    "openai:gpt-5.2",
+			providerHint: fantasyanthropic.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "openai:gpt-5.2",
+		},
+		{
+			name:         "BedrockHintWithBareModel",
+			modelName:    "claude-opus-4-6",
+			providerHint: fantasybedrock.Name,
+			wantProvider: fantasybedrock.Name,
+			wantModel:    "claude-opus-4-6",
 		},
 		{
 			name:         "NoHintUsesCanonicalRef",

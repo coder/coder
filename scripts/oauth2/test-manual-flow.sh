@@ -39,7 +39,7 @@ if ! command -v go &>/dev/null; then
 fi
 
 # Generate PKCE parameters
-CODE_VERIFIER=$(openssl rand -base64 32 | tr -d "=+/" | cut -c -43)
+CODE_VERIFIER=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
 export CODE_VERIFIER
 CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d "=" | tr '+/' '-_')
 export CODE_CHALLENGE

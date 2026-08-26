@@ -10,6 +10,8 @@ MacOS = "macOS"
 AKS = "AKS"
 O_WRONLY = "O_WRONLY"
 AIBridge = "AI Bridge"
+# plural of SIEM, as in security information and event management
+SIEMs = "SIEMs"
 
 [default.extend-words]
 AKS = "AKS"

@@ -1,7 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { MockNoPermissions, MockPermissions } from "#/testHelpers/entities";
+import { organizationsPermissions } from "#/api/queries/organizations";
+import {
+	MockDefaultOrganization,
+	MockNoPermissions,
+	MockOrganizationPermissions,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
+import { AISettingsSidebar } from "./AISettingsSidebar";
 import AISettingsSidebarView from "./AISettingsSidebarView";
 
 const meta: Meta<typeof AISettingsSidebarView> = {
@@ -48,6 +60,36 @@ export const ModelsActive: Story = {
 			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
 		}),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+	},
+};
+
+export const ModelsActiveOnOrganizationRoute: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/ai/settings/organizations/my-organization/models",
+			},
+			routing: [
+				{
+					path: "/ai/settings/organizations/:organization/models",
+					useStoryElement: true,
+				},
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toHaveAttribute(
+			"aria-current",
+			"page",
+		);
+	},
 };
 
 export const LifecycleActive: Story = {
@@ -65,6 +107,81 @@ export const ProvidersActive: Story = {
 			location: { path: "/ai/settings/providers" },
 			routing: [{ path: "/ai/settings/providers", useStoryElement: true }],
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Models" }),
+		).not.toHaveAttribute("aria-current", "page");
+	},
+};
+
+export const ModelsWithoutDeploymentConfig: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "Models" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ModelsWithDeletePermissionOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+	},
+};
+
+export const ModelsWithReadPermissionOnly: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			viewAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+	},
+};
+
+export const OrganizationOnlyRoleCanAccessModels: Story = {
+	render: () => <AISettingsSidebar />,
+	decorators: [withAuthProvider, withDashboardProvider],
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockNoPermissions,
+		organizations: [MockDefaultOrganization],
+		queries: [
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
+		await expect(
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toBeVisible();
 	},
 };
 
@@ -94,6 +211,80 @@ export const NoUpdateTemplates: Story = {
 		expect(await canvas.findByText("Coder Agents")).toBeVisible();
 		expect(canvas.queryByText("Templates")).not.toBeInTheDocument();
 		expect(canvas.getByText("Models")).toBeVisible();
+	},
+};
+
+export const MCPServersForUpdateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toBeVisible();
+	},
+};
+
+export const MCPServersForDeleteOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForOrganizationShareOnlyAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canShareOrganizationMCPServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForCreateOnlyAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers/add");
+	},
+};
+
+export const MCPServersHiddenWithoutPermission: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("link", { name: "MCP servers" }),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -10,6 +11,22 @@ import {
 	MockWorkspaceProxies,
 } from "#/testHelpers/entities";
 import { MobileMenu } from "./MobileMenu";
+
+const defaultProxyContextValue = {
+	latenciesLoaded: true,
+	proxy: {
+		preferredPathAppURL: "",
+		preferredWildcardHostname: "",
+		proxy: MockPrimaryWorkspaceProxy,
+	},
+	isLoading: false,
+	isFetched: true,
+	setProxy: fn(),
+	clearProxy: fn(),
+	refetchProxyLatencies: fn(),
+	proxyLatencies: MockProxyLatencies,
+	proxies: MockWorkspaceProxies,
+};
 
 const meta: Meta<typeof MobileMenu> = {
 	title: "modules/dashboard/MobileMenu",
@@ -21,27 +38,14 @@ const meta: Meta<typeof MobileMenu> = {
 	},
 	component: MobileMenu,
 	args: {
-		proxyContextValue: {
-			latenciesLoaded: true,
-			proxy: {
-				preferredPathAppURL: "",
-				preferredWildcardHostname: "",
-				proxy: MockPrimaryWorkspaceProxy,
-			},
-			isLoading: false,
-			isFetched: true,
-			setProxy: fn(),
-			clearProxy: fn(),
-			refetchProxyLatencies: fn(),
-			proxyLatencies: MockProxyLatencies,
-			proxies: MockWorkspaceProxies,
-		},
+		proxyContextValue: defaultProxyContextValue,
 		user: MockUserOwner,
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
 		canViewWorkspaces: true,
 		canViewTemplates: true,
+		canViewModels: false,
 		adminPermissions: {
 			canViewDeployment: true,
 			canViewOrganizations: true,
@@ -132,6 +136,38 @@ export const WithoutWorkspaceAccess: Story = {
 	},
 };
 
+export const MemberWithModelAccess: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings/models",
+					element: <h1>Organization models</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canViewModels: true,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			body.queryByRole("menuitem", { name: /admin settings/i }),
+		).not.toBeInTheDocument();
+		await user.click(body.getByRole("menuitem", { name: "Models" }));
+		await expect(
+			await canvas.findByRole("heading", { name: "Organization models" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ProxySettings: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
@@ -140,6 +176,53 @@ export const ProxySettings: Story = {
 			name: /workspace proxy settings/i,
 		});
 		await user.click(menuItem);
+	},
+};
+
+export const ProxyWarningLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 224,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyCriticalLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: {
+				...MockProxyLatencies,
+				[MockPrimaryWorkspaceProxy.id]: {
+					accurate: true,
+					latencyMS: 471,
+					at: new Date(),
+					nextHopProtocol: "h2",
+				},
+			},
+		},
+	},
+};
+
+export const ProxyNoLatency: Story = {
+	args: {
+		proxyContextValue: {
+			...defaultProxyContextValue,
+			proxyLatencies: Object.fromEntries(
+				Object.entries(MockProxyLatencies).filter(
+					([id]) => id !== MockPrimaryWorkspaceProxy.id,
+				),
+			),
+		},
 	},
 };
 

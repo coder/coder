@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -199,11 +198,11 @@ func TemplateVersionParameterFromPreview(param previewtypes.Parameter) (codersdk
 		}
 		if validation.Min != nil {
 			//nolint:gosec // No other choice
-			sdkParam.ValidationMin = ptr.Ref(int32(*validation.Min))
+			sdkParam.ValidationMin = new(int32(*validation.Min))
 		}
 		if validation.Max != nil {
 			//nolint:gosec // No other choice
-			sdkParam.ValidationMax = ptr.Ref(int32(*validation.Max))
+			sdkParam.ValidationMax = new(int32(*validation.Max))
 		}
 	}
 
@@ -1552,7 +1551,7 @@ func OrganizationGroupAISpend(row database.GetOrganizationGroupsAISpendRow) code
 	return group
 }
 
-func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMemberAISpend {
+func GroupMemberAISpend(row database.GetGroupMembersAISpendRow, queriedGroupID uuid.UUID) codersdk.GroupMemberAISpend {
 	member := codersdk.GroupMemberAISpend{
 		UserID:           row.UserID,
 		GroupSpendMicros: row.GroupSpendMicros,
@@ -1560,11 +1559,15 @@ func GroupMemberAISpend(row database.GetGroupMembersAISpendRow) codersdk.GroupMe
 	if row.EffectiveGroupID.Valid {
 		member.EffectiveGroupID = &row.EffectiveGroupID.UUID
 	}
-	if row.SpendLimitMicros.Valid {
-		member.GroupBudget = &codersdk.AIBudgetLimit{
-			SpendLimitMicros: row.SpendLimitMicros.Int64,
-			LimitSource:      codersdk.AIBudgetLimitSource(row.LimitSource.String),
+	if row.EffectiveSpendLimitMicros.Valid {
+		member.EffectiveBudget = &codersdk.AIBudgetLimit{
+			SpendLimitMicros: row.EffectiveSpendLimitMicros.Int64,
+			LimitSource:      codersdk.AIBudgetLimitSource(row.EffectiveLimitSource.String),
 		}
+	}
+	// Set the deprecated alias only when the queried group is effective.
+	if row.EffectiveGroupID.Valid && row.EffectiveGroupID.UUID == queriedGroupID {
+		member.GroupBudget = member.EffectiveBudget
 	}
 	return member
 }
@@ -1725,6 +1728,28 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return filtered, nil
 }
 
+func AIModelPrices(dbPrices []database.AIModelPrice) []codersdk.AIModelPrice {
+	out := make([]codersdk.AIModelPrice, 0, len(dbPrices))
+	for _, dbPrice := range dbPrices {
+		out = append(out, AIModelPrice(dbPrice))
+	}
+	return out
+}
+
+func AIModelPrice(dbPrice database.AIModelPrice) codersdk.AIModelPrice {
+	return codersdk.AIModelPrice{
+		Provider:        dbPrice.Provider,
+		Model:           dbPrice.Model,
+		InputPrice:      nullInt64Ptr(dbPrice.InputPrice),
+		OutputPrice:     nullInt64Ptr(dbPrice.OutputPrice),
+		CacheReadPrice:  nullInt64Ptr(dbPrice.CacheReadPrice),
+		CacheWritePrice: nullInt64Ptr(dbPrice.CacheWritePrice),
+		Source:          codersdk.AIModelPriceSource(dbPrice.Source),
+		CreatedAt:       dbPrice.CreatedAt,
+		UpdatedAt:       dbPrice.UpdatedAt,
+	}
+}
+
 func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
 	if !v.Valid {
 		return nil
@@ -1882,6 +1907,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				OrganizationID: row.OrganizationID,
 				Name:           row.Name,
 				MimeType:       row.Mimetype,
+				SizeBytes:      row.SizeBytes,
 				CreatedAt:      row.CreatedAt,
 			})
 		}
