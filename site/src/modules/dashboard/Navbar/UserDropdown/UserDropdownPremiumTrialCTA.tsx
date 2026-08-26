@@ -53,7 +53,7 @@ export const selectTrialCta = ({
 		return undefined;
 	}
 
-	const days = (trialExpiresAt - now) / DAY_SECONDS;
+	const days = Math.floor((trialExpiresAt - now) / DAY_SECONDS);
 	return days <= 0
 		? { kind: "expiresToday", days: 0 }
 		: { kind: "daysLeft", days };
