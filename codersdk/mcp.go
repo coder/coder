@@ -13,7 +13,7 @@ import (
 // start the OAuth2 flow for an MCP server. The frontend opens this
 // in a new window/popup.
 func (c *Client) MCPServerOAuth2ConnectURL(organizationID, id uuid.UUID) string {
-	return fmt.Sprintf("%s/api/experimental/organizations/%s/mcp-servers/%s/oauth2/connect", c.URL.String(), organizationID, id)
+	return fmt.Sprintf("%s/api/v2/organizations/%s/mcp-servers/%s/oauth2/connect", c.URL.String(), organizationID, id)
 }
 
 // MCPServerOAuth2DisconnectResponse reports whether the removed token
@@ -34,7 +34,7 @@ func (c *Client) MCPServerOAuth2Disconnect(ctx context.Context, id uuid.UUID) er
 // MCPServerOAuth2DisconnectWithResponse removes the user's OAuth2
 // token for an MCP server and reports the provider revocation outcome.
 func (c *Client) MCPServerOAuth2DisconnectWithResponse(ctx context.Context, id uuid.UUID) (MCPServerOAuth2DisconnectResponse, error) {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/disconnect", id), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/mcp/servers/%s/oauth2/disconnect", id), nil)
 	if err != nil {
 		return MCPServerOAuth2DisconnectResponse{}, err
 	}
@@ -213,7 +213,7 @@ type UpdateMCPServerConfigRequest struct {
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", organizationID), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers", organizationID), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (c *Client) MCPServerConfigs(ctx context.Context, organizationID uuid.UUID)
 }
 
 func (c *Client) MCPServerConfigByID(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s", organizationID, id), nil)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -240,7 +240,7 @@ func (c *Client) MCPServerConfigByID(ctx context.Context, organizationID, id uui
 
 // MCPServerConfigACL returns the resolved ACL of an MCP server config.
 func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID) (MCPServerConfigACL, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s/acl", organizationID, id), nil)
 	if err != nil {
 		return MCPServerConfigACL{}, err
 	}
@@ -255,7 +255,7 @@ func (c *Client) MCPServerConfigACL(ctx context.Context, organizationID, id uuid
 // UpdateMCPServerConfigACL applies a sparse ACL update to an MCP server
 // config.
 func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigACLRequest) error {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s/acl", organizationID, id), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s/acl", organizationID, id), req)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (c *Client) UpdateMCPServerConfigACL(ctx context.Context, organizationID, i
 }
 
 func (c *Client) CreateMCPServerConfig(ctx context.Context, organizationID uuid.UUID, req CreateMCPServerConfigRequest) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers", organizationID), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers", organizationID), req)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -280,7 +280,7 @@ func (c *Client) CreateMCPServerConfig(ctx context.Context, organizationID uuid.
 }
 
 func (c *Client) UpdateMCPServerConfig(ctx context.Context, organizationID, id uuid.UUID, req UpdateMCPServerConfigRequest) (MCPServerConfig, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), req)
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s", organizationID, id), req)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
@@ -293,7 +293,7 @@ func (c *Client) UpdateMCPServerConfig(ctx context.Context, organizationID, id u
 }
 
 func (c *Client) DeleteMCPServerConfig(ctx context.Context, organizationID, id uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/experimental/organizations/%s/mcp-servers/%s", organizationID, id), nil)
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/organizations/%s/mcp-servers/%s", organizationID, id), nil)
 	if err != nil {
 		return err
 	}
