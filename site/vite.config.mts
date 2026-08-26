@@ -7,6 +7,7 @@ import { visualizer } from "rollup-plugin-visualizer";
 import type { PluginOption } from "vite";
 import checker from "vite-plugin-checker";
 import { defineConfig } from "vitest/config";
+import { reactCompilerInclude } from "./scripts/react-compiler-targets.mjs";
 
 // We enable profiling and source maps for internal deployments (e.g. dogfood).
 // The profiling build uses react-dom/profiling, which keeps optimizations but
@@ -17,8 +18,7 @@ const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
 	...compilerPreset.rolldown.filter,
 	id: {
-		// Keep in sync with targetDirs in scripts/check-compiler.mjs.
-		include: [/src\/pages\/AgentsPage\//, /src\/pages\/AIBridgePage\//],
+		include: reactCompilerInclude,
 	},
 };
 

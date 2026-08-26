@@ -12,16 +12,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { transformSync } from "@babel/core";
+import { reactCompilerTargetDirs } from "./react-compiler-targets.mjs";
 
 // Resolve the site/ directory (ESM equivalent of __dirname + "..").
 const siteDir = new URL("..", import.meta.url).pathname;
 
-// Directories opted in to React Compiler. Keep this list in sync with
-// the include filter in vite.config.mts.
-const targetDirs = [
-	"src/pages/AgentsPage",
-	"src/pages/AIBridgePage",
-];
+// Directories opted in to React Compiler.
+const targetDirs = reactCompilerTargetDirs;
 
 const skipPatterns = [".test.", ".stories.", ".jest."];
 

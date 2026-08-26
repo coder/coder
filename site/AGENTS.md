@@ -15,6 +15,17 @@ Read [Frontend Patterns](../.claude/docs/FRONTEND_PATTERNS.md) before changing `
 - **FE9:** Share entity fixtures as `Mock*` constants. Compose story query wiring inline per story.
 - **FE10:** Tests query semantic roles and names. Do not use `querySelector` or class-name assertions.
 
+## Page organization
+
+- Top-level directories in `src/pages/` represent root route scopes and use PascalCase names ending in `Page`.
+- Place a child route beneath the directory that owns its nearest route layout. Keep reusable route trees top-level when they have multiple owners.
+- Give a page its own directory when it has multiple files. Keep page views, stories, tests, and page-local components in that directory.
+- Keep scope-root files limited to layouts, route context, and code shared by multiple child pages.
+- Name route layouts `<Scope>Layout.tsx`.
+- Filesystem nesting does not change runtime layout ownership. Preserve the route tree when moving files.
+- Do not import page-owned code from `components/`, `modules/`, or API code. Move genuinely shared code to the narrowest suitable feature module.
+- Storybook titles must reflect the page's directory path when an explicit title is necessary.
+
 ## Navigation and commands
 
 Use the TypeScript language server when available for definitions, references, type information, diagnostics, and renames.
@@ -29,8 +40,9 @@ Use the TypeScript language server when available for definitions, references, t
 | One unit file    | `pnpm test path/to/file.test.ts`                        |
 | Typecheck        | `pnpm lint:types`                                       |
 | Biome check      | `pnpm check`                                            |
-| Lint             | `pnpm lint`                                             |
-| Fix lint         | `pnpm lint:fix`                                         |
+| Lint              | `pnpm lint`                                             |
+| Check page layout | `pnpm lint:pages`                                       |
+| Fix lint          | `pnpm lint:fix`                                         |
 | Format           | `pnpm format`                                           |
 | End-to-end tests | `pnpm playwright:test`                                  |
 
