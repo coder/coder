@@ -3073,8 +3073,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		t.Run("Unhealthy", func(t *testing.T) {
 			t.Parallel()
 
-			// healthy:false should return workspaces with disconnected or timed out agents
-			// and exclude workspaces with connected agents
+			// healthy:false should return workspaces with connecting, disconnected,
+			// or timed out agents and exclude workspaces with connected agents
 			store, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 			client := coderdtest.New(t, &coderdtest.Options{
 				Database: store,
@@ -3102,6 +3102,13 @@ func TestWorkspaceFilterManual(t *testing.T) {
 				LastConnectedReplicaID: uuid.NullUUID{},
 			})
 			require.NoError(t, err)
+
+			// Create a workspace with an agent that has not connected.
+			connectingBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+				Name:           "connecting-workspace",
+			}).WithAgent().Do()
 
 			// Create a workspace with a disconnected agent
 			disconnectedBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
@@ -3139,13 +3146,14 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			testCtx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			// healthy:false should return both disconnected and timed out workspaces
+			// healthy:false should return connecting, disconnected, and timed out workspaces.
 			res, err := client.Workspaces(testCtx, codersdk.WorkspaceFilter{
 				FilterQuery: "healthy:false",
 			})
 			require.NoError(t, err)
-			require.Len(t, res.Workspaces, 2)
-			workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID}
+			require.Len(t, res.Workspaces, 3)
+			workspaceIDs := []uuid.UUID{res.Workspaces[0].ID, res.Workspaces[1].ID, res.Workspaces[2].ID}
+			require.Contains(t, workspaceIDs, connectingBuild.Workspace.ID)
 			require.Contains(t, workspaceIDs, disconnectedBuild.Workspace.ID)
 			require.Contains(t, workspaceIDs, timedOutBuild.Workspace.ID)
 		})

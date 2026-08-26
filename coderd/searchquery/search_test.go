@@ -324,7 +324,7 @@ func TestSearchWorkspace(t *testing.T) {
 			Name:  "HealthyFalse",
 			Query: "healthy:false",
 			Expected: database.GetWorkspacesParams{
-				HasAgentStatuses: []string{"disconnected", "timeout"},
+				HasAgentStatuses: []string{"connecting", "disconnected", "timeout"},
 			},
 		},
 		{
