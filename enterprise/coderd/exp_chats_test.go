@@ -60,8 +60,8 @@ func createOpenAIChatModelForTest(
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4",
 		DisplayName:          "GPT-4",
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 	return model
@@ -1112,9 +1112,9 @@ func TestCreateChatUsesOrganizationLocalModel(t *testing.T) {
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini-local",
 		DisplayName:          "Second Organization Model",
-		IsDefault:            ptr.Ref(true),
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		IsDefault:            new(true),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 
@@ -1243,9 +1243,9 @@ func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 		AIProviderID:         &provider.ID,
 		Model:                "gpt-4o-mini",
 		DisplayName:          "Test Model",
-		IsDefault:            ptr.Ref(true),
-		ContextLimit:         ptr.Ref(int64(1000)),
-		CompressionThreshold: ptr.Ref(int32(70)),
+		IsDefault:            new(true),
+		ContextLimit:         new(int64(1000)),
+		CompressionThreshold: new(int32(70)),
 	})
 	require.NoError(t, err)
 
