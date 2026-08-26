@@ -65,12 +65,12 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { isMobileViewport } from "#/utils/mobile";
+import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -133,29 +133,6 @@ import {
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
-
-/**
- * Below the `lg` breakpoint, chat and the right panel are mutually
- * exclusive, so a panel left open on a wide window would hide chat as
- * soon as the window narrows. This suppresses the panel while narrow
- * without touching the persisted preference: widening restores the
- * panel, and an explicit user action (clearSuppression) overrides it.
- */
-export function useRightPanelNarrowSuppression(): {
-	suppressed: boolean;
-	clearSuppression: () => void;
-} {
-	const isBelowLg = useIsBelowLgViewport();
-	const [suppressed, setSuppressed] = useState(isBelowLg);
-	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
-	// Render-time state adjustment on breakpoint crossings; see
-	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	if (isBelowLg !== prevIsBelowLg) {
-		setPrevIsBelowLg(isBelowLg);
-		setSuppressed(isBelowLg);
-	}
-	return { suppressed, clearSuppression: () => setSuppressed(false) };
-}
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
@@ -886,15 +863,28 @@ const AgentChatPage: FC = () => {
 	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
-		useRightPanelNarrowSuppression();
+	// Below the lg breakpoint, chat and the right panel are mutually
+	// exclusive, so a panel left open on a wide window would hide chat
+	// as soon as the window narrows. Suppression hides the panel while
+	// narrow without touching the persisted preference: widening
+	// restores the panel, and an explicit toggle overrides it.
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
+	const [panelSuppressedOnNarrow, setPanelSuppressedOnNarrow] =
+		useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setPanelSuppressedOnNarrow(isBelowLg);
+	}
 	// Canonical panel visibility: the persisted preference gated by the
 	// narrow-viewport suppression. Only this derived value may be
 	// rendered or handed to children; the raw preference stays local.
 	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
 
 	const handleSetShowSidebarPanel = (next: boolean) => {
-		clearSuppression();
+		setPanelSuppressedOnNarrow(false);
 		setSidebarPanelPreference(next);
 		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
@@ -1752,6 +1742,7 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: isEditReasoningEffortDirtyRef.current
 					? effectiveReasoningEffort
 					: undefined,
+				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({

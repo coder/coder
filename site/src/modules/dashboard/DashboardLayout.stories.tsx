@@ -47,6 +47,14 @@ const pageContent = (
 	</DashboardFullPage>
 );
 
+const mcpServersRouter = reactRouterParameters({
+	location: { path: "/" },
+	routing: [
+		{ path: "/", useStoryElement: true },
+		{ path: "/ai/settings", element: <h1>AI settings for sharers</h1> },
+	],
+});
+
 const modelSettingsRouter = reactRouterParameters({
 	location: { path: "/" },
 	routing: [
@@ -165,6 +173,42 @@ export const ACLReadableMemberCanOpenModels: Story = {
 		],
 	},
 	play: openModels,
+};
+
+export const CustomOrganizationRoleCanOpenMCPServers: Story = {
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		user: MockUserMember,
+		permissions: MockNoPermissions,
+		reactRouter: mcpServersRouter,
+		queries: [
+			{ key: buildInfoKey, data: MockBuildInfo },
+			{ key: updateCheckQueryKey, data: MockUpdateCheck },
+			{ key: deploymentStatsQueryKey, data: MockDeploymentStats },
+			{
+				key: organizationsPermissions([MockDefaultOrganization.id]).queryKey,
+				data: {
+					[MockDefaultOrganization.id]: {
+						...MockNoOrganizationPermissions,
+						shareMCPServerConfig: true,
+					},
+				},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			await canvas.findByRole("button", { name: "Admin settings" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "AI" }));
+		await expect(
+			await canvas.findByRole("heading", {
+				name: "AI settings for sharers",
+			}),
+		).toBeInTheDocument();
+	},
 };
 
 export const UpdateAvailable: Story = {

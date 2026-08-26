@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 func structName(t reflect.Type) string {
@@ -158,10 +157,10 @@ func convertDiffType(left, right any) (newLeft, newRight any, changed bool) {
 		if !typedLeft.Valid {
 			leftInt64Ptr = nil
 		} else {
-			leftInt64Ptr = ptr.Ref(typedLeft.Int64)
+			leftInt64Ptr = new(typedLeft.Int64)
 		}
 
-		rightInt64Ptr = ptr.Ref(right.(sql.NullInt64).Int64)
+		rightInt64Ptr = new(right.(sql.NullInt64).Int64)
 		if !right.(sql.NullInt64).Valid {
 			rightInt64Ptr = nil
 		}

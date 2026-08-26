@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
 import { type FC, useId } from "react";
-import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type {
 	AdvisorConfig,
@@ -117,13 +116,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description={
-				<>
-					Cap advisor usage per turn. Configure its model in{" "}
-					<Link to="/ai/settings/models/defaults">Defaults & overrides</Link>.
-					Set limits to 0 for unlimited.
-				</>
-			}
+			description="Cap advisor usage per turn. Configure its model in Organization settings above. Set limits to 0 for unlimited."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}

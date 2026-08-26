@@ -180,8 +180,8 @@ export const OrganizationOnlyRoleCanAccessModels: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Coder Agents" }),
-		).not.toBeInTheDocument();
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toBeVisible();
 	},
 };
 
@@ -235,6 +235,19 @@ export const MCPServersForDeleteOnlyAdmin: Story = {
 			...MockNoPermissions,
 			deleteAnyMCPServerConfig: true,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForOrganizationShareOnlyAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canShareOrganizationMCPServers: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

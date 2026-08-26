@@ -17,7 +17,7 @@ const withOrganizationModels = (Story: React.FC) => (
 	<OrganizationModelsContext.Provider
 		value={{
 			organization: MockDefaultOrganization,
-			organizations: [MockDefaultOrganization],
+			accessibleOrganizations: [MockDefaultOrganization],
 			permissions: MockOrganizationPermissions,
 			requestedOrganizationDenied: false,
 		}}
