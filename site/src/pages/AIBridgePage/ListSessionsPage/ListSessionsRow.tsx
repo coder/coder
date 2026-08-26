@@ -1,3 +1,4 @@
+import { MessageSquareTextIcon } from "lucide-react";
 import type { FC } from "react";
 import type { AIBridgeSession } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -32,11 +33,19 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 				onClick?.();
 			}}
 		>
-			<TableCell className="max-w-32 flex-1 overflow-auto font-normal">
+			<TableCell className="max-w-32 min-w-10 flex-1 overflow-auto font-normal">
 				<TooltipProvider>
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<p className="truncate">{session.last_prompt}</p>
+							<span className="inline-flex min-w-0 items-center">
+								<span className="hidden truncate sm:block">
+									{session.last_prompt}
+								</span>
+								<MessageSquareTextIcon
+									aria-label="View last prompt"
+									className="block size-icon-sm text-content-secondary sm:hidden"
+								/>
+							</span>
 						</TooltipTrigger>
 						<TooltipContent className="max-w-[512px]" side="top" align="start">
 							<div className="font-bold">Last prompt</div>

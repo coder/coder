@@ -92,6 +92,32 @@ export const LongPrompt: Story = {
 	},
 };
 
+export const MobilePromptIcon: Story = {
+	args: {
+		session: {
+			...MockSession,
+			last_prompt:
+				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",
+		},
+	},
+	parameters: {
+		viewport: {
+			defaultViewport: "mobile1",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("View last prompt")).toBeVisible();
+		expect(canvas.getByText(/^Can you refactor/)).not.toBeVisible();
+		await userEvent.hover(canvas.getByLabelText("View last prompt"));
+		await waitFor(() =>
+			expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Can you refactor the entire authentication module",
+			),
+		);
+	},
+};
+
 export const NoPrompt: Story = {
 	args: {
 		session: { ...MockSession, last_prompt: undefined },
