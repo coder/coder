@@ -2025,7 +2025,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://api.openai.com/v2"),
+			BaseURL: new("https://api.openai.com/v2"),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Status)

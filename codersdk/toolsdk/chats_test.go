@@ -815,11 +815,11 @@ func TestChatTools(t *testing.T) {
 		})
 
 		err := expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
+			Archived: new(true),
 		})
 		require.NoError(t, err)
 		err = expClient.UpdateChat(ctx, defaultOrgChat.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(false),
+			Archived: new(false),
 		})
 		require.NoError(t, err)
 
