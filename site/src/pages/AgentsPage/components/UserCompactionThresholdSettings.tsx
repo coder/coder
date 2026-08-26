@@ -5,6 +5,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -31,7 +35,7 @@ import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 interface UserCompactionThresholdSettingsProps {
 	models: readonly TypesGen.ChatModel[];
 	providerTypeByID: ReadonlyMap<string, string>;
-	organizationNameByID: ReadonlyMap<string, string>;
+	organizations: readonly TypesGen.Organization[];
 	modelsError?: unknown;
 	isLoadingModels?: boolean;
 	thresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined;
@@ -75,7 +79,7 @@ export const UserCompactionThresholdSettings: FC<
 > = ({
 	models,
 	providerTypeByID,
-	organizationNameByID,
+	organizations,
 	modelsError,
 	isLoadingModels,
 	thresholds,
@@ -87,9 +91,32 @@ export const UserCompactionThresholdSettings: FC<
 	const [drafts, setDrafts] = useState<Record<string, string>>({});
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [pendingModels, setPendingModels] = useState<Set<string>>(new Set());
+	const [selectedOrganizationID, setSelectedOrganizationID] = useState<
+		string | null
+	>(null);
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const enabledModels = models.filter((config) => config.enabled);
+	const organizationNameByID = new Map(
+		organizations.map((organization) => [
+			organization.id,
+			organization.display_name || organization.name,
+		]),
+	);
+	const organizationOptions = organizations.filter((organization) =>
+		enabledModels.some((config) => config.organization_id === organization.id),
+	);
+	const activeOrganization =
+		organizationOptions.find(
+			(organization) => organization.id === selectedOrganizationID,
+		) ??
+		organizationOptions.find((organization) => organization.is_default) ??
+		organizationOptions[0];
+	const visibleModels = activeOrganization
+		? enabledModels.filter(
+				(config) => config.organization_id === activeOrganization.id,
+			)
+		: enabledModels;
 	const overridesByModelID = new Map(
 		(thresholds ?? []).map(
 			(threshold: TypesGen.UserChatCompactionThreshold) => [
@@ -152,10 +179,11 @@ export const UserCompactionThresholdSettings: FC<
 			});
 	};
 
-	// Compute dirty rows: rows where the user has typed a valid value
-	// that differs from the current server-side override.
+	// Save/cancel act only on visible rows; drafts hidden by the org
+	// picker are kept untouched.
+	const visibleModelIDs = new Set(visibleModels.map((config) => config.id));
 	const dirtyRows: Array<{ modelId: string; value: number }> = [];
-	for (const modelConfig of enabledModels) {
+	for (const modelConfig of visibleModels) {
 		const draft = drafts[modelConfig.id];
 		if (draft === undefined) continue;
 		const parsed = parseThresholdDraft(draft);
@@ -197,13 +225,31 @@ export const UserCompactionThresholdSettings: FC<
 	};
 
 	const handleCancelAll = () => {
-		setDrafts({});
-		setRowErrors({});
+		setDrafts((currentDrafts) =>
+			Object.fromEntries(
+				Object.entries(currentDrafts).filter(
+					([modelID]) => !visibleModelIDs.has(modelID),
+				),
+			),
+		);
+		setRowErrors((currentErrors) =>
+			Object.fromEntries(
+				Object.entries(currentErrors).filter(
+					([modelID]) => !visibleModelIDs.has(modelID),
+				),
+			),
+		);
 	};
 
-	const hasAnyPending = pendingModels.size > 0;
-	const hasAnyErrors = Object.keys(rowErrors).length > 0;
-	const hasAnyDrafts = Object.keys(drafts).length > 0;
+	const hasAnyPending = [...pendingModels].some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
+	const hasAnyErrors = Object.keys(rowErrors).some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
+	const hasAnyDrafts = Object.keys(drafts).some((modelID) =>
+		visibleModelIDs.has(modelID),
+	);
 	const shouldShowActions =
 		hasAnyDrafts || hasAnyErrors || hasAnyPending || dirtyRows.length > 0;
 
@@ -260,6 +306,26 @@ export const UserCompactionThresholdSettings: FC<
 							)}
 						</p>
 					)}
+					{organizationOptions.length > 1 && activeOrganization && (
+						<div>
+							<OrganizationAutocomplete
+								value={activeOrganization}
+								ariaLabel={`Organization ${getOrganizationLabel(
+									activeOrganization,
+									organizationOptions,
+								)}`}
+								options={organizationOptions}
+								triggerClassName="w-60"
+								optionsTabbable
+								onChange={(organization) => {
+									if (!organization) {
+										return;
+									}
+									setSelectedOrganizationID(organization.id);
+								}}
+							/>
+						</div>
+					)}
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -271,7 +337,7 @@ export const UserCompactionThresholdSettings: FC<
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{enabledModels.map((modelConfig) => {
+							{visibleModels.map((modelConfig) => {
 								const existingOverride = overridesByModelID.get(modelConfig.id);
 								const hasOverride = overridesByModelID.has(modelConfig.id);
 								const draftValue =
@@ -300,7 +366,7 @@ export const UserCompactionThresholdSettings: FC<
 									<TableRow key={modelConfig.id}>
 										<TableCell className="text-sm font-medium text-content-primary">
 											<Badge
-												size="sm"
+												size="md"
 												variant="default"
 												className="w-fit"
 												aria-label={`${providerLabel} ${modelName} in ${organizationName}`}
@@ -308,11 +374,6 @@ export const UserCompactionThresholdSettings: FC<
 												<ProviderIcon provider={provider} className="size-4" />
 												{modelName}
 											</Badge>
-											{organizationName && (
-												<span className="mt-0.5 block text-2xs font-normal text-content-secondary">
-													{organizationName}
-												</span>
-											)}
 											{rowError && (
 												<p
 													aria-live="polite"
@@ -438,12 +499,11 @@ export const UserCompactionThresholdSettings: FC<
 														<Button
 															size="xs"
 															type="button"
+															className="h-6"
 															disabled={hasAnyPending}
 															onClick={handleSaveAll}
 														>
-															{hasAnyPending && (
-																<Spinner loading className="size-4" />
-															)}
+															{hasAnyPending && <Spinner loading size="sm" />}
 															{hasAnyPending
 																? "Saving..."
 																: `Save ${dirtyRows.length} ${dirtyRows.length === 1 ? "change" : "changes"}`}

@@ -4,12 +4,17 @@ import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
+import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const accessibleOrgsQuery = useAccessibleModelOrganizations(organizations);
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !permissions.editDeploymentConfig },
+	);
 
 	if (permissions.viewAnyAIProvider) {
 		return <Navigate to="/ai/settings/providers" replace />;
@@ -45,6 +50,18 @@ export const AISettingsIndexRedirect = () => {
 
 	if (accessibleOrgsQuery.organizations.length > 0) {
 		return <Navigate to="/ai/settings/models" replace />;
+	}
+
+	if (organizationMCPSharing.isLoading) {
+		return <Loader fullscreen />;
+	}
+
+	if (organizationMCPSharing.error !== null) {
+		return <ErrorAlert error={organizationMCPSharing.error} />;
+	}
+
+	if (organizationMCPSharing.canShare) {
+		return <Navigate to="/ai/settings/mcp-servers" replace />;
 	}
 
 	if (permissions.editDeploymentConfig) {
