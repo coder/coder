@@ -6491,6 +6491,85 @@ func TestGetUserStatusCounts(t *testing.T) {
 	}
 }
 
+func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	availableOrg := dbgen.Organization(t, db, database.Organization{})
+	availableModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-available-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: availableOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: availableOrg.ID,
+		Context:        "general",
+		ModelConfigID:  availableModel.ID,
+	}))
+
+	// An override referencing a disabled model reports the model unavailable.
+	// dbgen coerces Enabled=false to true, so disable it after insertion.
+	disabledOrg := dbgen.Organization(t, db, database.Organization{})
+	disabledModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-disabled-" + uuid.NewString(),
+		OrganizationID: disabledOrg.ID,
+	})
+	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+		ID:                   disabledModel.ID,
+		Model:                disabledModel.Model,
+		DisplayName:          disabledModel.DisplayName,
+		Enabled:              false,
+		IsDefault:            disabledModel.IsDefault,
+		ContextLimit:         disabledModel.ContextLimit,
+		CompressionThreshold: disabledModel.CompressionThreshold,
+		Options:              disabledModel.Options,
+		AIProviderID:         disabledModel.AIProviderID,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: disabledOrg.ID,
+		Context:        "general",
+		ModelConfigID:  disabledModel.ID,
+	}))
+
+	// Deleted organizations are excluded from the bulk read.
+	deletedOrg := dbgen.Organization(t, db, database.Organization{})
+	deletedOrgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-deleted-org-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: deletedOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: deletedOrg.ID,
+		Context:        "general",
+		ModelConfigID:  deletedOrgModel.ID,
+	}))
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
+
+	rows, err := db.GetChatOrganizationModelOverridesByContext(ctx, "general")
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	byOrg := make(map[uuid.UUID]database.GetChatOrganizationModelOverridesByContextRow, len(rows))
+	for _, row := range rows {
+		byOrg[row.OrganizationID] = row
+	}
+	available := byOrg[availableOrg.ID]
+	require.True(t, available.ModelAvailable)
+	require.Equal(t, availableModel.Model, available.Model)
+	require.NotEmpty(t, available.ProviderType)
+	unavailable := byOrg[disabledOrg.ID]
+	require.False(t, unavailable.ModelAvailable)
+	require.Empty(t, unavailable.Model)
+
+	otherContext, err := db.GetChatOrganizationModelOverridesByContext(ctx, "advisor")
+	require.NoError(t, err)
+	require.Empty(t, otherContext)
+}
+
 func TestOrganizationDeleteTrigger(t *testing.T) {
 	t.Parallel()
 
@@ -11111,13 +11190,13 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 		LastModelConfigID: mc.ID,
 	})
 
-	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
+	insertMessage := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, createdAt time.Time, deleted bool) {
 		t.Helper()
 		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
 			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
-			Role:          database.ChatMessageRoleAssistant,
+			Role:          role,
 			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
 		})
 		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
@@ -11126,22 +11205,24 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 
 	// Counted: on the inclusive start boundary, in the middle (across two
 	// chats), soft-deleted, and just before the exclusive end boundary.
-	insertMessage(chat1.ID, 1, rangeStart, false)
-	insertMessage(chat2.ID, 2, rangeStart.Add(30*time.Minute), false)
-	insertMessage(chat1.ID, 4, rangeStart.Add(45*time.Minute), true)
-	insertMessage(chat1.ID, 8, rangeEnd.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
+	insertMessage(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
+	// Tool rows count because runtime totals are role-agnostic.
+	insertMessage(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
 	// Not counted: before the range, on the exclusive end boundary, and a
 	// NULL runtime (runtime 0 is stored as NULL).
-	insertMessage(chat1.ID, 16, rangeStart.Add(-time.Second), false)
-	insertMessage(chat1.ID, 32, rangeEnd, false)
-	insertMessage(chat1.ID, 0, rangeStart.Add(10*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
 
 	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 15, total)
+	require.EqualValues(t, 79, total)
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
@@ -12351,6 +12432,98 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
+func TestDeleteChatModelConfigByID(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	config := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{})
+
+	deletedID, err := store.DeleteChatModelConfigByID(ctx, config.ID)
+	require.NoError(t, err)
+	require.Equal(t, config.ID, deletedID)
+
+	_, err = store.DeleteChatModelConfigByID(ctx, config.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func TestUpdateChatModelConfigACLByID(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+
+	tests := []struct {
+		name     string
+		groupACL database.ChatACL
+		userACL  database.ChatACL
+	}{
+		{
+			name: "Replace",
+			groupACL: database.ChatACL{
+				uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+			userACL: database.ChatACL{
+				uuid.NewString(): {Permissions: []policy.Action{policy.ActionRead}},
+			},
+		},
+		{
+			name:     "Clear",
+			groupACL: database.ChatACL{},
+			userACL:  database.ChatACL{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			organization := dbgen.Organization(t, store, database.Organization{})
+			creator := dbgen.User(t, store, database.User{})
+			updater := dbgen.User(t, store, database.User{})
+			config := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+				Model:                "acl-model-" + uuid.NewString(),
+				DisplayName:          "ACL model " + uuid.NewString(),
+				CreatedBy:            uuid.NullUUID{UUID: creator.ID, Valid: true},
+				UpdatedBy:            uuid.NullUUID{UUID: creator.ID, Valid: true},
+				IsDefault:            true,
+				ContextLimit:         4242,
+				CompressionThreshold: 37,
+				Options:              json.RawMessage(`{"temperature":0.25}`),
+				OrganizationID:       organization.ID,
+				GroupACL: database.ChatACL{
+					organization.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+				UserACL: database.ChatACL{
+					creator.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+				},
+			})
+
+			before, err := store.GetChatModelConfigByID(ctx, config.ID)
+			require.NoError(t, err)
+
+			updated, err := store.UpdateChatModelConfigACLByID(ctx, database.UpdateChatModelConfigACLByIDParams{
+				ID:        config.ID,
+				GroupACL:  tt.groupACL,
+				UserACL:   tt.userACL,
+				UpdatedBy: uuid.NullUUID{UUID: updater.ID, Valid: true},
+			})
+			require.NoError(t, err)
+			require.Equal(t, tt.groupACL, updated.GroupACL)
+			require.Equal(t, tt.userACL, updated.UserACL)
+			require.Equal(t, uuid.NullUUID{UUID: updater.ID, Valid: true}, updated.UpdatedBy)
+			require.True(t, updated.UpdatedAt.After(before.UpdatedAt))
+
+			expected := before
+			expected.GroupACL = tt.groupACL
+			expected.UserACL = tt.userACL
+			expected.UpdatedBy = uuid.NullUUID{UUID: updater.ID, Valid: true}
+			expected.UpdatedAt = updated.UpdatedAt
+			require.Equal(t, expected, updated)
+		})
+	}
+}
+
 func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	t.Parallel()
 
@@ -12391,15 +12564,15 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, enabledConfig.OrganizationID)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
@@ -12414,6 +12587,60 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
+func TestGetEnabledChatModelConfigsByOrganization(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	defaultOrg, err := store.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	provider := dbgen.AIProvider(t, store, database.AIProvider{
+		Type: database.AIProviderTypeOpenrouter,
+		Name: "effective-openrouter-" + uuid.NewString(),
+	})
+	defaultConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "default-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: defaultOrg.ID,
+		IsDefault:      true,
+	})
+	localOrg := dbgen.Organization(t, store, database.Organization{})
+	localDefault := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "local-default-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: localOrg.ID,
+		IsDefault:      true,
+	})
+	localConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "local-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: localOrg.ID,
+	})
+	thirdOrg := dbgen.Organization(t, store, database.Organization{})
+	thirdConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Model:          "third-model-" + uuid.NewString(),
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: thirdOrg.ID,
+	})
+
+	rows, err := store.GetEnabledChatModelConfigsByOrganization(ctx, localOrg.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		require.Equal(t, localOrg.ID, row.ChatModelConfig.OrganizationID)
+		ids = append(ids, row.ChatModelConfig.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{localDefault.ID, localConfig.ID}, ids)
+	require.NotContains(t, ids, defaultConfig.ID)
+	require.NotContains(t, ids, thirdConfig.ID)
+
+	emptyOrg := dbgen.Organization(t, store, database.Organization{})
+	rows, err = store.GetEnabledChatModelConfigsByOrganization(ctx, emptyOrg.ID)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+}
+
 func insertChatModelConfigForTest(
 	ctx context.Context,
 	t testing.TB,
@@ -12422,32 +12649,46 @@ func insertChatModelConfigForTest(
 	params database.InsertChatModelConfigParams,
 ) (database.ChatModelConfig, error) {
 	t.Helper()
-	if params.AIProviderID.Valid {
-		return store.InsertChatModelConfig(ctx, params)
-	}
-	providerName := providerType
-	if providerName == "" {
-		providerName = "openai"
-	}
-	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
-	if err != nil {
-		return database.ChatModelConfig{}, err
-	}
-	var provider database.AIProvider
-	for _, candidate := range providers {
-		if candidate.Type != database.AIProviderType(providerName) {
-			continue
+	if !params.AIProviderID.Valid {
+		providerName := providerType
+		if providerName == "" {
+			providerName = "openai"
 		}
-		if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
-			provider = candidate
+		providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+		if err != nil {
+			return database.ChatModelConfig{}, err
+		}
+		var provider database.AIProvider
+		for _, candidate := range providers {
+			if candidate.Type != database.AIProviderType(providerName) {
+				continue
+			}
+			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+				provider = candidate
+			}
+		}
+		if provider.ID == uuid.Nil {
+			provider = dbgen.AIProvider(t, store, database.AIProvider{
+				Type: database.AIProviderType(providerName),
+			})
+		}
+		params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	}
+	if params.OrganizationID == uuid.Nil {
+		defaultOrg, err := store.GetDefaultOrganization(ctx)
+		if err != nil {
+			return database.ChatModelConfig{}, err
+		}
+		params.OrganizationID = defaultOrg.ID
+	}
+	if params.GroupACL == nil {
+		params.GroupACL = database.ChatACL{
+			params.OrganizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
 		}
 	}
-	if provider.ID == uuid.Nil {
-		provider = dbgen.AIProvider(t, store, database.AIProvider{
-			Type: database.AIProviderType(providerName),
-		})
+	if params.UserACL == nil {
+		params.UserACL = database.ChatACL{}
 	}
-	params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	return store.InsertChatModelConfig(ctx, params)
 }
 
@@ -17666,6 +17907,9 @@ func TestGetChatsFilter(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -17958,6 +18202,9 @@ func TestGetChatsSearch(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -18088,10 +18335,22 @@ func TestGetChatsSearch(t *testing.T) {
 	pendingChat := createRoot("plain four")
 	insertMsg(pendingChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "elasticsearch indexing")
 
+	// Simulates the post-migration drain window: a vector produced with
+	// the 'simple' config whose search_tsv_config was never stamped
+	// (pre-migration backfill or an old binary mid rolling upgrade).
+	// Such rows must keep their pre-migration exact-form matching until
+	// the sweep rewrites them.
+	staleChat := createRoot("plain stale")
+	staleMsg := insertMsg(staleChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "refactoring codebase")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = NULL WHERE id = $1`,
+		staleMsg.ID)
+	require.NoError(t, err)
+
 	// Prove role/visibility predicates exclude rows even when search_tsv
 	// is set.
 	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'forbidden secret token') WHERE id = ANY($1)`,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('english', 'forbidden secret token') WHERE id = ANY($1)`,
 		pq.Array([]int64{toolMsg.ID, modelOnlyMsg.ID}))
 	require.NoError(t, err)
 
@@ -18102,7 +18361,7 @@ func TestGetChatsSearch(t *testing.T) {
 		titleChat.ID, archivedChat.ID, prTitleChat.ID, mergedChat.ID,
 		msgChat.ID, assistantMsgChat.ID, userVisMsgChat.ID,
 		assistantUserVisMsgChat.ID, deletedMsgChat.ID, childParent.ID,
-		ineligibleChat.ID, pendingChat.ID,
+		ineligibleChat.ID, pendingChat.ID, staleChat.ID,
 	}
 
 	tests := []struct {
@@ -18113,8 +18372,20 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
 		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
 		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Titles keep the 'simple' config, which does not stem, so
+		// inflected query forms only match message bodies.
+		{"Title/NoStemming", database.GetChatsParams{Search: "deploying pipelines"}, nil},
 		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/NoStemming", database.GetChatsParams{Search: "authenticating"}, nil},
 		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
+		// The 'english' config stems both sides, so inflected query forms
+		// match the stored words.
+		{"Message/StemmedMatch", database.GetChatsParams{Search: "restarting clusters"}, []uuid.UUID{msgChat.ID}},
+		// Stale 'simple' vectors are queried with their own config: the
+		// exact form matches like before the migration, the stemmed form
+		// does not until the sweep rewrites the row.
+		{"Message/StaleVectorExactFormMatch", database.GetChatsParams{Search: "refactoring codebase"}, []uuid.UUID{staleChat.ID}},
+		{"Message/StaleVectorNoStemming", database.GetChatsParams{Search: "refactor"}, nil},
 		{"Message/AssistantRoleMatch", database.GetChatsParams{Search: "grafana tuning"}, []uuid.UUID{assistantMsgChat.ID}},
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
@@ -19271,4 +19542,36 @@ func TestGetAIModelPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetChatSiteConfigValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_chat_retention_days",
+		Value: "30",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_unset",
+		Value: "not a chat setting",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "derp_mesh_key",
+		Value: "secret",
+	}))
+
+	value, err := db.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{Value: "30", Exists: true}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "agents_unset")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "derp_mesh_key")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
 }

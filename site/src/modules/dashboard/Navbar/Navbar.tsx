@@ -5,17 +5,25 @@ import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { canViewDeploymentSettings } from "#/modules/permissions";
+import {
+	canAccessAnyChatModelConfig,
+	canViewDeploymentSettings,
+} from "#/modules/permissions";
+import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
 export const Navbar: React.FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const { appearance, canViewOrganizationSettings, organizations } =
+		useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
+	const accessibleModelOrgsQuery =
+		useAccessibleModelOrganizations(organizations);
+	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
@@ -33,7 +41,10 @@ export const Navbar: React.FC = () => {
 		permissions.viewAnyMCPServerConfigs ||
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
-		permissions.deleteAnyMCPServerConfig;
+		permissions.deleteAnyMCPServerConfig ||
+		canAccessAnyModel;
+	const canViewModels =
+		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -57,6 +68,7 @@ export const Navbar: React.FC = () => {
 				canViewAIBridge,
 				canViewHealth,
 			}}
+			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
 			proxyContextValue={proxyContextValue}
 		/>

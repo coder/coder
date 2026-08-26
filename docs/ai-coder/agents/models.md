@@ -1,10 +1,10 @@
 # Models
 
-Administrators configure LLM providers from **Admin settings** > **AI** and
-Coder Agents models from **Admin settings** > **AI** > **Models**. Providers,
-models, and centrally managed credentials are deployment-wide settings managed
-by platform teams. Developers select from the set of models that an administrator has
-enabled.
+Administrators configure LLM providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
+Providers and centrally managed credentials are deployment-wide settings managed by platform teams.
+Each model belongs to an organization. Each organization has its own model list.
+Developers select from the set of models that an administrator has enabled in their organization.
+Refer to [Organization scope](./platform-controls/organizations.md) for the split between deployment-wide and organization-scoped settings.
 
 Optionally, administrators can enable AI Gateway Bring Your Own Key (BYOK)
 so developers can supply personal API keys for providers. See
@@ -43,8 +43,8 @@ add one of the supported provider types above instead.
 
 ### Add a provider
 
-LLM providers are managed from the deployment AI settings, not from the Agents
-settings page.
+LLM providers are managed from the deployment AI settings, not from the Agents settings page.
+A provider is deployment-wide, whilst the models that reference it are organization-scoped.
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
@@ -55,9 +55,9 @@ settings page.
    [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
 1. Click **Save**.
 
-After saving a provider, add an Agents model for it from **Admin settings** >
-**AI** > **Models**. For provider-specific setup, including AWS Bedrock, see
-[AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
+After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
+Select the organization that should own the new model before you add it.
+For provider-specific setup, including AWS Bedrock, refer to [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
 
@@ -102,8 +102,8 @@ on this security model.
 
 ## Credential selection
 
-Coder Agents use the AI providers configured by administrators. Provider API
-keys entered by administrators are centralized credentials for the deployment.
+Coder Agents use the AI providers configured by administrators.
+Provider API keys entered by administrators are centralized credentials for the deployment.
 
 BYOK for Coder Agents is controlled by the
 [global AI Gateway BYOK setting](../ai-gateway/auth.md#bring-your-own-key-byok),
@@ -125,10 +125,48 @@ For each provider request, Coder selects credentials in this order:
 Each model belongs to a provider and has its own configuration for context limits,
 generation parameters, and provider-specific options.
 
+### Select an organization
+
+Model settings use the stable path `/ai/settings/models` and the `org` query parameter to select an organization.
+For example, `/ai/settings/models?org=engineering` opens the models that you can read in the `engineering` organization.
+
+If the requested organization isn't accessible, Coder selects your accessible default organization or your first accessible organization.
+Coder shows the organization picker when you can access more than 1 organization.
+
+Members with model read access can open the model list and model details.
+Coder shows model fields as read-only unless the member also has update permission.
+Create, update, delete, and share permissions control their corresponding actions independently.
+
+### Manage model permissions
+
+Members with model share permission can let members and groups in the selected organization use the model.
+
+1. Navigate to **Admin settings** > **AI** > **Models**.
+2. Select the organization that owns the model.
+3. Select the model.
+4. Open **Model actions** and select **Manage permissions**.
+5. Add or remove organization members and groups.
+6. Select **Save permissions**.
+
+Coder applies the member and group changes when you save.
+Removing all entries clears the model's access list, so members without another access grant cannot use the model on their next request.
+
+### Model visibility and runtime availability
+
+Management visibility and runtime availability are separate.
+A member can see a model in settings through its access list even when the model isn't available for chat.
+
+The Agents model selector includes the model only when its exact provider configuration has usable credentials for that member.
+Coder evaluates providers by provider UUID, so 2 providers of the same type can have different availability.
+An unavailable provider can remain visible while its models are omitted from the selector.
+
+Model APIs identify each configured model with a UUID.
+The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this model UUID.
+
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and select the provider for the new model.
+1. Select **Add model** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).
 1. Set a **Display Name** so developers see a human-readable label in the model
@@ -136,7 +174,7 @@ generation parameters, and provider-specific options.
 1. Set the **Context Limit**, the maximum number of tokens in the model's
    context window (e.g., `200000` for Claude Sonnet).
 1. Configure any provider-specific options (see below).
-1. Click **Save**.
+1. Select **Save**.
 
 <img src="../../images/guides/ai-agents/models-list.png" alt="Screenshot of the models list in the Agents settings">
 
@@ -150,9 +188,18 @@ provider.</small>
 
 ### Set a default model
 
-Click the **star icon** next to a model in the models list to make it the
-default. The default model is pre-selected when developers start a new chat.
-Only one model can be the default at a time.
+Each organization has one default model.
+The first model that you add to an organization becomes that organization's default model.
+The models list marks the current default with a **Default** badge.
+The default model is pre-selected when developers start a new chat in the organization.
+
+To change the default model:
+
+1. Navigate to **Admin settings** > **AI** > **Models**.
+1. Select the organization that owns the model.
+1. Open the model, or click **Add model** to create a new one.
+1. Select **Set as Coder Agents default model**.
+1. Click **Save**.
 
 ### Models with a missing or disabled provider
 
@@ -242,15 +289,14 @@ fields appear dynamically in the admin UI when you select a provider.
 
 ## How developers select models
 
-Developers see a model selector dropdown when starting or continuing a chat on
-the Agents page. The selector shows only models from providers that have valid
-credentials configured. Models are grouped by provider if multiple providers
-are active.
+Developers see a model selector dropdown when starting or continuing a chat on the Agents page.
+The selector shows only models in the chat's organization that come from providers with valid credentials.
+Models are grouped by provider if multiple providers are active.
 
 The model selector uses the following precedence to pre-select a model:
 
 1. **Last used model**, stored in the browser's local storage.
-1. **Admin-designated default**, the model marked with the star icon.
+1. **Organization default**, the model marked with the **Default** badge.
 1. **First available model**, if no default is set and no history exists.
 
 Developers cannot add their own providers or models. If no models are
@@ -259,38 +305,52 @@ contact an administrator.
 
 ## Model overrides
 
-Beyond the chat-level model picker, Coder Agents supports two override
-layers:
+Beyond the chat-level model picker, Coder Agents supports two override layers.
+Both are stored per organization and resolve from the chat's organization:
 
-- **Subagent overrides** (admin, deployment-wide): Pin specific subagent
-  contexts to a particular model. Configure them at **Agents** >
-  **Settings** > **Manage Agents** > **Agents**.
-- **Personal overrides** (per user, opt-in by admin): Let users override
-  the model for their own root chats and delegated subagents. Admins
-  enable the toggle on the same admin page; once on, each user sees an
-  **Agents** tab in their personal **Agents** > **Settings**.
+- **Admin overrides** (per organization): Pin specific contexts to a particular model.
+  Configure them in the **Organization settings** section of **Admin settings** > **AI** > **Coder Agents**.
+  Coder shows an organization picker in that section when you can access more than 1 organization.
+- **Personal overrides** (per user and organization, opt-in by admin): Let users override the model for their own root chats and delegated subagents.
+  Admins enable the deployment-wide toggle in the **Deployment settings** section of the same page.
+  Once the toggle is on, each user sees an **Agents** tab in their personal **Agents** > **Settings**.
+  Users in more than one organization pick which organization to configure.
+
+The **Coder Agents** page is visible to deployment admins and to organization members with model access.
+To change an organization override, you need permission to edit that organization's models.
+The **Deployment settings** section is visible only to deployment admins.
+
+> [!IMPORTANT]
+> When a deployment upgrades from the older deployment-wide override
+> storage, existing admin and personal overrides are deleted rather than
+> migrated. Admins and users must re-select their override models in
+> settings after the upgrade.
 
 The configurable contexts:
 
-| Context              | Layer        | Applies to                                                                     |
-|----------------------|--------------|--------------------------------------------------------------------------------|
-| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`). |
-| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                       |
-| **Title generation** | Admin only   | Automatic title generation for new chats.                                      |
-| **Root**             | User only    | The user's own root chats.                                                     |
+| Context              | Layer        | Applies to                                                                             |
+|----------------------|--------------|----------------------------------------------------------------------------------------|
+| **General**          | Admin + user | Write-capable subagents (`spawn_agent` with `type=general` or `computer_use`).         |
+| **Explore**          | Admin + user | Read-only subagents (`spawn_agent` with `type=explore`).                               |
+| **Title generation** | Admin only   | Automatic title generation for new chats.                                              |
+| **Compaction**       | Admin only   | Conversation summarization near the context limit.                                     |
+| **Advisor**          | Admin only   | The [advisor](./platform-controls/advisor.md). Requires the `chat-advisor` experiment. |
+| **Root**             | User only    | The user's own root chats.                                                             |
 
-Resolution order, evaluated per chat or subagent:
+Resolution order, evaluated per chat or subagent from the chat's
+organization:
 
 1. Explicit `model_config_id` on the `spawn_agent` tool call (general and
    explore subagents only).
 1. Personal override (when the admin gate is on and a model is set).
-1. Admin subagent override.
-1. The chat's selected model (or the deployment default for new chats).
+1. Admin override.
+1. The chat's selected model (or the organization default for new chats).
 
 If a referenced model is later disabled or deleted, that layer is skipped
-and resolution falls through to the next. Explicit `spawn_agent` selection
-is different: an unusable `model_config_id` fails the tool call instead of
-falling through. Agents discover selectable models (and their reasoning
+and resolution falls through to the next, with two exceptions: an unusable
+explicit `spawn_agent` `model_config_id` fails the tool call, and an
+unusable title generation override skips title generation instead of
+falling back. Agents discover selectable models (and their reasoning
 effort ranges) with the `list_subagent_models` tool, which only returns
 enabled models usable with the chat owner's credentials. Computer-use
 subagents always run on the administrator-configured computer-use model and
@@ -298,8 +358,10 @@ reject explicit model selection.
 
 > [!NOTE]
 > Both override layers may change between releases.
-> The same values are available through the chat
-> configuration API under `/api/v2/chats/config/`.
+> Admin overrides are available through the API at
+> `/api/experimental/organizations/{organization}/chats/model-overrides`
+> and personal overrides at
+> `/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides`.
 
 ## User API keys (BYOK)
 
@@ -314,7 +376,7 @@ from the Agents settings page.
 1. Each enabled provider is listed with a status indicator:
    - **Key saved**, your personal key is active and will be used for requests to
      that provider.
-   - **Using shared key**, no personal key is set and Coder is using
+   - **Shared key**, no personal key is set and Coder is using
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.

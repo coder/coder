@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
-import { useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import {
 	expect,
@@ -12,10 +12,21 @@ import {
 	within,
 } from "storybook/test";
 import { API } from "#/api/api";
+import { aiProvidersListKey } from "#/api/queries/aiProviders";
+import {
+	mcpServerConfigsKey,
+	organizationChatModelsKey,
+	userChatPersonalModelOverrides,
+	userChatProviderConfigsKey,
+} from "#/api/queries/chats";
 import { permittedOrganizationsKey } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -27,8 +38,15 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+import {
+	AgentCreateForm,
+	emptyInputStorageKey,
+	selectedOrganizationIdStorageKey,
+} from "./AgentCreateForm";
 
+let pendingOrganizationAuthorization: Deferred<
+	Awaited<ReturnType<typeof API.checkAuthorization>>
+>;
 let capturedQueryClient: QueryClient | undefined;
 
 const permittedOrgsKey = permittedOrganizationsKey({
@@ -36,29 +54,15 @@ const permittedOrgsKey = permittedOrganizationsKey({
 	action: "create",
 });
 
-const modelConfigID = "model-config-1";
+const modelID = "model-config-1";
 const claudeModelConfigID = "model-config-claude";
 
-const modelOptions = [
-	{
-		id: modelConfigID,
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-	{
-		id: claudeModelConfigID,
-		provider: "anthropic",
-		model: "claude-sonnet-4",
-		displayName: "Claude Sonnet 4",
-	},
-] as const;
-
 const buildModelConfig = (
-	overrides: Partial<TypesGen.ChatModelConfig> = {},
-): TypesGen.ChatModelConfig => ({
-	...MockChatModelConfig,
-	id: modelConfigID,
+	overrides: Partial<TypesGen.ChatModel> = {},
+): TypesGen.ChatModel => ({
+	...MockChatModel,
+	id: modelID,
+	organization_id: MockDefaultOrganization.id,
 	model: "gpt-4o",
 	display_name: "GPT-4o",
 	created_at: "2026-02-18T00:00:00.000Z",
@@ -66,7 +70,7 @@ const buildModelConfig = (
 	...overrides,
 });
 
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModelConfigs: TypesGen.ChatModel[] = [
 	buildModelConfig({ is_default: true }),
 	buildModelConfig({
 		id: claudeModelConfigID,
@@ -77,6 +81,129 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	}),
 ];
 
+// Model catalog with both providers available, matching defaultModelConfigs.
+const organization2ModelConfig = buildModelConfig({
+	id: "model-config-org-2",
+	organization_id: MockOrganization2.id,
+	model: "gpt-4.1-mini",
+	display_name: "GPT 4.1 Mini",
+	is_default: true,
+});
+
+const defaultModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: defaultModelConfigs,
+	providers: [
+		MockChatModelProviderDescriptor,
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-anthropic",
+			type: "anthropic",
+			display_name: "Anthropic",
+		},
+	],
+	unsupported_providers: [],
+};
+
+const organization2RuntimeCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	models: [organization2ModelConfig, ...defaultModelConfigs],
+};
+
+const organization2LocalCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	models: [organization2ModelConfig],
+};
+
+const organization2ForeignOnlyCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...defaultModelCatalog,
+		models: defaultModelConfigs,
+	};
+
+const userApiKeyRequiredCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	providers: defaultModelCatalog.providers.map((provider) => ({
+		...provider,
+		available: false,
+		unavailable_reason: "user_api_key_required",
+	})),
+};
+
+const missingAPIKeyCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	providers: defaultModelCatalog.providers.map((provider) => ({
+		...provider,
+		available: false,
+		unavailable_reason: "missing_api_key",
+	})),
+};
+
+const fetchFailedCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	providers: defaultModelCatalog.providers.map((provider) => ({
+		...provider,
+		available: false,
+		unavailable_reason: "fetch_failed",
+	})),
+};
+
+const unsupportedProviderCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [],
+	providers: [
+		{
+			...MockChatModelProviderDescriptor,
+			id: "provider-copilot",
+			type: "copilot",
+			display_name: "GitHub Copilot",
+			has_api_key: false,
+			has_effective_api_key: false,
+			available: false,
+		},
+	],
+	unsupported_providers: [
+		{ provider: "copilot", display_name: "GitHub Copilot" },
+	],
+};
+
+const unsupportedProviderWithDisabledSupportedCatalog: TypesGen.OrganizationChatModelsResponse =
+	{
+		...unsupportedProviderCatalog,
+		providers: [
+			...unsupportedProviderCatalog.providers,
+			{
+				...MockChatModelProviderDescriptor,
+				id: "provider-anthropic",
+				type: "anthropic",
+				display_name: "Anthropic",
+				enabled: false,
+				available: false,
+			},
+		],
+	};
+
+const defaultUserProviderConfigs: TypesGen.UserChatProviderConfig[] = [
+	{
+		provider_id: "provider-1",
+		provider: "openai",
+		display_name: "OpenAI",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: false,
+	},
+	{
+		provider_id: "provider-anthropic",
+		provider: "anthropic",
+		display_name: "Anthropic",
+		icon: "",
+		enabled: true,
+		has_user_api_key: false,
+		has_central_api_key_fallback: true,
+		byok_enabled: false,
+	},
+];
+
 const buildRootPersonalModelOverride = (
 	overrides: Partial<TypesGen.ChatPersonalModelOverride> = {},
 ): TypesGen.ChatPersonalModelOverride => ({
@@ -84,8 +211,30 @@ const buildRootPersonalModelOverride = (
 	mode: "chat_default",
 	model_config_id: "",
 	is_set: true,
-	is_malformed: false,
 	...overrides,
+});
+
+const buildPersonalModelOverridesResponse = (
+	root = buildRootPersonalModelOverride({ is_set: false }),
+): TypesGen.UserChatPersonalModelOverridesResponse => ({
+	enabled: true,
+	root,
+	general: {
+		context: "general",
+		mode: "deployment_default",
+		model_config_id: "",
+		is_set: false,
+	},
+	explore: {
+		context: "explore",
+		mode: "deployment_default",
+		model_config_id: "",
+		is_set: false,
+	},
+	deployment_defaults: {
+		general: { context: "general", model_config_id: "" },
+		explore: { context: "explore", model_config_id: "" },
+	},
 });
 
 const mock403Error = Object.assign(
@@ -117,19 +266,38 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
-		modelCatalog: null,
-		modelOptions: [...modelOptions],
-		isModelCatalogLoading: false,
-		modelConfigs: [],
-		isModelConfigsLoading: false,
 		workspaceCount: 0,
 		workspaceOptions: [],
 		workspacesError: undefined,
 		isWorkspacesLoading: false,
 	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(),
+			},
+		],
+	},
 	beforeEach: () => {
 		localStorage.clear();
 		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+		// Stories that replace parameters.queries lose the seeded overrides
+		// entry above; resolve the API for any organization so the send gate
+		// (blocked until overrides resolve) does not stall unrelated stories.
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockResolvedValue(buildPersonalModelOverridesResponse());
 	},
 };
 
@@ -137,6 +305,20 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+
+const RemountAgentCreateForm = (
+	props: ComponentProps<typeof AgentCreateForm>,
+) => {
+	const [key, setKey] = useState(0);
+	return (
+		<>
+			<button type="button" onClick={() => setKey((current) => current + 1)}>
+				Remount form
+			</button>
+			<AgentCreateForm key={key} {...props} />
+		</>
+	);
+};
 
 const mockPermittedOrganizations = (
 	permissions: Record<string, boolean>,
@@ -161,7 +343,9 @@ const submitMessage = async (canvasElement: HTMLElement, message: string) => {
 	const input = canvas.getByRole("textbox", { name: "Chat message" });
 	await userEvent.click(input);
 	await userEvent.keyboard(message);
-	await userEvent.click(canvas.getByRole("button", { name: "Send" }));
+	const sendButton = canvas.getByRole("button", { name: "Send" });
+	await waitFor(() => expect(sendButton).toBeEnabled());
+	await userEvent.click(sendButton);
 };
 
 const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
@@ -182,16 +366,33 @@ export const RootPersonalModelOverrideModelSelected: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: claudeModelConfigID,
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: claudeModelConfigID,
+					}),
+				),
+			},
+		],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("combobox", { name: "Claude Sonnet 4" }),
+		await expect(
+			await canvas.findByRole("combobox", { name: "Claude Sonnet 4" }),
 		).toBeInTheDocument();
 		await submitMessage(canvasElement, "create with saved root model");
 		await waitFor(() => {
@@ -205,11 +406,28 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "chat_default",
-			model_config_id: "",
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "chat_default",
+						model_config_id: "",
+					}),
+				),
+			},
+		],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -220,7 +438,7 @@ export const RootChatDefaultSubmitsDisplayedModel: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -228,13 +446,29 @@ export const RootOverrideMissingFromCatalog: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: "model-does-not-exist",
-			is_set: true,
-			is_malformed: false,
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: "model-does-not-exist",
+						is_set: true,
+					}),
+				),
+			},
+		],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -245,34 +479,7 @@ export const RootOverrideMissingFromCatalog: Story = {
 		await waitFor(() => {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
-	},
-};
-
-export const MalformedRootOverrideUsesDefaultModel: Story = {
-	args: {
-		...defaultArgs,
-		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: claudeModelConfigID,
-			is_malformed: true,
-		}),
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("combobox", { name: "GPT-4o" }),
-		).toBeInTheDocument();
-		expect(
-			canvas.queryByRole("combobox", { name: "Claude Sonnet 4" }),
-		).not.toBeInTheDocument();
-		await submitMessage(canvasElement, "create with malformed root model");
-		await waitFor(() => {
-			expect(args.onCreateChat).toHaveBeenCalled();
-		});
-		expect(getCreateOptions(args.onCreateChat).model).toBe(modelConfigID);
+		expect(getCreateOptions(args.onCreateChat).model).toBe(modelID);
 	},
 };
 
@@ -280,7 +487,6 @@ export const LastUsedModelFallbackWithoutRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -303,11 +509,28 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "chat_default",
-			model_config_id: "",
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "chat_default",
+						model_config_id: "",
+					}),
+				),
+			},
+		],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -324,13 +547,13 @@ export const ManualSelectionOverridesRootChatDefault: Story = {
 	},
 };
 
-// Model options with reasoning effort bounds configured. GPT-4o uses the
+// Model configs with reasoning effort bounds configured. GPT-4o uses the
 // full global scale; Claude is capped at medium.
-const effortModelOptions = [
-	{
-		...modelOptions[0],
-		reasoningEffortDefault: "medium",
-		reasoningEfforts: [
+const effortModelConfigs: TypesGen.ChatModel[] = [
+	buildModelConfig({
+		is_default: true,
+		model_config: { reasoning_effort: { default: "medium" } },
+		reasoning_efforts: [
 			"none",
 			"minimal",
 			"low",
@@ -339,22 +562,53 @@ const effortModelOptions = [
 			"xhigh",
 			"max",
 		],
-	},
-	{
-		...modelOptions[1],
-		reasoningEffortDefault: "low",
-		reasoningEfforts: ["low", "medium"],
-	},
-] as const;
+	}),
+	buildModelConfig({
+		id: claudeModelConfigID,
+		ai_provider_id: "provider-anthropic",
+		model: "claude-sonnet-4",
+		display_name: "Claude Sonnet 4",
+		context_limit: 200_000,
+		model_config: { reasoning_effort: { default: "low" } },
+		reasoning_efforts: ["low", "medium"],
+	}),
+];
+
+const effortModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	models: effortModelConfigs,
+};
+
+const limitedEffortModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	...defaultModelCatalog,
+	models: [
+		buildModelConfig({
+			is_default: true,
+			model_config: { reasoning_effort: { default: "low" } },
+			reasoning_efforts: ["low", "medium"],
+		}),
+	],
+};
 
 export const RemembersReasoningEffortByModel: Story = {
 	args: {
 		...defaultArgs,
-		modelOptions: [...effortModelOptions],
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: effortModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "high");
+		saveReasoningEffortForModel(modelID, "high");
 		saveReasoningEffortForModel(claudeModelConfigID, "medium");
 	},
 	play: async ({ canvasElement }) => {
@@ -386,7 +640,7 @@ export const RemembersReasoningEffortByModel: Story = {
 		restoredSlider.focus();
 		await userEvent.keyboard("{ArrowRight}");
 		await waitFor(() => {
-			expect(getReasoningEffortForModel(modelConfigID)).toBe("xhigh");
+			expect(getReasoningEffortForModel(modelID)).toBe("xhigh");
 		});
 		await userEvent.keyboard("{Escape}");
 	},
@@ -396,17 +650,33 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "high",
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: effortModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: modelID,
+						reasoning_effort: "high",
+					}),
+				),
+			},
+		],
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "low");
+		saveReasoningEffortForModel(modelID, "low");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -431,13 +701,29 @@ export const PersistedReasoningEffortOutranksRootOverride: Story = {
 export const ManualReselectKeepsRootOverrideEffort: Story = {
 	args: {
 		...defaultArgs,
-		modelOptions: [...effortModelOptions],
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "high",
-		}),
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: effortModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: modelID,
+						reasoning_effort: "high",
+					}),
+				),
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -459,23 +745,33 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [
+	},
+	parameters: {
+		queries: [
 			{
-				...modelOptions[0],
-				reasoningEffortDefault: "low",
-				reasoningEfforts: ["low", "medium"],
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: limitedEffortModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: userChatPersonalModelOverrides(MockDefaultOrganization.id)
+					.queryKey,
+				data: buildPersonalModelOverridesResponse(
+					buildRootPersonalModelOverride({
+						mode: "model",
+						model_config_id: modelID,
+						reasoning_effort: "medium",
+					}),
+				),
 			},
 		],
-		modelConfigs: defaultModelConfigs,
-		rootPersonalModelOverride: buildRootPersonalModelOverride({
-			mode: "model",
-			model_config_id: modelConfigID,
-			reasoning_effort: "medium",
-		}),
 	},
 	beforeEach: () => {
 		localStorage.clear();
-		saveReasoningEffortForModel(modelConfigID, "max");
+		saveReasoningEffortForModel(modelID, "max");
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -500,11 +796,22 @@ export const StalePersistedEffortFallsThroughToRootOverride: Story = {
 
 export const SubmitsReasoningEffort: Story = {
 	// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
-	parameters: { pixel: { exclude: true } },
+	parameters: {
+		pixel: { exclude: true },
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: effortModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
 	args: {
 		...defaultArgs,
 		onCreateChat: fn().mockResolvedValue(undefined),
-		modelOptions: [...effortModelOptions],
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -535,7 +842,7 @@ export const SubmitsReasoningEffort: Story = {
 			expect(args.onCreateChat).toHaveBeenCalled();
 		});
 		const options = getCreateOptions(args.onCreateChat);
-		expect(options.model).toBe(modelConfigID);
+		expect(options.model).toBe(modelID);
 		expect(options.reasoningEffort).toBe("high");
 	},
 };
@@ -668,19 +975,61 @@ export const SelectWorkspaceViaSearch: Story = {
 };
 
 export const LoadingModelCatalog: Story = {
+	// Leave the model queries unseeded so they stay pending.
+	parameters: { queries: [] },
 	args: {
 		...defaultArgs,
-		modelCatalog: null,
-		modelOptions: [],
-		isModelCatalogLoading: true,
-		isModelConfigsLoading: true,
+	},
+};
+
+export const CachedModelsWithRefetchError: Story = {
+	decorators: [
+		(Story) => {
+			const queryClient = useQueryClient();
+			useEffect(() => {
+				void queryClient.invalidateQueries({
+					queryKey: organizationChatModelsKey(MockDefaultOrganization.id),
+					exact: true,
+				});
+			}, [queryClient]);
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockRejectedValueOnce(
+			new Error("Failed to refresh available models."),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to refresh available models."),
+		).toBeVisible();
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
 	},
 };
 
 export const LoadingPersonalModelOverrides: Story = {
 	args: {
 		...defaultArgs,
-		isPersonalModelOverridesLoading: true,
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockReturnValue(new Promise(() => undefined));
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -691,26 +1040,175 @@ export const LoadingPersonalModelOverrides: Story = {
 	},
 };
 
-export const NoModelsConfigured: Story = {
+export const FailedPersonalModelOverridesBlocksSend: Story = {
 	args: {
 		...defaultArgs,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
+	},
+	beforeEach: () => {
+		spyOn(
+			API.experimental,
+			"getUserChatPersonalModelOverrides",
+		).mockRejectedValue(new Error("failed to load personal overrides"));
+	},
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// A failed override fetch must keep sending blocked: submitting would
+		// pass a catalog fallback as an explicit model, silently bypassing the
+		// user's saved root override.
+		await canvas.findAllByText(/failed to load personal overrides/i);
+		await expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+const emptyModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [],
+	providers: [],
+	unsupported_providers: [],
+};
+
+export const NoModelsConfigured: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: emptyModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+	},
+};
+
+export const ProviderRequiresUserApiKey: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: userApiKeyRequiredCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
+		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
+			"href",
+			"/agents/settings/api-keys",
+		);
+	},
+};
+
+export const ProviderMissingAPIKey: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: missingAPIKeyCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
+	},
+};
+
+export const ProviderFetchFailed: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: fetchFailedCatalog,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
+	},
+};
+
+export const UnsupportedProviderOnly: Story = {
+	args: { ...defaultArgs, canConfigureAgentSetup: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: unsupportedProviderCatalog,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
+		).toBeVisible();
+	},
+};
+
+export const UnsupportedProviderAndDisabledSupportedProvider: Story = {
+	args: { ...defaultArgs, canConfigureAgentSetup: true },
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: unsupportedProviderWithDisabledSupportedCatalog,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/GitHub Copilot is configured but/i)).toBeVisible();
+		expect(
+			canvas.getByRole("link", { name: "not supported by Coder Agents" }),
+		).toBeVisible();
 	},
 };
 
 export const MissingProviderAndModelSetup: Story = {
+	parameters: {
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: emptyModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{ key: aiProvidersListKey, data: [] },
+		],
+	},
 	args: {
 		...defaultArgs,
 		canConfigureAgentSetup: true,
-		providerCount: 0,
-		modelCount: 0,
-		modelCatalog: { providers: [], unsupported_providers: [] },
-		modelOptions: [],
-		isModelCatalogLoading: false,
-		isModelConfigsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -914,35 +1412,111 @@ export const WithOrganizationPicker: Story = {
 				key: permittedOrgsKey,
 				data: [MockOrganization2, MockDefaultOrganization],
 			},
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2RuntimeCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-		await waitFor(() => {
-			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
-				MockDefaultOrganization.id,
-			);
-		});
-		const organizationSelector = await canvas.findByRole("button", {
+		const organizationTrigger = await canvas.findByRole("button", {
 			name: `Organization: ${MockDefaultOrganization.display_name}`,
 		});
-		await userEvent.click(organizationSelector);
-		await userEvent.click(
-			await body.findByRole("option", { name: MockOrganization2.display_name }),
-		);
-		await waitFor(() => {
-			expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
-				MockOrganization2.id,
-			);
-		});
+		expect(canvas.getByRole("combobox", { name: "GPT-4o" })).toBeVisible();
+
 		const input = canvas.getByRole("textbox", { name: "Chat message" });
 		await userEvent.click(input);
 		await userEvent.keyboard("hello world");
-		await expect(
-			canvas.getByRole("button", {
-				name: `Organization: ${MockOrganization2.display_name}`,
+		await expect(organizationTrigger).toBeVisible();
+
+		await userEvent.click(organizationTrigger);
+		await userEvent.click(
+			await body.findByRole("option", {
+				name: new RegExp(MockOrganization2.display_name),
 			}),
+		);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", {
+					name: `Organization: ${MockOrganization2.display_name}`,
+				}),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
+			).toBeVisible();
+		});
+
+		await userEvent.keyboard("{Escape}");
+		await userEvent.click(
+			canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
+		);
+		await waitFor(() => {
+			const visibleOptions = body
+				.getAllByRole("option")
+				.filter((option) => option.checkVisibility());
+			expect(
+				visibleOptions.some((option) =>
+					option.textContent?.includes("GPT 4.1 Mini"),
+				),
+			).toBe(true);
+			expect(
+				visibleOptions.some((option) => option.textContent?.includes("GPT-4o")),
+			).toBe(false);
+		});
+		expect(
+			canvas.queryByRole("combobox", { name: "GPT-4o" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const DelayedAuthorizationPreservesForeignPersistedModel: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2LocalCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		localStorage.setItem(
+			"agents.last-model-config-id",
+			organization2ModelConfig.id,
+		);
+		mockPermittedOrganizations(
+			{
+				[MockDefaultOrganization.id]: false,
+				[MockOrganization2.id]: true,
+			},
+			100,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("combobox", { name: "GPT 4.1 Mini" }),
 		).toBeVisible();
 	},
 };
@@ -951,6 +1525,16 @@ export const RestrictedMultiOrganizationUser: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2LocalCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
 	},
 	beforeEach: () => {
 		spyOn(API, "getOrganizations").mockResolvedValue([
@@ -988,6 +1572,16 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2LocalCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
 	},
 	args: {
 		...defaultArgs,
@@ -1060,6 +1654,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -1071,10 +1666,18 @@ export const OrganizationAuthorizationFailure: Story = {
 		spyOn(API, "checkAuthorization").mockRejectedValue(
 			new Error("authorization check failed"),
 		);
+		spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			defaultModelCatalog,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findAllByText(/authorization check failed/i);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -1111,15 +1714,23 @@ export const DelayedOrganizationAuthorization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.setItem(emptyInputStorageKey, "draft message");
-		mockPermittedOrganizations(
-			{
-				[MockDefaultOrganization.id]: true,
-				[MockOrganization2.id]: true,
-			},
-			1_500,
+		pendingOrganizationAuthorization = createDeferred();
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(
+			() => pendingOrganizationAuthorization.promise,
+		);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: { ...defaultModelCatalog, models: [] },
 		);
 	},
 	args: {
@@ -1140,6 +1751,15 @@ export const DelayedOrganizationAuthorization: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "More options" }),
 		).toBeDisabled();
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
+		expect(
+			canvas.queryByText(/AI models aren't available yet/i),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText("No model is available")).not.toBeInTheDocument();
 		// dispatchEvent returns false when a handler accepted the drop
 		// via preventDefault, giving a race-free accepted/ignored signal.
 		const dropFile = (name: string): boolean => {
@@ -1157,18 +1777,81 @@ export const DelayedOrganizationAuthorization: Story = {
 		// must be ignored.
 		expect(dropFile("drop.txt")).toBe(true);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
-		// The pending option list is unfiltered, so the picker must stay hidden.
 		expect(
 			canvas.queryByRole("button", { name: /organization/i }),
 		).not.toBeInTheDocument();
-		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
-		await canvas.findByRole("button", { name: /organization/i });
+
+		pendingOrganizationAuthorization.resolve({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		expect(API.experimental.getChatModels).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+		);
+		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).toHaveBeenCalledWith(MockOrganization2.id, "me");
 		// Positive control: once settled the same drop is accepted and
 		// attaches, so the pending-state assertions exercised a real path.
 		expect(dropFile("after.txt")).toBe(false);
 		await waitFor(() =>
 			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
 		);
+	},
+};
+
+export const SelectedOrganizationSurvivesRemount: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: { ...defaultArgs },
+	render: (args) => <RemountAgentCreateForm {...args} />,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: defaultModelCatalog,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+				MockOrganization2.id,
+			);
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Remount form" }));
+		expect(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeVisible();
 	},
 };
 
@@ -1351,6 +2034,14 @@ export const SingleOrgIgnoresStalePermittedCache: Story = {
 				key: permittedOrgsKey,
 				data: [MockOrganization2],
 			},
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
 		],
 	},
 	args: {
@@ -1415,6 +2106,68 @@ export const RevokedPendingOrgClosesConfirmDialog: Story = {
 			).not.toBeInTheDocument(),
 		);
 		expect(canvas.getByLabelText("Remove notes.txt")).toBeInTheDocument();
+	},
+};
+
+export const LocalOrganizationModels: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockOrganization2],
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2LocalCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.getByRole("combobox", { name: "GPT 4.1 Mini" }),
+		).toBeVisible();
+	},
+};
+
+export const ForeignOnlyModelsDisableGeneration: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockOrganization2],
+		queries: [
+			{
+				key: permittedOrgsKey,
+				data: [MockOrganization2],
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2ForeignOnlyCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+		],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
+		expect(
+			canvas.getByRole("textbox", { name: "Chat message" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
+		expect(args.onCreateChat).not.toHaveBeenCalled();
 	},
 };
 
@@ -1556,6 +2309,20 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			{
+				key: organizationChatModelsKey(MockDefaultOrganization.id),
+				data: defaultModelCatalog,
+			},
+			{
+				key: userChatProviderConfigsKey,
+				data: defaultUserProviderConfigs,
+			},
+			{
+				key: organizationChatModelsKey(MockOrganization2.id),
+				data: organization2LocalCatalog,
+			},
+		],
 	},
 	args: {
 		...defaultArgs,
@@ -1669,8 +2436,12 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
-		expect(matches.length).toBeGreaterThan(0);
+		const alert = await canvas.findByRole("alert");
+		expect(
+			within(alert).getByRole("heading", {
+				name: /failed to load mcp servers/i,
+			}),
+		).toBeVisible();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -1697,11 +2468,13 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		if (!capturedQueryClient) {
 			throw new Error("query client was not captured by the story decorator");
 		}
-		await capturedQueryClient.refetchQueries();
-		const matches = await canvas.findAllByText(
-			/failed to refresh mcp servers/i,
-		);
-		expect(matches.length).toBeGreaterThan(0);
-		expect(send).toBeEnabled();
+		await capturedQueryClient.refetchQueries({
+			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
+			exact: true,
+		});
+		await waitFor(() => {
+			expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+			expect(send).toBeEnabled();
+		});
 	},
 };

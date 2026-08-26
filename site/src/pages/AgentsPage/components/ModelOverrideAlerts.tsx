@@ -4,18 +4,14 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 interface ModelOverrideAlertsProps {
 	isUnavailableSavedModel: boolean;
 	unavailableMessage: ReactNode;
-	isMalformedOverride: boolean;
-	malformedMessage: ReactNode;
-	modelConfigsError: unknown;
+	modelsError: unknown;
 	children?: ReactNode;
 }
 
 export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 	isUnavailableSavedModel,
 	unavailableMessage,
-	isMalformedOverride,
-	malformedMessage,
-	modelConfigsError,
+	modelsError,
 	children,
 }) => {
 	return (
@@ -25,15 +21,10 @@ export const ModelOverrideAlerts: FC<ModelOverrideAlertsProps> = ({
 					<AlertDescription>{unavailableMessage}</AlertDescription>
 				</Alert>
 			)}
-			{isMalformedOverride && (
-				<Alert severity="warning">
-					<AlertDescription>{malformedMessage}</AlertDescription>
-				</Alert>
-			)}
 			{children}
-			{Boolean(modelConfigsError) && (
+			{Boolean(modelsError) && (
 				<p className="m-0 text-xs text-content-destructive">
-					Failed to load model configs.
+					Failed to load models.
 				</p>
 			)}
 		</>
