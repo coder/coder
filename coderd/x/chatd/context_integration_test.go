@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -416,15 +417,38 @@ type agentMCPToolContext struct {
 }
 
 // seedAgentMCPToolContext upserts an mcp_server context snapshot and resource
-// for the agent, mirroring what PushContextState writes, so a chat bound to the
-// agent hydrates a pinned, execution-ready MCP tool. The model-facing tool name
-// is "<ServerName>__<ToolName>". It seeds the raw store directly so unit tests
-// can exercise pinned MCP execution without a live agent connection.
+// for the agent, mirroring what PushContextState writes. Workspace MCP tools
+// read this live agent catalog on each turn. The model-facing tool name is
+// "<ServerName>__<ToolName>". It seeds the raw store directly so unit tests
+// can exercise MCP execution without a live agent context push.
 func seedAgentMCPToolContext(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	tool agentMCPToolContext,
+) {
+	t.Helper()
+
+	now := dbtime.Now()
+	hash := []byte(tool.ServerName + ":" + tool.ToolName)
+	_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: tool.AgentID,
+		Version:          1,
+		AggregateHash:    hash,
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+
+	seedAgentMCPToolResource(ctx, t, db, tool, hash, now)
+}
+
+func seedAgentMCPToolResource(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	tool agentMCPToolContext,
+	hash []byte,
+	now time.Time,
 ) {
 	t.Helper()
 
@@ -443,16 +467,6 @@ func seedAgentMCPToolContext(
 			Description: tool.ToolDescription,
 			InputSchema: schema,
 		}},
-	})
-	require.NoError(t, err)
-
-	now := dbtime.Now()
-	hash := []byte(tool.ServerName + ":" + tool.ToolName)
-	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: tool.AgentID,
-		Version:          1,
-		AggregateHash:    hash,
-		ReceivedAt:       now,
 	})
 	require.NoError(t, err)
 

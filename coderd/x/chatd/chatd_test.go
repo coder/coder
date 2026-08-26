@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -1157,6 +1158,82 @@ func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 		"Explore child runtime should keep the spawn-time MCP snapshot after SendMessage")
 }
 
+func TestWorkspaceMCPToolsAppearAfterRestart(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requests   []recordedOpenAIRequest
+		requestsMu sync.Mutex
+	)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		requestsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, agent := seedWorkspaceWithAgent(t, db, user.ID)
+	seedAgentInstructionContext(ctx, t, db, agent.ID, "/home/coder/project/AGENTS.md", "follow the rules")
+
+	// Create and hydrate the chat without processing it, modeling the state
+	// persisted before chatd restarts.
+	creator := newTestServer(t, db, ps, uuid.New())
+	chat, err := creator.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: agent.ID, Valid: true},
+		Title:          "late workspace MCP",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("list the available tools"),
+		},
+	})
+	require.NoError(t, err)
+
+	pinned, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, pinned, 1, "the chat pins only the instruction available at hydration")
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[0].BodyKind)
+
+	// MCP resources do not participate in the aggregate hash. Simulate the
+	// asynchronous MCP connection by adding its resource after the chat pin,
+	// without updating the snapshot or dirtying the chat.
+	seedAgentMCPToolResource(ctx, t, db, agentMCPToolContext{
+		AgentID:         agent.ID,
+		ServerName:      "late-mcp",
+		ToolName:        "echo",
+		ToolDescription: "Late MCP echo tool",
+	}, []byte("late-mcp:echo"), dbtime.Now())
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, agent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+	waitForChatProcessed(ctx, t, db, chat.ID, server)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.Len(t, recorded, 1)
+	require.Contains(t, recorded[0].Tools, "late-mcp__echo",
+		"the restarted server should read MCP tools from the live agent catalog")
+}
+
 func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	t.Parallel()
 
@@ -1225,9 +1302,7 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-	// Workspace MCP tools now come from the agent's pinned snapshot, not live
-	// discovery. Seed the workspace MCP server so chats bound to the agent
-	// hydrate the "workspace-plan-mcp__echo" tool.
+	// Workspace MCP tools come from the bound agent's latest pushed catalog.
 	seedAgentMCPToolContext(ctx, t, db, agentMCPToolContext{
 		AgentID:         dbAgent.ID,
 		ServerName:      "workspace-plan-mcp",

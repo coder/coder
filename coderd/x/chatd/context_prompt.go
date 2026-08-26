@@ -81,7 +81,7 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	return out
 }
 
-// workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
+// workspaceMCPToolInfosFromResources decodes an agent's live mcp_server
 // resources into execution-ready tool infos. Only OK mcp_server rows
 // contribute. The agent reports tool names unprefixed alongside the server
 // name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
@@ -89,7 +89,7 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 // input schema is a full JSON Schema object; its "properties" and "required"
 // are split out to match the shape the workspace agent's live tool list
 // produces (see agent/x/agentmcp). Tools with an empty name are skipped.
-func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
+func workspaceMCPToolInfosFromResources(resources []database.WorkspaceAgentContextResource) []workspacesdk.MCPToolInfo {
 	var out []workspacesdk.MCPToolInfo
 	for _, r := range resources {
 		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||

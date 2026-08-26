@@ -260,15 +260,16 @@ func (server *Server) prepareGeneration(
 	}
 
 	var (
-		prompt             []fantasy.Message
-		instruction        string
-		mcpTools           []fantasy.AgentTool
-		mcpCleanup         func()
-		workspaceMCPTools  []fantasy.AgentTool
-		workspaceSkills    []chattool.SkillMeta
-		personalSkills     []skillspkg.Skill
-		resolvedUserPrompt string
-		planPathBlock      string
+		prompt              []fantasy.Message
+		instruction         string
+		mcpTools            []fantasy.AgentTool
+		mcpCleanup          func()
+		workspaceMCPAgentID uuid.UUID
+		workspaceMCPTools   []fantasy.AgentTool
+		workspaceSkills     []chattool.SkillMeta
+		personalSkills      []skillspkg.Skill
+		resolvedUserPrompt  string
+		planPathBlock       string
 	)
 
 	// Drop provider-executed tool history produced by a different provider
@@ -286,7 +287,18 @@ func (server *Server) prepareGeneration(
 		// the bound agent has changed, so this is a cheap metadata
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
-		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+		workspaceAgent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+		if !isPlanModeTurn && !isExploreSubagent {
+			var mcpAgentErr error
+			_, workspaceMCPAgentID, mcpAgentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
+			if mcpAgentErr != nil {
+				if xerrors.Is(mcpAgentErr, errChatHasNoWorkspaceAgent) {
+					logger.Debug(ctx, "workspace agent unavailable for MCP tools", slog.Error(mcpAgentErr))
+				} else {
+					logger.Warn(ctx, "failed to resolve workspace agent for MCP tools", slog.Error(mcpAgentErr))
+				}
+			}
+		}
 
 		// API-created chats bind their agent lazily here, after
 		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
@@ -297,7 +309,7 @@ func (server *Server) prepareGeneration(
 		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
+		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, workspaceAgent)
 		if resolveErr != nil {
 			cleanup()
 			return generationPrepared{}, resolveErr
@@ -350,7 +362,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, workspaceMCPAgentID, &workspaceCtx)
 			return nil
 		})
 	}
