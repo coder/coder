@@ -102,7 +102,7 @@ export const NarrowPromptIcon: Story = {
 	},
 	parameters: {
 		viewport: {
-			defaultViewport: "ipad",
+			defaultViewport: "mobile2",
 		},
 	},
 	play: async ({ canvasElement }) => {

@@ -38,12 +38,12 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<span className="inline-flex min-w-0 max-w-full items-center">
-								<span className="hidden min-w-0 max-w-full truncate xl:block">
+								<span className="hidden min-w-0 max-w-full truncate lg:block">
 									{session.last_prompt}
 								</span>
 								<MessageSquareTextIcon
 									aria-label="View last prompt"
-									className="block size-icon-sm text-content-secondary xl:hidden"
+									className="block size-icon-sm text-content-secondary lg:hidden"
 								/>
 							</span>
 						</TooltipTrigger>
