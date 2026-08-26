@@ -38,9 +38,9 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 						<TooltipTrigger asChild>
 							<p className="truncate">{session.last_prompt}</p>
 						</TooltipTrigger>
-						<TooltipContent className="max-w-64" side="top" align="start">
+						<TooltipContent className="max-w-[512px]" side="top" align="start">
 							<div className="font-bold">Last prompt</div>
-							<div>{session.last_prompt}</div>
+							<div className="line-clamp-5">{session.last_prompt}</div>
 						</TooltipContent>
 					</Tooltip>
 				</TooltipProvider>
