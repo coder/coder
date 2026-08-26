@@ -70,6 +70,27 @@ const (
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
+	// defaultCompactionSystemSummaryPrefixPendingUser replaces the default
+	// prefix when compaction triggered on user message(s) the assistant
+	// had not yet responded to (see CODAGT-737). Those messages are
+	// preserved verbatim after the summary rather than summarized, so the
+	// prefix must not claim the assistant was mid-work.
+	defaultCompactionSystemSummaryPrefixPendingUser = "The following is a " +
+		"summary of the earlier conversation. The context was compacted " +
+		"immediately after the user sent new message(s) that the assistant " +
+		"has not yet addressed; they follow this summary verbatim. Orient " +
+		"yourself with the summary below, then address the user's pending " +
+		"message(s) directly:"
+	// compactionPendingUserNote is appended to the summary prompt when the
+	// unanswered trailing user message(s) were excluded from the
+	// summarizer's input. Without it the summarizer may describe the
+	// visible tail of the conversation as if it were the latest state.
+	compactionPendingUserNote = "Note: the user's most recent message(s) " +
+		"arrived immediately before this compaction, have not been " +
+		"responded to, and are intentionally excluded from the " +
+		"conversation shown to you. They are preserved verbatim outside " +
+		"this summary. Do not describe, attribute, or speculate about " +
+		"them; summarize only the conversation you can see."
 )
 
 // CompactionSource identifies what triggered a compaction. It is
@@ -89,6 +110,7 @@ type CompactionOptions struct {
 	SummaryPrompt       string
 	SummaryHint         string
 	SystemSummaryPrefix string
+	PendingUserMessages bool
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
@@ -228,6 +250,7 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		SummaryPrompt:       opts.SummaryPrompt,
 		SummaryHint:         opts.SummaryHint,
 		SystemSummaryPrefix: opts.SystemSummaryPrefix,
+		PendingUserMessages: opts.PendingUserMessages,
 		DebugSvc:            opts.DebugSvc,
 		ChatID:              opts.ChatID,
 		HistoryTipMessageID: opts.HistoryTipMessageID,
@@ -246,6 +269,14 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 	}
 	if strings.TrimSpace(config.SystemSummaryPrefix) == "" {
 		config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefix
+		if config.PendingUserMessages {
+			config.SystemSummaryPrefix = defaultCompactionSystemSummaryPrefixPendingUser
+		}
+	}
+	if config.PendingUserMessages {
+		// Appended even to custom prompts: the exclusion is a structural
+		// fact about the input, not a style preference.
+		config.SummaryPrompt += "\n\n" + compactionPendingUserNote
 	}
 	if config.Source == "" {
 		config.Source = CompactionSourceAutomatic

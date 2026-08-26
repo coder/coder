@@ -309,6 +309,13 @@ type buildCompactionMessagesInput struct {
 	toolName       string
 	compaction     compactionOutcome
 	contentVersion int16
+	// pendingUserMessages are the unanswered trailing user message(s)
+	// that were excluded from the summarizer's input. They are replayed
+	// verbatim after the compaction boundary as model-visibility rows so
+	// the pending instruction survives compaction without depending on
+	// summary fidelity (CODAGT-737). The user-visible originals remain
+	// untouched before the boundary.
+	pendingUserMessages []database.ChatMessage
 }
 
 type compactionMessagesForCommit struct {
@@ -380,6 +387,17 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	}
 	for i := range messages {
 		messages[i].Compressed = true
+	}
+	// Replay rows stay uncompressed and sort after the boundary trio, so
+	// the prompt window query includes them on the next generation pass.
+	for _, row := range input.pendingUserMessages {
+		messages = append(messages, chatstate.Message{
+			Role:           database.ChatMessageRoleUser,
+			Content:        row.Content,
+			Visibility:     database.ChatMessageVisibilityModel,
+			ModelConfigID:  uuid.NullUUID{UUID: input.modelConfigID, Valid: input.modelConfigID != uuid.Nil},
+			ContentVersion: row.ContentVersion,
+		})
 	}
 	return compactionMessagesForCommit{Messages: messages, HiddenCount: 1}, nil
 }
@@ -555,6 +573,56 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 		}
 	}
 	return false
+}
+
+// splitPendingUserSegment identifies the unanswered trailing user
+// message(s) at the tip of the prompt window: the contiguous run of
+// user-role rows after the last assistant or tool row. When compaction
+// triggers on such a tip (a fresh user message arrived before the
+// assistant responded), those messages are excluded from the
+// summarizer's input and re-inserted verbatim after the compaction
+// boundary instead of being summarized (CODAGT-737).
+//
+// Returns the prompt with the trailing user messages trimmed and the
+// matching rows to replay. Both representations must independently
+// find a non-empty trailing segment, and at least one assistant
+// message must remain in the trimmed prompt; otherwise the original
+// prompt and no rows are returned and compaction behaves as before.
+func splitPendingUserSegment(
+	prompt []fantasy.Message,
+	promptRows []database.ChatMessage,
+) ([]fantasy.Message, []database.ChatMessage) {
+	rowsStart := len(promptRows)
+	for rowsStart > 0 {
+		row := promptRows[rowsStart-1]
+		if row.Deleted || row.Compressed || row.Role != database.ChatMessageRoleUser {
+			break
+		}
+		rowsStart--
+	}
+	pendingRows := promptRows[rowsStart:]
+	if len(pendingRows) == 0 {
+		return prompt, nil
+	}
+
+	promptEnd := len(prompt)
+	for promptEnd > 0 && prompt[promptEnd-1].Role == fantasy.MessageRoleUser {
+		promptEnd--
+	}
+	if promptEnd == len(prompt) {
+		return prompt, nil
+	}
+	hasAssistant := false
+	for _, msg := range prompt[:promptEnd] {
+		if msg.Role == fantasy.MessageRoleAssistant {
+			hasAssistant = true
+			break
+		}
+	}
+	if !hasAssistant {
+		return prompt, nil
+	}
+	return prompt[:promptEnd], pendingRows
 }
 
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {

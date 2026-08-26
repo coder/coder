@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -384,4 +385,81 @@ func TestGenerateCompaction_RequiresClock(t *testing.T) {
 		Model: &chattest.FakeModel{ProviderName: "fake", ModelName: "fake-model"},
 	})
 	require.ErrorContains(t, err, "clock is required")
+}
+
+// TestGenerateCompaction_PendingUserMessagesPromptVariant verifies that
+// when the caller excluded unanswered trailing user message(s) from the
+// summarizer input (CODAGT-737), the summary prompt tells the model
+// those messages exist but are not visible, and the system summary uses
+// the pending-user prefix instead of claiming the assistant was
+// actively working.
+func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
+	t.Parallel()
+
+	var captured fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			captured = call
+			return &fantasy.Response{
+				Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}},
+			}, nil
+		},
+	}
+
+	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model:               model,
+		Clock:               quartz.NewMock(t),
+		Messages:            []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), textMessage(fantasy.MessageRoleAssistant, "answered")},
+		ThresholdPercent:    70,
+		ContextLimit:        1000,
+		StepUsage:           fantasy.Usage{InputTokens: 900},
+		PendingUserMessages: true,
+	})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, captured.Prompt)
+	last := captured.Prompt[len(captured.Prompt)-1]
+	require.Equal(t, fantasy.MessageRoleUser, last.Role)
+	text, ok := last.Content[0].(fantasy.TextPart)
+	require.True(t, ok)
+	require.Contains(t, text.Text, defaultCompactionSummaryPrompt)
+	require.Contains(t, text.Text, compactionPendingUserNote)
+
+	require.True(t, strings.HasPrefix(result.SystemSummary, defaultCompactionSystemSummaryPrefixPendingUser))
+	require.NotContains(t, result.SystemSummary, "actively working")
+}
+
+// Without PendingUserMessages the defaults are unchanged.
+func TestGenerateCompaction_DefaultPromptWithoutPendingUser(t *testing.T) {
+	t.Parallel()
+
+	var captured fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			captured = call
+			return &fantasy.Response{
+				Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}},
+			}, nil
+		},
+	}
+
+	result, err := GenerateCompaction(context.Background(), GenerateCompactionOptions{
+		Model:            model,
+		Clock:            quartz.NewMock(t),
+		Messages:         []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello"), textMessage(fantasy.MessageRoleAssistant, "answered")},
+		ThresholdPercent: 70,
+		ContextLimit:     1000,
+		StepUsage:        fantasy.Usage{InputTokens: 900},
+	})
+	require.NoError(t, err)
+
+	last := captured.Prompt[len(captured.Prompt)-1]
+	text, ok := last.Content[0].(fantasy.TextPart)
+	require.True(t, ok)
+	require.NotContains(t, text.Text, compactionPendingUserNote)
+	require.True(t, strings.HasPrefix(result.SystemSummary, defaultCompactionSystemSummaryPrefix))
 }

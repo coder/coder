@@ -697,11 +697,17 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
+	// Unanswered trailing user message(s) are carried through compaction
+	// verbatim instead of being summarized: they are excluded from the
+	// summarizer's input here and replayed after the boundary at commit
+	// time (CODAGT-737).
+	compactionPromptMessages, pendingUserRows := splitPendingUserSegment(prompt, promptRows)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{
 		Model:                model.LanguageModel(),
-		Messages:             prompt,
+		Messages:             compactionPromptMessages,
+		PendingUserMessages:  len(pendingUserRows) > 0,
 		ThresholdPercent:     effectiveThreshold,
 		ContextLimit:         compactionContextLimit,
 		ContextLimitFallback: compactionContextLimit,
@@ -752,6 +758,7 @@ func (server *Server) prepareGeneration(
 			ChatModelConfig: modelConfig,
 			Required:        compactionNeeded,
 			Options:         compactionOptions,
+			PendingUserRows: pendingUserRows,
 		},
 		Cleanup: cleanup,
 		Debug:   debug,
