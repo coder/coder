@@ -22,23 +22,18 @@ type ImageOption struct {
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	// RegistryBase is the bare host of the module registry used in rendered
-	// module source paths (e.g. "registry.coder.com"): no scheme, no trailing
-	// slash, never empty. Compose normalizes it from the deployment config
-	// (CODER_TEMPLATE_BUILDER_REGISTRY_URL) via
-	// codersdk.NormalizeTemplateBuilderRegistryURL; direct RenderBaseTemplate
-	// callers must supply an already-normalized host, or the source renders as
-	// "/coder/...".
+	// RegistryBase is the bare host (no scheme, no trailing slash, never empty)
+	// used in rendered module source paths. Compose normalizes it; direct
+	// RenderBaseTemplate callers must supply an already-normalized host.
 	RegistryBase string
 	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.
 type ModuleRenderContext struct {
-	// RegistryBase is the bare host of the module registry used in rendered
-	// module source paths (e.g. "registry.coder.com"): no scheme, no trailing
-	// slash, never empty. renderModules passes the host Compose already
-	// normalized from CODER_TEMPLATE_BUILDER_REGISTRY_URL.
+	// RegistryBase is the bare host (no scheme, no trailing slash, never empty)
+	// used in rendered module source paths. renderModules passes the host
+	// Compose already normalized.
 	RegistryBase string
 	// PinnedVersion is the module version from the catalog manifest.
 	PinnedVersion string
@@ -168,12 +163,8 @@ func ExtractModuleNames(hcl []byte) []string {
 	return names
 }
 
-// validateRenderedBaseHCL parses rendered base HCL and returns the parser
-// diagnostic when it is malformed. Compose calls this before its module
-// early-return so a base that rendered to invalid HCL (for example, a registry
-// value that slipped past normalization and interpolated badly) fails with the
-// real syntax error instead of shipping a broken main.tf on the zero-module path
-// or failing later with a misleading missing-agent error on the module path.
+// validateRenderedBaseHCL returns a diagnostic when rendered base HCL is
+// malformed, so Compose can fail a broken main.tf instead of shipping it.
 func validateRenderedBaseHCL(hclSrc []byte) error {
 	if _, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos); diags.HasErrors() {
 		return xerrors.Errorf("rendered base template is not valid HCL: %w", diags)
@@ -181,11 +172,8 @@ func validateRenderedBaseHCL(hclSrc []byte) error {
 	return nil
 }
 
-// parseHCLBody parses rendered HCL from one of our curated base templates and
-// returns its top-level body. The input is expected to be valid HCL produced by
-// our own templates; on a parse error it returns nil so callers fail safe.
-// ExtractModuleSources turns a nil body into an empty result, which trips its
-// caller's assertions rather than passing silently.
+// parseHCLBody parses rendered base HCL and returns its top-level body, or nil
+// on a parse error.
 func parseHCLBody(hclSrc []byte) *hclsyntax.Body {
 	file, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos)
 	if diags.HasErrors() || file == nil {
@@ -198,13 +186,9 @@ func parseHCLBody(hclSrc []byte) *hclsyntax.Body {
 	return body
 }
 
-// ExtractModuleSources returns the `source` string of every top-level `module`
-// block in rendered HCL, in declaration order. A module block whose source is
-// not a static string is skipped. Parsing with hclsyntax means commented-out
-// blocks and module-like text inside strings or heredocs are ignored, so the
-// result is exactly the set of sources Terraform would resolve. The input is
-// expected to be rendered output from our own curated base templates, not
-// arbitrary user HCL.
+// ExtractModuleSources returns the source of every top-level module block in
+// rendered HCL, in declaration order, skipping any whose source is not a static
+// string.
 func ExtractModuleSources(hclSrc []byte) []string {
 	body := parseHCLBody(hclSrc)
 	if body == nil {

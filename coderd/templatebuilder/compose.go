@@ -57,8 +57,7 @@ type ComposeResult struct {
 func Compose(req ComposeRequest) (*ComposeResult, error) {
 	// Normalize and default the registry once here so the base and module render
 	// paths see the same canonical host. codersdk validates the same value at
-	// server start (DeploymentValues.Validate); this is the per-request defense in
-	// depth for direct callers and a belt against a value that slipped past.
+	// server start (DeploymentValues.Validate); this is per-request defense in depth.
 	registryBase, err := codersdk.NormalizeTemplateBuilderRegistryURL(req.RegistryURL)
 	if err != nil {
 		return nil, err
@@ -69,11 +68,10 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	// Parse the rendered base HCL once, before the module early-return, so a base
-	// that rendered to invalid HCL fails here with the parser diagnostic. Without
-	// this, the zero-module path ships a broken main.tf unvalidated, and the module
-	// path below fails with a misleading "no coder_agent resource" error from
-	// ExtractAgentResourceName instead of the real syntax error.
+	// Parse the rendered base HCL once, before the module early-return, so invalid
+	// HCL fails here with the parser diagnostic. Otherwise the zero-module path
+	// ships a broken main.tf unvalidated, and the module path fails with a
+	// misleading "no coder_agent resource" error instead of the real syntax error.
 	if err := validateRenderedBaseHCL(mainTF); err != nil {
 		return nil, err
 	}

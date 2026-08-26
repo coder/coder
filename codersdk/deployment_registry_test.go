@@ -31,11 +31,9 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 			{"UppercaseSchemeStripped", "HTTPS://mirror.example.com", "mirror.example.com"},
 			{"TrailingSlashStripped", "https://mirror.example.com/", "mirror.example.com"},
 			{"TrailingSlashesStripped", "mirror.example.com///", "mirror.example.com"},
-			// svchost.ForComparison, the parser Terraform uses, defines these:
-			// an uppercase host is lowercased, a Unicode host is normalized to
-			// punycode, a trailing dot is a valid FQDN, and :443 is the default
-			// port and is dropped. The old hand-rolled regex rejected the middle
-			// two and preserved :443, diverging from what `terraform init` does.
+			// svchost.ForComparison (the parser Terraform uses) defines these
+			// normalizations; the old hand-rolled regex diverged from `terraform
+			// init` by rejecting the Unicode/FQDN cases and preserving :443.
 			{"HostLowercased", "Registry.Coder.Com", "registry.coder.com"},
 			{"UnicodeHostPunycoded", "m\u00fcnchen.example", "xn--mnchen-3ya.example"},
 			{"TrailingDotFQDN", "registry.coder.com.", "registry.coder.com."},
@@ -69,10 +67,9 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 			{"VerticalTab", "mirror\v.example.com"},
 			{"SchemeOnly", "https://"},
 			{"LeadingDot", ".mirror.example.com"},
-			// New coverage for the over-rejection/under-rejection class: the
-			// value is validated by svchost, so it now agrees with Terraform on
-			// each of these (raw punycode and underscores are rejected, a port
-			// over 65535 is rejected, and an IPv6 literal is not a registry host).
+			// Over/under-rejection class: validating by svchost makes these agree
+			// with Terraform (raw punycode, underscores, port >65535, and IPv6
+			// literals are all rejected).
 			{"RawPunycode", "xn--mnchen-3ya.example"},
 			{"Underscore", "under_score.example"},
 			{"PortTooHigh", "mirror.example.com:99999"},
@@ -90,10 +87,9 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 
 	t.Run("ErrorNamesBrokenRuleWithoutEchoingInput", func(t *testing.T) {
 		t.Parallel()
-		// The rejection names the specific broken rule (so an operator can fix
-		// it) but never echoes the input, so a credential is not disclosed, and
-		// it no longer claims "no scheme" as a cause, since a scheme is stripped
-		// before validation and can never be the reason.
+		// The rejection names the specific broken rule so an operator can fix it,
+		// but never echoes the input, so a credential is not disclosed. It also no
+		// longer claims "no scheme", since a scheme is stripped before validation.
 		cases := []struct {
 			name, in, reason string
 		}{
@@ -119,9 +115,8 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 }
 
 // TestDeploymentValues_Validate_TemplateBuilderRegistryURL covers the config
-// boundary. A malformed CODER_TEMPLATE_BUILDER_REGISTRY_URL must fail at server
-// start naming the option, regardless of whether it was set via flag/env or
-// YAML, and must not block boot when the template builder is disabled.
+// boundary: a malformed CODER_TEMPLATE_BUILDER_REGISTRY_URL must fail at server
+// start naming the option (via flag/env or YAML), but not block boot when disabled.
 func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 	t.Parallel()
 
@@ -148,9 +143,8 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 			{name: "SchemeStrippedOK", url: "https://mirror.internal.example"},
 			{name: "PathRejected", url: "mirror.internal.example/coder", wantErr: "bare host"},
 			{name: "CredentialsRejected", url: "https://user:tok@mirror.example.com", wantErr: "bare host"},
-			// A disabled template builder must not block boot on an inert value,
-			// so an upgrade that tightens the shape check cannot take down a
-			// deployment that has the feature turned off.
+			// A disabled template builder must not block boot on an inert value, so
+			// tightening the shape check in an upgrade can't take down a disabled deployment.
 			{name: "DisabledSkipsValidation", url: "https://user:tok@mirror.example.com/bad", disabled: true},
 		}
 		for _, tc := range cases {
@@ -171,12 +165,10 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 
 	t.Run("YAMLPathValidated", func(t *testing.T) {
 		t.Parallel()
-		// A serpent validator only runs in Set, which the YAML path bypasses, so
-		// validating in Set would let a YAML-configured value skip the check
-		// entirely. Validate() runs after all sources merge, so the value set
-		// here through YAML is caught. Unmarshal before applying any defaults, the
-		// order the server uses, so the YAML value is the option's source (a
-		// default-sourced option is left untouched by UnmarshalYAML).
+		// A serpent validator only runs in Set, which the YAML path bypasses;
+		// Validate() runs after all sources merge, so a YAML-set value is caught.
+		// Unmarshal before applying defaults (the server's order) so the YAML value
+		// is the option's source; a default-sourced option is left untouched.
 		dv := &codersdk.DeploymentValues{}
 		dv.Sessions.DefaultDuration = serpent.Duration(time.Hour)
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)

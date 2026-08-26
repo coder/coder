@@ -4993,13 +4993,8 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The bare host of the module registry the template builder uses for module source paths, optionally with a port (for example \"registry.coder.com\" or \"mirror.internal:8443\"). An http(s):// scheme is stripped; a path, credentials, query, or fragment is rejected at server start.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
-			// The value is validated once in DeploymentValues.Validate, gated on the
-			// template builder being enabled, rather than with a per-option
-			// serpent.Validate. A serpent validator only runs in Set, which the YAML
-			// path bypasses, and it cannot see whether the subsystem is disabled;
-			// validating after all sources merge covers a YAML-configured value and
-			// lets a deployment with the template builder disabled boot on an inert
-			// setting.
+			// Validated in DeploymentValues.Validate (not a per-option
+			// serpent.Validate) so the YAML path is covered; see there for why.
 			Value:   &c.TemplateBuilder.RegistryURL,
 			Default: DefaultTemplateBuilderRegistryURL,
 			Group:   &deploymentGroupTemplateBuilder,
@@ -5131,30 +5126,20 @@ type AIConfig struct {
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
-// DefaultTemplateBuilderRegistryURL is the module registry the template builder
-// uses for module source paths when CODER_TEMPLATE_BUILDER_REGISTRY_URL is unset
-// or empty. It is a bare host (no scheme, no trailing slash), the shape
-// NormalizeTemplateBuilderRegistryURL enforces for any operator-supplied value.
+// DefaultTemplateBuilderRegistryURL is the bare-host module registry the
+// template builder uses when CODER_TEMPLATE_BUILDER_REGISTRY_URL is unset.
 const DefaultTemplateBuilderRegistryURL = "registry.coder.com"
 
-// templateBuilderRegistrySchemePattern matches a leading http:// or https://
-// scheme, case-insensitively, so NormalizeTemplateBuilderRegistryURL can strip
-// it before validating the host.
+// templateBuilderRegistrySchemePattern matches a leading http(s):// scheme to strip.
 var templateBuilderRegistrySchemePattern = regexp.MustCompile(`(?i)^https?://`)
 
-// NormalizeTemplateBuilderRegistryURL canonicalizes the deployment's configured
-// module registry (CODER_TEMPLATE_BUILDER_REGISTRY_URL) into the bare host a
-// Terraform module source expects. An unset or empty value defaults to
-// DefaultTemplateBuilderRegistryURL. A leading http:// or https:// scheme (any
-// case) and trailing slashes are stripped, then the remainder is validated by
-// svchost.ForComparison, the same parser Terraform uses to read a module source
-// host: a Unicode host is normalized to punycode, a port over 65535 is
-// rejected, and userinfo, a path, a query, a fragment, a raw-punycode label,
-// whitespace, or an HCL interpolation is rejected rather than silently mangled,
-// because the value is interpolated verbatim into a module source string.
-// Delegating keeps this validator in lockstep with what `terraform init` will
-// accept instead of a hand-rolled pattern that drifts from it. The error never
-// echoes the input, so a credential in a misconfigured value is not disclosed.
+// NormalizeTemplateBuilderRegistryURL canonicalizes
+// CODER_TEMPLATE_BUILDER_REGISTRY_URL into the bare host a Terraform module
+// source expects, defaulting to DefaultTemplateBuilderRegistryURL when empty.
+// It strips an http(s):// scheme and trailing slashes, then delegates host
+// validation to svchost.ForComparison, the same parser `terraform init` uses,
+// so this stays in lockstep with what Terraform accepts. The error never echoes
+// the input, so a credential in a misconfigured value is not disclosed.
 func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -5162,9 +5147,7 @@ func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 	}
 	host := strings.TrimRight(templateBuilderRegistrySchemePattern.ReplaceAllString(trimmed, ""), "/")
 
-	// Name the specific broken rule where we can, without echoing the input, so
-	// an operator can fix a misconfigured value without it (and any credential
-	// in it) being surfaced.
+	// Name the specific broken rule where we can, without echoing the input.
 	switch {
 	case strings.ContainsRune(host, '@'):
 		return "", newTemplateBuilderRegistryURLError("it must not contain credentials")
@@ -5178,9 +5161,8 @@ func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 		return "", newTemplateBuilderRegistryURLError("IPv6 address literals are not supported")
 	}
 
-	// svchost.ForComparison is the parser Terraform applies to a module source
-	// host. Its error can echo the input, so map any failure to the generic
-	// non-echoing rejection rather than surfacing it.
+	// svchost.ForComparison can echo the input in its error, so map any failure
+	// to the generic non-echoing rejection rather than surfacing it.
 	normalized, err := svchost.ForComparison(host)
 	if err != nil {
 		return "", newTemplateBuilderRegistryURLError("")
@@ -5189,9 +5171,7 @@ func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 }
 
 // newTemplateBuilderRegistryURLError builds the operator-facing rejection for a
-// bad CODER_TEMPLATE_BUILDER_REGISTRY_URL. It names the setting and the expected
-// shape (and, when known, the specific broken rule) but never echoes the input,
-// so a credential in the value is not disclosed.
+// bad CODER_TEMPLATE_BUILDER_REGISTRY_URL without echoing the input.
 func newTemplateBuilderRegistryURLError(reason string) error {
 	msg := `template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`
 	if reason != "" {
@@ -5277,13 +5257,11 @@ func (c *DeploymentValues) Validate() error {
 		}
 	}
 
-	// A disabled template builder must not validate an inert registry setting.
-	// This runs after all config sources merge (flag, env, and YAML), so a value
-	// set through YAML is validated too, even though the per-option serpent
-	// validator that would otherwise run only fires in Set and UnmarshalYAML
-	// bypasses it. A malformed value fails at server start naming the option,
-	// instead of surfacing as a per-request 400 on every compose blamed on the
-	// wizard user.
+	// Validate here, gated on the builder being enabled, rather than with a
+	// per-option serpent validator: this runs after flag, env, and YAML merge
+	// (the serpent validator only fires in Set, which the YAML path bypasses),
+	// so a bad value fails at server start naming the option instead of as a
+	// per-request 400 on every compose.
 	if !c.TemplateBuilder.Disabled.Value() {
 		if _, err := NormalizeTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
 			return err

@@ -608,19 +608,17 @@ func TestRenderBaseHonorsRegistryMirror(t *testing.T) {
 
 	const mirror = "mirror.internal.example"
 
-	// resolvesThroughMirror reports whether a Terraform module source resolves
-	// through the configured registry: either the mirror host, or a local path
-	// (./ or ../) that carries no registry host at all.
+	// resolvesThroughMirror reports whether a module source resolves through the
+	// configured registry: the mirror host, or a hostless local path (./ or ../).
 	resolvesThroughMirror := func(source string) bool {
 		return strings.HasPrefix(source, mirror+"/") ||
 			strings.HasPrefix(source, "./") ||
 			strings.HasPrefix(source, "../")
 	}
 
-	// Positive anchor: the quickstart base embeds git-clone, so a configured
-	// mirror must appear in its rendered source. This keeps the per-base sweep
-	// below from passing vacuously, since a base with no embedded catalog module
-	// satisfies the negative assertion trivially.
+	// Positive anchor: quickstart embeds git-clone, so the mirror must appear in
+	// its rendered source. This keeps the per-base sweep below from passing
+	// vacuously on a base with no embedded module.
 	rc := testRenderContext("quickstart")
 	rc.RegistryBase = mirror
 	rendered, err := templatebuilder.RenderBaseTemplate("quickstart", "main.tf.tmpl", rc)
@@ -628,14 +626,11 @@ func TestRenderBaseHonorsRegistryMirror(t *testing.T) {
 	require.Contains(t, string(rendered), mirror+"/coder/git-clone/coder",
 		"quickstart must render its embedded module source against the configured registry")
 
-	// Every base must honor the mirror: once a mirror is configured, every
-	// rendered module block's `source` must resolve through it. Reading each
-	// module's source from the parsed HCL (instead of a substring scan over the
-	// rendered text) means a hostless source ("coder/git-clone/coder"), a
-	// third-party host, or the default registry under any namespace all fail,
-	// while a `#`/`//` comment or a registry name inside a heredoc script body is
-	// never mistaken for a module source. Sorting BaseTemplateIDs() pins the
-	// otherwise map-ordered subtests.
+	// Every base must honor the mirror: every rendered module block's `source`
+	// must resolve through it. Reading each source from the parsed HCL (not a
+	// substring scan) makes a hostless, third-party, or default-registry source
+	// fail while never mistaking a comment or heredoc body for a module source.
+	// Sorting BaseTemplateIDs() pins the otherwise map-ordered subtests.
 	ids := templatebuilder.BaseTemplateIDs()
 	slices.Sort(ids)
 	for _, id := range ids {
@@ -682,9 +677,8 @@ func TestComposeThreadsRegistryURLToBase(t *testing.T) {
 }
 
 // TestComposeNormalizesRegistryURL covers the boundary normalization Compose
-// applies to ComposeRequest.RegistryURL: a scheme and trailing slash are
-// stripped, an empty value defaults on the module path (not just the base), and
-// a value that would corrupt the Terraform source is rejected.
+// applies to ComposeRequest.RegistryURL: scheme and trailing slash stripped,
+// empty defaults on the module path, and a corrupting value rejected.
 func TestComposeNormalizesRegistryURL(t *testing.T) {
 	t.Parallel()
 

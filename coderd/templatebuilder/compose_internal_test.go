@@ -166,11 +166,8 @@ func TestValidateRenderedBaseHCL(t *testing.T) {
 
 	t.Run("InvalidHCL", func(t *testing.T) {
 		t.Parallel()
-		// A base that rendered to invalid HCL (for example a registry value that
-		// slipped past normalization and interpolated badly) must fail with the
-		// parser diagnostic rather than being shipped as a broken main.tf. Compose
-		// relies on this backstop on the zero-module path, so the error branch
-		// needs direct coverage.
+		// Compose relies on this backstop to reject invalid rendered HCL on the
+		// zero-module path rather than shipping a broken main.tf.
 		err := validateRenderedBaseHCL([]byte("resource {"))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "not valid HCL")
