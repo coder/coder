@@ -21,9 +21,9 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    nix-shell
 
    ...
-   copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://   cache.nixos.org'...
-   copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://   cache.nixos.org'...
-   copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.   nixos.org'...
+   copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
+   copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://cache.nixos.org'...
+   copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.nixos.org'...
    ...
    ```
 
@@ -101,8 +101,8 @@ the Makefile trigger the full targets as before.
 
    This will start two processes:
 
-   - http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
-   - http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
+   - http://localhost:3000: the backend API server. Primarily used for backend development and also serves the *static* frontend build.
+   - http://localhost:8080: the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
 
    Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
 
@@ -112,7 +112,7 @@ the Makefile trigger the full targets as before.
 
    ```sh
    ./scripts/coder-dev.sh list
-      ```
+   ```
 
    This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
@@ -155,10 +155,6 @@ this:
 > [!NOTE]
 > PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
-
-Once the deployment is finished, a unique link and credentials will be posted in
-the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack
-channel.
 
 ## Styling
 
@@ -315,7 +311,7 @@ PR reuses the original title (e.g.
 meaningful in release notes.
 
 If the cherry-pick encounters conflicts, the backport PR is still created
-with instructions for manual resolution — no conflict markers are committed.
+with instructions for manual resolution; no conflict markers are committed.
 
 ### Breaking changes
 
