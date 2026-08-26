@@ -85,7 +85,7 @@ export const DialogHeader: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col space-y-5 text-center sm:text-left",
+				"flex flex-col gap-y-5 text-center sm:text-left",
 				className,
 			)}
 			{...props}
@@ -100,7 +100,7 @@ export const DialogFooter: React.FC<React.ComponentPropsWithRef<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
+				"flex flex-col-reverse sm:flex-row sm:justify-end gap-2",
 				className,
 			)}
 			{...props}
