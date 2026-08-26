@@ -97,10 +97,6 @@ export function FilterComboboxRoot({
 	// cmdk only reports highlight changes through `onValueChange` when its value
 	// is controlled, so track the highlighted row here and surface it to callers.
 	const [highlightedValue, setHighlightedValue] = useState("");
-	const onItemHighlightedRef = useRef(onItemHighlighted);
-	onItemHighlightedRef.current = onItemHighlighted;
-	const onDismissRef = useRef(onDismiss);
-	onDismissRef.current = onDismiss;
 
 	const state: FilterComboboxStateValue = {
 		value,
@@ -120,7 +116,7 @@ export function FilterComboboxRoot({
 					value={highlightedValue}
 					onValueChange={(highlighted) => {
 						setHighlightedValue(highlighted);
-						onItemHighlightedRef.current?.(highlighted || undefined);
+						onItemHighlighted?.(highlighted || undefined);
 					}}
 				>
 					{/* No PopoverTrigger: opens are caller-driven via `open`; Radix only
@@ -129,7 +125,7 @@ export function FilterComboboxRoot({
 						open={open}
 						onOpenChange={(nextOpen) => {
 							if (!nextOpen) {
-								onDismissRef.current?.();
+								onDismiss?.();
 							}
 						}}
 						modal={false}
