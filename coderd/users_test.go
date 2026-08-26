@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -958,7 +957,7 @@ func TestPostUsers(t *testing.T) {
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "SomeSecurePassword!",
-			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
+			UserStatus:      new(codersdk.UserStatusActive),
 		})
 		require.NoError(t, err)
 
@@ -2500,7 +2499,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// When: user dismisses the task notification alert
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 
@@ -2518,14 +2517,14 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// Given: user has dismissed the task notification alert
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 
 		// When: the task notification alert dismissal is cleared
 		// (e.g., when user enables a task notification in the UI settings)
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(false),
+			TaskNotificationAlertDismissed: new(false),
 		})
 		require.NoError(t, err)
 
@@ -2604,7 +2603,7 @@ func TestThinkingDisplayMode(t *testing.T) {
 
 		// Send an update that omits thinking_display_mode (zero value).
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: ptr.Ref(true),
+			TaskNotificationAlertDismissed: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)

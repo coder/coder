@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestExperimentalClientChatModelACL(t *testing.T) {
+func TestClientChatModelACL(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -25,14 +25,14 @@ func TestExperimentalClientChatModelACL(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
-		require.Equal(t, "/api/experimental/organizations/"+organizationID.String()+"/chats/models/"+modelID.String()+"/acl", r.URL.Path)
+		require.Equal(t, "/api/v2/organizations/"+organizationID.String()+"/chats/models/"+modelID.String()+"/acl", r.URL.Path)
 		http.Error(rw, `{"user_roles":{"`+userID.String()+`":"read"},"group_roles":{"`+groupID.String()+`":"read"}}`, http.StatusOK)
 	}))
 	defer server.Close()
 
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+	client := codersdk.New(serverURL)
 
 	modelACL, err := client.ChatModelACL(context.Background(), organizationID, modelID)
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestExperimentalClientChatModelACL(t *testing.T) {
 	require.Equal(t, map[string]codersdk.ChatRole{groupID.String(): codersdk.ChatRoleRead}, modelACL.GroupRoles)
 }
 
-func TestExperimentalClientUpdateChatModelACL(t *testing.T) {
+func TestClientUpdateChatModelACL(t *testing.T) {
 	t.Parallel()
 
 	organizationID := uuid.New()
@@ -50,7 +50,7 @@ func TestExperimentalClientUpdateChatModelACL(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPatch, r.Method)
-		require.Equal(t, "/api/experimental/organizations/"+organizationID.String()+"/chats/models/"+modelID.String()+"/acl", r.URL.Path)
+		require.Equal(t, "/api/v2/organizations/"+organizationID.String()+"/chats/models/"+modelID.String()+"/acl", r.URL.Path)
 		body, err := io.ReadAll(r.Body)
 		require.NoError(t, err)
 		var payload map[string]json.RawMessage
@@ -63,7 +63,7 @@ func TestExperimentalClientUpdateChatModelACL(t *testing.T) {
 
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
-	client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+	client := codersdk.New(serverURL)
 
 	err = client.UpdateChatModelACL(context.Background(), organizationID, modelID, codersdk.UpdateChatModelACLRequest{
 		UserRoles:  map[string]codersdk.ChatRole{userID.String(): codersdk.ChatRoleRead},

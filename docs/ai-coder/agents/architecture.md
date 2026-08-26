@@ -70,8 +70,8 @@ Coder Agents does not change your workspace network requirements.
 When a user submits a prompt, the control plane processes it as a background
 job:
 
-1. The prompt is saved to the database and the chat is marked `pending`.
-1. The control plane picks up the chat and marks it `running`.
+1. The prompt is saved to the database and the chat is marked `running`.
+1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
 1. If the response includes tool calls, the control plane executes them
@@ -141,7 +141,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `read_file`      | Reads file contents with line-number pagination.                                                                                                                                                                                                                                   |
 | `write_file`     | Writes content to a file.                                                                                                                                                                                                                                                          |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                                                                                                                                                                                                                 |
+| `edit_files`     | Performs atomic, per-file edits across one or more files, replacing `old_text` with `new_text`.                                                                                                                                                                                    |
 | `execute`        | Runs a shell command, waiting for completion up to a timeout.                                                                                                                                                                                                                      |
 | `process_output` | Retrieves output from a tracked process.                                                                                                                                                                                                                                           |
 | `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |

@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -172,7 +171,7 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 				openai.UserMessage("hello"),
 				openai.ToolMessage("result", "call_abc"),
 			},
-			expected: utils.PtrTo("call_abc"),
+			expected: new("call_abc"),
 		},
 		{
 			name: "multiple tool messages returns last",
@@ -182,7 +181,7 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 				openai.AssistantMessage("thinking"),
 				openai.ToolMessage("second result", "call_second"),
 			},
-			expected: utils.PtrTo("call_second"),
+			expected: new("call_second"),
 		},
 		{
 			name: "last message is not a tool message",

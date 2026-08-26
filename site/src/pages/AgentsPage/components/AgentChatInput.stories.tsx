@@ -805,7 +805,7 @@ export const WithMCPNeedingAuth: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(body.getByRole("button", { name: "Auth" }));
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);
@@ -827,7 +827,7 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	play: async ({ args, canvasElement }) => {
 		await startMCPOAuthFlow(canvasElement);
 		expect(window.open).toHaveBeenCalledWith(
-			`/api/experimental/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
 			"_blank",
 			"width=900,height=600",
 		);
@@ -1479,6 +1479,21 @@ export const OverflowBadges: Story = {
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),
+		attachedWorkspace: {
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			route: "/@admin/my-long-workspace-name",
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
+		workspace: {
+			...MockWorkspace,
+			id: "ws-1",
+			name: "my-long-workspace-name",
+			owner_name: "admin",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "overflow-chat-id",
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile2" },
@@ -1546,12 +1561,19 @@ export const ContextNearLimit: Story = {
 	},
 };
 
-/** Long workspace name at iPhone SE width — verifies truncation. */
+/** Long workspace name at iPhone SE width collapses into +N overflow. */
 export const LongWorkspaceNameMobile: Story = {
 	args: {
 		...mcpDefaults,
 		mcpServers: [githubMCPConnected],
 		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			name: "my-super-extremely-long-workspace-name-that-overflows",
+			route: `/@${MockWorkspace.owner_name}/my-super-extremely-long-workspace-name-that-overflows`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace running",
+		},
 		workspace: {
 			...MockWorkspace,
 			name: "my-super-extremely-long-workspace-name-that-overflows",
@@ -1565,15 +1587,23 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The workspace pill button should be present.
-		const pill = await canvas.findByRole("button", {
-			name: /workspace menu/,
+		// Too narrow for the pill's minimum width: it must collapse into
+		// the overflow popover instead of clipping to a tiny pill.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
 		});
 		await waitFor(() => {
-			expect(pill).toBeVisible();
+			expect(overflowPill).toBeVisible();
 		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
 		// The toolbar row should not cause horizontal overflow.
-		const toolbar = pill.closest(
+		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
 		) as HTMLElement;
 		if (toolbar?.parentElement) {
