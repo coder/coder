@@ -4939,6 +4939,30 @@ export const MockOAuth2ProviderApps: TypesGen.OAuth2ProviderApp[] = [
 			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
 		},
 	},
+	{
+		id: "2",
+		name: "bar",
+		callback_url: "http://127.0.0.1:3002/callback",
+		icon: "/icon/gitlab.svg",
+		endpoints: {
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
+			device_authorization: "",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
+		},
+	},
+	{
+		id: "3",
+		name: "baz",
+		callback_url: "https://example.com/oauth/callback",
+		icon: "",
+		endpoints: {
+			authorization: "http://127.0.0.1:3001/oauth2/authorize",
+			token: "http://127.0.0.1:3001/oauth2/token",
+			device_authorization: "",
+			token_revoke: "http://127.0.0.1:3001/oauth2/revoke",
+		},
+	},
 ];
 
 export const MockOAuth2ProviderSettings: TypesGen.OAuth2ProviderSettings = {

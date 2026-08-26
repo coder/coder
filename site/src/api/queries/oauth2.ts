@@ -1,6 +1,9 @@
 import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { useFilterParamsKey } from "#/components/Filter/Filter";
+import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { prepareQuery } from "#/utils/filters";
 
 const oauth2ProviderKey = ["oauth2-provider"];
 export const oauth2ProviderAppsKey = oauth2ProviderKey.concat("apps");
@@ -25,6 +28,31 @@ export const getGitHubDeviceFlowCallback = (code: string, state: string) => {
 		queryFn: () => API.getOAuth2GitHubDeviceFlowCallback(code, state),
 	};
 };
+
+function oauth2AppsKey(req: TypesGen.OAuth2ProviderAppFilter) {
+	return [...oauth2ProviderAppsKey, req] as const;
+}
+
+export function paginatedApps(
+	searchParams: URLSearchParams,
+): UsePaginatedQueryOptions<
+	TypesGen.OAuth2ProviderAppsResponse,
+	TypesGen.OAuth2ProviderAppFilter
+> {
+	return {
+		searchParams,
+		queryPayload: ({ limit, offset }) => {
+			return {
+				limit,
+				offset,
+				q: prepareQuery(searchParams.get(useFilterParamsKey) ?? ""),
+			};
+		},
+		queryKey: ({ payload }) => oauth2AppsKey(payload),
+		queryFn: ({ payload, signal }) =>
+			API.getOAuth2ProviderApps(payload, signal),
+	};
+}
 
 export const getApps = (userId?: string) => {
 	return {
