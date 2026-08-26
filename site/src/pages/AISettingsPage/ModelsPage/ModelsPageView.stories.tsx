@@ -187,7 +187,9 @@ export const DisabledProviderModelsStillListed: Story = {
 		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
 		// A model under a disabled provider is not usable regardless of its
 		// stored enabled flag; scope to the row so an unrelated cell cannot pass.
-		await expect(within(row).getByText("Unavailable")).toBeInTheDocument();
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
 		expect(within(row).queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
@@ -209,7 +211,9 @@ export const OrphanedModelShowsUnset: Story = {
 		const canvas = within(canvasElement);
 		const row = canvas.getByRole("button", { name: /Orphaned Model/i });
 		await expect(within(row).getByText("Unset")).toBeInTheDocument();
-		await expect(within(row).getByText("Unavailable")).toBeInTheDocument();
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
 	},
 };
 

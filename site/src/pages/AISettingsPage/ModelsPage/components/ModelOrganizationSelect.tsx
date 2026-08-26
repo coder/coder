@@ -15,15 +15,28 @@ import {
 export const ModelOrganizationSelect: FC<{
 	label?: string;
 	readOnly?: boolean;
+	requireCreatePermission?: boolean;
 	triggerClassName?: string;
-}> = ({ label, readOnly = false, triggerClassName }) => {
-	const { organization, accessibleOrganizations } = useOrganizationModels();
+}> = ({
+	label,
+	readOnly = false,
+	requireCreatePermission = false,
+	triggerClassName,
+}) => {
+	const { organization, accessibleOrganizations, permissionsByOrganization } =
+		useOrganizationModels();
+	const selectableOrganizations = requireCreatePermission
+		? accessibleOrganizations.filter(
+				(organization) =>
+					permissionsByOrganization?.[organization.id]?.createChatModelConfigs,
+			)
+		: accessibleOrganizations;
 	const location = useLocation();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const id = useId();
 
-	if (!readOnly && accessibleOrganizations.length <= 1) {
+	if (!readOnly && selectableOrganizations.length <= 1) {
 		return null;
 	}
 
@@ -41,7 +54,7 @@ export const ModelOrganizationSelect: FC<{
 				organization,
 				accessibleOrganizations,
 			)}`}
-			options={accessibleOrganizations}
+			options={selectableOrganizations}
 			triggerClassName={triggerClassName}
 			optionsTabbable
 			onChange={(nextOrganization) => {

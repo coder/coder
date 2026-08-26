@@ -284,7 +284,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 										: "Set an API key for this provider before adding models."}
 								</p>
 							)}
-							<ModelOrganizationSelect label="Organization" />
+							<ModelOrganizationSelect
+								label="Organization"
+								requireCreatePermission={!isEditing}
+							/>
 						</div>
 					</div>
 				</div>

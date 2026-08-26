@@ -64,6 +64,8 @@ const OrganizationModelsLayout: FC = () => {
 				organization: activeOrganization,
 				accessibleOrganizations,
 				permissions: activePermissions,
+				permissionsByOrganization:
+					accessibleOrganizationsQuery.permissionsByOrganization,
 				requestedOrganizationDenied:
 					organizationSelection.requestedOrganizationDenied,
 			}}

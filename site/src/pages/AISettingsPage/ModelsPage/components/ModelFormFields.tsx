@@ -253,6 +253,7 @@ export const ModelFormFields: FC<{
 					<ModelOrganizationSelect
 						label="Organization"
 						readOnly={mode === "edit"}
+						requireCreatePermission={mode !== "edit"}
 					/>
 				</div>
 

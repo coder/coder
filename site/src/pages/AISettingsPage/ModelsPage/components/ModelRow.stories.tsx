@@ -61,7 +61,7 @@ export const WithoutProviderForcesDisabled: Story = {
 
 		// The badge is keyboard-focusable and must open its tooltip without
 		// activating the clickable row.
-		const notice = canvas.getByText("Unavailable");
+		const notice = canvas.getByRole("button", { name: "Unavailable" });
 		notice.focus();
 		const tooltip = await within(document.body).findByRole("tooltip");
 		await expect(tooltip).toHaveTextContent(
@@ -84,7 +84,7 @@ export const DisabledProviderForcesDisabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Anthropic")).toBeInTheDocument();
-		const notice = canvas.getByText("Unavailable");
+		const notice = canvas.getByRole("button", { name: "Unavailable" });
 		await expect(notice).toBeInTheDocument();
 		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();

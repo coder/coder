@@ -93,14 +93,14 @@ export const ModelRow: FC<ModelRowProps> = ({
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<Badge
+										asChild
 										variant="warning"
 										className="shrink-0"
-										tabIndex={0}
 										onClick={stopPropagation}
 										onKeyDown={stopPropagation}
 										onKeyUp={stopPropagation}
 									>
-										Unavailable
+										<button type="button">Unavailable</button>
 									</Badge>
 								</TooltipTrigger>
 								<TooltipContent side="bottom" className="max-w-[240px]">

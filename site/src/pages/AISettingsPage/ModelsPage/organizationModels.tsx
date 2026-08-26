@@ -42,6 +42,7 @@ export const useAccessibleModelOrganizations = (
 
 	return {
 		organizations: accessibleOrganizations,
+		permissionsByOrganization: permissionsQuery.data,
 		isLoading:
 			queries.some((query) => query.isLoading) || permissionsQuery.isLoading,
 		error: hasData ? null : (requestError ?? null),
@@ -98,6 +99,9 @@ type OrganizationModelsContextValue = {
 	organization: Organization;
 	accessibleOrganizations: readonly Organization[];
 	permissions: OrganizationPermissions | undefined;
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>;
 	requestedOrganizationDenied: boolean;
 };
 

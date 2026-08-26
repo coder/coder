@@ -5,6 +5,7 @@ import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
+	MockOrganization3,
 	MockOrganizationPermissions,
 } from "#/testHelpers/entities";
 import { withToaster } from "#/testHelpers/storybook";
@@ -58,12 +59,24 @@ export const Default: Story = {
 	},
 };
 
-const twoOrgDecorator = (Story: React.FC) => (
+const multiOrgDecorator = (Story: React.FC) => (
 	<OrganizationModelsContext.Provider
 		value={{
 			organization: MockDefaultOrganization,
-			accessibleOrganizations: [MockDefaultOrganization, MockOrganization2],
+			accessibleOrganizations: [
+				MockDefaultOrganization,
+				MockOrganization2,
+				MockOrganization3,
+			],
 			permissions: MockOrganizationPermissions,
+			permissionsByOrganization: {
+				[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				[MockOrganization2.id]: {
+					...MockOrganizationPermissions,
+					createChatModelConfigs: false,
+				},
+				[MockOrganization3.id]: MockOrganizationPermissions,
+			},
 			requestedOrganizationDenied: false,
 		}}
 	>
@@ -72,7 +85,7 @@ const twoOrgDecorator = (Story: React.FC) => (
 );
 
 export const WithOrganizationPicker: Story = {
-	decorators: [twoOrgDecorator],
+	decorators: [multiOrgDecorator],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
@@ -82,9 +95,14 @@ export const WithOrganizationPicker: Story = {
 		);
 		await expect(
 			await screen.findByRole("option", {
-				name: MockOrganization2.display_name,
+				name: MockOrganization3.display_name,
 			}),
 		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -137,7 +155,7 @@ export const ProviderWithoutConfiguredModels: Story = {
 };
 
 export const ProviderNotFound: Story = {
-	decorators: [twoOrgDecorator],
+	decorators: [multiOrgDecorator],
 	args: { selectedProviderState: null },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -151,7 +169,7 @@ export const ProviderNotFound: Story = {
 };
 
 export const LoadError: Story = {
-	decorators: [twoOrgDecorator],
+	decorators: [multiOrgDecorator],
 	args: { loadError: new Error("Failed to load models") },
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
