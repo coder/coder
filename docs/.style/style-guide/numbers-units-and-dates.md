@@ -23,6 +23,7 @@ Spelling out a number 6 or higher reintroduces the rule the digits policy is mea
 
 The rule covers counts, quantities, measurements, and values: the numbers a reader scans for.
 Numbers that describe language itself stay spelled out regardless of value, like word counts in a grammar discussion ("a contraction joins exactly two words") and numbers mentioned as words ("spell out first through ninth").
+Conceptual numbers (such as hundreds or thousands) or the specific decimal place of a rational number (such as tenths or hundredths) should always be spelled out.
 Rewriting those as digits changes the register of the sentence without making it easier to scan.
 
 **Do**:
@@ -40,6 +41,8 @@ Rewriting those as digits changes the register of the sentence without making it
 > Add five or more parameters before continuing.
 >
 > The CLI exits with an exit code of 0 on success and 1 on failure.
+>
+> Billions of users love Coder.
 
 **Don't**:
 
@@ -54,6 +57,8 @@ Rewriting those as digits changes the register of the sentence without making it
 > Add 5 or more parameters before continuing.
 >
 > The CLI exits with an exit code of zero on success and one on failure.
+>
+> 1,000,000,000s of users love Coder.
 
 The first and second **Don't** examples spell out numbers 6 and higher.
 The third example starts a sentence with a digit; restructure to put a word first ("The workspace has 90 connected users."), not spell out `90` to dodge the restructure.
