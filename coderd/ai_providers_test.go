@@ -1908,7 +1908,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -1966,7 +1966,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
@@ -2002,7 +2002,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		wantWarnings := []string{`hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
+		wantWarnings := []string{`Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/second/... endpoint).`}
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		first, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{

@@ -616,7 +616,7 @@ func proxyCollisionWarning(provider database.AIProvider, namesByHost map[string]
 	if len(names) < 2 || provider.Name == names[0] {
 		return ""
 	}
-	return fmt.Sprintf("hostname %q is claimed by provider %q. AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/%s/... endpoint).", host, names[0], provider.Name)
+	return fmt.Sprintf("Hostname %q is claimed by provider %q. AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/%s/... endpoint).", host, names[0], provider.Name)
 }
 
 // aiProviderStatusFromDB loads status data for a single provider response.
