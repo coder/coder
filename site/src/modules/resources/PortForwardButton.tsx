@@ -27,6 +27,16 @@ import {
 } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
+import {
+	Combobox,
+	ComboboxButton,
+	ComboboxContent,
+	ComboboxEmpty,
+	ComboboxInput,
+	ComboboxItem,
+	ComboboxList,
+	ComboboxTrigger,
+} from "#/components/Combobox/Combobox";
 import { FormField } from "#/components/FormField/FormField";
 import {
 	HelpPopoverLink,
@@ -168,6 +178,8 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		getWorkspaceListeningPortsProtocol(workspace.id),
 	);
 	const [portNumber, setPortNumber] = useState("");
+	const [portQuery, setPortQuery] = useState("");
+	const [portMenuOpen, setPortMenuOpen] = useState(false);
 	const protocolFieldId = useId();
 	const shareLevelFieldId = useId();
 
@@ -218,7 +230,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
 	const visibleListeningPorts = unsharedListeningPorts.filter((port) =>
-		port.port.toString().startsWith(portNumber),
+		port.port.toString().startsWith(portQuery),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
@@ -234,6 +246,18 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 		template.max_port_share_level === "organization"
 			? "organization"
 			: "authenticated";
+
+	const openPort = (port: number) => {
+		const url = portForwardURL(
+			host,
+			port,
+			agent.name,
+			workspace.name,
+			workspace.owner_name,
+			listeningPortProtocol,
+		);
+		window.open(url, "_blank");
+	};
 
 	const renderShareLevelOptions = () => (
 		<>
@@ -302,51 +326,108 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 									<SelectItem value="https">HTTPS</SelectItem>
 								</SelectContent>
 							</Select>
-							<form
-								className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
-								onSubmit={(e) => {
-									e.preventDefault();
-									const port = Number(portNumber);
-									const url = portForwardURL(
-										host,
-										port,
-										agent.name,
-										workspace.name,
-										workspace.owner_name,
-										listeningPortProtocol,
-									);
-									window.open(url, "_blank");
+							<Combobox
+								open={portMenuOpen}
+								onOpenChange={(open) => {
+									setPortMenuOpen(open);
+									if (!open) {
+										setPortQuery("");
+									}
 								}}
 							>
-								<input
-									aria-label="Port number"
-									name="portNumber"
-									type="number"
-									value={portNumber}
-									onChange={(event) => setPortNumber(event.target.value)}
-									placeholder="Connect to port..."
-									min={9}
-									max={65535}
-									required
-									className="block h-[34px] w-full border-0 bg-transparent px-3 text-sm text-content-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-								/>
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button type="submit" size="icon" variant="subtle">
-											<ExternalLinkIcon />
-											<span className="sr-only">Connect to port</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent disablePortal>Connect to port</TooltipContent>
-								</Tooltip>
-							</form>
+								<form
+									className="mt-2 flex w-full items-center rounded border border-solid border-border focus-within:border-content-link"
+									onSubmit={(event) => {
+										event.preventDefault();
+										openPort(Number(portNumber));
+									}}
+								>
+									<ComboboxTrigger asChild>
+										<ComboboxButton
+											type="button"
+											aria-label="Open port picker"
+											className="h-[34px] border-0 shadow-none"
+											selectedOption={
+												portNumber
+													? { label: portNumber, value: portNumber }
+													: undefined
+											}
+											placeholder="Connect to port..."
+										/>
+									</ComboboxTrigger>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												type="submit"
+												size="icon"
+												variant="subtle"
+												disabled={!portNumber}
+											>
+												<ExternalLinkIcon />
+												<span className="sr-only">Connect to port</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent disablePortal>
+											Connect to port
+										</TooltipContent>
+									</Tooltip>
+								</form>
+								<ComboboxContent
+									align="start"
+									className="w-[244px] p-0"
+									disablePortal
+									shouldFilter={false}
+								>
+									<ComboboxInput
+										aria-label="Filter or enter port"
+										placeholder="Filter or enter port..."
+										value={portQuery}
+										onValueChange={(value) => {
+											if (/^\d*$/.test(value)) {
+												setPortQuery(value);
+											}
+										}}
+										onKeyDown={(event) => {
+											if (event.key !== "Enter") {
+												return;
+											}
+											const port = Number(portQuery);
+											if (port < 9 || port > 65535) {
+												return;
+											}
+											event.preventDefault();
+											setPortNumber(portQuery);
+											setPortMenuOpen(false);
+										}}
+									/>
+									<ComboboxList>
+										{visibleListeningPorts.map((port) => (
+											<ComboboxItem
+												key={port.port}
+												value={port.port.toString()}
+												className="px-3"
+												onSelect={() => setPortNumber(port.port.toString())}
+											>
+												<RadioIcon />
+												<span>{port.port}</span>
+												<span className="ml-auto text-content-secondary">
+													{port.process_name || "Unknown process"}
+												</span>
+											</ComboboxItem>
+										))}
+									</ComboboxList>
+									<ComboboxEmpty>
+										{portQuery
+											? "Press Enter to use this port."
+											: "No open ports were detected."}
+									</ComboboxEmpty>
+								</ComboboxContent>
+							</Combobox>
 						</div>
 					</div>
-					{visibleListeningPorts.length === 0 && (
+					{visibleListeningPorts.length === 0 && !portMenuOpen && (
 						<HelpPopoverText className="text-content-secondary pt-5 pb-2.5 text-center">
-							{portNumber
-								? "No matching open ports."
-								: "No open ports were detected."}
+							No open ports were detected.
 						</HelpPopoverText>
 					)}
 					{visibleListeningPorts.map((port) => {

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, screen, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockListeningPortsResponse,
 	MockSharedPortsResponse,
@@ -44,20 +44,41 @@ export const WithPorts: Story = {
 export const FilterPorts: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const portInput = canvas.getByRole("spinbutton", { name: "Port number" });
+		const portTrigger = canvas.getByRole("button", {
+			name: "Open port picker",
+		});
 
-		await userEvent.type(portInput, "8080");
+		await userEvent.click(portTrigger);
+		const portInput = within(screen.getByRole("dialog")).getByRole("combobox");
+		await waitFor(() =>
+			expect(screen.getByRole("option", { name: /30000/ })).toBeVisible(),
+		);
+		await expect(screen.getByRole("option", { name: /8080/ })).toBeVisible();
 
-		await expect(canvas.getByRole("link", { name: "8080" })).toBeVisible();
+		await userEvent.type(portInput, "808");
+		await expect(screen.getByRole("option", { name: /8080/ })).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "30000" }),
+			screen.queryByRole("option", { name: /30000/ }),
 		).not.toBeInTheDocument();
+
+		await userEvent.click(screen.getByRole("option", { name: /8080/ }));
+		await expect(portTrigger).toHaveTextContent("8080");
+		await expect(canvas.getByRole("link", { name: "8080" })).toBeVisible();
 		await expect(canvas.getByRole("link", { name: "4000" })).toBeVisible();
 
-		await userEvent.clear(portInput);
-		await userEvent.type(portInput, "9999");
+		await userEvent.click(portTrigger);
+		const customPortInput = within(screen.getByRole("dialog")).getByRole(
+			"combobox",
+		);
+		await userEvent.type(customPortInput, "9999");
 
-		await expect(canvas.getByText("No matching open ports.")).toBeVisible();
+		await expect(
+			within(screen.getByRole("dialog")).getByText(
+				"Press Enter to use this port.",
+			),
+		).toBeVisible();
+		await userEvent.keyboard("{Enter}");
+		await expect(portTrigger).toHaveTextContent("9999");
 	},
 };
 
