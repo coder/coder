@@ -22,7 +22,6 @@ const (
 	templateAdmin string = "template-admin"
 	userAdmin     string = "user-admin"
 	auditor       string = "auditor"
-	agentsAccess  string = "agents-access"
 	// customSiteRole is a placeholder for all custom site roles.
 	// This is used for what roles can assign other roles.
 	// TODO: Make this more dynamic to allow other roles to grant.
@@ -143,7 +142,6 @@ func RoleTemplateAdmin() RoleIdentifier { return RoleIdentifier{Name: templateAd
 func RoleUserAdmin() RoleIdentifier     { return RoleIdentifier{Name: userAdmin} }
 func RoleMember() RoleIdentifier        { return RoleIdentifier{Name: member} }
 func RoleAuditor() RoleIdentifier       { return RoleIdentifier{Name: auditor} }
-func RoleAgentsAccess() string          { return agentsAccess }
 
 func RoleOrgAdmin() string {
 	return orgAdmin
@@ -201,10 +199,6 @@ func ScopedRoleOrgTemplateAdmin(organizationID uuid.UUID) RoleIdentifier {
 
 func ScopedRoleOrgWorkspaceCreationBan(organizationID uuid.UUID) RoleIdentifier {
 	return RoleIdentifier{Name: RoleOrgWorkspaceCreationBan(), OrganizationID: organizationID}
-}
-
-func ScopedRoleAgentsAccess(organizationID uuid.UUID) RoleIdentifier {
-	return RoleIdentifier{Name: RoleAgentsAccess(), OrganizationID: organizationID}
 }
 
 func ScopedRoleOrgWorkspaceAccess(organizationID uuid.UUID) RoleIdentifier {
@@ -346,9 +340,29 @@ type RoleOptions struct {
 	NoChatSharing        bool
 }
 
+// retiredRoleNames contains retired built-in role names. They stay reserved so
+// a custom role cannot take a name that older binaries still resolve as a
+// built-in role, which would silently shadow the custom permissions on
+// rollback. Stored role arrays and org default role lists may still contain
+// these names until a data cleanup migration lands, so role expansion and
+// assignment validation treat them as grants of nothing instead of failing.
+var retiredRoleNames = map[string]struct{}{
+	"agents-access": {},
+}
+
+// IsRetiredRoleName reports whether name is a retired built-in role name that
+// may still appear in stored role arrays.
+func IsRetiredRoleName(name string) bool {
+	_, ok := retiredRoleNames[name]
+	return ok
+}
+
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
+	if _, ok := retiredRoleNames[name]; ok {
+		return true
+	}
 	_, ok := loadBuiltinRoles()[name]
 	return ok
 }
@@ -729,29 +743,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// ActionDelete is intentionally excluded because hard-deletion goes through
-		// ResourceSystem in dbpurge.
-		agentsAccess: func(organizationID uuid.UUID) Role {
-			return Role{
-				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
-				DisplayName: "Coder Agents User",
-				Site:        []Permission{},
-				User:        []Permission{},
-				ByOrgID: map[string]OrgPermissions{
-					organizationID.String(): {
-						Org: []Permission{},
-						Member: Permissions(map[string][]policy.Action{
-							ResourceChat.Type: {
-								policy.ActionCreate,
-								policy.ActionRead,
-								policy.ActionShare,
-								policy.ActionUpdate,
-							},
-						}),
-					},
-				},
-			}
-		},
 	}
 
 	builtInRoles.Store(&roles)
@@ -778,7 +769,6 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	owner: {
 		owner:                   true,
@@ -795,13 +785,11 @@ var assignRoles = map[string]map[string]bool{
 		userAdmin:               true,
 		customSiteRole:          true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	userAdmin: {
 		member:             true,
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		agentsAccess:       true,
 	},
 	orgAdmin: {
 		orgAdmin:                true,
@@ -812,12 +800,10 @@ var assignRoles = map[string]map[string]bool{
 		orgWorkspaceCreationBan: true,
 		orgWorkspaceAccess:      true,
 		customOrganizationRole:  true,
-		agentsAccess:            true,
 	},
 	orgUserAdmin: {
 		orgMember:          true,
 		orgWorkspaceAccess: true,
-		agentsAccess:       true,
 	},
 }
 
@@ -1002,6 +988,12 @@ func RoleByName(name RoleIdentifier) (Role, error) {
 func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 	roles := make([]Role, 0, len(roleNames))
 	for _, n := range roleNames {
+		if IsRetiredRoleName(n.Name) {
+			// Retired role names grant nothing and cannot be re-created as
+			// custom roles, so stale stored grants are dropped instead of
+			// failing expansion.
+			continue
+		}
 		r, err := RoleByName(n)
 		if err != nil {
 			return nil, xerrors.Errorf("get role permissions: %w", err)
@@ -1188,8 +1180,6 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
-	// Chat access requires the agents-access role and is intentionally
-	// not granted in the floor.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
@@ -1211,6 +1201,14 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		ResourceNotificationMessage.Type:    {policy.ActionRead, policy.ActionUpdate},
 		ResourceNotificationPreference.Type: ResourceNotificationPreference.AvailableActions(),
 		ResourceInboxNotification.Type:      ResourceInboxNotification.AvailableActions(),
+
+		// Hard deletion is authorized through ResourceSystem in dbpurge.
+		ResourceChat.Type: {
+			policy.ActionCreate,
+			policy.ActionRead,
+			policy.ActionShare,
+			policy.ActionUpdate,
+		},
 	})
 
 	if org.ShareableWorkspaceOwners != ShareableWorkspaceOwnersEveryone {
@@ -1258,6 +1256,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		})
 	}
 
+	// Chat permissions are intentionally omitted for service accounts.
 	memberPerms := Permissions(map[string][]policy.Action{
 		// Read-self org-member record.
 		ResourceOrganizationMember.Type: {policy.ActionRead},
@@ -1268,8 +1267,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 
 		// Service accounts can create and update AI Bridge interceptions
 		// they initiate (dbauthz layer sets WithOwner(InitiatorID)) but
-		// cannot read them back. Chat access requires the agents-access
-		// role and is intentionally not granted here.
+		// cannot read them back.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 
 		// Own session tokens and workspace agent auth keys.
