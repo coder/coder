@@ -17,7 +17,7 @@ Administrators can block individual templates from the template list or from eac
 
 To change which templates agents can use:
 
-1. Navigate to **Agents** > **Settings** > **Manage Agents** > **Templates**.
+1. Navigate to **Admin settings** > **AI** > **Coder Agents** > **Templates**.
 2. Toggle the switch for each template.
 
 The same control is available on each template's settings page as **Allow Coder Agents to create workspaces using this template**.
@@ -31,10 +31,10 @@ With this setting, platform teams can apply stricter policies to agent workloads
 
 ## Write discoverable template descriptions
 
-The agent selects templates by reading their names and descriptions — the same
-metadata shown on the templates page in the Coder dashboard, sorted by number
-of active developers. It does not inspect the template's Terraform to
-understand what infrastructure is inside.
+The agent selects templates by reading their names and descriptions, the same metadata shown on the templates page in the Coder dashboard.
+The agent's `list_templates` tool ranks matches by query relevance first, then by an affinity score that weights the developer's own recent template usage far more heavily than organization popularity.
+It does not inspect the template's Terraform to understand what infrastructure is inside.
+For the ranking details, refer to [list_templates](../tools/index.md#how-templates-are-ranked).
 
 This means the template description is the single most important factor in
 whether the agent picks the right template for a given task.
@@ -65,10 +65,8 @@ A good template description tells the agent:
 | Default            | Tells the agent nothing                                                 |
 
 > [!TIP]
-> If many developers already use a template, the agent is more likely to
-> select it because templates are sorted by active developer count. A
-> well-written description on a popular template is the strongest routing
-> signal you can provide.
+> If many developers already use a template, the agent is more likely to select it, because organization popularity contributes to the affinity score that orders the shortlist.
+> A well-written description on a popular template is the strongest routing signal you can provide.
 
 ### Template display names
 

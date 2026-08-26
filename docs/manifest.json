@@ -1094,8 +1094,7 @@
 								{
 									"title": "Chat debug logging",
 									"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
-									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
-									"state": ["early access"]
+									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md"
 								}
 							]
 						},

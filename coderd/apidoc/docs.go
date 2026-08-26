@@ -20759,6 +20759,10 @@ const docTemplate = `{
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
                 },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name, so this defaults to false.",
+                    "type": "boolean"
+                },
                 "autostart_requirement": {
                     "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is an enterprise feature.",
                     "allOf": [
@@ -21684,6 +21688,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AIConfig"
                 },
                 "allow_workspace_renames": {
+                    "description": "Deprecated: Use the per-template allow_workspace_renames setting instead.",
                     "type": "boolean"
                 },
                 "autobuild_poll_interval": {
@@ -26549,6 +26554,10 @@ const docTemplate = `{
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name.",
+                    "type": "boolean"
+                },
                 "autostart_requirement": {
                     "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
                 },
@@ -28108,6 +28117,10 @@ const docTemplate = `{
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name.",
+                    "type": "boolean"
+                },
                 "autostart_requirement": {
                     "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
                 },
@@ -29145,6 +29158,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allow_renames": {
+                    "description": "AllowRenames is the effective rename permission for this workspace,\nderived from the template's allow_workspace_renames setting and the\ndeprecated deployment-wide flag.",
                     "type": "boolean"
                 },
                 "automatic_updates": {
