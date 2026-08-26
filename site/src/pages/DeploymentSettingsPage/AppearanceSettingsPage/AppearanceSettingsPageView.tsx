@@ -49,14 +49,11 @@ export const AppearanceSettingsPageView: FC<
 
 	return (
 		<div>
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Appearance</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Customize the look and feel of your Coder deployment.
+					Customize the look and feel of your Coder deployment.{" "}
+					<SettingsHeaderDocsLink href={docs("/admin/setup/appearance")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
