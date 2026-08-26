@@ -2575,7 +2575,7 @@ export interface ChatGitChange {
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2591,7 +2591,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2604,7 +2604,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2616,7 +2616,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -3247,7 +3247,7 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 // From codersdk/chats.go
 /**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
- * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
  * parts (tool calls, files, attachments) are omitted by the server.
  */
@@ -3272,7 +3272,7 @@ export interface ChatPromptsOptions {
 // From codersdk/chats.go
 /**
  * ChatPromptsResponse is the payload of
- * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * GET /api/v2/chats/{chat}/prompts. Prompts are returned
  * newest first so the client can index directly into the slice for
  * up/down arrow history cycling.
  */
@@ -3657,7 +3657,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4198,6 +4198,12 @@ export interface CreateTemplateRequest {
 	 * this template. Defaults to true.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name, so this defaults to false.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/templateversions.go
@@ -4714,7 +4720,7 @@ export const DefaultChatDebugRetentionDays = 30;
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero means disabled; the template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -4835,6 +4841,9 @@ export interface DeploymentValues {
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
 	readonly web_terminal_renderer?: string;
+	/**
+	 * @deprecated Use the per-template allow_workspace_renames setting instead.
+	 */
 	readonly allow_workspace_renames?: boolean;
 	readonly healthcheck?: HealthcheckConfig;
 	readonly retention?: RetentionConfig;
@@ -5535,9 +5544,16 @@ export interface GroupMemberAISpend {
 	 */
 	readonly effective_group_id: string | null;
 	/**
+	 * EffectiveBudget is the spend limit that currently applies to the user.
+	 * Null when no budget applies or the effective group belongs to a different
+	 * organization than the queried group.
+	 */
+	readonly effective_budget: AIBudgetLimit | null;
+	/**
 	 * GroupBudget is the budget when the queried group is this user's
-	 * effective budget source. Null when the user's budget resolves to another
-	 * group or no budget applies to the user.
+	 * effective budget source. When populated, it matches EffectiveBudget. Null
+	 * when the user's budget resolves to another group or no budget applies.
+	 * @deprecated Use EffectiveBudget instead.
 	 */
 	readonly group_budget: AIBudgetLimit | null;
 	/**
@@ -8314,6 +8330,9 @@ export interface Role {
 // From codersdk/rbacroles.go
 /**
  * Ideally these roles would be generated from the rbac/roles.go package.
+ * @deprecated the agents-access role was removed. Coder Agents chat
+ * access is part of the organization-member permission floor, and
+ * servers without this built-in role reject assigning it.
  */
 export const RoleAgentsAccess = "agents-access";
 
@@ -9146,6 +9165,12 @@ export interface Template {
 	 * provisioning.
 	 */
 	readonly disable_module_cache: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames: boolean;
 }
 
 // From codersdk/templates.go
@@ -9907,7 +9932,7 @@ export interface UpdateChatSystemPromptRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -10135,6 +10160,12 @@ export interface UpdateTemplateMeta {
 	 * this template. If omitted, the current value is preserved.
 	 */
 	readonly agents_allowed?: boolean;
+	/**
+	 * AllowWorkspaceRenames permits users to rename workspaces built from this
+	 * template. Renaming can be destructive for templates whose Terraform
+	 * references the workspace name.
+	 */
+	readonly allow_workspace_renames?: boolean;
 }
 
 // From codersdk/users.go
@@ -10965,6 +10996,11 @@ export interface Workspace {
 	 */
 	readonly health: WorkspaceHealth;
 	readonly automatic_updates: AutomaticUpdates;
+	/**
+	 * AllowRenames is the effective rename permission for this workspace,
+	 * derived from the template's allow_workspace_renames setting and the
+	 * deprecated deployment-wide flag.
+	 */
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
 	readonly next_start_at: string | null;

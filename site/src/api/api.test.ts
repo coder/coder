@@ -195,6 +195,7 @@ describe("api.ts", () => {
 					members: ids.map((id) => ({
 						user_id: id,
 						effective_group_id: null,
+						effective_budget: null,
 						group_budget: null,
 						group_spend_micros: 0,
 					})),
@@ -436,7 +437,7 @@ describe("api.ts", () => {
 
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
-				"/api/experimental/organizations/organization%2Fid/chats/models",
+				"/api/v2/organizations/organization%2Fid/chats/models",
 				() => API.experimental.getChatModels(organizationId),
 				{ models: [], providers: [], unsupported_providers: [] },
 			],
@@ -465,7 +466,7 @@ describe("api.ts", () => {
 
 		it.each<[string, () => Promise<unknown>]>([
 			[
-				"/api/experimental/organizations/organization%2Fid/chats/models",
+				"/api/v2/organizations/organization%2Fid/chats/models",
 				() => API.experimental.getChatModels(organizationId),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
@@ -500,7 +501,7 @@ describe("api.ts", () => {
 			).resolves.toBeUndefined();
 
 			const itemPath =
-				"/api/experimental/organizations/organization%2Fid/chats/models/model%2Fid";
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid";
 			expect(axiosInstance.get).toHaveBeenCalledWith(itemPath);
 			expect(axiosInstance.patch).toHaveBeenCalledWith(itemPath, {
 				enabled: true,
@@ -522,7 +523,7 @@ describe("api.ts", () => {
 			).resolves.toBeUndefined();
 
 			const aclPath =
-				"/api/experimental/organizations/organization%2Fid/chats/models/model%2Fid/acl";
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid/acl";
 			expect(axiosInstance.get).toHaveBeenCalledWith(aclPath);
 			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, acl);
 		});
@@ -644,7 +645,7 @@ describe("api.ts", () => {
 			const result = await API.experimental.getChatACL(chatId);
 
 			expect(axiosInstance.get).toHaveBeenCalledWith(
-				`/api/experimental/chats/${chatId}/acl`,
+				`/api/v2/chats/${chatId}/acl`,
 			);
 			expect(result).toStrictEqual(chatACL);
 		});
@@ -659,7 +660,7 @@ describe("api.ts", () => {
 			await API.experimental.updateChatACL(chatId, request);
 
 			expect(axiosInstance.patch).toHaveBeenCalledWith(
-				`/api/experimental/chats/${chatId}/acl`,
+				`/api/v2/chats/${chatId}/acl`,
 				request,
 			);
 		});

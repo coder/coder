@@ -635,10 +635,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
-# Terraform resources that depend on the workspace name to be destroyed and
-# recreated, potentially causing data loss. Only enable this if your templates do
-# not use workspace names in resource identifiers, or if you understand the risks.
+# Deprecated: use the per-template "Allow workspace renames" setting instead.
+# While set, it force-enables renames for every template in the deployment.
+# WARNING: Renaming a workspace can cause Terraform resources that depend on the
+# workspace name to be destroyed and recreated, potentially causing data loss.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.

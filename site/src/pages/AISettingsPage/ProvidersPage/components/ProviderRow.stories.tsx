@@ -91,7 +91,9 @@ export const NotSupportedInAgents: Story = {
 
 		await userEvent.hover(badge);
 		const tooltip = await within(document.body).findByRole("tooltip");
-		await expect(tooltip).toHaveTextContent(/AI Gateway proxy/);
+		await expect(tooltip).toHaveTextContent(
+			"This provider works with the AI Gateway Proxy but Coder Agents can't use it.",
+		);
 
 		// Activation must not navigate the row.
 		badge.focus();
@@ -134,7 +136,7 @@ export const WithHostnameCollisionWarning: Story = {
 			enabled: true,
 			status: {
 				warnings: [
-					'hostname "api.openai.com" is claimed by provider "first"; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/openai/...) instead',
+					'Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/openai/... endpoint).',
 				],
 			},
 		},
@@ -149,9 +151,8 @@ export const WithHostnameCollisionWarning: Story = {
 
 		// Hover shows the tooltip with the warning text.
 		await userEvent.hover(badge);
-		await expect(
-			await canvas.findByText(/api\.openai\.com/, {}, { timeout: 2000 }),
-		).toBeInTheDocument();
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent("api.openai.com");
 
 		// Keyboard and mouse activation must not navigate the row.
 		badge.focus();
