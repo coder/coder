@@ -6925,17 +6925,6 @@ func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// @Summary List AI models and provider descriptors in the default organization
-// @ID list-ai-models-and-provider-descriptors-in-the-default-organization
-// @Security CoderSessionToken
-// @Tags Chats
-// @Produce json
-// @Success 200 {object} codersdk.OrganizationChatModelsResponse
-// @Router /api/v2/chats/models [get]
-func (api *API) listDefaultOrganizationChatModels(rw http.ResponseWriter, r *http.Request) {
-	api.listChatModelConfigsByOrganization(rw, r)
-}
-
 // @Summary List AI models and provider descriptors in an organization
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
@@ -7030,7 +7019,7 @@ func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
 // them directly, so the fetch runs under a narrow AsChatd context scoped to
 // exactly these two reads and the result is projected to the fixed redacted
 // fields (no key material, base URLs, or headers). Disclosure matches what
-// /api/v2/chats/models already shows any authenticated caller.
+// /api/experimental/chats/models already shows any authenticated caller.
 func (api *API) chatModelProviderDescriptors(
 	ctx context.Context,
 	userID uuid.UUID,

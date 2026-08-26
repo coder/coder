@@ -408,11 +408,6 @@ func assertAccept(t *testing.T, comment SwaggerComment) {
 var allowedProduceTypes = []string{"json", "text/event-stream", "text/html", "text/plain"}
 
 func assertProduce(t *testing.T, comment SwaggerComment) {
-	if comment.method == "get" && (comment.router == "/api/v2/chats/files/{file}" ||
-		comment.router == "/api/v2/chats/files/{file}/download") {
-		return
-	}
-
 	var hasResponseModel bool
 	for _, r := range comment.successes {
 		if r.model != "" {
@@ -434,8 +429,10 @@ func assertProduce(t *testing.T, comment SwaggerComment) {
 			(comment.router == "/api/v2/workspaces/{workspace}/acl" && comment.method == "patch") ||
 			(comment.router == "/api/v2/init-script/{os}/{arch}" && comment.method == "get") ||
 			(comment.router == "/api/v2/organizations/{organization}/ai/spend/export" && comment.method == "get") ||
-			(comment.router == "/api/v2/templatebuilder/compose" && comment.method == "post") {
-			return // Exception: HTTP 200 is returned without response entity
+			(comment.router == "/api/v2/templatebuilder/compose" && comment.method == "post") ||
+			(comment.router == "/api/v2/chats/files/{file}" && comment.method == "get") ||
+			(comment.router == "/api/v2/chats/files/{file}/download" && comment.method == "get") {
+			return // Exception: HTTP 200 is returned without a response model
 		}
 
 		assert.Truef(t, comment.produce == "", "Response model is undefined, so we can't predict the content type: %v", comment)

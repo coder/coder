@@ -1379,12 +1379,10 @@ func New(options *Options) *API {
 			)
 			api.registerUserAIProviderKeyRoutes(r)
 		})
-		api.registerChatFileDownloadRoute(r)
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				api.registerOrganizationMCPServerRoutes(r)
 				api.registerOrganizationChatRoutes(r)
 				r.Route("/members/{user}", func(r chi.Router) {
 					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
@@ -1392,73 +1390,11 @@ func New(options *Options) *API {
 				})
 			})
 		})
-		// Organization-scoped ChatModel management and runtime discovery.
-		// Keep the previous default-organization collection routes until the
-		// frontend uses the organization-scoped routes.
-		r.Route("/chats/model-configs", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				func(next http.Handler) http.Handler {
-					return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-						chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
-						next.ServeHTTP(rw, req)
-					})
-				},
-				httpmw.ExtractOrganizationParam(options.Database),
-			)
-			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
-			r.Post("/", api.createChatModelConfig)
-		})
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			api.registerDefaultOrganizationChatModelsRoute(r)
-			api.registerChatCollectionRoutes(r)
-			r.Route("/config", func(r chi.Router) {
-				api.registerChatConfigRoutes(r)
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
-				})
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-					r.Get("/advisor", api.getChatAdvisorConfig)
-					r.Put("/advisor", api.putChatAdvisorConfig)
-				})
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/providers", func(r chi.Router) {
-				r.Get("/", api.listChatProviders)
-				r.Post("/", api.createChatProvider)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatProvider)
-					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			r.Route("/user-provider-configs", func(r chi.Router) {
-				r.Get("/", api.listUserChatProviderConfigs)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Put("/", api.upsertUserChatProviderKey)
-					r.Delete("/", api.deleteUserChatProviderKey)
-				})
-			})
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				api.registerChatRoutes(r)
-				r.Route("/stream", func(r chi.Router) {
-					api.registerChatStreamRoutes(r)
-					r.Get("/desktop", api.watchChatDesktop)
-				})
-				r.Route("/debug", func(r chi.Router) {
-					r.Get("/runs", api.getChatDebugRuns)
-					r.Get("/runs/{debugRun}", api.getChatDebugRun)
-				})
-			})
-		})
+		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixExperimental)
 
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerExperimentalMCPServerOAuth2Routes(r)
+			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
 			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
@@ -1510,34 +1446,10 @@ func New(options *Options) *API {
 			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
-		api.registerChatFileDownloadRoute(r)
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			api.registerDefaultOrganizationChatModelsRoute(r)
-			api.registerChatCollectionRoutes(r)
-			r.Route("/config", api.registerChatConfigRoutes)
-			// These segments exist only under /api/experimental. Reserve
-			// them with empty subrouters so they return 404 instead of
-			// falling into the {chat} wildcard and failing UUID parsing
-			// with a 400.
-			// TODO(CODAGT-922): drop the reservations with the
-			// experimental mounts.
-			for _, segment := range []string{"/model-configs", "/providers", "/user-provider-configs"} {
-				r.Route(segment, func(r chi.Router) {
-					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
-						httpapi.RouteNotFound(rw)
-					})
-				})
-			}
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				api.registerChatRoutes(r)
-				r.Route("/stream", api.registerChatStreamRoutes)
-			})
-		})
+		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixV2)
 		r.Route("/mcp", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
-			api.registerMCPServerOAuth2Routes(r)
+			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixV2)
 		})
 
 		r.Get("/updatecheck", api.updateCheck)
@@ -1602,7 +1514,6 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
-				api.registerOrganizationMCPServerRoutes(r)
 				api.registerOrganizationChatRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)

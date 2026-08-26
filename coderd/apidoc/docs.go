@@ -2379,31 +2379,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v2/chats/models": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "List AI models and provider descriptors in the default organization",
-                "operationId": "list-ai-models-and-provider-descriptors-in-the-default-organization",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.OrganizationChatModelsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/chats/watch": {
             "get": {
                 "produces": [
