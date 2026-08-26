@@ -43,7 +43,7 @@ export const TagInput: FC<TagInputProps> = ({
 							}}
 							aria-label={`Remove ${value}`}
 						>
-							<XIcon className="size-3" />
+							<XIcon className="size-3!" />
 						</Button>
 					</Badge>
 				))}
