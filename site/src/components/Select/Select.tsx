@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { popperContentAnimationClass } from "#/components/Popper/popperClasses";
 import { cn } from "#/utils/cn";
 
 export const Select = SelectPrimitive.Root;
@@ -82,13 +83,10 @@ export const SelectContent: React.FC<
 			className={cn(
 				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
-				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
-				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
-				"data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 ",
-				"data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+				popperContentAnimationClass,
+				// Keep the popper offset in transform so enter animations replace it like Tailwind v3.
 				position === "popper" &&
-					"data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 ",
-				"data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+					"data-[side=bottom]:[transform:translateY(var(--spacing))] data-[side=left]:[transform:translateX(calc(var(--spacing)*-1))] data-[side=right]:[transform:translateX(var(--spacing))] data-[side=top]:[transform:translateY(calc(var(--spacing)*-1))]",
 				className,
 			)}
 			position={position}

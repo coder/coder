@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -41,6 +41,7 @@ export const OpenWithHover: Story = {
 		await user.click(button);
 		const body = canvasElement.ownerDocument.body;
 		const menuItem = await within(body).findByText("Audit logs");
+		await waitFor(() => expect(menuItem).toBeVisible());
 		await user.hover(menuItem);
 	},
 };

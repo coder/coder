@@ -40,6 +40,10 @@ function hasSiblingSelector(css: string, selectorPrefix: string): boolean {
 	return css.includes(`${selectorPrefix} > :not([hidden]) ~ :not([hidden])`);
 }
 
+function dataAttributeCount(selector: string): number {
+	return selector.split("[data-").length - 1;
+}
+
 describe("Tailwind CSS compatibility", () => {
 	it("resets every emitted v4 sibling selector after its declaration", async () => {
 		const cssPath = path.resolve(__dirname, "../index.css");
@@ -116,5 +120,79 @@ describe("Tailwind CSS compatibility", () => {
 
 		expect(hoverRuleCount).toBeGreaterThan(0);
 		expect(gatedHoverRules).toEqual([]);
+	});
+
+	it("preserves directional popper animation transforms", async () => {
+		const cssPath = path.resolve(__dirname, "../index.css");
+		const source = fs.readFileSync(cssPath, "utf8");
+		const result = await postcss([tailwindcss()]).process(source, {
+			from: cssPath,
+		});
+		const root = postcss.parse(result.css);
+		const directionalRules: Array<{ property: string; selector: string }> = [];
+		const resetRules: Array<{ property: string; selector: string }> = [];
+		const independentTranslations: string[] = [];
+		const positionedTransforms = new Map<string, string>();
+
+		root.walkRules((rule) => {
+			const declarations = new Map<string, string>();
+			rule.walkDecls((declaration) => {
+				declarations.set(declaration.prop, declaration.value);
+			});
+
+			for (const property of [
+				"--tw-enter-translate-x",
+				"--tw-enter-translate-y",
+			]) {
+				const value = declarations.get(property);
+				if (value === "initial") {
+					resetRules.push({ property, selector: rule.selector });
+				} else if (
+					value !== undefined &&
+					rule.selector.includes(String.raw`data-\[side\=`)
+				) {
+					directionalRules.push({ property, selector: rule.selector });
+				}
+			}
+
+			if (!rule.selector.includes(String.raw`data-\[side\=`)) {
+				return;
+			}
+			if (declarations.has("translate")) {
+				independentTranslations.push(rule.selector);
+			}
+			const side = rule.selector.match(
+				/\[data-side="(bottom|left|right|top)"\]/,
+			)?.[1];
+			const transform = declarations.get("transform");
+			if (side !== undefined && transform?.startsWith("translate") === true) {
+				positionedTransforms.set(side, transform);
+			}
+		});
+
+		const stateOpenDirectionalRules = directionalRules.filter((directional) =>
+			directional.selector.includes(String.raw`data-\[state\=open\]`),
+		);
+		expect(stateOpenDirectionalRules).toHaveLength(4);
+		const stateOpenResets = resetRules.filter((reset) =>
+			reset.selector.includes(String.raw`data-\[state\=open\]\:animate-in`),
+		);
+		expect(stateOpenResets.length).toBeGreaterThan(0);
+		for (const directional of stateOpenDirectionalRules) {
+			for (const reset of stateOpenResets) {
+				if (reset.property === directional.property) {
+					expect(dataAttributeCount(directional.selector)).toBeGreaterThan(
+						dataAttributeCount(reset.selector),
+					);
+				}
+			}
+		}
+		expect(independentTranslations).toEqual([]);
+		expect(Object.fromEntries(positionedTransforms)).toEqual({
+			bottom: "translateY(var(--spacing))",
+			left: "translateX(calc(var(--spacing) * -1))",
+			right: "translateX(var(--spacing))",
+			top: "translateY(calc(var(--spacing) * -1))",
+		});
 	});
 });

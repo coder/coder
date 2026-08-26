@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	Select,
 	SelectContent,
@@ -39,8 +40,12 @@ type Story = StoryObj<typeof Select>;
 export const Close: Story = {};
 
 export const Open: Story = {
-	args: {
-		open: true,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("combobox"));
+		await waitFor(() =>
+			expect(within(document.body).getByRole("listbox")).toBeVisible(),
+		);
 	},
 };
 

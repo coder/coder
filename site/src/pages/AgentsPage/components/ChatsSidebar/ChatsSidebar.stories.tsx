@@ -2171,6 +2171,7 @@ export const ArchiveActionsFollowChatStatus: Story = {
 			canvas.getByTestId("agents-tree-node-running-archive-actions"),
 		);
 		body = within(document.body);
+		await waitFor(() => expect(body.getByRole("menu")).toBeVisible());
 		expect(
 			await body.findByRole("menuitem", { name: "Archive agent" }),
 		).toHaveAttribute("aria-disabled", "true");
