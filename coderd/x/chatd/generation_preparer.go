@@ -697,10 +697,6 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	// Unanswered trailing user message(s) are carried through compaction
-	// verbatim instead of being summarized: they are excluded from the
-	// summarizer's input here and replayed after the boundary at commit
-	// time (CODAGT-737).
 	compactionPromptMessages, pendingUserRows := splitPendingUserSegment(prompt, promptRows)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.

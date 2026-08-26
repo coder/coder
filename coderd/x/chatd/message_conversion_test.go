@@ -1198,10 +1198,9 @@ func TestBuildCommitStepMessages_SkipsProviderExecutedRewriteAttribution(t *test
 	require.True(t, parts[1].HookRewritten)
 }
 
-// A compaction that triggered on unanswered trailing user message(s)
-// replays them verbatim after the boundary trio as uncompressed,
-// model-visibility rows so the prompt window query keeps them
-// (CODAGT-737).
+// Pending user message(s) replayed by a compaction commit must land
+// after the boundary trio as uncompressed, model-visibility rows so
+// the prompt window query keeps them (CODAGT-737).
 func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 	t.Parallel()
 

@@ -313,12 +313,11 @@ type GenerateCompactionOptions struct {
 	StepUsage            fantasy.Usage
 	StepMetadata         fantasy.ProviderMetadata
 
-	// PendingUserMessages indicates the chat history ended with user
-	// message(s) the assistant has not yet responded to, and the caller
-	// excluded them from Messages so they are carried through compaction
-	// verbatim instead of being summarized. When set, the default summary
-	// prompt and system summary prefix explain this to the summarizer and
-	// the continuing assistant respectively.
+	// PendingUserMessages indicates the caller excluded unanswered
+	// trailing user message(s) from Messages so they are carried through
+	// compaction verbatim instead of being summarized. The default
+	// summary prompt and system summary prefix explain this to the
+	// summarizer and the continuing assistant respectively.
 	PendingUserMessages bool
 
 	// Force skips the threshold gate (including the threshold=100

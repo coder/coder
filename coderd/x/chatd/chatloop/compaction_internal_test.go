@@ -387,12 +387,11 @@ func TestGenerateCompaction_RequiresClock(t *testing.T) {
 	require.ErrorContains(t, err, "clock is required")
 }
 
-// TestGenerateCompaction_PendingUserMessagesPromptVariant verifies that
-// when the caller excluded unanswered trailing user message(s) from the
-// summarizer input (CODAGT-737), the summary prompt tells the model
-// those messages exist but are not visible, and the system summary uses
-// the pending-user prefix instead of claiming the assistant was
-// actively working.
+// TestGenerateCompaction_PendingUserMessagesPromptVariant verifies the
+// summary prompt tells the model that unanswered user message(s) exist
+// but are not visible, and that the system summary uses the
+// pending-user prefix instead of claiming the assistant was actively
+// working (CODAGT-737).
 func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
 	t.Parallel()
 
@@ -431,7 +430,6 @@ func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
 	require.NotContains(t, result.SystemSummary, "actively working")
 }
 
-// Without PendingUserMessages the defaults are unchanged.
 func TestGenerateCompaction_DefaultPromptWithoutPendingUser(t *testing.T) {
 	t.Parallel()
 

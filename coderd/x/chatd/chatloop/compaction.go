@@ -70,20 +70,19 @@ const (
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
-	// defaultCompactionSystemSummaryPrefixPendingUser replaces the default
-	// prefix when compaction triggered on user message(s) the assistant
-	// had not yet responded to (see CODAGT-737). Those messages are
-	// preserved verbatim after the summary rather than summarized, so the
-	// prefix must not claim the assistant was mid-work.
+	// defaultCompactionSystemSummaryPrefixPendingUser is used when
+	// compaction triggered on user message(s) the assistant had not yet
+	// responded to (CODAGT-737): those messages follow the summary
+	// verbatim, so the prefix must not claim the assistant was mid-work.
 	defaultCompactionSystemSummaryPrefixPendingUser = "The following is a " +
 		"summary of the earlier conversation. The context was compacted " +
 		"immediately after the user sent new message(s) that the assistant " +
 		"has not yet addressed; they follow this summary verbatim. Orient " +
 		"yourself with the summary below, then address the user's pending " +
 		"message(s) directly:"
-	// compactionPendingUserNote is appended to the summary prompt when the
+	// compactionPendingUserNote is appended to the summary prompt when
 	// unanswered trailing user message(s) were excluded from the
-	// summarizer's input. Without it the summarizer may describe the
+	// summarizer's input; without it the summarizer may describe the
 	// visible tail of the conversation as if it were the latest state.
 	compactionPendingUserNote = "Note: the user's most recent message(s) " +
 		"arrived immediately before this compaction, have not been " +

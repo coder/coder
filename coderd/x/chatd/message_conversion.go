@@ -310,11 +310,9 @@ type buildCompactionMessagesInput struct {
 	compaction     compactionOutcome
 	contentVersion int16
 	// pendingUserMessages are the unanswered trailing user message(s)
-	// that were excluded from the summarizer's input. They are replayed
-	// verbatim after the compaction boundary as model-visibility rows so
-	// the pending instruction survives compaction without depending on
-	// summary fidelity (CODAGT-737). The user-visible originals remain
-	// untouched before the boundary.
+	// excluded from the summarizer's input, replayed as model-visibility
+	// rows so the pending instruction survives compaction without
+	// depending on summary fidelity (CODAGT-737).
 	pendingUserMessages []database.ChatMessage
 }
 
@@ -577,17 +575,15 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 
 // splitPendingUserSegment identifies the unanswered trailing user
 // message(s) at the tip of the prompt window: the contiguous run of
-// user-role rows after the last assistant or tool row. When compaction
-// triggers on such a tip (a fresh user message arrived before the
-// assistant responded), those messages are excluded from the
-// summarizer's input and re-inserted verbatim after the compaction
-// boundary instead of being summarized (CODAGT-737).
+// user-role rows after the last assistant or tool row. Those messages
+// are excluded from the summarizer's input and re-inserted verbatim
+// after the compaction boundary instead of being summarized
+// (CODAGT-737).
 //
-// Returns the prompt with the trailing user messages trimmed and the
-// matching rows to replay. Both representations must independently
-// find a non-empty trailing segment, and at least one assistant
-// message must remain in the trimmed prompt; otherwise the original
-// prompt and no rows are returned and compaction behaves as before.
+// Both representations must independently find a non-empty trailing
+// segment, and at least one assistant message must remain in the
+// trimmed prompt; otherwise the original prompt and no rows are
+// returned and compaction behaves as before.
 func splitPendingUserSegment(
 	prompt []fantasy.Message,
 	promptRows []database.ChatMessage,

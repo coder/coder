@@ -99,8 +99,8 @@ type generationCompaction struct {
 	Required bool
 	Options  chatloop.GenerateCompactionOptions
 	// PendingUserRows are the unanswered trailing user message rows
-	// excluded from Options.Messages at prepare time. They are replayed
-	// verbatim after the compaction boundary by buildCompactionMessages.
+	// excluded from Options.Messages at prepare time; buildCompactionMessages
+	// replays them after the compaction boundary.
 	PendingUserRows []database.ChatMessage
 }
 
