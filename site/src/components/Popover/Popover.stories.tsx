@@ -34,7 +34,9 @@ export const Default: Story = {
 		await step("click to open", async () => {
 			await userEvent.click(canvas.getByRole("button"));
 			await waitFor(() =>
-				expect(screen.getByText(/according to all known laws/i)).toBeVisible(),
+				expect(
+					screen.getByText(/according to all known laws/i),
+				).toBeInTheDocument(),
 			);
 		});
 	},

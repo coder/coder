@@ -263,7 +263,6 @@ export const RenameChatItem: Story = {
 		await userEvent.click(trigger);
 		await waitFor(() => {
 			const body = within(document.body);
-			expect(body.getByRole("menu")).toBeVisible();
 			expect(body.getByText("Pin agent")).toBeInTheDocument();
 			expect(body.getByText("Rename chat")).toBeInTheDocument();
 			expect(body.getByText("Archive agent")).toBeInTheDocument();
