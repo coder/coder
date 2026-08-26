@@ -1620,7 +1620,6 @@ copied AS (
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = @agent_id::uuid
-        AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -1653,9 +1652,7 @@ RETURNING id, owner_id;
 -- Copies an agent's current context resources onto a single chat. Pair
 -- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 -- transaction) to re-pin a chat to its agent's latest snapshot from the
--- refresh endpoint and on agent rebinding. The upsert avoids a unique-key
--- failure when a concurrent hydration inserts a row after the clear; the
--- surrounding transaction retries serialization failures.
+-- refresh endpoint and on agent rebinding.
 INSERT INTO chat_context_resources (
     chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
 )
@@ -1663,18 +1660,7 @@ SELECT
     @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
     r.size_bytes, r.status, r.error, r.source_path
 FROM workspace_agent_context_resources r
-WHERE r.workspace_agent_id = @agent_id::uuid
-    AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
-ORDER BY r.source
-ON CONFLICT (chat_id, source) DO UPDATE SET
-    body_kind = EXCLUDED.body_kind,
-    body = EXCLUDED.body,
-    content_hash = EXCLUDED.content_hash,
-    size_bytes = EXCLUDED.size_bytes,
-    status = EXCLUDED.status,
-    error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
-    updated_at = now();
+WHERE r.workspace_agent_id = @agent_id::uuid;
 
 -- name: DeleteChatContextResourcesByChatID :exec
 -- Clears a chat's pinned context resources. Used as the first half of a

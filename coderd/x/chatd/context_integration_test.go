@@ -3,6 +3,7 @@ package chatd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -103,7 +104,6 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	// pushes these; hydration and refresh copy them onto the bound chat.
 	agentsSource := "/home/coder/workspace/AGENTS.md"
 	skillSource := "/home/coder/workspace/.agents/skills/example/SKILL.md"
-	mcpServerSource := "refresh-server"
 	agentsV1Hash := []byte{0x11}
 	agentsV2Hash := []byte{0x22}
 	skillHash := []byte{0x33}
@@ -126,22 +126,6 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 			Status:      agentproto.ContextResource_OK,
 			Body: &agentproto.ContextResource_Skill{
 				Skill: &agentproto.SkillMetaBody{Meta: []byte("---\nname: example\n---"), Name: "example", Description: "demo skill"},
-			},
-		}
-	}
-	mcpServerResource := func() *agentproto.ContextResource {
-		return &agentproto.ContextResource{
-			Source:      mcpServerSource,
-			ContentHash: []byte{0x44},
-			SizeBytes:   16,
-			Status:      agentproto.ContextResource_OK,
-			Body: &agentproto.ContextResource_McpServer{
-				McpServer: &agentproto.MCPServerBody{
-					ServerName: mcpServerSource,
-					Tools: []*agentproto.MCPTool{
-						{Name: "refresh", Description: "Refresh a resource"},
-					},
-				},
 			},
 		}
 	}
@@ -218,7 +202,6 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Resources: []*agentproto.ContextResource{
 			instructionResource(agentsSource, "hello-v2", agentsV2Hash),
 			skillResource(skillSource, skillHash),
-			mcpServerResource(),
 		},
 	})
 	require.NoError(t, err)
@@ -232,12 +215,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
-	// While dirty the GET still reports the pinned (hashA) prompt resources
-	// alongside the current live MCP inventory.
-	dirtyResources := resourcesBySource(got.Context.Resources)
-	require.Len(t, dirtyResources, 2)
-	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, dirtyResources[agentsSource].Kind)
-	require.Equal(t, codersdk.ChatContextResourceKindMCPServer, dirtyResources[mcpServerSource].Kind)
+	// While dirty the GET still reports the pinned (hashA) resources.
+	require.Len(t, got.Context.Resources, 1, "resources stay pinned while dirty")
+	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
 
 	// The dirty fan-out must NOT re-copy resources: the chat keeps the bodies
 	// from its pinned (hashA) snapshot until it is refreshed.
@@ -258,18 +238,14 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	// blanks the context indicator until the page is reloaded (which
 	// re-fetches via GET).
 	refreshRespResources := resourcesBySource(refreshed.Context.Resources)
-	require.Len(t, refreshRespResources, 3, "refresh response includes pinned prompt and live MCP resources")
+	require.Len(t, refreshRespResources, 2, "refresh response includes the re-pinned resources")
 	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, refreshRespResources[agentsSource].Kind)
 	require.Equal(t, codersdk.ChatContextResourceKindSkill, refreshRespResources[skillSource].Kind)
 	require.Equal(t, "example", refreshRespResources[skillSource].SkillName)
-	require.Equal(t, codersdk.ChatContextResourceKindMCPServer, refreshRespResources[mcpServerSource].Kind)
-	require.Equal(t, []codersdk.ChatContextTool{{Name: "refresh", Description: "Refresh a resource"}}, refreshRespResources[mcpServerSource].Tools)
 
-	// Refresh re-pinned only the agent's current prompt resources (the hashB
-	// set). MCP remains live agent state and is not copied into the chat pin.
+	// Refresh re-pinned the agent's current resources (the hashB set).
 	pinned = pinnedResources(chat.ID)
-	require.Len(t, pinned, 2, "refresh re-pins only prompt resources")
-	require.NotContains(t, pinned, mcpServerSource)
+	require.Len(t, pinned, 2, "refresh re-pins the agent's current resources")
 	require.Equal(t, agentsV2Hash, pinned[agentsSource].ContentHash)
 	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
 	require.Equal(t, database.WorkspaceAgentContextBodyKindSkill, pinned[skillSource].BodyKind)
@@ -279,14 +255,13 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.False(t, got.Context.Dirty)
 
-	// Refresh advanced the prompt pin to hashB, so the GET now reports both
-	// pinned prompt resources and the live MCP server.
+	// Refresh advanced the pin to hashB, so the GET now reports both pinned
+	// resources.
 	refreshedResources := resourcesBySource(got.Context.Resources)
-	require.Len(t, refreshedResources, 3)
+	require.Len(t, refreshedResources, 2, "refresh re-pins both resources for the GET")
 	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, refreshedResources[agentsSource].Kind)
 	require.Equal(t, codersdk.ChatContextResourceKindSkill, refreshedResources[skillSource].Kind)
 	require.Equal(t, "example", refreshedResources[skillSource].SkillName)
-	require.Equal(t, codersdk.ChatContextResourceKindMCPServer, refreshedResources[mcpServerSource].Kind)
 
 	// Re-pushing the now-pinned hash proves the refresh advanced the pin to
 	// hashB: a matching hash must not re-dirty the chat.
@@ -432,194 +407,6 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
 }
 
-// TestChatContextMCPLiveFromAgentPush covers live MCP resource resolution.
-// MCP resources are excluded from the prompt-context drift hash because they
-// are runtime capabilities of the currently bound agent. They must become
-// visible after asynchronous startup, update, and disappear without copying
-// rows into the chat pin or refreshing the chat.
-func TestChatContextMCPLiveFromAgentPush(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		DeploymentValues:         coderdtest.DeploymentValues(t),
-		IncludeProvisionerDaemon: true,
-	})
-	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-	expClient := codersdk.NewExperimentalClient(client)
-
-	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.PlanComplete,
-		ProvisionApply: echo.ApplyComplete,
-		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
-	})
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-	ws, err := client.Workspace(ctx, workspace.ID)
-	require.NoError(t, err)
-	require.Len(t, ws.LatestBuild.Resources, 1)
-	require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
-	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
-
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    user.OrganizationID,
-		OwnerID:           user.UserID,
-		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
-		AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
-		LastModelConfigID: model.ID,
-		Status:            database.ChatStatusWaiting,
-	})
-
-	agentsSource := "/home/coder/workspace/AGENTS.md"
-	mcpConfigSource := "/home/coder/workspace/.mcp.json"
-	mcpServerSource := "srv"
-	instructionResource := func(content string) *agentproto.ContextResource {
-		return &agentproto.ContextResource{
-			Source:      agentsSource,
-			ContentHash: []byte{0x11},
-			SizeBytes:   uint64(len(content)),
-			Status:      agentproto.ContextResource_OK,
-			Body: &agentproto.ContextResource_InstructionFile{
-				InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
-			},
-		}
-	}
-	mcpConfigResource := func() *agentproto.ContextResource {
-		return &agentproto.ContextResource{
-			Source:      mcpConfigSource,
-			ContentHash: []byte{0x21},
-			SizeBytes:   2,
-			Status:      agentproto.ContextResource_OK,
-			Body:        &agentproto.ContextResource_McpConfig{McpConfig: &agentproto.MCPConfigBody{}},
-		}
-	}
-	mcpServerResource := func(hash byte, toolNames ...string) *agentproto.ContextResource {
-		tools := make([]*agentproto.MCPTool, 0, len(toolNames))
-		for _, name := range toolNames {
-			tools = append(tools, &agentproto.MCPTool{Name: name, Description: name + " tool"})
-		}
-		return &agentproto.ContextResource{
-			Source:      mcpServerSource,
-			ContentHash: []byte{hash},
-			SizeBytes:   32,
-			Status:      agentproto.ContextResource_OK,
-			Body: &agentproto.ContextResource_McpServer{
-				McpServer: &agentproto.MCPServerBody{ServerName: mcpServerSource, Tools: tools},
-			},
-		}
-	}
-	pinnedResources := func() []database.ChatContextResource {
-		t.Helper()
-		//nolint:gocritic // Test reads chat-owned rows as the chatd subject.
-		rows, lerr := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), chat.ID)
-		require.NoError(t, lerr)
-		return rows
-	}
-	contextBySource := func() map[string]codersdk.ChatContextResource {
-		t.Helper()
-		got, lerr := expClient.GetChat(ctx, chat.ID)
-		require.NoError(t, lerr)
-		require.NotNil(t, got.Context)
-		out := make(map[string]codersdk.ChatContextResource, len(got.Context.Resources))
-		for _, resource := range got.Context.Resources {
-			out[resource.Source] = resource
-		}
-		return out
-	}
-
-	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
-	aAPI, _, err := agentClient.ConnectRPC210(ctx)
-	require.NoError(t, err)
-	defer func() { _ = aAPI.DRPCConn().Close() }()
-
-	hashA := []byte{0x01}
-	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       1,
-		Initial:       true,
-		AggregateHash: hashA,
-		Resources:     []*agentproto.ContextResource{instructionResource("hello-v1")},
-	})
-	require.NoError(t, err)
-	require.True(t, resp.GetAccepted())
-	require.Len(t, pinnedResources(), 1, "only prompt context is pinned")
-	require.NotContains(t, contextBySource(), mcpServerSource)
-
-	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       2,
-		AggregateHash: hashA,
-		Resources: []*agentproto.ContextResource{
-			instructionResource("hello-v1"),
-			mcpConfigResource(),
-			mcpServerResource(0x31, "echo"),
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, resp.GetAccepted())
-	require.Len(t, pinnedResources(), 1, "MCP resources are never copied into the pin")
-	resources := contextBySource()
-	require.Equal(t, codersdk.ChatContextResourceKindMCPConfig, resources[mcpConfigSource].Kind)
-	require.Equal(t, []codersdk.ChatContextTool{{Name: "echo", Description: "echo tool"}}, resources[mcpServerSource].Tools)
-
-	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       3,
-		AggregateHash: hashA,
-		Resources: []*agentproto.ContextResource{
-			instructionResource("hello-v1"),
-			mcpConfigResource(),
-			mcpServerResource(0x32, "echo", "search"),
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, resp.GetAccepted())
-	resources = contextBySource()
-	require.Equal(t, []codersdk.ChatContextTool{
-		{Name: "echo", Description: "echo tool"},
-		{Name: "search", Description: "search tool"},
-	}, resources[mcpServerSource].Tools)
-
-	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       4,
-		AggregateHash: hashA,
-		Resources:     []*agentproto.ContextResource{instructionResource("hello-v1")},
-	})
-	require.NoError(t, err)
-	require.True(t, resp.GetAccepted())
-	resources = contextBySource()
-	require.NotContains(t, resources, mcpConfigSource, "an authoritative empty live catalog removes MCP resources")
-	require.NotContains(t, resources, mcpServerSource)
-
-	hashB := []byte{0x02}
-	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-		Version:       5,
-		AggregateHash: hashB,
-		Resources: []*agentproto.ContextResource{
-			instructionResource("hello-v2"),
-			mcpServerResource(0x33, "current"),
-		},
-	})
-	require.NoError(t, err)
-	require.True(t, resp.GetAccepted())
-	got, err := expClient.GetChat(ctx, chat.ID)
-	require.NoError(t, err)
-	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "prompt drift still dirties the pin")
-	resources = make(map[string]codersdk.ChatContextResource, len(got.Context.Resources))
-	for _, resource := range got.Context.Resources {
-		resources[resource.Source] = resource
-	}
-	require.Equal(t, []codersdk.ChatContextTool{{Name: "current", Description: "current tool"}}, resources[mcpServerSource].Tools,
-		"dirty prompt context does not freeze live MCP capabilities")
-	require.Len(t, pinnedResources(), 1)
-}
-
 // agentMCPToolContext specifies an mcp_server tool to seed into an agent's
 // pushed context snapshot.
 type agentMCPToolContext struct {
@@ -630,15 +417,38 @@ type agentMCPToolContext struct {
 }
 
 // seedAgentMCPToolContext upserts an mcp_server context snapshot and resource
-// for the agent, mirroring what PushContextState writes, so a chat bound to the
-// agent resolves a live, execution-ready MCP tool. The model-facing tool name
-// is "<ServerName>__<ToolName>". It seeds the raw store directly so tests can
-// exercise workspace MCP execution without an agent context push.
+// for the agent, mirroring what PushContextState writes. Workspace MCP tools
+// read this live agent catalog on each turn. The model-facing tool name is
+// "<ServerName>__<ToolName>". It seeds the raw store directly so unit tests
+// can exercise MCP execution without a live agent context push.
 func seedAgentMCPToolContext(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
 	tool agentMCPToolContext,
+) {
+	t.Helper()
+
+	now := dbtime.Now()
+	hash := []byte(tool.ServerName + ":" + tool.ToolName)
+	_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+		WorkspaceAgentID: tool.AgentID,
+		Version:          1,
+		AggregateHash:    hash,
+		ReceivedAt:       now,
+	})
+	require.NoError(t, err)
+
+	seedAgentMCPToolResource(ctx, t, db, tool, hash, now)
+}
+
+func seedAgentMCPToolResource(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	tool agentMCPToolContext,
+	hash []byte,
+	now time.Time,
 ) {
 	t.Helper()
 
@@ -657,16 +467,6 @@ func seedAgentMCPToolContext(
 			Description: tool.ToolDescription,
 			InputSchema: schema,
 		}},
-	})
-	require.NoError(t, err)
-
-	now := dbtime.Now()
-	hash := []byte(tool.ServerName + ":" + tool.ToolName)
-	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: tool.AgentID,
-		Version:          1,
-		AggregateHash:    hash,
-		ReceivedAt:       now,
 	})
 	require.NoError(t, err)
 

@@ -75,12 +75,18 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return func() {}, nil
 	}
 
-	// Capture the touched rows inside the transaction so the post-commit
-	// callback publishes the exact committed state without a database re-read
-	// that could race a concurrent refresh.
-	touchedChats, err := tx.GetChatsByIDsForRunnerSync(ctx, touched)
-	if err != nil {
-		return nil, xerrors.Errorf("get touched chats: %w", err)
+	// Read the touched chats inside the transaction and capture their rows so
+	// the post-commit callback needs no database access: the published payload
+	// reflects the just-committed state (no re-read a concurrent refresh
+	// could race), and the callback does not depend on the request-scoped
+	// context surviving past commit. Only the transitioned chats are read.
+	touchedChats := make([]database.Chat, 0, len(touched))
+	for _, id := range touched {
+		chat, err := tx.GetChatByID(ctx, id)
+		if err != nil {
+			return nil, xerrors.Errorf("get touched chat %s: %w", id, err)
+		}
+		touchedChats = append(touchedChats, chat)
 	}
 
 	return func() {

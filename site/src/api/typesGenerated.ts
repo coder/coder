@@ -2169,10 +2169,9 @@ export interface ChatContextFilePart {
 
 // From codersdk/chats.go
 /**
- * ChatContextResource is one workspace-context resource reported for a chat.
- * Instruction files and skills come from the chat's pinned prompt snapshot;
- * MCP configs and servers come from the currently bound agent. It is metadata
- * only; bodies are omitted. Reported only on the single-chat GET response.
+ * ChatContextResource is one pinned workspace-context resource the chat's
+ * prompt is built from. It is metadata only; bodies are omitted. Reported
+ * only on the single-chat GET response.
  */
 export interface ChatContextResource {
 	/**
@@ -2242,8 +2241,8 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
 
 // From codersdk/chats.go
 /**
- * ChatContextTool is one tool exposed by a live workspace MCP server, reported
- * on the single-chat GET response. Metadata only; the input schema is omitted.
+ * ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+ * single-chat GET response. Metadata only; the input schema is omitted.
  */
 export interface ChatContextTool {
 	/**

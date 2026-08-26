@@ -413,36 +413,30 @@ func (p *Server) newAdvisorRuntime(
 }
 
 // resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
-// the currently bound agent's live context resources. MCP servers are runtime
-// capabilities rather than pinned prompt content, so changes become visible
-// without refreshing the chat. A read failure is logged and yields no tools
-// rather than aborting the turn.
+// the latest-build agent's context resources. MCP servers connect
+// asynchronously and are excluded from the pinned context hash, so their tool
+// catalog must be read live. A read failure is logged and yields no tools.
 func (p *Server) resolveWorkspaceMCPTools(
 	ctx context.Context,
 	logger slog.Logger,
 	chat database.Chat,
+	agentID uuid.UUID,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
-	agent, err := workspaceCtx.getWorkspaceAgent(ctx)
-	if err != nil {
-		logger.Warn(ctx, "failed to resolve workspace agent MCP tools",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return nil
-	}
-	tools, err := p.liveWorkspaceMCPTools(ctx, agent.ID, workspaceCtx.getWorkspaceConn)
+	tools, err := p.liveWorkspaceMCPTools(ctx, agentID, workspaceCtx.getWorkspaceConn)
 	if err != nil {
 		logger.Warn(ctx, "failed to read live workspace MCP tools",
-			slog.F("chat_id", chat.ID),
-			slog.F("agent_id", agent.ID),
-			slog.Error(err))
+			slog.F("chat_id", chat.ID), slog.F("agent_id", agentID), slog.Error(err))
 		return nil
 	}
 	return tools
 }
 
-// liveWorkspaceMCPTools builds workspace MCP tools from the current context
-// resources pushed by agentID. Each tool proxies calls through the same live
-// workspace agent connection, so no per-chat MCP catalog is retained.
+// liveWorkspaceMCPTools builds tool definitions from the latest-build agent's
+// pushed MCP resources. Calls execute through the turn's workspace connection,
+// whose lazy dial validation converges stale bindings on the latest-build
+// agent. The nil invalidation callback is intentional because the catalog is
+// read again for every turn.
 func (p *Server) liveWorkspaceMCPTools(
 	ctx context.Context,
 	agentID uuid.UUID,
@@ -451,7 +445,7 @@ func (p *Server) liveWorkspaceMCPTools(
 	if agentID == uuid.Nil {
 		return nil, nil
 	}
-	//nolint:gocritic // The chat was authorized before resolving its bound agent's runtime capabilities.
+	//nolint:gocritic // The turn already authorized and resolved this workspace agent.
 	resources, err := p.db.ListWorkspaceAgentContextResources(dbauthz.AsChatd(ctx), agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("list workspace agent context resources: %w", err)

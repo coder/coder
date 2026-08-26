@@ -90,11 +90,11 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 	})
 }
 
-// TestHydrateAndMarkChatsDirtyPublishesForTouchedChats covers the agent-push
-// path: a chat hydrated by the push and a chat flipped to dirty must both get
-// a context watch event because watching clients refetch pinned resources only
-// on those events.
-func TestHydrateAndMarkChatsDirtyPublishesForTouchedChats(t *testing.T) {
+// TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied covers the
+// agent-push path: a chat hydrated by the push (first pin, no dirty marker)
+// and a chat flipped to dirty must both get a context watch event, because
+// watching clients refetch pinned resources only on those events.
+func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
@@ -130,11 +130,8 @@ func TestHydrateAndMarkChatsDirtyPublishesForTouchedChats(t *testing.T) {
 		AggregateHash: hash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
-	db.EXPECT().GetChatsByIDsForRunnerSync(gomock.Any(), gomock.Any()).DoAndReturn(
-		func(_ context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-			require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID}, ids)
-			return []database.Chat{hydratedChat, dirtiedChat}, nil
-		})
+	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
+	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)
 
 	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
 	require.NoError(t, err)

@@ -1118,9 +1118,7 @@ type sqlcQuerier interface {
 	// Copies an agent's current context resources onto a single chat. Pair
 	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 	// transaction) to re-pin a chat to its agent's latest snapshot from the
-	// refresh endpoint and on agent rebinding. The upsert avoids a unique-key
-	// failure when a concurrent hydration inserts a row after the clear; the
-	// surrounding transaction retries serialization failures.
+	// refresh endpoint and on agent rebinding.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
 	// We use the organization_id as the id
 	// for simplicity since all users is

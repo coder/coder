@@ -10384,7 +10384,6 @@ copied AS (
     FROM hydrated
     CROSS JOIN workspace_agent_context_resources r
     WHERE r.workspace_agent_id = $3::uuid
-        AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
     ON CONFLICT (chat_id, source) DO UPDATE SET
         body_kind = EXCLUDED.body_kind,
         body = EXCLUDED.body,
@@ -10463,17 +10462,6 @@ SELECT
     r.size_bytes, r.status, r.error, r.source_path
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $2::uuid
-    AND r.body_kind NOT IN ('mcp_config', 'mcp_server')
-ORDER BY r.source
-ON CONFLICT (chat_id, source) DO UPDATE SET
-    body_kind = EXCLUDED.body_kind,
-    body = EXCLUDED.body,
-    content_hash = EXCLUDED.content_hash,
-    size_bytes = EXCLUDED.size_bytes,
-    status = EXCLUDED.status,
-    error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
-    updated_at = now()
 `
 
 type InsertAgentContextResourcesIntoChatParams struct {
@@ -10484,9 +10472,7 @@ type InsertAgentContextResourcesIntoChatParams struct {
 // Copies an agent's current context resources onto a single chat. Pair
 // with DeleteChatContextResourcesByChatID (clear-then-copy, in a
 // transaction) to re-pin a chat to its agent's latest snapshot from the
-// refresh endpoint and on agent rebinding. The upsert avoids a unique-key
-// failure when a concurrent hydration inserts a row after the clear; the
-// surrounding transaction retries serialization failures.
+// refresh endpoint and on agent rebinding.
 func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error {
 	_, err := q.db.ExecContext(ctx, insertAgentContextResourcesIntoChat, arg.ChatID, arg.AgentID)
 	return err
