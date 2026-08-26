@@ -512,6 +512,7 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 					...mockSpend,
 					user_id: MockUserOwner.id,
 					effective_group_id: null,
+					effective_budget: null,
 					group_budget: null,
 				},
 			]),

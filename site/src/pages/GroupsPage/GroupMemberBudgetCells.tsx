@@ -26,18 +26,19 @@ export const GroupMemberBudgetCells: FC<{
 	spend: GroupMemberAISpend | undefined;
 }> = ({ group, userID, spend }) => {
 	const effective = effectiveBudgetGroup(spend, group);
+	const isEveryoneGroup = spend?.effective_group_id === group.organization_id;
 	const fromOtherGroup = effective.kind === "otherGroup";
 
-	// A null effective_group_id is a group in another org that can't be
-	// fetched, so only resolve the name when an ID exists.
 	const { data: effectiveGroup, isLoading: isResolvingGroupName } = useQuery({
 		...groupById(spend?.effective_group_id ?? "", {
 			exclude_members: true,
 		}),
-		enabled: fromOtherGroup && Boolean(spend?.effective_group_id),
+		enabled:
+			fromOtherGroup && !isEveryoneGroup && Boolean(spend?.effective_group_id),
 	});
-	const effectiveGroupName =
-		effectiveGroup?.display_name || effectiveGroup?.name;
+	const effectiveGroupName = isEveryoneGroup
+		? "Everyone"
+		: effectiveGroup?.display_name || effectiveGroup?.name;
 	const groupName = group.display_name || group.name;
 	// A user override shows as "(individual)" on the governing group's badge.
 	const badgeName = (name: string) =>

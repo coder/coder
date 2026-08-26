@@ -309,6 +309,7 @@ export const NotAttributedOtherOrganization: Story = {
 			...mockSpend,
 			group_spend_micros: 456_000_000,
 			effective_group_id: null,
+			effective_budget: null,
 			group_budget: null,
 		},
 	},
