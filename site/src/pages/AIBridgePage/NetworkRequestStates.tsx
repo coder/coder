@@ -26,7 +26,7 @@ export const NetworkMonitoringDisabled: FC = () => (
 						<InfoIcon className="size-3" />
 					</button>
 				</TooltipTrigger>
-				<TooltipContent side="top" align="start" className="max-w-[320px]">
+				<TooltipContent side="top" align="start" className="max-w-[260px]">
 					Agent Firewall is off. Enable it in the workspace template to track
 					network requests.
 				</TooltipContent>
