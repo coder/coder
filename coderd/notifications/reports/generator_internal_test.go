@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -32,6 +33,39 @@ var (
 	jobError     = sql.NullString{String: "badness", Valid: true}
 	jobErrorCode = sql.NullString{String: "ERR-42", Valid: true}
 )
+
+func TestReportGenerator_Ticks(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	_, logger, db, _, notifEnq, clk := setup(t)
+	seedOwner(t, db)
+
+	resetTrap := clk.Trap().TickerReset()
+	defer resetTrap.Close()
+
+	generator := NewReportGenerator(ctx, logger, db, notifEnq, clk)
+	t.Cleanup(func() {
+		require.NoError(t, generator.Close())
+	})
+
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	require.Empty(t, notifEnq.Sent())
+
+	require.NoError(t, db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
+		NotificationTemplateID: notifications.TemplateAIModelsUnpricedReport,
+		LastGeneratedAt:        clk.Now().Add(-unpricedAIModelsReportFrequency - time.Minute),
+	}))
+	seedUnpricedUsage(t, db, "anthropic", database.AIProviderTypeAnthropic, "claude-opus-4-8", clk.Now())
+
+	advance := clk.Advance(delay)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	advance.MustWait(ctx)
+
+	sent := notifEnq.Sent()
+	require.Len(t, sent, 1)
+	require.Equal(t, notifications.TemplateAIModelsUnpricedReport, sent[0].TemplateID)
+}
 
 func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Parallel()
