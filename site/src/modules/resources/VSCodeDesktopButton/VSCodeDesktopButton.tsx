@@ -12,9 +12,20 @@ import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { useStorage } from "#/hooks/useStorage";
 import { getVSCodeHref } from "#/modules/apps/apps";
-import { vscodeVariantStorage } from "#/utils/storage/keys";
+import { defineStorageKey, stringLiteralCodec } from "#/storage";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+
+type VSCodeVariant = "vscode" | "vscode-insiders";
+
+/** Shared with VSCodeDevContainerButton so both buttons track the same choice. */
+export const vscodeVariantStorage = defineStorageKey<VSCodeVariant>({
+	key: "vscode-variant",
+	codec: stringLiteralCodec<VSCodeVariant>({
+		oneOf: ["vscode", "vscode-insiders"],
+	}),
+	defaultValue: "vscode",
+});
 
 interface VSCodeDesktopButtonProps {
 	userName: string;

@@ -12,17 +12,15 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
 import { useStorage } from "#/hooks/useStorage";
 import {
-	chimeOnCompletionStorage,
-	lastModelConfigIdStorage,
-} from "#/utils/storage/keys";
-import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { lastModelConfigIdStorage } from "./storage";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import { chimeOnCompletionStorage } from "./utils/chime";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const AgentCreatePage: FC = () => {

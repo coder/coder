@@ -1,15 +1,14 @@
 /**
- * Centralized browser storage core.
+ * Browser storage core.
  *
  * Every persisted UI preference goes through this module. It provides
  * never-throwing primitives around localStorage/sessionStorage, typed
- * key handles with parse-validation, change notification for same-tab
- * and cross-tab reactivity (the native "storage" event only fires in
- * other tabs), and a registry of entity-scoped key families that
- * drives lifecycle cleanup and the startup sweep.
+ * key handles with parse-validation, and change notification for
+ * same-tab and cross-tab reactivity (the native "storage" event only
+ * fires in other tabs).
  *
- * Key definitions live in `keys.ts`; import handles from there rather
- * than defining keys at call sites.
+ * Key handles are defined next to the feature that reads them; this
+ * module only provides the building blocks.
  */
 
 import type { Schema } from "yup";
@@ -50,14 +49,13 @@ export type StorageKeyHandle<T> = {
 	getSnapshot: () => T;
 };
 
-type StorageEntityType = "chat" | "workspace" | "modelConfig";
-
-export type SweepAction = "keep" | "remove" | { rewrite: string };
-
 type EntityStorageKey<T> = {
 	readonly prefix: string;
-	readonly entity: StorageEntityType;
 	forId: (...idParts: string[]) => StorageKeyHandle<T>;
+	/** Key suffixes (the part after `prefix`) currently stored in localStorage. */
+	listStoredSuffixes: () => string[];
+	/** Remove every stored key in this family owned by the given entity ID. */
+	clear: (id: string) => void;
 };
 
 // -- Codecs -----------------------------------------------------------------
@@ -81,10 +79,11 @@ export const integerCodec: StorageCodec<number> = {
 	encode: (value) => String(value),
 };
 
-export const stringLiteralCodec = <T extends string>(
-	values: readonly T[],
-): StorageCodec<T> => ({
-	decode: (raw) => (values.includes(raw as T) ? (raw as T) : undefined),
+/** Codec for a union of string literals; any other stored value decodes to the default. */
+export const stringLiteralCodec = <T extends string>(options: {
+	oneOf: readonly T[];
+}): StorageCodec<T> => ({
+	decode: (raw) => (options.oneOf.includes(raw as T) ? (raw as T) : undefined),
 	encode: (value) => value,
 });
 
@@ -331,19 +330,8 @@ export function defineStorageKey<T>(options: {
 
 // -- Entity-scoped key families ---------------------------------------------
 
-type RegisteredEntityFamily = {
-	prefix: string;
-	entity: StorageEntityType;
-	entityIdFromSuffix: (suffix: string) => string;
-	/** Startup expiry for families whose values embed their own timestamps. */
-	sweepValue?: (raw: string, nowMs: number) => SweepAction;
-};
-
-const entityFamilies: RegisteredEntityFamily[] = [];
-
 export function defineEntityStorageKey<T>(options: {
 	prefix: string;
-	entity: StorageEntityType;
 	codec: StorageCodec<NonNullable<T>>;
 	defaultValue: T;
 	/**
@@ -351,34 +339,25 @@ export function defineEntityStorageKey<T>(options: {
 	 * Defaults to the whole suffix; composite-ID families override it.
 	 */
 	entityIdFromSuffix?: (suffix: string) => string;
-	sweepValue?: (raw: string, nowMs: number) => SweepAction;
 }): EntityStorageKey<T> {
 	const {
 		prefix,
-		entity,
 		codec,
 		defaultValue,
 		entityIdFromSuffix = (suffix) => suffix,
-		sweepValue,
 	} = options;
-
-	if (entityFamilies.some((family) => family.prefix === prefix)) {
-		throw new Error(`Duplicate storage key family prefix: ${prefix}`);
-	}
-	entityFamilies.push({
-		prefix,
-		entity,
-		entityIdFromSuffix,
-		sweepValue,
-	});
 
 	// Memoized so hooks receive stable subscribe/getSnapshot identities
 	// for the same entity ID across renders.
 	const handleCache = new Map<string, StorageKeyHandle<T>>();
 
+	const listStoredSuffixes = (): string[] =>
+		listLocalKeys()
+			.filter((key) => key.startsWith(prefix))
+			.map((key) => key.slice(prefix.length));
+
 	return {
 		prefix,
-		entity,
 		forId: (...idParts) => {
 			const key = prefix + idParts.join(".");
 			let handle = handleCache.get(key);
@@ -388,37 +367,24 @@ export function defineEntityStorageKey<T>(options: {
 			}
 			return handle;
 		},
+		listStoredSuffixes,
+		clear: (id) => {
+			if (!id) {
+				return;
+			}
+			// Collect first: removing keys while enumerating by index
+			// skips entries.
+			const ownedKeys = listLocalKeys().filter(
+				(key) =>
+					key.startsWith(prefix) &&
+					entityIdFromSuffix(key.slice(prefix.length)) === id,
+			);
+			for (const key of ownedKeys) {
+				removeRaw("local", key);
+				invalidateAndNotify("local", key);
+			}
+		},
 	};
-}
-
-// -- Lifecycle cleanup and expiry sweep -------------------------------------
-
-/**
- * Remove every registered key owned by the given entity. Wire this
- * into the mutation that deletes or archives the entity so per-entity
- * keys cannot leak.
- */
-export function clearEntityStorage(
-	entity: StorageEntityType,
-	id: string,
-): void {
-	if (!id) {
-		return;
-	}
-	// Collect first: removing keys while enumerating by index skips
-	// entries.
-	const ownedKeys = listLocalKeys().filter((key) =>
-		entityFamilies.some(
-			(family) =>
-				family.entity === entity &&
-				key.startsWith(family.prefix) &&
-				family.entityIdFromSuffix(key.slice(family.prefix.length)) === id,
-		),
-	);
-	for (const key of ownedKeys) {
-		removeRaw("local", key);
-		invalidateAndNotify("local", key);
-	}
 }
 
 /** Snapshot of localStorage key names; safe to mutate storage afterwards. */
@@ -438,61 +404,13 @@ const listLocalKeys = (): string[] => {
 			}
 		}
 	} catch {
-		// Partial or empty list; the next sweep retries.
+		// Partial or empty list; callers treat it as best-effort.
 	}
 	return keys;
 };
 
-const legacyStorageKeys: string[] = [];
-
-/** Keys that are no longer written anywhere and are removed unconditionally by the sweep. */
-export function registerLegacyStorageKeys(keys: readonly string[]): void {
-	legacyStorageKeys.push(...keys);
-}
-
-let sweepHasRun = false;
-
-/**
- * Remove legacy keys and expired records from families whose values
- * embed their own timestamps. Runs once per page load; call it before
- * rendering the app so readers never hydrate from values the sweep is
- * about to expire.
- */
-export function sweepExpiredStorage(nowMs = Date.now()): void {
-	if (sweepHasRun) {
-		return;
-	}
-	sweepHasRun = true;
-	for (const key of legacyStorageKeys) {
-		removeRaw("local", key);
-	}
-	for (const key of listLocalKeys()) {
-		const family = entityFamilies.find(
-			(candidate) => candidate.sweepValue && key.startsWith(candidate.prefix),
-		);
-		if (!family?.sweepValue) {
-			continue;
-		}
-		const raw = readRaw("local", key);
-		if (raw === null) {
-			continue;
-		}
-		const action = family.sweepValue(raw, nowMs);
-		if (action === "keep") {
-			continue;
-		}
-		if (action === "remove") {
-			removeRaw("local", key);
-		} else {
-			writeRaw("local", key, action.rewrite);
-		}
-		invalidateAndNotify("local", key);
-	}
-}
-
-/** @internal Reset per-session sweep and cache state between tests. */
+/** @internal Reset cache and listener state between tests. */
 export function _resetStorageForTesting(): void {
-	sweepHasRun = false;
 	snapshotCache.clear();
 	keyListeners.clear();
 }

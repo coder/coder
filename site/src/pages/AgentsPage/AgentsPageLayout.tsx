@@ -61,11 +61,8 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import {
-	clearEntityStorage,
-	emptyInputDraftStorage,
-} from "#/utils/storage/keys";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -81,6 +78,7 @@ import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableC
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import { clearChatStorage, emptyInputDraftStorage } from "./storage";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -307,8 +305,8 @@ const AgentsPageLayout: FC = () => {
 			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			removeChatFromChatsByWorkspace(queryClient, chatId);
 			clearChatErrorReason(chatId);
-			clearEntityStorage("chat", chatId);
-			clearEntityStorage("workspace", workspaceId);
+			clearChatStorage(chatId);
+			workspaceListeningPortsProtocolStorage.clear(workspaceId);
 			void invalidateChatListQueries(queryClient);
 			void invalidateChatEntity(queryClient, chatId);
 			void invalidateChatsByWorkspace(queryClient);

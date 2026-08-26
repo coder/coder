@@ -8,7 +8,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
-import { chatFullWidthStorage } from "#/utils/storage/keys";
+import { chatFullWidthStorage } from "../storage";
 
 interface EarlierMessagesProps {
 	hasMoreMessages: boolean;

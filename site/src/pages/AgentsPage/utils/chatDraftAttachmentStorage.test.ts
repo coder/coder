@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { sweepExpiredStorage } from "#/utils/storage/keys";
-import { _resetStorageForTesting } from "#/utils/storage/storage";
+import { _resetStorageForTesting } from "#/storage";
 import {
 	chatDraftAttachmentStorageKey,
 	clearChatDraftAttachmentRecords,
@@ -144,7 +143,7 @@ describe("chatDraftAttachmentStorage", () => {
 		);
 	});
 
-	it("prunes expired draft records via the storage sweep", () => {
+	it("prunes expired draft records on restore, including other chats", () => {
 		const oldKey = chatDraftAttachmentStorageKey(organizationId, "old-chat");
 		localStorage.setItem(
 			oldKey,
@@ -165,9 +164,34 @@ describe("chatDraftAttachmentStorage", () => {
 		);
 
 		_resetStorageForTesting();
-		sweepExpiredStorage();
+		expect(restoreChatDraftAttachments(organizationId, chatId)).toEqual([]);
 
 		expect(localStorage.getItem(oldKey)).toBeNull();
+	});
+
+	it("drops expired records when restoring their own chat", () => {
+		localStorage.setItem(
+			storageKey,
+			JSON.stringify([
+				{
+					status: "uploaded",
+					clientId: "expired",
+					fileId: "file-expired",
+					fileName: "expired.png",
+					fileType: "image/png",
+					lastModified: 10,
+					size: 10,
+					updatedAt: Date.now() - 31 * 24 * 60 * 60 * 1000,
+					organizationId,
+					chatId,
+				},
+			]),
+		);
+
+		_resetStorageForTesting();
+		expect(restoreChatDraftAttachments(organizationId, chatId)).toEqual([]);
+
+		expect(localStorage.getItem(storageKey)).toBeNull();
 	});
 
 	it("removes individual records and clears a chat scope", () => {

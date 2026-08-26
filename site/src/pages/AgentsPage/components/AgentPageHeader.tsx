@@ -30,8 +30,8 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import { useStorage } from "#/hooks/useStorage";
-import { chimeOnCompletionStorage } from "#/utils/storage/keys";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import { chimeOnCompletionStorage } from "../utils/chime";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;

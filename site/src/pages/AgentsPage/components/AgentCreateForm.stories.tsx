@@ -33,13 +33,15 @@ import {
 	MockWorkspace,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
+import { persistedAttachmentsStorage } from "../hooks/useFileAttachments";
 import {
 	emptyInputDraftStorage,
 	modelConfigReasoningEffortStorage,
-	persistedAttachmentsStorage,
+} from "../storage";
+import {
+	AgentCreateForm,
 	selectedOrganizationIdStorage,
-} from "#/utils/storage/keys";
-import { AgentCreateForm } from "./AgentCreateForm";
+} from "./AgentCreateForm";
 
 let pendingOrganizationAuthorization: Deferred<
 	Awaited<ReturnType<typeof API.checkAuthorization>>

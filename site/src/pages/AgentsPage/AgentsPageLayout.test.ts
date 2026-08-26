@@ -2,15 +2,15 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	emptyInputDraftStorage,
-	persistedAttachmentsStorage,
-} from "#/utils/storage/keys";
-import {
 	chatCostIdToInvalidate,
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import { useEmptyStateDraft } from "./components/AgentCreateForm";
-import { useFileAttachments } from "./hooks/useFileAttachments";
+import {
+	persistedAttachmentsStorage,
+	useFileAttachments,
+} from "./hooks/useFileAttachments";
+import { emptyInputDraftStorage } from "./storage";
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {

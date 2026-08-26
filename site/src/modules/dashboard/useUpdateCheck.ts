@@ -2,7 +2,13 @@ import { useMemo } from "react";
 import { useQuery } from "react-query";
 import { updateCheck } from "#/api/queries/updateCheck";
 import { useStorage } from "#/hooks/useStorage";
-import { dismissedUpdateVersionStorage } from "#/utils/storage/keys";
+import { defineStorageKey, stringCodec } from "#/storage";
+
+const dismissedUpdateVersionStorage = defineStorageKey<string | null>({
+	key: "dismissedVersion",
+	codec: stringCodec,
+	defaultValue: null,
+});
 
 export const useUpdateCheck = (enabled: boolean) => {
 	const [dismissedVersion, setDismissedVersion] = useStorage(

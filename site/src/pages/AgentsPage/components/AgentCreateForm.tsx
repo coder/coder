@@ -15,14 +15,13 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { defineStorageKey, stringCodec } from "#/storage";
+import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	emptyInputDraftStorage,
 	lastModelConfigIdStorage,
 	modelConfigReasoningEffortStorage,
-	selectedOrganizationIdStorage,
-	selectedWorkspaceIdStorage,
-} from "#/utils/storage/keys";
-import { useFileAttachments } from "../hooks/useFileAttachments";
+} from "../storage";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -48,6 +47,19 @@ import {
 	saveMCPSelection,
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
+
+/** Exported for stories that assert the persisted organization choice. */
+export const selectedOrganizationIdStorage = defineStorageKey<string | null>({
+	key: "agents.selected-organization-id",
+	codec: stringCodec,
+	defaultValue: null,
+});
+
+const selectedWorkspaceIdStorage = defineStorageKey<string | null>({
+	key: "agents.selected-workspace-id",
+	codec: stringCodec,
+	defaultValue: null,
+});
 
 export type CreateChatOptions = {
 	message: string;

@@ -1,11 +1,75 @@
 import { useEffect, useReducer, useState } from "react";
+import {
+	array,
+	boolean,
+	date,
+	type InferType,
+	lazy,
+	number,
+	object,
+	string,
+} from "yup";
 import { API } from "#/api/api";
 import type { Region } from "#/api/typesGenerated";
+import { defineStorageKey, integerCodec, type StorageCodec } from "#/storage";
 import { generateRandomBase64String } from "#/utils/random";
-import {
-	workspaceProxyLatenciesMaxStorage,
-	workspaceProxyLatenciesStorage,
-} from "#/utils/storage/keys";
+
+/** Mirrors ProxyLatencyReport below; `date()` revives the persisted ISO string. */
+const proxyLatencyReportSchema = object({
+	accurate: boolean().defined(),
+	// Negative latency would sort ahead of every real measurement.
+	latencyMS: number().defined().min(0),
+	at: date().defined(),
+	nextHopProtocol: string().optional(),
+});
+
+type StoredProxyLatencyReport = InferType<typeof proxyLatencyReportSchema>;
+
+type StoredProxyLatencies = Record<string, StoredProxyLatencyReport[]>;
+
+// The stored value is a record keyed by proxy ID, so the schema is
+// built per value with lazy(); yup has no static record type.
+const storedProxyLatenciesSchema = lazy((value: unknown) =>
+	object(
+		value && typeof value === "object" && !Array.isArray(value)
+			? Object.fromEntries(
+					Object.keys(value).map((proxyId) => [
+						proxyId,
+						array(proxyLatencyReportSchema).defined(),
+					]),
+				)
+			: {},
+	),
+);
+
+const proxyLatenciesCodec: StorageCodec<StoredProxyLatencies> = {
+	decode: (raw) => {
+		try {
+			return storedProxyLatenciesSchema.validateSync(JSON.parse(raw));
+		} catch {
+			return undefined;
+		}
+	},
+	encode: (value) => JSON.stringify(value),
+};
+
+/**
+ * Cached per-proxy latency reports so a single slow request does not
+ * dominate the displayed latency.
+ */
+const workspaceProxyLatenciesStorage =
+	defineStorageKey<StoredProxyLatencies | null>({
+		key: "workspace-proxy-latencies",
+		codec: proxyLatenciesCodec,
+		defaultValue: null,
+	});
+
+/** Dev knob: how many latency reports to keep per proxy (default 1). */
+const workspaceProxyLatenciesMaxStorage = defineStorageKey<number | null>({
+	key: "workspace-proxy-latencies-max",
+	codec: integerCodec,
+	defaultValue: null,
+});
 
 const proxyIntervalSeconds = 30; // seconds
 

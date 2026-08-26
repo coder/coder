@@ -37,7 +37,6 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { rightPanelOpenStorage } from "#/utils/storage/keys";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentChatPage from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
@@ -57,6 +56,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { rightPanelOpenStorage } from "./storage";
 
 const defaultModelID = "model-config-1";
 

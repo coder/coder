@@ -21,9 +21,9 @@ import {
 } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { defineStorageKey, stringLiteralCodec } from "#/storage";
 import { useTheme } from "#/theme/context";
 import { cn } from "#/utils/cn";
-import { type DiffViewStyle, diffViewStyleStorage } from "#/utils/storage/keys";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
 import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
@@ -54,7 +54,13 @@ interface DiffViewerProps {
 	onScrollToFileComplete?: () => void;
 }
 
-export type DiffStyle = DiffViewStyle;
+export type DiffStyle = "unified" | "split";
+
+const diffViewStyleStorage = defineStorageKey<DiffStyle>({
+	key: "agents.diff-view-style",
+	codec: stringLiteralCodec<DiffStyle>({ oneOf: ["unified", "split"] }),
+	defaultValue: "unified",
+});
 
 const DIFF_VIEWER_LINE_HEIGHT = 16.5;
 const DIFF_HEADER_HEIGHT = 32;

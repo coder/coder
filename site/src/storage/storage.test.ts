@@ -4,24 +4,19 @@ import { useStorage } from "#/hooks/useStorage";
 import {
 	_resetStorageForTesting,
 	booleanCodec,
-	clearEntityStorage,
 	defineEntityStorageKey,
 	defineStorageKey,
 	integerCodec,
 	jsonCodec,
-	registerLegacyStorageKeys,
 	stringCodec,
 	stringLiteralCodec,
-	sweepExpiredStorage,
-} from "./storage";
+} from "./index";
 
-const isStringArray = (parsed: unknown): string[] | undefined =>
+const parseStringArray = (parsed: unknown): string[] | undefined =>
 	Array.isArray(parsed) && parsed.every((item) => typeof item === "string")
 		? (parsed as string[])
 		: undefined;
 
-// Test-only keys: the registry is module-level, so families are
-// defined once here rather than importing the app registry.
 const boolKey = defineStorageKey<boolean>({
 	key: "test.bool",
 	codec: booleanCodec,
@@ -34,12 +29,12 @@ const numberKey = defineStorageKey<number | null>({
 });
 const listKey = defineStorageKey<string[] | null>({
 	key: "test.list",
-	codec: jsonCodec(isStringArray),
+	codec: jsonCodec(parseStringArray),
 	defaultValue: null,
 });
 const literalKey = defineStorageKey<"a" | "b">({
 	key: "test.literal",
-	codec: stringLiteralCodec(["a", "b"]),
+	codec: stringLiteralCodec({ oneOf: ["a", "b"] }),
 	defaultValue: "a",
 });
 const sessionKey = defineStorageKey<string | null>({
@@ -51,48 +46,20 @@ const sessionKey = defineStorageKey<string | null>({
 
 const chatNote = defineEntityStorageKey<string | null>({
 	prefix: "test.chat-note.",
-	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
 });
 const chatTabs = defineEntityStorageKey<readonly string[]>({
 	prefix: "test.chat-tabs.",
-	entity: "chat",
-	codec: jsonCodec<readonly string[]>(isStringArray),
+	codec: jsonCodec<readonly string[]>(parseStringArray),
 	defaultValue: [],
 });
 const chatComposite = defineEntityStorageKey<string | null>({
 	prefix: "test.chat-composite.",
-	entity: "chat",
 	codec: stringCodec,
 	defaultValue: null,
 	entityIdFromSuffix: (suffix) => suffix.split(".").at(-1) ?? suffix,
 });
-const workspaceFlag = defineEntityStorageKey<boolean>({
-	prefix: "test.workspace-flag.",
-	entity: "workspace",
-	codec: booleanCodec,
-	defaultValue: false,
-});
-// Registered for its custom sweep behavior only. Mirrors chat draft
-// attachments: values carry their own expiry information.
-defineEntityStorageKey<string | null>({
-	prefix: "test.custom-sweep.",
-	entity: "chat",
-	codec: stringCodec,
-	defaultValue: null,
-	sweepValue: (raw) => {
-		if (raw === "stale") {
-			return "remove";
-		}
-		if (raw.startsWith("trim:")) {
-			return { rewrite: raw.slice("trim:".length) };
-		}
-		return "keep";
-	},
-});
-
-registerLegacyStorageKeys(["test.legacy-one", "test.legacy-two"]);
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -271,21 +238,31 @@ describe("entity-scoped keys", () => {
 		expect(chatTabs.forId("chat-1").get()).toEqual(["files"]);
 	});
 
-	it("clears every key owned by an entity across families", () => {
+	it("clears only the family's keys owned by the given ID", () => {
 		chatNote.forId("chat-1").set("draft");
 		chatTabs.forId("chat-1").set(["files"]);
 		chatComposite.forId("org-1", "chat-1").set("attachment");
 		chatNote.forId("chat-2").set("other chat");
-		workspaceFlag.forId("chat-1").set(true);
 
-		clearEntityStorage("chat", "chat-1");
+		chatNote.clear("chat-1");
+		chatComposite.clear("chat-1");
 
 		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
-		expect(localStorage.getItem("test.chat-tabs.chat-1")).toBeNull();
 		expect(localStorage.getItem("test.chat-composite.org-1.chat-1")).toBeNull();
-		// Other chats and other entity types are untouched.
+		// Other chats and other families are untouched.
 		expect(localStorage.getItem("test.chat-note.chat-2")).not.toBeNull();
-		expect(localStorage.getItem("test.workspace-flag.chat-1")).not.toBeNull();
+		expect(localStorage.getItem("test.chat-tabs.chat-1")).not.toBeNull();
+	});
+
+	it("lists stored suffixes for the family", () => {
+		chatComposite.forId("org-1", "chat-1").set("attachment");
+		chatComposite.forId("org-2", "chat-2").set("attachment");
+		chatNote.forId("chat-3").set("draft");
+
+		expect(chatComposite.listStoredSuffixes().sort()).toEqual([
+			"org-1.chat-1",
+			"org-2.chat-2",
+		]);
 	});
 
 	it("survives unavailable enumeration during entity cleanup", () => {
@@ -295,7 +272,7 @@ describe("entity-scoped keys", () => {
 			throw new Error("denied");
 		});
 
-		expect(() => clearEntityStorage("chat", "chat-1")).not.toThrow();
+		expect(() => chatNote.clear("chat-1")).not.toThrow();
 	});
 
 	it("notifies subscribers when entity cleanup removes their key", () => {
@@ -303,7 +280,7 @@ describe("entity-scoped keys", () => {
 		handle.set("draft");
 		const listener = vi.fn();
 		const unsubscribe = handle.subscribe(listener);
-		clearEntityStorage("chat", "chat-1");
+		chatNote.clear("chat-1");
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(handle.get()).toBeNull();
 		unsubscribe();
@@ -311,51 +288,8 @@ describe("entity-scoped keys", () => {
 
 	it("ignores empty entity IDs", () => {
 		chatNote.forId("chat-1").set("draft");
-		clearEntityStorage("chat", "");
+		chatNote.clear("");
 		expect(localStorage.getItem("test.chat-note.chat-1")).not.toBeNull();
-	});
-});
-
-describe("sweepExpiredStorage", () => {
-	beforeEach(() => {
-		localStorage.clear();
-		_resetStorageForTesting();
-	});
-
-	it("applies custom family sweep logic", () => {
-		localStorage.setItem("test.custom-sweep.a", "stale");
-		localStorage.setItem("test.custom-sweep.b", "fresh");
-		localStorage.setItem("test.custom-sweep.c", "trim:partial");
-		// Families without custom sweep logic are untouched.
-		localStorage.setItem("test.chat-note.chat-1", "draft");
-
-		sweepExpiredStorage(Date.now());
-
-		expect(localStorage.getItem("test.custom-sweep.a")).toBeNull();
-		expect(localStorage.getItem("test.custom-sweep.b")).toBe("fresh");
-		expect(localStorage.getItem("test.custom-sweep.c")).toBe("partial");
-		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("draft");
-	});
-
-	it("removes registered legacy keys unconditionally", () => {
-		localStorage.setItem("test.legacy-one", "anything");
-		localStorage.setItem("test.legacy-two", "anything");
-		localStorage.setItem("test.unrelated", "kept");
-
-		sweepExpiredStorage(Date.now());
-
-		expect(localStorage.getItem("test.legacy-one")).toBeNull();
-		expect(localStorage.getItem("test.legacy-two")).toBeNull();
-		expect(localStorage.getItem("test.unrelated")).toBe("kept");
-	});
-
-	it("runs once per session", () => {
-		sweepExpiredStorage(Date.now());
-		localStorage.setItem("test.legacy-one", "written after first sweep");
-		sweepExpiredStorage(Date.now());
-		expect(localStorage.getItem("test.legacy-one")).toBe(
-			"written after first sweep",
-		);
 	});
 });
 

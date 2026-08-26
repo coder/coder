@@ -19,11 +19,6 @@ import {
 	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import {
-	chatDraftInputStorage,
-	chatSidebarTabStorage,
-	clearEntityStorage,
-} from "#/utils/storage/keys";
-import {
 	buildInactiveChatQueueReconciliation,
 	getPersistedDraftInputValue,
 	getWorkspaceOptionsWithLinkedWorkspace,
@@ -40,6 +35,11 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import {
+	chatDraftInputStorage,
+	chatSidebarTabStorage,
+	clearChatStorage,
+} from "./storage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -1198,7 +1198,7 @@ describe("sidebar tab persistence", () => {
 	it("is removed by chat entity cleanup without touching other chats", () => {
 		chatSidebarTabStorage.forId("chat-a").set("git");
 		chatSidebarTabStorage.forId("chat-b").set("desktop");
-		clearEntityStorage("chat", "chat-a");
+		clearChatStorage("chat-a");
 		expect(chatSidebarTabStorage.forId("chat-a").get()).toBeNull();
 		expect(chatSidebarTabStorage.forId("chat-b").get()).toBe("desktop");
 	});

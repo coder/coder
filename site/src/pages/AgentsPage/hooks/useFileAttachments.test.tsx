@@ -3,8 +3,10 @@ import { type FC, Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
-import { persistedAttachmentsStorage } from "#/utils/storage/keys";
-import { useFileAttachments } from "./useFileAttachments";
+import {
+	persistedAttachmentsStorage,
+	useFileAttachments,
+} from "./useFileAttachments";
 
 const persistEntry = (fileId: string, fileName: string, orgId: string) => ({
 	fileId,

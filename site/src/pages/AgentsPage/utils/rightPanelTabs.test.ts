@@ -13,8 +13,8 @@ import {
 import {
 	chatDefaultTerminalHiddenStorage,
 	chatRightPanelTabsStorage,
-	clearEntityStorage,
-} from "#/utils/storage/keys";
+	clearChatStorage,
+} from "../storage";
 import {
 	isUserRightPanelTab,
 	type UserRightPanelTab,
@@ -243,7 +243,7 @@ describe("right-panel tab storage", () => {
 		chatRightPanelTabsStorage.forId("chat-2").set(tabs);
 		chatDefaultTerminalHiddenStorage.forId("chat-2").set(true);
 
-		clearEntityStorage("chat", "chat-1");
+		clearChatStorage("chat-1");
 
 		expect(readPersistedTabs("chat-1")).toEqual([]);
 		expect(chatDefaultTerminalHiddenStorage.forId("chat-1").get()).toBe(false);

@@ -14,8 +14,12 @@ import {
 	waitForLoaderToBeRemoved,
 } from "#/testHelpers/renderHelpers";
 import { server } from "#/testHelpers/server";
-import { userSelectedProxyStorage } from "#/utils/storage/keys";
-import { getPreferredProxy, ProxyProvider, useProxy } from "./ProxyContext";
+import {
+	getPreferredProxy,
+	ProxyProvider,
+	useProxy,
+	userSelectedProxyStorage,
+} from "./ProxyContext";
 import type * as ProxyLatency from "./useProxyLatency";
 
 // Mock useProxyLatency to use a hard-coded latency.

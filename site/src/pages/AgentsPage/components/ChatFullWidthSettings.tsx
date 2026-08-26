@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { Switch } from "#/components/Switch/Switch";
 import { useStorage } from "#/hooks/useStorage";
-import { chatFullWidthStorage } from "#/utils/storage/keys";
+import { chatFullWidthStorage } from "../storage";
 
 export const ChatFullWidthSettings: FC = () => {
 	const [enabled, setEnabled] = useStorage(chatFullWidthStorage);

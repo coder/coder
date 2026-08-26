@@ -8,14 +8,31 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import { boolean, object, string } from "yup";
 import { API } from "#/api/api";
 import { cachedQuery } from "#/api/queries/util";
 import type { Region, WorkspaceProxy } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { userSelectedProxyStorage } from "#/utils/storage/keys";
+import { defineStorageKey, yupCodec } from "#/storage";
 import { type ProxyLatencyReport, useProxyLatency } from "./useProxyLatency";
+
+const regionSchema = object({
+	id: string().defined(),
+	name: string().defined(),
+	display_name: string().defined(),
+	icon_url: string().defined(),
+	healthy: boolean().defined(),
+	path_app_url: string().defined(),
+	wildcard_hostname: string().defined(),
+});
+
+export const userSelectedProxyStorage = defineStorageKey<Region | null>({
+	key: "user-selected-proxy",
+	codec: yupCodec<Region>(regionSchema),
+	defaultValue: null,
+});
 
 export type Proxies = readonly Region[] | readonly WorkspaceProxy[];
 export type ProxyLatencies = Record<string, ProxyLatencyReport>;

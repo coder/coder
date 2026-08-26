@@ -11,9 +11,9 @@ import {
 import { VSCodeIcon } from "#/components/Icons/VSCodeIcon";
 import { VSCodeInsidersIcon } from "#/components/Icons/VSCodeInsidersIcon";
 import { useStorage } from "#/hooks/useStorage";
-import { vscodeVariantStorage } from "#/utils/storage/keys";
 import { AgentButton } from "../AgentButton";
 import { DisplayAppNameMap } from "../AppLink/AppLink";
+import { vscodeVariantStorage } from "../VSCodeDesktopButton/VSCodeDesktopButton";
 
 interface VSCodeDevContainerButtonProps {
 	userName: string;

@@ -61,10 +61,10 @@ import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
-import { chatFullWidthStorage } from "#/utils/storage/keys";
 import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import { chatFullWidthStorage } from "../storage";
 import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,

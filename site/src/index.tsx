@@ -1,10 +1,15 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { App } from "./App";
-import {
-	preloadReloadStorage,
-	sweepExpiredStorage,
-} from "./utils/storage/keys";
+import { defineStorageKey, integerCodec } from "./storage";
+
+/** Timestamp of the last chunk-preload-failure reload (see below). */
+const preloadReloadStorage = defineStorageKey<number | null>({
+	key: "preload-reload",
+	codec: integerCodec,
+	defaultValue: null,
+	area: "session",
+});
 
 console.info(`      -#######          +######-      ########+       ##########  ########+.      ###########
    +#####--######    +#####--#####+   ############    ##########  ####+++#####-   ###########
@@ -42,11 +47,6 @@ if (element === null) {
 if ("serviceWorker" in navigator) {
 	navigator.serviceWorker.register("/serviceWorker.js");
 }
-
-// Sweep before rendering so components never hydrate from values the
-// sweep is about to expire (orphans left by archival/deletion from
-// other clients, and legacy keys).
-sweepExpiredStorage();
 
 const root = createRoot(element);
 root.render(<App />);

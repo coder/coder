@@ -6,9 +6,10 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { type InferType, number, object, string } from "yup";
 import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
-import { persistedAttachmentsStorage } from "#/utils/storage/keys";
+import { defineStorageKey, jsonCodec } from "#/storage";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
@@ -24,6 +25,39 @@ import {
 	providerBudgetError,
 } from "../utils/imageBudget";
 import { resizeImageToMaxBytes } from "../utils/resizeImage";
+
+/**
+ * Metadata for already-uploaded create-form attachments so they
+ * survive page navigations without re-uploading.
+ */
+const persistedChatAttachmentSchema = object({
+	fileId: string().defined(),
+	fileName: string().defined(),
+	fileType: string().defined(),
+	lastModified: number().defined(),
+	organizationId: string().defined(),
+});
+
+type PersistedChatAttachment = InferType<typeof persistedChatAttachmentSchema>;
+
+// Filters entry-by-entry so one legacy or corrupt record (for example
+// pre-org-scoping data) does not discard valid siblings.
+const parsePersistedChatAttachments = (
+	parsed: unknown,
+): PersistedChatAttachment[] | undefined =>
+	Array.isArray(parsed)
+		? parsed.filter((item): item is PersistedChatAttachment =>
+				persistedChatAttachmentSchema.isValidSync(item, { strict: true }),
+			)
+		: undefined;
+
+export const persistedAttachmentsStorage = defineStorageKey<
+	PersistedChatAttachment[] | null
+>({
+	key: "agents.persisted-attachments",
+	codec: jsonCodec(parsePersistedChatAttachments),
+	defaultValue: null,
+});
 
 /**
  * Restore previously persisted attachments from localStorage.

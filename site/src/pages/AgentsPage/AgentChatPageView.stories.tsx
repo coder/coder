@@ -34,7 +34,6 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { docs } from "#/utils/docs";
-import { chatSidebarTabStorage } from "#/utils/storage/keys";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -44,6 +43,7 @@ import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { chatSidebarTabStorage } from "./storage";
 
 // ---------------------------------------------------------------------------
 // Shared constants & helpers

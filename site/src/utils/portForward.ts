@@ -1,5 +1,14 @@
 import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
-import { workspaceListeningPortsProtocolStorage } from "#/utils/storage/keys";
+import { defineEntityStorageKey, stringLiteralCodec } from "#/storage";
+
+export const workspaceListeningPortsProtocolStorage =
+	defineEntityStorageKey<WorkspaceAgentPortShareProtocol>({
+		prefix: "listening-ports-protocol-workspace-",
+		codec: stringLiteralCodec<WorkspaceAgentPortShareProtocol>({
+			oneOf: ["http", "https"],
+		}),
+		defaultValue: "http",
+	});
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
 

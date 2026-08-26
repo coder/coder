@@ -24,12 +24,6 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { generateUUID } from "#/utils/random";
-import {
-	chatDefaultTerminalHiddenStorage,
-	chatFullWidthStorage,
-	chatRightPanelTabsStorage,
-	chatSidebarTabStorage,
-} from "#/utils/storage/keys";
 import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
@@ -61,6 +55,12 @@ import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTa
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
+import {
+	chatDefaultTerminalHiddenStorage,
+	chatFullWidthStorage,
+	chatRightPanelTabsStorage,
+	chatSidebarTabStorage,
+} from "./storage";
 import {
 	isUserRightPanelTab,
 	type PortSelection,

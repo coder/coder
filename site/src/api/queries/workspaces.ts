@@ -30,7 +30,7 @@ import {
 	type WorkspacePermissions,
 	workspaceChecks,
 } from "#/modules/workspaces/permissions";
-import { clearEntityStorage } from "#/utils/storage/keys";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
@@ -333,7 +333,7 @@ export const deleteWorkspace = (
 			return API.deleteWorkspace(workspace.id, options);
 		},
 		onSuccess: async (build: WorkspaceBuild) => {
-			clearEntityStorage("workspace", workspace.id);
+			workspaceListeningPortsProtocolStorage.clear(workspace.id);
 			await updateWorkspaceBuild(build, queryClient);
 		},
 	};

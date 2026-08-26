@@ -49,10 +49,10 @@ import {
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { belowLgViewportMediaQuery } from "#/utils/mobile";
-import { rightPanelOpenStorage } from "#/utils/storage/keys";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
+import { rightPanelOpenStorage } from "./storage";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.

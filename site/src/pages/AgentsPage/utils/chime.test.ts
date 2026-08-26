@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chimeOnCompletionStorage } from "#/utils/storage/keys";
-import { _resetForTesting, LOCK_HOLD_MS, maybePlayChime } from "./chime";
+import {
+	_resetForTesting,
+	chimeOnCompletionStorage,
+	LOCK_HOLD_MS,
+	maybePlayChime,
+} from "./chime";
 
 // ---------------------------------------------------------------------------
 // navigator.locks mock

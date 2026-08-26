@@ -6,7 +6,7 @@ import {
 	useState,
 } from "react";
 import { cn } from "#/utils/cn";
-import { rightPanelWidthStorage } from "#/utils/storage/keys";
+import { rightPanelWidthStorage } from "../../storage";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
 
 const MIN_WIDTH = 360;

@@ -75,11 +75,6 @@ import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import {
-	chatDraftInputStorage,
-	lastModelConfigIdStorage,
-	rightPanelOpenStorage,
-} from "#/utils/storage/keys";
 import { getWorkspaceAgents } from "#/utils/workspace";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
@@ -117,6 +112,11 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import {
+	chatDraftInputStorage,
+	lastModelConfigIdStorage,
+	rightPanelOpenStorage,
+} from "./storage";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {

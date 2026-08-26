@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import type { Workspace, WorkspaceBuild } from "#/api/typesGenerated";
-import { clearEntityStorage } from "#/utils/storage/keys";
+import { workspaceListeningPortsProtocolStorage } from "#/utils/portForward";
 
 interface UseBatchActionsOptions {
 	onSuccess: () => Promise<void>;
@@ -71,7 +71,7 @@ export function useBatchActions(
 					// Clear per-workspace as each delete succeeds so a mixed
 					// batch still cleans up the workspaces that were deleted.
 					const build = await API.deleteWorkspace(w.id);
-					clearEntityStorage("workspace", w.id);
+					workspaceListeningPortsProtocolStorage.clear(w.id);
 					return build;
 				}),
 			);

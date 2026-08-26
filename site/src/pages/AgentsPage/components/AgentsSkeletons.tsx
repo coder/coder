@@ -6,7 +6,7 @@ import {
 	chatFullWidthStorage,
 	rightPanelOpenStorage,
 	rightPanelWidthStorage,
-} from "#/utils/storage/keys";
+} from "../storage";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
 const DEFAULT_PANEL_WIDTH = 480;

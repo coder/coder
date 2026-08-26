@@ -7,7 +7,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useStorage } from "#/hooks/useStorage";
-import { chimeOnCompletionStorage } from "#/utils/storage/keys";
+import { chimeOnCompletionStorage } from "../utils/chime";
 
 interface ChimeButtonProps {
 	enabled?: boolean;

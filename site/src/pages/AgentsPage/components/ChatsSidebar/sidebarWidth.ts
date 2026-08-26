@@ -1,4 +1,10 @@
-import { leftSidebarWidthStorage } from "#/utils/storage/keys";
+import { defineStorageKey, integerCodec } from "#/storage";
+
+const leftSidebarWidthStorage = defineStorageKey<number | null>({
+	key: "agents.left-sidebar-width",
+	codec: integerCodec,
+	defaultValue: null,
+});
 
 export const LEFT_SIDEBAR_STORAGE_KEY = leftSidebarWidthStorage.key;
 export const LEFT_SIDEBAR_MIN_WIDTH = 240;
