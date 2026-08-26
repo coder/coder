@@ -33,7 +33,7 @@ const { API } = apiModule;
 
 // Monaco is a large and complicated codebase that slows tests down and we don't
 // need to test.
-vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
+vi.mock("#/pages/TemplatePage/TemplateVersionEditorPage/MonacoEditor", () => ({
 	MonacoEditor: (props: MonacoEditorProps) => (
 		<textarea
 			data-testid="monaco-editor"

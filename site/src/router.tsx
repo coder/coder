@@ -24,7 +24,7 @@ import LoginPage from "./pages/LoginPage/LoginPage";
 import { SetupPage } from "./pages/SetupPage/SetupPage";
 import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirectController";
-import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { TemplateSettingsLayout } from "./pages/TemplatePage/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
@@ -117,7 +117,7 @@ const TerminalPage = lazy(
 const TemplatePermissionsPage = lazy(
 	() =>
 		import(
-			"./pages/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
+			"./pages/TemplatePage/TemplateSettingsPage/TemplatePermissionsPage/TemplatePermissionsPage"
 		),
 );
 const TemplateResourcesPage = lazy(
@@ -125,7 +125,7 @@ const TemplateResourcesPage = lazy(
 		import("./pages/TemplatePage/TemplateResourcesPage/TemplateResourcesPage"),
 );
 const CreateWorkspacePage = lazy(
-	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
+	() => import("./pages/TemplatePage/CreateWorkspacePage/CreateWorkspacePage"),
 );
 const OverviewPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/OverviewPage/OverviewPage"),
@@ -204,7 +204,10 @@ const TemplateVersionPage = lazy(
 	() => import("./pages/TemplatePage/TemplateVersionPage/TemplateVersionPage"),
 );
 const TemplateVersionEditorPage = lazy(
-	() => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
+	() =>
+		import(
+			"./pages/TemplatePage/TemplateVersionEditorPage/TemplateVersionEditorPage"
+		),
 );
 const CreateTemplateGalleryPage = lazy(
 	() => import("./pages/CreateTemplateGalleryPage/CreateTemplateGalleryPage"),
@@ -224,7 +227,7 @@ const TemplateBuilderPage = lazy(
 const TemplateVariablesPage = lazy(
 	() =>
 		import(
-			"./pages/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"
+			"./pages/TemplatePage/TemplateSettingsPage/TemplateVariablesPage/TemplateVariablesPage"
 		),
 );
 const WorkspaceSettingsPage = lazy(
@@ -249,19 +252,19 @@ const TemplateVersionsPage = lazy(
 const TemplateSchedulePage = lazy(
 	() =>
 		import(
-			"./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
+			"./pages/TemplatePage/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
 		),
 );
 const TemplateParametersPage = lazy(
 	() =>
 		import(
-			"./pages/TemplateSettingsPage/TemplateParametersPage/TemplateParametersPage"
+			"./pages/TemplatePage/TemplateSettingsPage/TemplateParametersPage/TemplateParametersPage"
 		),
 );
 const TemplateSettingsPage = lazy(
 	() =>
 		import(
-			"./pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
+			"./pages/TemplatePage/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
 		),
 );
 const LicensesSettingsPage = lazy(

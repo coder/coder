@@ -50,7 +50,7 @@ import { isBinaryData } from "#/modules/templates/TemplateFiles/isBinaryData";
 import { TemplateFileTree } from "#/modules/templates/TemplateFiles/TemplateFileTree";
 import { TemplateResourcesTable } from "#/modules/templates/TemplateResourcesTable/TemplateResourcesTable";
 import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
-import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import type { PublishVersionData } from "#/pages/TemplatePage/TemplateVersionEditorPage/types";
 import { cn } from "#/utils/cn";
 import {
 	createFile,

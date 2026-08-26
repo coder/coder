@@ -5,7 +5,8 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {
-	title: "pages/TemplateSettingsPage",
+	title:
+		"pages/TemplatePage/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPageView",
 	component: TemplateSettingsPageView,
 	args: {
 		template: MockTemplate,

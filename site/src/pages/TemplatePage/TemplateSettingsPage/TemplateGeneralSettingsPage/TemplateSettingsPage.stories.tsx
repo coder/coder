@@ -11,7 +11,7 @@ import { TemplateSettingsLayout } from "../TemplateSettingsLayout";
 import TemplateSettingsPage from "./TemplateSettingsPage";
 
 const meta = {
-	title: "pages/TemplateSettingsPage/TemplateSettingsPage",
+	title: "pages/TemplatePage/TemplateSettingsPage/TemplateSettingsPage",
 	component: TemplateSettingsLayout,
 	decorators: [withToaster, withDashboardProvider],
 	parameters: {

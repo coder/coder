@@ -3,7 +3,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { ScheduleDialog } from "./ScheduleDialog";
 
 const meta: Meta<typeof ScheduleDialog> = {
-	title: "pages/TemplateSettingsPage/ScheduleDialog",
+	title: "pages/TemplatePage/TemplateSettingsPage/ScheduleDialog",
 	component: ScheduleDialog,
 	args: {
 		onConfirm: fn(),

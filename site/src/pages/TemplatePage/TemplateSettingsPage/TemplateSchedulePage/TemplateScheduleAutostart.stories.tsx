@@ -5,7 +5,7 @@ import type { TemplateAutostartRequirementDaysValue } from "#/utils/schedule";
 import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 
 const meta: Meta<typeof TemplateScheduleAutostart> = {
-	title: "pages/TemplateSettingsPage/TemplateScheduleAutostart",
+	title: "pages/TemplatePage/TemplateSettingsPage/TemplateScheduleAutostart",
 	component: TemplateScheduleAutostart,
 	args: {
 		value: [],

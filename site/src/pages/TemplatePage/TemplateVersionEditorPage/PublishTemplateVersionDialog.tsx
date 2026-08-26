@@ -17,7 +17,7 @@ import {
 } from "#/components/HelpPopover/HelpPopover";
 import { Label } from "#/components/Label/Label";
 import { Textarea } from "#/components/Textarea/Textarea";
-import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import type { PublishVersionData } from "#/pages/TemplatePage/TemplateVersionEditorPage/types";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";

@@ -10,7 +10,7 @@ import {
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
-	title: "Pages/CreateWorkspacePageView",
+	title: "pages/TemplatePage/CreateWorkspacePage/CreateWorkspacePageView",
 	component: CreateWorkspacePageView,
 	args: {
 		autofillParameters: [],

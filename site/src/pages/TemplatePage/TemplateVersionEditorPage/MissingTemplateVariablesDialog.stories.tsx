@@ -4,7 +4,8 @@ import { MockTemplateVersionVariable5 } from "#/testHelpers/entities";
 import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
 
 const meta = {
-	title: "pages/TemplateVersionEditorPage/MissingTemplateVariablesDialog",
+	title:
+		"pages/TemplatePage/TemplateVersionEditorPage/MissingTemplateVariablesDialog",
 	component: MissingTemplateVariablesDialog,
 	args: {
 		open: true,

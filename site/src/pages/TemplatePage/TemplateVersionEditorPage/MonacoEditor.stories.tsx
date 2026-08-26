@@ -4,7 +4,7 @@ import { expect, fn, waitFor } from "storybook/test";
 import { MonacoEditor } from "./MonacoEditor";
 
 const meta: Meta<typeof MonacoEditor> = {
-	title: "pages/TemplateVersionEditorPage/MonacoEditor",
+	title: "pages/TemplatePage/TemplateVersionEditorPage/MonacoEditor",
 	component: MonacoEditor,
 	args: {},
 	parameters: {

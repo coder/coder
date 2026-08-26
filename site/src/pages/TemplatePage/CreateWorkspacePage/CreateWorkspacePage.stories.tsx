@@ -31,7 +31,7 @@ function dynamicParametersWebSocket(): WebSocketEvent[] {
 }
 
 const meta: Meta<typeof CreateWorkspacePage> = {
-	title: "pages/CreateWorkspacePage",
+	title: "pages/TemplatePage/CreateWorkspacePage",
 	component: CreateWorkspacePage,
 	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	parameters: {

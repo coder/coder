@@ -5,7 +5,7 @@ import { MockTemplateVersion } from "#/testHelpers/entities";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 
 const meta: Meta<typeof ProvisionerTagsPopover> = {
-	title: "pages/TemplateVersionEditorPage/ProvisionerTagsPopover",
+	title: "pages/TemplatePage/TemplateVersionEditorPage/ProvisionerTagsPopover",
 	parameters: {
 		layout: "centered",
 	},

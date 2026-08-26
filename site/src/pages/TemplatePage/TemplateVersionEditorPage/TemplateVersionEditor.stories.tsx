@@ -20,7 +20,7 @@ import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-	title: "pages/TemplateVersionEditor",
+	title: "pages/TemplatePage/TemplateVersionEditorPage/TemplateVersionEditor",
 	component: TemplateVersionEditor,
 	decorators: [withDashboardProvider],
 	parameters: {

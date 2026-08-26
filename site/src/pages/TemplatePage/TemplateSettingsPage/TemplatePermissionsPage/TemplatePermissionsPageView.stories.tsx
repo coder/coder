@@ -3,7 +3,7 @@ import { MockTemplateACL, MockTemplateACLEmpty } from "#/testHelpers/entities";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 
 const meta: Meta<typeof TemplatePermissionsPageView> = {
-	title: "pages/TemplateSettingsPage/TemplatePermissionsPageView",
+	title: "pages/TemplatePage/TemplateSettingsPage/TemplatePermissionsPageView",
 	component: TemplatePermissionsPageView,
 };
 

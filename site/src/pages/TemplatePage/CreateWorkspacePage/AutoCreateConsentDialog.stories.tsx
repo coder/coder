@@ -3,7 +3,7 @@ import { expect, fn, screen } from "storybook/test";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 
 const meta: Meta<typeof AutoCreateConsentDialog> = {
-	title: "pages/CreateWorkspacePage/AutoCreateConsentDialog",
+	title: "pages/TemplatePage/CreateWorkspacePage/AutoCreateConsentDialog",
 	component: AutoCreateConsentDialog,
 	args: {
 		open: true,
