@@ -379,9 +379,20 @@ type sqlcQuerier interface {
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
 	GetAISandboxByID(ctx context.Context, id uuid.UUID) (AISandbox, error)
 	GetAISandboxByParentAgentAndName(ctx context.Context, arg GetAISandboxByParentAgentAndNameParams) (AISandbox, error)
+	// Egress decisions naming one AI agent, oldest first, paged by row id.
+	//
+	// Filters on the event's own attribution snapshot rather than joining through
+	// ai_sandbox_sessions. The snapshot is copied onto every event server side for
+	// exactly this reason: an event must remain attributable after its session is
+	// gone.
+	GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
+	// Confinement sessions naming one AI agent. Reads the attribution snapshot
+	// directly rather than resolving through a workspace, so a session found here
+	// survives the cleanup of anything but itself.
+	GetAISandboxSessionsByAIAgentID(ctx context.Context, aiAgentID uuid.UUID) ([]AISandboxSession, error)
 	GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandboxSession, error)
 	GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]AISandbox, error)
 	GetAISandboxesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandbox, error)
@@ -603,6 +614,16 @@ type sqlcQuerier interface {
 	// key id where the model carries an identifier.
 	GetCredentialAPIKeyByKeyID(ctx context.Context, keyID string) (CredentialApiKey, error)
 	GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) (CredentialLedger, error)
+	// Every credential one holder has ever held, whatever its state.
+	//
+	// The sibling of GetValidCredentialsByHolder, which filters to `valid` because
+	// its callers are ending credentials that are still live. A reader assembling a
+	// holder's record needs the ones that ended, since revocation, lapse and
+	// discharge are the transitions worth reading.
+	//
+	// Ordered by the posting reference, so the sequence is the journal's rather
+	// than a clock's.
+	GetCredentialLedgerRowsByHolder(ctx context.Context, arg GetCredentialLedgerRowsByHolderParams) ([]CredentialLedger, error)
 	// The api_key lines of one entry, in line order.
 	GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]CredentialLifecycleJournalApiKey, error)
 	// Entries about one credential, ordered as they were made. This machine has no

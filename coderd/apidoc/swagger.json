@@ -1683,6 +1683,187 @@
 				]
 			}
 		},
+		"/api/v2/aiagents/ledger": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "List the AI agents in the ledger owned by the requester",
+				"operationId": "get-ai-agent-ledger",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIAgentLedgerRow"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/aiagents/{aiagent}/ledger": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "Get one AI agent's ledger row",
+				"operationId": "get-ai-agent-ledger-row",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "AI agent ID",
+						"name": "aiagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIAgentLedgerRow"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/aiagents/{aiagent}/lifecycle-journals": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "List one AI agent's lifecycle journal entries",
+				"operationId": "get-ai-agent-lifecycle-journals",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "AI agent ID",
+						"name": "aiagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIAgentLifecycleJournalsResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/aiagents/{aiagent}/network-events-log": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "List one AI agent's sandbox egress decisions",
+				"operationId": "get-ai-agent-network-events-log",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "AI agent ID",
+						"name": "aiagent",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "integer",
+						"description": "Return events with database ID greater than after_id",
+						"name": "after_id",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size, 1 to 100. Defaults to 100.",
+						"name": "limit",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AISandboxNetworkEventView"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/aiagents/{aiagent}/sandbox-sessions-log": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Users"],
+				"summary": "List one AI agent's sandbox confinement sessions",
+				"operationId": "get-ai-agent-sandbox-sessions-log",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "AI agent ID",
+						"name": "aiagent",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AISandboxSession"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/appearance": {
 			"get": {
 				"produces": ["application/json"],
@@ -14169,10 +14350,136 @@
 				}
 			}
 		},
+		"codersdk.AIAgentCreationSiteType": {
+			"type": "string",
+			"enum": ["chat", "workspace"],
+			"x-enum-varnames": [
+				"AIAgentCreationSiteTypeChat",
+				"AIAgentCreationSiteTypeWorkspace"
+			]
+		},
+		"codersdk.AIAgentJournal": {
+			"type": "string",
+			"enum": ["ai_agent", "authorization", "credential"],
+			"x-enum-varnames": [
+				"AIAgentJournalAIAgent",
+				"AIAgentJournalAuthorization",
+				"AIAgentJournalCredential"
+			]
+		},
+		"codersdk.AIAgentLedgerRow": {
+			"type": "object",
+			"properties": {
+				"creation_site_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"creation_site_type": {
+					"enum": ["chat", "workspace"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIAgentCreationSiteType"
+						}
+					]
+				},
+				"creation_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"display_name": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_type": {
+					"type": "string"
+				},
+				"state": {
+					"enum": ["active", "dormant", "retired"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIAgentState"
+						}
+					]
+				}
+			}
+		},
+		"codersdk.AIAgentLifecycleJournalEntry": {
+			"type": "object",
+			"properties": {
+				"actor_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"actor_type": {
+					"description": "ActorType and ActorID are absent exactly when the operation was entailed,\nwhich is to say it followed by necessity from something already recorded\nand nobody performed it. Their absence never means the actor is unknown.",
+					"type": "string"
+				},
+				"effective_date": {
+					"description": "EffectiveDate is when the event occurred and RecordingDate when the entry\nwas made. They differ whenever an entry was written after the fact, and a\nreader ordering events wants the first.",
+					"type": "string",
+					"format": "date-time"
+				},
+				"entry_id": {
+					"type": "integer"
+				},
+				"event": {
+					"type": "string"
+				},
+				"journal": {
+					"enum": ["ai_agent", "authorization", "credential"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.AIAgentJournal"
+						}
+					]
+				},
+				"line": {
+					"type": "integer"
+				},
+				"recording_date": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"subject": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.AIAgentLifecycleJournalsResponse": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIAgentLifecycleJournalEntry"
+					}
+				},
+				"truncated": {
+					"type": "boolean"
+				}
+			}
+		},
 		"codersdk.AIAgentOrigin": {
 			"type": "string",
 			"enum": ["chat", "workspace"],
 			"x-enum-varnames": ["AIAgentOriginChat", "AIAgentOriginWorkspace"]
+		},
+		"codersdk.AIAgentState": {
+			"type": "string",
+			"enum": ["active", "dormant", "retired"],
+			"x-enum-varnames": [
+				"AIAgentStateActive",
+				"AIAgentStateDormant",
+				"AIAgentStateRetired"
+			]
 		},
 		"codersdk.AIBridgeAgenticAction": {
 			"type": "object",

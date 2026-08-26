@@ -2220,6 +2220,21 @@ func (mr *MockStoreMockRecorder) GetAISandboxByParentAgentAndName(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxByParentAgentAndName", reflect.TypeOf((*MockStore)(nil).GetAISandboxByParentAgentAndName), ctx, arg)
 }
 
+// GetAISandboxNetworkEventsByAIAgentIDPaged mocks base method.
+func (m *MockStore) GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxNetworkEventsByAIAgentIDPaged", ctx, arg)
+	ret0, _ := ret[0].([]database.AISandboxNetworkEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxNetworkEventsByAIAgentIDPaged indicates an expected call of GetAISandboxNetworkEventsByAIAgentIDPaged.
+func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsByAIAgentIDPaged(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsByAIAgentIDPaged", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsByAIAgentIDPaged), ctx, arg)
+}
+
 // GetAISandboxNetworkEventsBySessionID mocks base method.
 func (m *MockStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	m.ctrl.T.Helper()
@@ -2263,6 +2278,21 @@ func (m *MockStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (
 func (mr *MockStoreMockRecorder) GetAISandboxSessionByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionByID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionByID), ctx, id)
+}
+
+// GetAISandboxSessionsByAIAgentID mocks base method.
+func (m *MockStore) GetAISandboxSessionsByAIAgentID(ctx context.Context, aiAgentID uuid.UUID) ([]database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxSessionsByAIAgentID", ctx, aiAgentID)
+	ret0, _ := ret[0].([]database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxSessionsByAIAgentID indicates an expected call of GetAISandboxSessionsByAIAgentID.
+func (mr *MockStoreMockRecorder) GetAISandboxSessionsByAIAgentID(ctx, aiAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxSessionsByAIAgentID", reflect.TypeOf((*MockStore)(nil).GetAISandboxSessionsByAIAgentID), ctx, aiAgentID)
 }
 
 // GetAISandboxSessionsByWorkspaceID mocks base method.
@@ -3733,6 +3763,21 @@ func (m *MockStore) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID
 func (mr *MockStoreMockRecorder) GetCredentialLedgerRowByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLedgerRowByID", reflect.TypeOf((*MockStore)(nil).GetCredentialLedgerRowByID), ctx, id)
+}
+
+// GetCredentialLedgerRowsByHolder mocks base method.
+func (m *MockStore) GetCredentialLedgerRowsByHolder(ctx context.Context, arg database.GetCredentialLedgerRowsByHolderParams) ([]database.CredentialLedger, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCredentialLedgerRowsByHolder", ctx, arg)
+	ret0, _ := ret[0].([]database.CredentialLedger)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCredentialLedgerRowsByHolder indicates an expected call of GetCredentialLedgerRowsByHolder.
+func (mr *MockStoreMockRecorder) GetCredentialLedgerRowsByHolder(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCredentialLedgerRowsByHolder", reflect.TypeOf((*MockStore)(nil).GetCredentialLedgerRowsByHolder), ctx, arg)
 }
 
 // GetCredentialLifecycleJournalAPIKeyLines mocks base method.

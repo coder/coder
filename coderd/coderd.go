@@ -1926,6 +1926,23 @@ func New(options *Options) *API {
 				// PTY is part of workspaceAppServer.
 			})
 		})
+		// An AI agent's own record. Entry points are named for their contents:
+		// the ledger holds what is currently true, the lifecycle journals hold
+		// what was done, and the two logs are named as logs because that is what
+		// they are.
+		r.Route("/aiagents", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			// Mounted before /{aiagent} so the static segment wins the match.
+			r.Get("/ledger", api.aiAgentLedger)
+			r.Route("/{aiagent}", func(r chi.Router) {
+				r.Get("/ledger", api.aiAgentLedgerRow)
+				r.Get("/lifecycle-journals", api.aiAgentLifecycleJournals)
+				r.Get("/sandbox-sessions-log", api.aiAgentSandboxSessionsLog)
+				r.Get("/network-events-log", api.aiAgentNetworkEventsLog)
+			})
+		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

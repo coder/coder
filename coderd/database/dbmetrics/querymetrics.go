@@ -1273,6 +1273,14 @@ func (m queryMetricsStore) GetAISandboxByParentAgentAndName(ctx context.Context,
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxNetworkEventsByAIAgentIDPaged(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAISandboxNetworkEventsByAIAgentIDPaged").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxNetworkEventsByAIAgentIDPaged").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAISandboxNetworkEventsBySessionID(ctx, sessionID)
@@ -1294,6 +1302,14 @@ func (m queryMetricsStore) GetAISandboxSessionByID(ctx context.Context, id uuid.
 	r0, r1 := m.s.GetAISandboxSessionByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetAISandboxSessionByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAISandboxSessionsByAIAgentID(ctx context.Context, aiAgentID uuid.UUID) ([]database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxSessionsByAIAgentID(ctx, aiAgentID)
+	m.queryLatencies.WithLabelValues("GetAISandboxSessionsByAIAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxSessionsByAIAgentID").Inc()
 	return r0, r1
 }
 
@@ -2014,6 +2030,14 @@ func (m queryMetricsStore) GetCredentialLedgerRowByID(ctx context.Context, id uu
 	r0, r1 := m.s.GetCredentialLedgerRowByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetCredentialLedgerRowByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLedgerRowByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetCredentialLedgerRowsByHolder(ctx context.Context, arg database.GetCredentialLedgerRowsByHolderParams) ([]database.CredentialLedger, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetCredentialLedgerRowsByHolder(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetCredentialLedgerRowsByHolder").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetCredentialLedgerRowsByHolder").Inc()
 	return r0, r1
 }
 

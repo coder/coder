@@ -37,6 +37,14 @@ SELECT * FROM ai_sandbox_sessions
 WHERE workspace_id = @workspace_id
 ORDER BY started_at DESC;
 
+-- name: GetAISandboxSessionsByAIAgentID :many
+-- Confinement sessions naming one AI agent. Reads the attribution snapshot
+-- directly rather than resolving through a workspace, so a session found here
+-- survives the cleanup of anything but itself.
+SELECT * FROM ai_sandbox_sessions
+WHERE ai_agent_id = @ai_agent_id
+ORDER BY started_at DESC;
+
 -- name: InsertAISandboxNetworkEvents :execrows
 -- Batch-inserts egress policy decisions. Attribution snapshots are copied
 -- server-side from the owning session row onto every event.
@@ -80,6 +88,19 @@ WHERE e.session_id = @session_id
         AND s.workspace_id = @workspace_id
   )
 ORDER BY e.id ASC
+LIMIT @limit_count;
+
+-- name: GetAISandboxNetworkEventsByAIAgentIDPaged :many
+-- Egress decisions naming one AI agent, oldest first, paged by row id.
+--
+-- Filters on the event's own attribution snapshot rather than joining through
+-- ai_sandbox_sessions. The snapshot is copied onto every event server side for
+-- exactly this reason: an event must remain attributable after its session is
+-- gone.
+SELECT * FROM ai_sandbox_network_events
+WHERE ai_agent_id = @ai_agent_id
+  AND id > @after_id
+ORDER BY id ASC
 LIMIT @limit_count;
 
 -- name: DeleteOldAISandboxNetworkEvents :execrows

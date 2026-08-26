@@ -4053,6 +4053,61 @@ func (q *sqlQuerier) DeleteOldAISandboxSessions(ctx context.Context, arg DeleteO
 	return result.RowsAffected()
 }
 
+const getAISandboxNetworkEventsByAIAgentIDPaged = `-- name: GetAISandboxNetworkEventsByAIAgentIDPaged :many
+SELECT id, session_id, occurred_at, protocol, host, port, action, policy_revision, ai_agent_id, sponsor_user_id, created_at FROM ai_sandbox_network_events
+WHERE ai_agent_id = $1
+  AND id > $2
+ORDER BY id ASC
+LIMIT $3
+`
+
+type GetAISandboxNetworkEventsByAIAgentIDPagedParams struct {
+	AIAgentID  uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterID    int64     `db:"after_id" json:"after_id"`
+	LimitCount int32     `db:"limit_count" json:"limit_count"`
+}
+
+// Egress decisions naming one AI agent, oldest first, paged by row id.
+//
+// Filters on the event's own attribution snapshot rather than joining through
+// ai_sandbox_sessions. The snapshot is copied onto every event server side for
+// exactly this reason: an event must remain attributable after its session is
+// gone.
+func (q *sqlQuerier) GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]AISandboxNetworkEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxNetworkEventsByAIAgentIDPaged, arg.AIAgentID, arg.AfterID, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxNetworkEvent
+	for rows.Next() {
+		var i AISandboxNetworkEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.OccurredAt,
+			&i.Protocol,
+			&i.Host,
+			&i.Port,
+			&i.Action,
+			&i.PolicyRevision,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAISandboxNetworkEventsBySessionID = `-- name: GetAISandboxNetworkEventsBySessionID :many
 SELECT id, session_id, occurred_at, protocol, host, port, action, policy_revision, ai_agent_id, sponsor_user_id, created_at FROM ai_sandbox_network_events
 WHERE session_id = $1
@@ -4175,6 +4230,49 @@ func (q *sqlQuerier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) 
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getAISandboxSessionsByAIAgentID = `-- name: GetAISandboxSessionsByAIAgentID :many
+SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions
+WHERE ai_agent_id = $1
+ORDER BY started_at DESC
+`
+
+// Confinement sessions naming one AI agent. Reads the attribution snapshot
+// directly rather than resolving through a workspace, so a session found here
+// survives the cleanup of anything but itself.
+func (q *sqlQuerier) GetAISandboxSessionsByAIAgentID(ctx context.Context, aiAgentID uuid.UUID) ([]AISandboxSession, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxSessionsByAIAgentID, aiAgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxSession
+	for rows.Next() {
+		var i AISandboxSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ReporterAgentID,
+			&i.ConfinedAgentID,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.EgressEnforcement,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAISandboxSessionsByWorkspaceID = `-- name: GetAISandboxSessionsByWorkspaceID :many
@@ -15245,6 +15343,66 @@ func (q *sqlQuerier) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUI
 		&i.UsePostingReference,
 	)
 	return i, err
+}
+
+const getCredentialLedgerRowsByHolder = `-- name: GetCredentialLedgerRowsByHolder :many
+SELECT
+	id, holder_type, holder_id, credential_type, state, expires_at, lifecycle_posting_reference, last_presented, last_used, use_posting_reference
+FROM
+	credential_ledger
+WHERE
+	holder_type = $1
+	AND holder_id = $2
+ORDER BY
+	lifecycle_posting_reference
+`
+
+type GetCredentialLedgerRowsByHolderParams struct {
+	HolderType string    `db:"holder_type" json:"holder_type"`
+	HolderID   uuid.UUID `db:"holder_id" json:"holder_id"`
+}
+
+// Every credential one holder has ever held, whatever its state.
+//
+// The sibling of GetValidCredentialsByHolder, which filters to `valid` because
+// its callers are ending credentials that are still live. A reader assembling a
+// holder's record needs the ones that ended, since revocation, lapse and
+// discharge are the transitions worth reading.
+//
+// Ordered by the posting reference, so the sequence is the journal's rather
+// than a clock's.
+func (q *sqlQuerier) GetCredentialLedgerRowsByHolder(ctx context.Context, arg GetCredentialLedgerRowsByHolderParams) ([]CredentialLedger, error) {
+	rows, err := q.db.QueryContext(ctx, getCredentialLedgerRowsByHolder, arg.HolderType, arg.HolderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CredentialLedger
+	for rows.Next() {
+		var i CredentialLedger
+		if err := rows.Scan(
+			&i.ID,
+			&i.HolderType,
+			&i.HolderID,
+			&i.CredentialType,
+			&i.State,
+			&i.ExpiresAt,
+			&i.LifecyclePostingReference,
+			&i.LastPresented,
+			&i.LastUsed,
+			&i.UsePostingReference,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCredentialLifecycleJournalAPIKeyLines = `-- name: GetCredentialLifecycleJournalAPIKeyLines :many

@@ -653,6 +653,14 @@ func (s *MethodTestSuite) TestCredentialLifecycle() {
 		dbm.EXPECT().GetValidCredentialsByHolder(gomock.Any(), arg).Return([]database.CredentialLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetCredentialLedgerRowsByHolder", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetCredentialLedgerRowsByHolderParams{
+			HolderType: "ai_agent",
+			HolderID:   uuid.New(),
+		}
+		dbm.EXPECT().GetCredentialLedgerRowsByHolder(gomock.Any(), arg).Return([]database.CredentialLedger{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("InsertCredentialAPIKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertCredentialAPIKeyParams{
 			ID:           uuid.New(),
@@ -852,6 +860,11 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 		dbm.EXPECT().InsertAISandboxNetworkEvents(gomock.Any(), arg).Return(int64(0), nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("GetAISandboxSessionsByAIAgentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		agentID := uuid.New()
+		dbm.EXPECT().GetAISandboxSessionsByAIAgentID(gomock.Any(), agentID).Return([]database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(agentID).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetAISandboxNetworkEventsBySessionID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetAISandboxNetworkEventsBySessionID(gomock.Any(), uuid.Nil).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
 		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -862,6 +875,14 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil).AnyTimes()
 		dbm.EXPECT().GetAISandboxNetworkEventsBySessionIDPaged(gomock.Any(), arg).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
 		check.Args(arg).Asserts(workspace, policy.ActionRead)
+	}))
+	s.Run("GetAISandboxNetworkEventsByAIAgentIDPaged", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAISandboxNetworkEventsByAIAgentIDPagedParams{
+			AIAgentID:  uuid.New(),
+			LimitCount: 100,
+		}
+		dbm.EXPECT().GetAISandboxNetworkEventsByAIAgentIDPaged(gomock.Any(), arg).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("DeleteOldAISandboxNetworkEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldAISandboxNetworkEvents(gomock.Any(), database.DeleteOldAISandboxNetworkEventsParams{}).Return(int64(0), nil).AnyTimes()

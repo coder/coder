@@ -127,6 +127,26 @@ WHERE
 	AND holder_id = $2
 	AND state = 'valid';
 
+-- name: GetCredentialLedgerRowsByHolder :many
+-- Every credential one holder has ever held, whatever its state.
+--
+-- The sibling of GetValidCredentialsByHolder, which filters to `valid` because
+-- its callers are ending credentials that are still live. A reader assembling a
+-- holder's record needs the ones that ended, since revocation, lapse and
+-- discharge are the transitions worth reading.
+--
+-- Ordered by the posting reference, so the sequence is the journal's rather
+-- than a clock's.
+SELECT
+	*
+FROM
+	credential_ledger
+WHERE
+	holder_type = $1
+	AND holder_id = $2
+ORDER BY
+	lifecycle_posting_reference;
+
 -- name: InvalidateCredential :one
 -- Post a credential to `invalid`. Two transitions reach that state, `revoke`
 -- and `lapse`, so this is named for the posting rather than for either of

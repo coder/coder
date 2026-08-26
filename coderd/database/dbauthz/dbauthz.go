@@ -2975,6 +2975,13 @@ func (q *querier) GetAISandboxByParentAgentAndName(ctx context.Context, arg data
 	return q.db.GetAISandboxByParentAgentAndName(ctx, arg)
 }
 
+func (q *querier) GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxNetworkEventsByAIAgentIDPaged(ctx, arg)
+}
+
 func (q *querier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]database.AISandboxNetworkEvent, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -2998,6 +3005,13 @@ func (q *querier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (da
 		return database.AISandboxSession{}, err
 	}
 	return q.db.GetAISandboxSessionByID(ctx, id)
+}
+
+func (q *querier) GetAISandboxSessionsByAIAgentID(ctx context.Context, aiAgentID uuid.UUID) ([]database.AISandboxSession, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxSessionsByAIAgentID(ctx, aiAgentID)
 }
 
 func (q *querier) GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.AISandboxSession, error) {
@@ -3798,6 +3812,13 @@ func (q *querier) GetCredentialLedgerRowByID(ctx context.Context, id uuid.UUID) 
 		return database.CredentialLedger{}, err
 	}
 	return q.db.GetCredentialLedgerRowByID(ctx, id)
+}
+
+func (q *querier) GetCredentialLedgerRowsByHolder(ctx context.Context, arg database.GetCredentialLedgerRowsByHolderParams) ([]database.CredentialLedger, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetCredentialLedgerRowsByHolder(ctx, arg)
 }
 
 func (q *querier) GetCredentialLifecycleJournalAPIKeyLines(ctx context.Context, entryID int64) ([]database.CredentialLifecycleJournalApiKey, error) {

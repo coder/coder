@@ -23,10 +23,101 @@ export interface AIAgent {
 	readonly deleted: boolean;
 }
 
+// From codersdk/aiagentledger.go
+export type AIAgentCreationSiteType = "chat" | "workspace";
+
+export const AIAgentCreationSiteTypes: AIAgentCreationSiteType[] = [
+	"chat",
+	"workspace",
+];
+
+// From codersdk/aiagentledger.go
+export type AIAgentJournal = "ai_agent" | "authorization" | "credential";
+
+export const AIAgentJournals: AIAgentJournal[] = [
+	"ai_agent",
+	"authorization",
+	"credential",
+];
+
+// From codersdk/aiagentledger.go
+/**
+ * AIAgentLedgerRow is what the ledger currently holds about one AI agent.
+ *
+ * It speaks the ledger's own vocabulary. The older AIAgent type reports the
+ * same agent with an origin and a deleted flag, which are the words its public
+ * surface already used.
+ *
+ * DisplayName is computed from the identifier and the creation site rather than
+ * stored, so nothing persists it and nothing has to keep it in step.
+ */
+export interface AIAgentLedgerRow {
+	readonly id: string;
+	readonly display_name: string;
+	readonly owner_type: string;
+	readonly owner_id: string;
+	readonly state: AIAgentState;
+	readonly creation_site_type: AIAgentCreationSiteType;
+	readonly creation_site_id: string;
+	readonly creation_time: string;
+}
+
+// From codersdk/aiagentledger.go
+/**
+ * AIAgentLifecycleJournalEntry is one line of one entry, from one of the three
+ * lifecycle journals, flattened into a shape a reader can put in order.
+ *
+ * Subject identifies whatever the journal named by Journal is about: the agent
+ * itself, one of its authorizations, or one of its credentials.
+ *
+ * Entries sharing an EntryID are one event and not several that coincide. A
+ * retirement ends every authorization and every credential a holder has as a
+ * single event, so it arrives as one entry with a line apiece.
+ */
+export interface AIAgentLifecycleJournalEntry {
+	readonly journal: AIAgentJournal;
+	readonly entry_id: number;
+	readonly line: number;
+	readonly event: string;
+	readonly subject: string;
+	/**
+	 * EffectiveDate is when the event occurred and RecordingDate when the entry
+	 * was made. They differ whenever an entry was written after the fact, and a
+	 * reader ordering events wants the first.
+	 */
+	readonly effective_date: string;
+	readonly recording_date: string;
+	/**
+	 * ActorType and ActorID are absent exactly when the operation was entailed,
+	 * which is to say it followed by necessity from something already recorded
+	 * and nobody performed it. Their absence never means the actor is unknown.
+	 */
+	readonly actor_type?: string;
+	readonly actor_id?: string;
+}
+
+// From codersdk/aiagentledger.go
+/**
+ * AIAgentLifecycleJournalsResponse carries the entries of all three lifecycle
+ * journals for one agent.
+ *
+ * Truncated says a per journal cap was reached and entries were left unread.
+ * It exists so that a short answer is never mistaken for a complete one.
+ */
+export interface AIAgentLifecycleJournalsResponse {
+	readonly entries: readonly AIAgentLifecycleJournalEntry[];
+	readonly truncated: boolean;
+}
+
 // From codersdk/users.go
 export type AIAgentOrigin = "chat" | "workspace";
 
 export const AIAgentOrigins: AIAgentOrigin[] = ["chat", "workspace"];
+
+// From codersdk/aiagentledger.go
+export type AIAgentState = "active" | "dormant" | "retired";
+
+export const AIAgentStates: AIAgentState[] = ["active", "dormant", "retired"];
 
 // From codersdk/aibridge.go
 /**

@@ -5106,6 +5106,8 @@ CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (p
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
 
+CREATE INDEX idx_ai_sandbox_network_events_ai_agent_id ON ai_sandbox_network_events USING btree (ai_agent_id, id);
+
 CREATE INDEX idx_ai_sandbox_network_events_occurred_at ON ai_sandbox_network_events USING btree (occurred_at);
 
 CREATE INDEX idx_ai_sandbox_network_events_session_id ON ai_sandbox_network_events USING btree (session_id);

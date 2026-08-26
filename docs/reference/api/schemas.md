@@ -488,6 +488,133 @@
 |---------------|---------------------|
 | `origin_type` | `chat`, `workspace` |
 
+## codersdk.AIAgentCreationSiteType
+
+```json
+"chat"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)            |
+|---------------------|
+| `chat`, `workspace` |
+
+## codersdk.AIAgentJournal
+
+```json
+"ai_agent"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                  |
+|-------------------------------------------|
+| `ai_agent`, `authorization`, `credential` |
+
+## codersdk.AIAgentLedgerRow
+
+```json
+{
+  "creation_site_id": "ef1bb01e-c877-422c-959f-1d403da8b9cb",
+  "creation_site_type": "chat",
+  "creation_time": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_type": "string",
+  "state": "active"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                                 | Required | Restrictions | Description |
+|----------------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `creation_site_id`   | string                                                               | false    |              |             |
+| `creation_site_type` | [codersdk.AIAgentCreationSiteType](#codersdkaiagentcreationsitetype) | false    |              |             |
+| `creation_time`      | string                                                               | false    |              |             |
+| `display_name`       | string                                                               | false    |              |             |
+| `id`                 | string                                                               | false    |              |             |
+| `owner_id`           | string                                                               | false    |              |             |
+| `owner_type`         | string                                                               | false    |              |             |
+| `state`              | [codersdk.AIAgentState](#codersdkaiagentstate)                       | false    |              |             |
+
+#### Enumerated Values
+
+| Property             | Value(s)                       |
+|----------------------|--------------------------------|
+| `creation_site_type` | `chat`, `workspace`            |
+| `state`              | `active`, `dormant`, `retired` |
+
+## codersdk.AIAgentLifecycleJournalEntry
+
+```json
+{
+  "actor_id": "04f37679-bfbf-4906-b749-01756515cecf",
+  "actor_type": "string",
+  "effective_date": "2019-08-24T14:15:22Z",
+  "entry_id": 0,
+  "event": "string",
+  "journal": "ai_agent",
+  "line": 0,
+  "recording_date": "2019-08-24T14:15:22Z",
+  "subject": "60edbbae-71be-4fbc-b2c1-f38d95f4b1b6"
+}
+```
+
+### Properties
+
+| Name             | Type                                               | Required | Restrictions | Description                                                                                                                                                                                                                  |
+|------------------|----------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `actor_id`       | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `actor_type`     | string                                             | false    |              | Actor type and ActorID are absent exactly when the operation was entailed, which is to say it followed by necessity from something already recorded and nobody performed it. Their absence never means the actor is unknown. |
+| `effective_date` | string                                             | false    |              | Effective date is when the event occurred and RecordingDate when the entry was made. They differ whenever an entry was written after the fact, and a reader ordering events wants the first.                                 |
+| `entry_id`       | integer                                            | false    |              |                                                                                                                                                                                                                              |
+| `event`          | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `journal`        | [codersdk.AIAgentJournal](#codersdkaiagentjournal) | false    |              |                                                                                                                                                                                                                              |
+| `line`           | integer                                            | false    |              |                                                                                                                                                                                                                              |
+| `recording_date` | string                                             | false    |              |                                                                                                                                                                                                                              |
+| `subject`        | string                                             | false    |              |                                                                                                                                                                                                                              |
+
+#### Enumerated Values
+
+| Property  | Value(s)                                  |
+|-----------|-------------------------------------------|
+| `journal` | `ai_agent`, `authorization`, `credential` |
+
+## codersdk.AIAgentLifecycleJournalsResponse
+
+```json
+{
+  "entries": [
+    {
+      "actor_id": "04f37679-bfbf-4906-b749-01756515cecf",
+      "actor_type": "string",
+      "effective_date": "2019-08-24T14:15:22Z",
+      "entry_id": 0,
+      "event": "string",
+      "journal": "ai_agent",
+      "line": 0,
+      "recording_date": "2019-08-24T14:15:22Z",
+      "subject": "60edbbae-71be-4fbc-b2c1-f38d95f4b1b6"
+    }
+  ],
+  "truncated": true
+}
+```
+
+### Properties
+
+| Name        | Type                                                                                    | Required | Restrictions | Description |
+|-------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `entries`   | array of [codersdk.AIAgentLifecycleJournalEntry](#codersdkaiagentlifecyclejournalentry) | false    |              |             |
+| `truncated` | boolean                                                                                 | false    |              |             |
+
 ## codersdk.AIAgentOrigin
 
 ```json
@@ -501,6 +628,20 @@
 | Value(s)            |
 |---------------------|
 | `chat`, `workspace` |
+
+## codersdk.AIAgentState
+
+```json
+"active"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                       |
+|--------------------------------|
+| `active`, `dormant`, `retired` |
 
 ## codersdk.AIBridgeAgenticAction
 
