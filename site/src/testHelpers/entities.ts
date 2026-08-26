@@ -3310,6 +3310,19 @@ export const MockEveryoneGroup: TypesGen.Group = {
 	total_member_count: 0,
 };
 
+export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3457,6 +3470,7 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
+	shareMCPServerConfig: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3484,6 +3498,7 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
+	shareMCPServerConfig: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,

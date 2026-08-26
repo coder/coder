@@ -532,7 +532,8 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	hasFullView := api.Authorize(r, policy.ActionUpdate, config) ||
 		api.Authorize(r, policy.ActionRead, rbac.ResourceAuditLog.InOrg(config.OrganizationID))
 	if !hasFullView && !config.Enabled &&
-		!api.Authorize(r, policy.ActionDelete, config) {
+		!api.Authorize(r, policy.ActionDelete, config) &&
+		!api.Authorize(r, policy.ActionShare, config) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}

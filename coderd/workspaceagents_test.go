@@ -58,7 +58,6 @@ import (
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -589,67 +588,67 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 		},
 		{
 			name:       "WorkingToIdleBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: true,
 		},
 		{
 			name:       "WorkingToCompleteBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: true,
 		},
 		{
 			name:       "CompleteToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToCompleteNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "FailureToFailureNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateFailure,
 			shouldBump: false,
 		},
 		{
 			name:       "CompleteToWorkingBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateComplete),
+			prevState:  new(codersdk.WorkspaceAppStatusStateComplete),
 			newState:   codersdk.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},
 		{
 			name:       "FailureToCompleteNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateFailure),
+			prevState:  new(codersdk.WorkspaceAppStatusStateFailure),
 			newState:   codersdk.WorkspaceAppStatusStateComplete,
 			shouldBump: false,
 		},
 		{
 			name:       "WorkingToFailureBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateWorking),
+			prevState:  new(codersdk.WorkspaceAppStatusStateWorking),
 			newState:   codersdk.WorkspaceAppStatusStateFailure,
 			shouldBump: true,
 		},
 		{
 			name:       "IdleToIdleNoBump",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
 			newState:   codersdk.WorkspaceAppStatusStateIdle,
 			shouldBump: false,
 		},
 		{
 			name:       "IdleToWorkingBumps",
-			prevState:  ptr.Ref(codersdk.WorkspaceAppStatusStateIdle),
+			prevState:  new(codersdk.WorkspaceAppStatusStateIdle),
 			newState:   codersdk.WorkspaceAppStatusStateWorking,
 			shouldBump: true,
 		},
@@ -672,7 +671,7 @@ func TestWorkspaceAgentAppStatus_ActivityBump(t *testing.T) {
 
 			// Configure template with activity_bump to enable deadline bumping.
 			_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
-				ActivityBumpMillis: ptr.Ref(time.Hour.Milliseconds()),
+				ActivityBumpMillis: new(time.Hour.Milliseconds()),
 			})
 			require.NoError(t, err)
 
@@ -3192,9 +3191,9 @@ func TestUserTailnetTelemetry(t *testing.T) {
 				codersdk.CoderDesktopTelemetryHeader: string(fullHeader),
 			},
 			expected: telemetry.UserTailnetConnection{
-				DeviceOS:            ptr.Ref("Windows"),
-				DeviceID:            ptr.Ref("device001"),
-				CoderDesktopVersion: ptr.Ref("0.22.1"),
+				DeviceOS:            new("Windows"),
+				DeviceID:            new("device001"),
+				CoderDesktopVersion: new("0.22.1"),
 			},
 		},
 		{

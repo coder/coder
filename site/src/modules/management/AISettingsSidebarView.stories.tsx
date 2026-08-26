@@ -244,6 +244,19 @@ export const MCPServersForDeleteOnlyAdmin: Story = {
 	},
 };
 
+export const MCPServersForOrganizationShareOnlyAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canShareOrganizationMCPServers: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
 export const MCPServersForCreateOnlyAdmin: Story = {
 	args: {
 		permissions: {
