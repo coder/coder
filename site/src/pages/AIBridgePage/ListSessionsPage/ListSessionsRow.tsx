@@ -72,7 +72,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 										</Badge>
 									</span>
 								</TooltipTrigger>
-								<TooltipContent side="top" align="start">
+								<TooltipContent side="top" align="start" sideOffset={8}>
 									<div className="flex flex-col gap-2">
 										<div className="text-content-primary text-sm font-medium">
 											Providers
