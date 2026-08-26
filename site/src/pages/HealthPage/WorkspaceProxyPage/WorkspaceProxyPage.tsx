@@ -20,8 +20,8 @@ import {
 	HealthyDot,
 	Main,
 	Pill,
-} from "./Content";
-import { MuteWarningsButton } from "./MuteWarningsButton";
+} from "../Content";
+import { MuteWarningsButton } from "../MuteWarningsButton";
 
 const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();

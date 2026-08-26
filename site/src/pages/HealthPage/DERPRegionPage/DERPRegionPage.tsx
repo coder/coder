@@ -32,7 +32,7 @@ import {
 	Main,
 	Pill,
 	StatusIcon,
-} from "./Content";
+} from "../Content";
 
 interface NodeCheckRow {
 	label: string;

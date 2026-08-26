@@ -2,11 +2,11 @@ import type { StoryObj } from "@storybook/react-vite";
 import { HEALTH_QUERY_KEY } from "#/api/queries/debug";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { MockHealth } from "#/testHelpers/entities";
-import { generateMeta } from "./storybook";
+import { generateMeta } from "../storybook";
 import WorkspaceProxyPage from "./WorkspaceProxyPage";
 
 const meta = {
-	title: "pages/Health/WorkspaceProxy",
+	title: "pages/HealthPage/WorkspaceProxyPage",
 	...generateMeta({
 		path: "/health/workspace-proxy",
 		element: <WorkspaceProxyPage />,

@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { generateMeta } from "../storybook";
 import ProvisionerDaemonsPage from "./ProvisionerDaemonsPage";
-import { generateMeta } from "./storybook";
 
 const meta: Meta = {
-	title: "pages/Health/ProvisionerDaemons",
+	title: "pages/HealthPage/ProvisionerDaemonsPage",
 	...generateMeta({
 		path: "/health/provisioner-daemons",
 		element: <ProvisionerDaemonsPage />,

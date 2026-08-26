@@ -11,8 +11,8 @@ import {
 	HealthMessageDocsLink,
 	HealthyDot,
 	Main,
-} from "./Content";
-import { MuteWarningsButton } from "./MuteWarningsButton";
+} from "../Content";
+import { MuteWarningsButton } from "../MuteWarningsButton";
 
 const AccessURLPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();

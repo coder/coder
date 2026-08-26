@@ -2,14 +2,14 @@ import type { StoryObj } from "@storybook/react-vite";
 import { HEALTH_QUERY_KEY } from "#/api/queries/debug";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { MockHealth } from "#/testHelpers/entities";
-import AccessURLPage from "./AccessURLPage";
-import { generateMeta } from "./storybook";
+import { generateMeta } from "../storybook";
+import WebsocketPage from "./WebsocketPage";
 
 const meta = {
-	title: "pages/Health/AccessURL",
+	title: "pages/HealthPage/WebsocketPage",
 	...generateMeta({
-		path: "/health/access-url",
-		element: <AccessURLPage />,
+		path: "/health/websocket",
+		element: <WebsocketPage />,
 	}),
 };
 
@@ -21,8 +21,8 @@ const Example: Story = {};
 const settingsWithError: HealthcheckReport = {
 	...MockHealth,
 	severity: "error",
-	access_url: {
-		...MockHealth.access_url,
+	websocket: {
+		...MockHealth.websocket,
 		severity: "error",
 		error:
 			'EACS03: get healthz endpoint: Get "https://localhost:7080/healthz": http: server gave HTTP response to HTTPS client',
@@ -41,4 +41,4 @@ export const WithError: Story = {
 	},
 };
 
-export { Example as AccessURL };
+export { Example as Websocket };

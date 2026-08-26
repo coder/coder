@@ -15,8 +15,8 @@ import {
 	Main,
 	Pill,
 	SectionLabel,
-} from "./Content";
-import { MuteWarningsButton } from "./MuteWarningsButton";
+} from "../Content";
+import { MuteWarningsButton } from "../MuteWarningsButton";
 
 const WebsocketPage = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();

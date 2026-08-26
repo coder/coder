@@ -24,8 +24,8 @@ import {
 	Main,
 	SectionLabel,
 	StatusIcon,
-} from "./Content";
-import { MuteWarningsButton } from "./MuteWarningsButton";
+} from "../Content";
+import { MuteWarningsButton } from "../MuteWarningsButton";
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;

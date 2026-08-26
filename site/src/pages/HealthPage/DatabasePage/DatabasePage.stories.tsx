@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { generateMeta } from "../storybook";
 import DatabasePage from "./DatabasePage";
-import { generateMeta } from "./storybook";
 
 const meta: Meta = {
-	title: "pages/Health/Database",
+	title: "pages/HealthPage/DatabasePage",
 	...generateMeta({
 		path: "/health/database",
 		element: <DatabasePage />,

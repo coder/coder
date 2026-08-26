@@ -344,16 +344,25 @@ const PremiumPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/PremiumPage/PremiumPage"),
 );
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
-const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
-const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
-const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage"));
-const DERPRegionPage = lazy(() => import("./pages/HealthPage/DERPRegionPage"));
-const WebsocketPage = lazy(() => import("./pages/HealthPage/WebsocketPage"));
+const AccessURLPage = lazy(
+	() => import("./pages/HealthPage/AccessURLPage/AccessURLPage"),
+);
+const DatabasePage = lazy(
+	() => import("./pages/HealthPage/DatabasePage/DatabasePage"),
+);
+const DERPPage = lazy(() => import("./pages/HealthPage/DERPPage/DERPPage"));
+const DERPRegionPage = lazy(
+	() => import("./pages/HealthPage/DERPRegionPage/DERPRegionPage"),
+);
+const WebsocketPage = lazy(
+	() => import("./pages/HealthPage/WebsocketPage/WebsocketPage"),
+);
 const WorkspaceProxyHealthPage = lazy(
-	() => import("./pages/HealthPage/WorkspaceProxyPage"),
+	() => import("./pages/HealthPage/WorkspaceProxyPage/WorkspaceProxyPage"),
 );
 const ProvisionerDaemonsHealthPage = lazy(
-	() => import("./pages/HealthPage/ProvisionerDaemonsPage"),
+	() =>
+		import("./pages/HealthPage/ProvisionerDaemonsPage/ProvisionerDaemonsPage"),
 );
 const UserNotificationsPage = lazy(
 	() => import("./pages/UserSettingsPage/NotificationsPage/NotificationsPage"),
