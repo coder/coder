@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { SerpentGroup, SerpentOption } from "#/api/typesGenerated";
+import { docs } from "#/utils/docs";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const group: SerpentGroup = {
@@ -54,7 +56,18 @@ const meta: Meta<typeof SecuritySettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof SecuritySettingsPageView>;
 
-export const Page: Story = {};
+export const Page: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(2);
+		await expect(docsLinks[0]).toHaveAttribute("href", docs("/admin/security"));
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/networking#browser-only-connections"),
+		);
+	},
+};
 
 export const NoTLS = {
 	args: {

@@ -97,7 +97,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
@@ -125,15 +125,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				return ChatToolStatus{}, xerrors.New("organization_id must be a valid UUID")
 			}
 		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			var err error
+			orgID, err = defaultCreateChatOrganization(ctx, deps)
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
-			// Admins can remove a user's only organization membership.
-			if len(me.OrganizationIDs) == 0 {
-				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			orgID = me.OrganizationIDs[0]
 		}
 		var modelConfigID *uuid.UUID
 		if args.ModelConfigID != "" {
@@ -157,6 +153,44 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		}
 		return chatToolStatus(deps, chat), nil
 	},
+}
+
+func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
+	me, err := deps.coderClient.User(ctx, codersdk.Me)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	// Admins can remove a user's only organization membership.
+	if len(me.OrganizationIDs) == 0 {
+		return uuid.Nil, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+	}
+	if len(me.OrganizationIDs) == 1 {
+		return me.OrganizationIDs[0], nil
+	}
+
+	expClient := codersdk.NewExperimentalClient(deps.coderClient)
+	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
+	}
+	// Pinned chats sort before recently updated chats. If the user has 100
+	// pinned chats, this batch may not contain their latest chat, which is an
+	// acceptable tradeoff for keeping organization selection to one request.
+	var latest *codersdk.Chat
+	for i := range chats {
+		if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
+			latest = &chats[i]
+		}
+	}
+	if latest != nil {
+		return latest.OrganizationID, nil
+	}
+	return uuid.Nil, xerrors.New("organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet")
 }
 
 type GetChatArgs struct {

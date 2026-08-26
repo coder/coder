@@ -12,6 +12,7 @@ interface UpdateMCPServerPageViewProps {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	canShareServer?: boolean;
 	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
@@ -29,6 +30,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	isSaving,
 	isDeleting,
 	canSelectUserOIDC,
+	canShareServer,
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
@@ -44,6 +46,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				isSaving={isSaving}
 				isDeleting={isDeleting}
 				canSelectUserOIDC={canSelectUserOIDC}
+				canShareServer={canShareServer}
 				organizationPicker={
 					<OrganizationPicker
 						id="mcp-update-organization"
