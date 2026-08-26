@@ -2301,8 +2301,8 @@ func (c *Client) DeleteChatModel(ctx context.Context, organizationID, modelID uu
 // ChatModelProviderDescriptor is the redacted view of an AI provider carried
 // on the org model collection response. It carries only the capability
 // metadata the Models UI needs; key material, base URLs, and headers are
-// never exposed. The fields mirror what /api/experimental/chats/models
-// already discloses to any authenticated caller.
+// never exposed. The fields mirror the provider descriptors returned by the
+// organization-scoped chat models collection.
 type ChatModelProviderDescriptor struct {
 	ID                 uuid.UUID                          `json:"id" format:"uuid"`
 	Type               string                             `json:"type"`
