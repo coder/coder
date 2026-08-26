@@ -3,6 +3,7 @@ import {
 	mutationOptions,
 	type QueryClient,
 	type QueryOptions,
+	type UseQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -10,6 +11,7 @@ import {
 	type GetTemplatesQuery,
 } from "#/api/api";
 import type {
+	AuthorizationResponse,
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
 	ProvisionerJob,
@@ -57,6 +59,35 @@ export const templates = (
 		queryKey: getTemplatesQueryKey(options),
 		queryFn: () => API.getTemplates(options),
 	};
+};
+
+export const templateUpdatePermissionsByOrganization = (
+	organizationIds: string[] | undefined,
+) => {
+	const uniqueOrganizationIds = [...new Set(organizationIds ?? [])].sort();
+	return {
+		enabled: Boolean(organizationIds),
+		queryKey: [
+			"templates",
+			uniqueOrganizationIds,
+			"updatePermissions",
+		] as const,
+		queryFn: () =>
+			API.checkAuthorization({
+				checks: Object.fromEntries(
+					uniqueOrganizationIds.map((organizationId) => [
+						organizationId,
+						{
+							object: {
+								resource_type: "template" as const,
+								organization_id: organizationId,
+							},
+							action: "update" as const,
+						},
+					]),
+				),
+			}),
+	} satisfies UseQueryOptions<AuthorizationResponse>;
 };
 
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>

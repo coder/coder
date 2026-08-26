@@ -33,6 +33,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	args: {
 		filterState: defaultFilterProps,
 		templateBuilderEnabled: false,
+		templateUpdatePermissions: {},
 	},
 };
 
@@ -246,6 +247,9 @@ export const ClassicParameterFlowWarning: Story = {
 		...WithTemplates.args,
 		canCreateTemplates: true,
 		templates: classicParameterFlowTemplates,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -280,6 +284,9 @@ export const SingleClassicParameterFlowWarning: Story = {
 			classicParameterFlowTemplates[0],
 			classicParameterFlowTemplates[2],
 		],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -295,7 +302,10 @@ export const SingleClassicParameterFlowWarning: Story = {
 export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
 	args: {
 		...ClassicParameterFlowWarning.args,
-		canCreateTemplates: false,
+		canCreateTemplates: true,
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: false,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -305,11 +315,27 @@ export const ClassicParameterFlowWarningHiddenWithoutPermission: Story = {
 	},
 };
 
+export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
+	args: {
+		...ClassicParameterFlowWarning.args,
+		canCreateTemplates: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getByRole("alert")).toBeVisible();
+		expect(canvas.getAllByText("Classic parameters")).toHaveLength(2);
+	},
+};
+
 export const WithoutClassicParameterFlowTemplates: Story = {
 	args: {
 		...WithTemplates.args,
 		canCreateTemplates: true,
 		templates: [classicParameterFlowTemplates[2]],
+		templateUpdatePermissions: {
+			[MockTemplate.organization_id]: true,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

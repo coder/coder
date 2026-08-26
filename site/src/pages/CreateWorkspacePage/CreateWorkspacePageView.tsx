@@ -472,21 +472,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					{Boolean(error) && <ErrorAlert error={error} />}
 
 					{template.use_classic_parameter_flow && (
-						<Alert
-							severity="warning"
-							prominent
-							actions={
-								canUpdateTemplate && (
-									<Button asChild size="sm" variant="outline">
-										<RouterLink
-											to={`/templates/${template.organization_name}/${template.name}/settings`}
-										>
-											Template settings
-										</RouterLink>
-									</Button>
-								)
-							}
-						>
+						<Alert severity="warning" prominent>
 							<AlertTitle>
 								This template uses the classic parameter flow
 							</AlertTitle>

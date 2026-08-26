@@ -535,22 +535,17 @@ export const ClassicParameterFlowTemplate: Story = {
 	},
 };
 
-export const ClassicParameterFlowTemplateWithSettingsAction: Story = {
+export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 	args: {
 		template: classicParameterFlowTemplate,
 		canUpdateTemplate: true,
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+		const alert = within(canvasElement).getByRole("alert");
 
-		const alert = canvas.getByRole("alert");
-		const settingsLink = within(alert).getByRole("link", {
-			name: /template settings/i,
-		});
-		expect(settingsLink).toHaveAttribute(
-			"href",
-			"/templates/default/docker-template/settings",
-		);
+		expect(
+			within(alert).queryByRole("link", { name: /template settings/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

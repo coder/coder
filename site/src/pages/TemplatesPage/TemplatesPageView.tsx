@@ -2,7 +2,11 @@ import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
-import type { Template, TemplateExample } from "#/api/typesGenerated";
+import type {
+	AuthorizationResponse,
+	Template,
+	TemplateExample,
+} from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -142,14 +146,14 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 };
 
 interface TemplateRowProps {
-	showClassicParameterFlow: boolean;
+	canUpdateTemplate: boolean;
 	showOrganizations: boolean;
 	template: Template;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
 const TemplateRow: FC<TemplateRowProps> = ({
-	showClassicParameterFlow,
+	canUpdateTemplate,
 	showOrganizations,
 	template,
 	workspacePermissions,
@@ -180,13 +184,12 @@ const TemplateRow: FC<TemplateRowProps> = ({
 					title={
 						<span className="flex flex-row items-center gap-2">
 							{template.display_name || template.name}
-							{showClassicParameterFlow &&
-								template.use_classic_parameter_flow && (
-									<Badge variant="warning" size="sm">
-										<TriangleAlertIcon aria-hidden="true" />
-										Classic parameters
-									</Badge>
-								)}
+							{canUpdateTemplate && template.use_classic_parameter_flow && (
+								<Badge variant="warning" size="sm">
+									<TriangleAlertIcon aria-hidden="true" />
+									Classic parameters
+								</Badge>
+							)}
 						</span>
 					}
 					subtitle={template.description}
@@ -240,6 +243,7 @@ interface TemplatesPageViewProps {
 	templateBuilderEnabled: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
+	templateUpdatePermissions: AuthorizationResponse | undefined;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
@@ -251,15 +255,18 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	templateBuilderEnabled,
 	examples,
 	templates,
+	templateUpdatePermissions,
 	workspacePermissions,
 }) => {
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
 	const classicParameterFlowTemplateCount =
-		templates?.filter((template) => template.use_classic_parameter_flow)
-			.length ?? 0;
-	const showClassicParameterFlow =
-		canCreateTemplates && classicParameterFlowTemplateCount > 0;
+		templates?.filter(
+			(template) =>
+				template.use_classic_parameter_flow &&
+				templateUpdatePermissions?.[template.organization_id],
+		).length ?? 0;
+	const showClassicParameterFlow = classicParameterFlowTemplateCount > 0;
 
 	return (
 		<Margins className="pb-12">
@@ -334,7 +341,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						templates?.map((template) => (
 							<TemplateRow
 								key={template.id}
-								showClassicParameterFlow={showClassicParameterFlow}
+								canUpdateTemplate={
+									templateUpdatePermissions?.[template.organization_id] ?? false
+								}
 								showOrganizations={showOrganizations}
 								template={template}
 								workspacePermissions={workspacePermissions}

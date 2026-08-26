@@ -3,7 +3,11 @@ import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
-import { templateExamples, templates } from "#/api/queries/templates";
+import {
+	templateExamples,
+	templates,
+	templateUpdatePermissionsByOrganization,
+} from "#/api/queries/templates";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
@@ -21,6 +25,11 @@ const TemplatesPage: FC = () => {
 	});
 
 	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
+	const templateUpdatePermissionsQuery = useQuery(
+		templateUpdatePermissionsByOrganization(
+			templatesQuery.data?.map((template) => template.organization_id),
+		),
+	);
 	const examplesQuery = useQuery({
 		...templateExamples(),
 		enabled: permissions.createTemplates,
@@ -58,6 +67,7 @@ const TemplatesPage: FC = () => {
 				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
+				templateUpdatePermissions={templateUpdatePermissionsQuery.data}
 				workspacePermissions={workspacePermissionsQuery.data}
 			/>
 		</>
