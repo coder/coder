@@ -80,7 +80,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	namesByHost := api.proxyNamesByHost(rows)
+	namesByHost := buildHostnameCollisionMap(rows)
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row, keysByProvider[row.ID])
@@ -92,7 +92,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		sdk.Status = aiProviderStatus(row, namesByHost)
+		sdk.Status = api.aiProviderStatus(row, namesByHost)
 		out = append(out, sdk)
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, out)
@@ -582,18 +582,10 @@ func buildHostnameCollisionMap(rows []database.AIProvider) map[string][]string {
 	return namesByHost
 }
 
-// proxyNamesByHost returns the proxy hostname collision map when AI Gateway Proxy is enabled.
-func (api *API) proxyNamesByHost(rows []database.AIProvider) map[string][]string {
-	if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
-		return nil
-	}
-	return buildHostnameCollisionMap(rows)
-}
-
 // aiProviderStatus collects warnings for an AI provider.
-func aiProviderStatus(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
+func (api *API) aiProviderStatus(provider database.AIProvider, namesByHost map[string][]string) *codersdk.AIProviderStatus {
 	var warnings []string
-	if warning := proxyCollisionWarning(provider, namesByHost); warning != "" {
+	if warning := api.proxyCollisionWarning(provider, namesByHost); warning != "" {
 		warnings = append(warnings, warning)
 	}
 	if len(warnings) == 0 {
@@ -604,8 +596,8 @@ func aiProviderStatus(provider database.AIProvider, namesByHost map[string][]str
 
 // proxyCollisionWarning reports when another provider claims the proxy
 // hostname first in database order.
-func proxyCollisionWarning(provider database.AIProvider, namesByHost map[string][]string) string {
-	if !provider.Enabled || provider.Deleted {
+func (api *API) proxyCollisionWarning(provider database.AIProvider, namesByHost map[string][]string) string {
+	if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() || !provider.Enabled || provider.Deleted {
 		return ""
 	}
 	host := aibridged.BaseURLHostname(provider.BaseUrl)
@@ -626,7 +618,7 @@ func (api *API) aiProviderStatusFromDB(ctx context.Context, provider database.AI
 		api.Logger.Error(ctx, "load AI providers for status", slog.Error(err))
 		return nil
 	}
-	return aiProviderStatus(provider, api.proxyNamesByHost(rows))
+	return api.aiProviderStatus(provider, buildHostnameCollisionMap(rows))
 }
 
 // writeAIProviderError translates an error from the AI provider
