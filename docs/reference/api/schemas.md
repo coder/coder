@@ -9673,6 +9673,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
   "group_budget": {
     "limit_source": "user_override",
@@ -9685,12 +9689,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-|----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
-| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
-| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
-| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                |
+|----------------------|--------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_budget`   | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that currently applies to the user. Null when no budget applies or the effective group belongs to a different organization than the queried group.                                                                     |
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group.      |
+| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. When populated, it matches EffectiveBudget. Null when the user's budget resolves to another group or no budget applies. Deprecated: Use EffectiveBudget instead. |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                     |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                            |
 
 ## codersdk.GroupMembersAISpend
 
@@ -9698,6 +9703,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
