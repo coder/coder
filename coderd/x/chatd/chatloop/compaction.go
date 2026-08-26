@@ -70,10 +70,6 @@ const (
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
-	// defaultCompactionSystemSummaryPrefixPendingUser is used when
-	// compaction triggered on user message(s) the assistant had not yet
-	// responded to (CODAGT-737): those messages follow the summary
-	// verbatim, so the prefix must not claim the assistant was mid-work.
 	defaultCompactionSystemSummaryPrefixPendingUser = "The following is a " +
 		"summary of the earlier conversation. The context was compacted " +
 		"immediately after the user sent new message(s) that the assistant " +

@@ -304,15 +304,11 @@ func textFromParts(parts []codersdk.ChatMessagePart) string {
 }
 
 type buildCompactionMessagesInput struct {
-	modelConfigID  uuid.UUID
-	toolCallID     string
-	toolName       string
-	compaction     compactionOutcome
-	contentVersion int16
-	// pendingUserMessages are the unanswered trailing user message(s)
-	// excluded from the summarizer's input, replayed as model-visibility
-	// rows so the pending instruction survives compaction without
-	// depending on summary fidelity (CODAGT-737).
+	modelConfigID       uuid.UUID
+	toolCallID          string
+	toolName            string
+	compaction          compactionOutcome
+	contentVersion      int16
 	pendingUserMessages []database.ChatMessage
 }
 
