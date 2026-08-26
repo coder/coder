@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { BuildingTemplateLoader } from "./BuildingTemplateLoader";
 
 const meta: Meta<typeof BuildingTemplateLoader> = {
-	title: "pages/TemplateBuilder/BuildingTemplateLoader",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/BuildingTemplateLoader",
 	component: BuildingTemplateLoader,
 	decorators: [
 		(Story) => (

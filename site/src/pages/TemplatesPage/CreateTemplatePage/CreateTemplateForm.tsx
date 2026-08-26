@@ -35,7 +35,8 @@ import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { ProvisionerTagsField } from "#/modules/provisioners/ProvisionerTagsField";
-import { SelectedTemplate } from "#/pages/CreateWorkspacePage/SelectedTemplate";
+import { SelectedTemplate } from "#/modules/templates/SelectedTemplate/SelectedTemplate";
+import { VariableInput } from "#/modules/templates/VariableInput/VariableInput";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {
@@ -50,7 +51,6 @@ import {
 	type TemplateAutostopRequirementDaysValue,
 } from "#/utils/schedule";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
-import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 

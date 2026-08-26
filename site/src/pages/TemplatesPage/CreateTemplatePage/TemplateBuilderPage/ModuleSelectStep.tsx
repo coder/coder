@@ -12,11 +12,11 @@ import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
 import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
-import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
+import { useFuzzySearch } from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/hooks/useFuzzySearch";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
-} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+} from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,

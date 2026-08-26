@@ -3,7 +3,8 @@ import { fn } from "storybook/test";
 import { TemplateCard } from "./TemplateCard";
 
 const meta: Meta<typeof TemplateCard> = {
-	title: "pages/TemplateBuilder/TemplateCard",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateCard",
 	component: TemplateCard,
 	args: {
 		onSelect: fn(),

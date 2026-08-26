@@ -10,7 +10,7 @@ import type {
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
-} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+} from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderHeader";
 import {
 	type ConfigurationFieldDefinition,
 	ConfigurationFieldLabel,

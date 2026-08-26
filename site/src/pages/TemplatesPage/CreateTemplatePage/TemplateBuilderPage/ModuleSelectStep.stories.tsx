@@ -55,7 +55,8 @@ const modules: TemplateBuilderModule[] = [
 ].map(makeModule);
 
 const meta: Meta<typeof ModuleSelectStep> = {
-	title: "pages/TemplateBuilder/ModuleSelectStep",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/ModuleSelectStep",
 	component: ModuleSelectStep,
 	args: {
 		baseId,

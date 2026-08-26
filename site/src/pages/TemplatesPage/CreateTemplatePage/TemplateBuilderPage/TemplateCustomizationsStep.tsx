@@ -18,7 +18,7 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
-} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+} from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderHeader";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 import {

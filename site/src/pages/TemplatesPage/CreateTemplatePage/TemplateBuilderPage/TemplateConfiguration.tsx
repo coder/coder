@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
+import { TemplateBuilderAvatarData } from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderAvatarData";
 import {
 	ConfigurationField,
 	ConfigurationFieldContainer,

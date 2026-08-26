@@ -124,8 +124,10 @@ describe("checkPageEntries", () => {
 		]);
 	});
 
-	it("defaults to the shipped exception list", () => {
-		expect(checkPageEntries([dir("TemplateBuilder")]).violations).toEqual([]);
+	it("rejects invalid names by default", () => {
+		expect(checkPageEntries([dir("TemplateBuilder")]).violations).toEqual([
+			{ name: "TemplateBuilder", reason: BAD_NAME },
+		]);
 	});
 
 	it("reports violations in directory order", () => {
@@ -232,15 +234,6 @@ describe("runCli", () => {
 		});
 	});
 
-	it("exits 1 when an exception directory is gone", () => {
-		withTmpDir((tmpDir) => {
-			fs.mkdirSync(path.join(tmpDir, "WorkspacesPage"));
-			const { code, output } = run([`--dir=${tmpDir}`]);
-			expect(code).toBe(1);
-			expect(output).toContain("Stale entries in KNOWN_EXCEPTIONS");
-		});
-	});
-
 	it("defaults to site/src/pages and passes on the real tree", () => {
 		const { code } = run([]);
 		expect(code).toBe(0);
@@ -254,8 +247,7 @@ describe("site/src/pages", () => {
 		expect(result).toEqual({ violations: [], staleExceptions: [] });
 	});
 
-	it("keeps the exception list minimal so migration can retire it", () => {
-		// Guards against the list growing: new pages must comply instead.
-		expect(KNOWN_EXCEPTIONS).toEqual(["TemplateBuilder"]);
+	it("requires every top-level directory to follow the naming rule", () => {
+		expect(KNOWN_EXCEPTIONS).toEqual([]);
 	});
 });

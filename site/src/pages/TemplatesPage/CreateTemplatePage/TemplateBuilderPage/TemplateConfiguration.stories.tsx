@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
 const meta: Meta<typeof TemplateConfiguration> = {
-	title: "pages/TemplateBuilder/TemplateConfiguration",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateConfiguration",
 	component: TemplateConfiguration,
 };
 

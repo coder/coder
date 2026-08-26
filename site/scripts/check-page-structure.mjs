@@ -25,9 +25,8 @@ import { parseArgs } from "node:util";
 // "OAuth2Page" pass. "Page" on its own does not match.
 export const PAGE_DIR_PATTERN = /^[A-Z][A-Za-z0-9]*Page$/;
 
-// Directories that violate the rule but predate it. Do not add entries.
-// Remove each one as its directory is migrated to a compliant name.
-export const KNOWN_EXCEPTIONS = ["TemplateBuilder"];
+// Temporary exceptions for directories that predate this rule. Do not add entries.
+export const KNOWN_EXCEPTIONS = [];
 
 export const NOT_A_DIRECTORY = "not a directory";
 export const BAD_NAME = 'name must be PascalCase and end with "Page"';

@@ -16,7 +16,7 @@ import {
 import { CreateTemplateForm } from "./CreateTemplateForm";
 
 const meta: Meta<typeof CreateTemplateForm> = {
-	title: "pages/CreateTemplatePage/CreateTemplateForm",
+	title: "pages/TemplatesPage/CreateTemplatePage/CreateTemplateForm",
 	component: CreateTemplateForm,
 	args: {
 		isSubmitting: false,

@@ -3,7 +3,8 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
-	title: "pages/TemplateBuilder/SelectionSummary",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/SelectionSummary",
 	component: SelectionSummary,
 	args: {
 		onNavigateStep: fn(),

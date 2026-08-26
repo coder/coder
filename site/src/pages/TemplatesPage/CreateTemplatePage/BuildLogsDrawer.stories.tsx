@@ -12,7 +12,7 @@ import { withWebSocket } from "#/testHelpers/storybook";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 
 const meta: Meta<typeof BuildLogsDrawer> = {
-	title: "pages/CreateTemplatePage/BuildLogsDrawer",
+	title: "pages/TemplatesPage/CreateTemplatePage/BuildLogsDrawer",
 	component: BuildLogsDrawer,
 	args: {
 		open: true,

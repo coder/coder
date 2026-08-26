@@ -14,7 +14,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { FormFields, VerticalForm } from "#/components/Form/Form";
 import { Loader } from "#/components/Loader/Loader";
-import { VariableInput } from "#/pages/CreateTemplatePage/VariableInput";
+import { VariableInput } from "#/modules/templates/VariableInput/VariableInput";
 
 type MissingTemplateVariablesDialogProps = {
 	open: boolean;

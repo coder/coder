@@ -42,7 +42,8 @@ const permittedOrgsKey = permittedOrganizations({
 }).queryKey;
 
 const meta: Meta<typeof TemplateCustomizationsStep> = {
-	title: "pages/TemplateBuilder/TemplateCustomizationsStep",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateCustomizationsStep",
 	component: TemplateCustomizationsStep,
 	args: {
 		state: baseState,

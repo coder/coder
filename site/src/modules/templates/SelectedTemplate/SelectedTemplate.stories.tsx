@@ -3,7 +3,7 @@ import { MockTemplate } from "#/testHelpers/entities";
 import { SelectedTemplate } from "./SelectedTemplate";
 
 const meta: Meta<typeof SelectedTemplate> = {
-	title: "pages/CreateWorkspacePage/SelectedTemplate",
+	title: "modules/templates/SelectedTemplate",
 	component: SelectedTemplate,
 };
 

@@ -9,7 +9,7 @@ import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
-} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+} from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderHeader";
 import { cn } from "#/utils/cn";
 import {
 	type ConfigurationFieldDefinition,

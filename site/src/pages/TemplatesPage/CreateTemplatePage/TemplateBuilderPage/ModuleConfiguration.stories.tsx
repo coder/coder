@@ -4,7 +4,8 @@ import type { FormHelpers } from "#/utils/formUtils";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
 const meta: Meta<typeof ModuleConfiguration> = {
-	title: "pages/TemplateBuilder/ModuleConfiguration",
+	title:
+		"pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/ModuleConfiguration",
 	component: ModuleConfiguration,
 	args: {
 		onRemove: fn(),

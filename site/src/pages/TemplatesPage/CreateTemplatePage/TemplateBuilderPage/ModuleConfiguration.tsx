@@ -1,7 +1,7 @@
 import { CheckIcon, TrashIcon } from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
-import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
+import { TemplateBuilderAvatarData } from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderAvatarData";
 import {
 	ConfigurationField,
 	ConfigurationFieldContainer,

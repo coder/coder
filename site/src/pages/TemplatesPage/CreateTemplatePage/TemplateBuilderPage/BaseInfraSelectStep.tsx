@@ -6,7 +6,7 @@ import { Loader } from "#/components/Loader/Loader";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
-} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+} from "#/pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderHeader";
 import { TemplateCard } from "./TemplateCard";
 import { type SelectedBaseMeta, toSelectedBaseMeta } from "./wizardState";
 

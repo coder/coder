@@ -213,10 +213,13 @@ const StarterTemplatePage = lazy(
 	() => import("./pages/StarterTemplatePage/StarterTemplatePage"),
 );
 const CreateTemplatePage = lazy(
-	() => import("./pages/CreateTemplatePage/CreateTemplatePage"),
+	() => import("./pages/TemplatesPage/CreateTemplatePage/CreateTemplatePage"),
 );
 const TemplateBuilderPage = lazy(
-	() => import("./pages/TemplateBuilder/TemplateBuilderPage"),
+	() =>
+		import(
+			"./pages/TemplatesPage/CreateTemplatePage/TemplateBuilderPage/TemplateBuilderPage"
+		),
 );
 const TemplateVariablesPage = lazy(
 	() =>
