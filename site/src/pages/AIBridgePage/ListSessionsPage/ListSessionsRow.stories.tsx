@@ -92,7 +92,7 @@ export const LongPrompt: Story = {
 	},
 };
 
-export const MobilePromptIcon: Story = {
+export const NarrowPromptIcon: Story = {
 	args: {
 		session: {
 			...MockSession,
@@ -102,7 +102,7 @@ export const MobilePromptIcon: Story = {
 	},
 	parameters: {
 		viewport: {
-			defaultViewport: "mobile1",
+			defaultViewport: "ipad",
 		},
 	},
 	play: async ({ canvasElement }) => {
