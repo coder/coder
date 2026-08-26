@@ -1699,9 +1699,29 @@ type mcpOAuth2Discovery struct {
 // protectedResourceMetadata represents the response from a
 // Protected Resource Metadata endpoint per RFC 9728 §2.
 type protectedResourceMetadata struct {
-	Resource             string   `json:"resource"`
-	AuthorizationServers []string `json:"authorization_servers"`
-	ScopesSupported      []string `json:"scopes_supported,omitempty"`
+	Resource             resourceIdentifiers `json:"resource"`
+	AuthorizationServers []string            `json:"authorization_servers"`
+	ScopesSupported      []string            `json:"scopes_supported,omitempty"`
+}
+
+// resourceIdentifiers tolerates both a single JSON string and an
+// array of strings. RFC 9728 §2 defines "resource" as a string, but
+// some servers (e.g. GitLab's official MCP server) return an array
+// when the metadata document covers multiple resources.
+type resourceIdentifiers []string
+
+func (r *resourceIdentifiers) UnmarshalJSON(data []byte) error {
+	var single string
+	if err := json.Unmarshal(data, &single); err == nil {
+		*r = resourceIdentifiers{single}
+		return nil
+	}
+	var many []string
+	if err := json.Unmarshal(data, &many); err != nil {
+		return xerrors.New("resource must be a string or an array of strings")
+	}
+	*r = resourceIdentifiers(many)
+	return nil
 }
 
 // authServerMetadata represents the response from an Authorization
