@@ -9,42 +9,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/wsrelated"
 	"github.com/coder/coder/v2/testutil"
 )
-
-// TestAllWorkspaceRelated verifies that allWorkspaceRelated selects every node
-// in the related-data hierarchy.
-func TestAllWorkspaceRelated(t *testing.T) {
-	t.Parallel()
-
-	all := allWorkspaceRelated()
-	require.True(t, all.Template)
-	require.NotNil(t, all.LatestBuild)
-	require.NotNil(t, all.LatestBuild.Job)
-	require.True(t, all.LatestBuild.Job.QueuePosition)
-	require.True(t, all.LatestBuild.TemplateVersion)
-	require.NotNil(t, all.LatestBuild.Resources)
-	require.True(t, all.LatestBuild.Resources.Metadata)
-	require.NotNil(t, all.LatestBuild.Resources.Agents)
-	require.NotNil(t, all.LatestBuild.Resources.Agents.Apps)
-	require.True(t, all.LatestBuild.Resources.Agents.Apps.Statuses)
-	require.True(t, all.LatestBuild.Resources.Agents.Scripts)
-	require.True(t, all.LatestBuild.Resources.Agents.LogSources)
-	require.True(t, all.LatestBuild.appStatuses())
-}
-
-// TestLatestBuildRelatedAppStatuses verifies the nil-safe appStatuses accessor
-// only reports true when the full apps.statuses path is present.
-func TestLatestBuildRelatedAppStatuses(t *testing.T) {
-	t.Parallel()
-
-	require.False(t, (*latestBuildRelated)(nil).appStatuses())
-	require.False(t, (&latestBuildRelated{}).appStatuses())
-	require.False(t, (&latestBuildRelated{Resources: &resourcesRelated{}}).appStatuses())
-	require.False(t, (&latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{}}}).appStatuses())
-	require.False(t, (&latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{}}}}).appStatuses())
-	require.True(t, (&latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{Statuses: true}}}}).appStatuses())
-}
 
 // TestWorkspaceBuildsDataQueryGating asserts that workspaceBuildsData only
 // issues the database queries implied by the selection. gomock is strict, so
@@ -93,37 +60,37 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		cfg   latestBuildRelated
+		cfg   wsrelated.LatestBuild
 		setup func(*dbmock.MockStore)
 	}{
 		{
 			name:  "BuildOnly",
-			cfg:   latestBuildRelated{},
+			cfg:   wsrelated.LatestBuild{},
 			setup: func(*dbmock.MockStore) {},
 		},
 		{
 			name:  "Job",
-			cfg:   latestBuildRelated{Job: &jobRelated{}},
+			cfg:   wsrelated.LatestBuild{Job: &wsrelated.Job{}},
 			setup: expectJob,
 		},
 		{
 			name:  "JobWithQueuePosition",
-			cfg:   latestBuildRelated{Job: &jobRelated{QueuePosition: true}},
+			cfg:   wsrelated.LatestBuild{Job: &wsrelated.Job{QueuePosition: true}},
 			setup: expectJobWithQueuePosition,
 		},
 		{
 			name:  "TemplateVersion",
-			cfg:   latestBuildRelated{TemplateVersion: true},
+			cfg:   wsrelated.LatestBuild{TemplateVersion: true},
 			setup: expectTemplateVersion,
 		},
 		{
 			name:  "Resources",
-			cfg:   latestBuildRelated{Resources: &resourcesRelated{}},
+			cfg:   wsrelated.LatestBuild{Resources: &wsrelated.Resources{}},
 			setup: expectResources,
 		},
 		{
 			name: "Metadata",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Metadata: true}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Metadata: true}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				db.EXPECT().GetWorkspaceResourceMetadataByResourceIDs(gomock.Any(), gomock.Any()).
@@ -132,7 +99,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "Agents",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -140,7 +107,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "Apps",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{}}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{}}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -149,7 +116,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "AppStatuses",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{Statuses: true}}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -160,7 +127,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "Scripts",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Scripts: true}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Scripts: true}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -170,7 +137,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "LogSources",
-			cfg:  latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{LogSources: true}}},
+			cfg:  wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{LogSources: true}}},
 			setup: func(db *dbmock.MockStore) {
 				expectResources(db)
 				expectAgents(db)
@@ -180,7 +147,7 @@ func TestWorkspaceBuildsDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "All",
-			cfg:  allLatestBuildRelated(),
+			cfg:  wsrelated.AllLatestBuild(),
 			setup: func(db *dbmock.MockStore) {
 				expectJobWithQueuePosition(db)
 				expectTemplateVersion(db)
@@ -229,7 +196,7 @@ func TestWorkspaceBuildsDataResourcesShortCircuit(t *testing.T) {
 	db.EXPECT().GetWorkspaceResourcesByJobIDs(gomock.Any(), gomock.Any()).
 		Return([]database.WorkspaceResource{}, nil)
 
-	cfg := latestBuildRelated{Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{Statuses: true}}}}
+	cfg := wsrelated.LatestBuild{Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}}}
 	api := &API{Options: &Options{Database: db}}
 	_, err := api.workspaceBuildsData(ctx, []database.WorkspaceBuild{build}, cfg)
 	require.NoError(t, err)
@@ -245,17 +212,17 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 
 	cases := []struct {
 		name  string
-		cfg   workspaceRelated
+		cfg   wsrelated.Config
 		setup func(*dbmock.MockStore)
 	}{
 		{
 			name:  "None",
-			cfg:   workspaceRelated{},
+			cfg:   wsrelated.Config{},
 			setup: func(*dbmock.MockStore) {},
 		},
 		{
 			name: "Template",
-			cfg:  workspaceRelated{Template: true},
+			cfg:  wsrelated.Config{Template: true},
 			setup: func(db *dbmock.MockStore) {
 				db.EXPECT().GetTemplatesWithFilter(gomock.Any(), gomock.Any()).
 					Return([]database.Template{}, nil)
@@ -263,7 +230,7 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "LatestBuild",
-			cfg:  workspaceRelated{LatestBuild: &latestBuildRelated{}},
+			cfg:  wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{}},
 			setup: func(db *dbmock.MockStore) {
 				// No builds returned, so no build-subtree queries run.
 				db.EXPECT().GetLatestWorkspaceBuildsByWorkspaceIDs(gomock.Any(), gomock.Any()).
@@ -272,8 +239,8 @@ func TestWorkspaceDataQueryGating(t *testing.T) {
 		},
 		{
 			name: "AppStatuses",
-			cfg: workspaceRelated{LatestBuild: &latestBuildRelated{
-				Resources: &resourcesRelated{Agents: &agentsRelated{Apps: &appsRelated{Statuses: true}}},
+			cfg: wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{
+				Resources: &wsrelated.Resources{Agents: &wsrelated.Agents{Apps: &wsrelated.Apps{Statuses: true}}},
 			}},
 			setup: func(db *dbmock.MockStore) {
 				// The workspace-level latest app status query is gated on the
