@@ -2690,6 +2690,7 @@ export const SettingsUserAgentsAdmin: Story = {
 	args: {
 		chats: [],
 		isAdmin: true,
+		canManageAgentSettings: true,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2708,6 +2709,40 @@ export const SettingsUserAgentsAdmin: Story = {
 			"href",
 			"/ai/settings/coder-agents",
 		);
+	},
+};
+
+export const SettingsManageAgentsOrgModelAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		canManageAgentSettings: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const manageAgentsLink = await canvas.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+		// API-key visibility stays tied to isAdmin and configured providers.
+		expect(
+			canvas.queryByRole("link", { name: "Secrets (API keys)" }),
+		).not.toBeInTheDocument();
 	},
 };
 
