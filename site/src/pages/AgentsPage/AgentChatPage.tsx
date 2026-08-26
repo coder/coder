@@ -144,10 +144,7 @@ import {
  * without touching the persisted preference: widening restores the
  * panel, and an explicit user action (clearSuppression) overrides it.
  */
-export function useRightPanelNarrowSuppression(): {
-	suppressed: boolean;
-	clearSuppression: () => void;
-} {
+export function useRightPanelNarrowSuppression() {
 	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
 	const [suppressed, setSuppressed] = useState(isBelowLg);
 	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);

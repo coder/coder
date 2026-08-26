@@ -83,7 +83,7 @@ export const integerCodec: StorageCodec<number> = {
 export const stringLiteralCodec = <T extends string>(options: {
 	oneOf: readonly T[];
 }): StorageCodec<T> => ({
-	decode: (raw) => (options.oneOf.includes(raw as T) ? (raw as T) : undefined),
+	decode: (raw) => options.oneOf.find((option) => option === raw),
 	encode: (value) => value,
 });
 
@@ -253,6 +253,8 @@ const createHandle = <T>(
 		const raw = readRaw(area, key);
 		const cached = snapshotCache.get(cacheKey);
 		if (cached && cached.raw === raw) {
+			// SAFETY: each key has a single handle definition, so entries
+			// under cacheKey were produced by this handle's codec as a T.
 			return cached.value as T;
 		}
 		const value = decodeRaw(raw);
@@ -275,7 +277,7 @@ const createHandle = <T>(
 			remove();
 			return { ok: true };
 		}
-		const raw = codec.encode(value as NonNullable<T>);
+		const raw = codec.encode(value);
 		const result = writeRaw(area, key, raw);
 		if (!result.ok) {
 			// Reads keep reflecting what actually persisted; callers can

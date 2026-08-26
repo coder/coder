@@ -76,9 +76,7 @@ export function useBatchActions(
 				}),
 			);
 		},
-		onSuccess: (_builds: WorkspaceBuild[]) => {
-			return onSuccess();
-		},
+		onSuccess,
 		onError: (error) => {
 			toast.error("Failed to delete some workspaces.", {
 				description: getErrorDetail(error),
