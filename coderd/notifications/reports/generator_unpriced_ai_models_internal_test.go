@@ -38,7 +38,8 @@ func TestReportGenerator_TicksUnpricedAIModels(t *testing.T) {
 	resetTrap.MustWait(ctx).MustRelease(ctx)
 	require.Empty(t, notifEnq.Sent())
 
-	// Make the report eligible and give the next ticker run a model to report.
+	// The initial run records the current time. Backdate it beyond the weekly
+	// frequency so the report is eligible on the next 15-minute ticker run.
 	require.NoError(t, db.UpsertNotificationReportGeneratorLog(ctx, database.UpsertNotificationReportGeneratorLogParams{
 		NotificationTemplateID: notifications.TemplateAIModelsUnpricedReport,
 		LastGeneratedAt:        clk.Now().Add(-unpricedAIModelsReportFrequency - time.Minute),
