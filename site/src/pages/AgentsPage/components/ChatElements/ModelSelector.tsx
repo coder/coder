@@ -162,9 +162,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					role="combobox"
 					type="button"
 					variant="subtle"
-					// min-w floor: keep roughly 8ch of the model name visible before
-					// truncation kicks in. 3.125rem covers the fixed chrome around
-					// the label (px-2 padding, size-3 provider icon, two gap-1 gaps,
+					// min-w floor: ~8ch visible before truncation.
 					// size-3.5 chevron) so the label and chevron never get clipped.
 					className={cn(
 						"h-7 min-w-[calc(8ch_+_3.125rem)] shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
@@ -200,11 +198,8 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
-					// On touch devices, auto-focusing the search input pops the
-					// software keyboard as soon as the picker opens, hiding the
-					// model list behind it. Only keep the WAI-ARIA combobox
-					// focus-into-input behavior for fine pointers (keyboard and
-					// mouse users on desktop).
+					// Touch devices on open auto-focus search with sw keyboard, hide model list. 
+					// Keep WAI-ARIA combobox focus-into-input behavior for fine pointers.
 					if (matchMedia("(pointer: coarse)").matches) {
 						event.preventDefault();
 					}
