@@ -84,6 +84,9 @@ interface CreateWorkspacePageViewProps {
 		owner: TypesGen.MinimalUser,
 	) => void;
 	resetMutation: () => void;
+	// True while a dynamic-parameters request is in flight; blocks submission
+	// until the form is reconciled with the server.
+	parametersUpdating: boolean;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
 	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
@@ -115,6 +118,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	onSubmit,
 	onCancel,
 	resetMutation,
+	parametersUpdating,
 	sendMessage,
 	startPollingExternalAuth,
 	owner,
@@ -384,6 +388,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 	const disabled =
 		creatingWorkspace ||
+		// Block submission while parameters are still resolving so a fast click
+		// can't create a workspace from unreconciled values (e.g. a branch that
+		// has not been applied yet).
+		parametersUpdating ||
 		!hasAllRequiredExternalAuth ||
 		diagnostics.some((diagnostic) => diagnostic.severity === "error") ||
 		parameters.some((parameter) =>
@@ -771,8 +779,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 					<div className="flex flex-row justify-end">
 						<Button type="submit" disabled={disabled}>
-							<Spinner loading={creatingWorkspace} />
-							Create workspace
+							<Spinner loading={creatingWorkspace || parametersUpdating} />
+							{parametersUpdating && !creatingWorkspace
+								? "Loading parameters..."
+								: "Create workspace"}
 						</Button>
 					</div>
 				</form>
