@@ -262,7 +262,7 @@ Coder provides OAuth2 discovery endpoints for programmatic integration:
 
 These endpoints return server capabilities and endpoint URLs according to [RFC 8414](https://datatracker.ietf.org/doc/html/rfc8414) and [RFC 9728](https://datatracker.ietf.org/doc/html/rfc9728).
 
-`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`, so a public client can determine that secretless registration is available without knowing it in advance.
+`token_endpoint_auth_methods_supported` lists every method the token endpoint accepts, including `none`. It is not gated on [Dynamic Client Registration](#dynamic-client-registration), since existing public clients still exchange tokens when new registrations are disabled. `registration_endpoint` is advertised only while Dynamic Client Registration is enabled, so that field, not this one, tells a client whether it can register a new public client.
 
 ## Token Management
 
