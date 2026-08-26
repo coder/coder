@@ -1,4 +1,4 @@
-import { CircleHelpIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Tooltip,
@@ -23,7 +23,7 @@ export const NetworkMonitoringDisabled: FC = () => (
 						className="flex items-center justify-center border-0 bg-transparent p-0 text-content-secondary"
 						onClick={(event) => event.stopPropagation()}
 					>
-						<CircleHelpIcon className="size-3" />
+						<InfoIcon className="size-3" />
 					</button>
 				</TooltipTrigger>
 				<TooltipContent side="top" align="start" className="max-w-[320px]">
