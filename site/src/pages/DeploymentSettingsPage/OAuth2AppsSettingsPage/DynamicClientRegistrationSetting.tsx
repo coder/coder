@@ -72,7 +72,7 @@ export const DynamicClientRegistrationSetting: FC<
 				 */}
 				<Button
 					ref={buttonRef}
-					variant={enabled ? "outline-solid" : "default"}
+					variant={enabled ? "outline" : "default"}
 					disabled={!canEdit}
 					aria-disabled={isUpdating}
 					className="aria-disabled:pointer-events-none"

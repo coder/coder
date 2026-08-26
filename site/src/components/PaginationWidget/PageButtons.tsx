@@ -68,7 +68,7 @@ const BasePageButton: FC<BasePageButtonProps> = ({
 }) => {
 	return (
 		<Button
-			variant={highlighted ? "default" : "outline-solid"}
+			variant={highlighted ? "default" : "outline"}
 			size="icon"
 			aria-label={ariaLabel}
 			name={name}
