@@ -189,7 +189,10 @@ export const DialogDescription: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<DialogPrimitive.Description
-			className={cn("text-sm text-content-secondary font-medium", className)}
+			className={cn(
+				"m-0 text-sm text-content-secondary font-medium",
+				className,
+			)}
 			{...props}
 		/>
 	);
