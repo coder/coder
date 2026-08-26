@@ -174,8 +174,9 @@ export const OrganizationValue: FC<OrganizationValueProps> = ({
 		labelOrganizations ?? [organization],
 	);
 	return (
-		<output
+		<div
 			id={id}
+			role="group"
 			aria-label={`Organization ${label}`}
 			className={cn(
 				"flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary",
@@ -188,6 +189,6 @@ export const OrganizationValue: FC<OrganizationValueProps> = ({
 				fallback={organization.display_name}
 			/>
 			<span className="truncate">{label}</span>
-		</output>
+		</div>
 	);
 };
