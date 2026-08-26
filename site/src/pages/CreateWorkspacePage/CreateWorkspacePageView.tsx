@@ -486,6 +486,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								>
 									Read the dynamic parameters docs
 								</Link>
+								{canUpdateTemplate && (
+									<Link asChild showExternalIcon={false} className="ml-1">
+										<RouterLink
+											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+										>
+											or open template settings
+										</RouterLink>
+									</Link>
+								)}
 							</AlertDescription>
 						</Alert>
 					)}

@@ -235,6 +235,14 @@ const classicParameterFlowTemplates = [
 	},
 	{
 		...MockTemplate,
+		id: "template-classic-without-permission",
+		organization_id: "other-organization",
+		name: "classic-without-permission",
+		display_name: "Classic Without Permission",
+		use_classic_parameter_flow: true,
+	},
+	{
+		...MockTemplate,
 		id: "template-dynamic",
 		name: "dynamic-one",
 		display_name: "Dynamic One",
@@ -249,6 +257,7 @@ export const ClassicParameterFlowWarning: Story = {
 		templates: classicParameterFlowTemplates,
 		templateUpdatePermissions: {
 			[MockTemplate.organization_id]: true,
+			"other-organization": false,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -269,6 +278,13 @@ export const ClassicParameterFlowWarning: Story = {
 		const classicCell = canvas.getByRole("cell", { name: /Classic One/ });
 		expect(within(classicCell).getByText("Classic parameters")).toBeVisible();
 
+		const inaccessibleCell = canvas.getByRole("cell", {
+			name: /Classic Without Permission/,
+		});
+		expect(
+			within(inaccessibleCell).queryByText("Classic parameters"),
+		).not.toBeInTheDocument();
+
 		const dynamicCell = canvas.getByRole("cell", { name: /Dynamic One/ });
 		expect(
 			within(dynamicCell).queryByText("Classic parameters"),
@@ -282,7 +298,7 @@ export const SingleClassicParameterFlowWarning: Story = {
 		canCreateTemplates: true,
 		templates: [
 			classicParameterFlowTemplates[0],
-			classicParameterFlowTemplates[2],
+			classicParameterFlowTemplates[3],
 		],
 		templateUpdatePermissions: {
 			[MockTemplate.organization_id]: true,
@@ -332,7 +348,7 @@ export const WithoutClassicParameterFlowTemplates: Story = {
 	args: {
 		...WithTemplates.args,
 		canCreateTemplates: true,
-		templates: [classicParameterFlowTemplates[2]],
+		templates: [classicParameterFlowTemplates[3]],
 		templateUpdatePermissions: {
 			[MockTemplate.organization_id]: true,
 		},

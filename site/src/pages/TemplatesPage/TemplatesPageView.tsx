@@ -258,8 +258,8 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	templateUpdatePermissions,
 	workspacePermissions,
 }) => {
-	const isLoading = !templates;
-	const isEmpty = templates && templates.length === 0;
+	const isLoading = !templates || !templateUpdatePermissions;
+	const isEmpty = !isLoading && templates.length === 0;
 	const classicParameterFlowTemplateCount =
 		templates?.filter(
 			(template) =>
@@ -328,9 +328,9 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{isLoading && <TableLoader />}
-
-					{isEmpty ? (
+					{isLoading ? (
+						<TableLoader />
+					) : isEmpty ? (
 						<EmptyTemplates
 							canCreateTemplates={canCreateTemplates}
 							templateBuilderEnabled={templateBuilderEnabled}
@@ -338,11 +338,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 							isUsingFilter={filterState.filter.used}
 						/>
 					) : (
-						templates?.map((template) => (
+						templates.map((template) => (
 							<TemplateRow
 								key={template.id}
 								canUpdateTemplate={
-									templateUpdatePermissions?.[template.organization_id] ?? false
+									templateUpdatePermissions[template.organization_id] ?? false
 								}
 								showOrganizations={showOrganizations}
 								template={template}

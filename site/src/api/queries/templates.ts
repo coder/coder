@@ -3,7 +3,6 @@ import {
 	mutationOptions,
 	type QueryClient,
 	type QueryOptions,
-	type UseQueryOptions,
 } from "react-query";
 import {
 	API,
@@ -11,7 +10,6 @@ import {
 	type GetTemplatesQuery,
 } from "#/api/api";
 import type {
-	AuthorizationResponse,
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
 	ProvisionerJob,
@@ -24,6 +22,7 @@ import type {
 } from "#/api/typesGenerated";
 import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
+import { checkAuthorization } from "./authCheck";
 
 const templateKey = (templateId: string) => ["template", templateId];
 const templateListsKey = ["templates", "list"] as const;
@@ -62,32 +61,26 @@ export const templates = (
 };
 
 export const templateUpdatePermissionsByOrganization = (
-	organizationIds: string[] | undefined,
+	organizationIds: readonly string[],
 ) => {
-	const uniqueOrganizationIds = [...new Set(organizationIds ?? [])].sort();
+	const uniqueOrganizationIds = [...new Set(organizationIds)].sort();
+	const checks = Object.fromEntries(
+		uniqueOrganizationIds.map((organizationId) => [
+			organizationId,
+			{
+				object: {
+					resource_type: "template" as const,
+					organization_id: organizationId,
+				},
+				action: "update" as const,
+			},
+		]),
+	);
+
 	return {
-		enabled: Boolean(organizationIds),
-		queryKey: [
-			"templates",
-			uniqueOrganizationIds,
-			"updatePermissions",
-		] as const,
-		queryFn: () =>
-			API.checkAuthorization({
-				checks: Object.fromEntries(
-					uniqueOrganizationIds.map((organizationId) => [
-						organizationId,
-						{
-							object: {
-								resource_type: "template" as const,
-								organization_id: organizationId,
-							},
-							action: "update" as const,
-						},
-					]),
-				),
-			}),
-	} satisfies UseQueryOptions<AuthorizationResponse>;
+		...checkAuthorization({ checks }),
+		enabled: uniqueOrganizationIds.length > 0,
+	};
 };
 
 export const invalidateTemplateListQueries = (queryClient: QueryClient) =>

@@ -16,7 +16,7 @@ import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
-	const { showOrganizations } = useDashboard();
+	const { organizations, showOrganizations } = useDashboard();
 
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filterState = useTemplatesFilter({
@@ -27,7 +27,7 @@ const TemplatesPage: FC = () => {
 	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
 	const templateUpdatePermissionsQuery = useQuery(
 		templateUpdatePermissionsByOrganization(
-			templatesQuery.data?.map((template) => template.organization_id),
+			organizations.map((organization) => organization.id),
 		),
 	);
 	const examplesQuery = useQuery({
@@ -54,6 +54,7 @@ const TemplatesPage: FC = () => {
 	const error =
 		templatesQuery.error ||
 		examplesQuery.error ||
+		templateUpdatePermissionsQuery.error ||
 		workspacePermissionsQuery.error;
 
 	return (
@@ -67,7 +68,10 @@ const TemplatesPage: FC = () => {
 				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
-				templateUpdatePermissions={templateUpdatePermissionsQuery.data}
+				templateUpdatePermissions={
+					templateUpdatePermissionsQuery.data ??
+					(organizations.length === 0 ? {} : undefined)
+				}
 				workspacePermissions={workspacePermissionsQuery.data}
 			/>
 		</>

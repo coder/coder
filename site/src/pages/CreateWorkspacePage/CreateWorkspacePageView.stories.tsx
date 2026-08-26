@@ -544,8 +544,11 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 		const alert = within(canvasElement).getByRole("alert");
 
 		expect(
-			within(alert).queryByRole("link", { name: /template settings/i }),
-		).not.toBeInTheDocument();
+			within(alert).getByRole("link", { name: /open template settings/i }),
+		).toHaveAttribute(
+			"href",
+			"/templates/default/docker-template/settings/parameters",
+		);
 	},
 };
 
