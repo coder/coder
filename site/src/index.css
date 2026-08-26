@@ -3,9 +3,9 @@
 	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
 */
 
-@import 'tailwindcss';
+@import "tailwindcss";
 
-@config '../tailwind.config.js';
+@config "../tailwind.config.js";
 
 /*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
@@ -16,18 +16,18 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
-  }
+	*,
+	::after,
+	::before,
+	::backdrop,
+	::file-selector-button {
+		border-color: var(--color-gray-200, currentcolor);
+	}
 }
 
 @utility mobile-full-width-dropdown {
-  @media (max-width: 767px) {
-    /*
+	@media (max-width: 767px) {
+		/*
 			Full-width mobile dropdowns. We set custom properties on
 			`document.documentElement` from the chat input container so
 			dropdown positions track the actual input box, not hardcoded
@@ -52,100 +52,100 @@
 			  height the `-above-composer` variant can grow to without
 			  extending past the visible viewport top.
 		*/
-    [data-radix-popper-content-wrapper]:has(> &) {
-      position: fixed !important;
-      left: var(--mobile-dropdown-left, 1rem) !important;
-      width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
-      min-width: 0 !important;
-      transform: none !important;
-      bottom: var(--mobile-dropdown-bottom, 5rem) !important;
-      top: auto !important;
-    }
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
+		[data-radix-popper-content-wrapper]:has(> &) {
+			position: fixed !important;
+			left: var(--mobile-dropdown-left, 1rem) !important;
+			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
+			min-width: 0 !important;
+			transform: none !important;
+			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
+			top: auto !important;
+		}
+		width: 100% !important;
+		min-width: 0 !important;
+		max-width: none !important;
+	}
 }
 
 @utility mobile-full-width-dropdown-top {
-  @media (max-width: 767px) {
-    [data-radix-popper-content-wrapper]:has(> &) {
-      bottom: auto !important;
-      top: var(--mobile-dropdown-top, 3.5rem) !important;
-    }
-  }
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: auto !important;
+			top: var(--mobile-dropdown-top, 3.5rem) !important;
+		}
+	}
 }
 
 @utility mobile-full-width-dropdown-top-below-header {
-  @media (max-width: 767px) {
-    [data-radix-popper-content-wrapper]:has(> &) {
-      bottom: auto !important;
-      top: 5rem !important;
-    }
-  }
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: auto !important;
+			top: 5rem !important;
+		}
+	}
 }
 
 @utility mobile-full-width-dropdown-above-composer {
-  @media (max-width: 767px) {
-    [data-radix-popper-content-wrapper]:has(> &) {
-      bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
-      top: auto !important;
-      max-height: var(
-        --mobile-dropdown-above-composer-max-height,
-        calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
-      ) !important;
-      overflow: hidden !important;
-    }
-    max-height: var(
-      --mobile-dropdown-above-composer-max-height,
-      calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
-    ) !important;
-    overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
-    /* min-height: 0 on both flex children lets the list shrink below its
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
+			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
+			top: auto !important;
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
+			overflow: hidden !important;
+		}
+		max-height: var(
+			--mobile-dropdown-above-composer-max-height,
+			calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+		) !important;
+		overflow: hidden !important;
+		display: flex !important;
+		flex-direction: column !important;
+		/* min-height: 0 on both flex children lets the list shrink below its
 			content and scroll inside the capped column instead of overflowing. */
-    & > [cmdk-root] {
-      flex: 1 1 0% !important;
-      min-height: 0 !important;
-    }
-    & > [cmdk-root] > [cmdk-list] {
-      flex: 1 1 0% !important;
-      min-height: 0 !important;
-    }
-    & > [cmdk-root] > [cmdk-list] {
-      max-height: none !important;
-    }
-    & .mobile-full-width-dropdown-scroll-area {
-      overflow-y: auto !important;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-    }
-  }
+		& > [cmdk-root] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		& > [cmdk-root] > [cmdk-list] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		& > [cmdk-root] > [cmdk-list] {
+			max-height: none !important;
+		}
+		& .mobile-full-width-dropdown-scroll-area {
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
 }
 
 @utility mobile-full-width-dropdown-scroll-area {
-  @media (max-width: 767px) {
-    .mobile-full-width-dropdown-above-composer & {
-      overflow-y: auto !important;
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-    }
-  }
+	@media (max-width: 767px) {
+		.mobile-full-width-dropdown-above-composer & {
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
 }
 
 @utility text-xs-mono {
-  @apply text-xs font-mono font-medium;
+	@apply text-xs font-mono font-medium;
 }
 
 @layer utilities {
-  @font-face {
-    font-family: 'seti';
-    src: url('/seti.woff') format('woff');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-  }
+	@font-face {
+		font-family: "seti";
+		src: url("/seti.woff") format("woff");
+		font-weight: normal;
+		font-style: normal;
+		font-display: swap;
+	}
 }
 
 @layer base {

@@ -596,10 +596,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												const isSectionExpanded =
 													!collapsedSections[section.key];
 												return (
-													<div
-														key={section.key}
-														className="not-first:mt-3"
-													>
+													<div key={section.key} className="not-first:mt-3">
 														<ChatSectionHeader
 															label={section.label}
 															count={section.chats.length}

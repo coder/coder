@@ -435,10 +435,7 @@ const TimeRow: FC<TimeRowProps> = ({
 				}
 			}}
 		>
-			<SelectTrigger
-				aria-label={`${label} AM or PM`}
-				className="h-8 w-18"
-			>
+			<SelectTrigger aria-label={`${label} AM or PM`} className="h-8 w-18">
 				<SelectValue />
 			</SelectTrigger>
 			<SelectContent>

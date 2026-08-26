@@ -436,9 +436,7 @@ const DevcontainerDeleteErrorDialog: FC<DevcontainerDeleteErrorDialogProps> = ({
 						<DialogDescription className="flex flex-row gap-9">
 							<strong className="text-content-primary">Detail</strong>{" "}
 							{/* TODO(DanielleMaywood): `wrap-anywhere` should be replaced with `wrap-anywhere` when we hit tailwind v4 */}
-							<span className="wrap-anywhere break-normal">
-								{errorDetail}
-							</span>
+							<span className="wrap-anywhere break-normal">{errorDetail}</span>
 						</DialogDescription>
 					)}
 				</DialogHeader>
