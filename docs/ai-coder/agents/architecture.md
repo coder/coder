@@ -70,8 +70,8 @@ Coder Agents does not change your workspace network requirements.
 When a user submits a prompt, the control plane processes it as a background
 job:
 
-1. The prompt is saved to the database and the chat is marked `pending`.
-1. The control plane picks up the chat and marks it `running`.
+1. The prompt is saved to the database and the chat is marked `running`.
+1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
 1. If the response includes tool calls, the control plane executes them
