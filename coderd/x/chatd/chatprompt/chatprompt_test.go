@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
@@ -2155,6 +2156,88 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		// JSON re-serialization may reformat, so compare
 		// semantically.
 		assert.JSONEq(t, string(resultJSON), string(decoded[0].Result))
+	})
+
+	// Gemini thought signatures are binary data converted directly to a
+	// string by the Google provider. NUL bytes in the signature must survive
+	// the full persistence and provider-metadata round-trip.
+	t.Run("GeminiReasoningMetadataWithNul", func(t *testing.T) {
+		t.Parallel()
+
+		const signature = "binary\x00thought\x00signature"
+		part := chatprompt.PartFromContent(fantasy.ReasoningContent{
+			Text: "reasoning",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasygoogle.Name: &fantasygoogle.ReasoningMetadata{
+					Signature: signature,
+					ToolID:    "tool-1",
+				},
+			},
+		})
+		encoded, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\u0000`)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+		readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
+		require.NoError(t, err)
+
+		prompt, err := chatprompt.ConvertMessagesWithFiles(
+			ctx,
+			[]database.ChatMessage{readBack},
+			nil,
+			slogtest.Make(t, nil),
+			nil,
+		)
+		require.NoError(t, err)
+		require.Len(t, prompt, 1)
+		require.Len(t, prompt[0].Content, 1)
+		reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+		require.True(t, ok)
+		metadata := fantasygoogle.GetReasoningMetadata(reasoning.ProviderOptions)
+		require.NotNil(t, metadata)
+		require.Equal(t, signature, metadata.Signature)
+	})
+
+	// PostgreSQL rejects lone UTF-16 surrogate escapes. The RawMessage
+	// encoder normalizes them through encoding/json before persistence.
+	t.Run("ToolArgsWithLoneSurrogate", func(t *testing.T) {
+		t.Parallel()
+
+		parts := []codersdk.ChatMessagePart{{
+			Type: codersdk.ChatMessagePartTypeToolCall,
+			Args: json.RawMessage(`{"value":"before\uD800after","pair":"\uD83D\uDE00","literal":"\\uD800"}`),
+		}}
+		encoded, err := chatprompt.MarshalParts(parts)
+		require.NoError(t, err)
+		require.NotContains(t, string(encoded.RawMessage), `\uD800after`)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dbMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:         chat.ID,
+			CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:           database.ChatMessageRoleAssistant,
+			Content:        encoded,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		})
+		readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
+		require.NoError(t, err)
+		decoded, err := chatprompt.ParseContent(readBack)
+		require.NoError(t, err)
+		require.Len(t, decoded, 1)
+		assert.JSONEq(t,
+			`{"value":"before�after","pair":"😀","literal":"\\uD800"}`,
+			string(decoded[0].Args),
+		)
 	})
 
 	// Multiple parts in one message: one with NUL, one without.
