@@ -138,12 +138,15 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 
 	return (
 		<ResourceSharingDialog
-			title="Share model"
+			title="Model permissions"
 			description={
-				<>Choose which organization members and groups can use {modelName}.</>
+				<>Manage which organization members and groups can use {modelName}.</>
 			}
-			loadingLabel="Loading model sharing"
-			tableLabel="Shared model members and groups"
+			loadingLabel="Loading model permissions"
+			emptyTitle="No members or groups have permission yet"
+			tableLabel="Model permissions for members and groups"
+			roleLabel="Use"
+			confirmText="Save permissions"
 			data={data}
 			loadError={loadError}
 			refetchError={refetchError}
@@ -167,7 +170,7 @@ const OpenChatModelSharingDialog: FC<OpenChatModelSharingDialogProps> = ({
 					{ organizationId, modelId, req },
 					{
 						onSuccess: () => {
-							toast.success(`Sharing for "${modelName}" updated.`);
+							toast.success(`Permissions for "${modelName}" updated.`);
 							close();
 						},
 					},

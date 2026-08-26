@@ -65,7 +65,10 @@ type ResourceSharingDialogProps<Role extends string, Option> = {
 	title: string;
 	description: ReactNode;
 	loadingLabel: string;
+	emptyTitle: string;
 	tableLabel: string;
+	roleLabel: string;
+	confirmText: string;
 	data?: SharingDialogData<Role>;
 	loadError: unknown;
 	refetchError: unknown;
@@ -121,12 +124,14 @@ const buildACLDelta = <Role extends string>(
 
 type PrincipalRowProps = {
 	principal: SharingPrincipal;
+	roleLabel: string;
 	isSaving: boolean;
 	onRemove: () => void;
 };
 
 const PrincipalRow: FC<PrincipalRowProps> = ({
 	principal,
+	roleLabel,
 	isSaving,
 	onRemove,
 }) => (
@@ -138,7 +143,7 @@ const PrincipalRow: FC<PrincipalRowProps> = ({
 				src={principal.avatarUrl}
 			/>
 		</TableCell>
-		<TableCell>Read</TableCell>
+		<TableCell>{roleLabel}</TableCell>
 		<TableCell>
 			<Button
 				variant="subtle"
@@ -156,26 +161,32 @@ const PrincipalRow: FC<PrincipalRowProps> = ({
 
 type SharingDialogEditorProps<Role extends string, Option> = Pick<
 	ResourceSharingDialogProps<Role, Option>,
+	| "confirmText"
 	| "data"
 	| "deletedRole"
+	| "emptyTitle"
 	| "getPrincipal"
 	| "isSaving"
 	| "onClose"
 	| "onSave"
 	| "readRole"
 	| "renderAutocomplete"
+	| "roleLabel"
 	| "tableLabel"
 >;
 
 const SharingDialogEditor = <Role extends string, Option>({
+	confirmText,
 	data,
 	deletedRole,
+	emptyTitle,
 	getPrincipal,
 	isSaving,
 	onClose,
 	onSave,
 	readRole,
 	renderAutocomplete,
+	roleLabel,
 	tableLabel,
 }: SharingDialogEditorProps<Role, Option>) => {
 	if (!data) {
@@ -183,28 +194,34 @@ const SharingDialogEditor = <Role extends string, Option>({
 	}
 	return (
 		<LoadedSharingDialogEditor
+			confirmText={confirmText}
 			data={data}
 			deletedRole={deletedRole}
+			emptyTitle={emptyTitle}
 			getPrincipal={getPrincipal}
 			isSaving={isSaving}
 			onClose={onClose}
 			onSave={onSave}
 			readRole={readRole}
 			renderAutocomplete={renderAutocomplete}
+			roleLabel={roleLabel}
 			tableLabel={tableLabel}
 		/>
 	);
 };
 
 const LoadedSharingDialogEditor = <Role extends string, Option>({
+	confirmText,
 	data,
 	deletedRole,
+	emptyTitle,
 	getPrincipal,
 	isSaving,
 	onClose,
 	onSave,
 	readRole,
 	renderAutocomplete,
+	roleLabel,
 	tableLabel,
 }: SharingDialogEditorProps<Role, Option> & {
 	data: SharingDialogData<Role>;
@@ -296,9 +313,7 @@ const LoadedSharingDialogEditor = <Role extends string, Option>({
 
 				{isEmpty ? (
 					<div className="rounded-md border border-solid border-border px-6 py-10 text-center">
-						<p className="m-0 text-sm font-medium">
-							No shared members or groups yet
-						</p>
+						<p className="m-0 text-sm font-medium">{emptyTitle}</p>
 						<p className="m-0 mt-2 text-sm text-content-secondary">
 							Add a member or group using the controls above.
 						</p>
@@ -323,6 +338,7 @@ const LoadedSharingDialogEditor = <Role extends string, Option>({
 											subtitle: "Group",
 										}
 									}
+									roleLabel={roleLabel}
 									isSaving={isSaving}
 									onRemove={() => removeGroup(groupId)}
 								/>
@@ -337,6 +353,7 @@ const LoadedSharingDialogEditor = <Role extends string, Option>({
 											subtitle: "User",
 										}
 									}
+									roleLabel={roleLabel}
 									isSaving={isSaving}
 									onRemove={() => removeUser(userId)}
 								/>
@@ -348,7 +365,7 @@ const LoadedSharingDialogEditor = <Role extends string, Option>({
 
 			<DialogFooter>
 				<DialogActions
-					confirmText="Save sharing"
+					confirmText={confirmText}
 					confirmLoading={isSaving}
 					confirmDisabled={!isDirty}
 					onConfirm={() =>
@@ -365,7 +382,10 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 	title,
 	description,
 	loadingLabel,
+	emptyTitle,
 	tableLabel,
+	roleLabel,
+	confirmText,
 	data,
 	loadError,
 	refetchError,
@@ -398,14 +418,17 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 
 			{loadError ? null : data ? (
 				<SharingDialogEditor
+					confirmText={confirmText}
 					data={data}
 					deletedRole={deletedRole}
+					emptyTitle={emptyTitle}
 					getPrincipal={getPrincipal}
 					isSaving={isSaving}
 					onClose={onClose}
 					onSave={onSave}
 					readRole={readRole}
 					renderAutocomplete={renderAutocomplete}
+					roleLabel={roleLabel}
 					tableLabel={tableLabel}
 				/>
 			) : (
@@ -421,7 +444,7 @@ export const ResourceSharingDialog = <Role extends string, Option>({
 			{!data && (
 				<DialogFooter>
 					<DialogActions
-						confirmText="Save sharing"
+						confirmText={confirmText}
 						confirmLoading={isSaving}
 						confirmDisabled
 						onConfirm={onClose}

@@ -99,7 +99,10 @@ const OpenMCPServerSharingDialog: FC<OpenMCPServerSharingDialogProps> = ({
 				<>Choose which organization members and groups can use {serverName}.</>
 			}
 			loadingLabel="Loading server sharing"
+			emptyTitle="No shared members or groups yet"
 			tableLabel="Shared server members and groups"
+			roleLabel="Read"
+			confirmText="Save sharing"
 			data={data}
 			loadError={data ? null : aclQuery.error}
 			refetchError={data ? aclQuery.error : null}
