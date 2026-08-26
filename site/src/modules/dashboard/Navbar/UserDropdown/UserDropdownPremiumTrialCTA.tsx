@@ -1,17 +1,17 @@
-import dayjs, { type Dayjs } from "dayjs";
 import { BadgeCheckIcon, ClockIcon } from "lucide-react";
-import { type FC, useContext } from "react";
+import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Link } from "react-router";
 import { licenses } from "#/api/queries/licenses";
 import { reportPremiumFunnelEvent } from "#/api/queries/premiumFunnel";
 import { DropdownMenuItem } from "#/components/DropdownMenu/DropdownMenu";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
-import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { trackPremiumFunnelClick } from "#/modules/paywall/premiumFunnelAttribution";
 
 const TRIAL_LENGTH_DAYS = 30;
 const TRIAL_LICENSE_STALE_TIME_MS = 15 * 60 * 1000;
+const DAY_SECONDS = 24 * 60 * 60;
 
 type TrialCta = {
 	readonly kind: "daysLeft" | "start" | "expiresToday";
@@ -24,7 +24,8 @@ type TrialCtaInput = {
 	readonly isTrial: boolean;
 	/** Unix seconds from the trial license's license_expires claim. */
 	readonly trialExpiresAt: number | undefined;
-	readonly now: Dayjs;
+	/** Unix seconds of approximately right now */
+	readonly now: number;
 };
 
 export const selectTrialCta = ({
@@ -48,13 +49,12 @@ export const selectTrialCta = ({
 		return undefined;
 	}
 
-	const expiry = dayjs.unix(trialExpiresAt);
-	if (!expiry.isAfter(now)) {
+	if (trialExpiresAt < now) {
 		return undefined;
 	}
 
-	const days = expiry.diff(now, "day");
-	return days === 0
+	const days = (trialExpiresAt - now) / DAY_SECONDS;
+	return days <= 0
 		? { kind: "expiresToday", days: 0 }
 		: { kind: "daysLeft", days };
 };
@@ -81,7 +81,7 @@ interface UserDropdownPremiumTrialCTAProps {
 export const UserDropdownPremiumTrialCTA: FC<
 	UserDropdownPremiumTrialCTAProps
 > = ({ canViewLicenses }) => {
-	const dashboard = useContext(DashboardContext);
+	const dashboard = useDashboard();
 	const { mutate: reportClick } = useMutation(reportPremiumFunnelEvent());
 	const entitlements = dashboard?.entitlements;
 
@@ -103,7 +103,7 @@ export const UserDropdownPremiumTrialCTA: FC<
 		isTrial: entitlements.trial,
 		trialExpiresAt: licensesQuery.data?.find((license) => license.claims.trial)
 			?.claims.license_expires,
-		now: dayjs(),
+		now: Date.now() / 1000,
 	});
 	if (!cta) {
 		return null;

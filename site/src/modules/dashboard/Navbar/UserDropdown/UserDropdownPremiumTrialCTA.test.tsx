@@ -2,10 +2,10 @@ import dayjs from "dayjs";
 import { selectTrialCta } from "./UserDropdownPremiumTrialCTA";
 
 describe("selectTrialCta", () => {
-	const now = dayjs("2026-08-25T12:00:00Z");
+	const now = dayjs("2026-08-25T12:00:00Z").valueOf();
 	const admin = { canViewLicenses: true, now };
-	const inDays = (days: number) => now.add(days, "day").unix();
-	const inHours = (hours: number) => now.add(hours, "hour").unix();
+	const inDays = (days: number) => dayjs(now).add(days, "day").unix();
+	const inHours = (hours: number) => dayjs(now).add(hours, "hour").unix();
 
 	it("offers the trial when the deployment has no license", () => {
 		expect(
@@ -104,7 +104,7 @@ describe("selectTrialCta", () => {
 				...admin,
 				hasLicense: true,
 				isTrial: true,
-				trialExpiresAt: inDays(1),
+				trialExpiresAt: inDays(1).valueOf(),
 			}),
 		).toEqual({ kind: "daysLeft", days: 1 });
 	});
