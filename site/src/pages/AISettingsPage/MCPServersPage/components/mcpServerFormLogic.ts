@@ -42,6 +42,27 @@ export const AVAILABILITY_LABELS = Object.fromEntries(
 	AVAILABILITY_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<string, string>;
 
+export const TOOL_DISPOSITION_OPTIONS = [
+	{ value: "enabled", label: "Enabled" },
+	{ value: "disabled", label: "Disabled" },
+	{ value: "escalate", label: "Escalate (require approval)" },
+] as const;
+
+export const isToolDisposition = (
+	value: unknown,
+): value is TypesGen.MCPServerToolAction =>
+	value === "enabled" || value === "disabled" || value === "escalate";
+
+// Legacy rules carry only the enabled boolean; an explicit action wins.
+export const toolRuleAction = (
+	rule: TypesGen.MCPServerToolRule,
+): TypesGen.MCPServerToolAction => {
+	if (isToolDisposition(rule.action)) {
+		return rule.action;
+	}
+	return rule.enabled ? "enabled" : "disabled";
+};
+
 export interface MCPServerFormValues {
 	displayName: string;
 	slug: string;
@@ -52,7 +73,7 @@ export interface MCPServerFormValues {
 	transport: string;
 	authType: string;
 	externalAuthProviderID: string;
-	toolDefault: "enabled" | "disabled";
+	toolDefault: TypesGen.MCPServerToolAction;
 	toolRules: TypesGen.MCPServerToolRule[];
 	oauth2ClientID: string;
 	oauth2ClientSecret: string;
@@ -94,8 +115,15 @@ export const buildInitialMCPServerFormValues = (
 	transport: server?.transport ?? "streamable_http",
 	authType: server?.auth_type ?? "none",
 	externalAuthProviderID: server?.external_auth_provider_id ?? "",
-	toolDefault: server?.tool_default === "disabled" ? "disabled" : "enabled",
-	toolRules: server?.tool_rules.map((rule) => ({ ...rule })) ?? [],
+	toolDefault:
+		server && isToolDisposition(server.tool_default)
+			? server.tool_default
+			: "enabled",
+	toolRules:
+		server?.tool_rules.map((rule) => ({
+			...rule,
+			action: toolRuleAction(rule),
+		})) ?? [],
 	oauth2ClientID: server?.oauth2_client_id ?? "",
 	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
 	oauth2SecretTouched: false,
@@ -182,10 +210,16 @@ export const buildCreateMCPServerConfigRequest = (
 		tool_allow_list: toolAllowList,
 		tool_deny_list: toolDenyList,
 		tool_default: values.toolDefault,
-		tool_rules: values.toolRules.map((rule) => ({
-			tool: rule.tool.trim(),
-			enabled: rule.enabled,
-		})),
+		tool_rules: values.toolRules.map((rule) => {
+			// The legacy boolean mirrors the action so old readers keep
+			// working; escalate mirrors as disabled (fail closed).
+			const action = toolRuleAction(rule);
+			return {
+				tool: rule.tool.trim(),
+				action,
+				enabled: action === "enabled",
+			};
+		}),
 	};
 
 	if (values.authType === "external_auth") {

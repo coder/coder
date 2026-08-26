@@ -90,15 +90,18 @@ export const ExistingToolRules: Story = {
 		const toolName = within(rule).getByRole("textbox", {
 			name: /^Tool name/,
 		});
-		const enabledSwitch = within(rule).getByRole("switch", {
-			name: "Enabled",
+		const action = within(rule).getByRole("combobox", {
+			name: "Action",
 		});
 		await expect(toolName).toHaveValue("search");
-		await expect(enabledSwitch).not.toBeChecked();
+		// The legacy enabled=false rule renders as the disabled action.
+		await expect(action).toHaveTextContent("Disabled");
 
 		await userEvent.clear(toolName);
 		await userEvent.type(toolName, "lookup");
-		await userEvent.click(enabledSwitch);
+		await userEvent.click(action);
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(body.getByRole("option", { name: "Enabled" }));
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Update server" }),
 		);
@@ -108,7 +111,7 @@ export const ExistingToolRules: Story = {
 				"mcp-coder",
 				expect.objectContaining({
 					tool_default: "disabled",
-					tool_rules: [{ tool: "lookup", enabled: true }],
+					tool_rules: [{ tool: "lookup", action: "enabled", enabled: true }],
 				}),
 			);
 		});

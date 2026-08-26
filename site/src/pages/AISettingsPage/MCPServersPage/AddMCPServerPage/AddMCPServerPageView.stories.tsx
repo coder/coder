@@ -72,6 +72,40 @@ export const Default: Story = {
 	},
 };
 
+export const EscalateToolRule: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.type(canvas.getByLabelText(/display name/i), "GitHub");
+		await userEvent.type(
+			canvas.getByLabelText(/server url/i),
+			"https://api.githubcopilot.com/mcp/",
+		);
+
+		await userEvent.click(canvas.getByRole("button", { name: /tool rules/i }));
+		await userEvent.click(canvas.getByRole("button", { name: /add rule/i }));
+		await userEvent.type(canvas.getByLabelText(/tool name/i), "create_issue");
+		await userEvent.click(canvas.getByRole("combobox", { name: /action/i }));
+		await userEvent.click(
+			body.getByRole("option", { name: /escalate \(require approval\)/i }),
+		);
+
+		await userEvent.click(canvas.getByRole("button", { name: "Add server" }));
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledWith(
+				expect.objectContaining({
+					tool_rules: [
+						// Escalate mirrors as enabled=false so legacy readers
+						// fail closed.
+						{ tool: "create_issue", action: "escalate", enabled: false },
+					],
+				}),
+			);
+		});
+	},
+};
+
 export const ExternalAuthSelected: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
@@ -133,17 +167,18 @@ export const ToolRulesEditor: Story = {
 		const firstToolName = within(firstRule).getByRole("textbox", {
 			name: /^Tool name/,
 		});
-		const firstEnabledSwitch = within(firstRule).getByRole("switch", {
-			name: "Enabled",
+		const firstAction = within(firstRule).getByRole("combobox", {
+			name: "Action",
 		});
 		await expect(within(firstRule).getByRole("alert")).toHaveTextContent(
 			"Enter a tool name.",
 		);
 		await expect(addButton).toBeDisabled();
-		await expect(firstEnabledSwitch).toBeChecked();
+		await expect(firstAction).toHaveTextContent("Enabled");
 		await userEvent.type(firstToolName, "search");
-		await userEvent.click(firstEnabledSwitch);
-		await expect(firstEnabledSwitch).not.toBeChecked();
+		await userEvent.click(firstAction);
+		await userEvent.click(body.getByRole("option", { name: "Disabled" }));
+		await expect(firstAction).toHaveTextContent("Disabled");
 
 		await userEvent.click(canvas.getByRole("button", { name: "Add rule" }));
 		const secondRule = canvas.getByRole("group", { name: "Rule 2" });
@@ -173,7 +208,7 @@ export const ToolRulesEditor: Story = {
 			expect(args.onCreateServer).toHaveBeenCalledWith(
 				expect.objectContaining({
 					tool_default: "disabled",
-					tool_rules: [{ tool: "search", enabled: false }],
+					tool_rules: [{ tool: "search", action: "disabled", enabled: false }],
 				}),
 			);
 		});
