@@ -569,52 +569,35 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	return false
 }
 
-// splitPendingUserSegment identifies the unanswered trailing user
-// message(s) at the tip of the prompt window: the contiguous run of
-// user-role rows after the last assistant or tool row. Those messages
-// are excluded from the summarizer's input and re-inserted verbatim
-// after the compaction boundary instead of being summarized
-// (CODAGT-737).
+// pendingUserSegmentStart returns the index of the first row of the
+// unanswered trailing user segment: the contiguous run of user-role
+// rows after the last assistant or tool row. Returns len(promptRows)
+// when there is no such segment. The segment is excluded from the
+// summarizer's input and re-inserted verbatim after the compaction
+// boundary instead of being summarized (CODAGT-737).
 //
-// Both representations must independently find a non-empty trailing
-// segment, and at least one assistant message must remain in the
-// trimmed prompt; otherwise the original prompt and no rows are
-// returned and compaction behaves as before.
-func splitPendingUserSegment(
-	prompt []fantasy.Message,
-	promptRows []database.ChatMessage,
-) ([]fantasy.Message, []database.ChatMessage) {
-	rowsStart := len(promptRows)
-	for rowsStart > 0 {
-		row := promptRows[rowsStart-1]
+// The scan runs on persisted rows, not the converted prompt: assistant
+// rows terminate the segment even when prompt conversion drops them,
+// so an older user message can never be mistaken for pending.
+func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
+	start := len(promptRows)
+	for start > 0 {
+		row := promptRows[start-1]
 		if row.Deleted || row.Compressed || row.Role != database.ChatMessageRoleUser {
 			break
 		}
-		rowsStart--
+		start--
 	}
-	pendingRows := promptRows[rowsStart:]
-	if len(pendingRows) == 0 {
-		return prompt, nil
-	}
+	return start
+}
 
-	promptEnd := len(prompt)
-	for promptEnd > 0 && prompt[promptEnd-1].Role == fantasy.MessageRoleUser {
-		promptEnd--
-	}
-	if promptEnd == len(prompt) {
-		return prompt, nil
-	}
-	hasAssistant := false
-	for _, msg := range prompt[:promptEnd] {
+func hasAssistantMessage(prompt []fantasy.Message) bool {
+	for _, msg := range prompt {
 		if msg.Role == fantasy.MessageRoleAssistant {
-			hasAssistant = true
-			break
+			return true
 		}
 	}
-	if !hasAssistant {
-		return prompt, nil
-	}
-	return prompt[:promptEnd], pendingRows
+	return false
 }
 
 func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {

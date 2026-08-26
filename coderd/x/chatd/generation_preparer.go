@@ -337,6 +337,8 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	pendingRowsStart := pendingUserSegmentStart(promptRows)
+	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
@@ -347,9 +349,23 @@ func (server *Server) prepareGeneration(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(providerType), logger, acceptsFilePart)
+		// The unanswered trailing user segment is converted separately
+		// so the compaction summarizer input can exclude it exactly,
+		// without re-deriving the segment from converted roles (which
+		// over-trims when conversion drops an intervening assistant
+		// row). Segment-wise conversion is equivalent to converting
+		// everything at once because the segment is user-only: tool
+		// name tracking and the missing tool call/result injections
+		// only act on assistant and tool messages.
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
+		}
+		if pendingRowsStart < len(promptRows) {
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], server.chatFileResolver(providerType), logger, acceptsFilePart)
+			if err != nil {
+				return xerrors.Errorf("build pending chat prompt tail: %w", err)
+			}
 		}
 		return nil
 	})
@@ -457,6 +473,21 @@ func (server *Server) prepareGeneration(
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	// prompt so far excludes the pending tail, so the system-prompt
+	// stages above only ever saw the head. Merge the tail back for
+	// generation; the summarizer keeps the head only when the segment
+	// is usable, otherwise everything is summarized as before.
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 || !hasAssistantMessage(prompt) {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -697,7 +728,6 @@ func (server *Server) prepareGeneration(
 	}
 	compactionStepUsage := latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionStepUsage, compactionContextLimit, effectiveThreshold)
-	compactionPromptMessages, pendingUserRows := splitPendingUserSegment(prompt, promptRows)
 	// The options carry the chat model; generateCompaction swaps in the
 	// override client when one is configured.
 	compactionOptions := chatloop.GenerateCompactionOptions{

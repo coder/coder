@@ -1234,18 +1234,10 @@ func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 	}
 }
 
-func TestSplitPendingUserSegment(t *testing.T) {
+func TestPendingUserSegmentStart(t *testing.T) {
 	t.Parallel()
 
-	fUser := func(text string) fantasy.Message {
-		return fantasy.Message{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: text}}}
-	}
-	fAssistant := func(text string) fantasy.Message {
-		return fantasy.Message{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{fantasy.TextPart{Text: text}}}
-	}
-	fSystem := fantasy.Message{Role: fantasy.MessageRoleSystem, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system"}}}
-
-	t.Run("TrimsUnansweredTrailingUserMessages", func(t *testing.T) {
+	t.Run("TrailingUserRun", func(t *testing.T) {
 		t.Parallel()
 		rows := []database.ChatMessage{
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
@@ -1253,13 +1245,7 @@ func TestSplitPendingUserSegment(t *testing.T) {
 			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending one")),
 			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending two")),
 		}
-		prompt := []fantasy.Message{fSystem, fUser("start"), fAssistant("answer"), fUser("pending one"), fUser("pending two")}
-		trimmed, pending := splitPendingUserSegment(prompt, rows)
-		require.Len(t, pending, 2)
-		require.Equal(t, int64(3), pending[0].ID)
-		require.Equal(t, int64(4), pending[1].ID)
-		require.Len(t, trimmed, 3)
-		require.Equal(t, fantasy.MessageRoleAssistant, trimmed[len(trimmed)-1].Role)
+		require.Equal(t, 2, pendingUserSegmentStart(rows))
 	})
 
 	t.Run("NoTrailingUserMessages", func(t *testing.T) {
@@ -1268,21 +1254,18 @@ func TestSplitPendingUserSegment(t *testing.T) {
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 		}
-		prompt := []fantasy.Message{fSystem, fUser("start"), fAssistant("answer")}
-		trimmed, pending := splitPendingUserSegment(prompt, rows)
-		require.Nil(t, pending)
-		require.Equal(t, prompt, trimmed)
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
 	})
 
-	t.Run("NoAssistantBeforeSegmentLeavesPromptIntact", func(t *testing.T) {
+	t.Run("ToolRowStopsSegment", func(t *testing.T) {
 		t.Parallel()
 		rows := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("only message")),
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call", "tool", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+			dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending")),
 		}
-		prompt := []fantasy.Message{fSystem, fUser("only message")}
-		trimmed, pending := splitPendingUserSegment(prompt, rows)
-		require.Nil(t, pending)
-		require.Equal(t, prompt, trimmed)
+		require.Equal(t, 3, pendingUserSegmentStart(rows))
 	})
 
 	t.Run("CompressedTrailingRowStopsSegment", func(t *testing.T) {
@@ -1292,24 +1275,65 @@ func TestSplitPendingUserSegment(t *testing.T) {
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
 			dbMessage(t, 3, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("compacted summary")),
 		}
-		prompt := []fantasy.Message{fSystem, fUser("start"), fAssistant("answer"), fUser("compacted summary")}
-		trimmed, pending := splitPendingUserSegment(prompt, rows)
-		require.Nil(t, pending)
-		require.Equal(t, prompt, trimmed)
+		require.Equal(t, len(rows), pendingUserSegmentStart(rows))
 	})
 
-	t.Run("RowSegmentWithoutPromptSegmentIsIgnored", func(t *testing.T) {
+	t.Run("DroppedAssistantRowStillStopsSegment", func(t *testing.T) {
 		t.Parallel()
+		// Regression for PR #28645 review: an assistant row that prompt
+		// conversion drops (no replayable parts) must still terminate
+		// the segment so the older user message before it is never
+		// treated as pending.
 		rows := []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
-			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("dropped")),
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("older user message")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false),
+			dbMessage(t, 3, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending")),
 		}
-		prompt := []fantasy.Message{fSystem, fUser("start"), fAssistant("answer")}
-		trimmed, pending := splitPendingUserSegment(prompt, rows)
-		require.Nil(t, pending)
-		require.Equal(t, prompt, trimmed)
+		require.Equal(t, 2, pendingUserSegmentStart(rows))
 	})
+}
+
+// Converting the head and the user-only pending tail separately must
+// produce the same generation prompt as converting all rows at once,
+// while keeping the older user message in the head even when an
+// intervening assistant row is dropped by conversion (PR #28645
+// review).
+func TestPendingUserSegmentConversionEquivalence(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	rows := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleSystem, false, codersdk.ChatMessageText("system")),
+		dbMessage(t, 2, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+		dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("call-1", "tool", json.RawMessage(`{}`))),
+		dbMessage(t, 4, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call-1", "tool", json.RawMessage(`{}`), false, false)),
+		dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("older user message")),
+		dbMessage(t, 6, database.ChatMessageRoleAssistant, false),
+		dbMessage(t, 7, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending one")),
+		dbMessage(t, 8, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("pending two")),
+	}
+
+	start := pendingUserSegmentStart(rows)
+	require.Equal(t, 6, start)
+
+	full, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, logger, nil)
+	require.NoError(t, err)
+	head, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[:start], nil, logger, nil)
+	require.NoError(t, err)
+	tail, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows[start:], nil, logger, nil)
+	require.NoError(t, err)
+
+	require.Equal(t, full, append(append([]fantasy.Message{}, head...), tail...))
+
+	// The dropped assistant row makes the older user message adjacent
+	// to the pending run in the converted prompt; it must stay in the
+	// head so the summarizer still sees it.
+	require.Equal(t, fantasy.MessageRoleUser, head[len(head)-1].Role)
+	require.Equal(t, "older user message", head[len(head)-1].Content[0].(fantasy.TextPart).Text)
+	require.Len(t, tail, 2)
+	for _, msg := range tail {
+		require.Equal(t, fantasy.MessageRoleUser, msg.Role)
+	}
 }
 
 func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
