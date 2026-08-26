@@ -2,6 +2,19 @@ import * as path from "node:path";
 
 export const coderBinary = path.join(__dirname, "./bin/coder");
 
+const portFromEnv = (name: string, defaultPort: number): number => {
+	const value = process.env[name];
+	if (value === undefined) {
+		return defaultPort;
+	}
+
+	const port = Number(value);
+	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+		throw new Error(`${name} must be an integer between 1 and 65535: ${value}`);
+	}
+	return port;
+};
+
 // The oldest client and agent versions that Coder still supports. The
 // compatibility tests download these release binaries and run them against the
 // current server. Changing either value changes which release asset the e2e
@@ -68,12 +81,8 @@ export const gitAuth = {
 	webProvider: "web",
 	// Keep these below Linux's default ephemeral port range. Otherwise, an
 	// outbound connection can claim one and prevent the mock server from binding.
-	devicePort: process.env.CODER_E2E_GITAUTH_DEVICE_PORT
-		? Number(process.env.CODER_E2E_GITAUTH_DEVICE_PORT)
-		: 29515,
-	webPort: process.env.CODER_E2E_GITAUTH_WEB_PORT
-		? Number(process.env.CODER_E2E_GITAUTH_WEB_PORT)
-		: 29516,
+	devicePort: portFromEnv("CODER_E2E_GITAUTH_DEVICE_PORT", 29515),
+	webPort: portFromEnv("CODER_E2E_GITAUTH_WEB_PORT", 29516),
 
 	authPath: "/auth",
 	tokenPath: "/token",

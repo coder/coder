@@ -4,11 +4,20 @@ set -euo pipefail
 workspace=${1:-}
 coder_repo=${2:-.}
 port=${3:-3111}
+gitauth_device_port=${CODER_E2E_GITAUTH_DEVICE_PORT:-29515}
+gitauth_web_port=${CODER_E2E_GITAUTH_WEB_PORT:-29516}
 
 if [[ -z "${workspace}" ]]; then
 	echo "Usage: $0 <workspace> [workspace coder/coder dir] [e2e port]"
 	exit 1
 fi
+
+for p in "${gitauth_device_port}" "${gitauth_web_port}"; do
+	if [[ ! ${p} =~ ^[0-9]+$ ]] || ((p < 1 || p > 65535)); then
+		echo "Git auth ports must be integers between 1 and 65535: ${p}"
+		exit 1
+	fi
+done
 
 main() {
 	# Check the Playwright version from the workspace so we have a 1-to-1 match
@@ -87,14 +96,14 @@ main() {
 	)
 
 	# Also forward prometheus, pprof, and gitauth ports.
-	for p in 2114 6061 29515 29516; do
+	for p in 2114 6061 "${gitauth_device_port}" "${gitauth_web_port}"; do
 		port_args+=(-L "${p}:127.0.0.1:${p}")
 	done
 
 	echo
 	echo "Starting SSH tunnel, run test via \"pnpm run playwright:test\"..."
 	# shellcheck disable=SC2029 # This is intended to expand client-side.
-	ssh -t "${port_args[@]}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
+	ssh -t "${port_args[@]}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; export CODER_E2E_GITAUTH_DEVICE_PORT='${gitauth_device_port}'; export CODER_E2E_GITAUTH_WEB_PORT='${gitauth_web_port}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
 }
 
 main
