@@ -559,7 +559,7 @@ describe("api.ts", () => {
 			).resolves.toBeUndefined();
 
 			const aclPath =
-				"/api/experimental/organizations/organization%2Fid/mcp-servers/server%2Fid/acl";
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl";
 			const aclAvailablePath =
 				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl/available";
 			expect(axiosInstance.get).toHaveBeenNthCalledWith(1, aclPath);
