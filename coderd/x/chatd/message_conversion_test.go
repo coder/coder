@@ -1198,9 +1198,6 @@ func TestBuildCommitStepMessages_SkipsProviderExecutedRewriteAttribution(t *test
 	require.True(t, parts[1].HookRewritten)
 }
 
-// Pending user message(s) replayed by a compaction commit must land
-// after the boundary trio as uncompressed, model-visibility rows so
-// the prompt window query keeps them (CODAGT-737).
 func TestBuildCompactionMessages_ReplaysPendingUserMessages(t *testing.T) {
 	t.Parallel()
 
@@ -1303,9 +1300,6 @@ func TestSplitPendingUserSegment(t *testing.T) {
 
 	t.Run("RowSegmentWithoutPromptSegmentIsIgnored", func(t *testing.T) {
 		t.Parallel()
-		// A trailing user row whose parts were dropped during prompt
-		// conversion leaves no trailing user message in the prompt;
-		// nothing may be replayed that the summarizer already saw.
 		rows := []database.ChatMessage{
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("answer")),
@@ -1318,8 +1312,6 @@ func TestSplitPendingUserSegment(t *testing.T) {
 	})
 }
 
-// After a compaction commit that replayed pending user rows, the next
-// decision pass must generate an assistant response, not compact again.
 func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	t.Parallel()
 
@@ -1343,8 +1335,6 @@ func TestDecisionGeneratesAfterCompactionWithReplayedPendingUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, generationActionGenerateAssistant, decision.kind)
 
-	// A stale manual compaction request must not re-compact a window
-	// that contains only the replayed user rows.
 	decision, err = decideGenerationAction(generationDecisionInput{
 		chat:                       database.Chat{CompactionRequestedAt: sql.NullTime{Time: time.Now(), Valid: true}},
 		messages:                   messages,
