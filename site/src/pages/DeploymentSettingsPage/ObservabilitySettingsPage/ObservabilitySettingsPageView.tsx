@@ -33,7 +33,10 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Allow auditors to monitor user operations in your deployment.{" "}
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security/audit-logs")}
+							context="about audit logging"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -64,7 +67,10 @@ export const ObservabilitySettingsPageView: FC<
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Monitoring your Coder application with logs and metrics.{" "}
-						<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />
+						<SettingsHeaderDocsLink
+							href={docs("/admin/monitoring")}
+							context="about monitoring"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

@@ -84,6 +84,7 @@ const NotificationsPage: FC = () => {
 					Control delivery methods for notifications on this deployment.{" "}
 					<SettingsHeaderDocsLink
 						href={docs("/admin/monitoring/notifications")}
+						context="about notifications"
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

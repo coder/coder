@@ -31,7 +31,10 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 				<SettingsHeaderTitle>Network</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Configure your deployment connectivity.{" "}
-					<SettingsHeaderDocsLink href={docs("/admin/networking")} />
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking")}
+						context="about deployment networking"
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -52,6 +55,7 @@ export const NetworkSettingsPageView: FC<NetworkSettingsPageViewProps> = ({
 					Coder workspace from a local machine.{" "}
 					<SettingsHeaderDocsLink
 						href={docs("/admin/networking/port-forwarding")}
+						context="about port forwarding"
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

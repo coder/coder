@@ -25,15 +25,20 @@ export const SettingsHeader: FC<SettingsHeaderProps> = ({
 };
 
 type SettingsHeaderDocsLinkProps = Readonly<
-	PropsWithChildren<{ href: string }>
+	PropsWithChildren<{
+		href: string;
+		context?: string;
+	}>
 >;
 export const SettingsHeaderDocsLink: FC<SettingsHeaderDocsLinkProps> = ({
 	href,
+	context,
 	children = "View docs",
 }) => {
 	return (
 		<Link href={href} target="_blank" rel="noreferrer">
 			{children}
+			{context && <span className="sr-only"> {context}</span>}
 			<span className="sr-only"> (opens in new tab)</span>
 		</Link>
 	);

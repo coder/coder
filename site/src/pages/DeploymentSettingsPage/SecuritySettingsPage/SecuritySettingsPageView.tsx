@@ -39,7 +39,10 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Ensure your Coder deployment is secure.{" "}
-						<SettingsHeaderDocsLink href={docs("/admin/security")} />
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security")}
+							context="about security"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -70,6 +73,7 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 						non-browser connections.{" "}
 						<SettingsHeaderDocsLink
 							href={docs("/admin/networking#browser-only-connections")}
+							context="about browser-only connections"
 						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
