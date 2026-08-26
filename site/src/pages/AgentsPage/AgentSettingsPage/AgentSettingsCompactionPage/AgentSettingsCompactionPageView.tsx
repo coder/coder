@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { SectionHeader } from "./components/SectionHeader";
-import { UserCompactionThresholdSettings } from "./components/UserCompactionThresholdSettings";
+import { SectionHeader } from "../../components/SectionHeader";
+import { UserCompactionThresholdSettings } from "../../components/UserCompactionThresholdSettings";
 
 export interface AgentSettingsCompactionPageViewProps {
 	models: readonly TypesGen.ChatModel[] | undefined;

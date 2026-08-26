@@ -10,8 +10,8 @@ import {
 	getDefaultOrganizationId,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { resolveModelSelector } from "../../utils/modelOptions";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import { resolveModelSelector } from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const { organizations } = useDashboard();

@@ -40,9 +40,9 @@ import {
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import AgentCreatePage from "./AgentCreatePage";
-import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
-import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsLayout from "./AgentSettingsLayout";
+import AgentSettingsCompactionPage from "./AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage";
+import AgentSettingsGeneralPage from "./AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage";
+import AgentSettingsLayout from "./AgentSettingsPage/AgentSettingsLayout";
 import AgentsPageLayout, {
 	type AgentsPageOutletContext,
 } from "./AgentsPageLayout";

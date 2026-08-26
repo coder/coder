@@ -14,17 +14,17 @@ import {
 	userSkills,
 } from "#/api/queries/userSkills";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
+import type { PersonalSkillErrorDisplay } from "../../components/PersonalSkillEditor";
+import {
+	PERSONAL_SKILLS_MAX_PER_USER,
+	type PersonalSkillFormValues,
+	parsePersonalSkillMarkdown,
+} from "../../utils/personalSkills";
 import {
 	AgentSettingsPersonalSkillsPageView,
 	type PersonalSkillDeleteState,
 	type PersonalSkillEditorState,
 } from "./AgentSettingsPersonalSkillsPageView";
-import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
-import {
-	PERSONAL_SKILLS_MAX_PER_USER,
-	type PersonalSkillFormValues,
-	parsePersonalSkillMarkdown,
-} from "./utils/personalSkills";
 
 const emptySkillFormValues: PersonalSkillFormValues = {
 	name: "",

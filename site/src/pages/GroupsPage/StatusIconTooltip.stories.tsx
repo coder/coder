@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { StatusIconTooltip } from "./StatusIconTooltip";
 
 const meta: Meta<typeof StatusIconTooltip> = {
-	title: "pages/OrganizationGroupsPage/StatusIconTooltip",
+	title: "pages/GroupsPage/StatusIconTooltip",
 	component: StatusIconTooltip,
 	args: { message: "Spend compared to the budget for the active period." },
 };

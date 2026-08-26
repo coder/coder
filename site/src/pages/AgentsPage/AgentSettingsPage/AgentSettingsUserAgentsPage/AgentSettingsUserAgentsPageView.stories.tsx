@@ -7,11 +7,11 @@ import {
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
+import type { ModelSelectorOption } from "../../components/ChatElements";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
 } from "./AgentSettingsUserAgentsPageView";
-import type { ModelSelectorOption } from "./components/ChatElements";
 
 const UNAVAILABLE_WARNING =
 	"The saved model is unavailable and will be ignored until you choose a valid model override.";
@@ -255,7 +255,8 @@ const selectOption = async (
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsUserAgentsPageView",
+	title:
+		"pages/AgentsPage/AgentSettingsPage/AgentSettingsUserAgentsPage/AgentSettingsUserAgentsPageView",
 	component: AgentSettingsUserAgentsPageView,
 	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsUserAgentsPageView>;

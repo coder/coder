@@ -24,7 +24,7 @@ import { GroupsPageView, type GroupWithSpend } from "./GroupsPageView";
 type FilterProps = ComponentProps<typeof UsersFilter>;
 
 const meta: Meta<typeof GroupsPageView> = {
-	title: "pages/OrganizationGroupsPage",
+	title: "pages/GroupsPage",
 	component: GroupsPageView,
 	args: {
 		canCreateGroup: true,

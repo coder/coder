@@ -44,7 +44,8 @@ const baseArgs: AgentSettingsPersonalSkillsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsPersonalSkillsPageView",
+	title:
+		"pages/AgentsPage/AgentSettingsPage/AgentSettingsPersonalSkillsPage/AgentSettingsPersonalSkillsPageView",
 	component: AgentSettingsPersonalSkillsPageView,
 	args: baseArgs,
 } satisfies Meta<typeof AgentSettingsPersonalSkillsPageView>;

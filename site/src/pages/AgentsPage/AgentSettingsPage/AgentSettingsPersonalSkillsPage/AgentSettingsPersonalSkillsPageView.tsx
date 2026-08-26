@@ -33,13 +33,13 @@ import {
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
 import { formatDate } from "#/utils/time";
-import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
-import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
-import { SectionHeader } from "./components/SectionHeader";
+import type { PersonalSkillErrorDisplay } from "../../components/PersonalSkillEditor";
+import { PersonalSkillEditor } from "../../components/PersonalSkillEditor";
+import { SectionHeader } from "../../components/SectionHeader";
 import {
 	PERSONAL_SKILLS_MAX_PER_USER,
 	type PersonalSkillFormValues,
-} from "./utils/personalSkills";
+} from "../../utils/personalSkills";
 
 export type PersonalSkillEditorState =
 	| {

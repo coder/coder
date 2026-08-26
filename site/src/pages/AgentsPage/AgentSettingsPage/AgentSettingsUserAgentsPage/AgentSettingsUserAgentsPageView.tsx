@@ -7,12 +7,12 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import type { ModelSelectorOption } from "./components/ChatElements";
+import type { ModelSelectorOption } from "../../components/ChatElements";
 import {
 	PersonalModelOverrideRow,
 	type SavePersonalOverride,
-} from "./components/PersonalModelOverrideRow";
-import { SectionHeader } from "./components/SectionHeader";
+} from "../../components/PersonalModelOverrideRow";
+import { SectionHeader } from "../../components/SectionHeader";
 
 export interface AgentSettingsUserAgentsPageViewProps {
 	overridesData?: TypesGen.UserChatPersonalModelOverridesResponse;

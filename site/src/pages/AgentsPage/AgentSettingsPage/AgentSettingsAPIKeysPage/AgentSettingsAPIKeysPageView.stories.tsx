@@ -58,7 +58,8 @@ const createProviderItems = (
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsAPIKeysPageView",
+	title:
+		"pages/AgentsPage/AgentSettingsPage/AgentSettingsAPIKeysPage/AgentSettingsAPIKeysPageView",
 	component: AgentSettingsAPIKeysPageView,
 	args: {
 		error: undefined,

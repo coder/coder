@@ -33,7 +33,8 @@ const baseArgs: AgentSettingsGeneralPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsGeneralPageView",
+	title:
+		"pages/AgentsPage/AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPageView",
 	component: AgentSettingsGeneralPageView,
 	args: baseArgs,
 	parameters: {

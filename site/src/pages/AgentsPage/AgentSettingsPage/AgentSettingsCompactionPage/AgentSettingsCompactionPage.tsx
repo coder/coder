@@ -7,9 +7,9 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationChatModels } from "../../hooks/useOrganizationChatModels";
+import { providerTypeByIDFromUserConfigs } from "../../utils/modelOptions";
 import { AgentSettingsCompactionPageView } from "./AgentSettingsCompactionPageView";
-import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
-import { providerTypeByIDFromUserConfigs } from "./utils/modelOptions";
 
 const AgentSettingsCompactionPage: FC = () => {
 	const queryClient = useQueryClient();

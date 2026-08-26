@@ -9,8 +9,8 @@ import {
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useOrganizationChatModels } from "../../hooks/useOrganizationChatModels";
 import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
-import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 
 const incrementResetToken = (
 	current: Record<string, number>,
