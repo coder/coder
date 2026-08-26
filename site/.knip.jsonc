@@ -8,9 +8,7 @@
 		"./e2e/**/*.ts"
 	],
 	"tags": ["-lintignore"],
-	"ignore": [
-		"**/*Generated.ts"
-	],
+	"ignore": ["**/*Generated.ts"],
 	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
