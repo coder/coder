@@ -3050,7 +3050,7 @@ export interface ChatModelOverridesResponse {
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
- * never exposed. The fields mirror what /api/v2/chats/models
+ * never exposed. The fields mirror what /api/experimental/chats/models
  * already discloses to any authenticated caller.
  */
 export interface ChatModelProviderDescriptor {
