@@ -26,7 +26,7 @@ import { Switch } from "#/components/Switch/Switch";
 import {
 	defaultSchedule,
 	emptySchedule,
-} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+} from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { getFormHelpers } from "#/utils/formUtils";
 import { humanDuration } from "#/utils/time";
 import { timeZones } from "#/utils/timeZones";

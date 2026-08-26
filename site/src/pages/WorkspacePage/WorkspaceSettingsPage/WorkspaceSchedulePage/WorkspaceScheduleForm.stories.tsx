@@ -7,8 +7,8 @@ import { action } from "storybook/actions";
 import {
 	defaultSchedule,
 	emptySchedule,
-} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { emptyTTL } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
+} from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { emptyTTL } from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { MockTemplate, mockApiError } from "#/testHelpers/entities";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
@@ -34,7 +34,8 @@ const mockTemplate = {
 };
 
 const meta: Meta<typeof WorkspaceScheduleForm> = {
-	title: "pages/WorkspaceSettingsPage/WorkspaceScheduleForm",
+	title:
+		"pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceScheduleForm",
 	component: WorkspaceScheduleForm,
 	args: {
 		template: mockTemplate,

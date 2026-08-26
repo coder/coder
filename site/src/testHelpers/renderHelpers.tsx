@@ -19,7 +19,7 @@ import { DashboardLayout } from "#/modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "#/modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "#/modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "#/pages/TemplatePage/TemplateSettingsPage/TemplateSettingsLayout";
-import { WorkspaceSettingsLayout } from "#/pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { WorkspaceSettingsLayout } from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import themes, { DEFAULT_THEME } from "#/theme";
 import { MockUserOwner } from "./entities";
 

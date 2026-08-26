@@ -38,7 +38,7 @@ import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceParametersPage from "./WorkspaceParametersPage";
 
 const meta = {
-	title: "pages/WorkspaceParametersPage",
+	title: "pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceParametersPage",
 	component: WorkspaceSettingsLayout,
 	decorators: [withAuthProvider, withDashboardProvider, withWebSocket],
 	args: {

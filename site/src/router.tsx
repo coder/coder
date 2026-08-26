@@ -27,7 +27,7 @@ import { TemplateRedirectController } from "./pages/TemplatePage/TemplateRedirec
 import { TemplateSettingsLayout } from "./pages/TemplatePage/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
-import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { WorkspaceSettingsLayout } from "./pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 
 // Lazy load pages
@@ -96,19 +96,19 @@ const WorkspacePage = lazy(() => import("./pages/WorkspacePage/WorkspacePage"));
 const WorkspaceSchedulePage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
+			"./pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/WorkspaceSchedulePage"
 		),
 );
 const WorkspaceParametersPage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
+			"./pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceParametersPage/WorkspaceParametersPage"
 		),
 );
 const WorkspaceSharingPage = lazy(
 	() =>
 		import(
-			"./pages/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
+			"./pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSharingPage/WorkspaceSharingPage"
 		),
 );
 const TerminalPage = lazy(
@@ -231,7 +231,8 @@ const TemplateVariablesPage = lazy(
 		),
 );
 const WorkspaceSettingsPage = lazy(
-	() => import("./pages/WorkspaceSettingsPage/WorkspaceSettingsPage"),
+	() =>
+		import("./pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSettingsPage"),
 );
 const CreateTokenPage = lazy(
 	() =>

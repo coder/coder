@@ -5,7 +5,7 @@ import { MockWorkspace } from "#/testHelpers/entities";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 
 const meta: Meta<typeof WorkspaceSettingsPageView> = {
-	title: "pages/WorkspaceSettingsPage/WorkspaceSettingsPageView",
+	title: "pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSettingsPageView",
 	component: WorkspaceSettingsPageView,
 	args: {
 		error: undefined,

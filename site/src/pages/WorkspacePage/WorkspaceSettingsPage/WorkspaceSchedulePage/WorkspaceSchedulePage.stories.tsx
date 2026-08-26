@@ -25,7 +25,7 @@ import { WorkspaceSettingsLayout } from "../WorkspaceSettingsLayout";
 import WorkspaceSchedulePage from "./WorkspaceSchedulePage";
 
 const meta = {
-	title: "pages/WorkspaceSchedulePage",
+	title: "pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage",
 	component: WorkspaceSettingsLayout,
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 	parameters: {

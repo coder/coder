@@ -21,8 +21,8 @@ import {
 import {
 	scheduleChanged,
 	scheduleToAutostart,
-} from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import { ttlMsToAutostop } from "#/pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
+} from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { ttlMsToAutostop } from "#/pages/WorkspacePage/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
