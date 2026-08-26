@@ -8,10 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -210,14 +214,59 @@ var (
 // or return values. The original TypedHandlerFunc is wrapped to handle type
 // conversion.
 func (t Tool[Arg, Ret]) Generic() GenericTool {
+	getArgumentSchema := sync.OnceValues(func() (*jsonschema.Resolved, error) {
+		if t.Schema.Properties == nil {
+			return nil, xerrors.Errorf("compile argument schema for tool %q: schema properties cannot be nil", t.Name)
+		}
+		inputSchema := map[string]any{
+			"type":                 "object",
+			"properties":           t.Schema.Properties,
+			"additionalProperties": false,
+		}
+		if len(t.Schema.Required) > 0 {
+			inputSchema["required"] = t.Schema.Required
+		}
+		schemaJSON, err := json.Marshal(inputSchema)
+		if err != nil {
+			return nil, xerrors.Errorf("marshal argument schema for tool %q: %w", t.Name, err)
+		}
+		var schema jsonschema.Schema
+		if err := json.Unmarshal(schemaJSON, &schema); err != nil {
+			return nil, xerrors.Errorf("decode argument schema for tool %q: %w", t.Name, err)
+		}
+		compiled, err := schema.Resolve(nil)
+		if err != nil {
+			return nil, xerrors.Errorf("compile argument schema for tool %q: %w", t.Name, err)
+		}
+		return compiled, nil
+	})
+
 	return GenericTool{
 		Tool:               t.Tool,
 		MCPAnnotations:     t.MCPAnnotations,
 		UserClientOptional: t.UserClientOptional,
 		Handler: wrap(func(ctx context.Context, deps Deps, args json.RawMessage) (json.RawMessage, error) {
+			compiledSchema, err := getArgumentSchema()
+			if err != nil {
+				return nil, err
+			}
+			if len(args) == 0 {
+				args = json.RawMessage("{}")
+			}
+			var untypedArgs any
+			if err := json.Unmarshal(args, &untypedArgs); err != nil {
+				return nil, newArgumentValidationError(map[string]string{
+					"$": xerrors.Errorf("decode JSON arguments: %w", err).Error(),
+				}, err)
+			}
+			if err := compiledSchema.Validate(untypedArgs); err != nil {
+				return nil, newArgumentValidationError(map[string]string{"$": err.Error()}, nil)
+			}
 			var typedArgs Arg
 			if err := json.Unmarshal(args, &typedArgs); err != nil {
-				return nil, xerrors.Errorf("failed to unmarshal args: %w", err)
+				return nil, newArgumentValidationError(map[string]string{
+					"$": xerrors.Errorf("decode as tool argument type: %w", err).Error(),
+				}, err)
 			}
 			ret, err := t.Handler(ctx, deps, typedArgs)
 			var buf bytes.Buffer
@@ -243,6 +292,44 @@ type GenericTool struct {
 	// user authentication token. If true, the tool will be available even when
 	// running in an unauthenticated mode with just an agent token.
 	UserClientOptional bool
+}
+
+// ArgumentValidationError reports that tool arguments do not satisfy the
+// declared schema or cannot be decoded into the tool's argument type.
+type ArgumentValidationError struct {
+	details map[string]string
+	cause   error
+}
+
+func newArgumentValidationError(details map[string]string, cause error) *ArgumentValidationError {
+	if len(details) == 0 {
+		details = map[string]string{"$": "arguments do not satisfy the tool schema"}
+	}
+	return &ArgumentValidationError{details: details, cause: cause}
+}
+
+func (e *ArgumentValidationError) Error() string {
+	details := make([]string, 0, len(e.details))
+	for _, path := range slices.Sorted(maps.Keys(e.details)) {
+		var qualifiedPath string
+		switch {
+		case path == "":
+			qualifiedPath = "$"
+		case strings.HasPrefix(path, "$"):
+			qualifiedPath = path
+		case strings.HasPrefix(path, "/"):
+			qualifiedPath = "$" + path
+		default:
+			qualifiedPath = "$/" + path
+		}
+		details = append(details, qualifiedPath+": "+e.details[path])
+	}
+	return "invalid arguments: " + strings.Join(details, "; ")
+}
+
+// Unwrap returns the underlying JSON decoding error, when present.
+func (e *ArgumentValidationError) Unwrap() error {
+	return e.cause
 }
 
 // GenericHandlerFunc is a function that handles a tool call.
@@ -453,7 +540,7 @@ type CreateWorkspaceArgs struct {
 	TemplateID              string            `json:"template_id,omitempty"`
 	TemplateVersionID       string            `json:"template_version_id,omitempty"`
 	TemplateVersionPresetID string            `json:"template_version_preset_id,omitempty"`
-	User                    string            `json:"user"`
+	User                    string            `json:"user,omitempty"`
 }
 
 // richParametersFromMap converts the map shape used on tool args into the
@@ -514,11 +601,12 @@ be ready before trying to use or connect to the workspace.
 					"description": "Name of the workspace to create.",
 				},
 				"rich_parameters": map[string]any{
-					"type":        "object",
-					"description": "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
+					"type":                 "object",
+					"description":          "Key/value pairs of rich parameters to pass to the template version to create the workspace.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
-			Required: []string{"user", "name", "rich_parameters"},
+			Required: []string{"name", "rich_parameters"},
 		},
 	},
 	MCPAnnotations: mcpMutationAnnotations,
@@ -851,8 +939,9 @@ connect to the workspace.
 					"description": "(Optional) ID of a template version preset to apply. Only valid for start transitions. Obtain available presets from coder_get_template. Presets are scoped to the template version they were created on; pass template_version_id with the same version the preset came from when the workspace's current build is on a different version, otherwise the build may apply mismatched parameter defaults. When set, the preset's parameter values take precedence over conflicting entries in rich_parameters.",
 				},
 				"rich_parameters": map[string]any{
-					"type":        "object",
-					"description": "(Optional) Key/value pairs of rich parameters to apply to the build. Only valid for start transitions.",
+					"type":                 "object",
+					"description":          "(Optional) Key/value pairs of rich parameters to apply to the build. Only valid for start transitions.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
 			Required: []string{"workspace_id", "transition"},
@@ -1570,8 +1659,9 @@ var UploadTarFile = Tool[UploadTarFileArgs, codersdk.UploadResponse]{
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"files": map[string]any{
-					"type":        "object",
-					"description": "A map of file names to file contents.",
+					"type":                 "object",
+					"description":          "A map of file names to file contents.",
+					"additionalProperties": map[string]any{"type": "string"},
 				},
 			},
 			Required: []string{"files"},
@@ -2105,7 +2195,7 @@ var WorkspacePortForward = Tool[WorkspacePortForwardArgs, WorkspacePortForwardRe
 					"description": workspaceAgentDescription,
 				},
 				"port": map[string]any{
-					"type":        "number",
+					"type":        "integer",
 					"description": "The port to forward.",
 				},
 			},

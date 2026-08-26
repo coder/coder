@@ -80,7 +80,7 @@ type CreateChatArgs struct {
 	Prompt         string            `json:"prompt"`
 	OrganizationID string            `json:"organization_id"`
 	ModelConfigID  string            `json:"model_config_id"`
-	Labels         map[string]string `json:"labels"`
+	Labels         map[string]string `json:"labels,omitempty"`
 }
 
 var CreateChat = Tool[CreateChatArgs, ChatToolStatus]{
@@ -494,7 +494,7 @@ var AwaitChat = Tool[AwaitChatArgs, AwaitChatResponse]{
 }
 
 type ListChatsArgs struct {
-	Labels map[string]string `json:"labels"`
+	Labels map[string]string `json:"labels,omitempty"`
 	Query  string            `json:"query"`
 	Limit  int               `json:"limit"`
 }
@@ -749,7 +749,7 @@ Only user-facing text content is returned (including lifecycle hook notices); to
 type SendChatMessageArgs struct {
 	ChatID       string                    `json:"chat_id"`
 	Text         string                    `json:"text"`
-	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior"`
+	BusyBehavior codersdk.ChatBusyBehavior `json:"busy_behavior,omitempty"`
 }
 
 type SendChatMessageResponse struct {
