@@ -2008,7 +2008,7 @@ func extractToolResultIDs(t *testing.T, msgs ...fantasy.Message) []string {
 func TestNulEscapeRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
 	// Seed minimal dependencies for the DB round-trip path:
 	// user, provider, model config, chat.
@@ -2189,6 +2189,15 @@ func TestNulEscapeRoundTrip(t *testing.T) {
 		})
 		readBack, err := db.GetChatMessageByID(ctx, dbMsg.ID)
 		require.NoError(t, err)
+
+		// Physical evidence of the encoding: the stored jsonb row contains
+		// one sentinel pair per NUL byte and no \u0000 escape.
+		var stored string
+		require.NoError(t, sqlDB.QueryRowContext(ctx,
+			"SELECT content::text FROM chat_messages WHERE id = $1", dbMsg.ID,
+		).Scan(&stored))
+		require.NotContains(t, stored, `\u0000`)
+		require.Equal(t, 2, strings.Count(stored, "\uE000\uE001"))
 
 		prompt, err := chatprompt.ConvertMessagesWithFiles(
 			ctx,
