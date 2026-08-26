@@ -851,7 +851,7 @@ func TestEditFiles(t *testing.T) {
 				},
 			},
 			errCode: http.StatusBadRequest,
-			errors:  []string{"search string not found in file"},
+			errors:  []string{"old_text not found in file"},
 			// File should remain unchanged.
 			expected: map[string]string{filepath.Join(tmpdir, "no-match"): "original content"},
 		},
@@ -1025,7 +1025,7 @@ func TestEditFiles(t *testing.T) {
 				},
 			},
 			errCode: http.StatusBadRequest,
-			errors:  []string{"search string not found"},
+			errors:  []string{"old_text not found"},
 			expected: map[string]string{
 				filepath.Join(tmpdir, "atomic-a"): "aaa",
 				filepath.Join(tmpdir, "atomic-b"): "bbb",
@@ -2376,7 +2376,7 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 			content: "above\n\n\nbelow\n",
 			search:  "above\nbelow",
 			replace: "above\nbelow",
-			errSub:  "search string not found",
+			errSub:  "old_text not found",
 		},
 
 		// Search matches blank lines exactly; replacement
@@ -2522,7 +2522,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "EmptySearch_Rejects",
 			content: "hello\n",
 			edits:   []edit{{search: "", replace: "X"}},
-			errSub:  "search string must not be empty",
+			errSub:  "old_text must not be empty",
 		},
 		// Empty search with replace_all=true: historically
 		// injected the replacement between every byte, silently
@@ -2531,7 +2531,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "EmptySearch_ReplaceAll_Rejects",
 			content: "hello\n",
 			edits:   []edit{{search: "", replace: "X", replaceAll: true}},
-			errSub:  "search string must not be empty",
+			errSub:  "old_text must not be empty",
 		},
 		// Ambiguous single-replace: 3 distinct matches, caller
 		// did not ask for replace_all.
@@ -2547,7 +2547,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "NotFound_Rejects",
 			content: "hello\nworld\n",
 			edits:   []edit{{search: "nonexistent\n", replace: "X\n"}},
-			errSub:  "search string not found",
+			errSub:  "old_text not found",
 		},
 		// Content mismatch that trimming cannot recover: search
 		// has different letters, not just different whitespace.
@@ -2555,7 +2555,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "ContentMismatch_Rejects",
 			content: "hello\n",
 			edits:   []edit{{search: "Hello\n", replace: "HELLO\n"}},
-			errSub:  "search string not found",
+			errSub:  "old_text not found",
 		},
 		// Blank lines in the file that the search omits: the
 		// fuzzy window cannot align against the blank lines, so
@@ -2564,7 +2564,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "BlankLineMismatch_Rejects",
 			content: "above\n\n\nbelow\n",
 			edits:   []edit{{search: "above\nbelow\n", replace: "above\nbelow\n"}},
-			errSub:  "search string not found",
+			errSub:  "old_text not found",
 		},
 		// Search/replace disagreement signals intent to rewrite
 		// endings; search must byte-match the file's. LF search
@@ -2574,7 +2574,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 			name:    "CallerIntent_SearchDoesNotMatchFileEnding_Rejects",
 			content: "x\r\ny\r\nz\r\n",
 			edits:   []edit{{search: "x\ny\n", replace: "X\r\nY\r\n"}},
-			errSub:  "search string not found",
+			errSub:  "old_text not found",
 		},
 	}
 
@@ -3221,10 +3221,10 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 
 // baseFuzzyNotFoundMessage is the leading sentence the matcher
 // returns when all three passes miss. It must remain the leading
-// sentence even when diagnostic hints are appended, so existing log
-// scrapers continue to match.
-const baseFuzzyNotFoundMessage = "search string not found in file. " +
-	"Verify the search string matches the file content exactly, " +
+// sentence so callers can match the base error independently of any
+// appended diagnostic hints.
+const baseFuzzyNotFoundMessage = "old_text not found in file. " +
+	"Verify that old_text matches the file content exactly, " +
 	"including whitespace and indentation"
 
 // TestFuzzyReplace_Hints exercises the post-fail diagnostic hints:
@@ -3260,8 +3260,24 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 3`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 3`,
 			},
+		},
+		{
+			// CODAGT-523 falsifier: the hint must name the current
+			// schema fields, not the deprecated search/replace.
+			name: "Inversion_HintUsesNewSchemaNames",
+			content: "package main\n" +
+				"\n" +
+				"func adder(a int, b int) int { return a + b }\n" +
+				"\n" +
+				"// trailing comment\n",
+			edit: edit{
+				search:  "func adder(a, b int) int {\n\treturn a + b\n}\n",
+				replace: "func adder(a int, b int) int { return a + b }\n",
+			},
+			wantSubs:    []string{`"old_text"`, `"new_text"`},
+			notWantSubs: []string{`"search"`, `"replace"`},
 		},
 		{
 			name: "Inversion_ThreeAnchors_AllListed",
@@ -3278,7 +3294,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 2, 4, 6`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 2, 4, 6`,
 			},
 			notWantSubs: []string{"more"},
 		},
@@ -3297,7 +3313,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 1, 2, 3, 4, 5 and 2 more`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 1, 2, 3, 4, 5 and 2 more`,
 			},
 		},
 		{
@@ -3313,7 +3329,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 2, 3, 4, 5, 6 and 2 more`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 2, 3, 4, 5, 6 and 2 more`,
 			},
 		},
 		{
@@ -3327,7 +3343,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				"Your search has 32 \"\u2500\" (U+2500); the file has 37 at line 2",
+				"Your old_text has 32 \"\u2500\" (U+2500); the file has 37 at line 2",
 			},
 		},
 		{
@@ -3341,7 +3357,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Your search has 5 "=" (U+003D); the file has 7 at line 2`,
+				`Your old_text has 5 "=" (U+003D); the file has 7 at line 2`,
 			},
 		},
 		{
@@ -3354,7 +3370,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Your search has 5 "=" (U+003D); the file has 7 at line 1, 3 at line 2`,
+				`Your old_text has 5 "=" (U+003D); the file has 7 at line 1, 3 at line 2`,
 			},
 			notWantSubs: []string{"more"},
 		},
@@ -3372,7 +3388,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Your search has 5 "=" (U+003D); the file has 2 at line 1, 3 at line 2, 6 at line 3, 7 at line 4, 8 at line 5 and 1 more`,
+				`Your old_text has 5 "=" (U+003D); the file has 2 at line 1, 3 at line 2, 6 at line 3, 7 at line 4, 8 at line 5 and 1 more`,
 			},
 		},
 		{
@@ -3385,7 +3401,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 				replace: "unused\n",
 			},
 			wantSubs:    []string{baseFuzzyNotFoundMessage},
-			notWantSubs: []string{"Your search has", "the file has"},
+			notWantSubs: []string{"Your old_text has", "the file has"},
 		},
 		{
 			name:    "Miscount_Unrelated_NoHint",
@@ -3395,7 +3411,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 				replace: "unused\n",
 			},
 			wantSubs:    []string{baseFuzzyNotFoundMessage},
-			notWantSubs: []string{"Your search has", "the file has"},
+			notWantSubs: []string{"Your old_text has", "the file has"},
 		},
 		{
 			name: "Miscount_SuppressesInversion_WhenBothCouldFire",
@@ -3415,7 +3431,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				"Your search has 6 \"\u2500\" (U+2500); the file has 8 at line 2",
+				"Your old_text has 6 \"\u2500\" (U+2500); the file has 8 at line 2",
 			},
 			notWantSubs: []string{"swap", "appears at line"},
 		},
@@ -3430,7 +3446,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 2`,
 			},
 			// Line 2 must appear once, not 2, 2, 2.
 			notWantSubs: []string{"line 2, 2", "more"},
@@ -3449,7 +3465,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 2`,
 			},
 		},
 		{
@@ -3467,7 +3483,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 2`,
 			},
 		},
 		{
@@ -3480,7 +3496,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 				replace: "unused\n",
 			},
 			wantSubs:    []string{baseFuzzyNotFoundMessage},
-			notWantSubs: []string{"Your search has", "the file has"},
+			notWantSubs: []string{"Your old_text has", "the file has"},
 		},
 		{
 			name: "Miscount_TotalHintsCapped",
@@ -3500,9 +3516,9 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Your search has 4 "=" (U+003D)`,
-				`Your search has 4 "+" (U+002B)`,
-				`Your search has 4 "#" (U+0023)`,
+				`Your old_text has 4 "=" (U+003D)`,
+				`Your old_text has 4 "+" (U+002B)`,
+				`Your old_text has 4 "#" (U+0023)`,
 				"and 1 more",
 			},
 			// The fourth hint (`@`) is suppressed by the cap.
@@ -3526,7 +3542,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Did you swap "search" and "replace"? Your replace string appears at line 1, 3`,
+				`Did you swap "old_text" and "new_text"? Your new_text string appears at line 1, 3`,
 			},
 			notWantSubs: []string{"more"},
 		},
@@ -3542,7 +3558,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 			},
 			wantSubs: []string{
 				baseFuzzyNotFoundMessage,
-				`Your search has 0 "b" (U+0062); the file has 2 at line 1`,
+				`Your old_text has 0 "b" (U+0062); the file has 2 at line 1`,
 			},
 		},
 		{
@@ -3555,7 +3571,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 				replace: "new\n",
 			},
 			wantSubs:    []string{baseFuzzyNotFoundMessage},
-			notWantSubs: []string{"swap", "Your search has", "appears at line"},
+			notWantSubs: []string{"swap", "Your old_text has", "appears at line"},
 		},
 	}
 
