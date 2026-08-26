@@ -13,9 +13,9 @@ import {
 } from "./index";
 
 const parseStringArray = (parsed: unknown): string[] | undefined =>
-	// SAFETY: every() above checked each element is a string.
-	Array.isArray(parsed) && parsed.every((item) => typeof item === "string")
-		? (parsed as string[])
+	Array.isArray(parsed) &&
+	parsed.every((item): item is string => typeof item === "string")
+		? parsed
 		: undefined;
 
 const boolKey = defineStorageKey<boolean>({

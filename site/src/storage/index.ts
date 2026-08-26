@@ -253,8 +253,8 @@ const createHandle = <T>(
 		const raw = readRaw(area, key);
 		const cached = snapshotCache.get(cacheKey);
 		if (cached && cached.raw === raw) {
-			// SAFETY: each key has a single handle definition, so entries
-			// under cacheKey were produced by this handle's codec as a T.
+			// The cache is shared across keys, but each key has a single
+			// handle, so this entry was decoded by this handle's codec.
 			return cached.value as T;
 		}
 		const value = decodeRaw(raw);

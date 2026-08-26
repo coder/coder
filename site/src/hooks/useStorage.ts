@@ -17,8 +17,8 @@ export function useStorage<T>(
 	const set = useCallback(
 		(next: T | ((prev: T) => T)) =>
 			handle.set(
-				// SAFETY: stored values are serializable data, never
-				// functions, so a function argument is always an updater.
+				// Storage values are plain data, never functions, so a
+				// function argument can only be the updater form.
 				typeof next === "function"
 					? (next as (prev: T) => T)(handle.get())
 					: next,
