@@ -45,7 +45,7 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 							svgSize="xs"
 							className="gap-0 bg-surface-tertiary rounded-s-none text-content-warning"
 						>
-							<BanIcon className="flex-shrink-0" />
+							<BanIcon className="shrink-0" />
 							{summary.blocked.toLocaleString("en-US")}
 						</Badge>
 					</button>

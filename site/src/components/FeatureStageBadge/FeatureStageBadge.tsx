@@ -58,7 +58,7 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 			<TooltipTrigger asChild>
 				<span
 					className={cn(
-						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap rounded-md border border-solid border-transparent transition-colors duration-200 ease-in-out",
+						"block max-w-fit cursor-default shrink-0 leading-none whitespace-nowrap rounded-md border border-solid border-transparent transition-colors duration-200 ease-in-out",
 						sizeClasses,
 						colorClasses,
 						className,

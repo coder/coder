@@ -54,7 +54,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 						<TooltipTrigger asChild>
 							<Badge size="md">
 								{iconScope}
-								<span className="[&::first-letter]:uppercase">
+								<span className="first-letter:uppercase">
 									{daemonScope}
 								</span>
 							</Badge>

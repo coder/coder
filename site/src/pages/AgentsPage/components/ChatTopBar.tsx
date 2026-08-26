@@ -217,7 +217,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
 							>
 								<ChatActionsMenuItems
 									isArchived={isArchived}
@@ -255,7 +255,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					<PrStateIcon
 						state={prState}
 						draft={prDraft}
-						className="!size-3.5 shrink-0"
+						className="size-3.5! shrink-0"
 					/>
 					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}

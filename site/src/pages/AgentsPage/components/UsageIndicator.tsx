@@ -163,7 +163,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 				<button
 					type="button"
 					aria-label={triggerAriaLabel}
-					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
+					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-hidden"
 				>
 					<UsageTriggerProgress sections={sections} />
 				</button>
@@ -302,7 +302,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 								<TooltipTrigger asChild>
 									<button
 										type="button"
-										className="mt-0.5 inline-flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-none transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
+										className="mt-0.5 inline-flex size-3.5 shrink-0 cursor-help items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary/70 outline-hidden transition-colors hover:text-content-primary focus-visible:ring-2 focus-visible:ring-content-link"
 										aria-label={`${section.title} help`}
 									>
 										<InfoIcon className="size-3.5" />

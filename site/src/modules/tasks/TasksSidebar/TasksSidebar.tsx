@@ -225,9 +225,9 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 				variant="subtle"
 				className={cn(
 					"overflow-visible group w-full justify-start text-content-secondary",
-					"transition-none hover:bg-surface-tertiary gap-2 has-[[data-state=open]]:bg-surface-tertiary",
+					"transition-none hover:bg-surface-tertiary gap-2 has-data-[state=open]:bg-surface-tertiary",
 					{
-						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-[[data-state=open]]:bg-surface-quaternary":
+						"text-content-primary bg-surface-quaternary hover:bg-surface-quaternary has-data-[state=open]:bg-surface-quaternary":
 							isActive,
 					},
 				)}

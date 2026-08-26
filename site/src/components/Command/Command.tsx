@@ -24,7 +24,7 @@ export const CommandInput: React.FC<
 			<SearchIcon className="mr-2 size-4 shrink-0 opacity-50" />
 			<CommandPrimitive.Input
 				className={cn(
-					`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none border-none
+					`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden border-none
 				placeholder:text-content-secondary text-content-primary
 				disabled:cursor-not-allowed disabled:opacity-50`,
 					className,
@@ -64,8 +64,8 @@ export const CommandGroup: React.FC<
 		<CommandPrimitive.Group
 			className={cn(
 				`overflow-hidden p-2 text-content-primary
-			[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs
-			[&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-secondary`,
+			**:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs
+			**:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-content-secondary`,
 				className,
 			)}
 			{...props}
@@ -90,7 +90,7 @@ export const CommandItem: React.FC<
 	return (
 		<CommandPrimitive.Item
 			className={cn(
-				`relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-none
+				`relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-hidden
 			data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 			data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
 			[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,

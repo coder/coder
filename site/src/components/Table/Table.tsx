@@ -72,7 +72,7 @@ export const TableFooter: React.FC<React.ComponentPropsWithRef<"tfoot">> = ({
 	return (
 		<tfoot
 			className={cn(
-				"border-t bg-surface-secondary/50 font-medium [&>tr]:last:border-b-0",
+				"border-t bg-surface-secondary/50 font-medium last:[&>tr]:border-b-0",
 				className,
 			)}
 			{...props}
@@ -90,7 +90,7 @@ const tableRowVariants = cva(
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer hover:outline focus-visible:outline outline-1 -outline-offset-1 outline-border-secondary",
+					"cursor-pointer hover:outline-solid focus-visible:outline-solid outline-1 -outline-offset-1 outline-border-secondary",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},
@@ -130,7 +130,7 @@ export const TableHead: React.FC<React.ComponentPropsWithRef<"th">> = ({
 		<th
 			className={cn(
 				"p-3 text-left align-middle font-semibold",
-				"[&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+				"has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
 				className,
 			)}
 			scope={scope}
@@ -148,7 +148,7 @@ export const TableCell: React.FC<React.ComponentPropsWithRef<"td">> = ({
 			{...props}
 			className={cn(
 				"border-0 border-t border-border border-solid",
-				"p-3 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
 				className,
 			)}
 		/>

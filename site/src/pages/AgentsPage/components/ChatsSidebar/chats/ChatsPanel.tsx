@@ -450,16 +450,16 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					</div>
 				</div>
 				<ScrollArea
-					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
+					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:block!"
 					scrollBarClassName="w-1.5"
 					// The default 24px hit-target extends ~18px left of this narrow
 					// scrollbar, onto the row controls (actions menu, timestamp,
 					// indicators). Disable it so those controls stay clickable.
 					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
-						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+						"mask-[linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
-						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
+						"sm:mask-none sm:[-webkit-mask-image:none]",
 					)}
 				>
 					<div className="flex flex-col gap-2 px-2 pb-3">
@@ -512,7 +512,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									) : (
 										<>
 											{pinnedChats.length > 0 && (
-												<div className="[&:not(:first-child)]:mt-3">
+												<div className="not-first:mt-3">
 													<ChatSectionHeader
 														label={PINNED_SECTION_KEY}
 														count={pinnedChats.length}
@@ -565,7 +565,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												</div>
 											)}
 											{sharedWithYouChats.length > 0 && (
-												<div className="[&:not(:first-child)]:mt-3">
+												<div className="not-first:mt-3">
 													<ChatSectionHeader
 														label={SHARED_WITH_YOU_SECTION_KEY}
 														count={sharedWithYouChats.length}
@@ -598,7 +598,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 												return (
 													<div
 														key={section.key}
-														className="[&:not(:first-child)]:mt-3"
+														className="not-first:mt-3"
 													>
 														<ChatSectionHeader
 															label={section.label}

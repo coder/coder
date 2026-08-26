@@ -184,7 +184,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 					Additional system instructions
 				</label>
 				<TextareaAutosize
-					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]"
+					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
 					id="system_prompt"
 					placeholder="Instructions appended to every agent session"
 					name="system_prompt"
@@ -211,7 +211,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 					Additional plan mode instructions
 				</label>
 				<TextareaAutosize
-					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]"
+					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-hidden focus:ring-2 focus:ring-content-link/30 scrollbar-thin"
 					id="plan_mode_instructions"
 					placeholder="Instructions applied when the agent enters plan mode"
 					name="plan_mode_instructions"

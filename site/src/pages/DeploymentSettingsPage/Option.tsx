@@ -22,7 +22,7 @@ interface OptionValueProps {
 export const OptionValue: FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
 	const optionClassName =
-		"text-sm font-mono [overflow-wrap:anywhere] select-all [&_ul]:p-4";
+		"text-sm font-mono wrap-anywhere select-all [&_ul]:p-4";
 
 	if (typeof value === "boolean") {
 		return (
@@ -115,7 +115,7 @@ export const OptionConfig: FC<OptionConfigProps> = ({
 				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&
-					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
+					"border-content-link **:data-[slot=option-config-flag]:bg-content-link",
 				className,
 			)}
 		/>

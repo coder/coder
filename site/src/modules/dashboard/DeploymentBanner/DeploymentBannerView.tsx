@@ -102,7 +102,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
 	return (
 		<div
-			className="sticky bottom-0 z-[1] flex h-9 w-full items-center gap-8
+			className="sticky bottom-0 z-1 flex h-9 w-full items-center gap-8
 		 		overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border
 				bg-surface-primary pr-4 font-mono text-xs leading-none"
 		>
@@ -247,7 +247,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<VSCodeIcon className="size-icon-xs [&_*]:fill-current" />
+									<VSCodeIcon className="size-icon-xs **:fill-current" />
 									{typeof stats?.session_count.vscode === "undefined"
 										? "-"
 										: stats?.session_count.vscode}
@@ -263,7 +263,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 						<Tooltip>
 							<TooltipTrigger asChild>
 								<div className="flex items-center gap-1">
-									<JetBrainsIcon className="size-icon-xs [&_*]:fill-current" />
+									<JetBrainsIcon className="size-icon-xs **:fill-current" />
 									{typeof stats?.session_count.jetbrains === "undefined"
 										? "-"
 										: stats?.session_count.jetbrains}

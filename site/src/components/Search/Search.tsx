@@ -58,7 +58,7 @@ export const SearchInput: FC<SearchInputProps> = ({
 				tabIndex={0}
 				type="text"
 				placeholder="Search..."
-				className="text-inherit h-full border-0 bg-transparent grow basis-0 outline-none pl-4 placeholder:text-content-secondary"
+				className="text-inherit h-full border-0 bg-transparent grow basis-0 outline-hidden pl-4 placeholder:text-content-secondary"
 				{...inputProps}
 			/>
 		</>

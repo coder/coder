@@ -126,7 +126,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-11">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -166,7 +166,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
 			>
 				{showPortsView ? (
 					<MobilePortsPanel

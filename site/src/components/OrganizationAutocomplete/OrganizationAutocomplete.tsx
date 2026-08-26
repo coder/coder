@@ -112,12 +112,12 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
-					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="ml-auto size-icon-sm! shrink-0 text-content-secondary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
-				className="w-[var(--radix-popover-trigger-width)] p-0"
+				className="w-(--radix-popover-trigger-width) p-0"
 			>
 				<Command loop>
 					<CommandInput placeholder="Find organization…" />

@@ -233,7 +233,7 @@ const BadgeDismissButton: FC<{
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
-			<XIcon className="!size-2.5" />
+			<XIcon className="size-2.5!" />
 		</span>
 	</button>
 );
@@ -1066,7 +1066,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{showAgentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">
+				<div className="relative z-0 -mb-10">
 					{(aiGatewayDisabled ||
 						(providerCount !== undefined && modelCount !== undefined)) &&
 					canConfigureAgentSetup ? (
@@ -1092,7 +1092,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1204,7 +1204,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1532,7 +1532,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
 									onClick={
 										speech.isRecording
 											? handleCancelRecording
@@ -1570,7 +1570,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-3! [&>svg]:p-0"
 										onClick={onInterrupt}
 										disabled={isInterruptPending}
 									>
@@ -1597,7 +1597,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<Button
 										size="icon"
 										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:!size-5 [&>svg]:p-0"
+										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
 										onClick={
 											speech.isRecording ? handleAcceptRecording : handleSubmit
 										}

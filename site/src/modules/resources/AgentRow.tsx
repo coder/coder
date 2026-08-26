@@ -491,7 +491,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
 
 				{shouldDisplayAppsSection && (
-					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+					<section className="flex flex-wrap gap-4 empty:hidden">
 						{shouldDisplayAgentApps && (
 							<>
 								{showVSCode && (
@@ -525,7 +525,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				)}
 
 				{agent.status === "connecting" && !isExternalAgent && (
-					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+					<section className="flex flex-wrap gap-4 empty:hidden">
 						<Skeleton width={80} height={32} className="rounded" />
 						<Skeleton width={110} height={32} className="rounded" />
 					</section>

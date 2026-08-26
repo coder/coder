@@ -7,9 +7,9 @@ import { Switch as SwitchPrimitives } from "radix-ui";
 import { cn } from "#/utils/cn";
 
 const switchVariants = cva(
-	`peer inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-sm transition-colors
+	`peer inline-flex shrink-0 cursor-pointer items-center rounded-full shadow-xs transition-colors
 	border-2 border-transparent
-	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 	focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary
 	disabled:cursor-not-allowed
 	data-[state=checked]:disabled:bg-surface-tertiary data-[state=unchecked]:disabled:bg-surface-tertiary

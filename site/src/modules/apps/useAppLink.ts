@@ -86,7 +86,7 @@ export const useAppLink = (
 			}
 		}, openAppExternallyFailedTimeout);
 		window.addEventListener(
-			"blur",
+			"blur-sm",
 			() => {
 				clearTimeout(openAppExternallyFailed);
 			},

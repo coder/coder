@@ -490,8 +490,8 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 								<Badge
 									key={option.value}
 									className={cn(
-										"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiary data-[disabled]:hover:bg-content-disabled",
-										"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
+										"data-disabled:bg-content-disabled data-disabled:text-surface-tertiary data-disabled:hover:bg-content-disabled",
+										"data-fixed:bg-content-disabled data-fixed:text-surface-tertiary data-fixed:hover:bg-surface-secondary",
 										badgeClassName,
 									)}
 									data-fixed={option.fixed}
@@ -511,7 +511,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										type="button"
 										data-testid="clear-option-button"
 										className={cn(
-											`ml-1 pr-0 rounded-sm bg-transparent border-none outline-none
+											`ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden
 												focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer`,
 											(disabled || option.fixed) && "hidden",
 										)}
@@ -558,7 +558,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									: placeholder
 							}
 							className={cn(
-								"flex-1 border-none outline-none bg-transparent leading-5 placeholder:text-content-secondary",
+								"flex-1 border-none outline-hidden bg-transparent leading-5 placeholder:text-content-secondary",
 								{
 									"w-full": hidePlaceholderWhenSelected,
 									"px-3 py-2": selected.length === 0,
@@ -585,7 +585,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							className={cn(
 								"bg-transparent mt-1 border-none rounded-sm",
 								"cursor-pointer text-content-secondary hover:text-content-primary",
-								"outline-none focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:p-0.5",
+								"outline-hidden focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:p-0.5",
 								(hideClearAllButton ||
 									disabled ||
 									selected.length < 1 ||
@@ -607,7 +607,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 					<CommandList
 						className={`absolute top-1 z-10 w-full rounded-md
 								border border-solid border-border
-								bg-surface-primary text-content-primary shadow-md outline-none
+								bg-surface-primary text-content-primary shadow-md outline-hidden
 								animate-in`}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
@@ -677,7 +677,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 																<Tooltip>
 																	<TooltipTrigger asChild>
 																		<span className="flex items-center pointer-events-auto">
-																			<InfoIcon className="!w-3.5 !h-3.5 text-content-secondary" />
+																			<InfoIcon className="w-3.5! h-3.5! text-content-secondary" />
 																		</span>
 																	</TooltipTrigger>
 																	<TooltipContent side="right" sideOffset={10}>

@@ -79,13 +79,13 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 					className={cn(
 						"flex justify-end mt-1 absolute bottom-0 right-0 left-0",
 						!isExpanded &&
-							"bg-gradient-to-t from-surface-primary to-transparent",
+							"bg-linear-to-t from-surface-primary to-transparent",
 					)}
 				>
 					<Button
 						size="sm"
 						variant="outline"
-						className="bg-surface-primary shadow-sm"
+						className="bg-surface-primary shadow-xs"
 						onClick={() => setIsExpanded((v) => !v)}
 					>
 						{isExpanded ? "Collapse" : "Show more"}
@@ -293,7 +293,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 						src={initiator.avatar_url}
 						fallback={initiator.name ?? initiator.username}
 						size="sm"
-						className="flex-shrink-0"
+						className="shrink-0"
 					/>
 					<span className="text-sm text-content-secondary font-normal py-1">
 						{initiator.username}
@@ -343,7 +343,7 @@ const ThreadItem: FC<ThreadItemProps> = ({ thread, initiator }) => {
 				</div>
 				{/* right column: details */}
 				<PromptTable
-					className="lg:max-w-64 flex-shrink-0 w-full lg:w-auto"
+					className="lg:max-w-64 shrink-0 w-full lg:w-auto"
 					timestamp={new Date(thread.started_at)}
 					model={thread.model}
 					inputTokens={thread.token_usage.input_tokens}

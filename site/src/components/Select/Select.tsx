@@ -29,10 +29,10 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	<SelectPrimitive.Trigger
 		className={cn(
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
-			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
+			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-xs
 			ring-offset-background text-content-secondary placeholder:text-content-secondary
 			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
-			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group`,
+			focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link group`,
 			className,
 		)}
 		{...props}
@@ -80,7 +80,7 @@ export const SelectContent: React.FC<
 	<SelectPrimitive.Portal>
 		<SelectPrimitive.Content
 			className={cn(
-				"relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border ",
+				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
 				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
 				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
 				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
@@ -99,7 +99,7 @@ export const SelectContent: React.FC<
 				className={cn(
 					"p-1",
 					position === "popper" &&
-						"h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+						"h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)",
 				)}
 			>
 				{children}
@@ -126,8 +126,8 @@ export const SelectItem: React.FC<
 	<SelectPrimitive.Item
 		className={cn(
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
-			"pl-2 pr-8 text-sm text-content-secondary outline-none focus:bg-surface-secondary ",
-			"focus:text-content-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+			"pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary ",
+			"focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 			className,
 		)}
 		{...props}

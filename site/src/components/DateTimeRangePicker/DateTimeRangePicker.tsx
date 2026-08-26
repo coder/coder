@@ -372,7 +372,7 @@ const QuickPickButton: FC<QuickPickButtonProps> = ({
 		tabIndex={tabIndex}
 		onClick={onClick}
 		className={cn(
-			"flex cursor-pointer items-center justify-between gap-6 rounded-md border-none outline-none",
+			"flex cursor-pointer items-center justify-between gap-6 rounded-md border-none outline-hidden",
 			"bg-transparent px-3 py-1.5 text-left text-sm whitespace-nowrap transition-colors",
 			"text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
 			"focus-visible:ring-2 focus-visible:ring-content-link",
@@ -437,7 +437,7 @@ const TimeRow: FC<TimeRowProps> = ({
 		>
 			<SelectTrigger
 				aria-label={`${label} AM or PM`}
-				className="h-8 w-[4.5rem]"
+				className="h-8 w-18"
 			>
 				<SelectValue />
 			</SelectTrigger>

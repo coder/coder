@@ -5,7 +5,7 @@ export const YAxis: FC<HTMLProps<HTMLDivElement>> = (props) => {
 	return (
 		<div
 			{...props}
-			className={cn("flex-shrink-0", props.className)}
+			className={cn("shrink-0", props.className)}
 			style={{
 				...props.style,
 				width: "var(--y-axis-width)",
@@ -19,9 +19,9 @@ export const YAxisSection: FC<HTMLProps<HTMLDivElement>> = (props) => {
 		<section
 			{...props}
 			className={cn(
-				"[&:not(:first-of-type)]:border-solid",
-				"[&:not(:first-of-type)]:border-0",
-				"[&:not(:first-of-type)]:border-t",
+				"not-first-of-type:border-solid",
+				"not-first-of-type:border-0",
+				"not-first-of-type:border-t",
 			)}
 		/>
 	);
@@ -74,7 +74,7 @@ export const YAxisLabel: FC<YAxisLabelProps> = ({ id, ...props }) => {
 			{...props}
 			className={cn(
 				"flex items-center",
-				"[&>*]:block [&>*]:w-full [&>*]:overflow-hidden [&>*]:text-ellipsis [&>*]:whitespace-nowrap",
+				"*:block *:w-full *:overflow-hidden *:text-ellipsis *:whitespace-nowrap",
 				props.className,
 			)}
 			id={encodeURIComponent(id)}

@@ -113,7 +113,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	};
 
 	return (
-		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-none sm:px-4 sm:py-0.5">
+		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-0 sm:px-4 sm:py-0.5">
 			{mobileBack ? (
 				<Button
 					asChild
@@ -163,7 +163,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="end"
-						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
+						className="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-sm"
 					>
 						<DropdownMenuItem asChild>
 							<Link

@@ -327,7 +327,7 @@ const PillButton: FC<PillButtonProps> = ({ className, active, ...props }) => {
 					"bg-surface-primary hover:bg-surface-primary": active,
 				},
 			])}
-			variant={active ? "outline" : "subtle"}
+			variant={active ? "outline-solid" : "subtle"}
 			{...props}
 		/>
 	);

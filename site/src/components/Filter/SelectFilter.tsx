@@ -55,7 +55,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				<ComboboxButton
 					selectedOption={selectedOption}
 					placeholder={placeholder}
-					className="flex-shrink-0 grow"
+					className="shrink-0 grow"
 					style={{ flexBasis: width }}
 					aria-label={label}
 				/>

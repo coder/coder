@@ -257,9 +257,9 @@ const UserRow = <T extends SelectedUser>({
 			tabIndex={-1}
 			className={cn(
 				"cursor-pointer",
-				"hover:[&>div]:ring-1 hover:[&>div]:ring-inset hover:[&>div]:ring-border-secondary",
+				"[&>div]:hover:ring-1 [&>div]:hover:ring-inset [&>div]:hover:ring-border-secondary",
 				checked
-					? "[&>div]:bg-surface-secondary hover:[&>div]:bg-surface-secondary"
+					? "[&>div]:bg-surface-secondary [&>div]:hover:bg-surface-secondary"
 					: undefined,
 			)}
 			onClick={() => onChange(user, !checked)}

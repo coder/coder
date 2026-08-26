@@ -8,10 +8,10 @@ export const menuContentClass = [
 
 export const menuItemClass = `
 	relative flex cursor-default select-none items-center gap-2 rounded-sm
-	px-2 py-1.5 text-sm text-content-secondary font-medium outline-none
+	px-2 py-1.5 text-sm text-content-secondary font-medium outline-hidden
 	no-underline
 	focus:bg-surface-secondary focus:text-content-primary
-	data-[disabled]:pointer-events-none data-[disabled]:opacity-50
+	data-disabled:pointer-events-none data-disabled:opacity-50
 	[&>svg]:size-icon-sm [&>svg]:shrink-0
 	[&>img]:size-icon-sm [&>img]:shrink-0
 	`;

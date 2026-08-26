@@ -60,7 +60,7 @@ export const OrganizationProvisionersPageView: FC<
 	onRetry,
 }) => {
 	return (
-		<section className="w-full max-w-screen-2xl pb-10">
+		<section className="w-full max-w-(--breakpoint-2xl) pb-10">
 			<SettingsHeader
 				actions={<SettingsHeaderDocsLink href={docs("/admin/provisioners")} />}
 			>

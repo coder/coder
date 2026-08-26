@@ -163,7 +163,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:!size-3.5 [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition [&>svg]:hover:text-content-primary [&>img]:!size-3 [&>img]:!p-0",
+						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
@@ -208,7 +208,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="**:[[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default **:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:border-solid **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -274,7 +274,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										</span>
 									}
 									className={cn(
-										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
+										"p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:leading-[18px] **:[[cmdk-group-heading]]:text-content-secondary",
 										index > 0 &&
 											"border-0 border-t border-solid border-border-default",
 									)}
@@ -347,7 +347,7 @@ const ReasoningEffortRow: FC<ReasoningEffortRowProps> = ({
 						<button
 							type="button"
 							aria-label="About reasoning effort"
-							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+							className="inline-flex size-3 items-center justify-center rounded-sm border-none bg-transparent p-0 text-content-secondary outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						>
 							<InfoIcon aria-hidden="true" className="size-3" />
 						</button>

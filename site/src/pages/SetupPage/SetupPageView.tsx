@@ -131,11 +131,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 								</a>
 							</Button>
 							<div className="flex items-center gap-4">
-								<div className="h-[1px] w-full bg-border" />
+								<div className="h-px w-full bg-border" />
 								<div className="shrink-0 text-xs uppercase text-content-secondary tracking-wider">
 									or
 								</div>
-								<div className="h-[1px] w-full bg-border" />
+								<div className="h-px w-full bg-border" />
 							</div>
 						</>
 					)}

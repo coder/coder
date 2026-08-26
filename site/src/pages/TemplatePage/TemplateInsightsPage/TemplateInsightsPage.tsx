@@ -480,7 +480,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<div className="flex flex-col text-sm font-normal shrink-0 leading-[1.5] text-content-secondary w-[120px]">
+									<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -624,7 +624,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					showExternalIcon={false}
 					// We're using a manual underline because `inline`
 					// removes it from the first line of the text when it wraps.
-					className="inline hover:underline after:hover:content-none"
+					className="inline hover:underline hover:after:content-none"
 				>
 					{usage.value}
 				</Link>
