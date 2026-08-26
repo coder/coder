@@ -48,8 +48,7 @@ import {
 } from "./MCPServerPicker";
 import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
-/** Exported for stories that assert the persisted organization choice. */
-export const selectedOrganizationIdStorage = defineStorageKey<string | null>({
+const selectedOrganizationIdStorage = defineStorageKey<string | null>({
 	key: "agents.selected-organization-id",
 	codec: stringCodec,
 	defaultValue: null,
@@ -426,24 +425,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const unsupportedProviderNames = getUnsupportedProviderNames(
 		modelsQuery.data,
 	);
-	useEffect(() => {
-		if (!initialLastModelConfigID) {
-			return;
-		}
-		if (isModelCatalogLoading || modelsQuery.isLoading) {
-			return;
-		}
-		if (lastUsedModelID) {
-			return;
-		}
-		lastModelConfigIdStorage.remove();
-	}, [
-		initialLastModelConfigID,
-		isModelCatalogLoading,
-		modelsQuery.isLoading,
-		lastUsedModelID,
-	]);
-
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;

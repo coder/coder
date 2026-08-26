@@ -6,11 +6,10 @@ import {
 	shouldInvalidateFilteredChatList,
 } from "./AgentsPageLayout";
 import { useEmptyStateDraft } from "./components/AgentCreateForm";
-import {
-	persistedAttachmentsStorage,
-	useFileAttachments,
-} from "./hooks/useFileAttachments";
+import { useFileAttachments } from "./hooks/useFileAttachments";
 import { emptyInputDraftStorage } from "./storage";
+
+const persistedAttachmentsKey = "agents.persisted-attachments";
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {
@@ -331,10 +330,7 @@ describe("useFileAttachments persistence", () => {
 
 	it("restores uploaded attachments from localStorage on mount", () => {
 		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -356,10 +352,7 @@ describe("useFileAttachments persistence", () => {
 			fileType: "text/plain",
 			fileName: "notes.txt",
 		});
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -384,10 +377,7 @@ describe("useFileAttachments persistence", () => {
 
 	it("does not restore when persist option is false", () => {
 		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderHook(() =>
 			useFileAttachments("org-1", { persist: false }),
@@ -399,10 +389,7 @@ describe("useFileAttachments persistence", () => {
 
 	it("does not restore when no options argument is passed", () => {
 		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderHook(() => useFileAttachments("org-1"));
 
@@ -412,10 +399,7 @@ describe("useFileAttachments persistence", () => {
 
 	it("clears persisted attachments on resetAttachments", () => {
 		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -423,7 +407,7 @@ describe("useFileAttachments persistence", () => {
 			result.current.resetAttachments();
 		});
 
-		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsKey)).toBeNull();
 		expect(result.current.attachments).toHaveLength(0);
 		unmount();
 	});
@@ -433,10 +417,7 @@ describe("useFileAttachments persistence", () => {
 			makePersistedEntry({ fileId: "file-1", fileName: "a.png" }),
 			makePersistedEntry({ fileId: "file-2", fileName: "b.png" }),
 		];
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify(entries),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify(entries));
 
 		const { result, unmount } = renderFileAttachments();
 		expect(result.current.attachments).toHaveLength(2);
@@ -449,7 +430,7 @@ describe("useFileAttachments persistence", () => {
 		expect(result.current.attachments[0].name).toBe("b.png");
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
+			localStorage.getItem(persistedAttachmentsKey) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("file-2");
@@ -457,7 +438,7 @@ describe("useFileAttachments persistence", () => {
 	});
 
 	it("handles corrupt localStorage gracefully", () => {
-		localStorage.setItem(persistedAttachmentsStorage.key, "not-valid-json");
+		localStorage.setItem(persistedAttachmentsKey, "not-valid-json");
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -487,7 +468,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
+			localStorage.getItem(persistedAttachmentsKey) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("new-file-id");
@@ -514,7 +495,7 @@ describe("useFileAttachments persistence", () => {
 			expect(state?.status).toBe("error");
 		});
 
-		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsKey)).toBeNull();
 		unmount();
 	});
 
@@ -531,10 +512,7 @@ describe("useFileAttachments persistence", () => {
 				organizationId: "org-2",
 			}),
 		];
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify(entries),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify(entries));
 
 		const { result, unmount } = renderFileAttachments();
 
@@ -543,7 +521,7 @@ describe("useFileAttachments persistence", () => {
 
 		// localStorage should be pruned to only the matching org.
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
+			localStorage.getItem(persistedAttachmentsKey) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].fileId).toBe("f1");
@@ -558,24 +536,18 @@ describe("useFileAttachments persistence", () => {
 			lastModified: 1000,
 			// No organizationId field -- simulates pre-org-scoping data.
 		};
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([legacy]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([legacy]));
 
 		const { result, unmount } = renderFileAttachments();
 
 		expect(result.current.attachments).toHaveLength(0);
-		expect(localStorage.getItem(persistedAttachmentsStorage.key)).toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsKey)).toBeNull();
 		unmount();
 	});
 
 	it("skips restoration when organizationId is undefined", () => {
 		const entry = makePersistedEntry();
-		localStorage.setItem(
-			persistedAttachmentsStorage.key,
-			JSON.stringify([entry]),
-		);
+		localStorage.setItem(persistedAttachmentsKey, JSON.stringify([entry]));
 
 		const { result, unmount } = renderHook(() =>
 			useFileAttachments(undefined, { persist: true }),
@@ -584,9 +556,7 @@ describe("useFileAttachments persistence", () => {
 		// Should not restore -- org not yet known.
 		expect(result.current.attachments).toHaveLength(0);
 		// Should NOT prune -- org unknown, so leave storage alone.
-		expect(
-			localStorage.getItem(persistedAttachmentsStorage.key),
-		).not.toBeNull();
+		expect(localStorage.getItem(persistedAttachmentsKey)).not.toBeNull();
 		unmount();
 	});
 
@@ -611,7 +581,7 @@ describe("useFileAttachments persistence", () => {
 		});
 
 		const stored = JSON.parse(
-			localStorage.getItem(persistedAttachmentsStorage.key) ?? "null",
+			localStorage.getItem(persistedAttachmentsKey) ?? "null",
 		);
 		expect(stored).toHaveLength(1);
 		expect(stored[0].organizationId).toBe("org-1");

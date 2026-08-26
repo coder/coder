@@ -5,6 +5,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useStorage } from "#/hooks/useStorage";
 import { cn } from "#/utils/cn";
 import { rightPanelWidthStorage } from "../../storage";
 import { AGENTS_MAIN_PANEL_MIN_WIDTH } from "../ChatsSidebar/sidebarWidth";
@@ -42,6 +43,13 @@ function getSideBySideMaxWidth(panel: HTMLElement | null): number {
 	);
 }
 
+function widthFromStored(stored: number | null): number {
+	if (stored === null || stored < MIN_WIDTH || stored > getMaxWidth()) {
+		return DEFAULT_WIDTH;
+	}
+	return stored;
+}
+
 interface RightPanelProps {
 	isOpen: boolean;
 	isExpanded: boolean;
@@ -74,7 +82,7 @@ function useResizableDrag({
 }: {
 	isExpanded: boolean;
 	width: number;
-	setWidth: React.Dispatch<React.SetStateAction<number>>;
+	setWidth: (value: number) => void;
 	isOpen: boolean;
 	onSnapCommit: (snap: "normal" | "expanded" | "closed") => void;
 	onVisualExpandedChange?: (visualExpanded: boolean | null) => void;
@@ -159,11 +167,6 @@ function useResizableDrag({
 		// own committed expanded state.
 		onVisualExpandedChange?.(null);
 
-		// Persist the committed width once per drag; snap-close resets
-		// it to the default in onSnapCommit instead.
-		if (snap !== "closed") {
-			rightPanelWidthStorage.set(width);
-		}
 		if (snap) {
 			onSnapCommit(snap);
 		}
@@ -197,24 +200,18 @@ export const RightPanel = ({
 	onToggleSidebarCollapsed,
 	children,
 }: RightPanelProps) => {
-	const [width, setWidth] = useState(() => {
-		const stored = rightPanelWidthStorage.get();
-		if (stored === null || stored < MIN_WIDTH || stored > getMaxWidth()) {
-			return DEFAULT_WIDTH;
-		}
-		return stored;
-	});
+	const [storedWidth, setStoredWidth] = useStorage(rightPanelWidthStorage);
+	const width = widthFromStored(storedWidth);
 	const panelRef = useRef<HTMLDivElement>(null);
 
 	// Clamp width when the viewport or parent panel shrinks so the
-	// rendered side-by-side panel never overflows. The clamp is not
-	// persisted; the stored width is re-validated against bounds on
-	// the next load.
+	// rendered side-by-side panel never overflows.
 	useEffect(() => {
 		const handleResize = () => {
-			setWidth((prev) =>
-				Math.min(prev, getSideBySideMaxWidth(panelRef.current)),
-			);
+			setStoredWidth((prev) => {
+				const max = getSideBySideMaxWidth(panelRef.current);
+				return widthFromStored(prev) > max ? max : prev;
+			});
 		};
 		handleResize();
 		const parent = panelRef.current?.parentElement;
@@ -227,14 +224,13 @@ export const RightPanel = ({
 			resizeObserver.disconnect();
 			window.removeEventListener("resize", handleResize);
 		};
-	}, []);
+	}, [setStoredWidth]);
 
 	const handleSnapCommit = (snap: "normal" | "expanded" | "closed") => {
 		if (snap === "expanded" && !isExpanded) {
 			onToggleExpanded();
 		} else if (snap === "closed") {
-			setWidth(DEFAULT_WIDTH);
-			rightPanelWidthStorage.set(DEFAULT_WIDTH);
+			setStoredWidth(DEFAULT_WIDTH);
 			if (isExpanded) {
 				onToggleExpanded();
 			}
@@ -253,7 +249,7 @@ export const RightPanel = ({
 	} = useResizableDrag({
 		isExpanded,
 		width,
-		setWidth,
+		setWidth: setStoredWidth,
 		isOpen,
 		onSnapCommit: handleSnapCommit,
 		onVisualExpandedChange,

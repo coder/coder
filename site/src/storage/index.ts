@@ -9,6 +9,10 @@
  *
  * Key handles are defined next to the feature that reads them; this
  * module only provides the building blocks.
+ *
+ * Reach for browser storage only for device-local UI state. Anything
+ * that should follow the user across devices or browsers belongs in a
+ * server-persisted setting instead.
  */
 
 import type { Schema } from "yup";
@@ -410,9 +414,3 @@ const listLocalKeys = (): string[] => {
 	}
 	return keys;
 };
-
-/** @internal Reset cache and listener state between tests. */
-export function _resetStorageForTesting(): void {
-	snapshotCache.clear();
-	keyListeners.clear();
-}

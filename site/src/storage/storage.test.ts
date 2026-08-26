@@ -2,7 +2,6 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useStorage } from "#/hooks/useStorage";
 import {
-	_resetStorageForTesting,
 	booleanCodec,
 	defineEntityStorageKey,
 	defineStorageKey,
@@ -70,7 +69,6 @@ describe("storage core", () => {
 	beforeEach(() => {
 		localStorage.clear();
 		sessionStorage.clear();
-		_resetStorageForTesting();
 	});
 
 	it("returns the default when nothing is stored and never writes it", () => {
@@ -220,7 +218,6 @@ describe("storage core", () => {
 describe("entity-scoped keys", () => {
 	beforeEach(() => {
 		localStorage.clear();
-		_resetStorageForTesting();
 	});
 
 	it("memoizes handles per entity ID", () => {
@@ -297,7 +294,6 @@ describe("entity-scoped keys", () => {
 describe("useStorage", () => {
 	beforeEach(() => {
 		localStorage.clear();
-		_resetStorageForTesting();
 	});
 
 	it("reads the stored value and never writes the default on mount", () => {

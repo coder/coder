@@ -2,13 +2,10 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { PersistResult, StorageKeyHandle } from "#/storage";
 
 /**
- * Reactive hook for a storage key handle. All consumers of the same
- * key re-render on change, in the same tab and across tabs. The setter accepts a value
- * or an updater function; updaters are evaluated against the storage
- * snapshot, not the render closure, so calls compose before a render
- * commits and never clobber a newer value written by another tab. The
- * setter never writes during render; call it from event handlers.
- * Defaults are never written to storage on mount.
+ * Reactive hook for a storage key. All consumers of the key re-render
+ * on change, same-tab and cross-tab. Updater functions receive the
+ * stored value, not the render closure's. Call the setter from event
+ * handlers; it must not run during render.
  */
 export function useStorage<T>(
 	handle: StorageKeyHandle<T>,

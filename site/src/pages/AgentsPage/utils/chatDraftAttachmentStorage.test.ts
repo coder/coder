@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { _resetStorageForTesting } from "#/storage";
 import {
 	chatDraftAttachmentStorageKey,
 	clearChatDraftAttachmentRecords,
@@ -163,7 +162,6 @@ describe("chatDraftAttachmentStorage", () => {
 			]),
 		);
 
-		_resetStorageForTesting();
 		expect(restoreChatDraftAttachments(organizationId, chatId)).toEqual([]);
 
 		expect(localStorage.getItem(oldKey)).toBeNull();
@@ -188,7 +186,6 @@ describe("chatDraftAttachmentStorage", () => {
 			]),
 		);
 
-		_resetStorageForTesting();
 		expect(restoreChatDraftAttachments(organizationId, chatId)).toEqual([]);
 
 		expect(localStorage.getItem(storageKey)).toBeNull();

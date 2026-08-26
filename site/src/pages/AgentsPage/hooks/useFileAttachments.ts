@@ -51,7 +51,7 @@ const parsePersistedChatAttachments = (
 			)
 		: undefined;
 
-export const persistedAttachmentsStorage = defineStorageKey<
+const persistedAttachmentsStorage = defineStorageKey<
 	PersistedChatAttachment[] | null
 >({
 	key: "agents.persisted-attachments",
