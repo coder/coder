@@ -181,6 +181,10 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 
 	chatConfigErr := errors.Join(chatRetentionErr, chatDebugRetentionErr)
 
+	// Set inside the transaction closure, applied to the instance only
+	// after the transaction commits.
+	var staleDrained bool
+
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
 	err := db.InTx(func(tx database.Store) error {
@@ -354,6 +358,28 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
+		// Rewrite vectors produced with a stale text search config
+		// ('simple' rows from before migration 000585, or rows written by
+		// an old binary mid rolling upgrade). Upgraded binaries always
+		// stamp search_tsv_config, so this backlog is finite: once a pass
+		// returns fewer rows than the batch size the scan has reached the
+		// end of the table and is skipped for the process lifetime.
+		var reindexedChatSearchRows int64
+		if !i.chatSearchStaleDrained {
+			for range i.chatSearchBackfillMaxBatches {
+				n, err := tx.ReindexStaleChatMessagesSearchTsv(ctx, i.chatSearchBackfillBatchSize)
+				if err != nil {
+					return xerrors.Errorf("reindex stale chat_messages.search_tsv: %w", err)
+				}
+				reindexedChatSearchRows += n
+				if n < int64(i.chatSearchBackfillBatchSize) {
+					staleDrained = true
+					break
+				}
+			}
+		}
+		backfilledChatSearchRows += reindexedChatSearchRows
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
@@ -399,6 +425,9 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	if err != nil {
 		return err
 	}
+	if staleDrained {
+		i.chatSearchStaleDrained = true
+	}
 
 	// Surface the deferred chat-config error so doTick records
 	// the failed iteration metric.
@@ -420,6 +449,7 @@ type instance struct {
 	chatSearchRowsBackfilled     prometheus.Counter
 	chatSearchBackfillBatchSize  int32
 	chatSearchBackfillMaxBatches int
+	chatSearchStaleDrained       bool
 }
 
 func (i *instance) Close() error {

@@ -66,6 +66,17 @@ To use the features described on this page in an existing template:
 
 Dynamic Parameters features are backwards compatible, so all existing templates may be upgraded in-place.
 
+## Data sources and cached template data
+
+Coder reads Terraform `data` sources once, when it imports a template version, and stores the results.
+Rendering the form evaluates your parameter expressions against those stored results, so a `data` source whose underlying value changes in your cloud or cluster keeps returning the imported value.
+
+The `coder_workspace_owner` data source is the exception.
+Coder substitutes the identity of the user filling in the form each time it renders, which is what makes [Identity-Aware Parameters](#identity-aware-parameters-premium) work.
+
+To pick up a change to any other `data` source, [refresh the template data](../managing-templates/index.md#refresh-template-data).
+This imports the active version's source files again and publishes the result as a new active version.
+
 ## Features and Capabilities
 
 Dynamic Parameters introduces three primary enhancements to the standard parameter system:
@@ -797,13 +808,15 @@ Ensure that the following version requirements are met:
 
 Enabling Dynamic Parameters on an existing template requires administrators to publish a new template version.
 This will resolve the necessary template metadata to render the form.
+To publish one without editing the template's Terraform, [refresh the template data](../managing-templates/index.md#refresh-template-data).
 
 ### Reverting to classic parameters
 
-The classic parameter flow is deprecated and can no longer be enabled from the UI.
-A template can still opt out of Dynamic Parameters by setting the `use_classic_parameter_flow`
-field through the [templates API](../../../reference/api/templates.md#update-template-settings-by-id),
-but this opt-out will be removed in a future release.
+The classic parameter flow is deprecated and will be removed in a future release.
+If a template does not work with Dynamic Parameters, you can opt that template out.
+Select **Settings** > **Parameters** on the template, then select **Use parameter compatibility mode for workspace builds**.
+You can also set the `use_classic_parameter_flow` field through the
+[templates API](../../../reference/api/templates.md#update-template-settings-by-id).
 
 If your template's parameters do not work with Dynamic Parameters, please
 [file an issue](https://github.com/coder/coder/issues/new?labels=parameters) with the `parameters` label.

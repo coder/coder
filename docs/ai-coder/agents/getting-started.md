@@ -17,6 +17,9 @@ Before you begin, confirm the following:
   [descriptive name and description](./platform-controls/template-optimization.md)
   for the agent to select when provisioning workspaces.
 - **Admin access** to the Coder deployment for configuring providers.
+- **Access to configure models** in each organization where you configure models.
+  The **Organization Admin** role and the **Owner** role include this access.
+  A custom role with model configuration access also works.
 - **Coder Agents User role** assigned to each user who needs to interact with Coder Agents.
   This role is granted **per organization**. Owners and organization admins can
   assign it from **Admin settings** > **Organizations** > _[your organization]_ >
@@ -26,9 +29,12 @@ Before you begin, confirm the following:
 ## Step 1: Configure an LLM provider and model
 
 > [!IMPORTANT]
-> Configuring providers, models, and system prompts requires the
-> **Owner** role (Coder administrator). Non-admin users cannot access the
-> admin Settings panel or modify deployment-level Agents configuration.
+> Deployment administrators configure providers and deployment settings.
+> Users with model configuration access in an organization configure that organization's models.
+> Coder enables the edit controls for the organization that you select.
+> Coder shows the deployment settings only to deployment administrators.
+> Users with model access can view the relevant Models and Coder Agents pages.
+> Users with MCP server access can open the MCP servers page.
 
 To configure Coder Agents:
 
@@ -36,9 +42,16 @@ To configure Coder Agents:
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
 1. Navigate to **Admin settings** > **AI** > **Models**.
-1. Click **Add** and configure at least one model with its identifier, display
-   name, and context limit.
-1. Click the **star icon** next to a model to set it as the default.
+1. Select the correct organization.
+   Coder shows the organization picker when you can access more than 1 organization.
+1. Select **Add model** and configure at least one model with its identifier, display name, and context limit.
+
+Coder makes the first model of an organization the default model.
+To change the default later, open a model and select **Set as Coder Agents default model**.
+
+Each organization has its own model list and its own default model.
+Repeat the model steps in every organization that uses Coder Agents.
+Refer to [Organization scope](./platform-controls/organizations.md) for the settings that stay deployment-wide.
 
 Detailed instructions for each provider and model option are in the
 [Models](./models.md) documentation.
@@ -189,7 +202,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **AI Settings** > **Coder Agents** > **Instructions**
+Configure the system prompt from **Admin settings** > **AI** > **Coder Agents** > **Instructions**
 or via the API at `PUT /api/v2/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
@@ -219,13 +232,13 @@ token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
 - Capping spend with [AI Gateway budgets](./platform-controls/spend-management.md).
-- Monitoring provider dashboards for usage trends during the evaluation.
+- Monitoring provider dashboards for usage trends as adoption grows.
 
 ### Plan for concurrency limits
 
 Community licenses run up to 5 agents at once.
 Additional agents queue and start automatically when capacity frees.
-Premium licenses with Agent Hours do not impose a concurrency limit unless the Agent Hours hard limit is reached.
+A Premium license with Agent Hours does not impose a concurrency limit unless the Agent Hours hard limit is reached.
 If the Agent Hours allocation is exhausted without a configured hard limit, Coder warns about usage but does not impose a concurrency limit.
 When the Agent Hours hard limit is reached, additional agents queue under the concurrency limit.
 Refer to [Concurrent agents](./platform-controls/index.md#concurrent-agents) for details.
@@ -242,9 +255,9 @@ Good starting points:
 - **Prototyping** — building proof-of-concept implementations, simple
   dashboards, internal tools.
 
-Set expectations that this is an evaluation period. Developers should still
-review all agent-produced code before merging. The agent is a force
-multiplier, not a replacement for developer judgment.
+Set expectations for how the team reviews agent output.
+Developers should still review all agent-produced code before merging.
+The agent is a force multiplier, not a replacement for developer judgment.
 
 ### Use the API for programmatic automation
 
@@ -305,20 +318,16 @@ already-running workspace instead of provisioning from scratch.
 
 ## Providing feedback
 
-Coder Agents is a collaborative evaluation between your team and Coder.
-Share feedback — workflow observations, feature requests, bugs, performance
-issues, or operational challenges — through your **customer-specific Slack
-channel** with the Coder team.
+Report bugs and feature requests as [GitHub issues](https://github.com/coder/coder/issues/new/choose).
+For deployment-specific problems, such as provider configuration or performance in your environment, use your usual Coder support channel.
 
-Good feedback includes:
+Good reports include:
 
-- **What you tried** — the prompt, the template, and the model.
-- **What happened** — the agent's behavior, any errors, unexpected results.
-- **What you expected** — the outcome you were looking for.
-- **Context** — screenshots, `chat_id` values, or links to the Agents page help
+- **What you tried**: the prompt, the template, and the model.
+- **What happened**: the agent's behavior, any errors, and unexpected results.
+- **What you expected**: the outcome you were looking for.
+- **Context**: screenshots, `chat_id` values, or links to the Agents page help
   the team investigate quickly.
-
-Your input directly influences product direction.
 
 ## Next steps
 

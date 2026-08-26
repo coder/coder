@@ -168,7 +168,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
+                        "description": "Search query. Supports ` + "`" + `title:\u003csubstring\u003e` + "`" + ` (case-insensitive, quote multi-word values), ` + "`" + `archived:bool` + "`" + `, ` + "`" + `has_unread:bool` + "`" + `, ` + "`" + `pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e` + "`" + ` as repeated or comma-separated values, ` + "`" + `source:\u003ccreated_by_me\\|shared_with_me\u003e` + "`" + `, ` + "`" + `diff_url:\u003curl\u003e` + "`" + ` (quote values containing colons), ` + "`" + `pr:\u003cnumber\u003e` + "`" + ` (exact PR number match), ` + "`" + `repo:\u003cowner/repo\u003e` + "`" + ` (case-insensitive substring match against git remote origin or URL), ` + "`" + `pr_title:\u003ctext\u003e` + "`" + ` (case-insensitive PR title substring), ` + "`" + `search:\u003ctext\u003e` + "`" + ` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. ` + "`" + `refactor` + "`" + ` matches ` + "`" + `refactoring` + "`" + `, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use ` + "`" + `title:\u003cvalue\u003e` + "`" + ` or ` + "`" + `search:\u003cvalue\u003e` + "`" + `.",
                         "name": "q",
                         "in": "query"
                     },
@@ -1226,7 +1226,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/experimental/chats/{chat}/title/regenerate": {
+        "/api/experimental/chats/{chat}/title/propose": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
                 "produces": [
@@ -1235,8 +1235,8 @@ const docTemplate = `{
                 "tags": [
                     "Chats"
                 ],
-                "summary": "Regenerate chat title",
-                "operationId": "regenerate-chat-title",
+                "summary": "Propose chat title",
+                "operationId": "propose-chat-title",
                 "parameters": [
                     {
                         "type": "string",
@@ -1251,7 +1251,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.Chat"
+                            "$ref": "#/definitions/codersdk.ProposeChatTitleResponse"
                         }
                     }
                 },
@@ -20753,6 +20753,10 @@ const docTemplate = `{
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
                 },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name, so this defaults to false.",
+                    "type": "boolean"
+                },
                 "autostart_requirement": {
                     "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is an enterprise feature.",
                     "allOf": [
@@ -21678,6 +21682,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AIConfig"
                 },
                 "allow_workspace_renames": {
+                    "description": "Deprecated: Use the per-template allow_workspace_renames setting instead.",
                     "type": "boolean"
                 },
                 "autobuild_poll_interval": {
@@ -25194,6 +25199,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ProposeChatTitleResponse": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ProvisionerConfig": {
             "type": "object",
             "properties": {
@@ -26533,6 +26546,10 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "allow_user_cancel_workspace_jobs": {
+                    "type": "boolean"
+                },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name.",
                     "type": "boolean"
                 },
                 "autostart_requirement": {
@@ -28094,6 +28111,10 @@ const docTemplate = `{
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
+                "allow_workspace_renames": {
+                    "description": "AllowWorkspaceRenames permits users to rename workspaces built from this\ntemplate. Renaming can be destructive for templates whose Terraform\nreferences the workspace name.",
+                    "type": "boolean"
+                },
                 "autostart_requirement": {
                     "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
                 },
@@ -29131,6 +29152,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "allow_renames": {
+                    "description": "AllowRenames is the effective rename permission for this workspace,\nderived from the template's allow_workspace_renames setting and the\ndeprecated deployment-wide flag.",
                     "type": "boolean"
                 },
                 "automatic_updates": {

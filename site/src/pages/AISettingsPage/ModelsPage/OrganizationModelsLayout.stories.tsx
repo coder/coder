@@ -358,6 +358,24 @@ export const PermissionLoadErrorShowsAlert: Story = {
 	},
 };
 
+export const ModelLoadErrorShowsAlert: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatModels").mockRejectedValue(
+			new Error("Invalid chat models response: models must be an array."),
+		);
+		spyOn(API, "checkAuthorization").mockResolvedValue({});
+	},
+	parameters: { queries: [] },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"Invalid chat models response: models must be an array.",
+			),
+		).toBeVisible();
+	},
+};
+
 export const Loading: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatModels").mockImplementation(
