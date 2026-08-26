@@ -218,7 +218,10 @@
 			"rules": { "no-empty-interface": "off" }
 		},
 		{
-			"files": ["**/DiffViewer/parseDiff.ts", "**/DiffViewer/parseDiff.test.ts"],
+			"files": [
+				"**/DiffViewer/parseDiff.ts",
+				"**/DiffViewer/parseDiff.test.ts"
+			],
 			"rules": { "no-restricted-imports": "off" }
 		}
 	]
