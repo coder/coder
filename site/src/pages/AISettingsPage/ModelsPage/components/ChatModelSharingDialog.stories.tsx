@@ -147,7 +147,7 @@ export const EmptyACL: Story = {
 			),
 		).toBeInTheDocument();
 		expect(
-			body.getByText("No members or groups have permission yet"),
+			await body.findByText("No members or groups have permission yet"),
 		).toBeInTheDocument();
 		expect(
 			body.getByRole("button", { name: "Save permissions" }),
