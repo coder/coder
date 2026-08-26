@@ -23,7 +23,7 @@ const meta: Meta<typeof ProviderRow> = {
 	},
 	decorators: [
 		(Story) => (
-			<Table className="table-fixed" aria-label="AI providers">
+			<Table aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
