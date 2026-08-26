@@ -19261,6 +19261,9 @@ const docTemplate = `{
                 "disable_path_apps": {
                     "type": "boolean"
                 },
+                "disable_workspace_agent_context_sync": {
+                    "type": "boolean"
+                },
                 "disable_workspace_sharing": {
                     "type": "boolean"
                 },
