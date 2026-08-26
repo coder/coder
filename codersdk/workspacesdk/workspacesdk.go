@@ -11,11 +11,13 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/baggage"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -205,6 +207,28 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.client.Logger(), derpMap, c.client.URL)
 }
 
+// setClientSessionIDBaggage attaches sessionID as a W3C baggage member under the
+// client_session_id key on the websocket handshake headers, so coderd's tracing
+// middleware can log it against the coordinate request. It is a no-op when
+// sessionID is empty or not a valid baggage value.
+func setClientSessionIDBaggage(wsOptions *websocket.DialOptions, sessionID string) {
+	if sessionID == "" {
+		return
+	}
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		return
+	}
+	bag, err := baggage.New(member)
+	if err != nil {
+		return
+	}
+	if wsOptions.HTTPHeader == nil {
+		wsOptions.HTTPHeader = http.Header{}
+	}
+	wsOptions.HTTPHeader.Set("baggage", bag.String())
+}
+
 func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn AgentConn, err error) {
 	if options == nil {
 		options = &DialAgentOptions{}
@@ -224,6 +248,13 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		CompressionMode: websocket.CompressionDisabled,
 	}
 	c.client.SessionTokenProvider.SetDialOption(wsOptions)
+
+	// Attach the client session ID as W3C baggage on the coordinate handshake
+	// so coderd's tracing middleware logs it against the
+	// /api/v2/workspaceagents/{id}/coordinate request. This is set explicitly at
+	// the dial site (like the session token) so it does not rely on a
+	// baggage-injecting client transport, which non-CLI callers may not have.
+	setClientSessionIDBaggage(wsOptions, options.ClientSessionID)
 
 	// New context, separate from dialCtx. We don't want to cancel the
 	// connection if dialCtx is canceled.
