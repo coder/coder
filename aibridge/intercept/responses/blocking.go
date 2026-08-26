@@ -70,13 +70,13 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	i.injectTools()
 
 	var (
-		response        *responses.Response
-		upstreamErr     error
-		innerLoopErr    error
-		respCopy        responseCopier
-		firstResponseID string
-		cumulativeUsage responses.ResponseUsage
-		usageIterations int
+		response            *responses.Response
+		upstreamErr         error
+		innerLoopErr        error
+		respCopy            responseCopier
+		firstResponseID     string
+		cumulativeUsage     responses.ResponseUsage
+		innerLoopIterations int
 	)
 
 	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
@@ -131,7 +131,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 
 		i.recordTokenUsage(ctx, response)
 		cumulativeUsage = sumUsage(cumulativeUsage, response.Usage)
-		usageIterations++
+		innerLoopIterations++
 		i.recordModelThoughts(ctx, response)
 
 		// Check if there any injected tools to invoke.
@@ -160,7 +160,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		return xerrors.Errorf("failed to connect to upstream: %w", upstreamErr)
 	}
 
-	if usageIterations > 1 && upstreamErr == nil && response != nil {
+	if innerLoopIterations > 1 && upstreamErr == nil && response != nil {
 		b, readErr := respCopy.readAll()
 		if readErr != nil {
 			forwardErr := respCopy.forwardBytes(w, b)
