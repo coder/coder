@@ -18,9 +18,9 @@ import {
 	ProvisionerTags,
 	ProvisionerTruncateTags,
 } from "#/modules/provisioners/ProvisionerTags";
-import { ProvisionerKey } from "#/pages/OrganizationSettingsPage/OrganizationProvisionersPage/ProvisionerKey";
 import { cn } from "#/utils/cn";
 import { relativeTime } from "#/utils/time";
+import { ProvisionerKey } from "./ProvisionerKey";
 import { ProvisionerVersion } from "./ProvisionerVersion";
 
 const variantByStatus: Record<

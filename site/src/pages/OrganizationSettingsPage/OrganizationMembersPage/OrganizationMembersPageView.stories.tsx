@@ -11,7 +11,8 @@ import {
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const meta: Meta<typeof OrganizationMembersPageView> = {
-	title: "pages/OrganizationMembersPageView",
+	title:
+		"pages/OrganizationSettingsPage/OrganizationMembersPage/OrganizationMembersPageView",
 	component: OrganizationMembersPageView,
 	args: {
 		error: undefined,

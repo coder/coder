@@ -5,7 +5,8 @@ import { docs } from "#/utils/docs";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const meta: Meta<typeof CreateOrganizationPageView> = {
-	title: "pages/CreateOrganizationPageView",
+	title:
+		"pages/OrganizationSettingsPage/CreateOrganizationPage/CreateOrganizationPageView",
 	component: CreateOrganizationPageView,
 	args: {
 		isEntitled: true,

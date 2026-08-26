@@ -284,14 +284,23 @@ const AddNewLicensePage = lazy(
 		),
 );
 const OrganizationRedirect = lazy(
-	() => import("./pages/OrganizationSettingsPage/OrganizationRedirect"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationRedirectPage/OrganizationRedirect"
+		),
 );
 
 const CreateOrganizationPage = lazy(
-	() => import("./pages/OrganizationSettingsPage/CreateOrganizationPage"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/CreateOrganizationPage/CreateOrganizationPage"
+		),
 );
 const OrganizationSettingsPage = lazy(
-	() => import("./pages/OrganizationSettingsPage/OrganizationSettingsPage"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationGeneralSettingsPage/OrganizationSettingsPage"
+		),
 );
 const GroupsPageProvider = lazy(
 	() => import("./pages/GroupsPage/GroupsPageProvider"),
@@ -308,7 +317,10 @@ const GroupSettingsPage = lazy(
 	() => import("./pages/GroupsPage/GroupSettingsPage"),
 );
 const OrganizationMembersPage = lazy(
-	() => import("./pages/OrganizationSettingsPage/OrganizationMembersPage"),
+	() =>
+		import(
+			"./pages/OrganizationSettingsPage/OrganizationMembersPage/OrganizationMembersPage"
+		),
 );
 const OrganizationCustomRolesPage = lazy(
 	() =>
@@ -320,7 +332,7 @@ const OrganizationIdPSyncPage = lazy(
 const CreateEditRolePage = lazy(
 	() =>
 		import(
-			"./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage"
+			"./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage/CreateEditRolePage"
 		),
 );
 const ProvisionersPage = lazy(

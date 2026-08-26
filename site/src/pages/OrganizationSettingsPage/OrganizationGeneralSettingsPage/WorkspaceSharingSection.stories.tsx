@@ -5,7 +5,8 @@ import { MockOrganization } from "#/testHelpers/entities";
 import { WorkspaceSharingSection } from "./WorkspaceSharingSection";
 
 const meta: Meta<typeof WorkspaceSharingSection> = {
-	title: "pages/OrganizationSettingsPage/WorkspaceSharingSection",
+	title:
+		"pages/OrganizationSettingsPage/OrganizationGeneralSettingsPage/WorkspaceSharingSection",
 	component: WorkspaceSharingSection,
 	args: {
 		organizationId: MockOrganization.id,

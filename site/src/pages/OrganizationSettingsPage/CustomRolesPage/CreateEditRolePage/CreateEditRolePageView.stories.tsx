@@ -9,7 +9,8 @@ import {
 import CreateEditRolePageView from "./CreateEditRolePageView";
 
 const meta: Meta<typeof CreateEditRolePageView> = {
-	title: "pages/OrganizationCreateEditRolePage",
+	title:
+		"pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage/CreateEditRolePageView",
 	component: CreateEditRolePageView,
 };
 
