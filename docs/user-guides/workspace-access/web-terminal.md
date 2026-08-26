@@ -139,8 +139,8 @@ The Web Terminal supports standard terminal keybindings:
 
 ## URL Handling
 
-The terminal automatically detects URLs and makes them clickable. When you select
-a URL:
+The terminal automatically detects URLs and makes them clickable.
+When you select a URL:
 
 - **External URLs** (e.g., `https://example.com`) open in a new tab
 - **Localhost URLs** (e.g., `http://localhost:3000`) are automatically

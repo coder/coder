@@ -198,10 +198,8 @@ The following information has been borrowed from [Go's review philosophy](https:
 
 Coder values thorough reviews. For each review comment that you receive, please
 "close" it by implementing the suggestion or providing an explanation on why the
-suggestion isn't the best option. Be sure to do this for each comment; you can
-select **Done** to indicate that you've implemented the suggestion, or you can
-add a comment explaining why you aren't implementing the suggestion (or what you
-chose to implement instead).
+suggestion isn't the best option.
+Be sure to do this for each comment; you can select **Done** to indicate that you've implemented the suggestion, or you can add a comment explaining why you aren't implementing the suggestion (or what you chose to implement instead).
 
 It is perfectly normal for changes to go through several rounds of reviews, with
 one or more reviewers making new comments every time, then waiting for an

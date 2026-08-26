@@ -188,8 +188,8 @@ provider.</small>
 
 ### Set a default model
 
-Select the **star icon** next to a model in the models list to make it the
-default. The default model is pre-selected when developers start a new chat.
+Select the **star icon** next to a model in the models list to make it the default.
+The default model is pre-selected when developers start a new chat.
 Only one model can be the default at a time.
 
 ### Models with a missing or disabled provider
@@ -203,10 +203,8 @@ The Models list reflects whether each model can actually be used:
   shows **Disabled**, regardless of the model's own enabled setting. Such a
   model cannot serve chat requests.
 
-To reconnect a model to a working provider, open the model from the list,
-pick a new provider from the **Provider** dropdown, and select **Save**. The
-Save button is enabled as soon as the selected provider differs from the
-model's current provider, even if no other field is edited.
+To reconnect a model to a working provider, open the model from the list, pick a new provider from the **Provider** dropdown, and select **Save**.
+The Save button is enabled as soon as the selected provider differs from the model's current provider, even if no other field is edited.
 
 ## Model options
 
@@ -379,10 +377,9 @@ saved key, only whether one is set.
 
 ### Removing a personal key
 
-Select **Remove** on the provider card in the API Keys settings tab. Subsequent
-requests use deployment-managed credentials when they are configured for that
-provider. If no deployment-managed credential is available, add a new personal
-key before you use models from that provider.
+Select **Remove** on the provider card in the API Keys settings tab.
+Subsequent requests use deployment-managed credentials when they are configured for that provider.
+If no deployment-managed credential is available, add a new personal key before you use models from that provider.
 
 ## Using an LLM proxy
 

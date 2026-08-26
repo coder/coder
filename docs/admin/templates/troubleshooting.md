@@ -119,10 +119,8 @@ Common causes for startup script errors:
 
 ### Debugging the startup script
 
-The simplest way to debug the
-[startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1)
-is to open the workspace in the Coder dashboard and select "Show startup log" (if
-not already visible). This will show all the output from the script. Another
+The simplest way to debug the [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script-1) is to open the workspace in the Coder dashboard and select "Show startup log" (if not already visible).
+This will show all the output from the script. Another
 option is to view the log file inside the workspace (usually
 `/tmp/coder-startup-script.log`). If the logs don't indicate what's going on or
 going wrong, you can increase verbosity by adding `set -x` to the top of the

@@ -313,16 +313,20 @@ Neutral alternatives like "tutorial" don't encode that assumption.
 ## Select, not click
 
 Use "select" for actions on UI elements, regardless of input device.
-"Click" assumes a mouse.
-Touch devices tap, keyboard users press Enter, and assistive-technology users activate.
-"Select" covers every case and matches the Microsoft style guide convention.
+Not every reader clicks: sighted mouse users click, but keyboard-only users tab to a control and press Enter, touch users tap, and screen-reader users activate a control without a pointer at all.
+"Click" names the first group's motion and excludes the rest, so it isn't a style preference; a reader with no way to click still needs to know what to do.
+"Select" names the outcome instead of the mechanism and covers every input method, matching the Microsoft style guide convention.
+Where a more specific verb is clearer, use it instead as long as it doesn't name a device: "open," "expand," "run," and "choose" are all device-agnostic.
 This is one instance of the broader [input-device-agnostic language](./accessibility-and-inclusion.md#input-device-agnostic-language) principle.
 
-Reserve "click" for:
+Not every instance of "click" is a violation. Reserve it for:
 
 - Code or configuration that literally fires on a click event, like an `onClick` handler or a DOM `click` event (already exempt: Vale's prose scope skips code spans and fenced code blocks).
 - Explicit mouse-button phrasing: "click," "left-click," "right-click," "middle-click," and "mouse click," with their `-s`/`-ed`/`-ing` forms, describe a literal mouse action and have no device-agnostic equivalent worth writing around.
-- "One-click" and "one click" as a compound feature descriptor ("one-click install"), and the industry term "ClickOps."
+- "One-click" and "single-click" as a compound feature descriptor ("one-click install," "a single-click button"), and the industry term "ClickOps."
+
+Mouse-button phrasing carries a condition: state the keyboard- or screen-reader-accessible way to do the same thing in the same passage, unless the surrounding content is itself about a specific device (a keyboard shortcut table, a touch-gesture reference, third-party software that records mouse and keyboard input by name).
+If no accessible path exists, that's a product gap to raise with engineering, not something to paper over by documenting the mouse-only path as if it were the only one.
 
 **Do**:
 
@@ -330,15 +334,21 @@ Reserve "click" for:
 >
 > Select **Templates** > **Settings** > **Schedule**.
 >
-> On Mac or Windows, highlight the files, then right-click to open the compress option.
+> Open the **Templates** tab, then select **Advanced**.
+>
+> On Mac or Windows, select the files, then open the context menu (right-click, or press the Menu key on Windows) and choose **Compress**.
 
 **Don't**:
 
 > Click **Save** to apply the changes.
 >
 > Click on the **Templates** tab, then click **Settings**.
+>
+> On Mac or Windows, highlight the files and right-click; choose **Compress** from the menu that appears.
 
-*Enforced by `Coder.SelectClick` at `warning` severity.*
+The third **Don't** example names a mouse action with no accessible alternative given, which the fourth **Do** example fixes by adding the keyboard path.
+
+*Enforced by `Coder.SelectClick` at `warning` severity: a substitution rule that suggests `select` or `open` in place of `click`/`clicks`/`clicked`/`clicking`.*
 
 ## Don't assume simplicity or difficulty
 

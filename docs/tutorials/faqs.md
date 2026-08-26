@@ -371,9 +371,9 @@ JetBrains IDE versions. If downloading from
 acceptable, see the example templates below which specifies the product code,
 IDE version and build number in the
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#share)
-resource. This will present an icon in the workspace dashboard which when
-selected, will look for a locally installed Gateway, and open it. Alternatively,
-the IDE can be baked into the container image and manually open Gateway (or
+resource.
+This will present an icon in the workspace dashboard which when selected, will look for a locally installed Gateway, and open it.
+Alternatively, the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 
