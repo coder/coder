@@ -24,11 +24,7 @@ import {
 } from "#/components/InputGroup/InputGroup";
 import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-	OrganizationValue,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
@@ -167,49 +163,28 @@ export const ModelFormFields: FC<{
 				permissionsByOrganization,
 			);
 	const organizationField = isEditing ? (
-		<div className="grid gap-1.5">
-			<Label
-				htmlFor="model-form-organization"
-				className="leading-6 text-content-primary"
-			>
-				Organization
-			</Label>
-			<OrganizationValue
-				id="model-form-organization"
-				organization={organization}
-				labelOrganizations={accessibleOrganizations}
-			/>
-		</div>
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={accessibleOrganizations}
+			readOnly
+		/>
 	) : selectableOrganizations.length > 1 ? (
-		<div className="grid gap-1.5">
-			<Label
-				htmlFor="model-form-organization"
-				className="leading-6 text-content-primary"
-			>
-				Organization
-			</Label>
-			<OrganizationAutocomplete
-				id="model-form-organization"
-				value={organization}
-				ariaLabel={`Organization ${getOrganizationLabel(
-					organization,
-					selectableOrganizations,
-				)}`}
-				options={selectableOrganizations}
-				optionsTabbable
-				onChange={(nextOrganization) => {
-					if (nextOrganization) {
-						void navigate(
-							selectModelOrganizationPath(
-								location.pathname,
-								nextOrganization,
-								searchParams,
-							),
-						);
-					}
-				}}
-			/>
-		</div>
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={selectableOrganizations}
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
 	) : null;
 	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;

@@ -3,11 +3,7 @@ import { type FC, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
-import { Label } from "#/components/Label/Label";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import {
@@ -123,35 +119,21 @@ export const ModelForm: FC<ModelFormProps> = ({
 		permissionsByOrganization,
 	);
 	const addOrganizationField = creatableOrganizations.length > 1 && (
-		<div className="grid gap-1.5">
-			<Label
-				htmlFor="model-form-organization"
-				className="leading-6 text-content-primary"
-			>
-				Organization
-			</Label>
-			<OrganizationAutocomplete
-				id="model-form-organization"
-				value={organization}
-				ariaLabel={`Organization ${getOrganizationLabel(
-					organization,
-					creatableOrganizations,
-				)}`}
-				options={creatableOrganizations}
-				optionsTabbable
-				onChange={(nextOrganization) => {
-					if (nextOrganization) {
-						void navigate(
-							selectModelOrganizationPath(
-								location.pathname,
-								nextOrganization,
-								searchParams,
-							),
-						);
-					}
-				}}
-			/>
-		</div>
+		<OrganizationField
+			id="model-form-organization"
+			organization={organization}
+			organizations={creatableOrganizations}
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
 	);
 	const mode: "add" | "edit" | "duplicate" = isEditing
 		? "edit"

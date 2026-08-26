@@ -3,12 +3,8 @@ import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Label } from "#/components/Label/Label";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { ModelForm } from "../components/ModelForm";
 import { ModelFormBackLink } from "../components/ModelFormHeader";
@@ -53,36 +49,23 @@ const AddModelPageView: FC<AddModelPageViewProps> = ({
 		permissionsByOrganization,
 	);
 	const organizationPicker = creatableOrganizations.length > 1 && (
-		<div className="grid gap-1.5">
-			<Label
-				htmlFor="add-model-organization"
-				className="leading-6 text-content-primary"
-			>
-				Organization
-			</Label>
-			<OrganizationAutocomplete
-				id="add-model-organization"
-				value={organization}
-				ariaLabel={`Organization ${getOrganizationLabel(
-					organization,
-					accessibleOrganizations,
-				)}`}
-				options={creatableOrganizations}
-				triggerClassName="w-60"
-				optionsTabbable
-				onChange={(nextOrganization) => {
-					if (nextOrganization) {
-						void navigate(
-							selectModelOrganizationPath(
-								location.pathname,
-								nextOrganization,
-								searchParams,
-							),
-						);
-					}
-				}}
-			/>
-		</div>
+		<OrganizationField
+			id="add-model-organization"
+			organization={organization}
+			organizations={creatableOrganizations}
+			labelOrganizations={accessibleOrganizations}
+			className="w-60"
+			optionsTabbable
+			onChange={(nextOrganization) => {
+				void navigate(
+					selectModelOrganizationPath(
+						location.pathname,
+						nextOrganization,
+						searchParams,
+					),
+				);
+			}}
+		/>
 	);
 
 	if (isLoading) {

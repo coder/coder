@@ -15,10 +15,7 @@ import {
 	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { OrganizationField } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import {
 	Select,
@@ -253,25 +250,22 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 					</InputGroup>
 				</div>
 				{accessibleOrganizations.length > 1 && (
-					<OrganizationAutocomplete
-						value={organization}
-						ariaLabel={`Organization ${getOrganizationLabel(
-							organization,
-							accessibleOrganizations,
-						)}`}
-						options={accessibleOrganizations}
+					<OrganizationField
+						id="models-organization"
+						organization={organization}
+						organizations={accessibleOrganizations}
+						showLabel={false}
+						className="w-full sm:w-60"
 						triggerClassName="w-full sm:w-60"
 						optionsTabbable
 						onChange={(nextOrganization) => {
-							if (nextOrganization) {
-								void navigate(
-									selectModelOrganizationPath(
-										"/ai/settings/models",
-										nextOrganization,
-										searchParams,
-									),
-								);
-							}
+							void navigate(
+								selectModelOrganizationPath(
+									"/ai/settings/models",
+									nextOrganization,
+									searchParams,
+								),
+							);
 						}}
 					/>
 				)}
