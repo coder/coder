@@ -585,7 +585,12 @@ SELECT
 	-- username and email are returned just to help for logging purposes
 	-- status is used to enforce 'suspended' users, as all roles are ignored
 	--	when suspended.
-	id, username, status, email,
+	-- deleted is returned so the authentication path can reject credentials
+	-- of soft-deleted users (see httpmw.UserRBACSubject). Deleted users are
+	-- intentionally NOT filtered out here: non-authentication callers such as
+	-- provisioner builds must keep resolving roles for a soft-deleted owner
+	-- (for example to run the delete build for their workspaces).
+	id, username, status, email, deleted,
 	-- All user roles, including their org roles.
 	array_cat(
 		-- All users are members

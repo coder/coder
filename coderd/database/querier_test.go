@@ -3439,6 +3439,34 @@ func TestGetAuthorizationUserRolesImpliedOrgRole(t *testing.T) {
 	require.NotContains(t, saRoles.Roles, wantMember)
 }
 
+// TestGetAuthorizationUserRolesDeletedUser pins the query's contract for
+// soft-deleted users: the row is still returned, with Deleted set, and the
+// role set intact. Non-authentication callers (provisioner builds resolving a
+// soft-deleted owner's roles to run the delete build, prebuilds, dynamic
+// parameter rendering) depend on the roles; the authentication path rejects
+// the subject in httpmw.UserRBACSubject based on the Deleted column instead
+// of a WHERE filter here.
+func TestGetAuthorizationUserRolesDeletedUser(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	roles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err)
+	require.False(t, roles.Deleted)
+
+	err = db.UpdateUserDeletedByID(ctx, user.ID)
+	require.NoError(t, err)
+
+	roles, err = db.GetAuthorizationUserRoles(ctx, user.ID)
+	require.NoError(t, err, "deleted users must still resolve roles")
+	require.True(t, roles.Deleted)
+	require.Contains(t, roles.Roles, "member")
+}
+
 // TestGetAuthorizationUserRolesUnionsDefaultOrgMemberRoles verifies the
 // resolve-at-read semantics for organizations.default_org_member_roles:
 // every member's effective roles include the org's defaults, and changes

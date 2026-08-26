@@ -475,6 +475,20 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	// Fetch user roles.
 	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
 	if err != nil {
+		// A soft-deleted user is a correctly rejected credential, not a
+		// server error: an api_keys row can outlive its user (a row that
+		// survived or was resurrected past delete_deleted_user_resources,
+		// a restored backup, a manual insert) and must be inert.
+		if errors.Is(err, ErrUserDeleted) {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "API key belongs to a deleted user.",
+				},
+				Hard: true,
+			}
+		}
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,
 			Response: codersdk.Response{
@@ -894,13 +908,25 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 	return normalizeAudienceURI(audience)
 }
 
+// ErrUserDeleted is returned by UserRBACSubject when the user exists but is
+// soft-deleted. A soft-deleted user must never authorize as a subject, even
+// when a credential row (for example an orphaned api_keys row) still
+// references them.
+var ErrUserDeleted = xerrors.New("user is deleted")
+
 // UserRBACSubject fetches a user's rbac.Subject from the database. It pulls all roles from both
 // site and organization scopes. It also pulls the groups, and the user's status.
+// It returns ErrUserDeleted for soft-deleted users: subjects are only built to
+// act, and a deleted user may not act.
 func UserRBACSubject(ctx context.Context, db database.Store, userID uuid.UUID, scope rbac.ExpandableScope) (rbac.Subject, database.UserStatus, error) {
 	//nolint:gocritic // system needs to update user roles
 	roles, err := db.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), userID)
 	if err != nil {
 		return rbac.Subject{}, "", xerrors.Errorf("get authorization user roles: %w", err)
+	}
+
+	if roles.Deleted {
+		return rbac.Subject{}, "", ErrUserDeleted
 	}
 
 	roleNames, err := roles.RoleNames()

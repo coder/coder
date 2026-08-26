@@ -247,6 +247,47 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, resp.Message, httpmw.SignedOutErrorMessage)
 	})
 
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db, _, sqlDB = dbtestutil.NewDBWithSQLDB(t)
+			r            = httptest.NewRequest("GET", "/", nil)
+			rw           = httptest.NewRecorder()
+			user         = dbgen.User(t, db, database.User{})
+			_, token     = dbgen.APIKey(t, db, database.APIKey{
+				UserID: user.ID,
+			})
+		)
+		// Soft-delete the user while keeping the api_keys row:
+		// delete_deleted_user_resources would purge it, so suppress the
+		// cleanup trigger transactionally to reconstruct the orphaned
+		// credential this middleware must reject (a row that survived
+		// cleanup past a race, a restored backup, a manual insert).
+		ctx := context.Background()
+		tx, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer tx.Rollback() //nolint:errcheck // no-op after commit
+		_, err = tx.ExecContext(ctx, `ALTER TABLE users DISABLE TRIGGER trigger_update_users`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `UPDATE users SET deleted = true WHERE id = $1`, user.ID)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `ALTER TABLE users ENABLE TRIGGER trigger_update_users`)
+		require.NoError(t, err)
+		require.NoError(t, tx.Commit())
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Equal(t, "API key belongs to a deleted user.", resp.Detail)
+	})
+
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
