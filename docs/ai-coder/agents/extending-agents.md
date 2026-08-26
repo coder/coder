@@ -17,7 +17,7 @@ The pinned copy is what the agent's system prompt and tool list are built from, 
 The lifecycle of an edit looks like this:
 
 1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
-1. A file watcher notices the change and the agent re-scans after a 250&nbsp;ms debounce, then pushes a new snapshot.
+1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
 1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
@@ -218,14 +218,14 @@ to the HTTP endpoint from the workspace.
 
 ### How discovery works
 
-The agent connects to the servers declared in `.mcp.json` once startup scripts finish, and it allows each server 30&nbsp;seconds to start its transport and finish initialization.
+The agent connects to the servers declared in `.mcp.json` once startup scripts finish.
 Servers that fail to connect are skipped, and the rest still contribute their tools.
 
 A single set of connections is shared by tool discovery and tool execution, so each declared server is launched once.
 When the connected tool list changes, the agent re-scans and pushes a new snapshot.
 
 Editing `.mcp.json` does not require a workspace restart.
-A file watcher fires 250&nbsp;ms after the file is created, written, removed, or renamed, and the agent reloads its servers from the file on disk.
+The agent notices edits to the file and reloads its servers automatically.
 The reload changes the pushed snapshot, but an MCP-only change does not mark existing chats out of date, and the dashboard offers **Refresh context** only on chats that are marked out of date.
 New chats and chats that have not pinned a snapshot yet receive the new tool set immediately.
 An existing chat keeps its current tool set until another context change, such as editing an instruction file or a skill, marks it out of date; refreshing then re-pins the whole snapshot, including the new MCP tools.
