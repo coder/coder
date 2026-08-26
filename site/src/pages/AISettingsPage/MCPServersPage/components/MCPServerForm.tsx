@@ -5,6 +5,7 @@ import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
 import { MCPServerFormFields } from "./MCPServerFormFields";
 import { MCPServerFormHeader } from "./MCPServerFormHeader";
+import { MCPServerSharingDialog } from "./MCPServerSharingDialog";
 import {
 	buildCreateMCPServerConfigRequest,
 	buildInitialMCPServerFormValues,
@@ -21,6 +22,7 @@ type MCPServerFormCreateProps = {
 	isSaving: boolean;
 	isDeleting?: false;
 	canSelectUserOIDC: boolean;
+	canShareServer?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
@@ -36,6 +38,7 @@ type MCPServerFormEditProps = {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	canShareServer?: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer?: (
 		serverId: string,
@@ -54,6 +57,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	isSaving,
 	isDeleting = false,
 	canSelectUserOIDC,
+	canShareServer = false,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
@@ -66,6 +70,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+	const [sharingOpen, setSharingOpen] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
@@ -110,6 +115,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				onRequestDelete={
 					onDeleteServer ? () => setConfirmingDelete(true) : undefined
 				}
+				onShareServer={canShareServer ? () => setSharingOpen(true) : undefined}
 				onToggleEnabled={onToggleEnabled}
 			/>
 			<div className="flex flex-col gap-6 pt-6">
@@ -129,6 +135,15 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					setShowBehavior={setShowBehavior}
 				/>
 			</div>
+			{server && canShareServer && (
+				<MCPServerSharingDialog
+					open={sharingOpen}
+					onOpenChange={setSharingOpen}
+					organizationId={server.organization_id}
+					serverId={server.id}
+					serverName={server.display_name || server.slug}
+				/>
+			)}
 			<MCPServerFormDialogs
 				server={server}
 				confirmingDelete={confirmingDelete}

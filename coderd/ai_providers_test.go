@@ -15,7 +15,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -564,8 +563,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-fixture"),    //nolint:gosec // test fixture
-					AccessKeySecret: ptr.Ref("bedrock-fixture"), //nolint:gosec // test fixture
+					AccessKey:       new("AKIA-fixture"),    //nolint:gosec // test fixture
+					AccessKeySecret: new("bedrock-fixture"), //nolint:gosec // test fixture
 				},
 			},
 		})
@@ -694,8 +693,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-supersecret"),
+					AccessKey:       new("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-supersecret"),
 				},
 			},
 		})
@@ -800,8 +799,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// Omitting the original ID from the mutation list deletes it;
 		// the two APIKey-bearing entries add fresh rows.
 		replacement := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
-			{APIKey: ptr.Ref("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &replacement,
@@ -840,7 +839,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// implicitly removed.
 		patch := []codersdk.AIProviderKeyMutation{
 			{ID: &keepID},
-			{APIKey: ptr.Ref("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
@@ -965,8 +964,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
+					AccessKey:       new("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-test-secret"),
 				},
 			},
 		})
@@ -994,15 +993,15 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
+					AccessKey:       new("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("bedrock-test-secret"),
 				},
 			},
 		})
 		require.NoError(t, err)
 
 		rejected := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-bedrock-no")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-bedrock-no")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &rejected,
@@ -1071,7 +1070,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.NoError(t, err)
 
 		rejected := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &rejected,
@@ -1165,7 +1164,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
 
 		patch := []codersdk.AIProviderKeyMutation{
-			{APIKey: ptr.Ref("sk-not-allowed")}, //nolint:gosec // test fixture, not a real credential
+			{APIKey: new("sk-not-allowed")}, //nolint:gosec // test fixture, not a real credential
 		}
 		_, err = memberClient.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
@@ -1194,7 +1193,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		existingID := provider.APIKeys[0].ID
 
 		muts := []codersdk.AIProviderKeyMutation{
-			{ID: &existingID, APIKey: ptr.Ref("sk-conflict")}, //nolint:gosec // test fixture
+			{ID: &existingID, APIKey: new("sk-conflict")}, //nolint:gosec // test fixture
 		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &muts,
@@ -1345,7 +1344,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// Keep one, drop one, add one.
 		mutations := []codersdk.AIProviderKeyMutation{
 			{ID: &keepID},
-			{APIKey: ptr.Ref("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
+			{APIKey: new("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
 		}
 		updatedProvider, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &mutations,
@@ -1467,8 +1466,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1521,8 +1520,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1534,8 +1533,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref(""),
-					AccessKeySecret: ptr.Ref(""),
+					AccessKey:       new(""),
+					AccessKeySecret: new(""),
 				},
 			},
 		})
@@ -1570,8 +1569,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1583,8 +1582,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-new"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-new"),
+					AccessKey:       new("AKIA-new"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-new"),
 				},
 			},
 		})
@@ -1621,8 +1620,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: ptr.Ref("secret-old"),
+					AccessKey:       new("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: new("secret-old"),
 				},
 			},
 		})
@@ -1634,8 +1633,8 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
 					SmallFastModel:  "anthropic.claude-3-5-haiku",
-					AccessKey:       ptr.Ref(""),
-					AccessKeySecret: ptr.Ref(""),
+					AccessKey:       new(""),
+					AccessKeySecret: new(""),
 					RoleARN:         "arn:aws:iam::123456789012:role/target",
 				},
 			},
@@ -1989,7 +1988,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
-			Enabled: ptr.Ref(true),
+			Enabled: new(true),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Status)
@@ -2026,7 +2025,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, second.ID.String(), codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://api.openai.com/v2"),
+			BaseURL: new("https://api.openai.com/v2"),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Status)
@@ -2110,7 +2109,7 @@ func TestAIProviderHostnameCollisionWarnings(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		updated, err := client.UpdateAIProvider(ctx, first.ID.String(), codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://api.openai.com/v2"),
+			BaseURL: new("https://api.openai.com/v2"),
 		})
 		require.NoError(t, err)
 		require.Nil(t, updated.Status, "update-self should not trigger a warning")

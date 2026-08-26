@@ -45,7 +45,8 @@ const UpdateMCPServerPage: FC = () => {
 					organizationPermissionsQuery.data?.[organization.id];
 				return Boolean(
 					organizationPermissions?.updateMCPServerConfig ||
-					organizationPermissions?.deleteMCPServerConfig,
+					organizationPermissions?.deleteMCPServerConfig ||
+					organizationPermissions?.shareMCPServerConfig,
 				);
 			});
 	const requestedOrganizationName = searchParams.get(orgSearchParam);
@@ -66,7 +67,10 @@ const UpdateMCPServerPage: FC = () => {
 	const canDelete =
 		permissions.editDeploymentConfig ||
 		Boolean(organizationPermissions?.deleteMCPServerConfig);
-	const canManage = canUpdate || canDelete;
+	const canShare =
+		permissions.editDeploymentConfig ||
+		Boolean(organizationPermissions?.shareMCPServerConfig);
+	const canManage = canUpdate || canDelete || canShare;
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const serverQuery = useQuery({
@@ -100,7 +104,9 @@ const UpdateMCPServerPage: FC = () => {
 			isFeatureVisible={
 				permissions.editDeploymentConfig ||
 				permissions.updateAnyMCPServerConfig ||
-				permissions.deleteAnyMCPServerConfig
+				permissions.deleteAnyMCPServerConfig ||
+				organizationPermissionsQuery.data === undefined ||
+				manageableOrganizations.length > 0
 			}
 		>
 			{organizationPermissionsQuery.isLoadingError ? (
@@ -148,6 +154,7 @@ const UpdateMCPServerPage: FC = () => {
 								isSaving={updateMutation.isPending}
 								isDeleting={deleteMutation.isPending}
 								canSelectUserOIDC={permissions.editDeploymentConfig}
+								canShareServer={canShare}
 								onCancel={() => void navigate(listPath)}
 								onUpdateServer={
 									canUpdateServer

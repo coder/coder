@@ -76,9 +76,6 @@ export const CreateOrganizationPageView: FC<
 					Go Back
 				</Link>
 			</div>
-			<div className="absolute right-12">
-				<SettingsHeaderDocsLink href={docs("/admin/users/organizations")} />
-			</div>
 			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
@@ -97,7 +94,10 @@ export const CreateOrganizationPageView: FC<
 						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
 						<p className="max-w-md text-sm text-content-secondary text-center">
 							Organize your deployment into multiple platform teams with unique
-							provisioners, templates, groups, and members.
+							provisioners, templates, groups, and members.{" "}
+							<SettingsHeaderDocsLink
+								href={docs("/admin/users/organizations")}
+							/>
 						</p>
 					</header>
 				</div>
