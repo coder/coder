@@ -1,0 +1,222 @@
+{
+	// oxlint configuration for the Coder frontend.
+	//
+	// Strategy: Biome remains the authoritative JS/TS linter (see biome.jsonc).
+	// oxlint runs alongside it and enforces only the rules that already match
+	// Biome's behavior on this codebase. Rules whose oxlint implementation is
+	// stricter than Biome's equivalent are listed in the "migration backlog"
+	// block at the bottom as "off", with the Biome rule they map to and the
+	// number of findings that must be resolved before the rule can be turned on.
+	// To chip away: fix the code (or migrate the biome-ignore suppression) for a
+	// backlog rule, flip it to "error" here, and once it is green in oxlint it
+	// can be dropped from Biome.
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
+	// Turn every default-on category off so nothing runs unless explicitly
+	// enabled below. This keeps oxlint to "nothing more" than Biome.
+	"categories": { "correctness": "off" },
+	"rules": {
+		// --- a11y (jsx-a11y) ---
+		"no-access-key": "error",
+		"no-aria-hidden-on-focusable": "error",
+		"aria-unsupported-elements": "error",
+		"no-distracting-elements": "error",
+		"scope": "error",
+		"no-interactive-element-to-noninteractive-role": "error",
+		"label-has-associated-control": "error",
+		"no-noninteractive-element-to-interactive-role": "error",
+		"tabindex-no-positive": "error",
+		"img-redundant-alt": "error",
+		"no-redundant-roles": "error",
+		"alt-text": "error",
+		"anchor-has-content": "error",
+		"aria-activedescendant-has-tabindex": "error",
+		"mouse-events-have-key-events": "error",
+		"anchor-is-valid": "error",
+		"aria-props": "error",
+		"aria-role": "error",
+		"aria-proptypes": "error",
+		"autocomplete-valid": "error",
+		"html-has-lang": "error",
+		"lang": "error",
+
+		// --- complexity ---
+		"no-regex-spaces": "error",
+		"prefer-rest-params": "error",
+		"no-sequences": "error",
+		"no-unsafe-function-type": "error",
+		"no-wrapper-object-types": "error",
+		"no-extra-boolean-cast": "error",
+		"no-useless-catch": "error",
+		"no-useless-constructor": "error",
+		"no-useless-empty-export": "error",
+		"no-useless-escape": "error",
+		"no-extra-label": "error",
+		"no-lone-blocks": "error",
+		"no-useless-rename": "error",
+		"no-useless-switch-case": "error",
+		"no-unneeded-ternary": "error",
+		"no-unnecessary-type-constraint": "error",
+		"prefer-arrow-callback": "error",
+		"prefer-date-now": "error",
+		"prefer-array-flat-map": "error",
+		"prefer-array-index-of": "error",
+		"prefer-numeric-literals": "error",
+		"prefer-optional-chain": "error",
+		"prefer-regex-literals": "error",
+
+		// --- correctness ---
+		"no-children-prop": "error",
+		"no-const-assign": "error",
+		"no-constant-condition": "error",
+		"no-constructor-return": "error",
+		"no-empty-character-class": "error",
+		"no-empty-pattern": "error",
+		"no-obj-calls": "error",
+		"no-inner-declarations": "error",
+		"no-new-native-nonconstructor": "error",
+		"constructor-super": "error",
+		"no-nonoctal-decimal-escape": "error",
+		"no-loss-of-precision": "error",
+		"no-render-return-value": "error",
+		"no-self-assign": "error",
+		"no-setter-return": "error",
+		"no-case-declarations": "error",
+		"no-unreachable": "error",
+		"no-this-before-super": "error",
+		"no-unsafe-finally": "error",
+		"no-unsafe-optional-chaining": "error",
+		"no-unused-labels": "error",
+		"no-unused-private-class-members": "error",
+		"void-dom-elements-no-children": "error",
+		"use-isnan": "error",
+		"jsx-key": "error",
+		"radix": "error",
+		"for-direction": "error",
+		"valid-typeof": "error",
+		"require-yield": "error",
+
+		// --- security ---
+		"no-eval": "error",
+
+		// --- performance ---
+		"no-accumulating-spread": "error",
+
+		// --- style (recommended) ---
+		"no-array-constructor": "error",
+		"prefer-exponentiation-operator": "error",
+		"consistent-type-exports": "error",
+		"prefer-literal-enum-member": "error",
+		"prefer-node-protocol": "error",
+
+		// --- style (coder-enabled as error) ---
+		"prefer-as-const": "error",
+		"prefer-enum-initializers": "error",
+		"one-var": ["error", "never"],
+		"prefer-number-properties": ["error", { "checkInfinity": true }],
+		"no-else-return": ["error", { "allowElseIf": false }],
+
+		// --- suspicious ---
+		"no-cond-assign": "error",
+		"no-async-promise-executor": "error",
+		"no-ex-assign": "error",
+		"no-class-assign": "error",
+		"jsx-no-comment-textnodes": "error",
+		"no-compare-neg-zero": "error",
+		"no-labels": "error",
+		"no-const-enum": "error",
+		"no-control-regex": "error",
+		"no-debugger": "error",
+		"no-document-cookie": "error",
+		"eqeqeq": ["error", "always", { "null": "ignore" }],
+		"no-duplicate-case": "error",
+		"no-dupe-class-members": "error",
+		"no-dupe-else-if": "error",
+		"no-duplicate-enum-values": "error",
+		"jsx-no-duplicate-props": "error",
+		"no-dupe-keys": "error",
+		"no-duplicate-hooks": "error",
+		"no-extra-non-null-assertion": "error",
+		"no-focused-tests": "error",
+		"no-func-assign": "error",
+		"no-global-assign": "error",
+		"no-import-assign": "error",
+		"no-label-var": "error",
+		"no-misleading-character-class": "error",
+		"no-misused-new": "error",
+		"no-non-null-asserted-optional-chain": "error",
+		"no-proto": "error",
+		"no-prototype-builtins": "error",
+		"no-self-compare": "error",
+		"no-shadow-restricted-names": "error",
+		"no-sparse-arrays": "error",
+		"ban-ts-comment": "error",
+		"no-unsafe-declaration-merging": "error",
+		"no-unsafe-negation": "error",
+		"no-useless-backreference": "error",
+		"no-with": "error",
+		"adjacent-overload-signatures": "error",
+		"default-case-last": "error",
+		"getter-return": "error",
+		"no-instanceof-array": "error",
+		"prefer-namespace-keyword": "error",
+		"approx-constant": "error",
+		"no-export": "error",
+
+		// ==========================================================
+		// Migration backlog: rules whose oxlint implementation is
+		// stricter than Biome's equivalent. Biome still enforces
+		// these on JS/TS, so nothing is lost by keeping them off in
+		// oxlint. Format: "oxlint-rule": "off" // biomeRule (effort)
+		// Effort is the approximate work to fix/migrate before the
+		// rule can be turned on: small < medium < large < xl.
+		// ==========================================================
+		"no-use-before-define": "off", // correctness/noInvalidUseBeforeDeclaration (xl: oxlint is lexical, Biome is control-flow-aware)
+		"no-autofocus": "off", // a11y/noAutofocus (large)
+		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
+		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
+		"no-explicit-any": "off", // suspicious/noExplicitAny (medium: biome-ignore comments to migrate)
+		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
+		"new-for-builtins": "off", // correctness/noInvalidBuiltinInstantiation (medium)
+		"no-empty-object-type": "off", // complexity/noBannedTypes (medium)
+		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
+		"no-irregular-whitespace": "off", // suspicious/noIrregularWhitespace (medium)
+		"no-unused-vars": "off", // correctness/noUnusedVariables + noUnusedImports (small: dead-store "used" semantics differ)
+		"no-this-alias": "off", // complexity/noUselessThisAlias (medium)
+		"no-inferrable-types": "off", // style/noInferrableTypes (medium, coder error rule)
+		"consistent-type-imports": "off", // style/useImportType (medium)
+		"jsx-curly-brace-presence": "off", // style/useConsistentCurlyBraces (medium, coder error rule)
+		"heading-has-content": "off", // a11y/useHeadingContent (medium)
+		"anchor-ambiguous-text": "off", // a11y/noAmbiguousAnchorText (medium)
+		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
+		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
+		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
+		"prefer-const": "off", // style/useConst (small)
+		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
+		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
+		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
+		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: biome-ignore to migrate)
+		"jsx-no-target-blank": "off", // security/noBlankTarget (small)
+		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
+		"media-has-caption": "off", // a11y/useMediaCaption (small)
+		"interactive-supports-focus": "off", // a11y/useFocusableInteractive (small)
+		"iframe-has-title": "off", // a11y/useIframeTitle (small)
+		"prefer-template": "off", // style/useTemplate (small)
+		"no-script-url": "off", // security/noScriptUrl (small)
+		"no-restricted-imports": "off", // style/noRestrictedImports (small, coder error rule: namespace-import edge)
+		"no-console": "off", // suspicious/noConsole (small, coder error rule: biome-ignore to migrate)
+		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
+		"exhaustive-deps": "off" // correctness/useExhaustiveDependencies (large: reimplementation; biome-ignore comments to migrate)
+	},
+	"ignorePatterns": ["e2e/**/*Generated.ts", "scripts/*.mjs"],
+	"overrides": [
+		{
+			"files": ["**/typesGenerated.ts"],
+			"rules": { "no-empty-interface": "off" }
+		},
+		{
+			"files": ["**/DiffViewer/parseDiff.ts", "**/DiffViewer/parseDiff.test.ts"],
+			"rules": { "no-restricted-imports": "off" }
+		}
+	]
+}
