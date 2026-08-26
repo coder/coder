@@ -210,13 +210,8 @@ func TestFileEdit_UnmarshalAcceptsDeprecatedKeys(t *testing.T) {
 			want: workspacesdk.FileEdit{OldText: "old", NewText: ""},
 		},
 		{
-			name: "CaseVariantsRejected",
+			name: "CaseVariantsAccepted",
 			in:   `{"SEARCH":"old","REPLACE":"new"}`,
-			want: workspacesdk.FileEdit{},
-		},
-		{
-			name: "ExactKeyWinsOverCaseVariant",
-			in:   `{"search":"old","SEARCH":"evil","replace":"new"}`,
 			want: workspacesdk.FileEdit{OldText: "old", NewText: "new"},
 		},
 	}

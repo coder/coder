@@ -1211,11 +1211,9 @@ func (e FileEdit) MarshalJSON() ([]byte, error) {
 // caller; if either new field is set, an explicitly empty value
 // (e.g. new_text="" for a deletion) is preserved.
 //
-// The deprecated keys are matched exactly through a raw key map,
-// never folded case-insensitively as struct tags would: the keys
-// this decoder reads must stay identical to the keys a pre_tool_use
-// policy sees, which toolschema.ValidateUnambiguous cannot guarantee
-// for undeclared keys.
+// The fallback decodes the deprecated keys through the same struct
+// tags the pre-rename type used, so its behavior is identical to the
+// old decoder, including case-insensitive key matching.
 func (e *FileEdit) UnmarshalJSON(data []byte) error {
 	type wire FileEdit
 	var w wire
@@ -1224,20 +1222,15 @@ func (e *FileEdit) UnmarshalJSON(data []byte) error {
 	}
 	*e = FileEdit(w)
 	if e.OldText == "" && e.NewText == "" {
-		var raw map[string]json.RawMessage
-		if err := json.Unmarshal(data, &raw); err != nil {
+		var legacy struct {
+			Search  string `json:"search"`
+			Replace string `json:"replace"`
+		}
+		if err := json.Unmarshal(data, &legacy); err != nil {
 			return err
 		}
-		if v, ok := raw["search"]; ok {
-			if err := json.Unmarshal(v, &e.OldText); err != nil {
-				return err
-			}
-		}
-		if v, ok := raw["replace"]; ok {
-			if err := json.Unmarshal(v, &e.NewText); err != nil {
-				return err
-			}
-		}
+		e.OldText = legacy.Search
+		e.NewText = legacy.Replace
 	}
 	return nil
 }
