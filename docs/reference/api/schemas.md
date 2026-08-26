@@ -227,6 +227,21 @@ title: Schemas
 |--------------------|
 | `prebuild_claimed` |
 
+## coderd.chatsByWorkspaceResponse
+
+```json
+{
+  "property1": "string",
+  "property2": "string"
+}
+```
+
+### Properties
+
+| Name             | Type   | Required | Restrictions | Description |
+|------------------|--------|----------|--------------|-------------|
+| `[any property]` | string | false    |              |             |
+
 ## coderd.cspViolation
 
 ```json
@@ -1335,6 +1350,32 @@ None
 | Name       | Type            | Required | Restrictions | Description |
 |------------|-----------------|----------|--------------|-------------|
 | `warnings` | array of string | false    |              |             |
+
+## codersdk.AIProviderSummary
+
+```json
+{
+  "deleted": true,
+  "display_name": "string",
+  "enabled": true,
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
+| `deleted`      | boolean                                            | false    |              |             |
+| `display_name` | string                                             | false    |              |             |
+| `enabled`      | boolean                                            | false    |              |             |
+| `icon`         | string                                             | false    |              |             |
+| `id`           | string                                             | false    |              |             |
+| `name`         | string                                             | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype) | false    |              |             |
 
 ## codersdk.AIProviderType
 
@@ -2522,6 +2563,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
 | `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
+## codersdk.ChatAutoArchiveDaysResponse
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `auto_archive_days` | integer | false    |              |             |
+
 ## codersdk.ChatBusyBehavior
 
 ```json
@@ -2720,6 +2775,36 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `request_count`          | integer | false    |              |             |
 | `total_cost_micros`      | integer | false    |              |             |
 | `unpriced_request_count` | integer | false    |              |             |
+
+## codersdk.ChatDebugLoggingAdminSettings
+
+```json
+{
+  "allow_users": true,
+  "forced_by_deployment": true
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `allow_users`          | boolean | false    |              |             |
+| `forced_by_deployment` | boolean | false    |              |             |
+
+## codersdk.ChatDebugRetentionDaysResponse
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `debug_retention_days` | integer | false    |              |             |
 
 ## codersdk.ChatDiffContents
 
@@ -4538,6 +4623,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------|
 | `chat_default`, `deployment_default`, `model` |
 
+## codersdk.ChatPersonalModelOverridesAdminSettings
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
 ## codersdk.ChatPlanMode
 
 ```json
@@ -4551,6 +4650,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s) |
 |----------|
 | `plan`   |
+
+## codersdk.ChatPlanModeInstructionsResponse
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type   | Required | Restrictions | Description |
+|--------------------------|--------|----------|--------------|-------------|
+| `plan_mode_instructions` | string | false    |              |             |
 
 ## codersdk.ChatPrompt
 
@@ -5162,6 +5275,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
 
+## codersdk.ChatSystemPromptResponse
+
+```json
+{
+  "default_system_prompt": "string",
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name                            | Type    | Required | Restrictions | Description |
+|---------------------------------|---------|----------|--------------|-------------|
+| `default_system_prompt`         | string  | false    |              |             |
+| `include_default_system_prompt` | boolean | false    |              |             |
+| `system_prompt`                 | string  | false    |              |             |
+
 ## codersdk.ChatUnsupportedProvider
 
 ```json
@@ -5344,6 +5475,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                                                                                                                 |
 |----------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+
+## codersdk.ChatWorkspaceTTLResponse
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                              |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------|
+| `workspace_ttl_ms` | integer | false    |              | Workspace ttl ms is the workspace TTL in milliseconds. Zero means disabled; the template's own autostop setting applies. |
 
 ## codersdk.ClusterConfig
 
@@ -6680,6 +6825,20 @@ This is required on creation to enable a user-flow of validating a template work
 | `last_name`      | string                                                       | true     |              |                                                                                                                                            |
 | `phone_number`   | string                                                       | true     |              |                                                                                                                                            |
 | `source`         | [codersdk.PremiumFunnelSource](#codersdkpremiumfunnelsource) | false    |              | Source is the premium paywall the request came from, for telemetry. It is not forwarded to the licensor. Omit it to report "direct".       |
+
+## codersdk.CreateUserAIProviderKeyRequest
+
+```json
+{
+  "api_key": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
 
 ## codersdk.CreateUserRequestWithOrgs
 
@@ -9514,6 +9673,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "effective_budget": {
+    "limit_source": "user_override",
+    "spend_limit_micros": 0
+  },
   "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
   "group_budget": {
     "limit_source": "user_override",
@@ -9526,12 +9689,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                           |
-|----------------------|--------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group. |
-| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. Null when the user's budget resolves to another group or no budget applies to the user.                                                                     |
-| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                |
-| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                       |
+| Name                 | Type                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                |
+|----------------------|--------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `effective_budget`   | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Effective budget is the spend limit that currently applies to the user. Null when no budget applies or the effective group belongs to a different organization than the queried group.                                                                     |
+| `effective_group_id` | string                                           | false    |              | Effective group ID is the user's effective budget group within the queried group's organization, falling back to the Everyone group when no budget applies. Null when the effective group belongs to a different organization than the queried group.      |
+| `group_budget`       | [codersdk.AIBudgetLimit](#codersdkaibudgetlimit) | false    |              | Group budget is the budget when the queried group is this user's effective budget source. When populated, it matches EffectiveBudget. Null when the user's budget resolves to another group or no budget applies. Deprecated: Use EffectiveBudget instead. |
+| `group_spend_micros` | integer                                          | false    |              | Group spend micros is the user's spend attributed to the queried group over the current budget period.                                                                                                                                                     |
+| `user_id`            | string                                           | false    |              |                                                                                                                                                                                                                                                            |
 
 ## codersdk.GroupMembersAISpend
 
@@ -9539,6 +9703,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -13492,6 +13660,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |---------------|--------------------------------------------------------|----------|--------------|-------------|
 | `usage_stats` | [codersdk.UsageStatsConfig](#codersdkusagestatsconfig) | false    |              |             |
 
+## codersdk.SubmitToolResultsRequest
+
+```json
+{
+  "results": [
+    {
+      "is_error": true,
+      "output": [
+        0
+      ],
+      "tool_call_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.ToolResult](#codersdktoolresult) | false    |              |             |
+
 ## codersdk.SupportConfig
 
 ```json
@@ -14999,6 +15189,26 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------------|---------|----------|--------------|-------------|
 | `max_token_lifetime` | integer | false    |              |             |
 
+## codersdk.ToolResult
+
+```json
+{
+  "is_error": true,
+  "output": [
+    0
+  ],
+  "tool_call_id": "string"
+}
+```
+
+### Properties
+
+| Name           | Type             | Required | Restrictions | Description |
+|----------------|------------------|----------|--------------|-------------|
+| `is_error`     | boolean          | false    |              |             |
+| `output`       | array of integer | false    |              |             |
+| `tool_call_id` | string           | false    |              |             |
+
 ## codersdk.TraceConfig
 
 ```json
@@ -15131,6 +15341,48 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 | `user_roles`       | object                                 | false    |              |             |
 | » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+
+## codersdk.UpdateChatAutoArchiveDaysRequest
+
+```json
+{
+  "auto_archive_days": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `auto_archive_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatDebugLoggingAllowUsersRequest
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
+## codersdk.UpdateChatDebugRetentionDaysRequest
+
+```json
+{
+  "debug_retention_days": 0
+}
+```
+
+### Properties
+
+| Name                   | Type    | Required | Restrictions | Description |
+|------------------------|---------|----------|--------------|-------------|
+| `debug_retention_days` | integer | false    |              |             |
 
 ## codersdk.UpdateChatModelACLRequest
 
@@ -15352,6 +15604,34 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `model`                 | string                                                       | false    |              |             |
 | `model_config`          | [codersdk.ChatModelCallConfig](#codersdkchatmodelcallconfig) | false    |              |             |
 
+## codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest
+
+```json
+{
+  "allow_users": true
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description |
+|---------------|---------|----------|--------------|-------------|
+| `allow_users` | boolean | false    |              |             |
+
+## codersdk.UpdateChatPlanModeInstructionsRequest
+
+```json
+{
+  "plan_mode_instructions": "string"
+}
+```
+
+### Properties
+
+| Name                     | Type   | Required | Restrictions | Description |
+|--------------------------|--------|----------|--------------|-------------|
+| `plan_mode_instructions` | string | false    |              |             |
+
 ## codersdk.UpdateChatRequest
 
 ```json
@@ -15393,6 +15673,36 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | Name             | Type    | Required | Restrictions | Description |
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
+
+## codersdk.UpdateChatSystemPromptRequest
+
+```json
+{
+  "include_default_system_prompt": true,
+  "system_prompt": "string"
+}
+```
+
+### Properties
+
+| Name                            | Type    | Required | Restrictions | Description |
+|---------------------------------|---------|----------|--------------|-------------|
+| `include_default_system_prompt` | boolean | false    |              |             |
+| `system_prompt`                 | string  | false    |              |             |
+
+## codersdk.UpdateChatWorkspaceTTLRequest
+
+```json
+{
+  "workspace_ttl_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description                                                                                                              |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------|
+| `workspace_ttl_ms` | integer | false    |              | Workspace ttl ms is the workspace TTL in milliseconds. Zero means disabled; the template's own autostop setting applies. |
 
 ## codersdk.UpdateCheckResponse
 
@@ -15676,6 +15986,34 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
 | `theme_mode`  | `single`, `sync`                                                                            |
+
+## codersdk.UpdateUserChatCompactionThresholdRequest
+
+```json
+{
+  "threshold_percent": 100
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `threshold_percent` | integer | false    |              |             |
+
+## codersdk.UpdateUserChatDebugLoggingRequest
+
+```json
+{
+  "debug_logging_enabled": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `debug_logging_enabled` | boolean | false    |              |             |
 
 ## codersdk.UpdateUserChatPersonalModelOverrideRequest
 
@@ -16185,6 +16523,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`         | string  | false    |              |             |
 | `user_id`            | string  | false    |              |             |
 
+## codersdk.UserAIProviderKeyConfig
+
+```json
+{
+  "byok_enabled": true,
+  "has_provider_api_key": true,
+  "has_user_api_key": true,
+  "provider": {
+    "deleted": true,
+    "display_name": "string",
+    "enabled": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "type": "openai"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                     | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `byok_enabled`         | boolean                                                  | false    |              |             |
+| `has_provider_api_key` | boolean                                                  | false    |              |             |
+| `has_user_api_key`     | boolean                                                  | false    |              |             |
+| `provider`             | [codersdk.AIProviderSummary](#codersdkaiprovidersummary) | false    |              |             |
+
 ## codersdk.UserAISpendStatus
 
 ```json
@@ -16320,6 +16686,73 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
 | `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
 | `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
+
+## codersdk.UserChatCompactionThreshold
+
+```json
+{
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "threshold_percent": 0
+}
+```
+
+### Properties
+
+| Name                | Type    | Required | Restrictions | Description |
+|---------------------|---------|----------|--------------|-------------|
+| `model_config_id`   | string  | false    |              |             |
+| `threshold_percent` | integer | false    |              |             |
+
+## codersdk.UserChatCompactionThresholds
+
+```json
+{
+  "thresholds": [
+    {
+      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+      "threshold_percent": 0
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                  | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `thresholds` | array of [codersdk.UserChatCompactionThreshold](#codersdkuserchatcompactionthreshold) | false    |              |             |
+
+## codersdk.UserChatCustomPrompt
+
+```json
+{
+  "custom_prompt": "string"
+}
+```
+
+### Properties
+
+| Name            | Type   | Required | Restrictions | Description |
+|-----------------|--------|----------|--------------|-------------|
+| `custom_prompt` | string | false    |              |             |
+
+## codersdk.UserChatDebugLoggingSettings
+
+```json
+{
+  "debug_logging_enabled": true,
+  "forced_by_deployment": true,
+  "user_toggle_allowed": true
+}
+```
+
+### Properties
+
+| Name                    | Type    | Required | Restrictions | Description |
+|-------------------------|---------|----------|--------------|-------------|
+| `debug_logging_enabled` | boolean | false    |              |             |
+| `forced_by_deployment`  | boolean | false    |              |             |
+| `user_toggle_allowed`   | boolean | false    |              |             |
 
 ## codersdk.UserChatPersonalModelOverridesResponse
 
