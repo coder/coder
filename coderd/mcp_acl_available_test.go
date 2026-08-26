@@ -146,10 +146,7 @@ func TestMCPServerConfigDisabledSharerFetch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Delegated sharers hold read alongside share: share alone deliberately
-	// does not admit the detail route (enterprise share-only contract), but
-	// sharers with read keep access to disabled configs so they can still
-	// open them and manage sharing, matching the list behavior.
+	// The detail route requires read permission in addition to share.
 	fetched, err := sharerClient.MCPServerConfigByID(ctx, firstUser.OrganizationID, config.ID)
 	require.NoError(t, err)
 	require.Equal(t, config.ID, fetched.ID)

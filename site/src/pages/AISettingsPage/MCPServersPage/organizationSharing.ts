@@ -6,9 +6,8 @@ type UseCanShareOrganizationMCPServersOptions = {
 	enabled?: boolean;
 };
 
-// Discovers whether the user can share MCP servers in any organization so
-// top-level navigation can admit share-only users who hold no site-wide MCP
-// permissions.
+// Top-level navigation must admit organization-scoped sharers without
+// site-wide MCP permissions.
 export const useCanShareOrganizationMCPServers = (
 	organizations: readonly Organization[],
 	options: UseCanShareOrganizationMCPServersOptions = {},
