@@ -645,6 +645,10 @@ type EditChatMessageRequest struct {
 	// When nil the original message's model is preserved.
 	ModelConfigID   *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 	ReasoningEffort *string    `json:"reasoning_effort,omitempty"`
+	// MCPServerIDs, when set, replaces the chat's MCP server selection
+	// before the replacement turn runs. When nil the current selection
+	// is preserved.
+	MCPServerIDs *[]uuid.UUID `json:"mcp_server_ids,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -1117,7 +1121,7 @@ type ChatDebugStep struct {
 }
 
 // DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
-// Zero means disabled — the template's own autostop setting applies.
+// Zero means disabled; the template's own autostop setting applies.
 const DefaultChatWorkspaceTTL = 0
 
 // DefaultChatAutoArchiveDays is the default auto-archive window, in
@@ -1134,7 +1138,7 @@ const DefaultChatDebugRetentionDays int32 = 30
 // workspace TTL setting.
 type ChatWorkspaceTTLResponse struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled; the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
@@ -1142,7 +1146,7 @@ type ChatWorkspaceTTLResponse struct {
 // workspace TTL setting.
 type UpdateChatWorkspaceTTLRequest struct {
 	// WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	// Zero means disabled — the template's own autostop setting applies.
+	// Zero means disabled; the template's own autostop setting applies.
 	WorkspaceTTLMillis int64 `json:"workspace_ttl_ms"`
 }
 
@@ -1813,7 +1817,7 @@ type DynamicTool struct {
 	InputSchema json.RawMessage `json:"input_schema"`
 
 	// Handler executes the tool when the LLM invokes it.
-	// Not serialized — this only exists on the client side.
+	// Not serialized; this only exists on the client side.
 	Handler func(ctx context.Context, call DynamicToolCall) (DynamicToolResponse, error) `json:"-"`
 }
 
@@ -3163,21 +3167,6 @@ func (c *ExperimentalClient) CompactChat(ctx context.Context, chatID uuid.UUID) 
 // can send a new message or edit history to continue.
 func (c *ExperimentalClient) ReconcileInvalidChatState(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/reconcile-invalid", chatID), nil)
-	if err != nil {
-		return Chat{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return Chat{}, ReadBodyAsError(res)
-	}
-	var chat Chat
-	return chat, ReadBodyAsJSON(res, &chat)
-}
-
-// RegenerateChatTitle requests the server to regenerate the chat's
-// title using richer conversation context.
-func (c *ExperimentalClient) RegenerateChatTitle(ctx context.Context, chatID uuid.UUID) (Chat, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/title/regenerate", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}

@@ -463,7 +463,7 @@ func TestListChatsSharedScope(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
-	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	viewerClientExp := codersdk.NewExperimentalClient(viewerClient)
 	sharedChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    firstUser.OrganizationID,
@@ -562,7 +562,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModel(t, client)
-	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	viewerClient, viewer := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	viewerClientExp := codersdk.NewExperimentalClient(viewerClient)
 
 	chat := dbgen.Chat(t, store, database.Chat{

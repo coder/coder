@@ -1465,8 +1465,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
 
 	// Create FK dependencies: a chat provider and model config.
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
@@ -1653,7 +1653,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
 		paginationUser := dbgen.User(t, db, database.User{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
@@ -1727,12 +1727,10 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -1845,12 +1843,10 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: recipient.ID, GroupID: group.ID})
@@ -1949,12 +1945,10 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -11190,13 +11184,13 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 		LastModelConfigID: mc.ID,
 	})
 
-	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
+	insertMessage := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, createdAt time.Time, deleted bool) {
 		t.Helper()
 		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
 			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
-			Role:          database.ChatMessageRoleAssistant,
+			Role:          role,
 			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
 		})
 		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
@@ -11205,22 +11199,24 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 
 	// Counted: on the inclusive start boundary, in the middle (across two
 	// chats), soft-deleted, and just before the exclusive end boundary.
-	insertMessage(chat1.ID, 1, rangeStart, false)
-	insertMessage(chat2.ID, 2, rangeStart.Add(30*time.Minute), false)
-	insertMessage(chat1.ID, 4, rangeStart.Add(45*time.Minute), true)
-	insertMessage(chat1.ID, 8, rangeEnd.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
+	insertMessage(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
+	// Tool rows count because runtime totals are role-agnostic.
+	insertMessage(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
 	// Not counted: before the range, on the exclusive end boundary, and a
 	// NULL runtime (runtime 0 is stored as NULL).
-	insertMessage(chat1.ID, 16, rangeStart.Add(-time.Second), false)
-	insertMessage(chat1.ID, 32, rangeEnd, false)
-	insertMessage(chat1.ID, 0, rangeStart.Add(10*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
 
 	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 15, total)
+	require.EqualValues(t, 79, total)
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
@@ -18333,10 +18329,22 @@ func TestGetChatsSearch(t *testing.T) {
 	pendingChat := createRoot("plain four")
 	insertMsg(pendingChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "elasticsearch indexing")
 
+	// Simulates the post-migration drain window: a vector produced with
+	// the 'simple' config whose search_tsv_config was never stamped
+	// (pre-migration backfill or an old binary mid rolling upgrade).
+	// Such rows must keep their pre-migration exact-form matching until
+	// the sweep rewrites them.
+	staleChat := createRoot("plain stale")
+	staleMsg := insertMsg(staleChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "refactoring codebase")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = NULL WHERE id = $1`,
+		staleMsg.ID)
+	require.NoError(t, err)
+
 	// Prove role/visibility predicates exclude rows even when search_tsv
 	// is set.
 	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'forbidden secret token') WHERE id = ANY($1)`,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('english', 'forbidden secret token') WHERE id = ANY($1)`,
 		pq.Array([]int64{toolMsg.ID, modelOnlyMsg.ID}))
 	require.NoError(t, err)
 
@@ -18347,7 +18355,7 @@ func TestGetChatsSearch(t *testing.T) {
 		titleChat.ID, archivedChat.ID, prTitleChat.ID, mergedChat.ID,
 		msgChat.ID, assistantMsgChat.ID, userVisMsgChat.ID,
 		assistantUserVisMsgChat.ID, deletedMsgChat.ID, childParent.ID,
-		ineligibleChat.ID, pendingChat.ID,
+		ineligibleChat.ID, pendingChat.ID, staleChat.ID,
 	}
 
 	tests := []struct {
@@ -18358,8 +18366,20 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
 		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
 		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Titles keep the 'simple' config, which does not stem, so
+		// inflected query forms only match message bodies.
+		{"Title/NoStemming", database.GetChatsParams{Search: "deploying pipelines"}, nil},
 		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/NoStemming", database.GetChatsParams{Search: "authenticating"}, nil},
 		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
+		// The 'english' config stems both sides, so inflected query forms
+		// match the stored words.
+		{"Message/StemmedMatch", database.GetChatsParams{Search: "restarting clusters"}, []uuid.UUID{msgChat.ID}},
+		// Stale 'simple' vectors are queried with their own config: the
+		// exact form matches like before the migration, the stemmed form
+		// does not until the sweep rewrites the row.
+		{"Message/StaleVectorExactFormMatch", database.GetChatsParams{Search: "refactoring codebase"}, []uuid.UUID{staleChat.ID}},
+		{"Message/StaleVectorNoStemming", database.GetChatsParams{Search: "refactor"}, nil},
 		{"Message/AssistantRoleMatch", database.GetChatsParams{Search: "grafana tuning"}, []uuid.UUID{assistantMsgChat.ID}},
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
