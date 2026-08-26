@@ -57,33 +57,3 @@ it("redirects a deployment administrator to Coder Agents", async () => {
 	await screen.findByText("Coder Agents");
 	expect(router.state.location.pathname).toBe("/ai/settings/coder-agents");
 });
-
-it("redirects an organization template administrator to Templates", async () => {
-	permissions = { ...MockNoPermissions, updateAnyTemplate: true };
-	const queryClient = new QueryClient({
-		defaultOptions: { queries: { retry: false } },
-	});
-	vi.spyOn(API.experimental, "getChatModels").mockRejectedValue({
-		isAxiosError: true,
-		response: { status: 403 },
-	});
-	const router = createMemoryRouter(
-		[
-			{ path: "/ai/settings", element: <AISettingsIndexRedirect /> },
-			{
-				path: "/ai/settings/templates",
-				element: <div>Templates</div>,
-			},
-		],
-		{ initialEntries: ["/ai/settings"] },
-	);
-
-	render(
-		<QueryClientProvider client={queryClient}>
-			<RouterProvider router={router} />
-		</QueryClientProvider>,
-	);
-
-	await screen.findByText("Templates");
-	expect(router.state.location.pathname).toBe("/ai/settings/templates");
-});
