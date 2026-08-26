@@ -195,6 +195,7 @@ describe("api.ts", () => {
 					members: ids.map((id) => ({
 						user_id: id,
 						effective_group_id: null,
+						effective_budget: null,
 						group_budget: null,
 						group_spend_micros: 0,
 					})),

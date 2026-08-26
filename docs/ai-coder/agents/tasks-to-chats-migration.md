@@ -47,21 +47,21 @@ Before mapping individual endpoints, understand the structural changes:
 
 The table below maps each Tasks API endpoint to its Chats API equivalent.
 
-| Operation         | Tasks API                                 | Chats API                                                         |
-|-------------------|-------------------------------------------|-------------------------------------------------------------------|
-| List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                               |
-| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                              |
-| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                        |
-| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/v2/chats/{chat}` with `{"archived": true}`            |
-| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/v2/chats/{chat}/messages`                              |
-| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/v2/chats/{chat}/messages/{message}`                   |
-| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/v2/chats/{chat}/stream` (WebSocket)                     |
-| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/v2/chats/{chat}/interrupt`                             |
-| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/v2/chats/{chat}/messages` (send a new message)         |
-| Watch all         | n/a                                       | `GET /api/v2/chats/watch` (WebSocket)                             |
-| Get messages      | n/a                                       | `GET /api/v2/chats/{chat}/messages`                               |
-| List models       | n/a                                       | `GET /api/experimental/organizations/{organization}/chats/models` |
-| Upload file       | n/a                                       | `POST /api/v2/chats/files`                                        |
+| Operation         | Tasks API                                 | Chats API                                                 |
+|-------------------|-------------------------------------------|-----------------------------------------------------------|
+| List              | `GET /api/v2/tasks`                       | `GET /api/v2/chats`                                       |
+| Create            | `POST /api/v2/tasks/{user}`               | `POST /api/v2/chats`                                      |
+| Get by ID         | `GET /api/v2/tasks/{user}/{task}`         | `GET /api/v2/chats/{chat}`                                |
+| Delete            | `DELETE /api/v2/tasks/{user}/{task}`      | `PATCH /api/v2/chats/{chat}` with `{"archived": true}`    |
+| Send follow-up    | `POST /api/v2/tasks/{user}/{task}/send`   | `POST /api/v2/chats/{chat}/messages`                      |
+| Update input      | `PATCH /api/v2/tasks/{user}/{task}/input` | `PATCH /api/v2/chats/{chat}/messages/{message}`           |
+| Get logs / stream | `GET /api/v2/tasks/{user}/{task}/logs`    | `GET /api/v2/chats/{chat}/stream` (WebSocket)             |
+| Pause             | `POST /api/v2/tasks/{user}/{task}/pause`  | `POST /api/v2/chats/{chat}/interrupt`                     |
+| Resume            | `POST /api/v2/tasks/{user}/{task}/resume` | `POST /api/v2/chats/{chat}/messages` (send a new message) |
+| Watch all         | n/a                                       | `GET /api/v2/chats/watch` (WebSocket)                     |
+| Get messages      | n/a                                       | `GET /api/v2/chats/{chat}/messages`                       |
+| List models       | n/a                                       | `GET /api/v2/organizations/{organization}/chats/models`   |
+| Upload file       | n/a                                       | `POST /api/v2/chats/files`                                |
 
 ## Migration steps
 
@@ -513,7 +513,7 @@ confirm the Chats API integration is working end-to-end.
 List the available models in an organization to verify at least one provider is configured and reachable:
 
 ```sh
-curl -s https://coder.example.com/api/experimental/organizations/$CODER_ORGANIZATION/chats/models \
+curl -s https://coder.example.com/api/v2/organizations/$CODER_ORGANIZATION/chats/models \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN" | jq '.models[].display_name'
 ```
 
