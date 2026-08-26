@@ -93,7 +93,7 @@ export const NotSupportedInAgents: Story = {
 			"tooltip",
 		);
 		await expect(tooltip).toHaveTextContent(
-			"This provider works with the AI Gateway proxy but Coder Agents can't use it.",
+			"This provider works with the AI Gateway Proxy but Coder Agents can't use it.",
 		);
 	},
 };

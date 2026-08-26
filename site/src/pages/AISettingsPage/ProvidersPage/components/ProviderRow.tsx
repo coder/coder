@@ -82,7 +82,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 								</Badge>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
-								This provider works with the AI Gateway proxy but Coder Agents
+								This provider works with the AI Gateway Proxy but Coder Agents
 								can't use it.
 							</TooltipContent>
 						</Tooltip>
