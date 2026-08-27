@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aiagentidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -19,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -58,7 +61,7 @@ func (api *API) workspaceAISandboxSessions(rw http.ResponseWriter, r *http.Reque
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param session path string true "AI sandbox session ID" format(uuid)
-// @Param after_id query int false "Return events with database ID greater than after_id"
+// @Param before_id query int false "Return events with database ID less than before_id"
 // @Param limit query int false "Page size, 1 to 100. Defaults to 100."
 // @Success 200 {array} codersdk.AISandboxNetworkEventView
 // @Router /api/v2/workspaces/{workspace}/ai-sandbox-sessions/{session}/network-events [get]
@@ -71,7 +74,7 @@ func (api *API) workspaceAISandboxSessionNetworkEvents(rw http.ResponseWriter, r
 	}
 
 	parser := httpapi.NewQueryParamParser()
-	afterID := parser.PositiveInt64(r.URL.Query(), 0, "after_id")
+	beforeID := parser.PositiveInt64(r.URL.Query(), 0, "before_id")
 	limit := parser.PositiveInt32(r.URL.Query(), maxAISandboxNetworkEventsPageSize, "limit")
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -106,7 +109,7 @@ func (api *API) workspaceAISandboxSessionNetworkEvents(rw http.ResponseWriter, r
 
 	events, err := api.Database.GetAISandboxNetworkEventsBySessionIDPaged(ctx, database.GetAISandboxNetworkEventsBySessionIDPagedParams{
 		SessionID:   sessionID,
-		AfterID:     afterID,
+		BeforeID:    beforeID,
 		WorkspaceID: workspace.ID,
 		LimitCount:  limit,
 	})
@@ -115,20 +118,100 @@ func (api *API) workspaceAISandboxSessionNetworkEvents(rw http.ResponseWriter, r
 		return
 	}
 
-	response := make([]codersdk.AISandboxNetworkEventView, 0, len(events))
-	for _, event := range events {
-		response = append(response, codersdk.AISandboxNetworkEventView{
-			ID:             event.ID,
-			SessionID:      event.SessionID,
-			OccurredAt:     event.OccurredAt,
-			Protocol:       codersdk.AISandboxNetworkProtocol(event.Protocol),
-			Host:           event.Host,
-			Port:           int(event.Port),
-			Action:         codersdk.AISandboxNetworkEventAction(event.Action),
-			PolicyRevision: event.PolicyRevision,
+	httpapi.Write(ctx, rw, http.StatusOK, convertAISandboxNetworkEvents(events))
+}
+
+// @Summary List workspace AI sandbox network events
+// @ID list-workspace-ai-sandbox-network-events
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param before_id query int false "Return events older than the event with before_id"
+// @Param limit query int false "Page size, 1 to 100. Defaults to 100."
+// @Success 200 {array} codersdk.AISandboxNetworkEventView
+// @Router /api/v2/workspaces/{workspace}/ai-sandbox-activity [get]
+func (api *API) workspaceAISandboxNetworkEvents(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	parser := httpapi.NewQueryParamParser()
+	beforeID := parser.PositiveInt64(r.URL.Query(), 0, "before_id")
+	limit := parser.PositiveInt32(r.URL.Query(), maxAISandboxNetworkEventsPageSize, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
 		})
+		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	if limit < 1 || limit > maxAISandboxNetworkEventsPageSize {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid limit parameter (1-%d).", maxAISandboxNetworkEventsPageSize),
+		})
+		return
+	}
+
+	events, err := api.Database.GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx, database.GetAISandboxNetworkEventsByWorkspaceIDPagedParams{
+		WorkspaceID: workspace.ID,
+		BeforeID:    beforeID,
+		LimitCount:  limit,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("get workspace AI sandbox network events: %w", err))
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertAISandboxNetworkEvents(events))
+}
+
+// @Summary Watch AI sandbox activity
+// @ID watch-workspace-ai-sandbox-activity
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Success 101
+// @Router /api/v2/workspaces/{workspace}/ai-sandbox-activity/watch [get]
+func (api *API) watchWorkspaceAISandboxActivity(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspace := httpmw.WorkspaceParam(r)
+	updates := make(chan struct{}, 1)
+
+	cancelSubscribe, err := api.Pubsub.SubscribeWithErr(workspaceAISandboxActivityChannel(workspace.ID), func(callbackCtx context.Context, _ []byte, err error) {
+		if err != nil {
+			api.Logger.Warn(callbackCtx, "ai sandbox activity update delivered with error",
+				slog.F("workspace_id", workspace.ID), slog.Error(err))
+		}
+		select {
+		case updates <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("subscribe to AI sandbox activity updates: %w", err))
+		return
+	}
+	defer cancelSubscribe()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		return
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+	_ = conn.CloseRead(context.Background())
+
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
+	enc := wsjson.NewEncoder[struct{}](conn, websocket.MessageText)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-updates:
+			if err := enc.Encode(struct{}{}); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func convertAISandboxSession(session database.AISandboxSession) codersdk.AISandboxSession {
@@ -148,6 +231,23 @@ func convertAISandboxSession(session database.AISandboxSession) codersdk.AISandb
 		EndedAt:           endedAt,
 		CreatedAt:         session.CreatedAt,
 	}
+}
+
+func convertAISandboxNetworkEvents(events []database.AISandboxNetworkEvent) []codersdk.AISandboxNetworkEventView {
+	response := make([]codersdk.AISandboxNetworkEventView, 0, len(events))
+	for _, event := range events {
+		response = append(response, codersdk.AISandboxNetworkEventView{
+			ID:             event.ID,
+			SessionID:      event.SessionID,
+			OccurredAt:     event.OccurredAt,
+			Protocol:       codersdk.AISandboxNetworkProtocol(event.Protocol),
+			Host:           event.Host,
+			Port:           int(event.Port),
+			Action:         codersdk.AISandboxNetworkEventAction(event.Action),
+			PolicyRevision: event.PolicyRevision,
+		})
+	}
+	return response
 }
 
 // @Summary Report an AI sandbox session
@@ -200,6 +300,7 @@ func (api *API) postAISandboxSession(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, err)
 			return
 		}
+		api.publishWorkspaceAISandboxActivityUpdate(ctx, existing.WorkspaceID)
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "AI sandbox session reported."})
 		return
 	}
@@ -271,6 +372,7 @@ func (api *API) postAISandboxSession(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	api.publishWorkspaceAISandboxActivityUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "AI sandbox session reported."})
 }
 
@@ -317,6 +419,7 @@ func (api *API) patchAISandboxNetworkEvents(rw http.ResponseWriter, r *http.Requ
 	}
 
 	sessions := make(map[uuid.UUID]database.AISandboxSession, len(eventsBySession))
+	workspaceIDs := make(map[uuid.UUID]struct{})
 	for sessionID := range eventsBySession {
 		// The agent subject cannot read retained sessions. Reporter ownership is
 		// checked before any event in the request is inserted.
@@ -335,6 +438,7 @@ func (api *API) patchAISandboxNetworkEvents(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 		sessions[sessionID] = session
+		workspaceIDs[session.WorkspaceID] = struct{}{}
 	}
 
 	err := api.Database.InTx(func(tx database.Store) error {
@@ -380,8 +484,23 @@ func (api *API) patchAISandboxNetworkEvents(rw http.ResponseWriter, r *http.Requ
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	for workspaceID := range workspaceIDs {
+		api.publishWorkspaceAISandboxActivityUpdate(ctx, workspaceID)
+	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{Message: "AI sandbox network events reported."})
+}
+
+func workspaceAISandboxActivityChannel(workspaceID uuid.UUID) string {
+	return fmt.Sprintf("ws-ai-sandbox:%s", workspaceID)
+}
+
+func (api *API) publishWorkspaceAISandboxActivityUpdate(ctx context.Context, workspaceID uuid.UUID) {
+	err := api.Pubsub.Publish(workspaceAISandboxActivityChannel(workspaceID), []byte{})
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to publish AI sandbox activity update",
+			slog.F("workspace_id", workspaceID), slog.Error(err))
+	}
 }
 
 func validateAISandboxSession(req agentsdk.PostAISandboxSessionRequest) []codersdk.ValidationError {

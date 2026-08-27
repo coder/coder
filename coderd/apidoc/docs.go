@@ -14526,6 +14526,88 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaces/{workspace}/ai-sandbox-activity": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List workspace AI sandbox network events",
+                "operationId": "list-workspace-ai-sandbox-network-events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Return events older than the event with before_id",
+                        "name": "before_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 1 to 100. Defaults to 100.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AISandboxNetworkEventView"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/workspaces/{workspace}/ai-sandbox-activity/watch": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Watch AI sandbox activity",
+                "operationId": "watch-workspace-ai-sandbox-activity",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaces/{workspace}/ai-sandbox-sessions": {
             "get": {
                 "produces": [
@@ -14593,8 +14675,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Return events with database ID greater than after_id",
-                        "name": "after_id",
+                        "description": "Return events with database ID less than before_id",
+                        "name": "before_id",
                         "in": "query"
                     },
                     {
@@ -17313,7 +17395,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "id": {
-                    "description": "ID is the stable row identifier and keyset pagination cursor: pass\nthe last event's ID as after_id to fetch the next page.",
+                    "description": "ID is the stable row identifier and keyset pagination cursor. Pass the\nlast event's ID as before_id to fetch the next, older page.",
                     "type": "integer"
                 },
                 "occurred_at": {

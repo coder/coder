@@ -4108,20 +4108,28 @@ func (q *sqlQuerier) GetAISandboxNetworkEventsBySessionID(ctx context.Context, s
 const getAISandboxNetworkEventsBySessionIDPaged = `-- name: GetAISandboxNetworkEventsBySessionIDPaged :many
 SELECT e.id, e.session_id, e.occurred_at, e.protocol, e.host, e.port, e.action, e.policy_revision, e.ai_agent_id, e.sponsor_user_id, e.created_at FROM ai_sandbox_network_events e
 WHERE e.session_id = $1
-  AND e.id > $2
+  AND (
+      $2::bigint = 0
+      OR ROW(e.occurred_at, e.id) < (
+          SELECT cursor.occurred_at, cursor.id
+          FROM ai_sandbox_network_events cursor
+          WHERE cursor.id = $2
+            AND cursor.session_id = $1
+      )
+  )
   AND EXISTS (
       SELECT 1
       FROM ai_sandbox_sessions s
       WHERE s.id = e.session_id
         AND s.workspace_id = $3
   )
-ORDER BY e.id ASC
+ORDER BY e.occurred_at DESC, e.id DESC
 LIMIT $4
 `
 
 type GetAISandboxNetworkEventsBySessionIDPagedParams struct {
 	SessionID   uuid.UUID `db:"session_id" json:"session_id"`
-	AfterID     int64     `db:"after_id" json:"after_id"`
+	BeforeID    int64     `db:"before_id" json:"before_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	LimitCount  int32     `db:"limit_count" json:"limit_count"`
 }
@@ -4129,10 +4137,74 @@ type GetAISandboxNetworkEventsBySessionIDPagedParams struct {
 func (q *sqlQuerier) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error) {
 	rows, err := q.db.QueryContext(ctx, getAISandboxNetworkEventsBySessionIDPaged,
 		arg.SessionID,
-		arg.AfterID,
+		arg.BeforeID,
 		arg.WorkspaceID,
 		arg.LimitCount,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxNetworkEvent
+	for rows.Next() {
+		var i AISandboxNetworkEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.SessionID,
+			&i.OccurredAt,
+			&i.Protocol,
+			&i.Host,
+			&i.Port,
+			&i.Action,
+			&i.PolicyRevision,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAISandboxNetworkEventsByWorkspaceIDPaged = `-- name: GetAISandboxNetworkEventsByWorkspaceIDPaged :many
+SELECT e.id, e.session_id, e.occurred_at, e.protocol, e.host, e.port, e.action, e.policy_revision, e.ai_agent_id, e.sponsor_user_id, e.created_at FROM ai_sandbox_network_events e
+WHERE EXISTS (
+    SELECT 1
+    FROM ai_sandbox_sessions s
+    WHERE s.id = e.session_id
+      AND s.workspace_id = $1
+)
+  AND (
+      $2::bigint = 0
+      OR ROW(e.occurred_at, e.id) < (
+          SELECT cursor.occurred_at, cursor.id
+          FROM ai_sandbox_network_events cursor
+          JOIN ai_sandbox_sessions cursor_session
+            ON cursor_session.id = cursor.session_id
+          WHERE cursor.id = $2
+            AND cursor_session.workspace_id = $1
+      )
+  )
+ORDER BY e.occurred_at DESC, e.id DESC
+LIMIT $3
+`
+
+type GetAISandboxNetworkEventsByWorkspaceIDPagedParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	BeforeID    int64     `db:"before_id" json:"before_id"`
+	LimitCount  int32     `db:"limit_count" json:"limit_count"`
+}
+
+func (q *sqlQuerier) GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]AISandboxNetworkEvent, error) {
+	rows, err := q.db.QueryContext(ctx, getAISandboxNetworkEventsByWorkspaceIDPaged, arg.WorkspaceID, arg.BeforeID, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}

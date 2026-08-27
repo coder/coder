@@ -3031,6 +3031,17 @@ func (q *querier) GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context,
 	return q.db.GetAISandboxNetworkEventsBySessionIDPaged(ctx, arg)
 }
 
+func (q *querier) GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, workspace); err != nil {
+		return nil, err
+	}
+	return q.db.GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx, arg)
+}
+
 func (q *querier) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.AISandboxSession{}, err

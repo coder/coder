@@ -63,7 +63,7 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	};
 };
 
-const workspaceAISandboxSessionsKey = (workspaceId: string) =>
+export const workspaceAISandboxSessionsKey = (workspaceId: string) =>
 	["workspace", workspaceId, "aiSandboxSessions"] as const;
 
 export const workspaceAISandboxSessions = (workspaceId: string) => {
@@ -73,28 +73,16 @@ export const workspaceAISandboxSessions = (workspaceId: string) => {
 	};
 };
 
-const aiSandboxSessionNetworkEventsKey = (
-	workspaceId: string,
-	sessionId: string,
-) =>
-	[
-		"workspace",
-		workspaceId,
-		"aiSandboxSessions",
-		sessionId,
-		"networkEvents",
-	] as const;
+export const workspaceAISandboxActivityKey = (workspaceId: string) =>
+	["workspace", workspaceId, "aiSandboxActivity"] as const;
 
-// Events are keyset paginated on their numeric row id, so each page's last
-// id is the next page's cursor. An empty page means the trail is exhausted.
-export const infiniteAISandboxSessionNetworkEvents = (
+export const infiniteWorkspaceAISandboxNetworkEvents = (
 	workspaceId: string,
-	sessionId: string,
 ) => {
 	return {
-		queryKey: aiSandboxSessionNetworkEventsKey(workspaceId, sessionId),
+		queryKey: workspaceAISandboxActivityKey(workspaceId),
 		queryFn: ({ pageParam }: { pageParam: number }) =>
-			API.getAISandboxSessionNetworkEvents(workspaceId, sessionId, pageParam),
+			API.getWorkspaceAISandboxNetworkEvents(workspaceId, pageParam),
 		initialPageParam: 0,
 		getNextPageParam: (lastPage: AISandboxNetworkEventView[]) =>
 			lastPage.length > 0 ? lastPage[lastPage.length - 1].id : undefined,

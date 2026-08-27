@@ -1951,6 +1951,103 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/agent-connect
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List workspace AI sandbox network events
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-activity \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaces/{workspace}/ai-sandbox-activity`
+
+### Parameters
+
+| Name        | In    | Type         | Required | Description                                       |
+|-------------|-------|--------------|----------|---------------------------------------------------|
+| `workspace` | path  | string(uuid) | true     | Workspace ID                                      |
+| `before_id` | query | integer      | false    | Return events older than the event with before_id |
+| `limit`     | query | integer      | false    | Page size, 1 to 100. Defaults to 100.             |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "action": "allowed",
+    "host": "string",
+    "id": 0,
+    "occurred_at": "2019-08-24T14:15:22Z",
+    "policy_revision": 0,
+    "port": 0,
+    "protocol": "connect",
+    "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                      |
+|--------|---------------------------------------------------------|-------------|---------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AISandboxNetworkEventView](schemas.md#codersdkaisandboxnetworkeventview) |
+
+<h3 id="list-workspace-ai-sandbox-network-events-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                | Type                                                                                   | Required | Restrictions | Description                                                                                                                        |
+|---------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`      | array                                                                                  | false    |              |                                                                                                                                    |
+| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                                    |
+| `» host`            | string                                                                                 | false    |              |                                                                                                                                    |
+| `» id`              | integer                                                                                | false    |              | ID is the stable row identifier and keyset pagination cursor. Pass the last event's ID as before_id to fetch the next, older page. |
+| `» occurred_at`     | string(date-time)                                                                      | false    |              |                                                                                                                                    |
+| `» policy_revision` | integer                                                                                | false    |              |                                                                                                                                    |
+| `» port`            | integer                                                                                | false    |              |                                                                                                                                    |
+| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                                    |
+| `» session_id`      | string(uuid)                                                                           | false    |              |                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property   | Value(s)                        |
+|------------|---------------------------------|
+| `action`   | `allowed`, `denied`             |
+| `protocol` | `connect`, `http`, `sni`, `tcp` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Watch AI sandbox activity
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-activity/watch \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/workspaces/{workspace}/ai-sandbox-activity/watch`
+
+### Parameters
+
+| Name        | In   | Type         | Required | Description  |
+|-------------|------|--------------|----------|--------------|
+| `workspace` | path | string(uuid) | true     | Workspace ID |
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List AI sandbox sessions
 
 ### Code samples
@@ -2038,12 +2135,12 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-se
 
 ### Parameters
 
-| Name        | In    | Type         | Required | Description                                          |
-|-------------|-------|--------------|----------|------------------------------------------------------|
-| `workspace` | path  | string(uuid) | true     | Workspace ID                                         |
-| `session`   | path  | string(uuid) | true     | AI sandbox session ID                                |
-| `after_id`  | query | integer      | false    | Return events with database ID greater than after_id |
-| `limit`     | query | integer      | false    | Page size, 1 to 100. Defaults to 100.                |
+| Name        | In    | Type         | Required | Description                                        |
+|-------------|-------|--------------|----------|----------------------------------------------------|
+| `workspace` | path  | string(uuid) | true     | Workspace ID                                       |
+| `session`   | path  | string(uuid) | true     | AI sandbox session ID                              |
+| `before_id` | query | integer      | false    | Return events with database ID less than before_id |
+| `limit`     | query | integer      | false    | Page size, 1 to 100. Defaults to 100.              |
 
 ### Example responses
 
@@ -2074,17 +2171,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/ai-sandbox-se
 
 Status Code **200**
 
-| Name                | Type                                                                                   | Required | Restrictions | Description                                                                                                                |
-|---------------------|----------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`      | array                                                                                  | false    |              |                                                                                                                            |
-| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                            |
-| `» host`            | string                                                                                 | false    |              |                                                                                                                            |
-| `» id`              | integer                                                                                | false    |              | ID is the stable row identifier and keyset pagination cursor: pass the last event's ID as after_id to fetch the next page. |
-| `» occurred_at`     | string(date-time)                                                                      | false    |              |                                                                                                                            |
-| `» policy_revision` | integer                                                                                | false    |              |                                                                                                                            |
-| `» port`            | integer                                                                                | false    |              |                                                                                                                            |
-| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                            |
-| `» session_id`      | string(uuid)                                                                           | false    |              |                                                                                                                            |
+| Name                | Type                                                                                   | Required | Restrictions | Description                                                                                                                        |
+|---------------------|----------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`      | array                                                                                  | false    |              |                                                                                                                                    |
+| `» action`          | [codersdk.AISandboxNetworkEventAction](schemas.md#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                                    |
+| `» host`            | string                                                                                 | false    |              |                                                                                                                                    |
+| `» id`              | integer                                                                                | false    |              | ID is the stable row identifier and keyset pagination cursor. Pass the last event's ID as before_id to fetch the next, older page. |
+| `» occurred_at`     | string(date-time)                                                                      | false    |              |                                                                                                                                    |
+| `» policy_revision` | integer                                                                                | false    |              |                                                                                                                                    |
+| `» port`            | integer                                                                                | false    |              |                                                                                                                                    |
+| `» protocol`        | [codersdk.AISandboxNetworkProtocol](schemas.md#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                                    |
+| `» session_id`      | string(uuid)                                                                           | false    |              |                                                                                                                                    |
 
 #### Enumerated Values
 

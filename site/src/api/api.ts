@@ -68,6 +68,14 @@ export const watchWorkspace = (
 	});
 };
 
+export const watchWorkspaceAISandboxActivity = (
+	workspaceId: string,
+): WebSocket => {
+	return createWebSocket(
+		`/api/v2/workspaces/${workspaceId}/ai-sandbox-activity/watch`,
+	);
+};
+
 export const watchChat = (
 	chatId: string,
 	afterMessageId?: number,
@@ -1324,17 +1332,30 @@ class ApiMethods {
 		return response.data;
 	};
 
-	// Network events are keyset paginated by their numeric id: pass the last
-	// received id as afterId to fetch the next page.
+	// Network events are keyset paginated newest-first by their numeric id. Pass
+	// the last received id as beforeId to fetch the next, older page.
 	getAISandboxSessionNetworkEvents = async (
 		workspaceId: string,
 		sessionId: string,
-		afterId = 0,
+		beforeId = 0,
 		limit = 100,
 	): Promise<TypesGen.AISandboxNetworkEventView[]> => {
 		const response = await this.axios.get<TypesGen.AISandboxNetworkEventView[]>(
 			`/api/v2/workspaces/${workspaceId}/ai-sandbox-sessions/${sessionId}/network-events`,
-			{ params: { after_id: afterId, limit } },
+			{ params: { before_id: beforeId, limit } },
+		);
+
+		return response.data;
+	};
+
+	getWorkspaceAISandboxNetworkEvents = async (
+		workspaceId: string,
+		beforeId = 0,
+		limit = 100,
+	): Promise<TypesGen.AISandboxNetworkEventView[]> => {
+		const response = await this.axios.get<TypesGen.AISandboxNetworkEventView[]>(
+			`/api/v2/workspaces/${workspaceId}/ai-sandbox-activity`,
+			{ params: { before_id: beforeId, limit } },
 		);
 
 		return response.data;

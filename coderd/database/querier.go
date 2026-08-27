@@ -375,6 +375,7 @@ type sqlcQuerier interface {
 	GetAISandboxByParentAgentAndName(ctx context.Context, arg GetAISandboxByParentAgentAndNameParams) (AISandbox, error)
 	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error)
+	GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
 	GetAISandboxSessionsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]AISandboxSession, error)
 	GetAISandboxesByParentAgentID(ctx context.Context, parentAgentID uuid.UUID) ([]AISandbox, error)
