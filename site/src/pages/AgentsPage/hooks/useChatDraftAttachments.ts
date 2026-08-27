@@ -91,6 +91,11 @@ const activeResizeJobs = new Map<
 	{ chatId: string; abandoned: boolean }
 >();
 
+// Mounted hooks register here so chat cleanup can also drop in-memory
+// views (such as mid-resize "processing" chips) that never reached the
+// registry and would otherwise block sending after an unarchive.
+const chatCleanupListeners = new Set<(chatId: string) => void>();
+
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
 	entry.status === "uploaded" || entry.status === "error";
 
@@ -417,6 +422,9 @@ export const invalidateChatDraftUploads = (chatId: string): void => {
 			job.abandoned = true;
 		}
 	}
+	for (const listener of chatCleanupListeners) {
+		listener(chatId);
+	}
 };
 
 const hydrateViews = (
@@ -547,6 +555,26 @@ export function useChatDraftAttachments(
 			}
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!chatId) {
+			return;
+		}
+		const handleChatCleanup = (cleanedChatId: string) => {
+			if (cleanedChatId !== chatId) {
+				return;
+			}
+			for (const view of viewsRef.current) {
+				abandonedResizesRef.current.add(view.clientId);
+				revokeBlobPreview(view);
+			}
+			setViews([]);
+		};
+		chatCleanupListeners.add(handleChatCleanup);
+		return () => {
+			chatCleanupListeners.delete(handleChatCleanup);
+		};
+	}, [chatId]);
 
 	useEffect(() => {
 		const scopeKey = getDraftScopeKey(organizationId, chatId);

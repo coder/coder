@@ -598,7 +598,12 @@ describe("useChatDraftAttachments", () => {
 
 			// Archive cleanup fires while the chat route stays mounted with
 			// the same scope, so scope checks alone cannot stop the job.
-			clearChatStorage(chatID);
+			act(() => {
+				clearChatStorage(chatID);
+			});
+			// The processing chip must not linger and block sending.
+			expect(result.current.attachments).toHaveLength(0);
+			expect(result.current.uploadStates.size).toBe(0);
 
 			const replacement = new File([new Uint8Array(1024)], "photo.webp", {
 				type: "image/webp",
