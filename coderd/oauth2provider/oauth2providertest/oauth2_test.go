@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -291,7 +292,7 @@ func TestOAuth2WithoutPKCEIsRejected(t *testing.T) {
 	}
 
 	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
 	)
 }
 
@@ -324,7 +325,7 @@ func TestOAuth2MalformedCodeChallengeIsRejected(t *testing.T) {
 	}
 
 	oauth2providertest.AuthorizeOAuth2AppExpectingError(
-		t, client, client.URL.String(), authParams, http.StatusBadRequest,
+		t, client, client.URL.String(), authParams, codersdk.OAuth2ErrorCodeInvalidRequest,
 	)
 }
 

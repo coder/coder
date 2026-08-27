@@ -187,6 +187,10 @@ type authorizeFailure struct {
 	validationErrors []codersdk.ValidationError
 	// message joins them for the response body.
 	message string
+	// redirect is where RFC 6749 §4.1.2.1 puts the answer. Its zero value means
+	// the answer stays on this server, because the failure names the redirect
+	// URI or the client identifier.
+	redirect authorizeResponse
 	// corruptCallback is set when the app's registered callback is unusable.
 	// That is bad server state rather than a client mistake, so it answers 500
 	// and stops the request before any parameter is read.
@@ -248,12 +252,31 @@ func extractAuthorizeParams(r *http.Request, registered *url.URL) (authorizePara
 		for i, err := range p.Errors {
 			details[i] = err.Error()
 		}
-		return authorizeParams{}, &authorizeFailure{
+		failure := &authorizeFailure{
 			validationErrors: p.Errors,
 			message:          "Invalid query params: " + strings.Join(details, ", "),
 		}
+		if !blamesClient(p.Errors) {
+			failure.redirect = response
+		}
+		return authorizeParams{}, failure
 	}
 	return params, nil
+}
+
+// blamesClient reports whether these errors name the client identifier, the one
+// RFC 6749 §4.1.2.1 carve-out a response can still satisfy: a wrong client_id
+// means the registration the callback was matched against may not belong to
+// whoever is asking. The other carve-out, a redirect URI at fault, needs no test
+// here because the response it produced has nowhere to send.
+//
+// Unreachable through the query parameter, since httpmw resolves the app before
+// either handler runs, but reachable through the §2.3.1 Basic credential that
+// may stand in for it.
+func blamesClient(errs []codersdk.ValidationError) bool {
+	return slices.ContainsFunc(errs, func(e codersdk.ValidationError) bool {
+		return e.Field == "client_id"
+	})
 }
 
 // authorizeResponse names where this request's response goes and what it carries
@@ -292,6 +315,11 @@ func newAuthorizeResponse(p *httpapi.QueryParamParser, vals url.Values, register
 		response.callback = callback
 	}
 	return response, nil
+}
+
+// canRedirect reports whether this response has somewhere to be sent.
+func (a authorizeResponse) canRedirect() bool {
+	return a.callback != nil
 }
 
 // String returns the callback, without the query a response adds. Valid only on
@@ -439,6 +467,17 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 				return
 			}
 
+			// §4.1.2.1: once the callback has been matched against the app's
+			// registration, a parameter failure is a response to the client
+			// rather than a page for the user. Without it the app never learns
+			// its request failed and waits on an authorization that will not
+			// arrive.
+			if failure.redirect.canRedirect() {
+				redirectAuthorizeError(rw, r, logger, failure.redirect,
+					codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)
+				return
+			}
+
 			errStr := make([]string, len(failure.validationErrors))
 			for i, err := range failure.validationErrors {
 				errStr[i] = err.Detail
@@ -537,6 +576,12 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
 					codersdk.OAuth2ErrorCodeServerError,
 					"The application's registered callback URL has an invalid scheme")
+				return
+			}
+			// As on the GET side: §4.1.2.1 delivers this to the client.
+			if failure.redirect.canRedirect() {
+				redirectAuthorizeError(rw, r, logger, failure.redirect,
+					codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)
 				return
 			}
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidRequest, failure.message)

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -13,7 +14,9 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestNegotiateScope(t *testing.T) {
@@ -412,4 +415,111 @@ func TestConsentScopes(t *testing.T) {
 			require.Equal(t, test.wantUnrestricted, unrestricted)
 		})
 	}
+}
+
+// TestNewAuthorizeResponse covers the two preconditions the constructor exists
+// to run together, and which of them is the server's fault.
+func TestNewAuthorizeResponse(t *testing.T) {
+	t.Parallel()
+
+	const registered = "https://app.example.com/callback"
+
+	newParser := func() (*httpapi.QueryParamParser, *url.URL) {
+		t.Helper()
+		callback, err := url.Parse(registered)
+		require.NoError(t, err)
+		return httpapi.NewQueryParamParser(), callback
+	}
+
+	t.Run("MatchingRedirectURI", func(t *testing.T) {
+		t.Parallel()
+
+		p, callback := newParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {registered},
+			"state":        {"abc123"},
+		}, callback)
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, registered, response.String())
+		require.Equal(t, "abc123", response.state)
+	})
+
+	t.Run("OmittedRedirectURIDefaultsToRegistered", func(t *testing.T) {
+		t.Parallel()
+
+		p, callback := newParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, callback)
+
+		require.NoError(t, err)
+		require.Empty(t, p.Errors)
+		require.True(t, response.canRedirect())
+		require.Equal(t, registered, response.String())
+	})
+
+	t.Run("MismatchedRedirectURIHasNoDestination", func(t *testing.T) {
+		t.Parallel()
+
+		p, callback := newParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {"https://elsewhere.example/cb"},
+		}, callback)
+
+		// The client's mistake, so it joins the parser's other errors rather
+		// than becoming a server fault.
+		require.NoError(t, err)
+		require.Len(t, p.Errors, 1)
+		require.Equal(t, "redirect_uri", p.Errors[0].Field)
+		require.False(t, response.canRedirect(),
+			"a URI that failed the match must not become a destination")
+	})
+
+	t.Run("DangerousClientSchemeIsNotTheServersFault", func(t *testing.T) {
+		t.Parallel()
+
+		p, callback := newParser()
+		response, err := newAuthorizeResponse(p, url.Values{
+			"redirect_uri": {"javascript:alert(1)"},
+		}, callback)
+
+		require.NoError(t, err, "the app registered a usable callback; the client did not send one")
+		require.NotEmpty(t, p.Errors)
+		require.False(t, response.canRedirect())
+	})
+
+	t.Run("DangerousRegisteredSchemeIsServerState", func(t *testing.T) {
+		t.Parallel()
+
+		callback, parseErr := url.Parse("javascript:alert(1)")
+		require.NoError(t, parseErr)
+
+		p := httpapi.NewQueryParamParser()
+		response, err := newAuthorizeResponse(p, url.Values{}, callback)
+
+		require.Error(t, err)
+		require.Empty(t, p.Errors, "the registration is rejected before any parameter is read")
+		require.False(t, response.canRedirect())
+	})
+}
+
+// TestAuthorizeResponseZeroValue pins the zero value as inert, since it is what
+// a failure with no deliverable destination carries.
+func TestAuthorizeResponseZeroValue(t *testing.T) {
+	t.Parallel()
+
+	require.False(t, authorizeResponse{}.canRedirect())
+	require.False(t, (&authorizeFailure{}).redirect.canRedirect())
+}
+
+func TestBlamesClient(t *testing.T) {
+	t.Parallel()
+
+	require.False(t, blamesClient(nil))
+	require.False(t, blamesClient([]codersdk.ValidationError{{Field: "code_challenge"}}))
+	require.True(t, blamesClient([]codersdk.ValidationError{
+		{Field: "code_challenge"},
+		{Field: "client_id"},
+	}))
 }

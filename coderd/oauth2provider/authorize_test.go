@@ -409,6 +409,36 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"POST: the failure must name the scheme, not just the error class")
 	})
 
+	// The trap the constructor exists to close: a request that both fails the
+	// parser and belongs to an app whose registered scheme is rejected. Parser
+	// failures now redirect, so a scheme checked after parsing would be checked
+	// too late.
+	t.Run("DangerousCallbackSchemeOutranksParseFailure", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: "javascript:alert(1)",
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+			query.Set("code_challenge", "tooshort")
+
+			resp := sendAuthorizeRequest(ctx, t, client, method, query)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusInternalServerError, resp.StatusCode,
+				"%s: the unusable registration outranks the client's own mistake", method)
+			require.Empty(t, resp.Header.Get("Location"),
+				"%s: a dangerous scheme must never reach a Location header", method)
+			require.NotContains(t, readBody(t, resp), "javascript:",
+				"%s: the scheme must not reach the response body either", method)
+		}
+	})
+
 	// A registered callback may carry its own state=, and the cancel link, the
 	// success redirect, and the error redirect write onto it separately.
 	t.Run("CallbackQueryParamsReplacedNotAppended", func(t *testing.T) {
@@ -579,7 +609,72 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
-	t.Run("UnparseableResponseTypeNotRedirected", func(t *testing.T) {
+	// The parser reports every field at once, so these all arrive as
+	// invalid_request with the offending fields named in the description.
+	// Explicit as well as omitted redirect_uri, since the two take different
+	// paths through the parser.
+	t.Run("RejectedParametersRedirected", func(t *testing.T) {
+		t.Parallel()
+
+		app := seedAppInCatalog(t)
+		for _, tc := range []struct {
+			name        string
+			mutate      func(url.Values)
+			description string
+		}{
+			{
+				name:        "UnparseableResponseType",
+				mutate:      func(q url.Values) { q.Set("response_type", "not_a_response_type") },
+				description: "response_type",
+			},
+			{
+				name:        "MalformedCodeChallenge",
+				mutate:      func(q url.Values) { q.Set("code_challenge", "tooshort") },
+				description: "43 to 128 characters",
+			},
+			{
+				name:        "MalformedResource",
+				mutate:      func(q url.Values) { q.Set("resource", "not-an-absolute-uri") },
+				description: "absolute URI",
+			},
+			{
+				// The name is the client's to choose, so it reaches
+				// error_description through %q and has to survive sanitizing.
+				name:        "ExcessParameter",
+				mutate:      func(q url.Values) { q.Set(`we"ird`, "1") },
+				description: "not a valid query param",
+			},
+		} {
+			for _, method := range []string{http.MethodGet, http.MethodPost} {
+				for _, redirectURI := range []string{"", appCallbackURL} {
+					name := tc.name + "/" + method
+					if redirectURI != "" {
+						name += "ExplicitRedirectURI"
+					}
+					t.Run(name, func(t *testing.T) {
+						t.Parallel()
+						ctx := testutil.Context(t, testutil.WaitLong)
+
+						query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+						tc.mutate(query)
+						if redirectURI != "" {
+							query.Set("redirect_uri", redirectURI)
+						}
+
+						resp := sendAuthorizeRequest(ctx, t, client, method, query)
+						defer resp.Body.Close()
+
+						requireAuthorizeErrorRedirect(t, resp,
+							codersdk.OAuth2ErrorCodeInvalidRequest, tc.description)
+					})
+				}
+			}
+		}
+	})
+
+	// A redirect URI the parser could not use is the §4.1.2.1 carve-out: there
+	// is no callback worth trusting, so the answer stays on this server.
+	t.Run("UnparseableRedirectURINotRedirected", func(t *testing.T) {
 		t.Parallel()
 
 		app := seedAppInCatalog(t)
@@ -589,15 +684,14 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-				query.Set("response_type", "not_a_response_type")
+				query.Set("redirect_uri", "://not-a-url")
 
 				resp := sendAuthorizeRequest(ctx, t, client, method, query)
 				defer resp.Body.Close()
 
-				require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-					"extractAuthorizeParams failures answer on Coder whether or not the callback was trustworthy, and this request omits redirect_uri, so it was")
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 				require.Empty(t, resp.Header.Get("Location"),
-					"nothing may be redirected from inside extractAuthorizeParams")
+					"a redirect URI that did not parse must not become a destination")
 			})
 		}
 	})

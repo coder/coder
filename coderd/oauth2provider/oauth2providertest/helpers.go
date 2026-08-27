@@ -374,12 +374,25 @@ func CleanupOAuth2App(t *testing.T, client *codersdk.Client, appID uuid.UUID) {
 	}
 }
 
-// AuthorizeOAuth2AppExpectingError performs the OAuth2 authorization flow expecting an error
-func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedStatusCode int) {
+// AuthorizeOAuth2AppExpectingError performs the OAuth2 authorization flow
+// expecting a rejection, which RFC 6749 §4.1.2.1 delivers to the redirect URI
+// the app registered rather than as a status code on this server.
+func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError codersdk.OAuth2ErrorCode) {
 	t.Helper()
 
 	resp := doAuthorizeRequest(t, client, baseURL, params)
 	defer resp.Body.Close()
 
-	require.Equal(t, expectedStatusCode, resp.StatusCode, "unexpected status code")
+	require.Equal(t, http.StatusFound, resp.StatusCode, "unexpected status code")
+
+	location, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err, "failed to parse redirect location")
+	require.Equal(t, params.RedirectURI, location.Scheme+"://"+location.Host+location.Path,
+		"the error must go to the registered redirect URI")
+
+	query := location.Query()
+	require.Equal(t, string(expectedError), query.Get("error"))
+	require.Equal(t, params.State, query.Get("state"),
+		"the client cannot correlate the failure with its request without its state")
+	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")
 }
