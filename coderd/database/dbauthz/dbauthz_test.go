@@ -884,6 +884,13 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 		dbm.EXPECT().GetAISandboxNetworkEventsBySessionIDPaged(gomock.Any(), arg).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
 		check.Args(arg).Asserts(workspace, policy.ActionRead)
 	}))
+	s.Run("GetAISandboxNetworkEventsByWorkspaceIDPaged", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		workspace := testutil.Fake(s.T(), faker, database.Workspace{})
+		arg := database.GetAISandboxNetworkEventsByWorkspaceIDPagedParams{WorkspaceID: workspace.ID}
+		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), workspace.ID).Return(workspace, nil).AnyTimes()
+		dbm.EXPECT().GetAISandboxNetworkEventsByWorkspaceIDPaged(gomock.Any(), arg).Return([]database.AISandboxNetworkEvent{}, nil).AnyTimes()
+		check.Args(arg).Asserts(workspace, policy.ActionRead)
+	}))
 	s.Run("GetAISandboxNetworkEventsByAIAgentIDPaged", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetAISandboxNetworkEventsByAIAgentIDPagedParams{
 			AIAgentID:  uuid.New(),
