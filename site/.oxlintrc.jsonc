@@ -100,6 +100,7 @@
 		"consistent-type-exports": "error",
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
+		"prefer-const": ["error", { "destructuring": "all" }],
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
@@ -188,7 +189,6 @@
 		"no-fallthrough": "off", // suspicious/noFallthroughSwitchClause (medium)
 		"role-supports-aria-props": "off", // a11y/useAriaPropsSupportedByRole (small)
 		"click-events-have-key-events": "off", // a11y/useKeyWithClickEvents (small)
-		"prefer-const": "off", // style/useConst (small)
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
 		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
