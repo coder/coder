@@ -10101,6 +10101,98 @@ func TestPatchChatMessage(t *testing.T) {
 		require.False(t, foundOriginalInChat)
 	})
 
+	t.Run("MCPServerIDsApplied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "before mcp edit",
+			}},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chat.MCPServerIDs)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		userMessageID := messagesResult.Messages[0].ID
+
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit enabling the mcp server",
+			}},
+			MCPServerIDs: &[]uuid.UUID{orgConfig.ID},
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, storedChat.MCPServerIDs)
+
+		// Omitting the field preserves the persisted selection.
+		_, err = client.EditChatMessage(ctx, chat.ID, edited.Message.ID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit without an mcp selection",
+			}},
+		})
+		require.NoError(t, err)
+
+		storedChat, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, storedChat.MCPServerIDs)
+	})
+
+	t.Run("MCPServerIDsInvalidRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "before invalid mcp edit",
+			}},
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		userMessageID := messagesResult.Messages[0].ID
+
+		unknownID := uuid.New()
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit selecting an unknown mcp server",
+			}},
+			MCPServerIDs: &[]uuid.UUID{unknownID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+unknownID.String(), sdkErr.Detail)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, storedChat.MCPServerIDs)
+	})
+
 	t.Run("CrossOrgModelConfigRejected", func(t *testing.T) {
 		t.Parallel()
 

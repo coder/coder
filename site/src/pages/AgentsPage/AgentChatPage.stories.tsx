@@ -1939,6 +1939,13 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 		expect(
 			canvas.queryByRole("tab", { name: "Summary" }),
 		).not.toBeInTheDocument();
+
+		// Widening again restores the persisted panel, still expanded.
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
@@ -3730,6 +3737,79 @@ export const RemoveLastMCPServer: Story = {
 			CHAT_ID,
 			expect.objectContaining({
 				mcp_server_ids: [],
+			}),
+		);
+	},
+};
+
+const mcpEditableUserMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	chat_id: CHAT_ID,
+	content: [{ type: "text", text: "Edit this request" }],
+};
+
+/**
+ * An MCP server toggled on while editing a message must ride along in
+ * the edit request.
+ */
+export const EditAppliesMCPServerSelection: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Edit applies MCP selection",
+				status: "waiting",
+				mcp_server_ids: [],
+			},
+			{
+				messages: [mcpEditableUserMessage],
+				queued_messages: [],
+				has_more: false,
+			},
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const editSpy = spyOn(
+			API.experimental,
+			"editChatMessage",
+		).mockResolvedValue({
+			message: { ...mcpEditableUserMessage, id: 6 },
+		});
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Edit message" }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("switch", {
+				name: `Enable ${MockMCPServerConfig.display_name}`,
+			}),
+		);
+		// Close the plus menu via its trigger; Escape would exit edit mode.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Save Edit" }),
+		);
+
+		await waitFor(() => {
+			expect(editSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(editSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.objectContaining({
+				mcp_server_ids: [MockMCPServerConfig.id],
 			}),
 		);
 	},

@@ -1172,6 +1172,10 @@ type EditMessageOptions struct {
 	// original message's model is preserved.
 	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
+	// MCPServerIDs, when non-nil, replaces the chat's MCP server
+	// selection before the replacement turn runs. When nil the
+	// current selection is preserved.
+	MCPServerIDs *[]uuid.UUID
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1240,6 +1244,36 @@ func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organi
 		}
 	}
 	return merged, nil
+}
+
+// applyRequestedMCPServerIDs replaces the chat's MCP server selection
+// inside the state-machine transaction when a request provides one.
+// Explore child chats keep the spawn-time snapshot immutable. Force On
+// MCP servers are enforced server-side so a caller cannot remove them
+// by tampering with the update (Cure53 CDM-02-010).
+func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]uuid.UUID) (database.Chat, error) {
+	if requested == nil {
+		return lockedChat, nil
+	}
+	if isExploreSubagentMode(lockedChat.Mode) {
+		p.logger.Warn(ctx,
+			"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
+			slog.F("chat_id", lockedChat.ID),
+		)
+		return lockedChat, nil
+	}
+	enforcedIDs, err := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requested)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	updated, err := store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+		ID:           lockedChat.ID,
+		MCPServerIDs: enforcedIDs,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat mcp server ids: %w", err)
+	}
+	return updated, nil
 }
 
 // CreateChat creates a chat with its initial history through
@@ -1513,30 +1547,9 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		// Update MCP server IDs on the chat when explicitly provided.
-		// Explore child chats keep the spawn-time snapshot immutable.
-		if requestedMCPServerIDs != nil {
-			if isExploreSubagentMode(lockedChat.Mode) {
-				p.logger.Warn(ctx,
-					"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
-					slog.F("chat_id", opts.ChatID),
-				)
-			} else {
-				// Force On MCP servers are enforced server-side so a
-				// caller cannot remove them by tampering with the
-				// update (Cure53 CDM-02-010).
-				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requestedMCPServerIDs)
-				if enforceErr != nil {
-					return enforceErr
-				}
-				lockedChat, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
-					ID:           opts.ChatID,
-					MCPServerIDs: enforcedIDs,
-				})
-				if err != nil {
-					return xerrors.Errorf("update chat mcp server ids: %w", err)
-				}
-			}
+		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, requestedMCPServerIDs)
+		if err != nil {
+			return err
 		}
 
 		messageCreatedBy := opts.CreatedBy
@@ -1883,6 +1896,11 @@ func (p *Server) EditMessage(
 			return ErrEditedMessageNotUser
 		}
 		editedMsg = target
+
+		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
+		if err != nil {
+			return err
+		}
 
 		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
 		if err != nil {

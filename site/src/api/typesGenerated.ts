@@ -2575,7 +2575,7 @@ export interface ChatGitChange {
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2591,7 +2591,7 @@ export const ChatGitWatchAgentStatePrefix = "Agent state is ";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2604,7 +2604,7 @@ export const ChatGitWatchNoEligibleAgentMessage =
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -2616,7 +2616,7 @@ export const ChatGitWatchNoWorkspaceMessage = "Chat has no workspace to watch.";
 /**
  * Chat git watch error messages. These are the user-visible messages
  * the server returns in 400 responses from
- * /api/experimental/chats/{id}/stream/git when the chat cannot be
+ * /api/v2/chats/{id}/stream/git when the chat cannot be
  * observed through a workspace agent. They are exported so the CLI
  * (and any future consumer) can match them structurally via
  * IsChatGitWatchFallbackMessage instead of coupling to exact wording.
@@ -3247,7 +3247,7 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 // From codersdk/chats.go
 /**
  * ChatPrompt is a single user-authored prompt in a chat, returned by
- * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * GET /api/v2/chats/{chat}/prompts. The text field contains
  * the concatenated text payload of the underlying chat message; non-text
  * parts (tool calls, files, attachments) are omitted by the server.
  */
@@ -3272,7 +3272,7 @@ export interface ChatPromptsOptions {
 // From codersdk/chats.go
 /**
  * ChatPromptsResponse is the payload of
- * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * GET /api/v2/chats/{chat}/prompts. Prompts are returned
  * newest first so the client can index directly into the slice for
  * up/down arrow history cycling.
  */
@@ -3657,7 +3657,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4714,7 +4714,7 @@ export const DefaultChatDebugRetentionDays = 30;
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero means disabled; the template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -4997,6 +4997,12 @@ export interface EditChatMessageRequest {
 	 */
 	readonly model_config_id?: string;
 	readonly reasoning_effort?: string;
+	/**
+	 * MCPServerIDs, when set, replaces the chat's MCP server selection
+	 * before the replacement turn runs. When nil the current selection
+	 * is preserved.
+	 */
+	readonly mcp_server_ids?: string[];
 }
 
 // From codersdk/chats.go
@@ -9900,7 +9906,7 @@ export interface UpdateChatSystemPromptRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero means disabled; the template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }

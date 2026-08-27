@@ -359,9 +359,9 @@ reject explicit model selection.
 > [!NOTE]
 > Both override layers may change between releases.
 > Admin overrides are available through the API at
-> `/api/experimental/organizations/{organization}/chats/model-overrides`
+> `/api/v2/organizations/{organization}/chats/model-overrides`
 > and personal overrides at
-> `/api/experimental/organizations/{organization}/members/{user}/chats/model-overrides`.
+> `/api/v2/organizations/{organization}/members/{user}/chats/model-overrides`.
 
 ## User API keys (BYOK)
 

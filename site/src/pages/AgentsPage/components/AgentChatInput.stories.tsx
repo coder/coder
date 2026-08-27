@@ -805,7 +805,7 @@ export const WithMCPNeedingAuth: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(body.getByRole("button", { name: "Auth" }));
 		expect(window.open).toHaveBeenCalledWith(
-			"/api/experimental/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
+			"/api/v2/organizations/org-1/mcp-servers/mcp-github/oauth2/connect",
 			"_blank",
 			"width=900,height=600",
 		);
@@ -827,7 +827,7 @@ export const MCPAutoEnablesAfterOAuthCompletes: Story = {
 	play: async ({ args, canvasElement }) => {
 		await startMCPOAuthFlow(canvasElement);
 		expect(window.open).toHaveBeenCalledWith(
-			`/api/experimental/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
+			`/api/v2/organizations/org-1/mcp-servers/${githubMCP.id}/oauth2/connect`,
 			"_blank",
 			"width=900,height=600",
 		);
