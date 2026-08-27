@@ -2,6 +2,7 @@ import type { FC } from "react";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { paginatedSessions } from "#/api/queries/aiBridge";
+import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
 import { useFilter, useFilterParamsKey } from "#/components/Filter/Filter";
 import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -59,6 +60,24 @@ const AISessionListPage: FC = () => {
 
 	const explicitTimeRange = parseTimeRange(filter.values);
 	const timeRange = explicitTimeRange ?? defaultRange;
+
+	// The preset is display-only; the URL stores resolved timestamps. With no
+	// range in the URL (e.g. after clearing the search) the default window
+	// applies, which is the "Last 24 hours" preset. Otherwise show the last
+	// picked preset only while the URL range still matches it.
+	const [lastPicked, setLastPicked] = useState<DateTimeRangeValue | null>(null);
+	// URL round-trips truncate to seconds, so compare at second precision.
+	const sameSecond = (a: Date, b: Date) =>
+		Math.floor(a.getTime() / 1000) === Math.floor(b.getTime() / 1000);
+	const preset =
+		explicitTimeRange === null
+			? "last_24h"
+			: lastPicked?.preset !== undefined &&
+					sameSecond(lastPicked.start, timeRange.start) &&
+					sameSecond(lastPicked.end, timeRange.end)
+				? lastPicked.preset
+				: undefined;
+
 	const userMenu = useUserFilterMenu({
 		value: filter.values.initiator,
 		onChange: (option) =>
@@ -118,10 +137,15 @@ const AISessionListPage: FC = () => {
 						client: clientMenu,
 						model: modelMenu,
 					},
-					timeRange,
-					defaultTimeRange: defaultRange,
-					onTimeRangeChange: (range) =>
-						filter.update(queryWithTimeRange(filter.values, range)),
+					timeRange: {
+						start: timeRange.start,
+						end: timeRange.end,
+						preset,
+					},
+					onTimeRangeChange: (value) => {
+						setLastPicked(value);
+						filter.update(queryWithTimeRange(filter.values, value));
+					},
 				}}
 			/>
 		</RequirePermission>

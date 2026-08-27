@@ -377,16 +377,6 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
-export const MockAgentsAccessRole: TypesGen.Role = {
-	name: "agents-access",
-	display_name: "Coder Agents User",
-	site_permissions: [],
-	user_permissions: [],
-	organization_id: MockOrganization.id,
-	organization_permissions: [],
-	organization_member_permissions: [],
-};
-
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -963,6 +953,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	allow_workspace_renames: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3319,6 +3310,19 @@ export const MockEveryoneGroup: TypesGen.Group = {
 	total_member_count: 0,
 };
 
+export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3393,6 +3397,11 @@ export const MockPermissions: Permissions = {
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
 	createChat: true,
+	viewAnyChatModelConfig: true,
+	createAnyChatModelConfig: true,
+	editAnyChatModelConfig: true,
+	deleteAnyChatModelConfig: true,
+	shareAnyChatModelConfig: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3434,6 +3443,11 @@ export const MockNoPermissions: Permissions = {
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
 	createChat: false,
+	viewAnyChatModelConfig: false,
+	createAnyChatModelConfig: false,
+	editAnyChatModelConfig: false,
+	deleteAnyChatModelConfig: false,
+	shareAnyChatModelConfig: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -3456,6 +3470,12 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
+	shareMCPServerConfig: true,
+	viewChatModelConfigs: true,
+	createChatModelConfigs: true,
+	editChatModelConfigs: true,
+	deleteChatModelConfigs: true,
+	shareChatModelConfigs: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3478,6 +3498,12 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
+	shareMCPServerConfig: false,
+	viewChatModelConfigs: false,
+	createChatModelConfigs: false,
+	editChatModelConfigs: false,
+	deleteChatModelConfigs: false,
+	shareChatModelConfigs: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
@@ -5591,10 +5617,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	providers: ["anthropic", "openai"],
 	models: ["claude-opus-4-6", "gpt-5.4"],
-	client: "Mux",
+	client: "Xum",
 	metadata: {
 		request_user_agent:
-			"mux/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
+			"xum/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
 	},
 	started_at: "2026-03-09T09:28:15.03152Z",
 	ended_at: "2026-03-09T10:28:17.294897Z",

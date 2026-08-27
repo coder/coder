@@ -4009,6 +4009,36 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("duplicate preset names", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		logger := testutil.Logger(t)
+		db, ps := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		err := provisionerdserver.InsertWorkspacePresetsAndParameters(
+			ctx,
+			logger,
+			db,
+			job.ID,
+			templateVersion.ID,
+			[]*sdkproto.Preset{{Name: "daily-driver"}, {Name: "daily-driver"}},
+			time.Now(),
+		)
+		require.ErrorContains(t, err, `duplicate preset name, must be unique per template: "daily-driver"`)
+	})
 }
 
 func TestInsertWorkspaceResource(t *testing.T) {
@@ -5485,7 +5515,7 @@ func (s *fakeStream) Send(j *proto.AcquiredJob) error {
 func (s *fakeStream) Recv() (*proto.CancelAcquire, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.canceled || s.closed) {
+	for !s.canceled && !s.closed {
 		s.c.Wait()
 	}
 	if s.canceled {
@@ -5528,7 +5558,7 @@ func (s *fakeStream) Close() error {
 func (s *fakeStream) waitForJob() (*proto.AcquiredJob, error) {
 	s.c.L.Lock()
 	defer s.c.L.Unlock()
-	for !(s.sendCalled || s.closed) {
+	for !s.sendCalled && !s.closed {
 		s.c.Wait()
 	}
 	if s.sendCalled {

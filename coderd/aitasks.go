@@ -30,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/taskname"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -285,10 +284,10 @@ func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) cod
 	var taskAppHealth *codersdk.WorkspaceAppHealth
 
 	if dbTask.WorkspaceAgentLifecycleState.Valid {
-		taskAgentLifecycle = ptr.Ref(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
+		taskAgentLifecycle = new(codersdk.WorkspaceAgentLifecycle(dbTask.WorkspaceAgentLifecycleState.WorkspaceAgentLifecycleState))
 	}
 	if dbTask.WorkspaceAppHealth.Valid {
-		taskAppHealth = ptr.Ref(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
+		taskAppHealth = new(codersdk.WorkspaceAppHealth(dbTask.WorkspaceAppHealth.WorkspaceAppHealth))
 	}
 
 	// If we have an agent ID from the task, find the agent health info
@@ -383,12 +382,12 @@ func deriveTaskCurrentState(
 			ws.LatestBuild.Status == codersdk.WorkspaceStatusStarting:
 			message = fmt.Sprintf("Workspace is %s", ws.LatestBuild.Status)
 		case taskAgentLifecycle != nil:
-			switch {
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleCreated:
+			switch *taskAgentLifecycle {
+			case codersdk.WorkspaceAgentLifecycleCreated:
 				message = "Agent is connecting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleStarting:
+			case codersdk.WorkspaceAgentLifecycleStarting:
 				message = "Agent is starting"
-			case *taskAgentLifecycle == codersdk.WorkspaceAgentLifecycleReady:
+			case codersdk.WorkspaceAgentLifecycleReady:
 				if taskAppHealth != nil && *taskAppHealth == codersdk.WorkspaceAppHealthInitializing {
 					message = "App is initializing"
 				} else {
@@ -487,7 +486,7 @@ func (api *API) convertTasks(ctx context.Context, requesterID uuid.UUID, dbTasks
 	}
 
 	// Gather associated data and convert to API workspaces.
-	data, err := api.workspaceData(ctx, workspaces)
+	data, err := api.workspaceData(ctx, workspaces, allWorkspaceRelated())
 	if err != nil {
 		return nil, xerrors.Errorf("fetch workspace data: %w", err)
 	}
@@ -547,7 +546,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
+	data, err := api.workspaceData(ctx, []database.Workspace{workspace}, allWorkspaceRelated())
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching workspace resources.",
@@ -572,7 +571,7 @@ func (api *API) taskGet(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		api.Options.AllowWorkspaceRenames,
+		api.AllowWorkspaceRenames,
 		appStatus,
 	)
 	if err != nil {
@@ -953,7 +952,7 @@ func (api *API) fetchSnapshotTaskLogs(ctx context.Context, taskID uuid.UUID) (co
 	return codersdk.TaskLogsResponse{
 		Logs:       logs,
 		Snapshot:   true,
-		SnapshotAt: ptr.Ref(snapshot.LogSnapshotCreatedAt),
+		SnapshotAt: new(snapshot.LogSnapshotCreatedAt),
 	}, nil
 }
 

@@ -22,7 +22,6 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import { DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters } from "../../utils/agentSidebarFilters";
-import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
@@ -40,18 +39,10 @@ const SettingsStateProbe = () => {
 	return <div data-testid="settings-state-from">{from}</div>;
 };
 
-const defaultModelOptions: ModelSelectorOption[] = [
-	{
-		id: "openai:gpt-4o",
-		provider: "openai",
-		model: "gpt-4o",
-		displayName: "GPT-4o",
-	},
-];
-
-const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
+const defaultModelConfigs: TypesGen.ChatModel[] = [
 	{
 		id: "config-openai-gpt-4o",
+		organization_id: "my-organization-id",
 		ai_provider_id: "prov-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -99,7 +90,6 @@ const meta: Meta<typeof ChatsSidebar> = {
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
-		modelOptions: defaultModelOptions,
 		modelConfigs: defaultModelConfigs,
 		onArchiveAgent: fn(),
 		onUnarchiveAgent: fn(),
@@ -152,6 +142,66 @@ const ChatsSidebarWithKeybindings = (
 			onSearchDialogOpenChange={handleSearchDialogOpenChange}
 		/>
 	);
+};
+
+const ChatsSidebarWithDeferredModels = (
+	args: ComponentProps<typeof ChatsSidebar>,
+) => {
+	const [modelsResolved, setModelsResolved] = useState(false);
+
+	useEffect(() => {
+		const timeoutID = window.setTimeout(() => setModelsResolved(true), 500);
+		return () => window.clearTimeout(timeoutID);
+	}, []);
+
+	return (
+		<ChatsSidebar
+			{...args}
+			modelConfigs={modelsResolved ? defaultModelConfigs : []}
+			isLoadingModelConfigs={!modelsResolved}
+		/>
+	);
+};
+
+export const ModelNameWaitsForModelsToLoad: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-models-loading",
+				title: "Chat loaded before models",
+			}),
+		],
+	},
+	render: (args) => <ChatsSidebarWithDeferredModels {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Chat loaded before models")).toBeVisible();
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+
+		await waitFor(() => expect(canvas.getByText("GPT-4o")).toBeVisible(), {
+			timeout: 3000,
+		});
+		expect(canvas.queryByText("Unavailable model")).not.toBeInTheDocument();
+	},
+};
+
+export const UnavailableHistoricalModel: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-unavailable-model",
+				title: "Historical chat",
+				last_model_config_id: "foreign-model-config",
+			}),
+		],
+		modelConfigs: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Historical chat")).toBeVisible();
+		expect(canvas.getByText("Unavailable model")).toBeVisible();
+	},
 };
 
 export const ChatWithTurnSummary: Story = {
@@ -690,7 +740,7 @@ export const SectionHeadersCollapse: Story = {
 		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
-		await expect(canvas.getByText("This Week (1)")).toBeInTheDocument();
+		await expect(canvas.getByText("Past 7 days (1)")).toBeInTheDocument();
 
 		const pinnedToggle = canvas.getByRole("button", {
 			name: "Collapse Pinned section",
@@ -2054,6 +2104,119 @@ export const AgentWithWorkspaceMenuFull: Story = {
 	},
 };
 
+export const ArchiveActionsFollowChatStatus: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "running-archive-actions",
+				title: "Running agent",
+				status: "running",
+				workspace_id: "workspace-running",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-archive-actions",
+				title: "Idle agent",
+				status: "waiting",
+				workspace_id: "workspace-idle",
+				updated_at: recentTimestamp,
+			}),
+			buildChat({
+				id: "idle-parent-archive-actions",
+				title: "Idle parent agent",
+				status: "waiting",
+				workspace_id: "workspace-idle-parent",
+				updated_at: recentTimestamp,
+				children: [
+					buildChat({
+						id: "running-child-archive-actions",
+						title: "Running sub-agent",
+						status: "running",
+						parent_chat_id: "idle-parent-archive-actions",
+						root_chat_id: "idle-parent-archive-actions",
+					}),
+				],
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByText("Running agent")).toBeInTheDocument();
+			expect(canvas.getByText("Idle agent")).toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Running agent"),
+		);
+		let body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		fireEvent.contextMenu(
+			canvas.getByTestId("agents-tree-node-running-archive-actions"),
+		);
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(canvas.getByLabelText("Open actions for Idle agent"));
+		body = within(document.body);
+		expect(
+			await body.findByRole("menuitem", { name: "Archive agent" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).not.toBeInTheDocument();
+		});
+
+		// Archive cascades over the family, so an idle parent with a
+		// running child must stay blocked, with the reason exposed.
+		await userEvent.click(
+			canvas.getByLabelText("Open actions for Idle parent agent"),
+		);
+		body = within(document.body);
+		const parentArchiveItem = await body.findByRole("menuitem", {
+			name: "Archive agent",
+		});
+		expect(parentArchiveItem).toHaveAttribute("aria-disabled", "true");
+		expect(
+			body.getByRole("menuitem", { name: "Archive & delete workspace" }),
+		).toHaveAttribute("aria-disabled", "true");
+		const hint = "Interrupt or wait for the agent to finish first.";
+		// The menu content fades in, so visibility needs a retry window.
+		await waitFor(() => {
+			expect(body.getByText(hint)).toBeVisible();
+		});
+		expect(parentArchiveItem).toHaveAccessibleDescription(hint);
+	},
+};
+
 // A collapsed parent chat exposes a "Show subagents (N)" action in its
 // actions menu; selecting it expands the children and the label flips to
 // "Hide subagents". Leaf chats never show the toggle.
@@ -2527,6 +2690,7 @@ export const SettingsUserAgentsAdmin: Story = {
 	args: {
 		chats: [],
 		isAdmin: true,
+		canManageAgentSettings: true,
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2545,6 +2709,40 @@ export const SettingsUserAgentsAdmin: Story = {
 			"href",
 			"/ai/settings/coder-agents",
 		);
+	},
+};
+
+export const SettingsManageAgentsOrgModelAdmin: Story = {
+	args: {
+		chats: [],
+		isAdmin: false,
+		canManageAgentSettings: true,
+	},
+	parameters: {
+		queries: [
+			{
+				key: userChatProviderConfigsKey,
+				data: [],
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings/general" },
+			routing: settingsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const manageAgentsLink = await canvas.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+		// API-key visibility stays tied to isAdmin and configured providers.
+		expect(
+			canvas.queryByRole("link", { name: "Secrets (API keys)" }),
+		).not.toBeInTheDocument();
 	},
 };
 

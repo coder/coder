@@ -22,15 +22,6 @@ Deprecated options are listed at the end of each section.
 
 ## General
 
-### Allow workspace renames
-
-Allow users to rename their workspaces. WARNING: Renaming a workspace can cause Terraform resources that depend on the workspace name to be destroyed and recreated, potentially causing data loss. Only enable this if your templates do not use workspace names in resource identifiers, or if you understand the risks.
-
-- Environment variable: `CODER_ALLOW_WORKSPACE_RENAMES`
-- CLI flag: [`--allow-workspace-renames`](../../reference/cli/server.md#--allow-workspace-renames)
-- YAML key: `allowWorkspaceRenames`
-- Default value: `false`
-
 ### Cache directory
 
 The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is set, it will be used for compatibility with systemd. This directory is NOT safe to be configured as a shared directory across coderd/provisionerd replicas.
@@ -81,6 +72,14 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 - Environment variable: `CODER_DISABLE_PATH_APPS`
 - CLI flag: [`--disable-path-apps`](../../reference/cli/server.md#--disable-path-apps)
 - YAML key: `disablePathApps`
+
+### Disable workspace agent context sync
+
+Stop persisting workspace agent context snapshots (instructions, skills, and MCP state used for pinned chat context). When set, coderd rejects agent context pushes as unimplemented and agents stop sending them; chats cannot pin workspace context. Use this to shed the database write load of context sync on large deployments.
+
+- Environment variable: `CODER_DISABLE_WORKSPACE_AGENT_CONTEXT_SYNC`
+- CLI flag: [`--disable-workspace-agent-context-sync`](../../reference/cli/server.md#--disable-workspace-agent-context-sync)
+- YAML key: `disableWorkspaceAgentContextSync`
 
 ### Disable workspace sharing
 

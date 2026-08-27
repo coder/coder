@@ -227,6 +227,7 @@ const AgentEmbedPage: FC = () => {
 		requestArchiveAndDeleteWorkspace,
 		isArchiving: false,
 		archivingChatId: undefined,
+		activeChatChildren: undefined,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
 		onExpandSidebar: () => {},

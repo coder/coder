@@ -470,7 +470,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
 			<div
 				className={cn(
-					`min-h-10 rounded-md border border-solid border-border text-sm pr-3
+					`flex min-h-10 flex-col justify-center rounded-md border border-solid border-border text-sm pr-3
 						focus-within:ring-2 focus-within:ring-content-link [&>svg]:p-0.5`,
 					{
 						"pl-3 py-1": selected.length !== 0,
@@ -558,10 +558,10 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									: placeholder
 							}
 							className={cn(
-								"flex-1 border-none outline-none bg-transparent placeholder:text-content-secondary",
+								"flex-1 border-none outline-none bg-transparent leading-5 placeholder:text-content-secondary",
 								{
 									"w-full": hidePlaceholderWhenSelected,
-									"px-3 py-2.5": selected.length === 0,
+									"px-3 py-2": selected.length === 0,
 									"ml-1": selected.length !== 0,
 								},
 								inputProps?.className,
