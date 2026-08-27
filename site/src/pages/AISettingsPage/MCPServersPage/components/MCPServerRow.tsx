@@ -26,7 +26,7 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 					<MCPServerIcon
 						iconUrl={server.icon_url}
 						name={server.display_name}
-						className="size-10"
+						className={cn("size-10", !enabled && "opacity-50")}
 					/>
 					<span
 						className={cn(
@@ -36,16 +36,22 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 					>
 						{server.display_name}
 					</span>
+					{!enabled && (
+						<Badge variant="default" className="shrink-0">
+							Disabled
+						</Badge>
+					)}
 				</div>
 			</TableCell>
-			<TableCell className="w-1/5 text-sm">
+			<TableCell
+				className={cn("w-1/5 text-sm", !enabled && "text-content-disabled")}
+			>
 				{AUTH_TYPE_LABELS[server.auth_type] ?? server.auth_type}
 			</TableCell>
-			<TableCell className="w-1/5 text-sm">
+			<TableCell
+				className={cn("w-1/5 text-sm", !enabled && "text-content-disabled")}
+			>
 				{AVAILABILITY_LABELS[server.availability] ?? server.availability}
-			</TableCell>
-			<TableCell className="w-32">
-				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>
 			</TableCell>
 			<TableCell className="w-12">
 				{onClick && (
