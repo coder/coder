@@ -1243,8 +1243,7 @@ const AgentChatPage: FC = () => {
 		syncPromise: Promise<unknown>,
 		syncRef: { current: Promise<unknown> | null },
 	) => {
-		let trackedSync: Promise<unknown>;
-		trackedSync = syncPromise.finally(() => {
+		const trackedSync: Promise<unknown> = syncPromise.finally(() => {
 			if (syncRef.current === trackedSync) {
 				syncRef.current = null;
 			}

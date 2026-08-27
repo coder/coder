@@ -18,7 +18,6 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/quartz"
 )
@@ -130,7 +129,7 @@ func TestRefresher_WithPRURL(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -186,7 +185,7 @@ func TestRefresher_BranchResolvesToPR(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -228,7 +227,7 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -257,7 +256,7 @@ func TestRefresher_NoProviderForOrigin(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return nil }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -330,7 +329,7 @@ func TestRefresher_EmptyToken(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref(""), nil
+		return new(""), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -368,7 +367,7 @@ func TestRefresher_ProviderFetchFails(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -404,7 +403,7 @@ func TestRefresher_PRURLParseFailure(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -445,7 +444,7 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 	var tokenCalls atomic.Int32
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
 		tokenCalls.Add(1)
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
@@ -524,7 +523,7 @@ func TestRefresher_UsesInjectedClock(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
@@ -576,7 +575,7 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	// Concurrency=1 ensures sequential semaphore acquisition so
@@ -655,9 +654,9 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 		tokenCalls.Add(1)
 		switch {
 		case strings.Contains(origin, "github.com"):
-			return ptr.Ref("gh-public-token"), nil
+			return new("gh-public-token"), nil
 		case strings.Contains(origin, "ghes.corp.com"):
-			return ptr.Ref("ghe-private-token"), nil
+			return new("ghe-private-token"), nil
 		default:
 			return nil, fmt.Errorf("unexpected origin: %s", origin)
 		}
@@ -782,7 +781,7 @@ func TestRefresher_ConcurrentProcessing(t *testing.T) {
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
 	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return ptr.Ref("test-token"), nil
+		return new("test-token"), nil
 	}
 
 	// Concurrency must be >= numRows so all goroutines can enter

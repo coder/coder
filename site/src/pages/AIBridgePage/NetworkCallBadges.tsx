@@ -37,11 +37,10 @@ export const NetworkCallBadges: FC<NetworkCallBadgesProps> = ({ summary }) => {
 						aria-label="More info"
 						className="flex items-center whitespace-nowrap border-0 bg-transparent p-0 text-inherit"
 					>
-						<Badge size="sm" className="rounded-e-none">
+						<Badge className="rounded-e-none">
 							{summary.total.toLocaleString("en-US")}
 						</Badge>
 						<Badge
-							size="sm"
 							svgSize="xs"
 							className="gap-0 bg-surface-tertiary rounded-s-none text-content-warning"
 						>

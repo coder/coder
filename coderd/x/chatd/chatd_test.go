@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -6197,7 +6196,7 @@ func TestActiveServer_AnthropicModelReasoningEffort(t *testing.T) {
 			model.Model = tt.model
 			model = updateChatModelContextLimit(t, db, model)
 			model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
-				MaxOutputTokens: ptr.Ref(int64(4096)),
+				MaxOutputTokens: new(int64(4096)),
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 					Default: &tt.effort,
 					Max:     &tt.effort,
@@ -7353,7 +7352,7 @@ func TestActiveServer_AnthropicContext1MBetaHeader(t *testing.T) {
 		generationRequests := runChat(t, &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-					Context1MEnabled: ptr.Ref(true),
+					Context1MEnabled: new(true),
 				},
 			},
 		})
@@ -12485,7 +12484,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 		want      string
 	}{
 		{name: "PreservesByDefault", want: "low"},
-		{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+		{name: "Overrides", requested: new("high"), want: "high"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -12501,7 +12500,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 				OrganizationID:     org.ID,
 				Title:              "edit-reasoning-effort",
 				ModelConfigID:      model.ID,
-				ReasoningEffort:    ptr.Ref("low"),
+				ReasoningEffort:    new("low"),
 				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
 			})
 			require.NoError(t, err)

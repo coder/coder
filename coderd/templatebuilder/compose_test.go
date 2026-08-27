@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/fs"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -193,6 +195,37 @@ func TestCompose(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `duplicate module "code-server"`)
+	})
+
+	t.Run("BaseIncludedModuleCollisionError", func(t *testing.T) {
+		t.Parallel()
+		// The quickstart base already declares module "git-clone"; selecting
+		// the catalog git-clone module in the wizard would render a duplicate
+		// module block, so compose must reject it.
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "git-clone"},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `module "git-clone" is already included by this base template`)
+	})
+
+	t.Run("BaseAllowsNonIncludedModule", func(t *testing.T) {
+		t.Parallel()
+		// Quickstart only includes git-clone; other catalog modules such as
+		// code-server compose normally on top of it.
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{ID: "code-server"},
+			},
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.ModulesTF), `module "code-server"`)
 	})
 
 	t.Run("ConflictingModuleError", func(t *testing.T) {
@@ -518,6 +551,53 @@ func TestBundleTar(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, data1, data2, "identical inputs should produce identical archives")
 	})
+}
+
+// optionValuePattern matches a quoted `value = "..."` assignment. In the
+// quickstart base such a quoted literal only appears inside the languages
+// selector's option {} blocks: Docker labels assign `value = data....` and
+// presets assign `languages = jsonencode(...)`, neither of which is a quoted
+// `value = "..."`.
+var optionValuePattern = regexp.MustCompile(`(?m)^\s*value\s*=\s*"([^"]+)"`)
+
+// hasLanguageDispatchPattern matches the `if has_language <name>` call sites in
+// the quickstart language-install script (not the has_language definition).
+var hasLanguageDispatchPattern = regexp.MustCompile(`(?m)^\s*if has_language (\S+?);`)
+
+// TestQuickstartLanguageSelectorMatchesInstallScript enforces that the
+// quickstart "languages" selector options and the language-install script's
+// has_language dispatch branches describe the same set of languages. They are
+// two hand-maintained lists with nothing else binding them: if one gains or
+// loses a language without the other, a selected language would silently
+// install nothing (or a branch would be dead). This test fails on that drift.
+func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
+	t.Parallel()
+
+	mainTF, err := templatebuilder.RenderBaseTemplate(
+		"quickstart", "main.tf.tmpl", templatebuilder.DefaultBaseRenderContext("quickstart"))
+	require.NoError(t, err)
+
+	var selectorValues []string
+	for _, m := range optionValuePattern.FindAllSubmatch(mainTF, -1) {
+		selectorValues = append(selectorValues, string(m[1]))
+	}
+	require.NotEmpty(t, selectorValues,
+		"expected the quickstart languages selector to declare options")
+
+	fsys, err := templatebuilder.BaseTemplateFS("quickstart")
+	require.NoError(t, err)
+	script, err := fs.ReadFile(fsys, "install-languages.sh.tftpl")
+	require.NoError(t, err)
+
+	var dispatchNames []string
+	for _, m := range hasLanguageDispatchPattern.FindAllSubmatch(script, -1) {
+		dispatchNames = append(dispatchNames, string(m[1]))
+	}
+	require.NotEmpty(t, dispatchNames,
+		"expected the install script to dispatch on has_language")
+
+	require.ElementsMatch(t, selectorValues, dispatchNames,
+		"quickstart languages selector options must match the install script's has_language branches")
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.

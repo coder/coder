@@ -143,6 +143,13 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "delete",
 		},
+		shareMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "share",
+		},
 		viewChatModelConfigs: {
 			object: {
 				resource_type: "chat_model_config",

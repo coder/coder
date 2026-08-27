@@ -82,14 +82,11 @@ const CustomRolesPage: FC = () => {
 			<RequirePermission
 				isFeatureVisible={organizationPermissions?.viewOrgRoles ?? false}
 			>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle>Roles</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Manage roles for this organization.
+						Manage roles for this organization.{" "}
+						<SettingsHeaderDocsLink href={docs("/admin/users/groups-roles")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
