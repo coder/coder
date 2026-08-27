@@ -42,6 +42,8 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		slog.F("path", r.URL.Path),
 	)
 
+	mcpServerSlug, mcpGatewayRequest := mcpGatewayServerSlug(r.URL.Path)
+
 	// Extract and strip proxy request ID for cross-service log
 	// correlation. Absent for direct requests not routed through
 	// aibridgeproxyd.
@@ -72,6 +74,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	delegatedID, delegated := agplaibridge.DelegatedAPIKeyIDFromContext(ctx)
 
 	key := strings.TrimSpace(agplaibridge.ExtractAuthToken(r.Header))
+	if mcpGatewayRequest && key == "" {
+		logger.Warn(ctx, "no auth key provided for MCP gateway request")
+		http.Error(rw, ErrNoAuthKey.Error(), http.StatusUnauthorized)
+		return
+	}
 
 	// When a BYOK header is present, a key is ALWAYS required.
 	// Delegated auth only requires a key when using BYOK.
@@ -133,7 +140,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
 		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
-		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		status := http.StatusForbidden
+		if mcpGatewayRequest {
+			status = http.StatusUnauthorized
+		}
+		http.Error(rw, ErrUnauthorized.Error(), status)
 		return
 	}
 
@@ -169,6 +180,11 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(aibridge.AsActor(ctx, resp.GetOwnerId(), recorder.Metadata{
 		"Username": resp.GetUsername(),
 	}))
+
+	if mcpGatewayRequest {
+		s.serveMCPGateway(rw, r, client, key, mcpServerSlug)
+		return
+	}
 
 	handler, err := s.GetRequestHandler(ctx, Request{
 		SessionKey:  key,

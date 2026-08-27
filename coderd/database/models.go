@@ -4762,6 +4762,8 @@ type AIBridgeInterception struct {
 	ErrorType NullAIBridgeInterceptionErrorType `db:"error_type" json:"error_type"`
 	// Raw terminal upstream error message for a failed interception; NULL when the interception succeeded.
 	ErrorMessage sql.NullString `db:"error_message" json:"error_message"`
+	// Sponsoring human user for requests initiated by an AI identity. Not a foreign key; audit history survives user cleanup like the sandbox and escalation snapshots.
+	SponsorUserID uuid.NullUUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

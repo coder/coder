@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -261,8 +262,27 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
 	}
 
+	// Every AI-initiated interception is attributed to its sponsoring human,
+	// whichever route it took. The gateway passes the sponsor it resolved at
+	// authorization time; otherwise the initiator is an AI agent exactly when
+	// the ledger knows it, and a human initiator has no ledger row. The
+	// snapshot makes the audit timeline complete without joining live
+	// identity state.
+	sponsorUserID := uuid.NullUUID{}
+	if sponsorID, sponsorErr := uuid.Parse(in.GetSponsorUserId()); sponsorErr == nil {
+		sponsorUserID = uuid.NullUUID{UUID: sponsorID, Valid: true}
+	} else {
+		//nolint:gocritic // Attribution resolves identity metadata, not user data.
+		if agent, agentErr := s.store.GetAIAgentLedgerRowByID(dbauthz.AsSystemRestricted(ctx), initID); agentErr == nil {
+			sponsorUserID = uuid.NullUUID{UUID: agent.OwnerID, Valid: true}
+		} else if !errors.Is(agentErr, sql.ErrNoRows) {
+			s.logger.Warn(ctx, "failed to resolve interception sponsor", slog.F("initiator_id", initID), slog.Error(agentErr))
+		}
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                          intcID,
+		SponsorUserID:               sponsorUserID,
 		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
 		Client:                      sql.NullString{String: in.Client, Valid: in.Client != ""},
 		ClientSessionID:             sql.NullString{String: in.GetClientSessionId(), Valid: in.GetClientSessionId() != ""},
@@ -652,6 +672,78 @@ func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerCon
 	}, nil
 }
 
+// GetMCPGatewayServerConfig returns the enabled MCP server addressed by its
+// public gateway slug. Disabled servers are intentionally indistinguishable
+// from unknown slugs.
+func (s *Server) GetMCPGatewayServerConfig(ctx context.Context, in *proto.GetMCPGatewayServerConfigRequest) (*proto.GetMCPGatewayServerConfigResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	slug := strings.TrimSpace(in.GetSlug())
+	if slug == "" {
+		return nil, xerrors.New("slug is required")
+	}
+	cfg, err := s.store.GetMCPServerConfigBySlug(ctx, slug)
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return &proto.GetMCPGatewayServerConfigResponse{}, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get MCP server config by slug: %w", err)
+	}
+	if !cfg.Enabled {
+		return &proto.GetMCPGatewayServerConfigResponse{}, nil
+	}
+
+	var rules []codersdk.MCPServerToolRule
+	if len(cfg.ToolRules) > 0 {
+		if err := json.Unmarshal(cfg.ToolRules, &rules); err != nil {
+			return nil, xerrors.Errorf("decode MCP tool rules: %w", err)
+		}
+	}
+	protoRules := make([]*proto.MCPGatewayToolRule, 0, len(rules))
+	for _, rule := range rules {
+		protoRules = append(protoRules, &proto.MCPGatewayToolRule{
+			Tool:    rule.Tool,
+			Enabled: rule.Enabled,
+		})
+	}
+
+	out := &proto.MCPGatewayServerConfig{
+		Id:                     cfg.ID.String(),
+		Slug:                   cfg.Slug,
+		Url:                    cfg.Url,
+		Transport:              cfg.Transport,
+		AuthType:               cfg.AuthType,
+		ExternalAuthProviderId: cfg.ExternalAuthProviderID.String,
+		ToolAllowList:          cfg.ToolAllowList,
+		ToolDenyList:           cfg.ToolDenyList,
+		ToolRules:              protoRules,
+		ToolDefault:            cfg.ToolDefault,
+	}
+	switch cfg.AuthType {
+	case "api_key":
+		out.ApiKeyHeader = cfg.APIKeyHeader
+		out.ApiKeyValue = cfg.APIKeyValue
+	case "custom_headers":
+		out.CustomHeaders = cfg.CustomHeaders
+	}
+	if cfg.ExternalAuthProviderID.Valid {
+		if externalAuthConfig, ok := s.externalAuthConfigs[cfg.ExternalAuthProviderID.String]; ok {
+			if externalAuthConfig.MCPToolAllowRegex != nil {
+				out.ToolAllowRegex = externalAuthConfig.MCPToolAllowRegex.String()
+			}
+			if externalAuthConfig.MCPToolDenyRegex != nil {
+				out.ToolDenyRegex = externalAuthConfig.MCPToolDenyRegex.String()
+			}
+		}
+	}
+
+	return &proto.GetMCPGatewayServerConfigResponse{
+		Found:  true,
+		Config: out,
+	}, nil
+}
+
 func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.GetMCPServerAccessTokensBatchRequest) (*proto.GetMCPServerAccessTokensBatchResponse, error) {
 	if len(in.GetMcpServerConfigIds()) == 0 {
 		return &proto.GetMCPServerAccessTokensBatchResponse{}, nil
@@ -1004,6 +1096,9 @@ func (s *Server) AuthorizeMCPGateway(ctx context.Context, in *proto.AuthorizeMCP
 		InitiatorId: principal.InitiatorID.String(),
 		ApiKeyId:    key.ID,
 		Username:    principal.DisplayName,
+	}
+	if principal.SponsorUserID.Valid {
+		resp.SponsorUserId = principal.SponsorUserID.UUID.String()
 	}
 	err = s.authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceMcpGateway.WithIDString(in.GetMcpServerConfigId()))
 	if rbac.IsUnauthorizedError(err) {

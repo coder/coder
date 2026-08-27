@@ -701,6 +701,7 @@ var (
 					rbac.ResourceAiModelPrice.Type:         {policy.ActionRead, policy.ActionUpdate}, // Read: per-interception cost lookup. Update: startup price seeder.
 					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
 					rbac.ResourceAIProvider.Type:           {policy.ActionRead},                      // Required to load the provider snapshot (and per-provider keys) at startup.
+					rbac.ResourceDeploymentConfig.Type:     {policy.ActionRead},                      // Required to load MCP gateway server configurations.
 					rbac.ResourceGroup.Type:                {policy.ActionRead},                      // Required to read the effective group.
 				}),
 				User:    []rbac.Permission{},

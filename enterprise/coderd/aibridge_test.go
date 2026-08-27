@@ -1403,6 +1403,14 @@ func TestAIBridgeRouting(t *testing.T) {
 			path:         "/api/v2/ai-gateway/openai/v1/chat/completions",
 			expectedPath: "/openai/v1/chat/completions",
 		},
+		{
+			// The MCP gateway path shares the ai-gateway prefix with the
+			// literal /ai-gateway/mcp-servers management route; it must
+			// still reach the data-plane wildcard.
+			name:         "MCPGateway",
+			path:         "/api/v2/ai-gateway/mcp/github",
+			expectedPath: "/mcp/github",
+		},
 	}
 
 	for _, tc := range cases {

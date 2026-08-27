@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -1383,6 +1384,50 @@ func TestGetMCPServerConfigs(t *testing.T) {
 	}
 }
 
+func TestGetMCPGatewayServerConfig(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	configID := uuid.New()
+	rules, err := json.Marshal([]codersdk.MCPServerToolRule{{Tool: "read", Enabled: true}})
+	require.NoError(t, err)
+	db.EXPECT().GetMCPServerConfigBySlug(gomock.Any(), "github").Return(database.MCPServerConfig{
+		ID:                     configID,
+		Slug:                   "github",
+		Url:                    "https://example.com/mcp",
+		Transport:              "streamable_http",
+		AuthType:               "external_auth",
+		ExternalAuthProviderID: sql.NullString{String: "github", Valid: true},
+		ToolAllowList:          []string{"read"},
+		ToolRules:              rules,
+		ToolDefault:            "disabled",
+		Enabled:                true,
+	}, nil)
+
+	srv, err := aibridgedserver.NewServer(t.Context(), aibridgedserver.Options{
+		Store:         db,
+		AISeatTracker: agplaiseats.Noop{},
+		ExternalAuthConfigs: []*externalauth.Config{{
+			ID:                "github",
+			MCPToolAllowRegex: regexp.MustCompile(`^read`),
+			MCPToolDenyRegex:  regexp.MustCompile(`secret$`),
+		}},
+		Logger: testutil.Logger(t),
+		Clock:  quartz.NewReal(),
+	})
+	require.NoError(t, err)
+
+	response, err := srv.GetMCPGatewayServerConfig(t.Context(), &proto.GetMCPGatewayServerConfigRequest{Slug: "github"})
+	require.NoError(t, err)
+	require.True(t, response.GetFound())
+	require.Equal(t, configID.String(), response.GetConfig().GetId())
+	require.Equal(t, "github", response.GetConfig().GetExternalAuthProviderId())
+	require.Equal(t, `^read`, response.GetConfig().GetToolAllowRegex())
+	require.Equal(t, `secret$`, response.GetConfig().GetToolDenyRegex())
+	require.Equal(t, "read", response.GetConfig().GetToolRules()[0].GetTool())
+}
+
 func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 	t.Parallel()
 
@@ -1489,6 +1534,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:             interceptionID,
 						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1531,6 +1577,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:              interceptionID,
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1572,6 +1619,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:              interceptionID,
 						APIKeyID:        sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1615,6 +1663,7 @@ func TestRecordInterception(t *testing.T) {
 					agentFirewallSessionID, err := uuid.Parse(req.GetAgentFirewallSessionId())
 					assert.NoError(t, err, "parse agent firewall session UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:                          interceptionID,
 						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1653,6 +1702,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:                          interceptionID,
 						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1695,6 +1745,7 @@ func TestRecordInterception(t *testing.T) {
 
 					// Malformed agent firewall session ID is stored as null
 					// (and logged) rather than failing the interception.
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:                          interceptionID,
 						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1769,6 +1820,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:             interceptionID,
 						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1805,6 +1857,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:             interceptionID,
 						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1842,6 +1895,7 @@ func TestRecordInterception(t *testing.T) {
 					initiatorID, err := uuid.Parse(req.GetInitiatorId())
 					assert.NoError(t, err, "parse interception initiator UUID")
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
 						ID:             interceptionID,
 						APIKeyID:       sql.NullString{String: req.ApiKeyId, Valid: true},
@@ -1873,6 +1927,7 @@ func TestRecordInterception(t *testing.T) {
 					StartedAt:   timestamppb.Now(),
 				},
 				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 				},
 				expectedErr: "start interception",
@@ -1902,6 +1957,7 @@ func TestRecordInterception(t *testing.T) {
 						ThreadRootID:   rootID,
 					}, nil)
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
 							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
@@ -1931,6 +1987,7 @@ func TestRecordInterception(t *testing.T) {
 						"call_abc",
 					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
 							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
@@ -1963,6 +2020,7 @@ func TestRecordInterception(t *testing.T) {
 						ThreadParentID: parentID,
 					}, nil)
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
 							assert.Equal(t, uuid.NullUUID{UUID: parentID, Valid: true}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
@@ -1992,6 +2050,7 @@ func TestRecordInterception(t *testing.T) {
 						"call_orphan",
 					).Return(database.GetAIBridgeInterceptionLineageByToolCallIDRow{}, sql.ErrNoRows)
 
+					db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeInterceptionParams) bool {
 						return assert.Equal(t, selfID, p.ID, "ID") &&
 							assert.Equal(t, uuid.NullUUID{}, p.ThreadParentInterceptionID, "thread parent interception ID") &&
@@ -4193,6 +4252,7 @@ func TestStructuredLogging(t *testing.T) {
 					ThreadRootID:   threadRootID,
 				}, nil)
 
+				db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
 					ID:             intcID,
 					InitiatorID:    initiatorID,
@@ -4231,6 +4291,7 @@ func TestStructuredLogging(t *testing.T) {
 			name:              "RecordInterception_does_not_log_when_disabled",
 			structuredLogging: false,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{
 					ID:          intcID,
 					InitiatorID: initiatorID,
@@ -4254,6 +4315,7 @@ func TestStructuredLogging(t *testing.T) {
 			structuredLogging: true,
 			expectedErr:       sql.ErrConnDone,
 			setupMocks: func(db *dbmock.MockStore, intcID uuid.UUID) {
+				db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 				db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).Return(database.AIBridgeInterception{}, sql.ErrConnDone)
 			},
 			recordFn: func(srv *aibridgedserver.Server, ctx context.Context, intcID uuid.UUID) error {
@@ -5097,6 +5159,7 @@ func TestRecordInterceptionAISeat(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().GetAIAgentLedgerRowByID(gomock.Any(), gomock.Any()).Return(database.AIAgentLedger{}, sql.ErrNoRows).AnyTimes()
 			db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).
 				Return(database.AIBridgeInterception{}, nil)
 

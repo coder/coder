@@ -52,6 +52,11 @@ type Server struct {
 	cancelFn context.CancelCauseFunc
 
 	shutdownOnce sync.Once
+
+	// mcpCredentialCache stores external-auth credentials by initiator and MCP
+	// server. Entries expire lazily on lookup and are evicted immediately after
+	// an upstream authentication failure.
+	mcpCredentialCache sync.Map
 }
 
 func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {

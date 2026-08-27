@@ -29,6 +29,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/mcptools"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -288,9 +289,10 @@ func connectOne(
 		return nil, nil, xerrors.Errorf("list tools: %w", err)
 	}
 
+	policy, validPolicy := toolPolicy(cfg)
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
-		if !ToolAllowed(cfg, mcpTool.Name) {
+		if !validPolicy || !mcptools.Allowed(policy, mcpTool.Name) {
 			logger.Debug(ctx, "skipping denied MCP tool",
 				slog.F("server_slug", cfg.Slug),
 				slog.F("tool_name", mcpTool.Name),
@@ -466,31 +468,25 @@ func buildAuthHeaders(
 	return headers
 }
 
-// ToolAllowed applies legacy tool lists and explicit tool rules. A tool must
-// pass both policies. Legacy lists use exact matching and preserve their
-// existing allow-list precedence over the deny list.
+// ToolAllowed adapts a database MCP server config to the shared tool policy.
 func ToolAllowed(cfg database.MCPServerConfig, toolName string) bool {
-	if len(cfg.ToolAllowList) > 0 {
-		if !slices.Contains(cfg.ToolAllowList, toolName) {
-			return false
-		}
-	} else if slices.Contains(cfg.ToolDenyList, toolName) {
-		return false
-	}
+	policy, ok := toolPolicy(cfg)
+	return ok && mcptools.Allowed(policy, toolName)
+}
 
+func toolPolicy(cfg database.MCPServerConfig) (mcptools.Policy, bool) {
 	var rules []codersdk.MCPServerToolRule
 	if len(cfg.ToolRules) > 0 {
 		if err := json.Unmarshal(cfg.ToolRules, &rules); err != nil {
-			return false
+			return mcptools.Policy{}, false
 		}
 	}
-	for _, rule := range rules {
-		if rule.Tool == toolName {
-			return rule.Enabled
-		}
-	}
-
-	return cfg.ToolDefault != "disabled"
+	return mcptools.Policy{
+		AllowList: cfg.ToolAllowList,
+		DenyList:  cfg.ToolDenyList,
+		Rules:     rules,
+		Default:   cfg.ToolDefault,
+	}, true
 }
 
 // RedactURL strips userinfo and query parameters from a URL
