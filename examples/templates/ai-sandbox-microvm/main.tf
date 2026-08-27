@@ -76,7 +76,8 @@ data "coder_parameter" "kvm_gid" {
 }
 
 locals {
-  workspace_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  workspace_name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
+  coder_internal_url = replace(data.coder_workspace.me.access_url, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")
   host_agent_init = replace(
     coder_agent.main.init_script,
     "/localhost|127\\.0\\.0\\.1/",
@@ -124,7 +125,7 @@ resource "coder_agent" "ai" {
     # authenticated as the AI agent identity. No provider API key ever
     # enters the sandbox; the gateway injects centralized credentials
     # server-side and meters usage per identity.
-    ANTHROPIC_BASE_URL   = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
+    ANTHROPIC_BASE_URL   = "${local.coder_internal_url}/api/v2/ai-gateway/anthropic"
     ANTHROPIC_AUTH_TOKEN = data.coder_workspace_ai_agent.me.session_token
   }
 
@@ -165,7 +166,7 @@ resource "coder_agent" "ai" {
     # --header is variadic and must follow the positional name and URL,
     # otherwise it consumes them as additional header values.
     claude mcp add --transport http --scope user \
-      "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" \
+      "${slug}" "${local.coder_internal_url}/api/v2/ai-gateway/mcp/${slug}" \
       --header "Authorization: Bearer $CODER_SESSION_TOKEN" ||
       echo "warning: failed to register MCP server ${slug}"
     %{~endfor~}
@@ -226,12 +227,13 @@ resource "coder_script" "sandbox" {
     # The sandbox host process serves the guest's virtio-fs filesystem, so
     # guest chown calls execute on the host with this process's privileges.
     # Without CAP_CHOWN, guest package managers fail with ownership errors.
-    # Run as root when passwordless sudo is available; the microVM remains
-    # the security boundary. Cache and state stay under the persistent home
-    # volume so first-boot downloads are not repeated.
+    # Run as root when passwordless sudo is available; preserve supplementary
+    # groups so rootless Docker hosts retain access to group-owned /dev/kvm.
+    # The microVM remains the security boundary. Cache and state stay under the
+    # persistent home volume so first-boot downloads are not repeated.
     run_as=""
     if [ "$(id -u)" != "0" ] && command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
-      run_as="sudo -E"
+      run_as="sudo -E -P"
     else
       echo "warning: no root or passwordless sudo; guest chown will fail (CAP_CHOWN)" >>"$log_file"
     fi
