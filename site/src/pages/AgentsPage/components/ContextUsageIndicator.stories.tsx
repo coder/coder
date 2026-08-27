@@ -192,6 +192,11 @@ export const Dirty: Story = {
 	play: async ({ canvasElement, args }) => {
 		const button = within(canvasElement).getByRole("button");
 		expect(button).toHaveAccessibleName(/Context changed/);
+		// The dirty fixture also carries an invalid skill; both notes must be
+		// announced because the states coexist.
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
+		);
 
 		await userEvent.hover(button);
 		const body = within(document.body);

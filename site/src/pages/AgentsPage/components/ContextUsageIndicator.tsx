@@ -379,13 +379,14 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
-	const statusNote = hasContextError
-		? " Context error."
-		: isDirty
-			? " Context changed."
-			: hasResourceIssues
-				? " Some context resources failed to load."
-				: "";
+	// Status notes compose because the states can coexist (a dirty pin can
+	// also carry failed resources); the ring tone shows only the most severe.
+	const statusNotes = [
+		hasContextError ? "Context error." : "",
+		isDirty ? "Context changed." : "",
+		hasResourceIssues ? "Some context resources failed to load." : "",
+	].filter((note) => note !== "");
+	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
 		: statusNote !== ""
