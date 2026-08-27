@@ -210,6 +210,15 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
+// Pill sizing scheme shared by the model selector trigger and the
+// workspace pill wrapper: start at a ~8ch floor (basis), never shrink
+// below it (shrink-0), grow into free row space, and cap at the
+// label's natural width (max-w-max) so short labels never pad out
+// with dead space. Below the floor the overflow system moves items
+// into the +N popover instead of shrinking them further.
+const pillSizingClasses =
+	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
@@ -1423,18 +1432,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : (
-							/* Pill sizing scheme: start at a ~8ch floor
-							 * (basis), never shrink below it (shrink-0), grow
-							 * into free space, and cap at the label's natural
-							 * width (max-w-max) so short labels never pad out
-							 * with dead space. */
 							<ModelSelector
 								value={selectedModel}
 								onValueChange={onModelChange}
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max md:h-auto"
+								className={cn(pillSizingClasses, "md:h-auto")}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1482,10 +1486,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<span
 											key="workspace-pill"
 											className={cn(
-												// Same pill sizing scheme as the model
-												// selector: ~8ch floor, grow into free
-												// space, cap at the name's natural width.
-												"flex min-w-0 shrink-0 grow basis-[calc(8ch_+_3.125rem)] max-w-max text-xs",
+												"flex min-w-0 text-xs",
+												pillSizingClasses,
 												isOverflow && "hidden",
 											)}
 										>
@@ -1539,12 +1541,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									align="start"
 									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
-									{overflowBadges.map((badge) => (
+									{overflowBadges.map((badge, i) => (
 										<ToolBadge
+											// Two badges can share a kind (the linked
+											// workspace pill fallback and the selected
+											// workspace are both "workspace"), so
+											// non-MCP keys are position-qualified.
 											key={
 												badge.kind === "mcp"
 													? badge.server.id
-													: `${badge.kind}-overflow`
+													: `${badge.kind}-overflow-${visibleCount + i}`
 											}
 											badge={badge}
 											onRemoveWorkspace={removeWorkspaceHandler}

@@ -1680,13 +1680,17 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 		const trigger = await canvas.findByRole("combobox", {
 			name: /Fable 5/,
 		});
-		const floor = measurePillFloor(canvasElement);
 		await waitFor(() => {
 			// Sized to content: narrower than the floor, label untruncated.
+			// The floor is re-measured inside the retry so late font loads
+			// cannot compare widths from different font states.
+			const floor = measurePillFloor(canvasElement);
 			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
 		});
 		const label = canvas.getByText("Fable 5");
-		expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+		// +1 tolerance: scrollWidth is ceiled while clientWidth is
+		// rounded, so equal fractional widths can differ by one.
+		expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
 	},
 };
 
@@ -1725,11 +1729,12 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 		);
 		await waitFor(() => {
 			// Neither label is truncated when free space is available.
+			// +1 tolerance for scrollWidth/clientWidth integer rounding.
 			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
-				modelLabel.clientWidth,
+				modelLabel.clientWidth + 1,
 			);
 			expect(workspaceLabel.scrollWidth).toBeLessThanOrEqual(
-				workspaceLabel.clientWidth,
+				workspaceLabel.clientWidth + 1,
 			);
 		});
 		// The workspace pill is no longer clamped to 200px.
@@ -1777,11 +1782,12 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 			expect(overflowPill).toBeVisible();
 		});
 		// The hidden badge released its space, so the model label gets
-		// the freed room and renders untruncated.
+		// the freed room and renders untruncated. +1 tolerance for
+		// scrollWidth/clientWidth integer rounding.
 		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
 		await waitFor(() => {
 			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
-				modelLabel.clientWidth,
+				modelLabel.clientWidth + 1,
 			);
 		});
 		await userEvent.click(overflowPill);

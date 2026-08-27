@@ -196,9 +196,11 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
-					// Touch devices auto-focus search on open, and the software
-					// keyboard hides the model list. Keep the WAI-ARIA combobox
-					// focus-into-input behavior for fine pointers only.
+					// On touch devices, auto-focusing the search input pops the
+					// software keyboard as soon as the picker opens, hiding the
+					// model list behind it. Only keep the WAI-ARIA combobox
+					// focus-into-input behavior for fine pointers (keyboard and
+					// mouse users on desktop).
 					if (matchMedia("(pointer: coarse)").matches) {
 						event.preventDefault();
 					}
