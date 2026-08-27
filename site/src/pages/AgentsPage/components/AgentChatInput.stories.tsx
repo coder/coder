@@ -1449,8 +1449,7 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
-// Wide badges that cannot fit next to the model pill at phone width,
-// forcing them into the +N overflow.
+// Wide badges that cannot fit force into +N overflow.
 const confluenceWideMCP = buildMCPServer({
 	id: "mcp-confluence-wide",
 	display_name: "Confluence Cloud Enterprise Wiki",
@@ -1607,8 +1606,7 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Too narrow for the pill's minimum width: it must collapse into
-		// the overflow popover instead of clipping to a tiny pill.
+		// Too narrow minimum width: collapse into overflow popover.
 		const overflowPill = await canvas.findByRole("button", {
 			name: /more item/,
 		});
@@ -1626,8 +1624,7 @@ export const LongWorkspaceNameMobile: Story = {
 		const pillTrigger = within(popover).getByRole("button", {
 			name: /workspace menu/,
 		});
-		// Focus (as a touch tap does) must not surface the status
-		// tooltip on mobile.
+		// Focus (touch tap) must not surface status tooltip on mobile.
 		pillTrigger.focus();
 		for (const el of within(document.body).queryAllByText(
 			"Workspace running",
@@ -1682,8 +1679,7 @@ const expectNotTruncated = (el: HTMLElement) => {
 };
 
 /**
- * A short model name sizes the trigger to its content instead of
- * padding it out to the 8ch floor, even on a crowded mobile toolbar.
+ * A short model name sizes the trigger to its content.
  */
 export const ShortModelNameHasNoDeadSpace: Story = {
 	args: {
@@ -1724,8 +1720,7 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 
 /**
  * With no MCP badges competing for space, long model and workspace
- * names expand to their full width: no truncation and no fixed cap
- * (the workspace pill grows past the previous 200px clamp).
+ * names expand to their full width: no truncation and no fixed cap.
  */
 export const LongLabelsExpandWithoutMCPs: Story = {
 	args: {
@@ -1770,8 +1765,7 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 
 /**
  * When badges overflow into +N, they release their layout space so
- * the model label expands to full width instead of staying pinned at
- * the 8ch floor next to a fake gap.
+ * the model label expands to full width.
  */
 export const ModelExpandsWhileBadgesOverflow: Story = {
 	args: {
