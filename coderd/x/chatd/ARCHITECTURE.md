@@ -564,6 +564,8 @@ No other input states are supported: generating chats get a conflict error, and 
 
 ## Pubsub
 
+<!-- TODO: Document whole-chat summary generation watch events, durable replay markers, terminal failures, and reconnect timeout recovery. -->
+
 The chat worker and the stream loop need real-time notifications when the chat state changes to ensure they are responsive. To achieve this, we use pubsub.
 
 As with the transitions section, I don't recommend reading the rest of this section thoroughly at first. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing the `GET /api/experimental/chats/{chat}/stream` endpoint or the chat worker.
@@ -600,6 +602,8 @@ There are 2 notification channels:
 - Every receiver tracks the highest `snapshot_version` it has processed per chat. Notifications with `snapshot_version` less than or equal to that watermark are discarded.
 
 # Chat worker
+
+<!-- TODO: Document the post-turn whole-chat summary worker lifecycle, concurrency fencing, and cleanup behavior. -->
 
 <!-- TODO(CODAGT-709): Document organization-local model selection and fallback here. -->
 
