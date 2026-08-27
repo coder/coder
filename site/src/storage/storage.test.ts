@@ -220,10 +220,33 @@ describe("storage core", () => {
 		expect(listKey.getSnapshot()).toBe(second);
 	});
 
-	it("hands back the exact reference passed to set", () => {
+	it("returns a stable decoded snapshot after set", () => {
 		const value = ["x"];
 		listKey.set(value);
-		expect(listKey.getSnapshot()).toBe(value);
+		const first = listKey.getSnapshot();
+		expect(first).toEqual(["x"]);
+		expect(listKey.getSnapshot()).toBe(first);
+
+		// Mutating the caller's reference cannot change snapshots or
+		// desync them from the stored bytes.
+		value.push("y");
+		expect(listKey.getSnapshot()).toEqual(["x"]);
+	});
+
+	it("normalizes composite values to their persisted form", () => {
+		const numbersKey = defineStorageKey<number[] | null>({
+			key: "test.numbers",
+			codec: jsonCodec((parsed) =>
+				Array.isArray(parsed) &&
+				parsed.every((item): item is number => typeof item === "number")
+					? parsed
+					: undefined,
+			),
+			defaultValue: null,
+		});
+		numbersKey.set([-0]);
+		expect(localStorage.getItem("test.numbers")).toBe("[0]");
+		expect(Object.is(numbersKey.get()?.[0], 0)).toBe(true);
 	});
 
 	it("scopes snapshot caches to each handle on a shared key", () => {

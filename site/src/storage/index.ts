@@ -307,10 +307,11 @@ const createHandle = <T>(
 			// inspect the result for their own failure handling.
 			return result;
 		}
-		// Objects cache the caller's value so getSnapshot hands the
-		// exact same reference back; primitives cache the decoded form
-		// so live reads match a reload (signed zero persists as "0").
-		cached = { raw, value: typeof value === "object" ? value : decoded };
+		// Cache the decoded form so the live snapshot always matches a
+		// reload (JSON normalizes values like [-0] and drops undefined
+		// properties) and so mutating a retained caller reference cannot
+		// desync snapshots from the stored bytes.
+		cached = { raw, value: decoded };
 		notifyKey(cacheKey);
 		return result;
 	};
