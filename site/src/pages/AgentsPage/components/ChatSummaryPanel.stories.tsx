@@ -71,6 +71,20 @@ const meta: Meta<typeof ChatSummaryPanel> = {
 export default meta;
 type Story = StoryObj<typeof ChatSummaryPanel>;
 
+export const Loading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockImplementation(
+			() => new Promise<TypesGen.Chat>(() => {}),
+		);
+		spyOn(API.experimental, "getChatCost").mockResolvedValue(mockCost);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("Loading summary")).toBeVisible();
+		expect(API.experimental.getChatCost).not.toHaveBeenCalled();
+	},
+};
+
 export const WithSummary: Story = {
 	beforeEach: () =>
 		mockRequests({
@@ -184,9 +198,8 @@ export const GeneratingSummary: Story = {
 	beforeEach: () => mockRequests({ status: "waiting" }),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Generating summary")).toBeInTheDocument();
-		});
+		const status = await canvas.findByRole("status");
+		expect(status).toHaveTextContent("Generating summary");
 		expect(
 			canvas.queryByText("Not enough details to summarize."),
 		).not.toBeInTheDocument();

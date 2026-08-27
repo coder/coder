@@ -56,6 +56,7 @@ import {
 	LEFT_SIDEBAR_STORAGE_KEY,
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
 const defaultModelID = "model-config-1";
 
@@ -1056,9 +1057,14 @@ const watchedChatQueries = (chat: Chat) => [
 	},
 ];
 
-const chatWatchEvent = (kind: TypesGen.ChatWatchEventKind, chat: Chat) => ({
+const chatWatchEvent = (
+	kind: TypesGen.ChatWatchEventKind,
+	chat: Chat,
+	delayMs = 0,
+) => ({
 	event: "message" as const,
 	data: JSON.stringify({ kind, chat } satisfies TypesGen.ChatWatchEvent),
+	delayMs,
 });
 
 const watchedChatPageParameters = (
@@ -1083,6 +1089,49 @@ const mockAgentChatPageAPIs = () => {
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
 	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
+};
+
+export const SummaryWatchEventsUpdateOpenPanel: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("chat_summary_generating", watchedChat(), 500),
+		chatWatchEvent(
+			"chat_summary_change",
+			watchedChat({ summary: "Generated summary from the watch event." }),
+			750,
+		),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(
+			await summary.findByText("Not enough details to summarize."),
+		).toBeVisible();
+
+		const status = await summary.findByRole("status");
+		expect(status).toHaveTextContent("Generating summary");
+		expect(
+			summary.queryByText("Not enough details to summarize."),
+		).not.toBeInTheDocument();
+
+		expect(
+			await summary.findByText("Generated summary from the watch event."),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
 };
 
 export const ArchiveWatchEventKeepsOpenChatMounted: Story = {

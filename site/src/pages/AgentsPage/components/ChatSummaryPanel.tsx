@@ -2,6 +2,7 @@ import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { chat, chatCost } from "#/api/queries/chats";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
 import { ChatSummary } from "./ChatSummary";
@@ -30,7 +31,15 @@ export const ChatSummaryPanel: FC<ChatSummaryPanelProps> = ({
 	});
 
 	let content: ReactNode = null;
-	if (chatQuery.isError) {
+	if (chatQuery.isLoading) {
+		content = (
+			<div className="space-y-4 p-4">
+				<Skeleton aria-label="Loading summary" className="h-4 w-3/4" />
+				<Skeleton aria-hidden className="h-3 w-full" />
+				<Skeleton aria-hidden className="h-3 w-2/3" />
+			</div>
+		);
+	} else if (chatQuery.isError) {
 		content = (
 			<div className="p-4">
 				<ErrorAlert error={chatQuery.error} />

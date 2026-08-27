@@ -88,6 +88,8 @@ type CallbackFn = (ev?: MessageEvent) => void;
 //       "/api/experimental/chats/": [{ event: "message", data: "..." }],
 //       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
 //     }
+//
+// Events may set delayMs to defer delivery after listeners are registered.
 export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	const param = parameters.webSocket;
 
@@ -135,13 +137,16 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 			clearTimeout(this.#callEventsDelay);
 			this.#callEventsDelay = window.setTimeout(() => {
 				for (const entry of events) {
-					const callback = this.#listeners.get(entry.event);
+					const dispatch = () => {
+						const callback = this.#listeners.get(entry.event);
 
-					if (callback) {
-						entry.event === "message"
-							? callback({ data: entry.data })
-							: callback();
-					}
+						if (callback) {
+							entry.event === "message"
+								? callback({ data: entry.data })
+								: callback();
+						}
+					};
+					window.setTimeout(dispatch, entry.delayMs ?? 0);
 				}
 			}, 0);
 		}

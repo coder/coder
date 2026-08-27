@@ -1866,13 +1866,13 @@ const (
 	// ChatWatchEventKindChatSummaryChange carries the persisted whole-chat
 	// summary. It is distinct from SummaryChange (bound to last_turn_summary) so
 	// the frontend updates one field without disturbing the other.
-	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
+	ChatWatchEventKindChatSummaryChange     ChatWatchEventKind = "chat_summary_change"
 	ChatWatchEventKindChatSummaryGenerating ChatWatchEventKind = "chat_summary_generating"
 	ChatWatchEventKindTitleChange           ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
+	ChatWatchEventKindCreated               ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted               ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange      ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired        ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context changed: it drifted from the agent's latest
 	// pushed snapshot, or hydration first populated it (a first-turn

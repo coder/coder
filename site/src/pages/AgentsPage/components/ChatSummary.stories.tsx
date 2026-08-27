@@ -191,7 +191,8 @@ export const GeneratingSummary: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Generating summary")).toBeInTheDocument();
+		const status = canvas.getByRole("status");
+		await expect(status).toHaveTextContent("Generating summary");
 		await expect(
 			canvas.queryByText("Not enough details to summarize."),
 		).not.toBeInTheDocument();

@@ -58,9 +58,11 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 				<ChatSummaryEmpty
 					title={
 						isGenerating ? (
-							<Shimmer as="span" className="text-sm font-medium">
-								Generating summary
-							</Shimmer>
+							<span role="status">
+								<Shimmer as="span" className="text-sm font-medium">
+									Generating summary
+								</Shimmer>
+							</span>
 						) : (
 							EMPTY_SUMMARY_TITLE
 						)
