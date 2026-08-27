@@ -17,9 +17,8 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
-// Clean pin with one invalid resource: the ring flags the resource issue and
-// the popover lists the pinned resources with the failure under Issues.
-export const Clean: Story = {
+// A pinned resource issue flags the ring and appears under Issues.
+export const ResourceIssue: Story = {
 	args: {
 		usage: {
 			usedTokens: 12_000,
@@ -192,8 +191,6 @@ export const Dirty: Story = {
 	play: async ({ canvasElement, args }) => {
 		const button = within(canvasElement).getByRole("button");
 		expect(button).toHaveAccessibleName(/Context changed/);
-		// The dirty fixture also carries an invalid skill; both notes must be
-		// announced because the states coexist.
 		expect(button).toHaveAccessibleName(
 			/Some context resources failed to load/,
 		);

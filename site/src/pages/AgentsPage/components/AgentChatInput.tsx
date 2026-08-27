@@ -1565,7 +1565,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							<div
 								className={cn(
 									"flex",
-									speech.isSupported && !isStreaming && "-ml-2",
+									speech.isSupported &&
+										!isStreaming &&
+										!speech.error &&
+										"-ml-2",
 								)}
 							>
 								<ContextUsageIndicator

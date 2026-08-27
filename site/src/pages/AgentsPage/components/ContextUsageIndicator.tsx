@@ -267,7 +267,7 @@ export const ContextUsageIndicator: FC<{
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
+		: 0;
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -347,7 +347,6 @@ export const ContextUsageIndicator: FC<{
 		hasMcp ||
 		issueItems.length > 0;
 
-	// Ring tone: error wins, then drift or resource issues, then usage.
 	const hasResourceIssues = issueItems.length > 0;
 	const needsAttention = isDirty || hasContextError || hasResourceIssues;
 	const toneClassName = hasContextError
@@ -369,8 +368,6 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
-	// Status notes compose because the states can coexist (a dirty pin can
-	// also carry failed resources); the ring tone shows only the most severe.
 	const statusNotes = [
 		hasContextError ? "Context error." : "",
 		isDirty ? "Context changed." : "",
@@ -651,7 +648,6 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				{/* flex avoids baseline descender space that shifts the ring up. */}
 				<div
 					className="flex"
 					onMouseEnter={handleMouseEnter}
