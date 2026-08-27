@@ -7,6 +7,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { sortByPriority } from "./sortByPriority";
 import { TemplateCard } from "./TemplateCard";
 import { type SelectedBaseMeta, toSelectedBaseMeta } from "./wizardState";
 
@@ -18,6 +19,12 @@ interface BaseInfraSelectStepProps {
 function detailsUrl(baseId: string): string {
 	return `https://registry.coder.com/templates/${baseId}`;
 }
+
+// Preferred display order for base templates. Bases listed here appear first, in
+// this order; unlisted bases follow in the order the API returns them (sorted by
+// display name). Quickstart and Docker are the featured Docker-based starters,
+// mirroring the client-side module prioritization in ModuleSelectStep.
+const BASE_PRIORITY: readonly string[] = ["quickstart", "docker"];
 
 export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 	selectedBaseId,
@@ -33,7 +40,7 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 		return <ErrorAlert error={error} />;
 	}
 
-	const bases = data?.bases ?? [];
+	const bases = sortByPriority(data?.bases ?? [], BASE_PRIORITY);
 
 	return (
 		<div role="radiogroup" aria-label="Base infrastructure templates">

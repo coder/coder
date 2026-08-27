@@ -21,3 +21,11 @@ export const belowMdViewportMediaQuery = "(max-width: 767px)";
 export const isBelowMdViewport = (): boolean => {
 	return window.matchMedia(belowMdViewportMediaQuery).matches;
 };
+
+/**
+ * Matches viewports below the `lg` Tailwind breakpoint (< 1024 px),
+ * aligning with `lg:` utilities that switch between a side-by-side
+ * layout and a single-panel-at-a-time layout (e.g. the Agents chat
+ * page's chat vs. right panel split).
+ */
+export const belowLgViewportMediaQuery = "(max-width: 1023px)";

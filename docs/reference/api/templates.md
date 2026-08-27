@@ -42,6 +42,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
+    "allow_workspace_renames": true,
     "autostart_requirement": {
       "days_of_week": [
         "monday"
@@ -104,19 +105,20 @@ To include deprecated templates, specify `deprecated:true` in the search query.
 
 Status Code **200**
 
-| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                |
-|--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`                       | array                                                                                    | false    |              |                                                                                                                                                                            |
-| `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                               |
-| `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                            |
-| `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                            |
-| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.    |
-| `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                            |
-| `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                    |
-| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature. |
+| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                   |
+|--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                       | array                                                                                    | false    |              |                                                                                                                                                                               |
+| `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                                  |
+| `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                               |
+| `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                               |
+| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.       |
+| `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_workspace_renames`          | boolean                                                                                  | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name. |
+| `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                               |
+| `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                       |
+| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.    |
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
@@ -185,6 +187,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"
@@ -234,6 +237,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"
@@ -388,6 +392,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"
@@ -815,6 +820,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "allow_user_autostart": true,
     "allow_user_autostop": true,
     "allow_user_cancel_workspace_jobs": true,
+    "allow_workspace_renames": true,
     "autostart_requirement": {
       "days_of_week": [
         "monday"
@@ -877,19 +883,20 @@ To include deprecated templates, specify `deprecated:true` in the search query.
 
 Status Code **200**
 
-| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                |
-|--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`                       | array                                                                                    | false    |              |                                                                                                                                                                            |
-| `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                               |
-| `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                            |
-| `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                            |
-| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.    |
-| `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                            |
-| `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                            |
-| `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                    |
-| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature. |
+| Name                                 | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                   |
+|--------------------------------------|------------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                       | array                                                                                    | false    |              |                                                                                                                                                                               |
+| `» active_user_count`                | integer                                                                                  | false    |              | Active user count is set to -1 when loading.                                                                                                                                  |
+| `» active_version_id`                | string(uuid)                                                                             | false    |              |                                                                                                                                                                               |
+| `» activity_bump_ms`                 | integer                                                                                  | false    |              |                                                                                                                                                                               |
+| `» agents_allowed`                   | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_user_autostart`             | boolean                                                                                  | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.       |
+| `» allow_user_autostop`              | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_user_cancel_workspace_jobs` | boolean                                                                                  | false    |              |                                                                                                                                                                               |
+| `» allow_workspace_renames`          | boolean                                                                                  | false    |              | Allow workspace renames permits users to rename workspaces built from this template. Renaming can be destructive for templates whose Terraform references the workspace name. |
+| `» autostart_requirement`            | [codersdk.TemplateAutostartRequirement](schemas.md#codersdktemplateautostartrequirement) | false    |              |                                                                                                                                                                               |
+| `»» days_of_week`                    | array                                                                                    | false    |              | Days of week is a list of days of the week in which autostart is allowed to happen. If no days are specified, autostart is not allowed.                                       |
+| `» autostop_requirement`             | [codersdk.TemplateAutostopRequirement](schemas.md#codersdktemplateautostoprequirement)   | false    |              | Autostop requirement and AutostartRequirement are enterprise features. Its value is only used if your license is entitled to use the advanced template scheduling feature.    |
 |`»» days_of_week`|array|false||Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.
 Restarts will only happen on weekdays in this list on weeks which line up with Weeks.|
 |`»» weeks`|integer|false||Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc.|
@@ -1023,6 +1030,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"
@@ -1149,6 +1157,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"
@@ -1201,6 +1210,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "allow_workspace_renames": true,
   "autostart_requirement": {
     "days_of_week": [
       "monday"

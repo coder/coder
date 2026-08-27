@@ -23,6 +23,116 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
+func TestGroupMemberAISpend(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	effectiveGroupID := uuid.New()
+	everyoneGroupID := uuid.New()
+	tests := []struct {
+		name           string
+		row            database.GetGroupMembersAISpendRow
+		queriedGroupID uuid.UUID
+		want           codersdk.GroupMemberAISpend
+	}{
+		{
+			name: "EffectiveGroupIsQueriedGroup",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:                    userID,
+				EffectiveGroupID:          uuid.NullUUID{UUID: effectiveGroupID, Valid: true},
+				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 2_000_000, Valid: true},
+				EffectiveLimitSource:      sql.NullString{String: "user_override", Valid: true},
+				GroupSpendMicros:          500_000,
+			},
+			queriedGroupID: effectiveGroupID,
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &effectiveGroupID,
+				EffectiveBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 2_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+				},
+				GroupBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 2_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceUserOverride,
+				},
+				GroupSpendMicros: 500_000,
+			},
+		},
+		{
+			name: "EffectiveGroupDiffersFromQueriedGroup",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:                    userID,
+				EffectiveGroupID:          uuid.NullUUID{UUID: effectiveGroupID, Valid: true},
+				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
+				EffectiveLimitSource:      sql.NullString{String: "group", Valid: true},
+				GroupSpendMicros:          250_000,
+			},
+			queriedGroupID: uuid.New(),
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &effectiveGroupID,
+				EffectiveBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 1_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+				},
+				GroupBudget:      nil,
+				GroupSpendMicros: 250_000,
+			},
+		},
+		{
+			name: "BudgetedEveryoneGroupDiffersFromQueriedGroup",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:                    userID,
+				EffectiveGroupID:          uuid.NullUUID{UUID: everyoneGroupID, Valid: true},
+				EffectiveSpendLimitMicros: sql.NullInt64{Int64: 1_000_000, Valid: true},
+				EffectiveLimitSource:      sql.NullString{String: "group", Valid: true},
+			},
+			queriedGroupID: uuid.New(),
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &everyoneGroupID,
+				EffectiveBudget: &codersdk.AIBudgetLimit{
+					SpendLimitMicros: 1_000_000,
+					LimitSource:      codersdk.AIBudgetLimitSourceGroup,
+				},
+				GroupBudget: nil,
+			},
+		},
+		{
+			name: "UnlimitedEveryoneFallback",
+			row: database.GetGroupMembersAISpendRow{
+				UserID:           userID,
+				EffectiveGroupID: uuid.NullUUID{UUID: everyoneGroupID, Valid: true},
+			},
+			queriedGroupID: uuid.New(),
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: &everyoneGroupID,
+				EffectiveBudget:  nil,
+				GroupBudget:      nil,
+			},
+		},
+		{
+			name: "NullFields",
+			row:  database.GetGroupMembersAISpendRow{UserID: userID},
+			want: codersdk.GroupMemberAISpend{
+				UserID:           userID,
+				EffectiveGroupID: nil,
+				EffectiveBudget:  nil,
+				GroupBudget:      nil,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, db2sdk.GroupMemberAISpend(tt.row, tt.queriedGroupID))
+		})
+	}
+}
+
 func TestProvisionerJobStatus(t *testing.T) {
 	t.Parallel()
 
@@ -757,11 +867,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread is populated by ChatRowsWithChildren (which joins the
-	// read-cursor query), not by Chat. Warnings is a transient
-	// field populated by handlers, not the converter. Both are
-	// expected to remain zero here.
-	skip := map[string]bool{"HasUnread": true, "Warnings": true}
+	// These fields are set outside db2sdk.Chat and intentionally remain zero.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true, "QueuedForCapacity": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
@@ -851,6 +958,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 			OrganizationID: orgID,
 			Name:           "screenshot.png",
 			Mimetype:       "image/png",
+			SizeBytes:      1234,
 			CreatedAt:      now,
 		},
 	}
@@ -864,6 +972,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
 	require.Equal(t, "screenshot.png", f.Name)
 	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, int64(1234), f.SizeBytes)
 	require.Equal(t, now, f.CreatedAt)
 
 	// Verify JSON serialization uses snake_case for mime_type.

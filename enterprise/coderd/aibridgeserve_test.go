@@ -267,7 +267,7 @@ func setupActiveAIGatewayServeSession(ctx context.Context, t *testing.T) activeA
 
 	tick := make(chan time.Time, 1)
 	opts := aibridgeOpts(t)
-	opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+	opts.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
 		return tick, func() {}
 	}
 

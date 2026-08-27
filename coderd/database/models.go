@@ -89,6 +89,64 @@ func AllAIBridgeInterceptionErrorTypeValues() []AIBridgeInterceptionErrorType {
 	}
 }
 
+type AIModelPriceSource string
+
+const (
+	AIModelPriceSourceDefault AIModelPriceSource = "default"
+	AIModelPriceSourceCustom  AIModelPriceSource = "custom"
+)
+
+func (e *AIModelPriceSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIModelPriceSource(s)
+	case string:
+		*e = AIModelPriceSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIModelPriceSource: %T", src)
+	}
+	return nil
+}
+
+type NullAIModelPriceSource struct {
+	AIModelPriceSource AIModelPriceSource `json:"ai_model_price_source"`
+	Valid              bool               `json:"valid"` // Valid is true if AIModelPriceSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIModelPriceSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIModelPriceSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIModelPriceSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIModelPriceSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIModelPriceSource), nil
+}
+
+func (e AIModelPriceSource) Valid() bool {
+	switch e {
+	case AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom:
+		return true
+	}
+	return false
+}
+
+func AllAIModelPriceSourceValues() []AIModelPriceSource {
+	return []AIModelPriceSource{
+		AIModelPriceSourceDefault,
+		AIModelPriceSourceCustom,
+	}
+}
+
 type AIProviderType string
 
 const (
@@ -465,6 +523,18 @@ const (
 	ApiKeyScopeWorkspaceBuildOrchestrationDelete   APIKeyScope = "workspace_build_orchestration:delete"
 	ApiKeyScopeWorkspaceBuildOrchestrationRead     APIKeyScope = "workspace_build_orchestration:read"
 	ApiKeyScopeWorkspaceBuildOrchestrationUpdate   APIKeyScope = "workspace_build_orchestration:update"
+	ApiKeyScopeMcpServerConfig                     APIKeyScope = "mcp_server_config:*"
+	ApiKeyScopeMcpServerConfigCreate               APIKeyScope = "mcp_server_config:create"
+	ApiKeyScopeMcpServerConfigRead                 APIKeyScope = "mcp_server_config:read"
+	ApiKeyScopeMcpServerConfigUpdate               APIKeyScope = "mcp_server_config:update"
+	ApiKeyScopeMcpServerConfigDelete               APIKeyScope = "mcp_server_config:delete"
+	ApiKeyScopeMcpServerConfigShare                APIKeyScope = "mcp_server_config:share"
+	ApiKeyScopeChatModelConfig                     APIKeyScope = "chat_model_config:*"
+	ApiKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
+	ApiKeyScopeChatModelConfigRead                 APIKeyScope = "chat_model_config:read"
+	ApiKeyScopeChatModelConfigUpdate               APIKeyScope = "chat_model_config:update"
+	ApiKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
+	ApiKeyScopeChatModelConfigShare                APIKeyScope = "chat_model_config:share"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -739,7 +809,19 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeWorkspaceBuildOrchestrationCreate,
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
-		ApiKeyScopeWorkspaceBuildOrchestrationUpdate:
+		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare:
 		return true
 	}
 	return false
@@ -983,6 +1065,18 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeWorkspaceBuildOrchestrationDelete,
 		ApiKeyScopeWorkspaceBuildOrchestrationRead,
 		ApiKeyScopeWorkspaceBuildOrchestrationUpdate,
+		ApiKeyScopeMcpServerConfig,
+		ApiKeyScopeMcpServerConfigCreate,
+		ApiKeyScopeMcpServerConfigRead,
+		ApiKeyScopeMcpServerConfigUpdate,
+		ApiKeyScopeMcpServerConfigDelete,
+		ApiKeyScopeMcpServerConfigShare,
+		ApiKeyScopeChatModelConfig,
+		ApiKeyScopeChatModelConfigCreate,
+		ApiKeyScopeChatModelConfigRead,
+		ApiKeyScopeChatModelConfigUpdate,
+		ApiKeyScopeChatModelConfigDelete,
+		ApiKeyScopeChatModelConfigShare,
 	}
 }
 
@@ -1471,6 +1565,64 @@ func AllChatMessageRoleValues() []ChatMessageRole {
 		ChatMessageRoleUser,
 		ChatMessageRoleAssistant,
 		ChatMessageRoleTool,
+	}
+}
+
+type ChatMessageSearchTsvConfig string
+
+const (
+	ChatMessageSearchTsvConfigSimple  ChatMessageSearchTsvConfig = "simple"
+	ChatMessageSearchTsvConfigEnglish ChatMessageSearchTsvConfig = "english"
+)
+
+func (e *ChatMessageSearchTsvConfig) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageSearchTsvConfig(s)
+	case string:
+		*e = ChatMessageSearchTsvConfig(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageSearchTsvConfig: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageSearchTsvConfig struct {
+	ChatMessageSearchTsvConfig ChatMessageSearchTsvConfig `json:"chat_message_search_tsv_config"`
+	Valid                      bool                       `json:"valid"` // Valid is true if ChatMessageSearchTsvConfig is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageSearchTsvConfig) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageSearchTsvConfig, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageSearchTsvConfig.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageSearchTsvConfig) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageSearchTsvConfig), nil
+}
+
+func (e ChatMessageSearchTsvConfig) Valid() bool {
+	switch e {
+	case ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageSearchTsvConfigValues() []ChatMessageSearchTsvConfig {
+	return []ChatMessageSearchTsvConfig{
+		ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish,
 	}
 }
 
@@ -2043,6 +2195,7 @@ const (
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
+	CryptoKeyFeatureChatFilesToken      CryptoKeyFeature = "chat_files_token"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -2086,7 +2239,8 @@ func (e CryptoKeyFeature) Valid() bool {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
-		CryptoKeyFeatureNATSCA:
+		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken:
 		return true
 	}
 	return false
@@ -2099,6 +2253,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 		CryptoKeyFeatureNATSCA,
+		CryptoKeyFeatureChatFilesToken,
 	}
 }
 
@@ -3532,6 +3687,10 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
+	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
+	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
+	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3606,7 +3765,11 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
-		ResourceTypeOauth2ProviderSettings:
+		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3650,6 +3813,10 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeChatInstructionSettings,
+		ResourceTypeMCPServerConfig,
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 
@@ -4800,6 +4967,8 @@ type AIModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+	// Where the price came from: default for the embedded price book, custom for a price set through the API. Both can exist for the same model.
+	Source AIModelPriceSource `db:"source" json:"source"`
 }
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
@@ -5133,6 +5302,8 @@ type ChatMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
+	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 type ChatModelConfig struct {
@@ -5151,6 +5322,17 @@ type ChatModelConfig struct {
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
+	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
+	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
+}
+
+type ChatOrganizationModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatQueuedMessage struct {
@@ -5230,6 +5412,16 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUserModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	Mode            string         `db:"mode" json:"mode"`
+	ModelConfigID   uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ConnectionLog struct {
@@ -5316,6 +5508,8 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	// Indicates a replica is refreshing the token; prevents concurrent refreshes.
+	RefreshLeaseExpiresAt sql.NullTime `db:"refresh_lease_expires_at" json:"refresh_lease_expires_at"`
 }
 
 type File struct {
@@ -5449,6 +5643,9 @@ type MCPServerConfig struct {
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
 	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	OrganizationID          uuid.UUID      `db:"organization_id" json:"organization_id"`
+	GroupACL                ChatACL        `db:"group_acl" json:"group_acl"`
+	UserACL                 ChatACL        `db:"user_acl" json:"user_acl"`
 }
 
 type MCPServerUserToken struct {
@@ -5915,6 +6112,7 @@ type Template struct {
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5969,6 +6167,8 @@ type TemplateTable struct {
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	// Whether Coder Agents can create workspaces using this template.
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
+	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
+	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

@@ -115,7 +115,91 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
+		viewMCPServerConfigs: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		createMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		updateMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
+		shareMCPServerConfig: {
+			object: {
+				resource_type: "mcp_server_config",
+				organization_id: organizationId,
+			},
+			action: "share",
+		},
+		viewChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "read",
+		},
+		createChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "create",
+		},
+		editChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
+		deleteChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "delete",
+		},
+		shareChatModelConfigs: {
+			object: {
+				resource_type: "chat_model_config",
+				organization_id: organizationId,
+			},
+			action: "share",
+		},
 	}) as const satisfies Record<string, AuthorizationCheck>;
+
+/**
+ * Checks if the user can access chat model settings for the organization that
+ * produced the given OrganizationPermissions.
+ */
+export const canAccessOrganizationChatModelConfig = (
+	permissions: OrganizationPermissions | undefined,
+): permissions is OrganizationPermissions =>
+	permissions !== undefined &&
+	(permissions.viewChatModelConfigs ||
+		permissions.createChatModelConfigs ||
+		permissions.editChatModelConfigs ||
+		permissions.deleteChatModelConfigs ||
+		permissions.shareChatModelConfigs);
 
 /**
  * Checks if the user can view or edit members or groups for the organization

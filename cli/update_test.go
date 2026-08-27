@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -416,7 +415,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 	)
 
 	numberRichParameters := []*proto.RichParameter{
-		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: ptr.Ref(int32(3)), ValidationMax: ptr.Ref(int32(10))},
+		{Name: numberParameterName, Type: "number", Mutable: true, ValidationMin: new(int32(3)), ValidationMax: new(int32(10))},
 	}
 
 	stringRichParameters := []*proto.RichParameter{
@@ -830,7 +829,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, prepareEchoResponses(templateParameters))
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
-			request.UseClassicParameterFlow = ptr.Ref(true) // TODO: Remove when dynamic parameters can pass this test
+			request.UseClassicParameterFlow = new(true) // TODO: Remove when dynamic parameters can pass this test
 		})
 
 		// Create new workspace

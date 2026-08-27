@@ -255,8 +255,11 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 	const {
 		icon: StatusIcon,
 		className: statusClassName,
+		label: statusLabel,
+		prIcon,
 		diffStatus,
 	} = getChatDisplayConfig(chat);
+	const PRIcon = prIcon?.icon;
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
 	const changedFiles = diffStatus?.changed_files ?? 0;
@@ -285,12 +288,23 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 				isSelected && "bg-surface-tertiary/40 text-content-primary",
 			)}
 		>
-			<StatusIcon className={cn("mt-1 size-3.5 shrink-0", statusClassName)} />
+			<StatusIcon
+				role="img"
+				aria-label={statusLabel}
+				className={cn("mt-1 size-3.5 shrink-0", statusClassName)}
+			/>
 			<div className="min-w-0">
 				<div className="truncate text-sm text-content-primary">
 					{chat.title}
 				</div>
 				<div className="flex min-w-0 items-center gap-1.5 text-xs">
+					{PRIcon && prIcon && (
+						<PRIcon
+							role="img"
+							aria-label={prIcon.label}
+							className={cn("size-3.5 shrink-0", prIcon.className)}
+						/>
+					)}
 					{hasLineStats && (
 						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
 							<span className="text-git-added-bright">+{additions}</span>

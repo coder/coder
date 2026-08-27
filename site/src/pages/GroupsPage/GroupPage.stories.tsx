@@ -43,6 +43,7 @@ import {
 } from "#/testHelpers/storybook";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
+import GroupSettingsPage from "./GroupSettingsPage";
 
 const meta: Meta<typeof GroupPage> = {
 	title: "pages/OrganizationGroupsPage/GroupPage",
@@ -208,6 +209,47 @@ export const NoUpdatePermission: Story = {
 	},
 };
 
+/**
+ * The settings page is reachable by direct URL even when the settings tab is
+ * hidden. Without group:update, it must render the permission dialog instead
+ * of the editable form.
+ */
+export const SettingsWithoutUpdatePermission: Story = {
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					organization: MockDefaultOrganization.name,
+					groupName: MockGroupWithoutMembers.name,
+				},
+			},
+			routing: reactRouterOutlet(
+				{ path: "/organizations/:organization/groups/:groupName/settings" },
+				<GroupSettingsPage />,
+			),
+		}),
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: MockGroup.members,
+				count: MockGroup.members.length,
+			}),
+			permissionsQuery({ canUpdateGroup: false }),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(document.body);
+		await expect(
+			await body.findByText("You don't have permission to view this page"),
+		).toBeInTheDocument();
+		// The editable budget/name form is never rendered.
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const EveryoneGroup: Story = {
 	parameters: {
 		queries: [
@@ -293,6 +335,10 @@ export const FiltersByMembers: Story = {
 const mockSpend: GroupMemberAISpend = {
 	user_id: "",
 	effective_group_id: MockGroupWithoutMembers.id,
+	effective_budget: {
+		spend_limit_micros: 9_000_000_000,
+		limit_source: "group",
+	},
 	group_budget: { spend_limit_micros: 9_000_000_000, limit_source: "group" },
 	group_spend_micros: 1_345_000_000,
 };
@@ -397,7 +443,7 @@ export const WithoutMemberAIBudgetColumn: Story = {
 	},
 };
 
-export const AIBudgetActionDisabledForOtherGroup: Story = {
+export const AIBudgetActionEnabledForOtherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
 		queries: [
@@ -447,7 +493,7 @@ export const AIBudgetActionDisabledForOtherGroup: Story = {
 		const menuItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
 		});
-		await expect(menuItem).toHaveAttribute("aria-disabled", "true");
+		await expect(menuItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };
 
@@ -466,6 +512,7 @@ export const WithMemberAIBudgetInAnotherOrg: Story = {
 					...mockSpend,
 					user_id: MockUserOwner.id,
 					effective_group_id: null,
+					effective_budget: null,
 					group_budget: null,
 				},
 			]),
@@ -523,6 +570,10 @@ const mockOwnerSpend: GroupMemberAISpend = {
 
 const mockOwnerOverrideSpend: GroupMemberAISpend = {
 	...mockOwnerSpend,
+	effective_budget: {
+		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
+		limit_source: "user_override",
+	},
 	group_budget: {
 		spend_limit_micros: mockUserBudgetOverride.spend_limit_micros,
 		limit_source: "user_override",
@@ -786,6 +837,7 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-none",
+		effective_budget: { spend_limit_micros: 0, limit_source: "group" },
 		group_budget: { spend_limit_micros: 0, limit_source: "group" },
 		group_spend_micros: 0,
 		effective_group_id: MockGroupWithoutMembers.organization_id,
@@ -793,6 +845,7 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-unlimited",
+		effective_budget: null,
 		group_budget: null,
 		group_spend_micros: 0,
 		effective_group_id: MockGroupWithoutMembers.organization_id,
@@ -806,12 +859,20 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-regular",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 3_235_000_000,
 	},
 	{
 		...mockSpend,
 		user_id: "member-custom",
+		effective_budget: {
+			spend_limit_micros: 9_000_000_000,
+			limit_source: "user_override",
+		},
 		group_budget: {
 			spend_limit_micros: 9_000_000_000,
 			limit_source: "user_override",
@@ -821,12 +882,20 @@ const showcaseSpends: GroupMemberAISpend[] = [
 	{
 		...mockSpend,
 		user_id: "member-near",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 6_735_000_000,
 	},
 	{
 		...mockSpend,
 		user_id: "member-over",
+		effective_budget: {
+			spend_limit_micros: 7_000_000_000,
+			limit_source: "group",
+		},
 		group_budget: { spend_limit_micros: 7_000_000_000, limit_source: "group" },
 		group_spend_micros: 7_200_000_000,
 	},
@@ -887,14 +956,14 @@ export const AIBudgetShowcase: Story = {
 		await expect(manageItem).not.toHaveAttribute("aria-disabled", "true");
 		await userEvent.keyboard("{Escape}");
 
-		// Another named group does disable it.
+		// Another group in the same organization keeps the action enabled.
 		const otherGroupMenu = await canvas.findAllByRole("button", {
 			name: "Open menu",
 		});
 		await userEvent.click(otherGroupMenu[7]);
-		const disabledItem = await body.findByRole("menuitem", {
+		const otherGroupItem = await body.findByRole("menuitem", {
 			name: "Manage AI budget",
 		});
-		await expect(disabledItem).toHaveAttribute("aria-disabled", "true");
+		await expect(otherGroupItem).not.toHaveAttribute("aria-disabled", "true");
 	},
 };

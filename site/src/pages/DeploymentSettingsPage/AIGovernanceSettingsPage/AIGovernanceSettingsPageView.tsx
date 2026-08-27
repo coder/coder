@@ -2,13 +2,13 @@ import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { PaywallAIGovernance } from "#/components/Paywall/PaywallAIGovernance";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -29,16 +29,13 @@ export const AIGovernanceSettingsPageView: FC<
 			</SettingsHeader>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-gateway")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						AI Gateway
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitor and manage AI requests across your deployment.
+						Monitor and manage AI requests across your deployment.{" "}
+						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -66,7 +63,7 @@ export const AIGovernanceSettingsPageView: FC<
 						/>
 					</>
 				) : (
-					<PaywallAIGovernance />
+					<PremiumPaywallAIGovernance source="ai_governance" />
 				)}
 			</div>
 		</div>

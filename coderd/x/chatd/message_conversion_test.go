@@ -100,9 +100,85 @@ func TestBuildCommitStepMessages_LocalToolResultsBecomeToolMessages(t *testing.T
 	require.JSONEq(t, `{"stdout":"/tmp"}`, string(toolParts[0].Result))
 }
 
-// A step with no model invocation (a local tool execution batch) must
-// persist runtime_ms NULL: its wall time is not billable.
-func TestBuildCommitStepMessages_ZeroRuntimeLeavesRuntimeNull(t *testing.T) {
+func TestBuildCommitStepMessages_BatchRuntimeBillsDedicatedUsageRow(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID: "call-1",
+					ToolName:   "read_file",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"data":"fast"}`},
+				},
+				fantasy.ToolResultContent{
+					ToolCallID: "call-2",
+					ToolName:   "execute",
+					Result:     fantasy.ToolResultOutputContentText{Text: `{"stdout":"/tmp"}`},
+				},
+			},
+			BatchRuntime:     10 * time.Second,
+			BatchBilledCalls: 2,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+	// Real tool results never carry batch-level runtime.
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
+
+	stamp := got.Messages[2]
+	require.Equal(t, database.ChatMessageRoleTool, stamp.Role)
+	require.Equal(t, database.ChatMessageVisibilityModel, stamp.Visibility)
+	require.Equal(t, sql.NullInt64{Int64: 10000, Valid: true}, stamp.RuntimeMs)
+	stampParts, err := chatprompt.ParseContent(database.ChatMessage{
+		Role:           stamp.Role,
+		Content:        stamp.Content,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.NoError(t, err)
+	require.Len(t, stampParts, 1)
+	require.Equal(t, toolBatchUsagePartType, stampParts[0].Type)
+	require.JSONEq(t, `{"billed_ms":10000,"billed_calls":2}`, string(stampParts[0].Result))
+	// The usage record is model-only bookkeeping, never published to
+	// clients.
+	require.Equal(t, []int{0, 1}, got.VisibleIndexes)
+}
+
+func TestBuildCommitStepMessages_BatchAttachmentAssistantRowStaysNull(t *testing.T) {
+	t.Parallel()
+
+	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{
+		modelConfigID:  uuid.New(),
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         slog.Make(),
+		step: stepData{
+			Content: []fantasy.Content{
+				fantasy.ToolResultContent{
+					ToolCallID:     "call-1",
+					ToolName:       "attach_file",
+					Result:         fantasy.ToolResultOutputContentText{Text: `{"ok":true}`},
+					ClientMetadata: `{"attachments":[{"file_id":"` + uuid.NewString() + `","media_type":"image/png","name":"shot.png"}]}`,
+				},
+			},
+			BatchRuntime:     3 * time.Second,
+			BatchBilledCalls: 1,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 3)
+	require.Equal(t, database.ChatMessageRoleAssistant, got.Messages[0].Role)
+	require.False(t, got.Messages[0].RuntimeMs.Valid)
+	require.Equal(t, database.ChatMessageRoleTool, got.Messages[1].Role)
+	require.False(t, got.Messages[1].RuntimeMs.Valid)
+	require.Equal(t, database.ChatMessageVisibilityModel, got.Messages[2].Visibility)
+	require.Equal(t, sql.NullInt64{Int64: 3000, Valid: true}, got.Messages[2].RuntimeMs)
+}
+
+func TestBuildCommitStepMessages_ZeroBatchRuntimeLeavesRuntimeNull(t *testing.T) {
 	t.Parallel()
 
 	got, err := buildCommitStepMessages(buildCommitStepMessagesInput{

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	customNotificationTemplatesKey,
 	notificationDispatchMethodsKey,
@@ -10,6 +10,7 @@ import {
 	MockNotificationMethodsResponse,
 	MockSystemNotificationTemplates,
 } from "#/testHelpers/entities";
+import { docs } from "#/utils/docs";
 import NotificationsPage from "./NotificationsPage";
 import { baseMeta } from "./storybookUtils";
 
@@ -64,6 +65,20 @@ export const LoadingDispatchMethods: Story = {
 export const Events: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const docsLinks = canvas.getAllByRole("link", { name: /View docs/ });
+		await expect(docsLinks).toHaveLength(3);
+		await expect(docsLinks[0]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring/notifications"),
+		);
+		await expect(docsLinks[1]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring/notifications#webhook"),
+		);
+		await expect(docsLinks[2]).toHaveAttribute(
+			"href",
+			docs("/admin/monitoring/notifications#smtp-email"),
+		);
 
 		// System notification templates
 		await canvas.findByText("Template Events");

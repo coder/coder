@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
 import MCPServersPageView from "./MCPServersPageView";
 import {
 	MockCoderMCPServer,
@@ -21,6 +25,11 @@ const meta: Meta<typeof MCPServersPageView> = {
 			MockImageMCPServer,
 			MockMemoryMCPServer,
 		],
+		organizations: [MockDefaultOrganization],
+		organization: MockDefaultOrganization,
+		addOrganization: MockDefaultOrganization,
+		canOpenServer: true,
+		onSelectOrganization: fn(),
 	},
 	parameters: {
 		// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
@@ -49,8 +58,9 @@ export const Default: Story = {
 		await expect(canvas.getByText("GitHub")).toBeInTheDocument();
 		await expect(canvas.getByText("Image")).toBeInTheDocument();
 		await expect(canvas.getByText("API key")).toBeInTheDocument();
-		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		const disabledRow = canvas.getByRole("button", { name: /Image/i });
+		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
 	},
 };
 
@@ -70,6 +80,22 @@ export const Empty: Story = {
 		await expect(
 			canvas.getByText("No MCP servers configured"),
 		).toBeInTheDocument();
+	},
+};
+
+export const MultipleOrganizations: Story = {
+	args: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const picker = canvas.getByRole("button", {
+			name: `Organization ${MockDefaultOrganization.display_name}`,
+		});
+		await expect(picker).toBeVisible();
+		await expect(picker).toHaveTextContent(
+			MockDefaultOrganization.display_name,
+		);
 	},
 };
 

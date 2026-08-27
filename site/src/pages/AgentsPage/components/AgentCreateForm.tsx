@@ -2,6 +2,12 @@ import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { chatProviderConfigs } from "#/api/queries/aiProviders";
+import {
+	chatModels,
+	mcpServerConfigs,
+	userChatPersonalModelOverrides,
+} from "#/api/queries/chats";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
@@ -12,10 +18,13 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
+	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
-	hasConfiguredModelsInCatalog,
+	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	resolveModelSelector,
 } from "../utils/modelOptions";
 import {
 	getReasoningEffortForModel,
@@ -29,7 +38,6 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "./ChatConversation/chatError";
 import { getErrorTitle } from "./ChatConversation/chatStatusHelpers";
-import type { ModelSelectorOption } from "./ChatElements";
 import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
@@ -40,10 +48,11 @@ import { getModelSelectorHelp } from "./ModelSelectorHelp";
 
 /** @internal Exported for testing. */
 export const emptyInputStorageKey = "agents.empty-input";
+/** @internal Exported for testing. */
+export const selectedOrganizationIdStorageKey =
+	"agents.selected-organization-id";
 const selectedWorkspaceIdStorageKey = "agents.selected-workspace-id";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
-
-type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
 	message: string;
@@ -127,20 +136,8 @@ interface AgentCreateFormProps {
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
-	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
-	modelOptions: readonly ChatModelOption[];
 	canConfigureAgentSetup: boolean;
-	providerCount?: number;
-	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
 	aiGatewayDisabled?: boolean;
-	isModelCatalogLoading: boolean;
-	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	isModelConfigsLoading: boolean;
-	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
-	isPersonalModelOverridesLoading?: boolean;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	workspacesError: unknown;
@@ -153,20 +150,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	isCreating,
 	createError,
 	canCreateChat,
-	modelCatalog,
-	modelOptions,
 	canConfigureAgentSetup,
-	providerCount,
-	modelCount,
-	unsupportedProviderNames,
 	aiGatewayDisabled,
-	modelConfigs,
-	isModelCatalogLoading,
-	isModelConfigsLoading,
-	rootPersonalModelOverride,
-	isPersonalModelOverridesLoading = false,
-	mcpServers,
-	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
 	workspaceOptions,
 	workspacesError,
@@ -183,6 +168,153 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
+	// effectiveWorkspaceId nulls a stored selection outside the effective org's
+	// filtered workspace list without deleting it. Preserve the stored value
+	// because the permitted-organizations query may resolve after mount and
+	// change the effective org.
+	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
+	);
+	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
+		() => {
+			const storedOrganizationId = localStorage.getItem(
+				selectedOrganizationIdStorageKey,
+			);
+			return (
+				organizations.find(
+					(organization) => organization.id === storedOrganizationId,
+				) ?? null
+			);
+		},
+	);
+	const [pendingOrgChange, setPendingOrgChange] =
+		useState<TypesGen.Organization | null>(null);
+	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
+		null,
+	);
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			// "me" resolves to the caller ID for owner-scoped permissions.
+			object: { resource_type: "chat", owner_id: "me" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	// Disabled queries retain cached data. When the dashboard hides organization
+	// selection, its organization list is authoritative so a removed org cannot
+	// remain selected for submission.
+	const permittedOrgs = showOrganizations
+		? (permittedOrgsQuery.data ?? [])
+		: organizations;
+	// Treat the dashboard org as provisional until permissions resolve so
+	// sends and persisted attachments cannot use an unpermitted org.
+	const orgSelectionSettled =
+		!showOrganizations || permittedOrgsQuery.data !== undefined;
+	// Keep an authoritative empty permission set distinct from pending data.
+	const noPermittedOrgs =
+		showOrganizations && permittedOrgsQuery.data?.length === 0;
+	const selectedOrgIsPermitted =
+		selectedOrg !== null &&
+		permittedOrgs.some((org) => org.id === selectedOrg.id);
+	// Clear invalid selections during render so re-permission cannot silently
+	// restore them and switch attachment state. effectiveOrg already ignores
+	// the invalid selection in this render.
+	if (selectedOrg && orgSelectionSettled && !selectedOrgIsPermitted) {
+		setSelectedOrg(null);
+	}
+	// Same rule for a pending change awaiting confirmation: closing the
+	// dialog prevents confirming into an org that was just revoked.
+	if (
+		pendingOrgChange &&
+		orgSelectionSettled &&
+		!permittedOrgs.some((org) => org.id === pendingOrgChange.id)
+	) {
+		setPendingOrgChange(null);
+	}
+	const effectiveOrg =
+		selectedOrg && selectedOrgIsPermitted
+			? selectedOrg
+			: (permittedOrgs.find((org) => org.is_default) ??
+				permittedOrgs[0] ??
+				null);
+	const organizationId = effectiveOrg?.id ?? "";
+	const mcpServersQuery = useQuery({
+		...mcpServerConfigs(organizationId),
+		enabled: Boolean(organizationId),
+	});
+	const mcpServers = mcpServersQuery.data ?? [];
+	// Sending before the MCP list resolves would silently drop default-on
+	// selections. Gate on missing data, not isSuccess: a failed background
+	// refetch flips isSuccess off while cached data stays usable.
+	const isMCPSelectionUnresolved =
+		Boolean(organizationId) && mcpServersQuery.data === undefined;
+	// Adopt a permitted fallback so later refetches cannot switch the form to a
+	// re-permitted default. The permission guard also avoids a render loop.
+	if (
+		orgSelectionSettled &&
+		!selectedOrg &&
+		effectiveOrg &&
+		permittedOrgs.some((org) => org.id === effectiveOrg.id)
+	) {
+		setSelectedOrg(effectiveOrg);
+	}
+	// Clear a workspace after a settled org change, before its localStorage value
+	// is cleared post-commit. An empty permission set has no selectable org, so
+	// preserve the workspace until its org is re-permitted.
+	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
+	if (
+		orgSelectionSettled &&
+		!noPermittedOrgs &&
+		organizationId !== lastSettledOrgId
+	) {
+		setLastSettledOrgId(organizationId);
+		if (lastSettledOrgId !== null) {
+			setSelectedWorkspaceId(null);
+			setUserMCPServerIds(null);
+		}
+	}
+	useEffect(() => {
+		if (!orgSelectionSettled) {
+			return;
+		}
+		if (selectedOrg) {
+			localStorage.setItem(selectedOrganizationIdStorageKey, selectedOrg.id);
+		} else {
+			localStorage.removeItem(selectedOrganizationIdStorageKey);
+		}
+	}, [orgSelectionSettled, selectedOrg]);
+	useEffect(() => {
+		if (selectedWorkspaceId === null) {
+			localStorage.removeItem(selectedWorkspaceIdStorageKey);
+		}
+	}, [selectedWorkspaceId]);
+	const modelsQuery = useQuery(chatModels(organizationId));
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const organizationRootPersonalModelOverride = personalModelOverridesQuery.data
+		?.enabled
+		? personalModelOverridesQuery.data.root
+		: undefined;
+	const effectiveRootPersonalModelOverride =
+		organizationRootPersonalModelOverride;
+	// A failed overrides fetch must keep the form blocked: submitting with an
+	// undefined override would send a catalog fallback as an explicit
+	// model_config_id, silently bypassing the user's saved root override.
+	const isPersonalModelOverridesUnresolved =
+		organizationId !== "" && personalModelOverridesQuery.data === undefined;
+	const availableModelConfigs = modelsQuery.data?.models ?? [];
+	const chatProviderConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: canConfigureAgentSetup,
+	});
+	const {
+		options: modelOptions,
+		isModelCatalogLoading,
+		modelCatalog,
+		hasConfiguredModels,
+	} = resolveModelSelector(organizationId, modelsQuery);
+	const modelConfigs = availableModelConfigs;
 	/*
 	 * Model precedence: user click > root override (specific model) > root
 	 * override (chat_default, resolved) > last-used > default > first available.
@@ -192,31 +324,25 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		modelOptions.some((option) => option.id === initialLastModelConfigID)
 			? initialLastModelConfigID
 			: "";
-	const defaultModelID = (() => {
-		const defaultModelConfig = Array.isArray(modelConfigs)
-			? modelConfigs.find((config) => config.is_default)
-			: undefined;
-		if (!defaultModelConfig) {
-			return "";
-		}
-		return modelOptions.some((option) => option.id === defaultModelConfig.id)
-			? defaultModelConfig.id
-			: "";
-	})();
+	const defaultModelID = getUsableDefaultModelIDForOrganization(
+		modelConfigs,
+		modelOptions,
+		organizationId,
+	);
 	const isUsableRootPersonalOverride =
-		rootPersonalModelOverride?.is_set === true &&
-		!rootPersonalModelOverride.is_malformed;
+		effectiveRootPersonalModelOverride?.is_set === true;
 	const rootOverrideModelID =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "model" &&
+		effectiveRootPersonalModelOverride.mode === "model" &&
 		modelOptions.some(
-			(option) => option.id === rootPersonalModelOverride.model_config_id,
+			(option) =>
+				option.id === effectiveRootPersonalModelOverride.model_config_id,
 		)
-			? rootPersonalModelOverride.model_config_id
+			? effectiveRootPersonalModelOverride.model_config_id
 			: "";
 	const isRootOverrideChatDefault =
 		isUsableRootPersonalOverride &&
-		rootPersonalModelOverride.mode === "chat_default";
+		effectiveRootPersonalModelOverride.mode === "chat_default";
 	const rootOverrideDisplayModelID = isRootOverrideChatDefault
 		? defaultModelID || (modelOptions[0]?.id ?? "")
 		: rootOverrideModelID;
@@ -253,7 +379,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// override applies to its own model even after a manual re-select.
 	const rootOverrideReasoningEffort =
 		selectedModel === rootOverrideModelID
-			? rootPersonalModelOverride?.reasoning_effort
+			? effectiveRootPersonalModelOverride?.reasoning_effort
 			: undefined;
 	const persistedReasoningEffort = (() => {
 		const stored = getReasoningEffortForModel(selectedModel);
@@ -269,144 +395,50 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 				selectedModelOption.reasoningEffortDefault,
 			)
 		: undefined;
-	const initialOrg =
-		organizations.find((o) => o.is_default) ?? organizations[0];
-	// effectiveWorkspaceId nulls a stored selection outside the effective org's
-	// filtered workspace list without deleting it. Preserve the stored value
-	// because the permitted-organizations query may resolve after mount and
-	// change the effective org.
-	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
-		() => localStorage.getItem(selectedWorkspaceIdStorageKey),
-	);
-	const [selectedOrg, setSelectedOrg] = useState<TypesGen.Organization | null>(
-		null,
-	);
-	const [pendingOrgChange, setPendingOrgChange] =
-		useState<TypesGen.Organization | null>(null);
-	const permittedOrgsQuery = useQuery({
-		...permittedOrganizations({
-			// agents-access grants chat:create only at member scope. "me" is
-			// replaced with the caller ID so that permission can match.
-			object: { resource_type: "chat", owner_id: "me" },
-			action: "create",
-		}),
-		enabled: showOrganizations,
-	});
-	// Disabled queries retain cached data. When the dashboard hides organization
-	// selection, its organization list is authoritative so a removed org cannot
-	// remain selected for submission.
-	const permittedOrgs = showOrganizations
-		? (permittedOrgsQuery.data ?? organizations)
-		: organizations;
-	// Treat the dashboard org as provisional until permissions resolve so
-	// sends and persisted attachments cannot use an unpermitted org.
-	const orgSelectionSettled =
-		!showOrganizations || permittedOrgsQuery.data !== undefined;
-	// Prevent effectiveOrg's dashboard fallback from bypassing an empty
-	// permitted set.
-	const noPermittedOrgs =
-		showOrganizations && permittedOrgsQuery.data?.length === 0;
-	const selectedOrgIsPermitted =
-		selectedOrg !== null &&
-		permittedOrgs.some((org) => org.id === selectedOrg.id);
-	// Clear invalid selections during render so re-permission cannot silently
-	// restore them and switch attachment state. effectiveOrg already ignores
-	// the invalid selection in this render.
-	if (selectedOrg && orgSelectionSettled && !selectedOrgIsPermitted) {
-		setSelectedOrg(null);
-	}
-	// Same rule for a pending change awaiting confirmation: closing the
-	// dialog prevents confirming into an org that was just revoked.
-	if (
-		pendingOrgChange &&
-		orgSelectionSettled &&
-		!permittedOrgs.some((org) => org.id === pendingOrgChange.id)
-	) {
-		setPendingOrgChange(null);
-	}
-	const effectiveOrg =
-		selectedOrg && selectedOrgIsPermitted
-			? selectedOrg
-			: (permittedOrgs.find((org) => org.is_default) ??
-				permittedOrgs[0] ??
-				initialOrg ??
-				null);
-	const organizationId = effectiveOrg?.id ?? "";
-	// Adopt a permitted fallback so later refetches cannot switch the form to a
-	// re-permitted default. The permission guard also avoids a render loop.
-	if (
-		orgSelectionSettled &&
-		!selectedOrg &&
-		effectiveOrg &&
-		permittedOrgs.some((org) => org.id === effectiveOrg.id)
-	) {
-		setSelectedOrg(effectiveOrg);
-	}
-	// Clear a workspace after a settled org change, before its localStorage value
-	// is cleared post-commit. An empty permission set has no selectable org, so
-	// preserve the workspace until its org is re-permitted.
-	const [lastSettledOrgId, setLastSettledOrgId] = useState<string | null>(null);
-	if (
-		orgSelectionSettled &&
-		!noPermittedOrgs &&
-		organizationId !== lastSettledOrgId
-	) {
-		setLastSettledOrgId(organizationId);
-		if (lastSettledOrgId !== null) {
-			setSelectedWorkspaceId(null);
-		}
-	}
-	useEffect(() => {
-		if (selectedWorkspaceId === null) {
-			localStorage.removeItem(selectedWorkspaceIdStorageKey);
-		}
-	}, [selectedWorkspaceId]);
 	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
-	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	// Treat the unsettled-organization window as pending so the model selector
+	// keeps its loading state instead of flashing the provisional organization's
+	// catalog before permissions resolve.
+	const isModelDataPending = !orgSelectionSettled || isModelCatalogLoading;
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	useEffect(() => {
-		if (!initialLastModelConfigID) {
-			return;
-		}
-		if (isModelCatalogLoading || isModelConfigsLoading) {
-			return;
-		}
-		if (lastUsedModelID) {
-			return;
-		}
-		localStorage.removeItem(lastModelConfigIDStorageKey);
-	}, [
-		initialLastModelConfigID,
-		isModelCatalogLoading,
-		isModelConfigsLoading,
-		lastUsedModelID,
-	]);
-
-	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
-		null,
+	const providerCount =
+		canConfigureAgentSetup && chatProviderConfigsQuery.data && modelsQuery.data
+			? countConfiguredProviderConfigs(
+					chatProviderConfigsQuery.data,
+					modelsQuery.data,
+				)
+			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
+	const unsupportedProviderNames = getUnsupportedProviderNames(
+		modelsQuery.data,
 	);
+
 	const effectiveMCPServerIds = (() => {
 		if (userMCPServerIds !== null) {
 			return userMCPServerIds;
 		}
-		const saved = getSavedMCPSelection(mcpServers ?? []);
+		const saved = getSavedMCPSelection(
+			organizationId,
+			mcpServers,
+			effectiveOrg?.is_default,
+		);
 		if (saved !== null) {
 			return saved;
 		}
-		return getDefaultMCPSelection(mcpServers ?? []);
+		return getDefaultMCPSelection(mcpServers);
 	})();
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
@@ -418,17 +450,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		localStorage.setItem(selectedWorkspaceIdStorageKey, value);
 	};
 
+	const selectOrganization = (organization: TypesGen.Organization) => {
+		setUserMCPServerIds(null);
+		setSelectedOrg(organization);
+	};
+
 	const handleModelChange = (value: string) => {
 		setHasUserSelectedModel(true);
 		setUserSelectedModel(value);
-	};
-
-	const handleReasoningEffortChange = (value: string) => {
-		setSelectedReasoningEfforts((current) => ({
-			...current,
-			[selectedModel]: value,
-		}));
-		saveReasoningEffortForModel(selectedModel, value);
 	};
 
 	const isForbidden = !canCreateChat || noPermittedOrgs;
@@ -441,10 +470,11 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// guarantees completeness. If workspace counts grow large
 	// enough to warrant pagination, this should switch to a
 	// server-side organization:<name> query filter.
-	const filteredWorkspaces =
-		showOrganizations && effectiveOrg
+	const filteredWorkspaces = showOrganizations
+		? effectiveOrg
 			? workspaceOptions.filter((ws) => ws.organization_id === effectiveOrg.id)
-			: workspaceOptions;
+			: []
+		: workspaceOptions;
 
 	const effectiveWorkspaceId =
 		selectedWorkspaceId !== null &&
@@ -457,26 +487,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	// association, so Send stays disabled instead.
 	const workspaceValidationPending =
 		selectedWorkspaceId !== null && isWorkspacesLoading;
-
-	const handleSend = async (message: string, fileIDs?: string[]) => {
-		submitDraft();
-		await onCreateChat({
-			message,
-			fileIDs,
-			workspaceId: effectiveWorkspaceId ?? undefined,
-			model: submittedModel,
-			reasoningEffort: effectiveReasoningEffort,
-			organizationId,
-			mcpServerIds:
-				effectiveMCPServerIds.length > 0
-					? [...effectiveMCPServerIds]
-					: undefined,
-			planMode: planModeEnabled ? "plan" : undefined,
-		}).catch((err) => {
-			resetDraft();
-			throw err;
-		});
-	};
 
 	const {
 		organizationAdopted,
@@ -498,6 +508,34 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			provider: getProviderForModelOption(modelOptions, selectedModel),
 		},
 	);
+
+	const handleReasoningEffortChange = (value: string) => {
+		setSelectedReasoningEfforts((current) => ({
+			...current,
+			[selectedModel]: value,
+		}));
+		saveReasoningEffortForModel(selectedModel, value);
+	};
+
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			reasoningEffort: effectiveReasoningEffort,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -562,11 +600,19 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
+					{mcpServersQuery.data === undefined &&
+						mcpServersQuery.error != null && (
+							<ErrorAlert error={mcpServersQuery.error} />
+						)}
 					{permittedOrgsQuery.error != null && (
 						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
-					{/* The pre-settlement list is the unfiltered dashboard fallback;
-					    selecting from it could destroy existing workspace state. */}
+					{modelsQuery.error != null && (
+						<ErrorAlert error={modelsQuery.error} />
+					)}
+					{personalModelOverridesQuery.error != null && (
+						<ErrorAlert error={personalModelOverridesQuery.error} />
+					)}
 					{showOrganizations &&
 						orgSelectionSettled &&
 						permittedOrgs.length > 1 && (
@@ -581,6 +627,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 									}
 									if (orgChanged) {
 										handleWorkspaceChange(null);
+										selectOrganization(newOrg);
+										return;
 									}
 									setSelectedOrg(newOrg);
 								}}
@@ -597,7 +645,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							// Sending before adoption would omit persisted files not yet restored.
 							!organizationAdopted ||
 							workspaceValidationPending ||
-							isPersonalModelOverridesLoading ||
+							isPersonalModelOverridesUnresolved ||
+							isMCPSelectionUnresolved ||
 							!hasModelOptions ||
 							Boolean(aiGatewayDisabled)
 						}
@@ -611,7 +660,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						reasoningEffort={effectiveReasoningEffort}
 						onReasoningEffortChange={handleReasoningEffortChange}
-						isModelCatalogLoading={isModelCatalogLoading}
+						isModelCatalogLoading={isModelDataPending}
 						hasModelOptions={hasModelOptions}
 						planModeEnabled={planModeEnabled}
 						onPlanModeToggle={setPlanModeEnabled}
@@ -624,12 +673,13 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						previewUrls={previewUrls}
 						textContents={textContents}
 						mcpServers={mcpServers}
+						chatOrganizationId={organizationId}
 						selectedMCPServerIds={effectiveMCPServerIds}
 						onMCPSelectionChange={(ids) => {
 							setUserMCPServerIds(ids);
-							saveMCPSelection(ids);
+							saveMCPSelection(organizationId, ids);
 						}}
-						onMCPAuthComplete={onMCPAuthComplete}
+						onMCPAuthComplete={() => void mcpServersQuery.refetch()}
 						workspaceOptions={filteredWorkspaces}
 						selectedWorkspaceId={effectiveWorkspaceId}
 						// Do not persist a workspace until its organization is authorized.
@@ -671,7 +721,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					}
 					resetAttachments();
 					handleWorkspaceChange(null);
-					setSelectedOrg(pendingOrgChange);
+					selectOrganization(pendingOrgChange);
 				}}
 				onClose={() => setPendingOrgChange(null)}
 			/>

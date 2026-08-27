@@ -58,8 +58,8 @@ A workspace is considered "active" when Coder detects one or more active session
 - **JetBrains IDE sessions**: Using JetBrains Gateway or remote IDE plugins
 - **Terminal sessions**: Using the web terminal (including reconnecting to the web terminal)
 - **SSH sessions**: Connecting via `coder ssh` or SSH config integration
-- **AI agent task status**: When a coding agent reports "working" status via
-  [Coder Tasks](../ai-coder/tasks.md), the workspace deadline is extended
+- **AI agent task status**: When a coding agent reports "working" status, the
+  workspace deadline is extended
 
 Activity is only detected when there is at least one active session. An open session will keep your workspace marked as active and prevent automatic shutdown.
 

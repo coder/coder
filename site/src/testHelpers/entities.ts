@@ -377,16 +377,6 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
-export const MockAgentsAccessRole: TypesGen.Role = {
-	name: "agents-access",
-	display_name: "Coder Agents User",
-	site_permissions: [],
-	user_permissions: [],
-	organization_id: MockOrganization.id,
-	organization_permissions: [],
-	organization_member_permissions: [],
-};
-
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -648,7 +638,7 @@ export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
-export const MockTasksTabVisible: boolean = false;
+export const MockAITasksEnabled: boolean = false;
 export const MockAIGatewayEnabled: boolean = true;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
@@ -963,6 +953,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	allow_workspace_renames: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -2701,6 +2692,20 @@ export const mockApiError = ({
 	},
 });
 
+export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: true,
+	entitlement: "entitled",
+	limit: 1000,
+	soft_limit: 850,
+	actual: 400,
+	actual_ms: 400 * 3_600_000,
+	usage_period: {
+		issued_at: "June 1, 2026",
+		start: "June 1, 2026",
+		end: "May 31, 2027",
+	},
+};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -3068,6 +3073,28 @@ export const MockWebConnectionLog: TypesGen.ConnectionLog = {
 	},
 };
 
+const MockTunnelWebInfo: TypesGen.ConnectionLogWebInfo = {
+	user_agent: "coder-cli/2.0.0",
+	user: MockUserMember,
+	slug_or_port: "",
+	status_code: 101,
+};
+
+export const MockTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockWebConnectionLog,
+	type: "tunnel",
+	web_info: MockTunnelWebInfo,
+};
+
+export const MockDeniedTunnelConnectionLog: TypesGen.ConnectionLog = {
+	...MockTunnelConnectionLog,
+	id: "09747acf-207f-4f53-a875-fde339924f60",
+	web_info: {
+		...MockTunnelWebInfo,
+		status_code: 403,
+	},
+};
+
 export const MockConnectedSSHConnectionLog: TypesGen.ConnectionLog = {
 	id: "7884a866-4ae1-4945-9fba-b2b8d2b7c5a9",
 	connect_time: "2022-05-19T16:45:57.122Z",
@@ -3283,6 +3310,19 @@ export const MockEveryoneGroup: TypesGen.Group = {
 	total_member_count: 0,
 };
 
+export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3344,6 +3384,10 @@ export const MockPermissions: Permissions = {
 	editAnyGroups: true,
 	editAnySettings: true,
 	viewAnyIdpSyncSettings: true,
+	viewAnyMCPServerConfigs: true,
+	createAnyMCPServerConfig: true,
+	updateAnyMCPServerConfig: true,
+	deleteAnyMCPServerConfig: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
@@ -3353,6 +3397,11 @@ export const MockPermissions: Permissions = {
 	deleteOAuth2App: true,
 	viewOAuth2AppSecrets: true,
 	createChat: true,
+	viewAnyChatModelConfig: true,
+	createAnyChatModelConfig: true,
+	editAnyChatModelConfig: true,
+	deleteAnyChatModelConfig: true,
+	shareAnyChatModelConfig: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -3381,6 +3430,10 @@ export const MockNoPermissions: Permissions = {
 	editAnyGroups: false,
 	editAnySettings: false,
 	viewAnyIdpSyncSettings: false,
+	viewAnyMCPServerConfigs: false,
+	createAnyMCPServerConfig: false,
+	updateAnyMCPServerConfig: false,
+	deleteAnyMCPServerConfig: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: false,
 	viewAnyAIProvider: false,
@@ -3390,6 +3443,11 @@ export const MockNoPermissions: Permissions = {
 	deleteOAuth2App: false,
 	viewOAuth2AppSecrets: false,
 	createChat: false,
+	viewAnyChatModelConfig: false,
+	createAnyChatModelConfig: false,
+	editAnyChatModelConfig: false,
+	deleteAnyChatModelConfig: false,
+	shareAnyChatModelConfig: false,
 };
 
 export const MockOrganizationPermissions: OrganizationPermissions = {
@@ -3408,6 +3466,16 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	viewMCPServerConfigs: true,
+	createMCPServerConfig: true,
+	updateMCPServerConfig: true,
+	deleteMCPServerConfig: true,
+	shareMCPServerConfig: true,
+	viewChatModelConfigs: true,
+	createChatModelConfigs: true,
+	editChatModelConfigs: true,
+	deleteChatModelConfigs: true,
+	shareChatModelConfigs: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -3426,6 +3494,16 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	viewMCPServerConfigs: false,
+	createMCPServerConfig: false,
+	updateMCPServerConfig: false,
+	deleteMCPServerConfig: false,
+	shareMCPServerConfig: false,
+	viewChatModelConfigs: false,
+	createChatModelConfigs: false,
+	editChatModelConfigs: false,
+	deleteChatModelConfigs: false,
+	shareChatModelConfigs: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {
@@ -5540,10 +5618,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	providers: ["anthropic", "openai"],
 	models: ["claude-opus-4-6", "gpt-5.4"],
-	client: "Mux",
+	client: "Xum",
 	metadata: {
 		request_user_agent:
-			"mux/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
+			"xum/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
 	},
 	started_at: "2026-03-09T09:28:15.03152Z",
 	ended_at: "2026-03-09T10:28:17.294897Z",

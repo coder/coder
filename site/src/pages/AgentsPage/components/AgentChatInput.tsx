@@ -29,7 +29,6 @@ import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
-	ChatMessagePart,
 	ChatQueuedMessage,
 } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
@@ -62,6 +61,7 @@ import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
+import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
@@ -153,14 +153,6 @@ interface AgentChatInputProps {
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
-	// Queue editing state, owned by the parent.
-	editingQueuedMessageID?: number | null;
-	onStartQueueEdit?: (
-		id: number,
-		text: string,
-		fileBlocks: readonly ChatMessagePart[],
-	) => void;
-	onCancelQueueEdit?: () => void;
 	// History editing state, owned by the parent.
 	isEditingHistoryMessage?: boolean;
 	onCancelHistoryEdit?: () => void;
@@ -384,9 +376,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
-	editingQueuedMessageID = null,
-	onStartQueueEdit,
-	onCancelQueueEdit,
 	isEditingHistoryMessage = false,
 	onCancelHistoryEdit,
 	userPromptHistory = [],
@@ -440,8 +429,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		"main",
 	);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const [mcpConnectingId, setMcpConnectingId] = useState<string | null>(null);
-	const mcpPopupRef = useRef<Window | null>(null);
+	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
+		useMCPOAuthFlow({
+			organizationId: chatOrganizationId,
+			onAuthComplete: onMCPAuthComplete,
+			onFlowSuccess: (serverID) => {
+				if (
+					onMCPSelectionChange &&
+					selectedMCPServerIds &&
+					mcpServers?.some(
+						(server) => server.id === serverID && server.enabled,
+					) &&
+					!selectedMCPServerIds.includes(serverID)
+				) {
+					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
+				}
+			},
+		});
 	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
 		useState<TypesGen.MCPServerConfig | null>(null);
 	const queryClient = useQueryClient();
@@ -518,41 +522,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		[],
 	);
 
-	// Listen for OAuth2 completion postMessage from popup.
-	useEffect(() => {
-		const handler = (event: MessageEvent) => {
-			if (event.origin !== location.origin) return;
-			if (
-				event.data?.type === "mcp-oauth2-complete" &&
-				typeof event.data.serverID === "string"
-			) {
-				setMcpConnectingId(null);
-				onMCPAuthComplete?.(event.data.serverID);
-				mcpPopupRef.current = null;
-			}
-		};
-		window.addEventListener("message", handler);
-		return () => window.removeEventListener("message", handler);
-	}, [onMCPAuthComplete]);
-
-	// Poll for popup close and clean up on unmount.
-	useEffect(() => {
-		if (!mcpConnectingId || !mcpPopupRef.current) return;
-		const interval = setInterval(() => {
-			if (mcpPopupRef.current?.closed) {
-				setMcpConnectingId(null);
-				mcpPopupRef.current = null;
-			}
-		}, 500);
-		return () => {
-			clearInterval(interval);
-			if (mcpPopupRef.current && !mcpPopupRef.current.closed) {
-				mcpPopupRef.current.close();
-				mcpPopupRef.current = null;
-			}
-		};
-	}, [mcpConnectingId]);
-
 	const handleMcpToggle = (serverId: string, checked: boolean) => {
 		if (!onMCPSelectionChange || !selectedMCPServerIds) return;
 		if (checked) {
@@ -562,16 +531,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpConnect = (server: TypesGen.MCPServerConfig) => {
-		setMcpConnectingId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
-		mcpPopupRef.current = window.open(
-			connectUrl,
-			"_blank",
-			"width=900,height=600",
-		);
 	};
 
 	const handleMcpDisconnectConfirm = () => {
@@ -988,10 +947,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
 		if (e.key === "Escape") {
-			if (editingQueuedMessageID !== null) {
-				e.preventDefault();
-				onCancelQueueEdit?.();
-			} else if (isEditingHistoryMessage) {
+			if (isEditingHistoryMessage) {
 				e.preventDefault();
 				onCancelHistoryEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
@@ -1020,10 +976,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			editingQueuedMessageID !== null ||
-			isEditingHistoryMessage ||
-			isDisabled ||
-			isLoading;
+			isEditingHistoryMessage || isDisabled || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1086,12 +1039,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel =
-		editingQueuedMessageID !== null
-			? "Save"
-			: isEditingHistoryMessage
-				? "Save Edit"
-				: "Send";
+	const sendButtonLabel = isEditingHistoryMessage ? "Save Edit" : "Send";
 	const sendShortcutLabel =
 		sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
 			? "Cmd/Ctrl+Enter"
@@ -1112,20 +1060,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => {
-						if (id === editingQueuedMessageID) {
-							onCancelQueueEdit?.();
-						}
-						void onDeleteQueuedMessage?.(id);
-					}}
-					onPromote={(id) => {
-						if (id === editingQueuedMessageID) {
-							onCancelQueueEdit?.();
-						}
-						void onPromoteQueuedMessage?.(id);
-					}}
-					onEdit={onStartQueueEdit}
-					editingMessageID={editingQueuedMessageID}
+					onDelete={(id) => onDeleteQueuedMessage?.(id)}
+					onPromote={(id) => onPromoteQueuedMessage?.(id)}
 					className="mb-2"
 				/>
 			)}
@@ -1156,7 +1092,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
-					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
@@ -1167,24 +1103,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
-				{editingQueuedMessageID !== null && (
-					<div className="flex items-center justify-between border-b border-border-default/70 bg-surface-primary/25 px-3 py-1.5">
-						<span className="text-sm text-content-secondary">
-							Editing queued message
-						</span>
-						<Button
-							type="button"
-							variant="subtle"
-							size="sm"
-							onClick={onCancelQueueEdit}
-							className="h-7 px-2 text-content-secondary hover:text-content-primary"
-						>
-							Cancel
-						</Button>
-					</div>
-				)}
-				{isEditingHistoryMessage && editingQueuedMessageID === null && (
-					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
+				{isEditingHistoryMessage && (
+					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
@@ -1234,6 +1154,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					workspaceSkills={workspaceSkills}
 					autoFocus
 					slashCommands={slashCommands}
+					skillsMenuAnchor={composerElement}
 				/>
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
@@ -1440,7 +1361,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	variant="outline"
 																	size="sm"
 																	className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																	onClick={() => handleMcpConnect(server)}
+																	onClick={() => connectMCPServer(server.id)}
 																	disabled={
 																		isDisabled || mcpConnectingId !== null
 																	}
@@ -1496,7 +1417,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:shrink"
+								className="md:h-auto md:w-auto md:shrink"
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1644,18 +1565,33 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							/>
 						)}
 						{isStreaming && onInterrupt && (
-							<Button
-								size="icon"
-								variant="default"
-								className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
-								onClick={onInterrupt}
-								disabled={isInterruptPending}
-							>
-								<SquareIcon className="fill-current" />
-								<span className="sr-only">Stop</span>
-							</Button>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										size="icon"
+										variant="default"
+										className="size-7 rounded-full transition-colors [&>svg]:!size-3 [&>svg]:p-0"
+										onClick={onInterrupt}
+										disabled={isInterruptPending}
+									>
+										<SquareIcon className="fill-current" />
+										<span className="sr-only">Stop</span>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent side="top">
+									{isInterruptPending ? "Interrupting…" : "Stop"}
+								</TooltipContent>
+							</Tooltip>
 						)}
-						{!(isStreaming && editingQueuedMessageID === null) && (
+						{isInterruptPending && isStreaming && (
+							// The disabled Stop button is skipped by Tab order, so the
+							// pending interruption is also announced through a live
+							// region and a tooltip.
+							<span role="status" className="sr-only">
+								Interrupting. Waiting for the agent to stop.
+							</span>
+						)}
+						{!isStreaming && (
 							<Tooltip>
 								<TooltipTrigger asChild>
 									<Button

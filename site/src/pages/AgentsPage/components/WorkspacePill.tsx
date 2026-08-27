@@ -35,7 +35,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
-import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -47,6 +47,7 @@ import {
 	usePortsData,
 } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -98,7 +99,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	// Flyout sub-menus clip on mobile.
 	const [view, setView] = useState<"main" | "ports">("main");
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
-	const isBelowMd = useIsBelowMdViewport();
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
 
 	const portsData = usePortsData(
@@ -149,7 +150,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										"hidden size-3.5 shrink-0 transition-transform md:block",
 										open && "rotate-180",
 									)}
 								/>
