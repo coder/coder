@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
 
 type taskKind string
@@ -37,7 +38,7 @@ type taskRecord struct {
 	id       taskInstanceID
 	kind     taskKind
 	localKey localWorkKey
-	cancel   context.CancelFunc
+	cancel   context.CancelCauseFunc
 	done     <-chan struct{}
 }
 
@@ -83,7 +84,9 @@ func (r *runner) run() {
 		case state := <-r.rec.stateCh:
 			r.processState(state)
 		case <-r.ctx.Done():
-			r.cancelActiveTask()
+			// Shutdown and rebalancing are not user interrupts, so
+			// tools leave their processes running for a replay.
+			r.cancelActiveTask(nil)
 			r.waitForTasks()
 			r.closeDebugTurn()
 			return
@@ -165,7 +168,10 @@ func (r *runner) processState(state runnerStateUpdate) {
 		return
 	}
 	if r.hasAcceptedState && r.activeTaskSet {
-		r.cancelActiveTask()
+		// A status or history change superseding an active task is
+		// user-driven: an interrupt, an edit, or a promoted queued
+		// message.
+		r.cancelActiveTask(chattool.ErrUserInterrupt)
 	}
 
 	r.spawnForState(state)
@@ -205,7 +211,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 	}
 
 	id := taskInstanceID(uuid.New())
-	taskCtx, cancel := context.WithCancel(r.ctx)
+	taskCtx, cancel := context.WithCancelCause(r.ctx)
 	done := make(chan struct{})
 	record := &taskRecord{
 		id:       id,
@@ -276,14 +282,19 @@ func (r *runner) runTask(
 	}
 }
 
-func (r *runner) cancelActiveTask() {
+// cancelActiveTask cancels the active task with cause. State-change
+// cancellations pass chattool.ErrUserInterrupt so tools can tell a
+// user superseding the turn (interrupt, edit, promoted message) from
+// shutdown or timeout; pass nil for cancellations the task should
+// treat as neutral (the work continues elsewhere).
+func (r *runner) cancelActiveTask(cause error) {
 	if !r.activeTaskSet {
 		return
 	}
 	id := r.activeTaskID
 	r.activeTaskSet = false
 	if record := r.tasks[id]; record != nil {
-		record.cancel()
+		record.cancel(cause)
 	}
 }
 

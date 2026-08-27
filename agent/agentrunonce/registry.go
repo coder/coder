@@ -25,6 +25,10 @@ var (
 
 	// ErrClosed reports a new reservation attempt on a closed registry.
 	ErrClosed = xerrors.New("registry is closed")
+
+	// ErrNotReserved reports a key that holds no reservation, because
+	// it was never reserved or its reservation was released or reaped.
+	ErrNotReserved = xerrors.New("key is not reserved")
 )
 
 // entry is one reservation. completedAt starts the retention window,
@@ -143,6 +147,34 @@ func (r *Registry[K, V]) waitForPublication(ctx context.Context, pending *entry[
 		return ErrPublicationPending
 	case <-ctx.Done():
 		return xerrors.Errorf("wait for reservation to be published: %w", errors.Join(ErrPublicationPending, ctx.Err()))
+	}
+}
+
+// Await returns the value published for a key, so callers can act on
+// an operation by its identity rather than by whatever handle it
+// returned. A pending reservation is waited out until ctx ends, so a
+// caller cannot mistake work that has not published yet for work that
+// never happened. It reports ErrNotReserved for an unreserved key and
+// ErrPublicationPending for one still pending at the deadline.
+func (r *Registry[K, V]) Await(ctx context.Context, key K) (V, error) {
+	var zero V
+	for {
+		r.mu.Lock()
+		existing, ok := r.entries[key]
+		if !ok {
+			r.mu.Unlock()
+			return zero, ErrNotReserved
+		}
+		if existing.published {
+			value := existing.value
+			r.mu.Unlock()
+			return value, nil
+		}
+		r.mu.Unlock()
+
+		if err := r.waitForPublication(ctx, existing); err != nil {
+			return zero, err
+		}
 	}
 }
 

@@ -1,8 +1,10 @@
 package chattool_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -1227,6 +1231,289 @@ func TestExecuteToolIdempotencyKey(t *testing.T) {
 
 		tool := newExecuteTool(t, mockConn)
 		result := runExecute(t, identityCtx(t), tool, "call-1", `{"command":"sleep 100","run_in_background":true}`)
+		assert.True(t, result.Success)
+		assert.Equal(t, "proc-bg", result.BackgroundProcessID)
+	})
+}
+
+func TestExecuteToolInterruptKill(t *testing.T) {
+	t.Parallel()
+
+	// interruptedWait wires StartProcess to succeed and the process
+	// wait (plus its recovery snapshot) to fail after canceling the
+	// tool context with cause.
+	interruptedWait := func(mockConn *agentconnmock.MockAgentConn, cancel context.CancelCauseFunc, cause error) {
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1", Started: true}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				cancel(cause)
+				return workspacesdk.ProcessOutputResponse{}, xerrors.New("request canceled")
+			}).
+			Times(2)
+	}
+	runForeground := func(t *testing.T, ctx context.Context, mockConn *agentconnmock.MockAgentConn) chattool.ExecuteResult {
+		t.Helper()
+		tool := newExecuteTool(t, mockConn)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 60"}`,
+		})
+		require.NoError(t, err)
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
+	}
+	// runForegroundIdentifiedWithLogger supplies the dispatch identity
+	// the dispatcher normally attaches, so the call carries a token.
+	runForegroundIdentifiedWithLogger := func(t *testing.T, ctx context.Context, mockConn *agentconnmock.MockAgentConn, logger slog.Logger) chattool.ExecuteResult {
+		t.Helper()
+		identified := chattool.WithToolCallID(
+			chattool.WithDispatchIdentity(ctx, uuid.New(), 7),
+			"call-1",
+		)
+		tool := chattool.Execute(chattool.ExecuteOptions{
+			GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+				return mockConn, nil
+			},
+			Logger: logger,
+		})
+		resp, err := tool.Run(identified, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 60"}`,
+		})
+		require.NoError(t, err)
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		return result
+	}
+	runForegroundIdentified := func(t *testing.T, ctx context.Context, mockConn *agentconnmock.MockAgentConn) chattool.ExecuteResult {
+		t.Helper()
+		return runForegroundIdentifiedWithLogger(t, ctx, mockConn, slog.Logger{})
+	}
+
+	t.Run("UserInterruptKillsForegroundProcess", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		interruptedWait(mockConn, cancel, chattool.ErrUserInterrupt)
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), "proc-1", "kill").
+			Return(nil)
+
+		result := runForeground(t, ctx, mockConn)
+		assert.False(t, result.Success)
+	})
+
+	t.Run("LostStartResponseKillsByIdempotencyKey", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		// The agent started the process but the response never
+		// arrived, so no process ID is known. The idempotency key is
+		// still enough to stop the command.
+		var key string
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				key = req.IdempotencyKey
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{}, xerrors.New("request canceled")
+			})
+		signaled := make(chan string, 1)
+		mockConn.EXPECT().
+			SignalProcessByIdempotencyKey(gomock.Any(), gomock.Any(), "kill").
+			DoAndReturn(func(_ context.Context, idempotencyKey string, _ string) error {
+				signaled <- idempotencyKey
+				return nil
+			})
+
+		result := runForegroundIdentified(t, ctx, mockConn)
+		assert.False(t, result.Success)
+		require.NotEmpty(t, key)
+		require.Equal(t, key, testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, signaled))
+	})
+
+	t.Run("LostStartResponseWithoutKeySignalsNothing", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		// An unidentified call has no key, so there is nothing to
+		// address the process by. gomock fails the test on any
+		// unexpected signal call.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{}, xerrors.New("request canceled")
+			})
+
+		result := runForeground(t, ctx, mockConn)
+		assert.False(t, result.Success)
+	})
+
+	t.Run("OldAgentUnsupportedRouteIsNotTreatedAsGone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{}, xerrors.New("request canceled")
+			})
+		mockConn.EXPECT().
+			SignalProcessByIdempotencyKey(gomock.Any(), gomock.Any(), "kill").
+			Return(workspacesdk.ErrProcessKeySignalUnsupported)
+
+		// The agent could not act on the key, so the command may still
+		// be running. This must be reported, not swallowed as "gone".
+		var logs bytes.Buffer
+		logger := slog.Make(sloghuman.Sink(&logs)).Leveled(slog.LevelDebug)
+		result := runForegroundIdentifiedWithLogger(t, ctx, mockConn, logger)
+		assert.False(t, result.Success)
+		assert.Contains(t, logs.String(), "failed to kill foreground process")
+	})
+
+	t.Run("PendingStartIsNotTreatedAsGone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{}, xerrors.New("request canceled")
+			})
+		mockConn.EXPECT().
+			SignalProcessByIdempotencyKey(gomock.Any(), gomock.Any(), "kill").
+			Return(&workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictStartPending,
+				Response: codersdk.Response{
+					Message: "The start holding this idempotency key has not spawned its process yet.",
+				},
+			})
+
+		// A concurrent start still holds the key, so the command may
+		// yet run. Reporting it as gone would silently drop the kill.
+		var logs bytes.Buffer
+		logger := slog.Make(sloghuman.Sink(&logs)).Leveled(slog.LevelDebug)
+		result := runForegroundIdentifiedWithLogger(t, ctx, mockConn, logger)
+		assert.False(t, result.Success)
+		assert.Contains(t, logs.String(), "failed to kill foreground process")
+	})
+
+	t.Run("KillByKeyTreatsExitedProcessAsGone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{}, xerrors.New("request canceled")
+			})
+		mockConn.EXPECT().
+			SignalProcessByIdempotencyKey(gomock.Any(), gomock.Any(), "kill").
+			Return(&workspacesdk.ProcessConflictError{
+				Code: workspacesdk.ProcessConflictNotRunning,
+				Response: codersdk.Response{
+					Message: "The process started with this idempotency key is not running.",
+				},
+			})
+
+		var logs bytes.Buffer
+		logger := slog.Make(sloghuman.Sink(&logs)).Leveled(slog.LevelDebug)
+		result := runForegroundIdentifiedWithLogger(t, ctx, mockConn, logger)
+		assert.False(t, result.Success)
+		assert.NotContains(t, logs.String(), "failed to kill foreground process")
+	})
+
+	t.Run("KillTreatsExitedProcessAsGone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		interruptedWait(mockConn, cancel, chattool.ErrUserInterrupt)
+		// 409 means the process already exited; the kill treats it
+		// as already gone instead of failing.
+		mockConn.EXPECT().
+			SignalProcess(gomock.Any(), "proc-1", "kill").
+			Return(codersdk.NewError(http.StatusConflict, codersdk.Response{
+				Message: "Process is not running.",
+			}))
+
+		result := runForeground(t, ctx, mockConn)
+		assert.False(t, result.Success)
+	})
+
+	t.Run("AttemptTimeoutDoesNotKill", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		// Any non-interrupt cause (attempt timeout, worker shutdown)
+		// must leave the process running for re-attach, so no
+		// SignalProcess call is expected.
+		interruptedWait(mockConn, cancel, xerrors.New("chatworker task timeout"))
+
+		result := runForeground(t, ctx, mockConn)
+		assert.False(t, result.Success)
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+	})
+
+	t.Run("BackgroundProcessSpared", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitMedium))
+		defer cancel(nil)
+
+		// The user interrupt lands right after the background start;
+		// no SignalProcess call is expected.
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				assert.True(t, req.Background)
+				cancel(chattool.ErrUserInterrupt)
+				return workspacesdk.StartProcessResponse{ID: "proc-bg", Started: true}, nil
+			})
+
+		tool := newExecuteTool(t, mockConn)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"sleep 60","run_in_background":true}`,
+		})
+		require.NoError(t, err)
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		assert.True(t, result.Success)
 		assert.Equal(t, "proc-bg", result.BackgroundProcessID)
 	})
