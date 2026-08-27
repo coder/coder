@@ -392,6 +392,28 @@ func TestListAIModelPrices(t *testing.T) {
 		require.Equal(t, int64(6_250_000), *seeded[0].CacheWritePrice)
 	})
 
+	t.Run("RejectsAnUnsupportedProvider", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: an entitled deployment.
+		ownerClient, _ := setupAIModelPricesTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// When: the prices are listed with an unsupported provider type.
+		//nolint:gocritic // Reading AI model prices is owner-only.
+		_, err := codersdk.NewExperimentalClient(ownerClient).ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "agents-baseten"})
+
+		// Then: a 400 comes back naming the field and supported provider types.
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Equal(t, "Invalid AI model price provider.", sdkErr.Message)
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "provider", sdkErr.Validations[0].Field)
+		require.Equal(t, `Provider "agents-baseten" is not supported. Supported providers: anthropic, azure, bedrock, copilot, google, openai, openrouter, vercel.`, sdkErr.Validations[0].Detail)
+	})
+
 	t.Run("RejectsAnUnknownSource", func(t *testing.T) {
 		t.Parallel()
 
@@ -498,11 +520,6 @@ func TestListAIModelPrices(t *testing.T) {
 				name:   "ByProviderAndModel",
 				filter: codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "model-a"},
 				want:   []string{"anthropic/model-a"},
-			},
-			{
-				name:   "UnknownProviderMatchesNothing",
-				filter: codersdk.AIModelPricesFilter{Provider: "unknown-provider"},
-				want:   nil,
 			},
 			{
 				// The override is skipped, leaving the price book's row.
