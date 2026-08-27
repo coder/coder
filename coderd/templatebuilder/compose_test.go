@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestCompose(t *testing.T) {
@@ -598,6 +599,35 @@ func TestQuickstartLanguageSelectorMatchesInstallScript(t *testing.T) {
 
 	require.ElementsMatch(t, selectorValues, dispatchNames,
 		"quickstart languages selector options must match the install script's has_language branches")
+}
+
+// TestComposeBaseHonorsRegistryMirror verifies a base-embedded module source is
+// rendered against ComposeRequest.RegistryURL, and falls back to the public
+// default when it is unset. The quickstart base embeds the git-clone module.
+func TestComposeBaseHonorsRegistryMirror(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Mirror", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "mirror.internal.example",
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), "mirror.internal.example/coder/git-clone/coder")
+		require.NotContains(t, string(result.MainTF),
+			codersdk.DefaultTemplateBuilderRegistryURL+"/coder/git-clone/coder")
+	})
+
+	t.Run("DefaultsWhenUnset", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF),
+			codersdk.DefaultTemplateBuilderRegistryURL+"/coder/git-clone/coder")
+	})
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.

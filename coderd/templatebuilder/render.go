@@ -19,7 +19,11 @@ type ImageOption struct {
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	Variables      map[string]string
+	// RegistryBase is the module registry host used in rendered module source
+	// paths, mirroring ModuleRenderContext.RegistryBase so a base-embedded
+	// module honors CODER_TEMPLATE_BUILDER_REGISTRY_URL like a wizard module.
+	RegistryBase string
+	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.

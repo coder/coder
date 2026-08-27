@@ -10,6 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -53,7 +55,14 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
+	// Default an unset registry to the public one so both the base and module
+	// render paths interpolate a valid host instead of an empty source.
+	registryBase := req.RegistryURL
+	if registryBase == "" {
+		registryBase = codersdk.DefaultTemplateBuilderRegistryURL
+	}
+
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +93,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	modulesTF, err := renderModules(req.Modules, catalog, req.RegistryURL, agentName)
+	modulesTF, err := renderModules(req.Modules, catalog, registryBase, agentName)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +118,13 @@ func formatHCL(src []byte) []byte {
 
 // renderBase renders the base template for the given example ID,
 // merging any user-supplied variable values into the render context.
-func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
+// registryBase is the already-defaulted module registry host.
+func renderBase(baseTemplateID string, baseVars map[string]string, registryBase string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
+	renderCtx.RegistryBase = registryBase
 
 	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
 	if err != nil {
