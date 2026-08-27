@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/confine"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
 )
@@ -50,6 +51,7 @@ type agentSandboxDeps struct {
 	executablePath  func() (string, error)
 	userConfigDir   func() (string, error)
 	newPolicyClient func(*url.URL, string, slog.Logger) confine.PolicyClient
+	newAgentClient  func(*url.URL, string, slog.Logger) confine.AgentClient
 	startMicroVM    func(context.Context, confine.MicroVMOptions) (agentSandboxInstance, error)
 	shutdownTimeout time.Duration
 }
@@ -61,6 +63,11 @@ func defaultAgentSandboxDeps() agentSandboxDeps {
 		executablePath: os.Executable,
 		userConfigDir:  os.UserConfigDir,
 		newPolicyClient: func(agentURL *url.URL, token string, logger slog.Logger) confine.PolicyClient {
+			client := agentsdk.New(agentURL, agentsdk.WithFixedToken(token))
+			client.SDK.SetLogger(logger)
+			return client
+		},
+		newAgentClient: func(agentURL *url.URL, token string, logger slog.Logger) confine.AgentClient {
 			client := agentsdk.New(agentURL, agentsdk.WithFixedToken(token))
 			client.SDK.SetLogger(logger)
 			return client
@@ -153,7 +160,18 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 					slog.F("rule_count", len(policy.Rules)),
 				)
 			}
-			logger.Warn(ctx, "egress decisions are logged locally and are not retained server side")
+			// Sessions are reported with the confined agent's own token, so
+			// coderd resolves attribution from that agent's AI identity
+			// binding. The embedded microVM gives the guest no network path
+			// except the host-owned proxy, so forced enforcement is a
+			// structural property of this command rather than configuration.
+			reporterClient := deps.newAgentClient(&agentAuth.agentURL, agentAuth.agentToken, logger)
+			reporter := confine.NewSessionReporter(reporterClient, logger, codersdk.AISandboxEgressEnforcementForced)
+			// The session must exist server-side before the guest can emit
+			// events: coderd rejects events for unknown sessions and the
+			// batcher drops rejected flushes.
+			reporter.Start(ctx)
+			defer reporter.Close()
 
 			sandbox, err := deps.startMicroVM(ctx, confine.MicroVMOptions{
 				Image:           image,
@@ -169,6 +187,7 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 				Policy:          policyMonitor.Engine(),
 				Destination:     destination,
 				Event: func(event confine.NetworkEvent) {
+					reporter.Record(event)
 					logger.Info(context.Background(), "ai sandbox egress decision",
 						slog.F("action", event.Action),
 						slog.F("protocol", event.Protocol),

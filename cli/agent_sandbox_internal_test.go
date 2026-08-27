@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/confine"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
@@ -225,6 +227,51 @@ func TestAgentSandboxPolicyFetchFailureStaysFailClosed(t *testing.T) {
 	require.NoError(t, inv.Run())
 }
 
+func TestAgentSandboxReportsSession(t *testing.T) {
+	t.Parallel()
+
+	client := &agentSandboxAgentClient{}
+	var agentClientToken string
+	deps := agentSandboxTestDeps()
+	deps.newAgentClient = func(_ *url.URL, token string, _ slog.Logger) confine.AgentClient {
+		agentClientToken = token
+		return client
+	}
+	deps.startMicroVM = func(_ context.Context, options confine.MicroVMOptions) (agentSandboxInstance, error) {
+		client.mu.Lock()
+		opened := len(client.sessions)
+		client.mu.Unlock()
+		require.Equal(t, 1, opened, "the session must exist server-side before the guest can emit events")
+		options.Event(confine.NetworkEvent{
+			Protocol:       "connect",
+			Host:           "denied.example.com",
+			Port:           443,
+			Action:         codersdk.AISandboxNetworkEventActionDenied,
+			PolicyRevision: 3,
+		})
+		return &agentSandboxTestInstance{}, nil
+	}
+	inv := canceledAgentSandboxInvocation(t, agentSandboxWithDeps(&AgentAuth{}, deps), []string{
+		"--agent-token", "guest-token",
+		"--policy-token", "host-token",
+		"--agent-url", "https://coder.example.com",
+	}, nil)
+	require.NoError(t, inv.Run())
+
+	require.Equal(t, "guest-token", agentClientToken,
+		"sessions must be reported with the confined agent's token so coderd resolves its AI identity binding")
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	require.Len(t, client.sessions, 2)
+	require.Equal(t, codersdk.AISandboxEgressEnforcementForced, client.sessions[0].EgressEnforcement)
+	require.Nil(t, client.sessions[0].EndedAt)
+	require.Equal(t, client.sessions[0].ID, client.sessions[1].ID)
+	require.NotNil(t, client.sessions[1].EndedAt)
+	require.Len(t, client.events, 1)
+	require.Equal(t, client.sessions[0].ID, client.events[0].SessionID)
+	require.Equal(t, "denied.example.com", client.events[0].Host)
+}
+
 func TestAgentSandboxUnsupportedPlatform(t *testing.T) {
 	t.Parallel()
 
@@ -290,6 +337,32 @@ while :; do sleep 60; done
 	require.NoError(t, inv.Run())
 }
 
+type agentSandboxAgentClient struct {
+	agentSandboxPolicyClient
+
+	mu       sync.Mutex
+	sessions []agentsdk.PostAISandboxSessionRequest
+	events   []agentsdk.AISandboxNetworkEvent
+}
+
+func (c *agentSandboxAgentClient) PostAISandboxSession(_ context.Context, req agentsdk.PostAISandboxSessionRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessions = append(c.sessions, req)
+	return nil
+}
+
+func (c *agentSandboxAgentClient) PatchAISandboxNetworkEvents(_ context.Context, req agentsdk.PatchAISandboxNetworkEventsRequest) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.events = append(c.events, req.Events...)
+	return nil
+}
+
+func (*agentSandboxAgentClient) PatchLogs(context.Context, agentsdk.PatchLogs) error {
+	return nil
+}
+
 func agentSandboxTestDeps() agentSandboxDeps {
 	return agentSandboxDeps{
 		goos:           "linux",
@@ -298,6 +371,9 @@ func agentSandboxTestDeps() agentSandboxDeps {
 		userConfigDir:  func() (string, error) { return "/config", nil },
 		newPolicyClient: func(*url.URL, string, slog.Logger) confine.PolicyClient {
 			return &agentSandboxPolicyClient{}
+		},
+		newAgentClient: func(*url.URL, string, slog.Logger) confine.AgentClient {
+			return &agentSandboxAgentClient{}
 		},
 		startMicroVM: func(context.Context, confine.MicroVMOptions) (agentSandboxInstance, error) {
 			return &agentSandboxTestInstance{}, nil

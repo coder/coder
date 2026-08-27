@@ -243,7 +243,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								</section>
 							)}
 
-							{workspace.ai_agent_id && (
+							{hasAIBoundAgent(workspace) && (
 								<WorkspaceAIEgressActivity workspaceId={workspace.id} />
 							)}
 
@@ -262,4 +262,17 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 const countAgents = (resource: TypesGen.WorkspaceResource) => {
 	return resource.agents ? resource.agents.length : 0;
+};
+
+// The egress audit view applies to any workspace with AI-confined execution:
+// AI-created workspaces carry the workspace-level designation marker, while
+// human-created workspaces that opt in via the template bind individual
+// agents without designating the workspace.
+const hasAIBoundAgent = (workspace: TypesGen.Workspace): boolean => {
+	if (workspace.ai_agent_id) {
+		return true;
+	}
+	return workspace.latest_build.resources.some((resource) =>
+		resource.agents?.some((agent) => agent.ai_agent_id),
+	);
 };
