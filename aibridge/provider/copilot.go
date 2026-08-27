@@ -89,16 +89,11 @@ func (*Copilot) BridgedRoutes() []string {
 	}
 }
 
+// PassthroughRoutes allows all non-bridged routes because Copilot is always
+// BYOK. The upstream enforces the user's permissions, so an allowlist is not
+// needed to prevent access to privileged operations using shared credentials.
 func (*Copilot) PassthroughRoutes() []string {
-	return []string{
-		"/_ping",
-		"/auto",
-		"/models",
-		"/models/",
-		"/agents/",
-		"/mcp/",
-		"/.well-known/",
-	}
+	return []string{"/"}
 }
 
 func (*Copilot) AuthHeader() string {
