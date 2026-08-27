@@ -58,7 +58,7 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 	// Start the ticker with the initial delay.
 	ticker := clk.NewTicker(delay)
 	ticker.Stop()
-	doTick := func(start time.Time) {
+	doTick := func(_ time.Time) {
 		defer ticker.Reset(delay)
 
 		// Reports are independent, so each runs in its own transaction under
@@ -71,8 +71,6 @@ func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Sto
 			func(tx database.Store) error {
 				return reportUnpricedAIModels(ctx, logger, tx, enqueuer, clk)
 			})
-
-		logger.Info(ctx, "report generator finished", slog.F("duration", clk.Since(start)))
 	}
 
 	go func() {
