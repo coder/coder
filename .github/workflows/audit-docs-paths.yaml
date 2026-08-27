@@ -99,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Fail on a missing scan root; the script only warns and exits 0 (false all-clear).
+          # audit-docs-paths.mjs treats a missing scan root as a warning, not an error, so fail the step here.
           for root in "${WORKSPACE}/site/src" "${WORKSPACE}/coder.com/src"; do
             [ -d "${root}" ] || { echo "::error::audit scan root not found: ${root}"; exit 1; }
           done
