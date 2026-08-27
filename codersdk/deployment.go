@@ -5145,7 +5145,7 @@ func ValidateTemplateBuilderRegistryURL(raw string) error {
 	// fragment, or trailing slash in one check, and never echoes the input.
 	u, err := url.Parse("//" + v)
 	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
-		return xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port, with no scheme, path, or credentials; set it with the --template-builder-registry-url flag, the CODER_TEMPLATE_BUILDER_REGISTRY_URL environment variable, or the templateBuilder.registryURL YAML key`)
+		return xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
 	}
 	return nil
 }
