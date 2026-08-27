@@ -447,9 +447,8 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 			"the error redirect must carry exactly one state")
 	})
 
-	// Registration validates the scheme and rejects fragments, so a callback
-	// registered with error= or code= in its query is accepted and reaches
-	// every response built from it.
+	// Registration checks the scheme and rejects fragments, so a callback can be
+	// registered with error= or code= already in its query.
 	t.Run("RegisteredResponseParamsDroppedRestRetained", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -603,10 +602,9 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
-	// GET as well as POST, since the consent page must not render for a method
-	// the POST will refuse after the user clicks Allow. Explicit as well as
-	// omitted redirect_uri, since the two take different paths through the
-	// parser and must reach the same check.
+	// GET as well as POST, since the consent page must not render for a method the
+	// POST will refuse. Explicit as well as omitted redirect_uri, since the two
+	// take different paths through the parser.
 	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
 		t.Parallel()
 

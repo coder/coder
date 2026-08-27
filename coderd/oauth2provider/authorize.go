@@ -238,37 +238,31 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 	return params, nil, nil
 }
 
-// validatedCallbackURL is a redirect URI that extractAuthorizeParams has
-// exact-matched against the app's registered callback. Requiring one is what
-// keeps the error redirects below from becoming open redirects. The field is
-// unexported, so no other package can present an arbitrary URI as a validated
-// one. This package can still forge one with a composite literal.
+// validatedCallbackURL is a redirect URI extractAuthorizeParams has exact-matched
+// against the app's registered callback. Requiring one keeps the error redirects
+// below from becoming open redirects. The unexported field is a guard, not a
+// proof: no other package can fabricate one; this package still can.
 type validatedCallbackURL struct {
 	url *url.URL
 }
 
-// String returns the callback as the app registered it, without the query a
-// particular response writes onto it.
+// String returns the registered callback, without the query a response adds.
 func (c validatedCallbackURL) String() string {
 	return c.url.String()
 }
 
-// reservedResponseParams are the RFC 6749 §4.1.2.1 and §4.1.2 parameters a
-// response states for itself. A registered callback may carry any of them,
-// since registration validates the scheme and rejects fragments but says
-// nothing about the query.
+// reservedResponseParams are the response parameters RFC 6749 §4.1.2.1 and
+// §4.1.2 define. A registered callback may carry any of them: registration
+// checks the scheme and rejects fragments, but says nothing about the query.
 var reservedResponseParams = []string{"code", "error", "error_description", "state"}
 
 // withQuery returns a copy of the callback with set applied to its query, plus
-// the state RFC 6749 §4.1.2.1 requires back unchanged whenever the client sent
-// one. The callback is copied rather than mutated because it is also what
-// String reports and what ProcessAuthorize records on the code row.
+// the state §4.1.2.1 returns whenever the client sent one. Copied because the
+// callback is also what String reports and what ProcessAuthorize stores.
 //
-// §3.1.2 requires retaining the query a callback registered with, so it is kept
-// except for the reserved parameters, which are cleared before set runs. A
+// The registered query is kept (§3.1.2) except for the reserved parameters: a
 // registered error= would otherwise ride out on a success response, where a
-// client following §4.1.2.1 reads error first and discards a valid code, and a
-// registered code= would ride out on a failure.
+// client reading error first discards a valid code.
 func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url.URL {
 	destination := *c.url
 	query := destination.Query()
@@ -284,22 +278,19 @@ func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url
 }
 
 // sanitizeErrorDescription confines a description to the NQSCHAR set RFC 6749
-// Appendix A permits in error_description: %x20-21 / %x23-5B / %x5D-7E. The
-// ABNF applies to the decoded value, so percent-encoding on the wire does not
-// satisfy it.
+// Appendix A permits in error_description. The rule is on the decoded value, so
+// percent-encoding on the wire does not satisfy it.
 //
-// Descriptions quote the client input that caused the rejection, so the two
-// excluded characters are the ones fmt %q emits: the surrounding quotes and the
-// backslash escaping any quote inside. Quotes become apostrophes rather than
-// disappearing, since they delimit the offending value and the reader needs to
-// see where it starts and ends.
+// Descriptions quote the client input that was rejected, so the excluded
+// characters are the ones %q emits. Quotes become apostrophes rather than
+// vanishing: they show where the offending value starts and ends.
 func sanitizeErrorDescription(description string) string {
 	return strings.Map(func(r rune) rune {
 		switch {
 		case r == '"':
-			return '\'' // 0x27, permitted, and reads the same
+			return '\'' // permitted, and reads the same
 		case r == '\\':
-			return -1 // dropped: it escapes the quote already rewritten above
+			return -1 // escapes the quote rewritten above
 		case r < 0x20 || r > 0x7E:
 			return ' '
 		default:
@@ -312,8 +303,6 @@ func sanitizeErrorDescription(description string) string {
 func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
 	return c.withQuery(state, func(query url.Values) {
 		query.Set("error", string(code))
-		// The single point every §4.1.2.1 description passes through, so the
-		// charset rule is enforced once rather than at each caller.
 		query.Set("error_description", sanitizeErrorDescription(description))
 	})
 }
@@ -325,20 +314,16 @@ func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
 	})
 }
 
-// redirectAuthorizeError reports an authorization error through the client's
-// own callback, as RFC 6749 §4.1.2.1 requires once the client is known.
-// Holding a validatedCallbackURL is what licenses the redirect. Errors raised
-// before extractAuthorizeParams returns have nothing to build one from, so
-// §4.1.2.1 requires informing the resource owner on this server instead. Its
-// failures still answer here even when the callback was trustworthy, because
-// the parser reports one verdict for every field at once and the return type
-// cannot say which field failed.
+// redirectAuthorizeError reports an authorization error through the client's own
+// callback, as RFC 6749 §4.1.2.1 requires once the client is known. Holding a
+// validatedCallbackURL is what licenses the redirect. extractAuthorizeParams
+// failures answer on this server instead, even when the callback was already
+// trustworthy: the parser reports one verdict for every field at once, so the
+// caller cannot tell which field failed.
 //
 // Logged because the failure leaves in a Location header, which loggermw does
-// not record, so an operator asked why an app cannot sign in would otherwise
-// see a 302 indistinguishable from the successful one. Info, not Warn: these
-// are client errors, and one line per failed authorization is in proportion to
-// the request logging already emitted.
+// not record, making it indistinguishable from a successful 302. Info, not
+// Warn: these are client errors.
 func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
 	app := httpmw.OAuth2ProviderApp(r)
 	logger.Info(r.Context(), "oauth2 authorization rejected",
@@ -408,11 +393,10 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		// Checked once here, right after the URI has been exact-matched against
-		// the registered callback, because every redirect below writes it into
-		// a Location header, and the consent page into the cancel link's href.
-		// 500, not 400: registration rejects these schemes, so a stored one is
-		// bad server state.
+		// Checked right after the exact match against the registered callback,
+		// because every redirect below writes this URL into a Location header,
+		// and the consent page into the cancel link's href. 500, not 400:
+		// registration rejects these schemes, so a stored one is bad server state.
 		if err := codersdk.ValidateRedirectURIScheme(params.callback.url); err != nil {
 			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -430,16 +414,12 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
-		// OAuth 2.1 removes the implicit grant. Only the authorization code flow
-		// is supported, and §4.1.2.1 names unsupported_response_type among the
-		// errors the client learns of through its own callback.
+		// OAuth 2.1 removes the implicit grant, and §4.1.2.1 delivers
+		// unsupported_response_type through the client's own callback.
 		//
-		// Delivered in the query even though response_type=token is the only
-		// value that reaches here, and §4.2.2.1 would put an implicit-grant
-		// error in the fragment. Coder advertises code alone in
-		// response_types_supported, so a client asking for token is
-		// misconfigured rather than mid-implicit-flow, and answering it in the
-		// fragment would mean implementing part of a grant this server refuses.
+		// In the query, not the fragment §4.2.2.1 would use: Coder advertises
+		// code alone in response_types_supported, so a client asking for token
+		// is misconfigured rather than mid-implicit-flow.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
@@ -449,8 +429,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 
 		// Checked here as well as on POST for the same reason the scope is
 		// negotiated below: the page must not render for a request POST will
-		// refuse. Only POST defaults an omitted method, because only POST
-		// records it on the code row, and the validator accepts an empty value.
+		// refuse. Only POST defaults an omitted method, since only POST stores it.
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
 			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
 				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
@@ -520,9 +499,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// As on the GET side: OAuth 2.1 removes the implicit grant, and
-		// §4.1.2.1 names unsupported_response_type among the errors the client
-		// learns of through its own callback.
+		// As on the GET side: OAuth 2.1 removes the implicit grant.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.callback, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
