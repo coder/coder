@@ -1988,13 +1988,13 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
 }
 
-func (q *querier) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+func (q *querier) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) (int64, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
+		return 0, err
 	}
 	return q.db.ClearChatSummaryGeneration(ctx, arg)
 }

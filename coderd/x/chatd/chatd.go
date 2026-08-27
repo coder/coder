@@ -4976,17 +4976,20 @@ func (p *Server) clearChatSummaryGeneration(
 	logger slog.Logger,
 	chatID uuid.UUID,
 	generationStartedAt time.Time,
-) {
+) bool {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatSummaryWriteTimeout)
 	defer cancel()
 
-	if err := p.db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
+	affected, err := p.db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
 		ID:                  chatID,
 		GenerationStartedAt: generationStartedAt,
-	}); err != nil {
+	})
+	if err != nil {
 		logger.Warn(ctx, "failed to clear chat summary generation",
 			slog.F("chat_id", chatID), slog.Error(err))
+		return false
 	}
+	return affected > 0
 }
 
 func (p *Server) failChatSummaryGeneration(
@@ -4995,8 +4998,9 @@ func (p *Server) failChatSummaryGeneration(
 	chat database.Chat,
 	generationStartedAt time.Time,
 ) {
-	p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryFailed, nil)
+	if p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt) {
+		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryFailed, nil)
+	}
 }
 
 // updateChatSummary persists the whole-chat summary. Best-effort background
@@ -5040,7 +5044,7 @@ func (p *Server) updateChatSummary(
 	}
 
 	if expectedGenerationStartedAt.Valid {
-		p.clearChatSummaryGeneration(ctx, logger, chat.ID, expectedGenerationStartedAt.Time)
+		_ = p.clearChatSummaryGeneration(ctx, logger, chat.ID, expectedGenerationStartedAt.Time)
 	}
 
 	updatedChat := chat

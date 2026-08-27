@@ -312,12 +312,12 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
-func (m queryMetricsStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+func (m queryMetricsStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) (int64, error) {
 	start := time.Now()
-	r0 := m.s.ClearChatSummaryGeneration(ctx, arg)
+	r0, r1 := m.s.ClearChatSummaryGeneration(ctx, arg)
 	m.queryLatencies.WithLabelValues("ClearChatSummaryGeneration").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatSummaryGeneration").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {

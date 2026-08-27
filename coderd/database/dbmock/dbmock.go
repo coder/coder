@@ -423,11 +423,12 @@ func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *g
 }
 
 // ClearChatSummaryGeneration mocks base method.
-func (m *MockStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+func (m *MockStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ClearChatSummaryGeneration", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ClearChatSummaryGeneration indicates an expected call of ClearChatSummaryGeneration.

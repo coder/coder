@@ -1973,8 +1973,8 @@ func (s *MethodTestSuite) TestChats() {
 			GenerationStartedAt: time.Now(),
 		}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ClearChatSummaryGeneration(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
+		dbm.EXPECT().ClearChatSummaryGeneration(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
 	}))
 	s.Run("UpdateChatSummary", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

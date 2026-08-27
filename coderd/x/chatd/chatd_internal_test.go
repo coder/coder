@@ -100,7 +100,7 @@ func TestFailChatSummaryGeneration(t *testing.T) {
 	db.EXPECT().ClearChatSummaryGeneration(gomock.Any(), database.ClearChatSummaryGenerationParams{
 		ID:                  chat.ID,
 		GenerationStartedAt: generationStartedAt,
-	}).Return(nil)
+	}).Return(int64(1), nil)
 
 	server.failChatSummaryGeneration(
 		context.Background(),
@@ -112,6 +112,32 @@ func TestFailChatSummaryGeneration(t *testing.T) {
 	events := ps.watchEvents(t)
 	require.Len(t, events, 1)
 	require.Equal(t, codersdk.ChatWatchEventKindChatSummaryFailed, events[0].Kind)
+}
+
+func TestFailChatSummaryGenerationSuperseded(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+	server := &Server{db: db, pubsub: ps}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	generationStartedAt := time.Now()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	db.EXPECT().ClearChatSummaryGeneration(gomock.Any(), database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	}).Return(int64(0), nil)
+
+	server.failChatSummaryGeneration(
+		context.Background(),
+		logger,
+		chat,
+		generationStartedAt,
+	)
+
+	require.Empty(t, ps.watchEvents(t))
 }
 
 func TestUpdateChatSummary(t *testing.T) {

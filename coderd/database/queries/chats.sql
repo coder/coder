@@ -1481,7 +1481,7 @@ ON CONFLICT (chat_id) DO UPDATE
 SET started_at = NOW()
 RETURNING started_at;
 
--- name: ClearChatSummaryGeneration :exec
+-- name: ClearChatSummaryGeneration :execrows
 DELETE FROM chat_summary_generations
 WHERE
     chat_id = @id::uuid

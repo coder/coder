@@ -7492,7 +7492,7 @@ func (q *sqlQuerier) BatchUpsertChatHeartbeats(ctx context.Context, arg BatchUps
 	return err
 }
 
-const clearChatSummaryGeneration = `-- name: ClearChatSummaryGeneration :exec
+const clearChatSummaryGeneration = `-- name: ClearChatSummaryGeneration :execrows
 DELETE FROM chat_summary_generations
 WHERE
     chat_id = $1::uuid
@@ -7504,9 +7504,12 @@ type ClearChatSummaryGenerationParams struct {
 	GenerationStartedAt time.Time `db:"generation_started_at" json:"generation_started_at"`
 }
 
-func (q *sqlQuerier) ClearChatSummaryGeneration(ctx context.Context, arg ClearChatSummaryGenerationParams) error {
-	_, err := q.db.ExecContext(ctx, clearChatSummaryGeneration, arg.ID, arg.GenerationStartedAt)
-	return err
+func (q *sqlQuerier) ClearChatSummaryGeneration(ctx context.Context, arg ClearChatSummaryGenerationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearChatSummaryGeneration, arg.ID, arg.GenerationStartedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
