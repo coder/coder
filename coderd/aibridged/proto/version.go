@@ -21,9 +21,13 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.3:
 //   - Adds Authorizer.AuthorizeMCPGateway for token-scoped MCP gateway access
 //     checks with initiator attribution.
+//
+// API v1.4:
+//   - Adds MCPConfigurator.GetMCPUpstreamCredential for sponsor-scoped
+//     external-auth token resolution and structured re-authentication signals.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 3
+	CurrentMinor = 4
 )
 
 // VersionQueryParam is the URL query parameter the standalone AI Gateway

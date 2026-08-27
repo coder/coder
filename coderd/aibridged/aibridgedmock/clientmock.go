@@ -116,6 +116,21 @@ func (mr *MockDRPCClientMockRecorder) GetMCPServerConfigs(ctx, in any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPServerConfigs", reflect.TypeOf((*MockDRPCClient)(nil).GetMCPServerConfigs), ctx, in)
 }
 
+// GetMCPUpstreamCredential mocks base method.
+func (m *MockDRPCClient) GetMCPUpstreamCredential(ctx context.Context, in *proto.GetMCPUpstreamCredentialRequest) (*proto.GetMCPUpstreamCredentialResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMCPUpstreamCredential", ctx, in)
+	ret0, _ := ret[0].(*proto.GetMCPUpstreamCredentialResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMCPUpstreamCredential indicates an expected call of GetMCPUpstreamCredential.
+func (mr *MockDRPCClientMockRecorder) GetMCPUpstreamCredential(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMCPUpstreamCredential", reflect.TypeOf((*MockDRPCClient)(nil).GetMCPUpstreamCredential), ctx, in)
+}
+
 // IsAuthorized mocks base method.
 func (m *MockDRPCClient) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
 	m.ctrl.T.Helper()

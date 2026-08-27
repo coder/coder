@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -22,6 +24,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	protobufproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -52,6 +56,7 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -363,6 +368,174 @@ func TestAuthorizeMCPGateway(t *testing.T) {
 			require.Equal(t, rbac.ResourceMcpGateway.WithIDString(mcpServerConfigID), call.Object)
 		})
 	}
+}
+
+func TestGetMCPUpstreamCredential(t *testing.T) {
+	t.Parallel()
+
+	const (
+		accessURL  = "https://coder.example.com"
+		providerID = "github"
+	)
+
+	newConfig := func(oauthConfig *oauth2.Config) *externalauth.Config {
+		if oauthConfig == nil {
+			oauthConfig = &oauth2.Config{}
+		}
+		return &externalauth.Config{
+			InstrumentedOAuth2Config: promoauth.NewFactory(prometheus.NewRegistry()).New(
+				"mcp-upstream-"+uuid.NewString(), oauthConfig,
+			),
+			ID:           providerID,
+			MCPURL:       "https://mcp.example.com",
+			RefreshGroup: &singleflight.Group{},
+		}
+	}
+	newServer := func(t *testing.T, ctx context.Context, db database.Store, config *externalauth.Config) *aibridgedserver.Server {
+		t.Helper()
+		srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+			Store:               db,
+			AISeatTracker:       agplaiseats.Noop{},
+			AccessURL:           accessURL,
+			GatewayCfg:          codersdk.AIBridgeConfig{},
+			ExternalAuthConfigs: []*externalauth.Config{config},
+			Experiments:         requiredExperiments,
+			Logger:              testutil.Logger(t),
+			Clock:               quartz.NewReal(),
+		})
+		require.NoError(t, err)
+		return srv
+	}
+	newHumanToken := func(t *testing.T, db database.Store) (database.User, string) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			HolderID:  database.HolderID(user.ID),
+			LoginType: database.LoginTypeToken,
+			Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+			AllowList: database.AllowList{rbac.AllowListAll()},
+			TokenName: testutil.GetRandomName(t),
+		})
+		return user, token
+	}
+	getCredential := func(ctx context.Context, srv *aibridgedserver.Server, token string) (*proto.GetMCPUpstreamCredentialResponse, error) {
+		return srv.GetMCPUpstreamCredential(ctx, &proto.GetMCPUpstreamCredentialRequest{
+			Key:                    token,
+			ExternalAuthProviderId: providerID,
+		})
+	}
+
+	t.Run("happy path", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		user, token := newHumanToken(t, db)
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       providerID,
+			UserID:           user.ID,
+			OAuthAccessToken: "sponsor-access-token",
+			OAuthExpiry:      dbtime.Now().Add(time.Hour),
+		})
+
+		resp, err := getCredential(ctx, newServer(t, ctx, db, newConfig(nil)), token)
+		require.NoError(t, err)
+		require.Equal(t, &proto.GetMCPUpstreamCredentialResponse{
+			AccessToken: "sponsor-access-token",
+			ProviderId:  providerID,
+		}, resp)
+	})
+
+	t.Run("missing link requires reauth", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		_, token := newHumanToken(t, db)
+
+		resp, err := getCredential(ctx, newServer(t, ctx, db, newConfig(nil)), token)
+		require.NoError(t, err)
+		require.Equal(t, &proto.GetMCPUpstreamCredentialResponse{
+			ReauthRequired: true,
+			ReauthUrl:      accessURL + "/external-auth/" + providerID,
+			ProviderId:     providerID,
+		}, resp)
+	})
+
+	t.Run("invalid refresh requires reauth", func(t *testing.T) {
+		t.Parallel()
+
+		var refreshCalled atomic.Bool
+		tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			refreshCalled.Store(true)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"refresh token revoked"}`))
+		}))
+		t.Cleanup(tokenServer.Close)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		user, token := newHumanToken(t, db)
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:        providerID,
+			UserID:            user.ID,
+			OAuthAccessToken:  "expired-access-token",
+			OAuthRefreshToken: "invalid-refresh-token",
+			OAuthExpiry:       dbtime.Now().Add(-time.Hour),
+		})
+		config := newConfig(&oauth2.Config{
+			ClientID: "client-id",
+			Endpoint: oauth2.Endpoint{TokenURL: tokenServer.URL},
+		})
+		config.RefreshRetryTimeout = -1
+
+		resp, err := getCredential(ctx, newServer(t, ctx, db, config), token)
+		require.NoError(t, err)
+		require.True(t, refreshCalled.Load())
+		require.Equal(t, &proto.GetMCPUpstreamCredentialResponse{
+			ReauthRequired: true,
+			ReauthUrl:      accessURL + "/external-auth/" + providerID,
+			ProviderId:     providerID,
+		}, resp)
+	})
+
+	t.Run("AI identity uses sponsor link", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		db, _ := dbtestutil.NewDB(t)
+		owner := dbgen.User(t, db, database.User{})
+		organization := dbgen.Organization(t, db, database.Organization{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         owner.ID,
+		})
+		chatID := uuid.New()
+		agent, err := aiagentidentity.Create(ctx, db, aiagentidentity.CreateParams{
+			OwnerID:        owner.ID,
+			OrganizationID: organization.ID,
+			OriginType:     entity.CreationSiteTypeChat,
+			OriginID:       chatID,
+		})
+		require.NoError(t, err)
+		_, aiToken, err := aiagentidentity.MintKey(ctx, db, agent.ID, aiagentidentity.ChatAgentProfile(chatID))
+		require.NoError(t, err)
+
+		dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+			ProviderID:       providerID,
+			UserID:           owner.ID,
+			OAuthAccessToken: "sponsor-access-token",
+			OAuthExpiry:      dbtime.Now().Add(time.Hour),
+		})
+
+		resp, err := getCredential(ctx, newServer(t, ctx, db, newConfig(nil)), aiToken)
+		require.NoError(t, err)
+		require.Equal(t, &proto.GetMCPUpstreamCredentialResponse{
+			AccessToken: "sponsor-access-token",
+			ProviderId:  providerID,
+		}, resp)
+	})
 }
 
 // TestAIAgentInterceptionLineage verifies that AI Bridge interceptions

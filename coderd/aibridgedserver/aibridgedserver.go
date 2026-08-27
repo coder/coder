@@ -119,6 +119,7 @@ type Server struct {
 	authorizer          rbac.Authorizer
 	pubsub              pubsub.Pubsub
 	logger              slog.Logger
+	accessURL           string
 	externalAuthConfigs map[string]*externalauth.Config
 
 	coderMCPConfig    *proto.MCPServerConfig // may be nil if not available
@@ -164,12 +165,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	}
 
 	eac := make(map[string]*externalauth.Config, len(opts.ExternalAuthConfigs))
-
 	for _, cfg := range opts.ExternalAuthConfigs {
-		// Only External Auth configs which are configured with an MCP URL are relevant to aibridged.
-		if cfg.MCPURL == "" {
-			continue
-		}
 		eac[cfg.ID] = cfg
 	}
 
@@ -179,6 +175,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 		authorizer:          opts.Authorizer,
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
+		accessURL:           opts.AccessURL,
 		externalAuthConfigs: eac,
 		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
 		aiSeatTracker:       opts.AISeatTracker,
@@ -629,6 +626,10 @@ func (s *Server) findInterceptionLineage(ctx context.Context, toolCallID string)
 func (s *Server) GetMCPServerConfigs(_ context.Context, _ *proto.GetMCPServerConfigsRequest) (*proto.GetMCPServerConfigsResponse, error) {
 	cfgs := make([]*proto.MCPServerConfig, 0, len(s.externalAuthConfigs))
 	for _, eac := range s.externalAuthConfigs {
+		if eac.MCPURL == "" {
+			continue
+		}
+
 		var allowlist, denylist string
 		if eac.MCPToolAllowRegex != nil {
 			allowlist = eac.MCPToolAllowRegex.String()
@@ -689,7 +690,7 @@ func (s *Server) GetMCPServerAccessTokensBatch(ctx context.Context, in *proto.Ge
 externalAuthLoop:
 	for _, id := range ids {
 		eac, ok := s.externalAuthConfigs[id]
-		if !ok {
+		if !ok || eac.MCPURL == "" {
 			mu.Lock()
 			s.logger.Warn(ctx, "no MCP server config found by given ID", slog.F("id", id))
 			tokenErrs[id] = ErrNoMCPConfigFound.Error()
@@ -702,6 +703,8 @@ externalAuthLoop:
 				continue
 			}
 
+			// GetMCPUpstreamCredential supersedes this deprecated validate-only
+			// path with refresh support and structured re-authentication.
 			// Validate all configured External Auth links concurrently.
 			wg.Add(1)
 			go func() {
@@ -741,6 +744,75 @@ externalAuthLoop:
 		AccessTokens: tokens,
 		Errors:       tokenErrs,
 	}, errs
+}
+
+// GetMCPUpstreamCredential returns a fresh external-auth token owned by the
+// human sponsor of the authenticated API key identity.
+func (s *Server) GetMCPUpstreamCredential(ctx context.Context, in *proto.GetMCPUpstreamCredentialRequest) (*proto.GetMCPUpstreamCredentialResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	_, principal, err := s.authenticateAPIKey(ctx, in.GetKey(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	providerID := in.GetExternalAuthProviderId()
+	if providerID == "" {
+		return nil, xerrors.New("external_auth_provider_id is required")
+	}
+	config, ok := s.externalAuthConfigs[providerID]
+	if !ok {
+		return nil, xerrors.Errorf("external auth provider %q is not configured", providerID)
+	}
+
+	// The sponsor is the accountable human: an AI-held key's ledger owner,
+	// already validated live by authentication, else the human holder
+	// themselves reading their own link.
+	sponsorID := principal.InitiatorID
+	if principal.SponsorUserID.Valid {
+		sponsorID = principal.SponsorUserID.UUID
+	}
+
+	// AI identity profiles intentionally exclude user personal read and update
+	// scopes (coderd/aiagentidentity/profile.go:184-198). This purpose-built
+	// actor is the explicit delegation boundary for sponsor credential access.
+	brokerCtx := dbauthz.AsMCPGatewayTokenBroker(ctx) //nolint:gocritic
+	link, err := s.store.GetExternalAuthLink(brokerCtx, database.GetExternalAuthLinkParams{
+		UserID:     sponsorID,
+		ProviderID: providerID,
+	})
+	if xerrors.Is(err, sql.ErrNoRows) {
+		return s.mcpUpstreamReauthResponse(providerID)
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get sponsor external auth link: %w", err)
+	}
+
+	refreshedLink, err := config.RefreshToken(brokerCtx, s.store, link)
+	if externalauth.IsInvalidTokenError(err) {
+		return s.mcpUpstreamReauthResponse(providerID)
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("refresh sponsor external auth token: %w", err)
+	}
+
+	return &proto.GetMCPUpstreamCredentialResponse{
+		AccessToken: refreshedLink.OAuthAccessToken,
+		ProviderId:  providerID,
+	}, nil
+}
+
+func (s *Server) mcpUpstreamReauthResponse(providerID string) (*proto.GetMCPUpstreamCredentialResponse, error) {
+	reauthURL, err := url.JoinPath(s.accessURL, "external-auth", providerID)
+	if err != nil {
+		return nil, xerrors.Errorf("build external auth URL: %w", err)
+	}
+	return &proto.GetMCPUpstreamCredentialResponse{
+		ReauthRequired: true,
+		ReauthUrl:      reauthURL,
+		ProviderId:     providerID,
+	}, nil
 }
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
