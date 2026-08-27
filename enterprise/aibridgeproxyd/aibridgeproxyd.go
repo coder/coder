@@ -1033,48 +1033,26 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // or BYOK authentication.
 func prepareAIGatewayAuth(headers http.Header, coderToken, providerType string) {
 	if providerType == aibridgeconfig.ProviderCopilot {
-		setCopilotAuth(headers, coderToken)
+		headers.Set(agplaibridge.HeaderCoderToken, coderToken)
+
+		if extractCoderTokenFromBearerAuth(headers.Get("Authorization")) == coderToken {
+			headers.Del("Authorization")
+		}
+		if strings.TrimSpace(headers.Get("X-Api-Key")) == coderToken {
+			headers.Del("X-Api-Key")
+		}
 		return
 	}
 
 	// For other providers, only add the Coder token when a separate provider
 	// credential indicates BYOK.
-	injectBYOKHeaderIfNeeded(headers, coderToken)
-}
-
-// setCopilotAuth adds the Coder token required by AI Gateway to every Copilot
-// request. Unlike other providers, Copilot is always BYOK, even when a route
-// does not include a provider credential (e.g., /_ping). It also prevents the
-// Coder token from being forwarded to Copilot as a provider credential.
-func setCopilotAuth(headers http.Header, coderToken string) {
-	headers.Set(agplaibridge.HeaderCoderToken, coderToken)
-
-	if extractCoderTokenFromBearerAuth(headers.Get("Authorization")) == coderToken {
-		headers.Del("Authorization")
-	}
-	if strings.TrimSpace(headers.Get("X-Api-Key")) == coderToken {
-		headers.Del("X-Api-Key")
-	}
-}
-
-// injectBYOKHeaderIfNeeded sets HeaderCoderToken when the
-// Authorization header carries a bearer token that differs from the
-// Coder token, indicating the client is using its own LLM
-// credentials. Clients that can set custom headers
-// do this themselves; this handles clients that cannot.
-//
-// In centralized mode, Authorization carries the Coder token
-// itself, so aibridged discovers it via ExtractAuthToken
-// without any extra header.
-func injectBYOKHeaderIfNeeded(header http.Header, coderToken string) {
-	// Don’t overwrite the header if it’s already set.
-	if header.Get(agplaibridge.HeaderCoderToken) != "" {
+	if headers.Get(agplaibridge.HeaderCoderToken) != "" {
 		return
 	}
 
-	bearer := extractCoderTokenFromBearerAuth(header.Get("Authorization"))
+	bearer := extractCoderTokenFromBearerAuth(headers.Get("Authorization"))
 	if bearer != "" && bearer != coderToken {
-		header.Set(agplaibridge.HeaderCoderToken, coderToken)
+		headers.Set(agplaibridge.HeaderCoderToken, coderToken)
 	}
 }
 
