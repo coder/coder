@@ -393,6 +393,19 @@ const removeRegistryEntriesForScope = (
 	}
 };
 
+/**
+ * Invalidate a chat's in-flight uploads so their late async
+ * completions cannot rewrite draft records after archive or delete
+ * cleanup removed the chat's storage.
+ */
+export const invalidateChatDraftUploads = (chatId: string): void => {
+	for (const entry of Array.from(activeDraftUploads.values())) {
+		if (entry.chatId === chatId) {
+			removeRegistryEntry(entry.clientId);
+		}
+	}
+};
+
 const hydrateViews = (
 	organizationId: string | undefined,
 	chatId: string | undefined,

@@ -16,6 +16,7 @@ import {
 	jsonCodec,
 	stringCodec,
 } from "#/storage";
+import { invalidateChatDraftUploads } from "./hooks/useChatDraftAttachments";
 import { chatDraftAttachmentsStorage } from "./utils/chatDraftAttachmentStorage";
 
 export const chatFullWidthStorage = defineStorageKey<boolean>({
@@ -109,6 +110,7 @@ export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
  * leak.
  */
 export function clearChatStorage(chatId: string): void {
+	invalidateChatDraftUploads(chatId);
 	chatDraftInputStorage.clear(chatId);
 	chatSidebarTabStorage.clear(chatId);
 	chatRightPanelTabsStorage.clear(chatId);

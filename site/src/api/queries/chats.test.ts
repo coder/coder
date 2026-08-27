@@ -4342,6 +4342,16 @@ describe("applyWatchedChatArchived", () => {
 		fetch.unsubscribe();
 	});
 
+	it("clears the chat's per-chat storage for each archived family member", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		localStorage.setItem(`agents.draft-input.${chatId}`, "draft");
+
+		applyWatchedChatArchived(queryClient, makeChat(chatId, { archived: true }));
+
+		expect(localStorage.getItem(`agents.draft-input.${chatId}`)).toBeNull();
+	});
+
 	it("does not create an entity query when no observer is mounted", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";

@@ -2,6 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { createDeferred } from "#/testHelpers/deferred";
+import { clearChatStorage } from "../storage";
 import { chatDraftAttachmentStorageKey } from "../utils/chatDraftAttachmentStorage";
 import {
 	resetChatDraftAttachmentRegistryForTest,
@@ -201,6 +202,36 @@ describe("useChatDraftAttachments", () => {
 		expect(result.current.attachments).toHaveLength(0);
 		expect(localStorage.getItem(storageKey)).toBeNull();
 		unmount();
+	});
+
+	it("clearChatStorage invalidates in-flight uploads so late completions cannot recreate records", async () => {
+		const upload = createDeferred<{ id: string }>();
+		vi.spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			upload.promise,
+		);
+		const { result, unmount } = renderHook(() =>
+			useChatDraftAttachments(orgID, chatID),
+		);
+		const file = new File(["hello"], "photo.png", {
+			type: "image/png",
+			lastModified: 2,
+		});
+
+		act(() => {
+			result.current.handleAttach([file]);
+		});
+		await vi.waitFor(() => {
+			expect(result.current.attachments).toHaveLength(1);
+		});
+		unmount();
+
+		clearChatStorage(chatID);
+		expect(localStorage.getItem(storageKey)).toBeNull();
+
+		await act(async () => {
+			upload.resolve({ id: "file-late" });
+		});
+		expect(localStorage.getItem(storageKey)).toBeNull();
 	});
 
 	it("keeps failed uploads attached with an error state", async () => {

@@ -423,6 +423,9 @@ export const applyWatchedChatArchived = (
 	}
 	applyChatArchiveStateToCaches(queryClient, chat.id, true);
 	removeChatFromChatsByWorkspace(queryClient, chat.id);
+	// The server sends one event per family member, so this also cleans
+	// child-chat storage and archives that originated in other sessions.
+	clearChatStorage(chat.id);
 	void invalidateChatListQueries(queryClient);
 	void invalidateChatsByWorkspace(queryClient);
 	void invalidateChatSearches(queryClient);
