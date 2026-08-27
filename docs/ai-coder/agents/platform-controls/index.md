@@ -101,6 +101,26 @@ opt-out, or opt-in for each chat.
 
 See [MCP Servers](./mcp-servers.md) for configuration details.
 
+### AI activity audit
+
+Every action an agentic identity takes is recorded against its sponsor, the
+human user accountable for the agent. The **AI Activity** page (`/ai-activity`)
+merges these records into one timeline per sponsor: sandbox sessions, egress
+decisions (aggregated per host), AI Bridge sessions, MCP tool calls with their
+dispositions, and tool call escalations with their outcomes. Users see their
+own sponsored activity; viewing another sponsor requires audit log read
+permission (the auditor or owner role).
+
+The timeline deliberately excludes conversation content. Prompts, model
+thoughts, and tool arguments stay behind the dedicated drill-down surfaces:
+AI Bridge session threads, the approvals page, and the per-workspace egress
+table.
+
+The same data is available programmatically from
+`GET /api/v2/ai-audit/timeline` (filter by `sponsor`, `ai_agent_id`, `types`,
+and a time window) and `GET /api/v2/ai-audit/agents`, which lists the agentic
+identities a sponsor owns.
+
 ### Workspace autostop fallback
 
 Administrators can set a default autostop timer for agent-created workspaces

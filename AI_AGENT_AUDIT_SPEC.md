@@ -8,13 +8,13 @@ and an AI Activity page.
 
 ## Implementation status
 
-| Slice | Contents                                                                                                                                                                   | Status  |
-|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| 1     | Sponsor becomes RBAC owner of AI-initiated interceptions (`RBACObject` + rego converter + authorized SQL filter), `sponsor:` filter in the bridge sessions search language | pending |
-| 2     | Sponsor-scoped list queries: sandbox sessions, aggregated network events, escalations (sponsor param), AI agent registry endpoint                                          | pending |
-| 3     | `GET /api/v2/ai-audit/timeline` merged event feed (frozen contract below), codersdk client                                                                                 | pending |
-| 4     | AI Activity page in the site (`/ai-activity`)                                                                                                                              | pending |
-| 5     | Docs                                                                                                                                                                       | pending |
+| Slice | Contents                                                                                                                                                                   | Status              |
+|-------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------|
+| 1     | Sponsor becomes RBAC owner of AI-initiated interceptions (`RBACObject` + rego converter + authorized SQL filter), `sponsor:` filter in the bridge sessions search language | done (`cb00ca1f41`) |
+| 2     | Sponsor-scoped list queries: sandbox sessions, aggregated network events, escalations (sponsor param), AI agent registry endpoint                                          | done (`a4d7e40c35`) |
+| 3     | `GET /api/v2/ai-audit/timeline` merged event feed (frozen contract below), codersdk client                                                                                 | done (`d2714f9429`) |
+| 4     | AI Activity page in the site (`/ai-activity`)                                                                                                                              | done (`910ddfd8f2`) |
+| 5     | Docs                                                                                                                                                                       | done                |
 
 ## Decisions
 
