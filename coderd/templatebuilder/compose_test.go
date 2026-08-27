@@ -639,6 +639,18 @@ func TestComposeBaseHonorsRegistryMirror(t *testing.T) {
 		require.ErrorContains(t, err, "bare host")
 		require.NotContains(t, err.Error(), "s3cr3t-token")
 	})
+
+	t.Run("StripsScheme", func(t *testing.T) {
+		t.Parallel()
+		// A value pasted with a scheme is normalized to a bare host in the source.
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "quickstart",
+			RegistryURL:    "https://mirror.internal.example/",
+		})
+		require.NoError(t, err)
+		require.Contains(t, string(result.MainTF), "mirror.internal.example/coder/git-clone/coder")
+		require.NotContains(t, string(result.MainTF), "https://mirror.internal.example")
+	})
 }
 
 // extractTar reads a tar archive and returns a map of filename to content.

@@ -77,7 +77,10 @@ button links to the starter templates page instead, and the
 
 Deployments using a self-hosted module registry mirror can set
 `CODER_TEMPLATE_BUILDER_REGISTRY_URL` to point generated module source paths at
-the mirror instead of `registry.coder.com`.
+the mirror instead of `registry.coder.com`. The value is a bare host, optionally
+with a port (for example `mirror.internal:8443`); a leading `http(s)://` scheme
+and trailing slash are stripped, and a path, query, fragment, or credentials is
+rejected at server start.
 
 #### Alternative creation methods
 

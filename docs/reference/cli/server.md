@@ -2154,4 +2154,4 @@ Disable the template builder feature for guided template creation. When disabled
 | YAML        | <code>templateBuilder.registryURL</code>          |
 | Default     | <code>registry.coder.com</code>                   |
 
-The base URL of the module registry used by the template builder for module source paths.
+The module registry host the template builder uses for module source paths, for example "registry.coder.com" or "mirror.internal:8443". An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.

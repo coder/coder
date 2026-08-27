@@ -259,6 +259,10 @@ CODER_TEMPLATE_BUILDER_REGISTRY_URL=registry.internal.example.com
 This makes the builder generate module source paths pointing at your mirror
 rather than `registry.coder.com`.
 
+The value is a bare host, optionally with a port (for example
+`mirror.internal:8443`). A leading `http(s)://` scheme and trailing slash are
+stripped; a path, query, fragment, or credentials is rejected at server start.
+
 ## Coder Modules
 
 To use Coder modules in offline installations, you can either:

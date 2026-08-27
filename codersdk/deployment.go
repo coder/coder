@@ -4989,7 +4989,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Template Builder Registry URL",
-			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Description: "The module registry host the template builder uses for module source paths, for example \"registry.coder.com\" or \"mirror.internal:8443\". An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
@@ -5128,26 +5128,31 @@ type TemplateBuilderConfig struct {
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
-// ValidateTemplateBuilderRegistryURL reports whether a configured template
-// builder registry value is a bare host (optionally with a port) suitable for
-// verbatim use in a Terraform module source. An empty value is valid and
-// defaults at render time. A scheme, path, query, fragment, trailing slash, or
+// NormalizeTemplateBuilderRegistryURL canonicalizes a configured template
+// builder registry value into the bare host used verbatim in a Terraform module
+// source. An empty value returns empty (the caller defaults it). An accidental
+// http(s):// scheme and trailing slashes are stripped so a value pasted as a URL
+// still resolves to a host; any other scheme, a path, query, fragment, or
 // embedded credentials is rejected so a misconfiguration fails at server start
-// rather than rendering broken or unsafe module sources. It does not
+// rather than rendering broken or unsafe module sources. It does not otherwise
 // canonicalize the host.
-func ValidateTemplateBuilderRegistryURL(raw string) error {
+func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 	v := strings.TrimSpace(raw)
 	if v == "" {
-		return nil
+		return "", nil
 	}
-	// net/url only isolates a bare host:port in authority form. Requiring the
-	// parsed host to equal the whole input rejects a scheme, path, query,
-	// fragment, or trailing slash in one check, and never echoes the input.
+	v = strings.TrimPrefix(v, "https://")
+	v = strings.TrimPrefix(v, "http://")
+	v = strings.TrimRight(v, "/")
+	// net/url isolates a bare host:port only in authority form. Requiring the
+	// parsed host to equal the whole remainder rejects a leftover path, query,
+	// fragment, non-http scheme, or embedded credentials, and never echoes the
+	// input.
 	u, err := url.Parse("//" + v)
 	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
-		return xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
+		return "", xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
 	}
-	return nil
+	return v, nil
 }
 
 type SupportConfig struct {
@@ -5225,7 +5230,7 @@ func (c *DeploymentValues) Validate() error {
 	// Gated on the builder being enabled and run here rather than as a per-option
 	// serpent validator, which only fires in Set and so misses the YAML path.
 	if !c.TemplateBuilder.Disabled.Value() {
-		if err := ValidateTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
+		if _, err := NormalizeTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
 			return err
 		}
 	}

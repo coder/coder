@@ -10,7 +10,7 @@ import (
 	"github.com/coder/serpent"
 )
 
-func TestValidateTemplateBuilderRegistryURL(t *testing.T) {
+func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Accepts", func(t *testing.T) {
@@ -18,18 +18,27 @@ func TestValidateTemplateBuilderRegistryURL(t *testing.T) {
 		cases := []struct {
 			name string
 			in   string
+			want string
 		}{
-			{"Empty", ""},
-			{"WhitespaceOnly", "   "},
-			{"BareHost", "registry.coder.com"},
-			{"SurroundingSpaceTrimmed", "  mirror.internal  "},
-			{"HostPort", "mirror.example.com:8443"},
-			{"IPv6HostPort", "[::1]:8443"},
+			{"Empty", "", ""},
+			{"WhitespaceOnly", "   ", ""},
+			{"BareHost", "registry.coder.com", "registry.coder.com"},
+			{"SurroundingSpaceTrimmed", "  mirror.internal  ", "mirror.internal"},
+			{"HostPort", "mirror.example.com:8443", "mirror.example.com:8443"},
+			{"IPv6HostPort", "[::1]:8443", "[::1]:8443"},
+			// An accidental scheme and trailing slash are stripped rather than
+			// rejected, so a value pasted as a URL still resolves to a host.
+			{"HTTPSStripped", "https://mirror.example.com", "mirror.example.com"},
+			{"HTTPStripped", "http://mirror.example.com", "mirror.example.com"},
+			{"TrailingSlashStripped", "mirror.example.com/", "mirror.example.com"},
+			{"SchemePortAndSlash", "https://mirror.example.com:8443/", "mirror.example.com:8443"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				require.NoError(t, codersdk.ValidateTemplateBuilderRegistryURL(tc.in))
+				got, err := codersdk.NormalizeTemplateBuilderRegistryURL(tc.in)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
 			})
 		}
 	})
@@ -40,10 +49,10 @@ func TestValidateTemplateBuilderRegistryURL(t *testing.T) {
 			name string
 			in   string
 		}{
-			{"Scheme", "https://mirror.example.com"},
-			{"UppercaseScheme", "HTTPS://mirror.example.com"},
 			{"Path", "mirror.example.com/coder"},
-			{"TrailingSlash", "mirror.example.com/"},
+			{"NonHTTPScheme", "git://mirror.example.com"},
+			{"UppercaseScheme", "HTTPS://mirror.example.com"},
+			{"SchemeAndPath", "https://mirror.example.com/coder"},
 			{"Query", "mirror.example.com?a=b"},
 			{"Fragment", "mirror.example.com#frag"},
 			{"DoubledScheme", "https://https://mirror.example.com"},
@@ -53,16 +62,17 @@ func TestValidateTemplateBuilderRegistryURL(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
-				require.ErrorContains(t, codersdk.ValidateTemplateBuilderRegistryURL(tc.in), "bare host")
+				_, err := codersdk.NormalizeTemplateBuilderRegistryURL(tc.in)
+				require.ErrorContains(t, err, "bare host")
 			})
 		}
 	})
 
 	t.Run("RejectsCredentialsWithoutEcho", func(t *testing.T) {
 		t.Parallel()
-		// Userinfo must be rejected, and the rejection must not echo the
-		// credential it rejected.
-		err := codersdk.ValidateTemplateBuilderRegistryURL("https://user:s3cr3t-token@mirror.example.com")
+		// Userinfo survives the scheme strip and must be rejected, not accepted,
+		// and the rejection must not echo the credential.
+		_, err := codersdk.NormalizeTemplateBuilderRegistryURL("https://user:s3cr3t-token@mirror.example.com")
 		require.ErrorContains(t, err, "bare host")
 		require.NotContains(t, err.Error(), "s3cr3t-token")
 	})
@@ -92,7 +102,9 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 		{name: "EmptyOK"},
 		{name: "BareHostOK", url: "mirror.internal.example"},
 		{name: "HostPortOK", url: "mirror.internal.example:8443"},
-		{name: "SchemeRejected", url: "https://mirror.internal.example", wantErr: "bare host"},
+		// A scheme is stripped, not rejected, so an existing deployment that set
+		// a scheme'd value keeps booting after upgrade.
+		{name: "SchemeStrippedOK", url: "https://mirror.internal.example"},
 		{name: "PathRejected", url: "mirror.internal.example/coder", wantErr: "bare host"},
 		{name: "CredentialsRejected", url: "https://user:tok@mirror.example.com", wantErr: "bare host"},
 		// A disabled template builder must not block boot on an inert value, so

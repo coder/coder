@@ -6,7 +6,6 @@ import (
 	"maps"
 	"path"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -56,14 +55,15 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	// Validated at server start (codersdk.DeploymentValues.Validate); default an
-	// unset value and defensively reject a malformed one from a direct caller
-	// that bypasses the boot check.
-	registryBase := strings.TrimSpace(req.RegistryURL)
+	// Validated at server start (codersdk.DeploymentValues.Validate). Normalize
+	// here too so a direct caller that bypasses the boot check gets the same
+	// scheme-stripping and rejection; default an unset value.
+	registryBase, err := codersdk.NormalizeTemplateBuilderRegistryURL(req.RegistryURL)
+	if err != nil {
+		return nil, err
+	}
 	if registryBase == "" {
 		registryBase = DefaultRegistryBase
-	} else if err := codersdk.ValidateTemplateBuilderRegistryURL(registryBase); err != nil {
-		return nil, err
 	}
 
 	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
