@@ -356,14 +356,19 @@ describe("entity-scoped keys", () => {
 		]);
 	});
 
-	it("survives unavailable enumeration during entity cleanup", () => {
+	it("reports unavailable enumeration during entity cleanup", () => {
 		const handle = chatNote.forId("chat-1");
 		handle.set("draft");
 		vi.spyOn(Storage.prototype, "key").mockImplementation(() => {
 			throw new Error("denied");
 		});
 
-		expect(() => chatNote.clear("chat-1")).not.toThrow();
+		// The matching value may remain, so this must not claim success.
+		expect(chatNote.clear("chat-1")).toEqual({
+			ok: false,
+			reason: "unavailable",
+		});
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("draft");
 	});
 
 	it("notifies subscribers when entity cleanup removes their key", () => {

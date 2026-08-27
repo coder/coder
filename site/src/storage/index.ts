@@ -414,7 +414,12 @@ export function defineEntityStorageKey<T>(options: {
 			}
 			// Collect first: removing keys while enumerating by index
 			// skips entries.
-			const ownedKeys = listLocalKeys().filter(
+			const localKeys = listLocalKeysOrNull();
+			if (localKeys === null) {
+				// Matching values may remain; do not report success.
+				return { ok: false, reason: "unavailable" };
+			}
+			const ownedKeys = localKeys.filter(
 				(key) =>
 					key.startsWith(prefix) &&
 					entityIdFromSuffix(key.slice(prefix.length)) === id,
@@ -433,15 +438,17 @@ export function defineEntityStorageKey<T>(options: {
 	};
 }
 
-/** Snapshot of localStorage key names; safe to mutate storage afterwards. */
-const listLocalKeys = (): string[] => {
+/**
+ * Snapshot of localStorage key names, or null when enumeration itself
+ * fails under restricted storage access; safe to mutate storage
+ * afterwards.
+ */
+const listLocalKeysOrNull = (): string[] | null => {
 	const keys: string[] = [];
-	// Enumeration itself can throw under restricted storage access, so
-	// this never throws and returns what was collected.
 	try {
 		const storage = getAreaStorage("local");
 		if (!storage) {
-			return keys;
+			return null;
 		}
 		for (let index = 0; index < storage.length; index++) {
 			const key = storage.key(index);
@@ -450,7 +457,9 @@ const listLocalKeys = (): string[] => {
 			}
 		}
 	} catch {
-		// Partial or empty list; callers treat it as best-effort.
+		return null;
 	}
 	return keys;
 };
+
+const listLocalKeys = (): string[] => listLocalKeysOrNull() ?? [];
