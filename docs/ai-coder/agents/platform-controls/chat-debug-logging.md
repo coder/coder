@@ -1,4 +1,6 @@
-# Chat debug logging
+---
+title: Chat debug logging
+---
 
 Records a detailed trace of each chat turn for troubleshooting: the
 normalized request sent to the LLM provider, the full response, token usage,

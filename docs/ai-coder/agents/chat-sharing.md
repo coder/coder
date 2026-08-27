@@ -1,4 +1,6 @@
-# Chat Sharing
+---
+title: Chat Sharing
+---
 
 Chat sharing lets you give other users or groups read-only access to a Coder Agents conversation.
 

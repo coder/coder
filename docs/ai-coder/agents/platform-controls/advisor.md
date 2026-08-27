@@ -1,4 +1,6 @@
-# Advisor
+---
+title: Advisor
+---
 
 > [!NOTE]
 > This feature is experimental. Pin a release before broad rollout and review

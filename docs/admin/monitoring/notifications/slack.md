@@ -1,4 +1,6 @@
-# Slack Notifications
+---
+title: Slack Notifications
+---
 
 [Slack](https://slack.com/) is a popular messaging platform designed for teams
 and businesses, enabling real-time collaboration through channels, direct

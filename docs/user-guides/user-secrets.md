@@ -1,4 +1,6 @@
-# User secrets
+---
+title: User secrets
+---
 
 User secrets let you store secret values in Coder and make them available in
 every workspace you own.

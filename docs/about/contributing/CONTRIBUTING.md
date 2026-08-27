@@ -1,4 +1,6 @@
-# Contributing
+---
+title: Contributing
+---
 
 ## Requirements
 
