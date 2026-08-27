@@ -1000,13 +1000,8 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	req.URL = parsedGatewayTargetURL
 	req.Host = parsedGatewayTargetURL.Host
 
-	// Copilot is always BYOK, so every request needs the Coder token to
-	// authenticate with AI Gateway. Other providers only need it for BYOK requests.
-	if liveProvider.providerType == aibridgeconfig.ProviderCopilot {
-		setCopilotAuth(req.Header, reqCtx.CoderToken)
-	} else {
-		injectBYOKHeaderIfNeeded(req.Header, reqCtx.CoderToken)
-	}
+	// Prepare Coder authentication for centralized and BYOK requests.
+	prepareAIGatewayAuth(req.Header, reqCtx.CoderToken, liveProvider.providerType)
 
 	// Set request ID header to correlate requests between aibridgeproxyd and aibridged.
 	req.Header.Set(agplaibridge.HeaderCoderRequestID, reqCtx.RequestID.String())
@@ -1033,8 +1028,24 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 	return req, nil
 }
 
-// setCopilotAuth sets the Coder auth header and removes the Coder token from
-// provider auth headers.
+// prepareAIGatewayAuth prepares the Coder authentication headers for AI
+// Gateway. Copilot is always BYOK, while other providers may use centralized
+// or BYOK authentication.
+func prepareAIGatewayAuth(headers http.Header, coderToken, providerType string) {
+	if providerType == aibridgeconfig.ProviderCopilot {
+		setCopilotAuth(headers, coderToken)
+		return
+	}
+
+	// For other providers, only add the Coder token when a separate provider
+	// credential indicates BYOK.
+	injectBYOKHeaderIfNeeded(headers, coderToken)
+}
+
+// setCopilotAuth adds the Coder token required by AI Gateway to every Copilot
+// request. Unlike other providers, Copilot is always BYOK, even when a route
+// does not include a provider credential (e.g., /_ping). It also prevents the
+// Coder token from being forwarded to Copilot as a provider credential.
 func setCopilotAuth(headers http.Header, coderToken string) {
 	headers.Set(agplaibridge.HeaderCoderToken, coderToken)
 

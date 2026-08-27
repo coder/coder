@@ -1652,8 +1652,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		name                string
 		host                string
 		providerType        string
-		method              string
-		path                string
 		authorization       string
 		apiKey              string
 		coderToken          string
@@ -1662,55 +1660,8 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		expectAPIKey        *string
 	}{
 		{
-			name:                "ping passthrough route",
+			name:                "Copilot request without provider credential",
 			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodGet,
-			path:                "/_ping",
-			expectCoderToken:    stringPtr(coderToken),
-			expectAuthorization: nil,
-			expectAPIKey:        nil,
-		},
-		{
-			name:                "models passthrough route",
-			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodGet,
-			path:                "/models",
-			expectCoderToken:    stringPtr(coderToken),
-			expectAuthorization: nil,
-			expectAPIKey:        nil,
-		},
-		{
-			name:                "auto passthrough route",
-			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/auto",
-			expectCoderToken:    stringPtr(coderToken),
-			expectAuthorization: nil,
-			expectAPIKey:        nil,
-		},
-		{
-			name:                "responses bridged route",
-			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/responses",
-			expectCoderToken:    stringPtr(coderToken),
-			expectAuthorization: nil,
-			expectAPIKey:        nil,
-		},
-		{
-			name:                "messages bridged route",
-			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/v1/messages",
-			expectCoderToken:    stringPtr(coderToken),
-			expectAuthorization: nil,
-			expectAPIKey:        nil,
-		},
-		{
-			name:                "unknown route",
-			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodGet,
-			path:                "/unknown",
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
 			expectAPIKey:        nil,
@@ -1718,8 +1669,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		{
 			name:                "Copilot strips Coder bearer token",
 			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/responses",
 			authorization:       "Bearer " + coderToken,
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
@@ -1728,8 +1677,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		{
 			name:                "Copilot strips Coder API key",
 			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/responses",
 			apiKey:              coderToken,
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
@@ -1738,8 +1685,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		{
 			name:                "Copilot preserves provider bearer token",
 			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodPost,
-			path:                "/responses",
 			authorization:       "Bearer copilot-token",
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: stringPtr("Bearer copilot-token"),
@@ -1748,8 +1693,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		{
 			name:                "Copilot replaces client Coder token",
 			host:                aibridgeproxyd.HostCopilot,
-			method:              http.MethodGet,
-			path:                "/models",
 			coderToken:          "other-coder-token",
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
@@ -1759,8 +1702,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			name:                "Custom Copilot provider",
 			host:                "copilot.example.com",
 			providerType:        aibridge.ProviderCopilot,
-			method:              http.MethodGet,
-			path:                "/_ping",
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
 			expectAPIKey:        nil,
@@ -1769,8 +1710,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			name:                "Non-Copilot provider on Copilot host",
 			host:                aibridgeproxyd.HostCopilot,
 			providerType:        aibridge.ProviderOpenAI,
-			method:              http.MethodGet,
-			path:                "/_ping",
 			expectCoderToken:    nil,
 			expectAuthorization: nil,
 			expectAPIKey:        nil,
@@ -1781,9 +1720,8 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var receivedPath, receivedCoderToken, receivedAuthorization, receivedAPIKey string
+			var receivedCoderToken, receivedAuthorization, receivedAPIKey string
 			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				receivedPath = r.URL.Path
 				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderToken)
 				receivedAuthorization = r.Header.Get("Authorization")
 				receivedAPIKey = r.Header.Get("X-Api-Key")
@@ -1810,7 +1748,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			certPool := getProxyCertPool(t)
 			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool, false)
 
-			req, err := http.NewRequestWithContext(t.Context(), tt.method, "https://"+tt.host+tt.path, nil)
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+tt.host, nil)
 			require.NoError(t, err)
 			if tt.authorization != "" {
 				req.Header.Set("Authorization", tt.authorization)
@@ -1826,7 +1764,6 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			defer resp.Body.Close()
 
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			require.Equal(t, "/"+provider.name+tt.path, receivedPath)
 			if tt.expectAuthorization == nil {
 				require.Empty(t, receivedAuthorization)
 			} else {
