@@ -441,10 +441,13 @@ export interface Metadata {
   templateVersionModulesFile: string;
   /**
    * workspace_ai_agent_session_token is a scoped API key for the workspace's
-   * AI agent identity. Populated only when the workspace opts in via the
-   * "coder_ai_agent" rich parameter; empty otherwise.
+   * AI agent identity. Populated when the template declares
+   * data.coder_workspace_ai_agent or uses the deprecated "coder_ai_agent"
+   * rich parameter; empty otherwise.
    */
   workspaceAiAgentSessionToken: string;
+  /** workspace_ai_agent_id is the user ID of the workspace's AI agent identity. */
+  workspaceAiAgentId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -552,6 +555,8 @@ export interface GraphComplete {
   hasAiTasks: boolean;
   aiTasks: AITask[];
   hasExternalAgents: boolean;
+  /** Whether the template declares data.coder_workspace_ai_agent. */
+  hasAiAgent: boolean;
 }
 
 export interface Timing {
@@ -1414,6 +1419,9 @@ export const Metadata = {
     if (message.workspaceAiAgentSessionToken !== "") {
       writer.uint32(210).string(message.workspaceAiAgentSessionToken);
     }
+    if (message.workspaceAiAgentId !== "") {
+      writer.uint32(218).string(message.workspaceAiAgentId);
+    }
     return writer;
   },
 };
@@ -1617,6 +1625,9 @@ export const GraphComplete = {
     }
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);
+    }
+    if (message.hasAiAgent !== false) {
+      writer.uint32(80).bool(message.hasAiAgent);
     }
     return writer;
   },

@@ -22,6 +22,11 @@ import (
 const (
 	// #nosec G101, this is an environment variable name, not a credential.
 	envSandboxAgentToken = "CODER_SANDBOX_AGENT_TOKEN"
+	// envSandboxSessionToken carries the scoped AI identity API token that
+	// the guest agent exposes as CODER_SESSION_TOKEN, letting sandboxed
+	// tools reach the AI gateway, including its MCP endpoint.
+	// #nosec G101, this is an environment variable name, not a credential.
+	envSandboxSessionToken = "CODER_SANDBOX_SESSION_TOKEN"
 	// #nosec G101, this is an environment variable name, not a credential.
 	envSandboxPolicyToken = "CODER_AGENT_TOKEN"
 	envSandboxImage       = "CODER_SANDBOX_IMAGE"
@@ -73,13 +78,14 @@ func agentSandbox(agentAuth *AgentAuth) *serpent.Command {
 
 func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.Command {
 	var (
-		policyToken string
-		image       string
-		name        string
-		cpus        int64
-		memoryMiB   int64
-		cacheDir    string
-		stateDir    string
+		policyToken  string
+		sessionToken string
+		image        string
+		name         string
+		cpus         int64
+		memoryMiB    int64
+		cacheDir     string
+		stateDir     string
 	)
 	if deps.shutdownTimeout == 0 {
 		deps.shutdownTimeout = sandboxShutdownTimeout
@@ -159,6 +165,7 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 				CoderBinaryPath: coderBinaryPath,
 				AgentURL:        agentAuth.agentURL.String(),
 				AgentToken:      agentAuth.agentToken,
+				SessionToken:    sessionToken,
 				Policy:          policyMonitor.Engine(),
 				Destination:     destination,
 				Event: func(event confine.NetworkEvent) {
@@ -229,6 +236,13 @@ func agentSandboxWithDeps(agentAuth *AgentAuth, deps agentSandboxDeps) *serpent.
 			Flag:        "policy-token",
 			Env:         envSandboxPolicyToken,
 			Value:       serpent.StringOf(&policyToken),
+		},
+		serpent.Option{
+			Name:        "Session Token",
+			Description: "Optional scoped AI identity API token exposed to the guest agent as CODER_SESSION_TOKEN for AI gateway access.",
+			Flag:        "session-token",
+			Env:         envSandboxSessionToken,
+			Value:       serpent.StringOf(&sessionToken),
 		},
 		serpent.Option{
 			Name:        "Sandbox Image",

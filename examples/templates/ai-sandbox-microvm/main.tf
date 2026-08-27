@@ -33,6 +33,16 @@ variable "sandbox_memory_mib" {
   default     = 1024
 }
 
+variable "mcp_server_slugs" {
+  description = <<-EOT
+    Slugs of MCP servers (Admin settings, AI, MCP Servers) to register in
+    Claude Code inside the sandbox. Each connects through the Coder MCP
+    gateway using the AI agent identity's session token.
+  EOT
+  type        = list(string)
+  default     = ["github"]
+}
+
 variable "sandbox_cpus" {
   description = "Virtual CPU count for the embedded microVM."
   type        = number
@@ -45,6 +55,11 @@ provider "docker" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+
+# Using this data source opts the workspace into an AI agent identity:
+# coderd detects it at template import and mints a scoped session token
+# at build time, sponsored by the workspace owner.
+data "coder_workspace_ai_agent" "me" {}
 
 data "coder_parameter" "kvm_gid" {
   name         = "kvm_gid"
@@ -99,6 +114,67 @@ resource "coder_agent" "ai" {
 
   ai_bound           = true
   egress_enforcement = "forced"
+
+  env = {
+    # Route Claude Code's model traffic through the Coder AI gateway,
+    # authenticated as the AI agent identity. No provider API key ever
+    # enters the sandbox; the gateway injects centralized credentials
+    # server-side and meters usage per identity.
+    ANTHROPIC_BASE_URL   = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic"
+    ANTHROPIC_AUTH_TOKEN = data.coder_workspace_ai_agent.me.session_token
+  }
+
+  # Installs Claude Code inside the microVM guest. The installer runs
+  # through the sandbox egress proxy, so the AI egress policy must allow
+  # the download hosts (claude.ai and storage.googleapis.com); the README
+  # lists the rules. Failure leaves the agent usable; the app below just
+  # reports the missing binary.
+  startup_script = <<-EOT
+    set -eu
+    if command -v claude >/dev/null 2>&1; then
+      echo "Claude Code already installed: $(claude --version)"
+    else
+      # The stock ubuntu guest ships without curl. Package installs work
+      # because apt honors the proxy environment and the sandbox host
+      # process holds CAP_CHOWN.
+      if ! command -v curl >/dev/null 2>&1; then
+        echo "Installing curl..."
+        apt-get update -qq && apt-get install -y -qq curl ca-certificates
+      fi
+      echo "Installing Claude Code..."
+      curl -fsSL https://claude.ai/install.sh | bash
+      # The installer targets ~/.local/bin, which is not on PATH for
+      # login shells in the minimal guest image.
+      if [ -x "$HOME/.local/bin/claude" ]; then
+        ln -sf "$HOME/.local/bin/claude" /usr/local/bin/claude || true
+      fi
+      claude --version
+    fi
+
+    # Register configured MCP servers through the Coder MCP gateway,
+    # ALWAYS, not only on fresh installs: the guest rootfs is rebuilt
+    # from the OCI image on every boot, so client config does not
+    # persist. MCP is client-configured; the gateway endpoint exists
+    # regardless, but Claude Code only queries servers in its own
+    # config. Registration failures must not fail the boot.
+    %{~for slug in var.mcp_server_slugs~}
+    # --header is variadic and must follow the positional name and URL,
+    # otherwise it consumes them as additional header values.
+    claude mcp add --transport http --scope user \
+      "${slug}" "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/mcp/${slug}" \
+      --header "Authorization: Bearer $CODER_SESSION_TOKEN" ||
+      echo "warning: failed to register MCP server ${slug}"
+    %{~endfor~}
+    claude mcp list || true
+  EOT
+}
+
+resource "coder_app" "claude_code" {
+  agent_id     = coder_agent.ai.id
+  slug         = "claude-code"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  command      = "claude"
 }
 
 resource "coder_script" "sandbox" {
@@ -184,6 +260,11 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.main.token}",
     "CODER_SANDBOX_AGENT_TOKEN=${coder_agent.ai.token}",
+    # Scoped AI identity token, delivered to the guest agent as
+    # CODER_SESSION_TOKEN so sandboxed tools can reach the AI gateway,
+    # including its MCP endpoint. Empty when the deployment does not
+    # provision an AI agent identity.
+    "CODER_SANDBOX_SESSION_TOKEN=${data.coder_workspace_ai_agent.me.session_token}",
     "CODER_SANDBOX_IMAGE=${var.sandbox_image}",
     "CODER_SANDBOX_MEMORY_MIB=${var.sandbox_memory_mib}",
     "CODER_SANDBOX_CPUS=${var.sandbox_cpus}",

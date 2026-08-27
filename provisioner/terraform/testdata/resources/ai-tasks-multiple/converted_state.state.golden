@@ -29,5 +29,6 @@
     }
   ],
   "HasAITasks": true,
+  "HasAIAgent": false,
   "HasExternalAgents": false
 }

@@ -1589,6 +1589,7 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			require.NoError(t, db.UpdateTemplateVersionFlagsByJobID(genCtx, database.UpdateTemplateVersionFlagsByJobIDParams{
 				JobID:            jobID,
 				HasAITask:        hasAITask,
+				HasAIAgent:       sql.NullBool{},
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))

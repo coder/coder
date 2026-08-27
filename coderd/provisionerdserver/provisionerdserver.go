@@ -584,13 +584,14 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
+		templateUsesAIAgent := templateVersion.HasAIAgent.Valid && templateVersion.HasAIAgent.Bool
 
 		// An AI-designated workspace never receives the ambient full-owner
 		// session token; it gets the scoped AI session token instead.
 		// See AI_AGENT_SECURITY_ARCHITECTURE.md, Vertical 2.
 		workspaceIsAIDesignated := workspace.AIAgentID.Valid ||
 			(workspaceBuild.Transition == database.WorkspaceTransitionStart &&
-				aiAgentOptedIn(workspaceBuildParameters))
+				(templateUsesAIAgent || aiAgentOptedIn(workspaceBuildParameters)))
 
 		var sessionToken string
 		switch workspaceBuild.Transition {
@@ -656,7 +657,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		// Vertical 1 step 8). Opted-in start builds fail closed: a broken
 		// identity mint fails the build. Opt-out and stop/delete paths must
 		// never fail the build; revocation is best-effort with logging.
-		var aiAgentSessionToken string
+		var aiAgentSessionToken, aiAgentID string
 		switch workspaceBuild.Transition {
 		case database.WorkspaceTransitionStart:
 			if input.PrebuiltWorkspaceBuildStage == sdkproto.PrebuiltWorkspaceBuildStage_CLAIM {
@@ -676,6 +677,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 			switch {
 			case isDesignated:
+				aiAgentID = designated.ID.String()
 				// **DEFECT, on the prebuild claim path. This predicate cannot
 				// be satisfied usefully after a claim, and the build fails.**
 				//
@@ -711,14 +713,19 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
 				}
-			case aiAgentOptedIn(workspaceBuildParameters):
+			case templateUsesAIAgent || aiAgentOptedIn(workspaceBuildParameters):
+				// Minting a token is NOT designation. The workspace stays
+				// human-owned and undesignated: designation would bind every
+				// agent in the build, including the human's supervisor
+				// agents, and impose the AI RBAC boundary on the whole
+				// workspace. Only AI-created workspaces are designated, at
+				// creation time. Declared ai_bound agents are bound to this
+				// identity individually at build completion.
 				originAgent, oerr := s.resolveWorkspaceOriginAIAgent(ctx, workspace)
 				if oerr != nil {
 					return nil, failJob(fmt.Sprintf("resolve workspace AI agent identity: %s", oerr))
 				}
-				if oerr := s.designateWorkspaceAIAgent(ctx, workspace, originAgent.ID); oerr != nil {
-					return nil, failJob(fmt.Sprintf("designate workspace AI agent: %s", oerr))
-				}
+				aiAgentID = originAgent.ID.String()
 				aiAgentSessionToken, err = s.regenerateAIAgentSessionToken(ctx, workspace, originAgent.ID)
 				if err != nil {
 					return nil, failJob(fmt.Sprintf("regenerate AI agent session token: %s", err))
@@ -865,6 +872,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TemplateVersionId:             templateVersion.ID.String(),
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
+					WorkspaceAiAgentId:            aiAgentID,
 					WorkspaceAiAgentSessionToken:  aiAgentSessionToken,
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
@@ -1991,6 +1999,10 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			},
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
+				Valid: true,
+			},
+			HasAIAgent: sql.NullBool{
+				Bool:  jobType.TemplateImport.HasAiAgent,
 				Valid: true,
 			},
 			UpdatedAt: now,
@@ -3313,10 +3325,9 @@ func (s *server) regenerateSessionToken(ctx context.Context, user database.User,
 	return sessionToken, nil
 }
 
-// AIAgentOptInParameterName is the workspace build parameter that opts a
-// workspace into receiving a scoped AI agent identity session token. This is
-// a PoC convention; a first-class terraform-provider-coder surface (e.g.
-// data.coder_ai_agent.me.session_token) is the planned replacement. See
+// AIAgentOptInParameterName is the deprecated workspace build parameter that
+// opts a workspace into receiving a scoped AI agent identity session token.
+// New templates should declare data.coder_workspace_ai_agent instead. See
 // AI_AGENT_SECURITY_ARCHITECTURE.md.
 const AIAgentOptInParameterName = "coder_ai_agent"
 
@@ -3348,21 +3359,6 @@ func (s *server) resolveDesignatedAIAgent(ctx context.Context, workspace databas
 		return database.AIAgentLedger{}, false, xerrors.Errorf("get designated AI agent: %w", err)
 	}
 	return agent, true, nil
-}
-
-// designateWorkspaceAIAgent records the marker for a human opt-in workspace
-// that does not carry one yet. Chat-created workspaces are designated at
-// creation with the requesting chat's identity, so they already have one.
-func (s *server) designateWorkspaceAIAgent(ctx context.Context, workspace database.Workspace, agentID uuid.UUID) error {
-	//nolint:gocritic // Setting the internal designation marker requires system access.
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	if _, err := s.Database.SetWorkspaceAIAgentID(systemCtx, database.SetWorkspaceAIAgentIDParams{
-		ID:        workspace.ID,
-		AIAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
-	}); err != nil {
-		return xerrors.Errorf("set workspace AI designation: %w", err)
-	}
-	return nil
 }
 
 // regenerateAIAgentSessionToken mints a fresh workspace-pinned key for the

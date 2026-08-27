@@ -6,11 +6,16 @@ that an implementer can build it from this document alone. Where the
 document refers to behavior Coder already has independently of this
 feature, it says so explicitly.
 
-Companion document: `AI_AGENT_IDENTITY_SPEC.md`. That document specifies
-who an agent is, how identities are minted, and how authorization narrows.
+Companion documents:
+
+- `AI_AGENT_IDENTITY_SPEC.md` specifies who an agent is, how identities are
+  minted, and how authorization narrows.
+- `AI_AGENT_MCP_GATEWAY_SPEC.md` specifies how a sandboxed agent reaches
+  third-party MCP tools without receiving the sponsor's credentials.
+
 This document specifies where an agent runs, what credentials reach that
 environment, and how its network egress is controlled. It depends on the
-identity spec and does not restate it.
+identity and MCP gateway specs and does not restate them.
 
 ## Problem
 
@@ -438,6 +443,21 @@ The proxy must resolve each destination once and validate it before
 dialing, rejecting loopback, link-local, private, and cloud metadata
 ranges, so that an allowed hostname cannot be used to reach the
 supervisor's own network position.
+
+### MCP governance boundary
+
+The Coder sandbox evaluator deliberately does not inspect MCP protocol
+traffic. `HasMCPEndpoint` and `IsMCPEndpoint` return false, and `EvaluateMCP`
+returns an enforce-mode denial (`agent/confine/evaluator.go:131-160`). The
+sandbox layer therefore governs whether the guest can reach the Coder access
+URL. It does not authorize an MCP server, resolve a sponsor credential, filter
+tool discovery, or approve a tool call.
+
+Gateway-side enforcement supersedes sandbox-layer MCP inspection for this
+design. A sandbox sends streamable HTTP MCP requests to the same Coder access
+URL used by its control channel. The MCP gateway performs authorization,
+credential delegation, and tool governance outside the guest. See
+`AI_AGENT_MCP_GATEWAY_SPEC.md`.
 
 ### Attestation and platform-run enforcement
 

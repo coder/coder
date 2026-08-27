@@ -5731,7 +5731,7 @@ func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
 		}
 	}
 
-	t.Run("HumanOptInSurvivesRebuild", func(t *testing.T) {
+	t.Run("HumanOptInNeverDesignatesOrBinds", func(t *testing.T) {
 		t.Parallel()
 		f := newFixture(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -5745,14 +5745,26 @@ func TestCompleteJob_AIDesignatedWorkspaceAgentBinding(t *testing.T) {
 			Value: "true",
 		}}
 
+		// The opt-in mints a scoped token but must not designate the
+		// workspace or bind undeclared agents: designation would bind the
+		// human's supervisor agents and impose the AI RBAC boundary on a
+		// human-owned workspace.
 		_, firstBuild := completeBuild(t, f, workspace, optIn, "first-a", "first-b")
-		designated, err := f.db.GetWorkspaceByID(ctx, workspace.ID)
+		undesignated, err := f.db.GetWorkspaceByID(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.True(t, designated.AIAgentID.Valid)
-		requireBuildAgentsBound(t, f.db, workspace.ID, firstBuild.BuildNumber, designated.AIAgentID.UUID, 2)
+		require.False(t, undesignated.AIAgentID.Valid,
+			"a human opt-in must never designate the workspace")
 
-		_, rebuild := completeBuild(t, f, workspace, nil, "rebuilt-a", "rebuilt-b")
-		requireBuildAgentsBound(t, f.db, workspace.ID, rebuild.BuildNumber, designated.AIAgentID.UUID, 2)
+		agents, err := f.db.GetWorkspaceAgentsByWorkspaceAndBuildNumber(ctx, database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: workspace.ID,
+			BuildNumber: firstBuild.BuildNumber,
+		})
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		for _, agent := range agents {
+			require.False(t, agent.AIAgentID.Valid,
+				"undeclared agents in a human opt-in workspace stay unbound")
+		}
 	})
 
 	t.Run("ChatIdentityContinuity", func(t *testing.T) {
@@ -6001,9 +6013,14 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	firstKey, err := db.GetAPIKeyByID(ctx, keyID)
 	require.NoError(t, err)
 	require.Equal(t, agent.ID, firstKey.HolderID.AsUserIDUnchecked())
-	// The key must be pinned to exactly this workspace.
-	require.Len(t, firstKey.AllowList, 1)
-	require.Equal(t, workspace.ID.String(), firstKey.AllowList[0].ID)
+	// The key is pinned to exactly this workspace plus the MCP gateway.
+	allowed := make(map[string]string, len(firstKey.AllowList))
+	for _, entry := range firstKey.AllowList {
+		allowed[entry.Type] = entry.ID
+	}
+	require.Len(t, allowed, 2)
+	require.Equal(t, workspace.ID.String(), allowed["workspace"])
+	require.Contains(t, allowed, "mcp_gateway")
 
 	// Build 2: rebuild reuses the identity and rotates the key.
 	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, optIn)
@@ -6053,20 +6070,20 @@ func TestAcquireJob_AIAgentSessionToken(t *testing.T) {
 	})
 	require.NoError(t, err, "identity survives stop for reuse on restart")
 
-	// Build 4: designation is STICKY. Dropping the parameter must not
-	// un-designate the workspace, otherwise a build-parameter change would
-	// restore the sponsor's ambient credentials. The scoped token keeps
-	// rotating and the owner token stays suppressed.
+	// Build 4: the human opt-in never designates the workspace, so the
+	// marker stays clear and the owner session token flows normally. The
+	// scoped AI token is additive, not a replacement, and dropping the
+	// opt-in stops minting it.
 	metadata = acquireBuild(t, database.WorkspaceTransitionStart, sdkproto.PrebuiltWorkspaceBuildStage_NONE, nil)
-	require.NotEmpty(t, metadata.GetWorkspaceAiAgentSessionToken(),
-		"designation must survive dropping the opt-in parameter")
-	require.Empty(t, metadata.GetWorkspaceOwnerSessionToken(),
-		"AI-designated workspaces never receive the owner session token")
+	require.Empty(t, metadata.GetWorkspaceAiAgentSessionToken(),
+		"dropping the opt-in stops minting the scoped token")
+	require.NotEmpty(t, metadata.GetWorkspaceOwnerSessionToken(),
+		"human opt-in workspaces keep the owner session token")
 
-	designatedWorkspace, err := db.GetWorkspaceByID(ctx, workspace.ID)
+	undesignatedWorkspace, err := db.GetWorkspaceByID(ctx, workspace.ID)
 	require.NoError(t, err)
-	require.True(t, designatedWorkspace.AIAgentID.Valid, "marker persists across builds")
-	require.Equal(t, agent.ID, designatedWorkspace.AIAgentID.UUID)
+	require.False(t, undesignatedWorkspace.AIAgentID.Valid,
+		"a human opt-in must never designate the workspace")
 
 	// A workspace that never opts in gets no identity at all.
 	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
@@ -6367,17 +6384,28 @@ func TestCompleteJob_AIBoundAgentBinding(t *testing.T) {
 	t.Run("DesignationBindsEveryAgentRegardlessOfDeclaration", func(t *testing.T) {
 		t.Parallel()
 		f := newAIBindingFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		workspace := dbgen.Workspace(t, f.db, database.WorkspaceTable{
 			TemplateID:     f.template.ID,
 			OwnerID:        f.user.ID,
 			OrganizationID: f.daemon.OrganizationID,
 		})
-		optIn := []database.WorkspaceBuildParameter{{
-			Name:  provisionerdserver.AIAgentOptInParameterName,
-			Value: "true",
-		}}
+		// Designation happens only at AI creation time; simulate an
+		// AI-created workspace by setting the marker directly.
+		designatedAgent, err := aiagentidentity.Create(ctx, f.db, aiagentidentity.CreateParams{
+			OwnerID:        f.user.ID,
+			OrganizationID: f.daemon.OrganizationID,
+			OriginType:     entity.CreationSiteTypeChat,
+			OriginID:       uuid.New(),
+		})
+		require.NoError(t, err)
+		_, err = f.db.SetWorkspaceAIAgentID(dbauthz.AsSystemRestricted(ctx), database.SetWorkspaceAIAgentIDParams{
+			ID:        workspace.ID,
+			AIAgentID: uuid.NullUUID{UUID: designatedAgent.ID, Valid: true},
+		})
+		require.NoError(t, err)
 
-		_, build := f.completeBuild(t, workspace, optIn, "host", "ai:sandbox")
+		_, build := f.completeBuild(t, workspace, nil, "host", "ai:sandbox")
 
 		agents := agentsByName(t, f.db, workspace.ID, build.BuildNumber)
 		require.True(t, agents["host"].AIAgentID.Valid,

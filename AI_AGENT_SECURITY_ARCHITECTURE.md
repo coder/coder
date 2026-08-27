@@ -13,6 +13,14 @@ implementation plan:
 All plans assume AGPL placement and PoC-level depth. Coder Tasks are out of
 scope.
 
+The MCP gateway is a cross-cutting boundary between identity and isolation.
+A sandbox uses its scoped AI identity session token to reach a governed MCP
+endpoint under the Coder access URL. The gateway applies the sponsor's live
+authorization ceiling, resolves external-auth credentials through a
+least-privilege token broker, enforces tool policy, and injects upstream
+credentials outside the guest. `AI_AGENT_MCP_GATEWAY_SPEC.md` defines the full
+contract.
+
 ---
 
 ## Vertical 1: AI Agent Identity
@@ -102,20 +110,23 @@ and open items are detailed in the sections and invariants below.
 
 **Containment, what an identity's credentials cannot reach:**
 
-| #  | Property                                                                                                               | Status                                                                       |
-|----|------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
-| 16 | **Cascade suspend.** Sponsor suspension or identity revocation ends agent authentication                               | partial: per connection, not per message, see invariant 7                    |
-| 17 | **Fail-closed resolution.** An unresolvable agent identity is an authentication error                                  | partial: chatd fails open for chats that predate identities, see invariant 6 |
-| 18 | **Soft revocation.** Revocation preserves attribution history                                                          | partial: boolean with no timestamp or reason                                 |
-| 19 | **Credential starvation.** An environment an agent controls never receives the sponsor's ambient credentials           | open: defeated by one agent-creation path, see the sub-agent binding gap     |
-| 20 | **One-way designation.** Nothing un-designates a workspace; the stored marker dominates template and parameter changes | holds                                                                        |
+| #  | Property                                                                                                                          | Status                                                                       |
+|----|-----------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| 16 | **Cascade suspend.** Sponsor suspension or identity revocation ends agent authentication                                          | partial: per connection, not per message, see invariant 7                    |
+| 17 | **Fail-closed resolution.** An unresolvable agent identity is an authentication error                                             | partial: chatd fails open for chats that predate identities, see invariant 6 |
+| 18 | **Soft revocation.** Revocation preserves attribution history                                                                     | partial: boolean with no timestamp or reason                                 |
+| 19 | **Credential starvation.** An environment an agent controls never receives the sponsor's ambient credentials                      | open: defeated by one agent-creation path, see the sub-agent binding gap     |
+| 20 | **One-way designation.** Nothing un-designates a workspace; the stored marker dominates template and parameter changes            | holds                                                                        |
+| 21 | **MCP credential non-materialization.** Sponsor OAuth credentials are injected outside the sandbox guest and never returned to it | holds for MCP gateway requests                                               |
 
 Two properties are worth reading together because they answer the same
 question from opposite directions. Property 9 says an agent cannot gain
 privilege by *creating* something, and property 10 says it cannot gain
 persistence by *relocating* a credential it already holds. Neither is
 enforced yet, which is why both appear as invariants below rather than as
-settled guarantees.
+settled guarantees. Property 21 applies the same non-materialization rule to
+third-party credentials: the AI identity token reaches the gateway, but the
+sponsor's OAuth credential remains outside the guest.
 
 Accepted risks, stated so they are not mistaken for oversights:
 
@@ -532,19 +543,19 @@ In `ValidateAPIKey` / subject construction path:
   key per directly human-opted workspace (profile
   `WorkspaceAgentIdentityProfile`). AI-created resources reuse the requesting
   agent's identity, as specified in Vertical 2.
-- **Dependency flag**: exposing this to templates needs a
-  terraform-provider-coder change (e.g.
-  `data.coder_ai_agent.me.session_token` or equivalent). For the PoC,
-  gate on a template/workspace opt-in flag and document that templates
-  should point AI tooling env vars (e.g. `CODER_SESSION_TOKEN` for CLI
-  agents) at the agent key instead of the owner key. Do NOT change the
-  existing owner-token behavior; additive only.
-- **Implemented PoC convention**: the opt-in gate is a boolean rich
-  parameter named `coder_ai_agent` (opts in only when its stored build
-  value is exactly `"true"`); the minted token rides provisioner job
-  metadata as `workspace_ai_agent_session_token` and is exported to the
-  Terraform provider process as
-  `CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN` (empty when opted out).
+- **Implemented provider surface**: `data.coder_workspace_ai_agent.me`
+  exposes `id` and `session_token`. Using the data source opts the
+  template in: coderd detects it in the template graph at import
+  (`template_versions.has_ai_agent`) and mints a fresh workspace-pinned
+  key at every build. The token rides provisioner job metadata and is
+  exported to the Terraform provider process as
+  `CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN` alongside
+  `CODER_WORKSPACE_AI_AGENT_ID`. Template authors decide where to
+  inject it (e.g. `CODER_SESSION_TOKEN` for CLI agents); the existing
+  owner-token behavior is unchanged.
+- **Deprecated PoC convention**: a boolean rich parameter named
+  `coder_ai_agent` (opts in only when its stored build value is exactly
+  `"true"`) still triggers minting for older templates.
   Identity is reused across rebuilds; keys rotate per opted-in start
   build; stop/delete revoke keys best-effort; opted-in mint failures
   fail the build, opt-out paths never do. The
@@ -1005,10 +1016,10 @@ An unbound workspace agent retains normal behavior.
 
 The same binding has two shapes:
 
-| Shape                   | Binding                                                                                                   | Use case                                                                                             |
-|-------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------|
-| AI-designated workspace | Every workspace agent in the workspace is bound to the same AI identity                                   | Workspaces created for or by AI, including chat-created workspaces and direct human workspace opt-in |
-| Sandboxed agent         | Only a child agent with `workspace_agents.parent_id` is bound; the parent workspace agent remains unbound | A confined AI sandbox inside a normal human workspace                                                |
+| Shape                   | Binding                                                                                                   | Use case                                                                                              |
+|-------------------------|-----------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| AI-designated workspace | Every workspace agent in the workspace is bound to the same AI identity                                   | Workspaces created for or by AI, such as chat-created workspaces; never set by the human token opt-in |
+| Sandboxed agent         | Only a child agent with `workspace_agents.parent_id` is bound; the parent workspace agent remains unbound | A confined AI sandbox inside a normal human workspace                                                 |
 
 Design for N sandboxed child agents per workspace. The data model already
 supports multiple children through `workspace_agents.parent_id`; the PoC
@@ -1134,9 +1145,15 @@ Two events set the marker, and nothing clears it:
    designates the new workspace with the requesting identity before its
    first build, regardless of what the template declares
    (`coderd/workspaces.go:776-782`).
-2. **Human opt-in.** A start build carrying `coder_ai_agent = true`
-   designates a not-yet-marked workspace with its workspace-origin
-   identity (`provisionerdserver.go:3292-3305`).
+2. **Human opt-in mints without designating.** A start build whose
+   template uses `data.coder_workspace_ai_agent` (or carries the
+   deprecated `coder_ai_agent = true` parameter) mints a scoped token
+   for the workspace-origin identity but does NOT designate the
+   workspace. Designation would bind every agent in the build,
+   including the human's supervisor agents, and impose the AI RBAC
+   boundary and owner-credential starvation on a human-owned
+   workspace. Declared `ai_bound` agents are bound individually at
+   build completion instead.
 
 The marker is deliberately a one-way ratchet, not a per-build derivation
 from the template declaration. Template version and build parameters are
@@ -1829,10 +1846,13 @@ inside platform confinement.
 Principle: **the credential holder always sits across an isolation boundary
 from the AI process.** Rules:
 
-1. **MCP-first.** Agent actions needing third-party authentication go
-   through the MCP gateway in AI Gateway. The human authorizes once at the
-   gateway, the agent makes MCP tool calls, and the gateway injects
-   credentials upstream. Credentials never transit the workspace.
+1. **MCP-first.** Agent actions needing third-party authentication use
+   `<accessURL>/api/v2/ai-gateway/mcp/{server-slug}` with the scoped AI
+   identity session token. The gateway authorizes `mcp_gateway:use` against
+   the canonical sponsor-bounded subject, resolves external-auth credentials
+   through the MCP token-broker actor, applies administrator tool policy,
+   strips Coder credentials, and injects the upstream credential outside the
+   guest. See `AI_AGENT_MCP_GATEWAY_SPEC.md`.
 2. **One `ai_credential_mode` per workspace agent, default `none`.** Declare
    it in Terraform on `coder_agent`, following the `api_key_scope`
    precedent; extract it through the provisioner; store it on the
@@ -1840,6 +1860,20 @@ from the AI process.** Rules:
 3. **External auth stays simple.** It is denied by default or passed through
    as-is only after explicit opt-in. Reduced-scope token minting and refresh
    adapters remain future work.
+
+The managed `SandboxController` embedded path already passes its server-issued
+sandbox session token into the guest as `CODER_SESSION_TOKEN`
+(`agent/confine/sandbox.go:569-585`,
+`agent/confine/microvm_linux.go:289-306`). The declared two-agent template does
+not yet have a Terraform-visible scoped token to pass. Its runtime seam is the
+optional `coder agent sandbox --session-token` flag or
+`CODER_SANDBOX_SESSION_TOKEN` environment variable
+(`cli/agent_sandbox.go:240-246`).
+
+MCP server configuration create, update, and delete operations use standard
+`audit_logs` records. Dedicated accepted and denied gateway `tools/call`
+recording is not implemented, and AI provider creation does not yet reserve the
+name `mcp`. These remain known gaps rather than implied guarantees.
 
 | Enforcement point                     | `none` (default)     | `injected`                         | `brokered`                                                                 |
 |---------------------------------------|----------------------|------------------------------------|----------------------------------------------------------------------------|
@@ -2031,6 +2065,10 @@ Follow `.claude/docs/DATABASE.md` end-to-end for implementation: queries,
     marker as dominant over the current build's parameters. The
     authorization boundary built on the marker is Vertical 1's
     designation boundary invariant.
+12. **MCP credential non-materialization**: sponsor OAuth access and refresh
+    tokens never enter the sandbox guest. The gateway resolves and injects
+    upstream access tokens outside the guest, while the sandbox sends only its
+    scoped AI identity session token to the Coder access URL.
 
 ### Implementation order
 
@@ -2215,47 +2253,30 @@ terraform-provider-coder work), SERVER-SIDE ONLY (deliberately not
 expressible in HCL). Egress rules appear in NO example: they live in
 template settings and are managed dynamically outside Terraform.
 
-#### Example 1: AI-designated workspace via direct human opt-in
+#### Example 1: human workspace with a scoped AI token
 
 ```hcl
-# EXISTS TODAY: parameter detection, workspace-origin identity mint, and
-# the scoped-token provisioner export (V1).
-# SERVER-SIDE V2: per-agent binding, owner-token suppression, and
-# confinement are added on top of the same signal.
-data "coder_parameter" "coder_ai_agent" {
-  name    = "coder_ai_agent"
-  type    = "bool"
-  default = "false"
-  mutable = false
-}
-
-# PROVIDER CHANGE: reads the existing
-# CODER_WORKSPACE_AI_AGENT_SESSION_TOKEN provisioner export. Empty when
-# the workspace is not AI-designated.
-data "coder_ai_agent" "me" {}
-
-# Templates serving both normal and AI-designated workspaces select
-# whichever token is present. In an AI-designated workspace the owner
-# token is empty by suppression (SERVER-SIDE ONLY).
-locals {
-  session_token = (
-    data.coder_ai_agent.me.session_token != ""
-    ? data.coder_ai_agent.me.session_token
-    : data.coder_workspace_owner.me.session_token
-  )
-}
+# EXISTS TODAY: using the data source opts the template into AI identity
+# minting at import time; the scoped token is minted every build and
+# exposed at the author's discretion. The workspace is NOT designated:
+# it stays human-owned, the owner token flows normally, and only
+# declared ai_bound agents are bound.
+data "coder_workspace_ai_agent" "me" {}
 
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
 
-  # PROVIDER CHANGE: stored on the workspace_agents row, like
+  # PROVIDER CHANGE (planned): stored on the workspace_agents row, like
   # api_key_scope today. The server clamps it; "injected" additionally
   # requires sponsor consent.
-  ai_credential_mode = "none"
+  # ai_credential_mode = "none"
 
   env = {
-    CODER_SESSION_TOKEN = local.session_token
+    # The author decides where the scoped token goes. It carries the AI
+    # identity's restricted scopes, including AI/MCP gateway access,
+    # never the owner's permissions.
+    CODER_SESSION_TOKEN = data.coder_workspace_ai_agent.me.session_token
     ANTHROPIC_BASE_URL  = "https://ai-gateway.example.com/anthropic"
   }
 }

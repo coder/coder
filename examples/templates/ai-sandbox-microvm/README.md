@@ -271,6 +271,79 @@ The default Ubuntu guest may not include `curl`. For the HTTP checks, select a
 Linux amd64 guest image that already contains it. This is a validation tool in
 the guest image, not a host runtime dependency.
 
+## Claude Code in the sandbox
+
+The `ai` agent installs Claude Code at startup and exposes a `Claude Code`
+app on the workspace page that opens it in the guest. Model traffic routes
+through the Coder AI gateway (`ANTHROPIC_BASE_URL`) authenticated as the AI
+agent identity (`ANTHROPIC_AUTH_TOKEN`), so no provider API key enters the
+guest and every request is metered per identity. An Anthropic provider must
+be configured under Admin settings, AI, Providers.
+
+The installer downloads through the sandbox egress proxy, so the template's
+AI egress policy must allow the download and package hosts:
+
+| Host                       | Ports | Purpose                    |
+|----------------------------|-------|----------------------------|
+| `claude.ai`                | 443   | Claude Code installer      |
+| `storage.googleapis.com`   | 443   | Claude Code binary         |
+| `archive.ubuntu.com`       | 80    | curl package (first boot)  |
+| `security.ubuntu.com`      | 80    | curl package (first boot)  |
+
+If installation fails (policy denials appear in the sandbox log), the agent
+stays usable; rerun by restarting the workspace after fixing the policy.
+
+## MCP gateway access
+
+Sandboxed agents reach MCP servers through the Coder MCP gateway instead of
+connecting to them directly, so no new egress rules are needed and the
+sponsoring human's OAuth credentials never enter the guest. See
+`AI_AGENT_MCP_GATEWAY_SPEC.md` for the full contract.
+
+- Endpoint: `<access URL>/api/v2/ai-gateway/mcp/{server-slug}` over
+  streamable HTTP.
+- Credential: the scoped AI identity session token as a bearer token. Inside
+  the guest it is exposed as `CODER_SESSION_TOKEN` when delivered.
+- Administrators configure servers under Admin settings, AI, MCP Servers:
+  choose the `External auth provider` authentication method, select a
+  configured provider, and set tool rules (a server default plus per-tool
+  overrides).
+- When the sponsoring human has not authenticated with the provider, tool
+  calls return a JSON-RPC error whose data carries a `reauth_url`; opening
+  that URL in a browser completes the provider login and unblocks the agent.
+- MCP is client-configured: configuring a server in the admin UI creates
+  the governed gateway endpoint, but each client must be pointed at it.
+  The startup script registers every slug in the `mcp_server_slugs`
+  template variable with Claude Code via `claude mcp add`, using the AI
+  identity session token as the bearer credential. Other MCP clients in
+  the sandbox can connect the same way.
+
+### Session token delivery
+
+The template declares `data.coder_workspace_ai_agent.me`, which opts the
+workspace into an AI agent identity: coderd detects the data source at
+template import and mints a scoped session token at every build, sponsored
+by the workspace owner. The template passes that token to
+`coder agent sandbox` as `CODER_SANDBOX_SESSION_TOKEN`, and the guest agent
+exposes it as `CODER_SESSION_TOKEN`. The token carries the AI identity's
+restricted scopes, including AI/MCP gateway access, and never the owner's
+full permissions. The managed embedded mode
+(`CODER_AI_SANDBOX_MICROVM=true`) delivers an equivalent token
+automatically.
+
+### MCP validation checklist
+
+1. Configure an MCP server with external auth and at least one disabled
+   tool rule.
+2. From the guest, list tools:
+   `curl -X POST -H "Authorization: Bearer $CODER_SESSION_TOKEN" ...`
+   against the gateway URL and confirm disabled tools are absent.
+3. Call an allowed tool and confirm it succeeds using the sponsor's
+   provider identity.
+4. Call the disabled tool directly and confirm a JSON-RPC policy denial.
+5. Revoke the provider link at `<access URL>/external-auth/{provider}` and
+   confirm the next call returns the structured re-auth error.
+
 ## Current limitations and validation status
 
 - Egress allow and deny decisions are structured entries in
