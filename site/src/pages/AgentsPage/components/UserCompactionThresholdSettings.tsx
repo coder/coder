@@ -5,6 +5,13 @@ import { getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
 import { Input } from "#/components/Input/Input";
 import {
 	getOrganizationLabel,
@@ -83,7 +90,7 @@ const ContextCompactionHeader: FC<{
 			Control when conversation context is automatically summarized for each
 			model. Setting 100% disables that model&apos;s compaction trigger.
 			{hasOrganizationCompactionOverride &&
-				" An organization compaction model may still trigger compaction."}
+				" An organization override may still trigger compaction."}
 		</p>
 	</div>
 );
@@ -364,6 +371,9 @@ export const UserCompactionThresholdSettings: FC<
 								<TableHead className="w-0 whitespace-nowrap">
 									Threshold
 								</TableHead>
+								<TableHead className="w-0 whitespace-nowrap">
+									Effective
+								</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -413,8 +423,12 @@ export const UserCompactionThresholdSettings: FC<
 											modelConfig.context_limit,
 										)
 									: undefined;
-								// The binding helper is authoritative so the warning
-								// matches the backend even when a draft of 100 disables
+								const organizationTriggerPercentLabel =
+									organizationTriggerPercent?.toLocaleString("en-US", {
+										maximumFractionDigits: 1,
+									});
+								// The binding helper is authoritative so the effective
+								// display matches the backend even when a draft of 100 disables
 								// the chat trigger and the organization point reaches
 								// the chat window.
 								const isOrganizationTriggerEarlier =
@@ -444,37 +458,6 @@ export const UserCompactionThresholdSettings: FC<
 													className="m-0 mt-0.5 text-2xs font-normal text-content-destructive"
 												>
 													{rowError}
-												</p>
-											)}
-											{isOrganizationTriggerEarlier && organizationTrigger && (
-												<p
-													role="status"
-													className="m-0 mt-1 flex max-w-xl items-start gap-1 text-2xs font-normal text-content-warning"
-												>
-													<TriangleAlertIcon
-														aria-hidden
-														className="mt-px size-3 shrink-0"
-													/>
-													<span>
-														Compaction will trigger earlier at approximately{" "}
-														{organizationTriggerPercent?.toLocaleString(
-															"en-US",
-															{
-																maximumFractionDigits: 1,
-															},
-														)}
-														% of this model&apos;s window because the
-														organization compaction model{" "}
-														{organizationTrigger.model.display_name.trim() ||
-															organizationTrigger.model.model}{" "}
-														compacts at{" "}
-														{organizationTrigger.model.compression_threshold}%
-														of its{" "}
-														{organizationTrigger.model.context_limit.toLocaleString(
-															"en-US",
-														)}
-														-token window.
-													</span>
 												</p>
 											)}
 										</TableCell>
@@ -525,7 +508,7 @@ export const UserCompactionThresholdSettings: FC<
 															{isInvalid
 																? "Enter a whole number between 0 and 100."
 																: organizationTrigger
-																	? "Setting 100% disables this model's compaction trigger. The organization compaction model may still trigger compaction."
+																	? "Setting 100% disables this model's compaction trigger. The organization override may still trigger compaction."
 																	: "Setting 100% disables this model's compaction trigger."}
 														</TooltipContent>
 													)}
@@ -568,8 +551,51 @@ export const UserCompactionThresholdSettings: FC<
 													Setting 100% disables this model&apos;s compaction
 													trigger.
 													{organizationTrigger &&
-														" The organization compaction model may still trigger compaction."}
+														" The organization override may still trigger compaction."}
 												</span>
+											)}
+										</TableCell>
+										<TableCell className="w-0 whitespace-nowrap tabular-nums">
+											{isOrganizationTriggerEarlier && organizationTrigger ? (
+												<div className="flex items-center gap-1">
+													<span>{organizationTriggerPercentLabel}%</span>
+													<HelpPopover>
+														<HelpPopoverIconTrigger
+															size="small"
+															hoverEffect={false}
+															aria-label={`Organization override for ${modelName}`}
+															className="text-content-warning"
+														>
+															<TriangleAlertIcon />
+														</HelpPopoverIconTrigger>
+														<HelpPopoverContent>
+															<HelpPopoverTitle>
+																Organization override
+															</HelpPopoverTitle>
+															<HelpPopoverText>
+																{organizationTrigger.model.display_name.trim() ||
+																	organizationTrigger.model.model}{" "}
+																compacts at{" "}
+																{
+																	organizationTrigger.model
+																		.compression_threshold
+																}
+																% of its{" "}
+																{organizationTrigger.model.context_limit.toLocaleString(
+																	"en-US",
+																)}
+																-token window, about{" "}
+																{organizationTriggerPercentLabel}% of this
+																model&apos;s window.
+															</HelpPopoverText>
+														</HelpPopoverContent>
+													</HelpPopover>
+												</div>
+											) : effectiveThresholdPercent ===
+												undefined ? null : effectiveThresholdPercent >= 100 ? (
+												<span className="text-content-secondary">Off</span>
+											) : (
+												`${effectiveThresholdPercent}%`
 											)}
 										</TableCell>
 									</TableRow>
@@ -578,7 +604,7 @@ export const UserCompactionThresholdSettings: FC<
 						</TableBody>
 						<TableFooter className="bg-transparent">
 							<TableRow className="border-0">
-								<TableCell colSpan={3} className="border-0 p-0">
+								<TableCell colSpan={4} className="border-0 p-0">
 									<div className="mt-2 flex h-6 items-center justify-end gap-2 px-3">
 										{isSavedVisible ? (
 											<TemporarySavedState />

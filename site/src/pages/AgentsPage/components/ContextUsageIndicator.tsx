@@ -410,7 +410,7 @@ export const ContextUsageIndicator: FC<{
 					: "Context usage will appear after sending a message."}
 			{hasPercent && compactionPercent !== undefined && (
 				<div className="mt-1 text-content-secondary">
-					{`Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage?.compactionThreshold?.source === "organization" ? " (organization compaction model)" : ""}`}
+					{`Compacts at ${compactionPercent.toLocaleString("en-US", { maximumFractionDigits: 1 })}%${usage?.compactionThreshold?.source === "organization" ? " (organization override)" : ""}`}
 				</div>
 			)}
 			{hasContextList && (

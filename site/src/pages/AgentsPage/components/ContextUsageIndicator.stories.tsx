@@ -43,7 +43,7 @@ export const OrganizationCompactionModelBinding: Story = {
 		);
 		await waitFor(() => {
 			expect(
-				body.getByText("Compacts at 25% (organization compaction model)"),
+				body.getByText("Compacts at 25% (organization override)"),
 			).toBeVisible();
 		});
 	},
@@ -72,7 +72,7 @@ export const OrganizationCompactionPointUsesReportedLimit: Story = {
 		);
 		await waitFor(() => {
 			expect(
-				body.getByText("Compacts at 16% (organization compaction model)"),
+				body.getByText("Compacts at 16% (organization override)"),
 			).toBeVisible();
 		});
 	},
@@ -91,9 +91,7 @@ export const ChatModelCompactionBinding: Story = {
 		await waitFor(() => {
 			expect(body.getByText("Compacts at 80%")).toBeVisible();
 		});
-		expect(
-			body.queryByText(/organization compaction model/i),
-		).not.toBeInTheDocument();
+		expect(body.queryByText(/organization override/i)).not.toBeInTheDocument();
 	},
 };
 

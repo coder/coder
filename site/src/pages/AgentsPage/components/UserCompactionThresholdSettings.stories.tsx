@@ -286,6 +286,10 @@ export const DisableCompactionWarning: Story = {
 				),
 			).toBeInTheDocument();
 		});
+		// With no organization trigger, the row's compaction is fully off.
+		expect(
+			within(canvas.getByRole("row", { name: /GPT-4o/i })).getByText("Off"),
+		).toBeVisible();
 	},
 };
 
@@ -295,31 +299,43 @@ export const OrganizationCompactionTriggerWarning: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
 		const gpt4oRow = canvas.getByRole("row", { name: /GPT-4o/i });
 		const row = within(gpt4oRow);
 
-		expect(
-			row.getByText(/Compaction will trigger earlier at approximately 12.5%/i),
-		).toBeVisible();
-		expect(row.getByText(/Compact Mini compacts at 50%/i)).toBeVisible();
+		// The Effective column shows the earlier organization trigger point.
+		expect(row.getByText("12.5%")).toBeVisible();
+		await userEvent.click(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		);
+		await waitFor(() => {
+			expect(
+				body.getByText(
+					/Compact Mini compacts at 50% of its 32,000-token window, about 12.5% of this model's window/i,
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Escape}");
 
+		// A user threshold below the organization point binds directly.
 		await userEvent.type(
 			row.getByRole("textbox", { name: /GPT-4o compaction threshold/i }),
 			"10",
 		);
 		await waitFor(() => {
 			expect(
-				row.queryByText(/Compaction will trigger earlier/i),
+				row.queryByRole("button", { name: /Organization override/i }),
 			).not.toBeInTheDocument();
 		});
+		expect(row.getByText("10%")).toBeVisible();
 	},
 };
 
 export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 	args: {
 		// 50% of a 256K summarizer window is exactly 100% of GPT-4o's
-		// 128K window; the warning must survive a draft of 100 because
-		// the backend still binds to the organization trigger.
+		// 128K window; the effective column must survive a draft of 100
+		// because the backend still binds to the organization trigger.
 		compactionTriggersByOrganizationID: new Map([
 			[
 				MockChatModel.organization_id,
@@ -341,18 +357,23 @@ export const OrganizationTriggerWarningAtDisabledThreshold: Story = {
 			"100",
 		);
 		await waitFor(() => {
-			expect(
-				row.getByText(/Compaction will trigger earlier at approximately 100%/i),
-			).toBeVisible();
+			expect(row.getByText("100%")).toBeVisible();
 		});
+		expect(
+			row.getByRole("button", { name: /Organization override for GPT-4o/i }),
+		).toBeInTheDocument();
 	},
 };
 
 export const NoOrganizationCompactionOverride: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const gpt4oRow = await canvas.findByRole("row", { name: /GPT-4o/i });
+		// Effective mirrors the default (both cells show 80%) with no
+		// override explanation.
+		expect(within(gpt4oRow).getAllByText("80%")).toHaveLength(2);
 		expect(
-			canvas.queryByText(/Compaction will trigger earlier/i),
+			canvas.queryByRole("button", { name: /Organization override/i }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -369,7 +390,7 @@ export const CompactionTriggersLoadError: Story = {
 		).toBeVisible();
 		expect(canvas.queryByText(/Network Error/i)).not.toBeInTheDocument();
 		expect(
-			canvas.queryByText(/Compaction will trigger earlier/i),
+			canvas.queryByRole("button", { name: /Organization override/i }),
 		).not.toBeInTheDocument();
 	},
 };
