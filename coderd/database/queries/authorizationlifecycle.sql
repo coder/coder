@@ -101,6 +101,41 @@ ORDER BY
 LIMIT
 	$2;
 
+-- name: GetAuthorizationLifecycleJournalLinesBySubject :many
+-- The lines about one authorization, each carrying its entry's values.
+--
+-- This journal is denormalized: entry level values are written once, on line
+-- zero, and every later line holds null in those columns. Reading by subject
+-- cannot rely on a reader carrying them forward, because the lines of one entry
+-- can have different subjects: a retirement ends several authorizations as one
+-- event, so line zero belongs to one of them and line one to another. A caller
+-- asking about the second gets a line whose entry level columns are null and no
+-- line zero to take them from.
+--
+-- The self join supplies them. Line zero always exists and always carries them,
+-- which the row level checks on those columns enforce.
+SELECT
+	l.entry_id,
+	l.line,
+	l.event,
+	l.subject,
+	e.recording_date,
+	e.effective_date,
+	e.actor_type,
+	e.actor
+FROM
+	authorization_lifecycle_journal AS l
+	INNER JOIN authorization_lifecycle_journal AS e
+		ON e.entry_id = l.entry_id
+		AND e.line = 0
+WHERE
+	l.subject = $1
+ORDER BY
+	l.entry_id,
+	l.line
+LIMIT
+	$2;
+
 -- name: GetAuthorizationLedgerRowsByAgent :many
 -- Every authorization held by one agent, whatever its state.
 --

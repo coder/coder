@@ -1513,6 +1513,14 @@ func (m queryMetricsStore) GetAuthorizationLifecycleJournalEntriesBySubject(ctx 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]database.GetAuthorizationLifecycleJournalLinesBySubjectRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAuthorizationLifecycleJournalLinesBySubject(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAuthorizationLifecycleJournalLinesBySubject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAuthorizationLifecycleJournalLinesBySubject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAuthorizationUserRoles(ctx, userID)

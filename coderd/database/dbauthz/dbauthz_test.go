@@ -495,6 +495,14 @@ func (s *MethodTestSuite) TestAIAgents() {
 		dbm.EXPECT().TerminateAuthorization(gomock.Any(), arg).Return(database.AuthorizationLedger{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
+	s.Run("GetAuthorizationLifecycleJournalLinesBySubject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetAuthorizationLifecycleJournalLinesBySubjectParams{
+			Subject: uuid.New(),
+			Limit:   10,
+		}
+		dbm.EXPECT().GetAuthorizationLifecycleJournalLinesBySubject(gomock.Any(), arg).Return([]database.GetAuthorizationLifecycleJournalLinesBySubjectRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("GetAuthorizationLedgerRowsByAgent", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetAuthorizationLedgerRowsByAgentParams{
 			AgentType: "ai_agent",

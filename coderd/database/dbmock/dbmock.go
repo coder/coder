@@ -2670,6 +2670,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleJournalEntriesBySubjec
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleJournalEntriesBySubject", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleJournalEntriesBySubject), ctx, arg)
 }
 
+// GetAuthorizationLifecycleJournalLinesBySubject mocks base method.
+func (m *MockStore) GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]database.GetAuthorizationLifecycleJournalLinesBySubjectRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizationLifecycleJournalLinesBySubject", ctx, arg)
+	ret0, _ := ret[0].([]database.GetAuthorizationLifecycleJournalLinesBySubjectRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizationLifecycleJournalLinesBySubject indicates an expected call of GetAuthorizationLifecycleJournalLinesBySubject.
+func (mr *MockStoreMockRecorder) GetAuthorizationLifecycleJournalLinesBySubject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizationLifecycleJournalLinesBySubject", reflect.TypeOf((*MockStore)(nil).GetAuthorizationLifecycleJournalLinesBySubject), ctx, arg)
+}
+
 // GetAuthorizationUserRoles mocks base method.
 func (m *MockStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	m.ctrl.T.Helper()

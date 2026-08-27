@@ -162,6 +162,58 @@ func TestAIAgentLifecycleJournals(t *testing.T) {
 		require.False(t, authorizationLapse.EffectiveDate.IsZero(),
 			"line zero's effective date should be carried onto later lines")
 	})
+
+	t.Run("EveryLineOfAMultilineEntryCarriesItsEntryValues", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		sysCtx := dbauthz.AsSystemRestricted(ctx)
+		ownerRef := entity.Ref{Type: entity.TypeUser, ID: owner.UserID}
+
+		created := createTestAIAgent(t, db, owner.UserID)
+		_, err := entity.GrantUniversalAuthorization(sysCtx, db, entity.GrantParams{
+			Principal: ownerRef,
+			Agent:     entity.Ref{Type: entity.TypeAIAgent, ID: created.ID},
+		})
+		require.NoError(t, err)
+
+		// Retiring ends both authorizations as one event, so the entry has a
+		// line per authorization and each line has a different subject.
+		require.NoError(t, entity.RetireAIAgent(sysCtx, db, created.ID,
+			entity.EventAIAgentKill, ownerRef, dbtime.Now()))
+
+		response, err := client.AIAgentLifecycleJournals(ctx, created.ID)
+		require.NoError(t, err)
+
+		var lapses []codersdk.AIAgentLifecycleJournalEntry
+		for _, entry := range response.Entries {
+			if entry.Journal == codersdk.AIAgentJournalAuthorization &&
+				entry.Event == string(entity.EventAuthorizationLapse) {
+				lapses = append(lapses, entry)
+			}
+		}
+		require.Len(t, lapses, 2, "both authorizations should have ended")
+
+		// The journal is denormalized, so entry level values live on line zero,
+		// and the lines of one entry can have different subjects. Reading by
+		// subject can therefore return a line above zero with no line zero
+		// beside it to take those values from. Every line must still carry
+		// them, or an entry sorts to the beginning of time and reports no
+		// actor where its sibling reports one.
+		for _, lapse := range lapses {
+			require.False(t, lapse.EffectiveDate.IsZero(),
+				"line %d lost its entry's effective date", lapse.Line)
+			require.False(t, lapse.RecordingDate.IsZero(),
+				"line %d lost its entry's recording date", lapse.Line)
+			require.NotNil(t, lapse.ActorID,
+				"line %d lost its entry's actor", lapse.Line)
+		}
+		require.Equal(t, lapses[0].EntryID, lapses[1].EntryID,
+			"one ending is one event, so both lines share an entry")
+		require.Equal(t, *lapses[0].ActorID, *lapses[1].ActorID)
+	})
 }
 
 func TestAIAgentRecordAuthorization(t *testing.T) {

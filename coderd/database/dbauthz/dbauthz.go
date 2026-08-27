@@ -3188,6 +3188,13 @@ func (q *querier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.C
 	return q.db.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, arg)
 }
 
+func (q *querier) GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg database.GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]database.GetAuthorizationLifecycleJournalLinesBySubjectRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetAuthorizationLifecycleJournalLinesBySubject(ctx, arg)
+}
+
 func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (database.GetAuthorizationUserRolesRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetAuthorizationUserRolesRow{}, err

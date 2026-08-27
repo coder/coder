@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -282,7 +281,7 @@ func (api *API) readAIAgentJournals(ctx context.Context, agentID uuid.UUID) ([]c
 		return nil, false, xerrors.Errorf("get authorizations by agent: %w", err)
 	}
 	for _, authorization := range authorizations {
-		rows, err := api.Database.GetAuthorizationLifecycleJournalEntriesBySubject(ctx, database.GetAuthorizationLifecycleJournalEntriesBySubjectParams{
+		rows, err := api.Database.GetAuthorizationLifecycleJournalLinesBySubject(ctx, database.GetAuthorizationLifecycleJournalLinesBySubjectParams{
 			Subject: authorization.ID,
 			Limit:   maxAIAgentJournalEntries + 1,
 		})
@@ -292,7 +291,28 @@ func (api *API) readAIAgentJournals(ctx context.Context, agentID uuid.UUID) ([]c
 		if len(rows) > maxAIAgentJournalEntries {
 			rows, truncated = rows[:maxAIAgentJournalEntries], true
 		}
-		entries = append(entries, convertAuthorizationJournalRows(rows)...)
+		for _, row := range rows {
+			entry := codersdk.AIAgentLifecycleJournalEntry{
+				Journal: codersdk.AIAgentJournalAuthorization,
+				EntryID: row.EntryID,
+				Line:    int32(row.Line),
+				Event:   row.Event,
+				Subject: row.Subject,
+			}
+			// Supplied by the query's join onto line zero, so they are present
+			// whichever line this subject sits on.
+			if row.EffectiveDate.Valid {
+				entry.EffectiveDate = row.EffectiveDate.Time
+			}
+			if row.RecordingDate.Valid {
+				entry.RecordingDate = row.RecordingDate.Time
+			}
+			if row.ActorType.Valid && row.Actor.Valid {
+				actorID := row.Actor.UUID
+				entry.ActorType, entry.ActorID = row.ActorType.String, &actorID
+			}
+			entries = append(entries, entry)
+		}
 	}
 
 	credentials, err := api.Database.GetCredentialLedgerRowsByHolder(ctx, database.GetCredentialLedgerRowsByHolderParams{
@@ -334,57 +354,6 @@ func (api *API) readAIAgentJournals(ctx context.Context, agentID uuid.UUID) ([]c
 	}
 
 	return entries, truncated, nil
-}
-
-// convertAuthorizationJournalRows flattens a denormalized journal.
-//
-// Entry level values are written once, on line zero, and every later line holds
-// null in those columns. Nothing in SQL can make a query take a later line's
-// values from line zero, so a reader has to do it. A retirement writes one
-// entry with a line per authorization it ends, so entries above line zero are
-// ordinary rather than exotic.
-//
-// Rows arrive ordered by entry identifier and then by line, which is what makes
-// carrying line zero's values forward correct.
-func convertAuthorizationJournalRows(rows []database.AuthorizationLifecycleJournal) []codersdk.AIAgentLifecycleJournalEntry {
-	var (
-		entries       []codersdk.AIAgentLifecycleJournalEntry
-		currentEntry  int64
-		effectiveDate time.Time
-		recordingDate time.Time
-		actorType     string
-		actorID       *uuid.UUID
-		haveEntry     bool
-	)
-	for _, row := range rows {
-		if !haveEntry || row.EntryID != currentEntry {
-			currentEntry, haveEntry = row.EntryID, true
-			effectiveDate, recordingDate = time.Time{}, time.Time{}
-			actorType, actorID = "", nil
-		}
-		if row.EffectiveDate.Valid {
-			effectiveDate = row.EffectiveDate.Time
-		}
-		if row.RecordingDate.Valid {
-			recordingDate = row.RecordingDate.Time
-		}
-		if row.ActorType.Valid && row.Actor.Valid {
-			id := row.Actor.UUID
-			actorType, actorID = row.ActorType.String, &id
-		}
-		entries = append(entries, codersdk.AIAgentLifecycleJournalEntry{
-			Journal:       codersdk.AIAgentJournalAuthorization,
-			EntryID:       row.EntryID,
-			Line:          int32(row.Line),
-			Event:         row.Event,
-			Subject:       row.Subject,
-			EffectiveDate: effectiveDate,
-			RecordingDate: recordingDate,
-			ActorType:     actorType,
-			ActorID:       actorID,
-		})
-	}
-	return entries
 }
 
 // @Summary List one AI agent's sandbox confinement sessions

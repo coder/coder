@@ -72,9 +72,17 @@ const (
 // Subject identifies whatever the journal named by Journal is about: the agent
 // itself, one of its authorizations, or one of its credentials.
 //
-// Entries sharing an EntryID are one event and not several that coincide. A
-// retirement ends every authorization and every credential a holder has as a
-// single event, so it arrives as one entry with a line apiece.
+// Each journal numbers its own entries, so an entry is identified by Journal
+// and EntryID together. The same EntryID in two journals is ordinarily two
+// unrelated entries, and a reader grouping on EntryID alone merges them.
+//
+// Within one journal, lines sharing an EntryID are one event and not several
+// that coincide. A retirement ends every authorization and every credential a
+// holder has as a single event, so it arrives as one entry with a line apiece.
+//
+// Nothing here relates an entry in one journal to an entry in another. A
+// credential and the authorization it exercises are separate subjects in
+// separate journals, and no column holds a reference between them.
 type AIAgentLifecycleJournalEntry struct {
 	Journal AIAgentJournal `json:"journal" enums:"ai_agent,authorization,credential"`
 	EntryID int64          `json:"entry_id"`

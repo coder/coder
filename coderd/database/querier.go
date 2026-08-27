@@ -455,6 +455,19 @@ type sqlcQuerier interface {
 	// Callers pass one more than they will accept, so receiving it tells them the
 	// set was larger.
 	GetAuthorizationLifecycleJournalEntriesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalEntriesBySubjectParams) ([]AuthorizationLifecycleJournal, error)
+	// The lines about one authorization, each carrying its entry's values.
+	//
+	// This journal is denormalized: entry level values are written once, on line
+	// zero, and every later line holds null in those columns. Reading by subject
+	// cannot rely on a reader carrying them forward, because the lines of one entry
+	// can have different subjects: a retirement ends several authorizations as one
+	// event, so line zero belongs to one of them and line one to another. A caller
+	// asking about the second gets a line whose entry level columns are null and no
+	// line zero to take them from.
+	//
+	// The self join supplies them. Line zero always exists and always carries them,
+	// which the row level checks on those columns enforce.
+	GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]GetAuthorizationLifecycleJournalLinesBySubjectRow, error)
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	// Must stay semantically in sync with GetActiveUsersAuthorizationRoles

@@ -5985,6 +5985,90 @@ func (q *sqlQuerier) GetAuthorizationLifecycleJournalEntriesBySubject(ctx contex
 	return items, nil
 }
 
+const getAuthorizationLifecycleJournalLinesBySubject = `-- name: GetAuthorizationLifecycleJournalLinesBySubject :many
+SELECT
+	l.entry_id,
+	l.line,
+	l.event,
+	l.subject,
+	e.recording_date,
+	e.effective_date,
+	e.actor_type,
+	e.actor
+FROM
+	authorization_lifecycle_journal AS l
+	INNER JOIN authorization_lifecycle_journal AS e
+		ON e.entry_id = l.entry_id
+		AND e.line = 0
+WHERE
+	l.subject = $1
+ORDER BY
+	l.entry_id,
+	l.line
+LIMIT
+	$2
+`
+
+type GetAuthorizationLifecycleJournalLinesBySubjectParams struct {
+	Subject uuid.UUID `db:"subject" json:"subject"`
+	Limit   int32     `db:"limit" json:"limit"`
+}
+
+type GetAuthorizationLifecycleJournalLinesBySubjectRow struct {
+	EntryID       int64          `db:"entry_id" json:"entry_id"`
+	Line          int16          `db:"line" json:"line"`
+	Event         string         `db:"event" json:"event"`
+	Subject       uuid.UUID      `db:"subject" json:"subject"`
+	RecordingDate sql.NullTime   `db:"recording_date" json:"recording_date"`
+	EffectiveDate sql.NullTime   `db:"effective_date" json:"effective_date"`
+	ActorType     sql.NullString `db:"actor_type" json:"actor_type"`
+	Actor         uuid.NullUUID  `db:"actor" json:"actor"`
+}
+
+// The lines about one authorization, each carrying its entry's values.
+//
+// This journal is denormalized: entry level values are written once, on line
+// zero, and every later line holds null in those columns. Reading by subject
+// cannot rely on a reader carrying them forward, because the lines of one entry
+// can have different subjects: a retirement ends several authorizations as one
+// event, so line zero belongs to one of them and line one to another. A caller
+// asking about the second gets a line whose entry level columns are null and no
+// line zero to take them from.
+//
+// The self join supplies them. Line zero always exists and always carries them,
+// which the row level checks on those columns enforce.
+func (q *sqlQuerier) GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]GetAuthorizationLifecycleJournalLinesBySubjectRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAuthorizationLifecycleJournalLinesBySubject, arg.Subject, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAuthorizationLifecycleJournalLinesBySubjectRow
+	for rows.Next() {
+		var i GetAuthorizationLifecycleJournalLinesBySubjectRow
+		if err := rows.Scan(
+			&i.EntryID,
+			&i.Line,
+			&i.Event,
+			&i.Subject,
+			&i.RecordingDate,
+			&i.EffectiveDate,
+			&i.ActorType,
+			&i.Actor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAuthorizationLedgerRow = `-- name: InsertAuthorizationLedgerRow :one
 INSERT INTO
 	authorization_ledger (
