@@ -6,7 +6,7 @@ servers, and chats only offer servers from the chat's organization. Configured
 servers are injected into or offered to users during chat depending on the
 availability policy.
 
-This is an admin-only feature accessible at **AI Settings** > **Coder Agents** > **MCP servers**
+This feature is accessible at **Admin settings** > **AI** > **Coder Agents** > **MCP servers**
 (`/ai/settings/mcp-servers`). In multi-organization deployments, use the
 organization picker to choose which organization's servers to manage. The
 server list shows the picker when you can access more than one organization's
@@ -15,19 +15,19 @@ read-only field when only one organization is available.
 
 ## Add an MCP server
 
-1. Navigate to **AI Settings** > **Coder Agents** > **MCP servers**.
-1. Click **Add**.
+1. Navigate to **Admin settings** > **AI** > **Coder Agents** > **MCP servers**.
+1. Select **Add server**.
 1. Fill in the configuration fields described below.
-1. Click **Save**.
+1. Select **Save**.
 
 ### Identity
 
-| Field          | Required | Description                                                   |
-|----------------|----------|---------------------------------------------------------------|
-| `display_name` | Yes      | Human-readable name shown to users in chat.                   |
-| `slug`         | Yes      | URL-safe unique identifier, auto-generated from display name. |
-| `description`  | No       | Brief summary of what the server provides.                    |
-| `icon_url`     | No       | Emoji or image URL displayed alongside the server name.       |
+| Field          | Required | Description                                                                                       |
+|----------------|----------|---------------------------------------------------------------------------------------------------|
+| `display_name` | Yes      | Human-readable name shown to users in chat.                                                       |
+| `slug`         | Yes      | URL-safe identifier, auto-generated from display name. It must be unique within the organization. |
+| `description`  | No       | Brief summary of what the server provides.                                                        |
+| `icon_url`     | No       | Emoji or image URL displayed alongside the server name.                                           |
 
 ### Connection
 
@@ -186,19 +186,24 @@ grant.
 Members only see enabled servers in their own organizations. Sensitive fields
 such as API keys and client secrets are redacted in API responses.
 
-The **MCP servers** settings page is part of deployment settings, so opening it in the dashboard also requires permission to edit deployment configuration.
-Organization admins without that permission can manage servers through the API.
-Creating or updating a server with `auth_type` set to `user_oidc` also requires the `deployment_config:update` permission.
+Users with access to an organization's MCP servers can open the **MCP servers**
+settings page. Coder enables the edit controls for the users who can manage the
+selected organization's servers.
+Only deployment administrators can add or update a server that uses **User OIDC Identity** authentication.
+
+Refer to [Organization scope](./organizations.md) for the organization scope of MCP servers and the upgrade behavior.
 
 ### Access control
 
 Each server has a group and user ACL that controls which members can see and
 use it. New servers grant read access to the organization's **Everyone** group,
-so all members have access by default. Admins can remove the Everyone entry and
-grant specific groups or users instead through the API
-(`GET`/`PATCH /api/experimental/organizations/{organization}/mcp-servers/{id}/acl`); there is no ACL editor
-in the settings page. ACL management is available in all editions and does not
-require an enterprise entitlement. ACL changes are recorded in the audit log.
+so all members have access by default. Members with MCP server share permission
+can open **Server actions** > **Manage permissions** to remove the Everyone
+entry and grant specific groups or users instead. They can also manage the ACL
+through the API
+(`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
+ACL management is available in all editions and does not require an enterprise
+entitlement. ACL changes are recorded in the audit log.
 
 Revoking access stops a member from newly selecting the server in any chat,
 but chats that already have the server selected keep using it, the same way

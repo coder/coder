@@ -82,6 +82,19 @@ export const handlers = [
 		},
 	),
 
+	http.get(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl/available",
+		() => HttpResponse.json(M.MockMCPServerConfigACLAvailable),
+	),
+	http.get(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
+		() => HttpResponse.json(M.MockMCPServerConfigACL),
+	),
+	http.patch(
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
+		() => new HttpResponse(null, { status: 204 }),
+	),
+
 	// templates
 	http.get("/api/v2/templates", () => {
 		return HttpResponse.json([M.MockTemplate]);

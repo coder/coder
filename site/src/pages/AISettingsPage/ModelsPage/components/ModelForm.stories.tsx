@@ -58,6 +58,7 @@ const withOrganizationModels = (Story: React.FC) => (
 	<OrganizationModelsContext.Provider
 		value={{
 			organization: MockDefaultOrganization,
+			accessibleOrganizations: [MockDefaultOrganization],
 			permissions: MockOrganizationPermissions,
 			requestedOrganizationDenied: false,
 		}}
@@ -317,7 +318,7 @@ export const ShareOnlyAccess: Story = {
 			canvas.getByRole("button", { name: /model actions/i }),
 		);
 		expect(
-			screen.getByRole("menuitem", { name: /share model/i }),
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
 		).toBeInTheDocument();
 		expect(
 			screen.queryByRole("menuitem", { name: /duplicate model/i }),
@@ -339,7 +340,7 @@ export const FullAccessActions: Story = {
 			canvas.getByRole("button", { name: /model actions/i }),
 		);
 		expect(
-			screen.getByRole("menuitem", { name: /share model/i }),
+			screen.getByRole("menuitem", { name: /manage permissions/i }),
 		).toBeInTheDocument();
 		expect(
 			screen.getByRole("menuitem", { name: /duplicate model/i }),

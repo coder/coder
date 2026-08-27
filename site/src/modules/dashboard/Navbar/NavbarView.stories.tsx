@@ -274,7 +274,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 	},
 };
 
-export const ForMember: Story = {
+export const ForUserWithoutOrganization: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
@@ -315,7 +315,7 @@ export const ForMemberWithModelAccess: Story = {
 	},
 };
 
-export const ForMemberWithAgentsAccess: Story = {
+export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},

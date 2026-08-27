@@ -117,7 +117,7 @@ type CallbackFn = (ev?: MessageEvent) => void;
 //   Record keyed by URL substring — events are delivered only to
 //   sockets whose URL contains the key:
 //     webSocket: {
-//       "/api/experimental/chats/": [{ event: "message", data: "..." }],
+//       "/api/v2/chats/": [{ event: "message", data: "..." }],
 //       "/api/experimental/workspaceagents/": [{ event: "message", data: "..." }],
 //     }
 export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
