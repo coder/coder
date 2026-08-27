@@ -1576,7 +1576,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
-														disableStatusTooltip
+														inOverflowPopover
 													/>
 												</span>
 											);

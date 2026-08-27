@@ -1644,7 +1644,12 @@ export const LongWorkspaceNameMobile: Story = {
 		await waitFor(() => {
 			expect(menuItem).toBeVisible();
 		});
-		await userEvent.keyboard("{Escape}");
+		// One outside click dismisses both the menu and the popover.
+		await userEvent.click(getEditor(canvasElement));
+		await waitFor(() => {
+			expect(within(document.body).queryByRole("menu")).toBeNull();
+			expect(within(document.body).queryByRole("dialog")).toBeNull();
+		});
 		// The toolbar row should not cause horizontal overflow.
 		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
