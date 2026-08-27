@@ -1613,3 +1613,111 @@ export const LongWorkspaceNameMobile: Story = {
 		}
 	},
 };
+
+// Width of the pill floor (8ch of pill-sized text plus the fixed
+// chrome) resolved against the same font the pills use, so width
+// assertions do not hardcode font metrics.
+const measurePillFloor = (canvasElement: HTMLElement): number => {
+	const probe = document.createElement("span");
+	probe.className = "text-xs font-medium";
+	probe.style.position = "absolute";
+	probe.style.visibility = "hidden";
+	probe.style.width = "calc(8ch + 3.125rem)";
+	canvasElement.appendChild(probe);
+	const width = probe.getBoundingClientRect().width;
+	probe.remove();
+	return width;
+};
+
+/**
+ * A short model name sizes the trigger to its content instead of
+ * padding it out to the 8ch floor, even on a crowded mobile toolbar.
+ */
+export const ShortModelNameHasNoDeadSpace: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-short",
+		modelOptions: [
+			{
+				id: "model-short",
+				provider: "openai",
+				model: "fable-5",
+				displayName: "Fable 5",
+			},
+		],
+		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
+		workspace: MockWorkspace,
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "short-model-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("combobox", {
+			name: /Fable 5/,
+		});
+		const floor = measurePillFloor(canvasElement);
+		await waitFor(() => {
+			// Sized to content: narrower than the floor, label untruncated.
+			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
+		});
+		const label = canvas.getByText("Fable 5");
+		expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth);
+	},
+};
+
+/**
+ * With no MCP badges competing for space, long model and workspace
+ * names expand to their full width: no truncation and no fixed cap
+ * (the workspace pill grows past the previous 200px clamp).
+ */
+export const LongLabelsExpandWithoutMCPs: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		workspace: {
+			...MockWorkspace,
+			name: "my-workspace-name-that-should-not-clamp",
+		},
+		workspaceAgent: MockWorkspaceAgent,
+		chatId: "long-labels-chat-id",
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const modelLabel = await canvas.findByText("Claude Sonnet 4.5");
+		const workspaceLabel = await canvas.findByText(
+			"my-workspace-name-that-should-not-clamp",
+		);
+		await waitFor(() => {
+			// Neither label is truncated when free space is available.
+			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
+				modelLabel.clientWidth,
+			);
+			expect(workspaceLabel.scrollWidth).toBeLessThanOrEqual(
+				workspaceLabel.clientWidth,
+			);
+		});
+		// The workspace pill is no longer clamped to 200px.
+		const pillButton = canvas.getByRole("button", {
+			name: /workspace menu/,
+		});
+		expect(pillButton.getBoundingClientRect().width).toBeGreaterThan(200);
+		// Nothing overflowed into the +N pill.
+		expect(canvas.queryByRole("button", { name: /more item/ })).toBeNull();
+	},
+};

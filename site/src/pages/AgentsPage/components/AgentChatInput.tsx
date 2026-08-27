@@ -1197,7 +1197,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					/>
 				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-1">
+					{/* flex-1 so free row space reaches the growing pills below,
+					 * letting labels expand to their natural width when there is
+					 * room. */}
+					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
 						<Popover
 							modal={false}
@@ -1420,13 +1423,18 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : (
+							/* Pill sizing scheme: start at a ~8ch floor
+							 * (basis), never shrink below it (shrink-0), grow
+							 * into free space, and cap at the label's natural
+							 * width (max-w-max) so short labels never pad out
+							 * with dead space. */
 							<ModelSelector
 								value={selectedModel}
 								onValueChange={onModelChange}
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:h-auto md:w-auto md:shrink"
+								className="grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max md:h-auto"
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1472,7 +1480,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<span
 											key="workspace-pill"
 											className={cn(
-												"flex min-w-[calc(8ch_+_3.125rem)] text-xs",
+												// Same pill sizing scheme as the model
+												// selector: ~8ch floor, grow into free
+												// space, cap at the name's natural width.
+												"flex min-w-0 shrink-0 grow basis-[calc(8ch_+_3.125rem)] max-w-max text-xs",
 												isOverflow && "invisible order-1",
 											)}
 										>

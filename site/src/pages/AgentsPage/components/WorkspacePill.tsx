@@ -126,10 +126,11 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			{/* Floor of ~8ch of name + 3.125rem chrome (padding, status icon,
-			 * gaps, chevron). Below the floor the overflow system moves the
-			 * pill into the +N popover instead of shrinking it further. */}
-			<span className="inline-flex min-w-[calc(8ch_+_3.125rem)] items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
+			{/* Sizing (floor, growth, and natural-width cap) is owned by the
+			 * wrapper in AgentChatInput; this span just fills it. Below the
+			 * floor the overflow system moves the pill into the +N popover
+			 * instead of shrinking it further. */}
+			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -141,7 +142,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
 									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"h-7 w-full max-w-[200px] px-2 py-0.5",
+									"h-7 w-full px-2 py-0.5",
 								)}
 							>
 								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
