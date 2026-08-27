@@ -6899,32 +6899,6 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
 }
 
-func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
-	apiKey := httpmw.APIKey(r)
-
-	if !chatModelConfigReadScope(apiKey.Scopes) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := make([]codersdk.ChatModel, 0, len(configs))
-	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
 // @Summary List AI models and provider descriptors in an organization
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
@@ -6933,7 +6907,6 @@ func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, 
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
-// @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -7018,8 +6991,7 @@ func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
 // read gate; providers are deployment-scoped and an org admin cannot read
 // them directly, so the fetch runs under a narrow AsChatd context scoped to
 // exactly these two reads and the result is projected to the fixed redacted
-// fields (no key material, base URLs, or headers). Disclosure matches what
-// /api/experimental/chats/models already shows any authenticated caller.
+// fields, which exclude key material, base URLs, and headers.
 func (api *API) chatModelProviderDescriptors(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -7197,7 +7169,6 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
-// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
