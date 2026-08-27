@@ -297,7 +297,8 @@ const createHandle = <T>(
 		// A value whose encoding does not decode back (NaN, unsafe
 		// integers) would read as the default after reload; reject it
 		// so live and reloaded reads stay consistent.
-		if (codec.decode(raw) === undefined) {
+		const decoded = codec.decode(raw);
+		if (decoded === undefined) {
 			return { ok: false, reason: "invalid" };
 		}
 		const result = writeRaw(area, key, raw);
@@ -306,9 +307,10 @@ const createHandle = <T>(
 			// inspect the result for their own failure handling.
 			return result;
 		}
-		// Cache the caller's value directly so getSnapshot hands the
-		// exact same reference back.
-		cached = { raw, value };
+		// Objects cache the caller's value so getSnapshot hands the
+		// exact same reference back; primitives cache the decoded form
+		// so live reads match a reload (signed zero persists as "0").
+		cached = { raw, value: typeof value === "object" ? value : decoded };
 		notifyKey(cacheKey);
 		return result;
 	};
@@ -375,9 +377,11 @@ export function defineEntityStorageKey<T>(options: {
 	// for the same entity ID across renders.
 	const handleCache = new Map<string, StorageKeyHandle<T>>();
 
-	// An empty or missing ID part would alias the bare family prefix,
-	// which clear() cannot remove because it ignores empty IDs. The
-	// inert handle keeps loading states readable without persisting.
+	// An empty or missing ID part would alias the bare family prefix
+	// (which clear() cannot remove), and a part containing the "."
+	// delimiter would collide distinct composite identities onto one
+	// key. The inert handle keeps such states readable without
+	// persisting anything.
 	let inertHandle: StorageKeyHandle<T> | undefined;
 
 	const listStoredSuffixes = (): string[] =>
@@ -388,7 +392,10 @@ export function defineEntityStorageKey<T>(options: {
 	return {
 		prefix,
 		forId: (...idParts) => {
-			if (idParts.length === 0 || idParts.some((part) => part === "")) {
+			if (
+				idParts.length === 0 ||
+				idParts.some((part) => part === "" || part.includes("."))
+			) {
 				inertHandle ??= {
 					key: prefix,
 					get: () => defaultValue,

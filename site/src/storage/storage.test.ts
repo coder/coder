@@ -122,6 +122,12 @@ describe("storage core", () => {
 		expect(numberKey.get()).toBe(-7);
 	});
 
+	it("normalizes signed zero to its persisted form", () => {
+		numberKey.set(-0);
+		expect(localStorage.getItem("test.number")).toBe("0");
+		expect(Object.is(numberKey.get(), 0)).toBe(true);
+	});
+
 	it("removes the key when setting null", () => {
 		numberKey.set(7);
 		expect(localStorage.getItem("test.number")).toBe("7");
@@ -417,6 +423,14 @@ describe("entity-scoped keys", () => {
 		}
 		expect(localStorage.getItem("test.chat-note.")).toBeNull();
 		expect(chatNote.listStoredSuffixes()).toEqual([]);
+	});
+
+	it("serves an inert handle for ID parts containing the delimiter", () => {
+		// forId("org.a", "chat") and forId("org", "a.chat") would
+		// otherwise collide onto the same key.
+		const handle = chatComposite.forId("org.a", "chat");
+		expect(handle.set("value")).toEqual({ ok: false, reason: "invalid" });
+		expect(chatComposite.listStoredSuffixes()).toEqual([]);
 	});
 });
 
