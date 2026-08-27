@@ -592,7 +592,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 			defer resp.Body.Close()
 
 			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-				"%s: a response_type the parser rejects fails before the callback is trusted", method)
+				"%s: extractAuthorizeParams failures answer on Coder whether or not the callback was trustworthy, and this request omits redirect_uri, so it was", method)
 			require.Empty(t, resp.Header.Get("Location"),
 				"%s: nothing may be redirected from inside extractAuthorizeParams", method)
 		}

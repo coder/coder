@@ -240,7 +240,9 @@ func extractAuthorizeParams(r *http.Request, callbackURL *url.URL) (authorizePar
 
 // validatedCallbackURL is a redirect URI that extractAuthorizeParams has
 // exact-matched against the app's registered callback. Requiring one is what
-// keeps the error redirects below from becoming open redirects.
+// keeps the error redirects below from becoming open redirects. The field is
+// unexported, so no other package can present an arbitrary URI as a validated
+// one. This package can still forge one with a composite literal.
 type validatedCallbackURL struct {
 	callback *url.URL
 }
@@ -325,9 +327,12 @@ func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
 
 // redirectAuthorizeError reports an authorization error through the client's
 // own callback, as RFC 6749 §4.1.2.1 requires once the client is known.
-// Holding a validatedCallbackURL is what licenses the redirect: errors raised
-// before extractAuthorizeParams returns have nothing to build one from, and
-// §4.1.2.1 requires informing the user there instead.
+// Holding a validatedCallbackURL is what licenses the redirect. Errors raised
+// before extractAuthorizeParams returns have nothing to build one from, so
+// §4.1.2.1 requires informing the resource owner on this server instead. Its
+// failures still answer here even when the callback was trustworthy, because
+// the parser reports one verdict for every field at once and the return type
+// cannot say which field failed.
 //
 // Logged because the failure leaves in a Location header, which loggermw does
 // not record, so an operator asked why an app cannot sign in would otherwise
@@ -404,9 +409,10 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		}
 
 		// Checked once here, right after the URI has been exact-matched against
-		// the registered callback, because downstream writes it into a Location
-		// header and into the cancel link's href. 500, not 400: registration
-		// rejects these schemes, so a stored one is bad server state.
+		// the registered callback, because every redirect below writes it into
+		// a Location header, and the consent page into the cancel link's href.
+		// 500, not 400: registration rejects these schemes, so a stored one is
+		// bad server state.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL.callback); err != nil {
 			logCorruptCallback(r.Context(), logger, app, err)
 			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -427,6 +433,13 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// OAuth 2.1 removes the implicit grant. Only the authorization code flow
 		// is supported, and §4.1.2.1 names unsupported_response_type among the
 		// errors the client learns of through its own callback.
+		//
+		// Delivered in the query even though response_type=token is the only
+		// value that reaches here, and §4.2.2.1 would put an implicit-grant
+		// error in the fragment. Coder advertises code alone in
+		// response_types_supported, so a client asking for token is
+		// misconfigured rather than mid-implicit-flow, and answering it in the
+		// fragment would mean implementing part of a grant this server refuses.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
@@ -497,8 +510,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// As on the GET side: the scope rejection below and the success redirect
-		// at the end both write this URL into a Location header.
+		// As on the GET side: every redirect below writes this URL into a
+		// Location header.
 		if err := codersdk.ValidateRedirectURIScheme(params.redirectURL.callback); err != nil {
 			logCorruptCallback(ctx, logger, app, err)
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusInternalServerError,
@@ -507,8 +520,9 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			return
 		}
 
-		// OAuth 2.1 removes the implicit grant. Only
-		// authorization code flow is supported.
+		// As on the GET side: OAuth 2.1 removes the implicit grant, and
+		// §4.1.2.1 names unsupported_response_type among the errors the client
+		// learns of through its own callback.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
 			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
