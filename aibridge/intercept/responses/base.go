@@ -279,7 +279,9 @@ func (i *responsesInterceptionBase) recordNonInjectedToolUsage(ctx context.Conte
 		// have no uniform argument representation.
 		switch item.Type {
 		case string(constant.ValueOf[constant.FunctionCall]()):
-			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments)
+			// Arguments is a union since openai-go v3.50; function_call
+			// arguments are always the JSON string variant.
+			args = i.parseFunctionCallJSONArgs(ctx, item.Arguments.OfString)
 		case string(constant.ValueOf[constant.CustomToolCall]()):
 			args = item.Input
 		case string(constant.ValueOf[constant.WebSearchCall]()),

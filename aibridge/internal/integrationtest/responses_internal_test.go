@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -1195,10 +1196,12 @@ func startRejectingListener(t *testing.T) (addr string) {
 				return
 			}
 
-			// Read at least 1 byte so the client has started writing
-			// before we RST, ensuring a consistent "connection reset by peer".
-			buf := make([]byte, 1)
-			_, _ = c.Read(buf)
+			// Drain the request before the RST so the client observes a
+			// read-side reset rather than a racy body-write failure.
+			if req, err := http.ReadRequest(bufio.NewReader(c)); err == nil {
+				_, _ = io.Copy(io.Discard, req.Body)
+				_ = req.Body.Close()
+			}
 			if tc, ok := c.(*net.TCPConn); ok {
 				_ = tc.SetLinger(0)
 			}
