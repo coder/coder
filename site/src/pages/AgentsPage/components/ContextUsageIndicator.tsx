@@ -130,7 +130,7 @@ const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
 
 const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed === null) {
-		return "text-content-secondary/60";
+		return "text-content-secondary";
 	}
 	if (percentUsed >= 95) {
 		return "text-content-destructive";
@@ -138,7 +138,7 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed >= 85) {
 		return "text-content-warning";
 	}
-	return "text-content-secondary/60";
+	return "text-content-secondary";
 };
 
 // A set of context resources that share a parent directory. Lists are grouped
@@ -169,8 +169,21 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
+// Ring dimensions match the workspace/token usage rings in UsageIndicator so
+// the chat input indicators read as one family.
+const RING_SIZE = 28;
+const RING_STROKE = 1;
+
+// Exclamation glyph centered in the ring when the pinned context drifted or
+// failed to load. Inherits the indicator tone via currentColor.
+const ExclamationGlyph: FC = () => (
+	<svg width="2" height="10" viewBox="0 0 2 10" fill="none" aria-hidden="true">
+		<path
+			d="M0.643145 8.67322C0.991187 8.67339 1.27302 8.95542 1.27335 9.30343C1.27335 9.65172 0.991393 9.93531 0.643145 9.93548H0.630208C0.281814 9.93548 0 9.65182 0 9.30343C0.000333666 8.95532 0.28202 8.67322 0.630208 8.67322H0.643145ZM0 5.67742V0.630208C0 0.281814 0.281814 0 0.630208 0C0.978603 0 1.26042 0.281814 1.26042 0.630208V5.67742C1.26008 6.02553 0.978398 6.30763 0.630208 6.30763C0.282019 6.30763 0.000332691 6.02553 0 5.67742Z"
+			fill="currentColor"
+		/>
+	</svg>
+);
 
 // Delay before the popover closes after the mouse leaves, giving
 // the user time to move into the popover content.
@@ -245,7 +258,6 @@ export const ContextUsageIndicator: FC<{
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 100;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -324,6 +336,18 @@ export const ContextUsageIndicator: FC<{
 		skillItems.length > 0 ||
 		hasMcp ||
 		issueItems.length > 0;
+
+	// Resource-level failures (invalid skill, unreadable file) share the
+	// warning treatment with a drifted pin so they are visible without
+	// opening the popover. A snapshot error or drift takes precedence over
+	// the usage-based tone.
+	const hasResourceIssues = issueItems.length > 0;
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const toneClassName = hasContextError
+		? "text-content-destructive"
+		: isDirty || hasResourceIssues
+			? "text-content-warning"
+			: getIndicatorToneClassName(percentUsed);
 	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
 		"instruction_file",
 	]);
@@ -338,10 +362,17 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
+	const statusNote = hasContextError
+		? " Context error."
 		: isDirty
-			? "Context usage. Context changed."
+			? " Context changed."
+			: hasResourceIssues
+				? " Some context resources failed to load."
+				: "";
+	const ariaLabel = hasPercent
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
+		: statusNote !== ""
+			? `Context usage.${statusNote}`
 			: "Context usage";
 
 	const panelContent = (
@@ -574,20 +605,19 @@ export const ContextUsageIndicator: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				trackClassName="stroke-content-secondary/25"
 				progressClassName="stroke-current"
-				className={cn("size-icon-sm", toneClassName)}
+				className={toneClassName}
 			/>
-			{(isDirty || hasContextError) && (
-				<TriangleAlertIcon
-					aria-hidden
+			{needsAttention && (
+				<span
+					aria-hidden="true"
 					className={cn(
-						"absolute -right-0.5 -top-0.5 size-3",
-						hasContextError
-							? "text-content-destructive"
-							: "text-content-warning",
+						"absolute inset-0 flex items-center justify-center",
+						toneClassName,
 					)}
-				/>
+				>
+					<ExclamationGlyph />
+				</span>
 			)}
 		</button>
 	);

@@ -17,8 +17,8 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 export default meta;
 type Story = StoryObj<typeof ContextUsageIndicator>;
 
-// Clean pin: the ring carries no change marker and the popover lists the
-// pinned resources.
+// Clean pin with one invalid resource: the ring flags the resource issue and
+// the popover lists the pinned resources with the failure under Issues.
 export const Clean: Story = {
 	args: {
 		usage: {
@@ -29,9 +29,11 @@ export const Clean: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").not.toContain(
-			"Context changed",
-		);
+		const label = button.getAttribute("aria-label") ?? "";
+		expect(label).not.toContain("Context changed");
+		// The fixture carries an invalid skill, so the ring announces the
+		// resource issue instead of staying silent until hover.
+		expect(label).toContain("Some context resources failed to load.");
 
 		await userEvent.hover(button);
 		const body = within(document.body);
@@ -120,6 +122,12 @@ export const MultipleContextRoots: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		const label = button.getAttribute("aria-label") ?? "";
+		// Every pinned resource is ok, so the ring carries no status note.
+		expect(label).toContain("Context usage 24%");
+		expect(label).not.toContain("Context changed");
+		expect(label).not.toContain("failed to load");
+		expect(label).not.toContain("Context error");
 		await userEvent.hover(button);
 		const body = within(document.body);
 		// Both directories that contribute instruction files are listed, so the
@@ -279,6 +287,7 @@ export const SnapshotError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
+		expect(button.getAttribute("aria-label") ?? "").toContain("Context error");
 		await userEvent.hover(button);
 		const body = within(document.body);
 		await waitFor(() => expect(body.getByText("Context error")).toBeVisible());
