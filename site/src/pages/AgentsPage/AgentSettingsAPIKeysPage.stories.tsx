@@ -113,6 +113,51 @@ export const MasksApiKeyInput: Story = {
 	},
 };
 
+export const BedrockProvider: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-bedrock",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+			}),
+		]),
+		models: [
+			createModel({
+				id: "model-bedrock-1",
+				ai_provider_id: "prov-bedrock",
+				display_name: "Claude Sonnet 4",
+				model: "anthropic.claude-sonnet-4-20250514-v1:0",
+			}),
+		],
+		onSave: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText("Amazon Bedrock API key");
+		await expect(apiKeyInput).toHaveAttribute("placeholder", "ABSK...");
+		await expect(
+			canvas.getByText(/IAM access key and secret key pairs are not supported/),
+		).toBeVisible();
+		const docsLink = canvas.getByRole("link", {
+			name: /Generate a Bedrock API key/,
+		});
+		await expect(docsLink).toHaveAttribute(
+			"href",
+			"https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-api-keys.html",
+		);
+
+		await userEvent.type(apiKeyInput, "ABSKQmVkcm9ja0FQSUtleS-test");
+		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await waitFor(() => {
+			expect(args.onSave).toHaveBeenCalledWith(
+				"prov-bedrock",
+				"ABSKQmVkcm9ja0FQSUtleS-test",
+			);
+		});
+	},
+};
+
 export const WithFallback: Story = {
 	args: {
 		providerItems: createProviderItems([

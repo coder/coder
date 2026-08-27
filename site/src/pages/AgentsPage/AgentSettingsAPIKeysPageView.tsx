@@ -1,4 +1,4 @@
-import type { FC, FormEvent } from "react";
+import type { FC, FormEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -7,10 +7,49 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
+import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { SectionHeader } from "./components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
+
+const BEDROCK_API_KEYS_DOCS_URL =
+	"https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-api-keys.html";
+
+type ProviderKeyFieldCopy = {
+	label: string;
+	placeholder: string;
+	description?: ReactNode;
+};
+
+// Bedrock accepts only bearer-token Amazon Bedrock API keys here. IAM access
+// key and secret key pairs require SigV4 signing, which BYOK does not support
+// yet, so the copy steers users toward the supported credential type.
+const getProviderKeyFieldCopy = (
+	provider: UserChatProviderConfig,
+): ProviderKeyFieldCopy => {
+	if (provider.provider === "bedrock") {
+		return {
+			label: "Amazon Bedrock API key",
+			placeholder: "ABSK...",
+			description: (
+				<>
+					Use an Amazon Bedrock API key (a bearer token). IAM access key and
+					secret key pairs are not supported.{" "}
+					<Link
+						href={BEDROCK_API_KEYS_DOCS_URL}
+						target="_blank"
+						rel="noreferrer"
+						size="sm"
+					>
+						Generate a Bedrock API key
+					</Link>
+				</>
+			),
+		};
+	}
+	return { label: "API Key", placeholder: "sk-..." };
+};
 
 type ProviderStatus = {
 	label: string;
@@ -80,6 +119,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const status = getProviderStatus(provider);
+	const fieldCopy = getProviderKeyFieldCopy(provider);
 	const enabledModels = models.filter(
 		(model) => model.enabled && model.ai_provider_id === provider.provider_id,
 	);
@@ -139,12 +179,19 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 			</div>
 
 			<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
-				<label
-					htmlFor={apiKeyInputId}
-					className="text-sm font-medium text-content-primary"
-				>
-					API Key
-				</label>
+				<div className="flex flex-col gap-1">
+					<label
+						htmlFor={apiKeyInputId}
+						className="text-sm font-medium text-content-primary"
+					>
+						{fieldCopy.label}
+					</label>
+					{fieldCopy.description && (
+						<p className="m-0 text-sm text-content-secondary">
+							{fieldCopy.description}
+						</p>
+					)}
+				</div>
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
 					<div className="flex flex-col gap-1.5 lg:flex-1">
 						<Input
@@ -157,7 +204,7 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 							data-form-type="other"
 							data-bwignore
 							className="h-9 font-mono text-[13px]"
-							placeholder="sk-..."
+							placeholder={fieldCopy.placeholder}
 							value={apiKey}
 							onFocus={handleApiKeyFocus}
 							onChange={(event) => {
