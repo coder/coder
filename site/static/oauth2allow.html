@@ -23,7 +23,9 @@ links */}}
         justify-content: center;
         font-family: sans-serif;
         font-size: 16px;
-        height: 100%;
+        /* A fixed height would let align-items: center push a long scope list
+           past both edges, leaving the top half unreachable by scrolling. */
+        min-height: 100%;
       }
 
       .container {
