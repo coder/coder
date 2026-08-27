@@ -1018,6 +1018,8 @@ const agentsWithAgentChatPageRouting = {
 };
 
 const WATCHED_CHAT_ID = "chat-watched";
+const WATCHED_SUMMARY_GENERATION_STARTED_AT = "2026-08-27T18:00:00.000Z";
+const NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT = "2026-08-27T18:00:01.000Z";
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
 // (composer enabled unless archived) instead of the other-user banner.
@@ -1063,12 +1065,14 @@ const chatWatchEvent = (
 	chat: Chat,
 	delayMs = 0,
 	chatSummaryGenerationRemainingMs?: number,
+	chatSummaryGenerationStartedAt?: string,
 ) => ({
 	event: "message" as const,
 	data: JSON.stringify({
 		kind,
 		chat,
 		chat_summary_generation_remaining_ms: chatSummaryGenerationRemainingMs,
+		chat_summary_generation_started_at: chatSummaryGenerationStartedAt,
 	} satisfies TypesGen.ChatWatchEvent),
 	delayMs,
 });
@@ -1113,11 +1117,19 @@ export const SummaryWatchEventsUpdateOpenPanel: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			750,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
 		chatWatchEvent(
 			"chat_summary_change",
 			watchedChat({ summary: "Generated summary from the watch event." }),
 			3_000,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
 		),
 	]),
 	play: async ({ canvasElement }) => {
@@ -1162,7 +1174,13 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("chat_summary_generating", watchedChat(), 750, 1_000),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			750,
+			1_000,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -1201,7 +1219,13 @@ export const SummaryReconnectClearsStaleGeneratingState: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			750,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
 		{ event: "open", delayMs: 3_000 },
 	]),
 	play: async ({ canvasElement }) => {
@@ -1233,6 +1257,84 @@ export const SummaryReconnectClearsStaleGeneratingState: Story = {
 	},
 };
 
+export const StaleSummaryFailureKeepsNewGeneration: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			500,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			1_000,
+			undefined,
+			NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"chat_summary_failed",
+			watchedChat(),
+			1_500,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"title_change",
+			watchedChat({ title: "Stale failure ignored" }),
+			2_000,
+		),
+		chatWatchEvent(
+			"chat_summary_failed",
+			watchedChat(),
+			3_500,
+			undefined,
+			NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(
+			await summary.findByText("Not enough details to summarize."),
+		).toBeVisible();
+		expect(
+			await summary.findByRole("status", undefined, { timeout: 3_000 }),
+		).toHaveTextContent("Generating summary");
+		expect(
+			await canvas.findAllByText(
+				"Stale failure ignored",
+				{},
+				{ timeout: 4_000 },
+			),
+		).not.toHaveLength(0);
+		expect(summary.getByRole("status")).toHaveTextContent("Generating summary");
+		expect(
+			await summary.findByText(
+				"Not enough details to summarize.",
+				{},
+				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
 export const SummaryFailureClearsGeneratingState: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
@@ -1246,8 +1348,20 @@ export const SummaryFailureClearsGeneratingState: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
-		chatWatchEvent("chat_summary_failed", watchedChat(), 3_000),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			750,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"chat_summary_failed",
+			watchedChat(),
+			3_000,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

@@ -18162,6 +18162,11 @@
 					"description": "ChatSummaryGenerationRemainingMS is present on chat_summary_generating\nevents so clients do not restart the generation timeout after reconnecting.",
 					"type": "integer"
 				},
+				"chat_summary_generation_started_at": {
+					"description": "ChatSummaryGenerationStartedAt identifies the summary worker that emitted\ngenerating and terminal lifecycle events.",
+					"type": "string",
+					"format": "date-time"
+				},
 				"kind": {
 					"$ref": "#/definitions/codersdk.ChatWatchEventKind"
 				},

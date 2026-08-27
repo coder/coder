@@ -3173,7 +3173,7 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 		})
 
-		_, err := api.Database.StartChatSummaryGeneration(
+		generationStartedAt, err := api.Database.StartChatSummaryGeneration(
 			dbauthz.AsChatd(ctx),
 			chat.ID,
 		)
@@ -3187,6 +3187,8 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, wsjson.Read(ctx, conn, &payload))
 		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryGenerating, payload.Kind)
 		require.Equal(t, chat.ID, payload.Chat.ID)
+		require.NotNil(t, payload.ChatSummaryGenerationStartedAt)
+		require.True(t, generationStartedAt.Equal(*payload.ChatSummaryGenerationStartedAt))
 		require.NotNil(t, payload.ChatSummaryGenerationRemainingMS)
 		require.Positive(t, *payload.ChatSummaryGenerationRemainingMS)
 		require.LessOrEqual(

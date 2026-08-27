@@ -286,10 +286,12 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 
 	encoder = json.NewEncoder(wsNetConn)
 	for _, generation := range activeSummaryGenerations {
+		generationStartedAt := generation.GenerationStartedAt
 		remainingMs := generation.RemainingMs
 		if err := encoder.Encode(codersdk.ChatWatchEvent{
 			Kind:                             codersdk.ChatWatchEventKindChatSummaryGenerating,
 			Chat:                             db2sdk.Chat(generation.Chat, nil, nil),
+			ChatSummaryGenerationStartedAt:   &generationStartedAt,
 			ChatSummaryGenerationRemainingMS: &remainingMs,
 		}); err != nil {
 			encoder = nil

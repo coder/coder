@@ -5313,6 +5313,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "chat_summary_generation_remaining_ms": 0,
+  "chat_summary_generation_started_at": "2019-08-24T14:15:22Z",
   "kind": "status_change",
   "tool_calls": [
     {
@@ -5330,6 +5331,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------------------------------|---------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `chat`                                 | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                                                        |
 | `chat_summary_generation_remaining_ms` | integer                                                             | false    |              | Chat summary generation remaining ms is present on chat_summary_generating events so clients do not restart the generation timeout after reconnecting. |
+| `chat_summary_generation_started_at`   | string                                                              | false    |              | Chat summary generation started at identifies the summary worker that emitted generating and terminal lifecycle events.                                |
 | `kind`                                 | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                                                        |
 | `tool_calls`                           | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                                                        |
 

@@ -3341,13 +3341,7 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 	return sdkChat
 }
 
-// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
-// pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
-	event := codersdk.ChatWatchEvent{
-		Kind: kind,
-		Chat: chatWatchEventSDKChat(chat, diffStatus),
-	}
+func (p *Server) publishChatWatchEvent(chat database.Chat, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
@@ -3359,10 +3353,31 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
+}
+
+// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
+// pubsub so that all replicas can push updates to watching clients.
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
+	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
+		Kind: kind,
+		Chat: chatWatchEventSDKChat(chat, diffStatus),
+	})
+}
+
+func (p *Server) publishChatSummaryGenerationEvent(
+	chat database.Chat,
+	kind codersdk.ChatWatchEventKind,
+	generationStartedAt time.Time,
+) {
+	p.publishChatWatchEvent(chat, codersdk.ChatWatchEvent{
+		Kind:                           kind,
+		Chat:                           chatWatchEventSDKChat(chat, nil),
+		ChatSummaryGenerationStartedAt: &generationStartedAt,
+	})
 }
 
 // ChatQueuedForCapacity reports whether the chat is waiting for a
@@ -4902,7 +4917,11 @@ func (p *Server) generateAndStoreChatSummary(
 		}
 	}()
 
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryGenerating, nil)
+	p.publishChatSummaryGenerationEvent(
+		chat,
+		codersdk.ChatWatchEventKindChatSummaryGenerating,
+		generationStartedAt,
+	)
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
 	defer cancelGen()
@@ -4999,7 +5018,11 @@ func (p *Server) failChatSummaryGeneration(
 	generationStartedAt time.Time,
 ) {
 	if p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt) {
-		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryFailed, nil)
+		p.publishChatSummaryGenerationEvent(
+			chat,
+			codersdk.ChatWatchEventKindChatSummaryFailed,
+			generationStartedAt,
+		)
 	}
 }
 
@@ -5045,7 +5068,15 @@ func (p *Server) updateChatSummary(
 
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
-	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
+	if expectedGenerationStartedAt.Valid {
+		p.publishChatSummaryGenerationEvent(
+			updatedChat,
+			codersdk.ChatWatchEventKindChatSummaryChange,
+			expectedGenerationStartedAt.Time,
+		)
+	} else {
+		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
+	}
 	return true
 }
 

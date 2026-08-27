@@ -1895,6 +1895,9 @@ const (
 type ChatWatchEvent struct {
 	Kind ChatWatchEventKind `json:"kind"`
 	Chat Chat               `json:"chat"`
+	// ChatSummaryGenerationStartedAt identifies the summary worker that emitted
+	// generating and terminal lifecycle events.
+	ChatSummaryGenerationStartedAt *time.Time `json:"chat_summary_generation_started_at,omitempty" format:"date-time"`
 	// ChatSummaryGenerationRemainingMS is present on chat_summary_generating
 	// events so clients do not restart the generation timeout after reconnecting.
 	ChatSummaryGenerationRemainingMS *int64               `json:"chat_summary_generation_remaining_ms,omitempty"`

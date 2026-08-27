@@ -568,7 +568,20 @@ const AgentsPageLayout: FC = () => {
 			string,
 			ReturnType<typeof setTimeout>
 		>();
-		const clearSummaryGenerating = (chatId: string) => {
+		const summaryGenerationStartedAt = new Map<string, string>();
+		const clearSummaryGenerating = (
+			chatId: string,
+			expectedGenerationStartedAt?: string,
+		) => {
+			const activeGenerationStartedAt = summaryGenerationStartedAt.get(chatId);
+			if (
+				expectedGenerationStartedAt !== undefined &&
+				activeGenerationStartedAt !== undefined &&
+				expectedGenerationStartedAt !== activeGenerationStartedAt
+			) {
+				return false;
+			}
+			summaryGenerationStartedAt.delete(chatId);
 			setSummaryGeneratingChatIds((current) => {
 				if (!current.has(chatId)) {
 					return current;
@@ -577,12 +590,14 @@ const AgentsPageLayout: FC = () => {
 				next.delete(chatId);
 				return next;
 			});
+			return true;
 		};
 		const clearAllSummaryGenerating = () => {
 			for (const timeout of summaryGeneratingTimeouts.values()) {
 				clearTimeout(timeout);
 			}
 			summaryGeneratingTimeouts.clear();
+			summaryGenerationStartedAt.clear();
 			setSummaryGeneratingChatIds((current) =>
 				current.size === 0 ? current : new Set(),
 			);
@@ -590,10 +605,16 @@ const AgentsPageLayout: FC = () => {
 		const markSummaryGenerating = (
 			chatId: string,
 			timeoutMs = chatSummaryGeneratingTimeoutMs,
+			generationStartedAt?: string,
 		) => {
 			const previousTimeout = summaryGeneratingTimeouts.get(chatId);
 			if (previousTimeout !== undefined) {
 				clearTimeout(previousTimeout);
+			}
+			if (generationStartedAt === undefined) {
+				summaryGenerationStartedAt.delete(chatId);
+			} else {
+				summaryGenerationStartedAt.set(chatId, generationStartedAt);
 			}
 			const boundedTimeoutMs = Math.max(
 				0,
@@ -612,7 +633,7 @@ const AgentsPageLayout: FC = () => {
 			});
 			const timeout = setTimeout(() => {
 				summaryGeneratingTimeouts.delete(chatId);
-				clearSummaryGenerating(chatId);
+				clearSummaryGenerating(chatId, generationStartedAt);
 			}, boundedTimeoutMs);
 			summaryGeneratingTimeouts.set(chatId, timeout);
 		};
@@ -632,18 +653,25 @@ const AgentsPageLayout: FC = () => {
 						markSummaryGenerating(
 							updatedChat.id,
 							chatEvent.chat_summary_generation_remaining_ms,
+							chatEvent.chat_summary_generation_started_at,
 						);
 					} else if (
 						chatEvent.kind === "chat_summary_change" ||
 						chatEvent.kind === "chat_summary_failed" ||
 						chatEvent.kind === "deleted"
 					) {
-						const timeout = summaryGeneratingTimeouts.get(updatedChat.id);
-						if (timeout !== undefined) {
-							clearTimeout(timeout);
-							summaryGeneratingTimeouts.delete(updatedChat.id);
+						if (
+							clearSummaryGenerating(
+								updatedChat.id,
+								chatEvent.chat_summary_generation_started_at,
+							)
+						) {
+							const timeout = summaryGeneratingTimeouts.get(updatedChat.id);
+							if (timeout !== undefined) {
+								clearTimeout(timeout);
+								summaryGeneratingTimeouts.delete(updatedChat.id);
+							}
 						}
-						clearSummaryGenerating(updatedChat.id);
 					}
 					if (
 						chatEvent.kind === "status_change" &&

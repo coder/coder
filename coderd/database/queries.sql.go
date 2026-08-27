@@ -7727,7 +7727,8 @@ SELECT
             0,
             params.max_age_seconds::bigint - FLOOR(EXTRACT(EPOCH FROM NOW() - g.started_at))::bigint
         ) * 1000
-    )::bigint AS remaining_ms
+    )::bigint AS remaining_ms,
+    g.started_at AS generation_started_at
 FROM chat_summary_generations g
 JOIN chats_expanded c ON c.id = g.chat_id
 CROSS JOIN params
@@ -7744,8 +7745,9 @@ type GetActiveChatSummaryGenerationsByOwnerIDParams struct {
 }
 
 type GetActiveChatSummaryGenerationsByOwnerIDRow struct {
-	Chat        Chat  `db:"chat" json:"chat"`
-	RemainingMs int64 `db:"remaining_ms" json:"remaining_ms"`
+	Chat                Chat      `db:"chat" json:"chat"`
+	RemainingMs         int64     `db:"remaining_ms" json:"remaining_ms"`
+	GenerationStartedAt time.Time `db:"generation_started_at" json:"generation_started_at"`
 }
 
 func (q *sqlQuerier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg GetActiveChatSummaryGenerationsByOwnerIDParams) ([]GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
@@ -7806,6 +7808,7 @@ func (q *sqlQuerier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Contex
 			&i.Chat.ContextError,
 			&i.Chat.CompactionRequestedAt,
 			&i.RemainingMs,
+			&i.GenerationStartedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -13208,34 +13211,40 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 }
 
 const updateChatSummary = `-- name: UpdateChatSummary :execrows
-WITH cleared_generation AS (
-    DELETE FROM chat_summary_generations g
-    USING chats current_chat
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
     WHERE
-        g.chat_id = $2::uuid
-        AND current_chat.id = g.chat_id
-        AND current_chat.history_version = $3::bigint
-        AND g.started_at = $4::timestamptz
+        id = $3::uuid
+        AND history_version = $4::bigint
+    FOR UPDATE
+),
+cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING locked_chat
+    WHERE
+        g.chat_id = locked_chat.id
+        AND g.started_at = $2::timestamptz
     RETURNING g.chat_id
 )
 UPDATE chats
 SET
     summary = $1::text,
     summary_generated_at = NOW()
+FROM locked_chat
 WHERE
-    id = $2::uuid
-    AND history_version = $3::bigint
+    chats.id = locked_chat.id
     AND (
-        $4::timestamptz IS NULL
+        $2::timestamptz IS NULL
         OR EXISTS (SELECT 1 FROM cleared_generation)
     )
 `
 
 type UpdateChatSummaryParams struct {
 	Summary                     sql.NullString `db:"summary" json:"summary"`
+	ExpectedGenerationStartedAt sql.NullTime   `db:"expected_generation_started_at" json:"expected_generation_started_at"`
 	ID                          uuid.UUID      `db:"id" json:"id"`
 	ExpectedHistoryVersion      int64          `db:"expected_history_version" json:"expected_history_version"`
-	ExpectedGenerationStartedAt sql.NullTime   `db:"expected_generation_started_at" json:"expected_generation_started_at"`
 }
 
 // The history_version fence lets background summary writes ignore worker-only
@@ -13244,9 +13253,9 @@ type UpdateChatSummaryParams struct {
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary,
 		arg.Summary,
+		arg.ExpectedGenerationStartedAt,
 		arg.ID,
 		arg.ExpectedHistoryVersion,
-		arg.ExpectedGenerationStartedAt,
 	)
 	if err != nil {
 		return 0, err

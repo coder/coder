@@ -1498,7 +1498,8 @@ SELECT
             0,
             params.max_age_seconds::bigint - FLOOR(EXTRACT(EPOCH FROM NOW() - g.started_at))::bigint
         ) * 1000
-    )::bigint AS remaining_ms
+    )::bigint AS remaining_ms,
+    g.started_at AS generation_started_at
 FROM chat_summary_generations g
 JOIN chats_expanded c ON c.id = g.chat_id
 CROSS JOIN params
@@ -1512,13 +1513,19 @@ ORDER BY g.started_at;
 -- The history_version fence lets background summary writes ignore worker-only
 -- updates while losing to newer message history. Root summary workers atomically
 -- delete their generation marker so storage and replay state cannot diverge.
-WITH cleared_generation AS (
-    DELETE FROM chat_summary_generations g
-    USING chats current_chat
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
     WHERE
-        g.chat_id = @id::uuid
-        AND current_chat.id = g.chat_id
-        AND current_chat.history_version = @expected_history_version::bigint
+        id = @id::uuid
+        AND history_version = @expected_history_version::bigint
+    FOR UPDATE
+),
+cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING locked_chat
+    WHERE
+        g.chat_id = locked_chat.id
         AND g.started_at = sqlc.narg('expected_generation_started_at')::timestamptz
     RETURNING g.chat_id
 )
@@ -1526,9 +1533,9 @@ UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,
     summary_generated_at = NOW()
+FROM locked_chat
 WHERE
-    id = @id::uuid
-    AND history_version = @expected_history_version::bigint
+    chats.id = locked_chat.id
     AND (
         sqlc.narg('expected_generation_started_at')::timestamptz IS NULL
         OR EXISTS (SELECT 1 FROM cleared_generation)
