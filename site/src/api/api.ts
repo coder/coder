@@ -2075,6 +2075,39 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getAIAuditTrailTimeline = async (filter: {
+		owner?: string;
+		types?: readonly TypesGen.AIAuditTrailEventType[];
+		aiAgentId?: string;
+		afterTime?: string;
+		beforeTime?: string;
+		limit?: number;
+	}): Promise<TypesGen.AIAuditTrailResponse> => {
+		const params = new URLSearchParams();
+		if (filter.owner) {
+			params.set("owner", filter.owner);
+		}
+		if (filter.types && filter.types.length > 0) {
+			params.set("types", filter.types.join(","));
+		}
+		if (filter.aiAgentId) {
+			params.set("ai_agent_id", filter.aiAgentId);
+		}
+		if (filter.afterTime) {
+			params.set("after_time", filter.afterTime);
+		}
+		if (filter.beforeTime) {
+			params.set("before_time", filter.beforeTime);
+		}
+		if (filter.limit) {
+			params.set("limit", filter.limit.toString());
+		}
+		const response = await this.axios.get<TypesGen.AIAuditTrailResponse>(
+			`/api/v2/ai-audit/timeline?${params.toString()}`,
+		);
+		return response.data;
+	};
+
 	getConnectionLogs = async (
 		options: TypesGen.ConnectionLogsRequest,
 	): Promise<TypesGen.ConnectionLogResponse> => {
