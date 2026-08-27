@@ -252,6 +252,9 @@ const ToolBadge: FC<{
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
+	// Inside the overflow popover, opening auto-focuses the badge and
+	// the focus-opened status tooltip would pop immediately.
+	disableTooltip?: boolean;
 }> = ({
 	badge,
 	onRemoveWorkspace,
@@ -259,6 +262,7 @@ const ToolBadge: FC<{
 	onRemovePlanning,
 	isDisabled,
 	className,
+	disableTooltip,
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
@@ -283,7 +287,7 @@ const ToolBadge: FC<{
 
 	if (badge.kind === "attached-workspace") {
 		return (
-			<Tooltip>
+			<Tooltip open={disableTooltip ? false : undefined}>
 				<TooltipTrigger asChild>
 					<span
 						className={cn(
@@ -1572,6 +1576,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
+														disableStatusTooltip
 													/>
 												</span>
 											);
@@ -1592,6 +1597,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													onPlanModeToggle ? handleDisablePlanMode : undefined
 												}
 												isDisabled={isDisabled}
+												disableTooltip
 											/>
 										);
 									})}

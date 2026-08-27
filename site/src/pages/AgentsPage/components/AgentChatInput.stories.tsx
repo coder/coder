@@ -1812,3 +1812,49 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 		).toBeInTheDocument();
 	},
 };
+
+/**
+ * Opening the +N popover auto-focuses its first badge; the status
+ * tooltip must not pop over the popover (md and up, where tooltip
+ * content is not CSS-hidden).
+ */
+export const OverflowPopoverSuppressesStatusTooltip: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [githubMCPConnected],
+		selectedMCPServerIds: [githubMCPConnected.id],
+		attachedWorkspace: {
+			id: MockWorkspace.id,
+			// Wide enough that the badge cannot fit inline at tablet
+			// width and collapses into the +N popover.
+			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
+			route: `/@${MockWorkspace.owner_name}/attached`,
+			statusIcon: <MonitorDotIcon className="size-3" />,
+			statusLabel: "Workspace stopped",
+		},
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText(/an-extremely-long-attached-workspace/),
+		).toBeInTheDocument();
+		// Auto-focus lands on the badge; its status tooltip stays
+		// suppressed inside the popover.
+		for (const el of within(document.body).queryAllByText(
+			"Workspace stopped",
+		)) {
+			expect(el).not.toBeVisible();
+		}
+	},
+};

@@ -58,6 +58,9 @@ interface WorkspacePillProps {
 	sshCommand?: string;
 	folder?: string;
 	onRemoveWorkspace?: () => void;
+	// Inside the overflow popover, opening auto-focuses the trigger and
+	// the focus-opened status tooltip would pop immediately.
+	disableStatusTooltip?: boolean;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
@@ -67,6 +70,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	sshCommand,
 	folder,
 	onRemoveWorkspace,
+	disableStatusTooltip,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -130,7 +134,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			 * wrapper in AgentChatInput; this span just fills it. */}
 			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
-					open={tooltipOpen}
+					open={!disableStatusTooltip && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
 				>
 					<TooltipTrigger asChild>
