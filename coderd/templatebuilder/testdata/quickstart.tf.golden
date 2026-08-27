@@ -102,12 +102,26 @@ resource "coder_agent" "main" {
     fi
   EOT
 
-  env = {
+  env = merge({
     GIT_AUTHOR_NAME     = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_AUTHOR_EMAIL    = "${data.coder_workspace_owner.me.email}"
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = "${data.coder_workspace_owner.me.email}"
-  }
+    # Durable PATH for persisted toolchains. Toolchains that survive a restart
+    # install under $HOME (see install-languages.sh.tftpl); their bin directories
+    # go on PATH here because the agent applies coder_agent.main.env to every
+    # session it spawns regardless of login or interactivity (coder ssh -- cmd,
+    # IDE terminals, remote-IDE exec), which ~/.profile alone does not reach. The
+    # agent expands $PATH/$HOME at apply time. $HOME/.local/bin and
+    # $HOME/.cargo/bin cover pip --user and rustup, which otherwise stay
+    # login-shell-only.
+    PATH = "$PATH:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/go/bin:$HOME/go/bin:$HOME/.local/node/bin:$HOME/.local/java/bin"
+    }, contains(local.languages, "java") ? {
+    # Java tooling (Gradle, Maven, IDE SDK detection) keys off JAVA_HOME, so set
+    # it in the same durable env, but only when Java is selected: an
+    # unconditional value would point at a missing directory everywhere else.
+    JAVA_HOME = "$HOME/.local/java"
+  } : {})
 
   metadata {
     display_name = "CPU Usage"
