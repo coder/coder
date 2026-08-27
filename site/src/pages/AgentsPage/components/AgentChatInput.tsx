@@ -596,9 +596,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
-	// When workspace data is available the badge renders as the
-	// interactive WorkspacePill; its overflow-popover fallback uses the
-	// richer attachedWorkspace data when present.
+	// The workspace badge renders as the interactive WorkspacePill,
+	// inline and inside the overflow popover alike.
 	let workspacePillBadge: ToolBadgeData | undefined;
 	if (workspace && workspaceAgent && chatId) {
 		workspacePillBadge = attachedWorkspace
@@ -1530,31 +1529,55 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Above the composer on mobile so the popover
-								 * does not cover the toolbar row. */}
+								{/* Anchored above the +N pill (no mobile full-width
+								 * override) so it hugs the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
-									className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
-									{overflowBadges.map((badge, i) => (
-										<ToolBadge
-											// Non-MCP badges can share a kind, so keys
-											// are position-qualified.
-											key={
-												badge.kind === "mcp"
-													? badge.server.id
-													: `${badge.kind}-overflow-${visibleCount + i}`
-											}
-											badge={badge}
-											onRemoveWorkspace={removeWorkspaceHandler}
-											onRemoveMcp={handleRemoveMcp}
-											onRemovePlanning={
-												onPlanModeToggle ? handleDisablePlanMode : undefined
-											}
-											isDisabled={isDisabled}
-										/>
-									))}
+									{overflowBadges.map((badge, i) => {
+										if (
+											badge === workspacePillBadge &&
+											workspace &&
+											workspaceAgent &&
+											chatId
+										) {
+											return (
+												<span
+													key="workspace-pill-overflow"
+													className="flex min-w-0 text-xs"
+												>
+													<WorkspacePill
+														workspace={workspace}
+														agent={workspaceAgent}
+														chatId={chatId}
+														sshCommand={sshCommand}
+														folder={folder}
+														onRemoveWorkspace={removeWorkspaceHandler}
+													/>
+												</span>
+											);
+										}
+										return (
+											<ToolBadge
+												// Non-MCP badges can share a kind, so keys
+												// are position-qualified.
+												key={
+													badge.kind === "mcp"
+														? badge.server.id
+														: `${badge.kind}-overflow-${visibleCount + i}`
+												}
+												badge={badge}
+												onRemoveWorkspace={removeWorkspaceHandler}
+												onRemoveMcp={handleRemoveMcp}
+												onRemovePlanning={
+													onPlanModeToggle ? handleDisablePlanMode : undefined
+												}
+												isDisabled={isDisabled}
+											/>
+										);
+									})}
 								</PopoverContent>
 							</Popover>
 						</div>

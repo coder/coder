@@ -1617,18 +1617,31 @@ export const LongWorkspaceNameMobile: Story = {
 		});
 		await userEvent.click(overflowPill);
 		const popover = await within(document.body).findByRole("dialog");
-		const badgeName = within(popover).getByText(
-			"my-super-extremely-long-workspace-name-that-overflows",
-		);
-		expect(badgeName).toBeInTheDocument();
-		// Focusing the badge (as a touch tap does) must not surface the
-		// status tooltip on mobile.
-		badgeName.closest("a")?.focus();
+		expect(
+			within(popover).getByText(
+				"my-super-extremely-long-workspace-name-that-overflows",
+			),
+		).toBeInTheDocument();
+		// The workspace collapses as the interactive pill: its trigger
+		// still opens the workspace menu from inside the popover.
+		const pillTrigger = within(popover).getByRole("button", {
+			name: /workspace menu/,
+		});
+		// Focus (as a touch tap does) must not surface the status
+		// tooltip on mobile.
+		pillTrigger.focus();
 		for (const el of within(document.body).queryAllByText(
 			"Workspace running",
 		)) {
 			expect(el).not.toBeVisible();
 		}
+		await userEvent.click(pillTrigger);
+		expect(
+			await within(document.body).findByRole("menuitem", {
+				name: /View Workspace/,
+			}),
+		).toBeVisible();
+		await userEvent.keyboard("{Escape}");
 		// The toolbar row should not cause horizontal overflow.
 		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
