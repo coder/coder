@@ -350,7 +350,7 @@ func (*startNameRecorder) ForceFlush(context.Context) error { return nil }
 func Test_Middleware_Agent(t *testing.T) {
 	t.Parallel()
 
-	agentPatterns := []string{"/api", "/api/**"}
+	agentPatterns := []string{"/", "/api", "/api/**", "/debug/**"}
 
 	// accessLogFields runs a request through the agent middleware stack and
 	// returns the fields on loggermw's request completion log line.
@@ -400,15 +400,25 @@ func Test_Middleware_Agent(t *testing.T) {
 		require.Equal(t, testSessionID, val)
 	})
 
-	t.Run("NonAPIRouteGated", func(t *testing.T) {
+	t.Run("DebugAndRootRoutesLogged", func(t *testing.T) {
 		t.Parallel()
 
-		// The agent only tracks /api routes, so the root and /debug/* handlers do
-		// not get client_session_id, even with valid baggage.
-		for _, path := range []string{"/", "/debug/logs"} {
-			_, ok := sessionIDField(accessLogFields(t, path))
-			require.False(t, ok, "client_session_id must not be logged on %q", path)
+		// The agent also tracks its debug endpoints (for support-bundle
+		// correlation) and root handler.
+		for _, path := range []string{"/", "/debug/logs", "/debug/magicsock"} {
+			val, ok := sessionIDField(accessLogFields(t, path))
+			require.True(t, ok, "client_session_id should be logged on %q", path)
+			require.Equal(t, testSessionID, val)
 		}
+	})
+
+	t.Run("UnmatchedRouteGated", func(t *testing.T) {
+		t.Parallel()
+
+		// A path outside the tracked patterns still gets no client_session_id,
+		// even with valid baggage.
+		_, ok := sessionIDField(accessLogFields(t, "/foo"))
+		require.False(t, ok, "client_session_id must not be logged on an unmatched route")
 	})
 }
 

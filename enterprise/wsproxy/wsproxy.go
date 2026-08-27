@@ -361,7 +361,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		opts.CookieConfig.Middleware,
-		tracing.Middleware(s.TracerProvider, tracing.DefaultRoutePatterns, "wsproxy"),
+		tracing.Middleware(s.TracerProvider, tracing.DefaultRoutePatterns, "coderd"),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
 		loggermw.Logger(s.Logger, func(r *http.Request) string {
