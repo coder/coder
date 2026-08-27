@@ -35,6 +35,12 @@ import (
 type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
+	// RecordMCPConnectSummaries receives the preparation's per-server
+	// MCP connect outcomes as soon as the connect phase completes.
+	// Preparation invokes it directly (rather than returning the
+	// outcomes) so attempts that fail after connecting still record
+	// before their error discards the prepared state.
+	RecordMCPConnectSummaries func([]mcpclient.ConnectSummary)
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.
@@ -96,10 +102,6 @@ type generationDebug struct {
 	HistoryTipMessageID int64
 	TriggerLabel        string
 	ModelConfig         database.ChatModelConfig
-	// MCPConnectSummaries carries per-server MCP connect outcomes
-	// from turn preparation into the debug run summary so slow or
-	// failing servers are visible in the debug UI.
-	MCPConnectSummaries []mcpclient.ConnectSummary
 }
 
 // generationOutcome describes a completed generation outcome.
@@ -446,8 +448,9 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 		}
 		prepareInput := generationPrepareInput{
-			Chat:     chat,
-			Messages: messages,
+			Chat:                      chat,
+			Messages:                  messages,
+			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
@@ -459,11 +462,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
 		cleanup := prepared.Cleanup
-		// Every preparation reconnects to MCP; record its connect
-		// outcomes as soon as preparation succeeds so exits that
-		// never reach the action dispatch (decision errors and
-		// actions that skip Ensure) still contribute to the run.
-		input.DebugTurn.RecordMCPConnectSummaries(prepared.Debug)
 		var decision generationDecision
 		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
 			decision = generationDecision{kind: generationActionGenerateAssistant}

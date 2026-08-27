@@ -375,9 +375,16 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if err := g2.Wait(); err != nil {
+	g2Err := g2.Wait()
+	// Record connect outcomes before acting on any preparation error:
+	// ConnectAll has already run, so a failure below (or in g2 itself)
+	// would otherwise discard this attempt's outcomes.
+	if resolved.debugEnabled && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
+		input.RecordMCPConnectSummaries(mcpSummaries)
+	}
+	if g2Err != nil {
 		cleanup()
-		return generationPrepared{}, err
+		return generationPrepared{}, g2Err
 	}
 
 	if mcpCleanup != nil {
@@ -662,7 +669,6 @@ func (server *Server) prepareGeneration(
 			HistoryTipMessageID: historyTipMessageID,
 			TriggerLabel:        triggerLabel,
 			ModelConfig:         modelConfig,
-			MCPConnectSummaries: mcpSummaries,
 		}
 	}
 

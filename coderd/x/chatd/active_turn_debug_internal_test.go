@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -192,22 +193,20 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
 		}).Times(1)
 
-	base := generationDebug{
+	debug := generationDebug{
 		Enabled:          true,
 		Service:          svc,
 		TriggerMessageID: 1,
 		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
 	}
-	first := base
-	first.MCPConnectSummaries = []mcpclient.ConnectSummary{{
+	first := []mcpclient.ConnectSummary{{
 		ConfigID:   configID,
 		Slug:       "registry",
 		Outcome:    mcpclient.ConnectOutcomeConnected,
 		DurationMS: 17,
 		ToolCount:  1,
 	}}
-	second := base
-	second.MCPConnectSummaries = []mcpclient.ConnectSummary{{
+	second := []mcpclient.ConnectSummary{{
 		ConfigID:   configID,
 		Slug:       "registry",
 		Outcome:    mcpclient.ConnectOutcomeTimeout,
@@ -215,16 +214,16 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 		Error:      "connect: context deadline exceeded",
 	}}
 
-	// The dispatch point records each preparation before its action
-	// runs, so the first outcome lands before Ensure creates the
-	// run and must be seeded into it.
-	turn.RecordMCPConnectSummaries(&first)
-	turn.Ensure(ctx, database.Chat{ID: chatID}, &first)
+	// Preparation records each attempt as soon as its connect phase
+	// completes, so the first outcome lands before Ensure creates
+	// the run and must be seeded into it.
+	turn.RecordMCPConnectSummaries(first)
+	turn.Ensure(ctx, database.Chat{ID: chatID}, &debug)
 	// A later generation step reconnects and reports a degraded
 	// outcome for the same server; its action may never reach
 	// Ensure, and the outcome must still survive to the finalized
 	// summary.
-	turn.RecordMCPConnectSummaries(&second)
+	turn.RecordMCPConnectSummaries(second)
 	turn.RecordOutcome(chatdebug.StatusCompleted)
 	turn.Finalize(ctx)
 
@@ -242,4 +241,92 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 	require.Len(t, summary.MCPConnect, 2)
 	require.Equal(t, mcpclient.ConnectOutcomeConnected, summary.MCPConnect[0].Outcome)
 	require.Equal(t, mcpclient.ConnectOutcomeTimeout, summary.MCPConnect[1].Outcome)
+}
+
+func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	runnerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	runID := uuid.New()
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+
+	var seededSummary []byte
+	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.True(t, params.Summary.Valid)
+			seededSummary = params.Summary.RawMessage
+			return database.ChatDebugRun{
+				ID:     runID,
+				ChatID: chatID,
+				Kind:   string(chatdebug.KindChatTurn),
+				Status: string(chatdebug.StatusInProgress),
+			}, nil
+		}).
+		Times(1)
+	db.EXPECT().GetChatDebugStepsByRunID(gomock.Any(), runID).Return(nil, nil).Times(1)
+	var finalSummary []byte
+	db.EXPECT().UpdateChatDebugRun(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, params database.UpdateChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.True(t, params.Summary.Valid)
+			finalSummary = params.Summary.RawMessage
+			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
+		}).Times(1)
+
+	// 25 preparations against 5 servers produce 125 outcomes,
+	// overflowing the cap before the run exists.
+	for prep := 0; prep < 25; prep++ {
+		batch := make([]mcpclient.ConnectSummary, 5)
+		for server := range batch {
+			batch[server] = mcpclient.ConnectSummary{
+				ConfigID:   uuid.New(),
+				Slug:       fmt.Sprintf("server-%d", server),
+				Outcome:    mcpclient.ConnectOutcomeConnected,
+				DurationMS: int64(prep),
+			}
+		}
+		turn.RecordMCPConnectSummaries(batch)
+	}
+
+	debug := generationDebug{
+		Enabled:          true,
+		Service:          svc,
+		TriggerMessageID: 1,
+		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
+	}
+	turn.Ensure(ctx, database.Chat{ID: chatID}, &debug)
+
+	type boundedSummary struct {
+		MCPConnect        []mcpclient.ConnectSummary `json:"mcp_connect"`
+		MCPConnectDropped int                        `json:"mcp_connect_dropped"`
+	}
+	var seeded boundedSummary
+	require.NoError(t, json.Unmarshal(seededSummary, &seeded))
+	require.Len(t, seeded.MCPConnect, maxMCPConnectSummaryEntries)
+	require.Equal(t, 25, seeded.MCPConnectDropped)
+	// The newest outcomes win: the five oldest preparations were
+	// dropped, so the retained history starts at preparation 5.
+	require.Equal(t, int64(5), seeded.MCPConnect[0].DurationMS)
+
+	// A preparation recorded after the run exists still respects
+	// the cap and grows the dropped count.
+	turn.RecordMCPConnectSummaries([]mcpclient.ConnectSummary{{
+		ConfigID:   uuid.New(),
+		Slug:       "server-0",
+		Outcome:    mcpclient.ConnectOutcomeTimeout,
+		DurationMS: 10000,
+	}})
+	turn.RecordOutcome(chatdebug.StatusCompleted)
+	turn.Finalize(ctx)
+
+	var final boundedSummary
+	require.NoError(t, json.Unmarshal(finalSummary, &final))
+	require.Len(t, final.MCPConnect, maxMCPConnectSummaryEntries)
+	require.Equal(t, 26, final.MCPConnectDropped)
+	require.Equal(t, mcpclient.ConnectOutcomeTimeout, final.MCPConnect[maxMCPConnectSummaryEntries-1].Outcome)
 }

@@ -69,16 +69,16 @@ func (d *runnerDebugTurn) Ensure(
 	seedSummary := chatdebug.SeedSummary(
 		chatdebug.TruncateLabel(debug.TriggerLabel, chatdebug.MaxLabelLength),
 	)
-	// Carry per-server MCP connect outcomes stashed by
-	// RecordMCPConnectSummaries before the run existed, so slow or
-	// failing servers appear in the run instead of as a silent gap
-	// before the first step. Seeded keys survive FinalizeRun's
-	// summary aggregation.
-	if stashed, ok := d.seedSummary["mcp_connect"]; ok {
+	// Carry per-server MCP connect outcomes (and their dropped
+	// count) stashed by RecordMCPConnectSummaries before the run
+	// existed, so slow or failing servers appear in the run instead
+	// of as a silent gap before the first step. Seeded keys survive
+	// FinalizeRun's summary aggregation.
+	for key, stashed := range d.seedSummary {
 		if seedSummary == nil {
-			seedSummary = make(map[string]any, 1)
+			seedSummary = make(map[string]any, len(d.seedSummary))
 		}
-		seedSummary["mcp_connect"] = stashed
+		seedSummary[key] = stashed
 	}
 	rootChatID := uuid.Nil
 	if chat.RootChatID.Valid {
@@ -134,13 +134,14 @@ func (d *runnerDebugTurn) Context(ctx context.Context) context.Context {
 }
 
 // RecordMCPConnectSummaries merges one preparation's per-server MCP
-// connect outcomes into the mcp_connect summary key. It runs at the
-// generation dispatch point so every preparation is recorded,
-// including ones feeding actions that never reach Ensure (local
-// tool execution, requires-action, turn finishing). Outcomes
-// recorded before the run exists are stashed and seeded into the
-// run when Ensure creates it.
-func (d *runnerDebugTurn) RecordMCPConnectSummaries(debug *generationDebug) {
+// connect outcomes into the mcp_connect summary key. Preparation
+// invokes it as soon as its MCP connect phase completes, so every
+// attempt is recorded: preparations that fail after connecting,
+// decision errors, and actions that never reach Ensure (local tool
+// execution, requires-action, turn finishing). Outcomes recorded
+// before the run exists are stashed and seeded into the run when
+// Ensure creates it.
+func (d *runnerDebugTurn) RecordMCPConnectSummaries(summaries []mcpclient.ConnectSummary) {
 	if d == nil {
 		return
 	}
@@ -149,8 +150,17 @@ func (d *runnerDebugTurn) RecordMCPConnectSummaries(debug *generationDebug) {
 	if d.disabled || d.finalized {
 		return
 	}
-	d.mergeMCPConnectSummariesLocked(debug)
+	d.mergeMCPConnectSummariesLocked(summaries)
 }
+
+// maxMCPConnectSummaryEntries bounds the retained per-preparation MCP
+// connect outcomes. A turn may run up to 1,200 generation steps, each
+// reconnecting to every selected server, so unbounded retention could
+// grow one run summary to megabytes of database and API payload. The
+// newest entries win because the tail of the history is what shows a
+// server that degraded mid-turn; the mcp_connect_dropped count keeps
+// the truncation visible.
+const maxMCPConnectSummaryEntries = 100
 
 // mergeMCPConnectSummariesLocked appends a preparation's per-server
 // MCP connect outcomes to the mcp_connect summary key. chatd
@@ -159,15 +169,21 @@ func (d *runnerDebugTurn) RecordMCPConnectSummaries(debug *generationDebug) {
 // one preparation's outcomes would survive to the finalized run and
 // a server that degrades mid-turn would still be reported as
 // connected.
-func (d *runnerDebugTurn) mergeMCPConnectSummariesLocked(debug *generationDebug) {
-	if debug == nil || len(debug.MCPConnectSummaries) == 0 {
+func (d *runnerDebugTurn) mergeMCPConnectSummariesLocked(summaries []mcpclient.ConnectSummary) {
+	if len(summaries) == 0 {
 		return
 	}
 	if d.seedSummary == nil {
 		d.seedSummary = make(map[string]any, 1)
 	}
 	existing, _ := d.seedSummary["mcp_connect"].([]mcpclient.ConnectSummary)
-	d.seedSummary["mcp_connect"] = append(existing, debug.MCPConnectSummaries...)
+	existing = append(existing, summaries...)
+	if over := len(existing) - maxMCPConnectSummaryEntries; over > 0 {
+		existing = existing[over:]
+		dropped, _ := d.seedSummary["mcp_connect_dropped"].(int)
+		d.seedSummary["mcp_connect_dropped"] = dropped + over
+	}
+	d.seedSummary["mcp_connect"] = existing
 }
 
 func (d *runnerDebugTurn) contextLocked(ctx context.Context) context.Context {
