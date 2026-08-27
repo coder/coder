@@ -31,15 +31,6 @@ const (
 	chatAPIPrefixExperimental
 )
 
-// injectDefaultOrganizationParam lets the legacy default-organization
-// routes reuse the organization-scoped handlers.
-func injectDefaultOrganizationParam(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
-		next.ServeHTTP(rw, req)
-	})
-}
-
 // registerChatAPIRoutes mounts the chat API surface on r, the root router
 // of an API prefix. /api/v2 and /api/experimental serve the same promoted
 // routes during the CODAGT-921 compatibility window. The experimental
@@ -56,30 +47,18 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 		r.Use(api.chatFilesRateLimitMW())
 		r.Get("/chats/files/{file}/download", api.downloadChatFile)
 	})
-	if experimental {
-		// Superseded by the organization-scoped models collection and
-		// deliberately not promoted. Keep until the frontend uses the
-		// organization-scoped routes.
-		r.Route("/chats/model-configs", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				injectDefaultOrganizationParam,
-				httpmw.ExtractOrganizationParam(api.Database),
-			)
-			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
-			r.Post("/", api.createChatModelConfig)
-		})
-	}
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
 		if experimental {
-			// Superseded by the organization-scoped models route and
-			// deliberately not promoted. Keep until the frontend uses
-			// the organization-scoped routes.
-			r.With(
-				injectDefaultOrganizationParam,
-				httpmw.ExtractOrganizationParam(api.Database),
-			).Get("/models", api.listChatModelConfigsByOrganization)
+			// Reserve removed collection paths so they return 404 instead of
+			// falling into the {chat} wildcard and failing UUID parsing.
+			for _, segment := range []string{"/models", "/model-configs"} {
+				r.Route(segment, func(r chi.Router) {
+					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
+						httpapi.RouteNotFound(rw)
+					})
+				})
+			}
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/providers", func(r chi.Router) {
 				r.Get("/", api.listChatProviders)
@@ -97,13 +76,14 @@ func (api *API) registerChatAPIRoutes(r chi.Router, apiKeyMiddleware func(http.H
 				})
 			})
 		} else {
-			// These segments exist only under /api/experimental. Reserve
-			// them with empty subrouters so they return 404 instead of
+			// Reserve unmounted segments so they return 404 instead of
 			// falling into the {chat} wildcard and failing UUID parsing
 			// with a 400.
-			// TODO(CODAGT-922): drop the reservations with the
+			segments := []string{"/model-configs"}
+			// TODO(CODAGT-922): drop the provider reservations with the
 			// experimental mounts.
-			for _, segment := range []string{"/models", "/model-configs", "/providers", "/user-provider-configs"} {
+			segments = append(segments, "/providers", "/user-provider-configs")
+			for _, segment := range segments {
 				r.Route(segment, func(r chi.Router) {
 					r.NotFound(func(rw http.ResponseWriter, _ *http.Request) {
 						httpapi.RouteNotFound(rw)

@@ -5478,10 +5478,7 @@
 					{
 						"CoderSessionToken": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			},
 			"post": {
 				"consumes": ["application/json"],
@@ -5519,10 +5516,7 @@
 					{
 						"CoderSessionToken": []
 					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
+				]
 			}
 		},
 		"/api/v2/organizations/{organization}/chats/models/{model}": {

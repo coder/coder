@@ -4719,49 +4719,6 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
-	t.Run("CompatibilityCollectionRoutesUseDefaultOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		res, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var configs []codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(res, &configs))
-		require.Contains(t, configs, modelConfig)
-
-		collectionRes, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
-		require.NoError(t, err)
-		defer collectionRes.Body.Close()
-		require.Equal(t, http.StatusOK, collectionRes.StatusCode)
-		var collection codersdk.OrganizationChatModelsResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(collectionRes, &collection))
-		require.Contains(t, collection.Models, modelConfig)
-
-		contextLimit := int64(8192)
-		createdRes, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", codersdk.CreateChatModelRequest{
-			AIProviderID: &modelConfig.AIProviderID,
-			Model:        "compatibility-model",
-			ContextLimit: &contextLimit,
-		})
-		require.NoError(t, err)
-		defer createdRes.Body.Close()
-		require.Equal(t, http.StatusCreated, createdRes.StatusCode)
-		var created codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(createdRes, &created))
-
-		got, err := client.ChatModel(ctx, created.OrganizationID, created.ID)
-		require.NoError(t, err)
-		require.Equal(t, created.ID, got.ID)
-
-		require.NoError(t, client.DeleteChatModel(ctx, created.OrganizationID, created.ID))
-	})
-
 	t.Run("CollectionIncludesDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
