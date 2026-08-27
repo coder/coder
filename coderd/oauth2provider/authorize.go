@@ -266,6 +266,31 @@ func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url
 	return &destination
 }
 
+// sanitizeErrorDescription confines a description to the NQSCHAR set RFC 6749
+// Appendix A permits in error_description: %x20-21 / %x23-5B / %x5D-7E. The
+// ABNF applies to the decoded value, so percent-encoding on the wire does not
+// satisfy it.
+//
+// Descriptions quote the client input that caused the rejection, so the two
+// excluded characters are the ones fmt %q emits: the surrounding quotes and the
+// backslash escaping any quote inside. Quotes become apostrophes rather than
+// disappearing, since they delimit the offending value and the reader needs to
+// see where it starts and ends.
+func sanitizeErrorDescription(description string) string {
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '"':
+			return '\'' // 0x27, permitted, and reads the same
+		case r == '\\':
+			return -1 // dropped: it escapes the quote already rewritten above
+		case r < 0x20 || r > 0x7E:
+			return ' '
+		default:
+			return r
+		}
+	}, description)
+}
+
 // errorURL returns the callback carrying an RFC 6749 §4.1.2.1 error.
 //
 // Set, not Add, here and in codeURL: a registered callback may carry its own
@@ -273,7 +298,9 @@ func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url
 func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
 	return c.withQuery(state, func(query url.Values) {
 		query.Set("error", string(code))
-		query.Set("error_description", description)
+		// The single point every §4.1.2.1 description passes through, so the
+		// charset rule is enforced once rather than at each caller.
+		query.Set("error_description", sanitizeErrorDescription(description))
 	})
 }
 

@@ -701,6 +701,12 @@ func requireAuthorizeErrorRedirect(t *testing.T, resp *http.Response, wantCode c
 	require.Equal(t, string(wantCode), query.Get("error"))
 	require.Contains(t, query.Get("error_description"), wantDescription,
 		"the rejection must come from the branch this case covers")
+	// Every §4.1.2.1 description is built at one chokepoint, so asserting the
+	// charset here covers each branch that reaches this helper.
+	for _, r := range query.Get("error_description") {
+		require.True(t, r == 0x20 || r == 0x21 || (r >= 0x23 && r <= 0x5B) || (r >= 0x5D && r <= 0x7E),
+			"error_description carries %q, outside the NQSCHAR set RFC 6749 Appendix A permits", r)
+	}
 	require.Equal(t, authorizeState, query.Get("state"),
 		"the client cannot correlate the failure with its request without its state")
 	require.Empty(t, query.Get("code"), "a rejected request must not issue a code")

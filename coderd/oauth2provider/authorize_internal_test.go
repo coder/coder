@@ -307,6 +307,67 @@ func TestHashOAuth2State(t *testing.T) {
 	})
 }
 
+func TestSanitizeErrorDescription(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		description string
+		want        string
+	}{
+		{
+			name:        "PlainTextUnchanged",
+			description: "Only response_type=code is supported",
+			want:        "Only response_type=code is supported",
+		},
+		{
+			// What negotiateScope's %q produces for a well-behaved scope name.
+			name:        "QuotedScopeBecomesApostrophes",
+			description: `"openid": unknown or unsupported scope`,
+			want:        "'openid': unknown or unsupported scope",
+		},
+		{
+			// %q escapes a quote inside the value; the backslash goes with it.
+			name:        "EscapedQuoteLosesItsBackslash",
+			description: `"\"><img>": unknown or unsupported scope`,
+			want:        "''><img>': unknown or unsupported scope",
+		},
+		{
+			// Both NQSCHAR exclusions, and nothing else, are rewritten.
+			name:        "BoundaryCharactersSurvive",
+			description: "!#[]~ ",
+			want:        "!#[]~ ",
+		},
+		{
+			name:        "ControlCharactersBecomeSpaces",
+			description: "line\nbreak\ttab",
+			want:        "line break tab",
+		},
+		{
+			name:        "NonASCIIBecomesSpace",
+			description: "caf\u00e9",
+			want:        "caf ",
+		},
+		{
+			name:        "Empty",
+			description: "",
+			want:        "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := sanitizeErrorDescription(tc.description)
+			assert.Equal(t, tc.want, got)
+			for _, r := range got {
+				assert.True(t, r == 0x20 || r == 0x21 || (r >= 0x23 && r <= 0x5B) || (r >= 0x5D && r <= 0x7E),
+					"%q is outside the NQSCHAR set RFC 6749 Appendix A permits", r)
+			}
+		})
+	}
+}
+
 func TestConsentScopes(t *testing.T) {
 	t.Parallel()
 
