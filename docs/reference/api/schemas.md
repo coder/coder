@@ -3696,25 +3696,55 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "group_roles": {
-    "property1": "read",
-    "property2": "read"
-  },
-  "user_roles": {
-    "property1": "read",
-    "property2": "read"
-  }
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type                                   | Required | Restrictions | Description |
-|--------------------|----------------------------------------|----------|--------------|-------------|
-| `group_roles`      | object                                 | false    |              |             |
-| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
-| `user_roles`       | object                                 | false    |              |             |
-| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
 ## codersdk.ChatModelAnthropicProviderOptions
 
@@ -19818,7 +19848,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "captivePortal": "string",
     "globalV4": "string",
     "globalV6": "string",
-    "hairPinning": "string",
     "icmpv4": true,
     "ipv4": true,
     "ipv4CanSend": true,
@@ -20355,7 +20384,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       "captivePortal": "string",
       "globalV4": "string",
       "globalV6": "string",
-      "hairPinning": "string",
       "icmpv4": true,
       "ipv4": true,
       "ipv4CanSend": true,
@@ -21037,7 +21065,6 @@ None
   "captivePortal": "string",
   "globalV4": "string",
   "globalV6": "string",
-  "hairPinning": "string",
   "icmpv4": true,
   "ipv4": true,
   "ipv4CanSend": true,
@@ -21067,30 +21094,29 @@ None
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description                                                                                                                        |
-|-------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.                                     |
-| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                                                             |
-| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                                                           |
-| `hairPinning`           | string  | false    |              | Hairpinning is whether the router supports communicating between two local devices through the NATted public IP address (on IPv4). |
-| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                                                     |
-| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                                                  |
-| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                                                 |
-| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                                                  |
-| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                                                 |
-| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4).                                |
-| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                                                         |
-| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                                                            |
-| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                                                        |
-| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                                                   |
-| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
-| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
+| Name                    | Type    | Required | Restrictions | Description                                                                                         |
+|-------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.      |
+| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                              |
+| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                            |
+| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                      |
+| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                   |
+| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                  |
+| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                   |
+| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                  |
+| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4). |
+| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                          |
+| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                             |
+| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                         |
+| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                    |
+| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                     |
+| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                           |
 
 ## oauth2.Token
 

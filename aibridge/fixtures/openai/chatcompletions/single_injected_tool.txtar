@@ -72,7 +72,7 @@ data: {"id":"chatcmpl-C1WTooFaxeQgtyLB1kg53t41aB0NV","object":"chat.completion.c
 
 data: {"id":"chatcmpl-C1WTooFaxeQgtyLB1kg53t41aB0NV","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}],"usage":null,"obfuscation":"sDj"}
 
-data: {"id":"chatcmpl-C1WTooFaxeQgtyLB1kg53t41aB0NV","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[],"usage":{"prompt_tokens":4862,"completion_tokens":45,"total_tokens":4907,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"obfuscation":"8sIWE1chOW"}
+data: {"id":"chatcmpl-C1WTooFaxeQgtyLB1kg53t41aB0NV","object":"chat.completion.chunk","created":1754479216,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[],"usage":{"prompt_tokens":4862,"completion_tokens":45,"total_tokens":4907,"prompt_tokens_details":{"cached_tokens":100,"cache_write_tokens":20,"audio_tokens":3},"completion_tokens_details":{"reasoning_tokens":4,"audio_tokens":5,"accepted_prediction_tokens":6,"rejected_prediction_tokens":7}},"obfuscation":"8sIWE1chOW"}
 
 data: [DONE]
 
@@ -200,7 +200,7 @@ data: {"id":"chatcmpl-C1WTqhYgK7bV01bW98Lww3zqaf8ZF","object":"chat.completion.c
 
 data: {"id":"chatcmpl-C1WTqhYgK7bV01bW98Lww3zqaf8ZF","object":"chat.completion.chunk","created":1754479218,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"stop"}],"usage":null,"obfuscation":"EFeFvdS8m"}
 
-data: {"id":"chatcmpl-C1WTqhYgK7bV01bW98Lww3zqaf8ZF","object":"chat.completion.chunk","created":1754479218,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[],"usage":{"prompt_tokens":5049,"completion_tokens":60,"total_tokens":5109,"prompt_tokens_details":{"cached_tokens":4864,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}},"obfuscation":"0JQt7Fw"}
+data: {"id":"chatcmpl-C1WTqhYgK7bV01bW98Lww3zqaf8ZF","object":"chat.completion.chunk","created":1754479218,"model":"gpt-4.1-2025-04-14","service_tier":"default","system_fingerprint":"fp_799e4ca3f1","choices":[],"usage":{"prompt_tokens":5049,"completion_tokens":60,"total_tokens":5109,"prompt_tokens_details":{"cached_tokens":4864,"cache_write_tokens":10,"audio_tokens":9},"completion_tokens_details":{"reasoning_tokens":10,"audio_tokens":11,"accepted_prediction_tokens":12,"rejected_prediction_tokens":13}},"obfuscation":"0JQt7Fw"}
 
 data: [DONE]
 
@@ -237,16 +237,17 @@ data: [DONE]
   "usage": {
     "prompt_tokens": 4862,
     "completion_tokens": 45,
-    "total_tokens": 4914,
+    "total_tokens": 4907,
     "prompt_tokens_details": {
-      "cached_tokens": 0,
-      "audio_tokens": 0
+      "cached_tokens": 100,
+      "cache_write_tokens": 20,
+      "audio_tokens": 3
     },
     "completion_tokens_details": {
-      "reasoning_tokens": 0,
-      "audio_tokens": 0,
-      "accepted_prediction_tokens": 0,
-      "rejected_prediction_tokens": 0
+      "reasoning_tokens": 4,
+      "audio_tokens": 5,
+      "accepted_prediction_tokens": 6,
+      "rejected_prediction_tokens": 7
     }
   },
   "service_tier": "default",
@@ -276,16 +277,17 @@ data: [DONE]
   "usage": {
     "prompt_tokens": 5049,
     "completion_tokens": 60,
-    "total_tokens": 5119,
+    "total_tokens": 5109,
     "prompt_tokens_details": {
       "cached_tokens": 4864,
-      "audio_tokens": 0
+      "cache_write_tokens": 10,
+      "audio_tokens": 9
     },
     "completion_tokens_details": {
-      "reasoning_tokens": 0,
-      "audio_tokens": 0,
-      "accepted_prediction_tokens": 0,
-      "rejected_prediction_tokens": 0
+      "reasoning_tokens": 10,
+      "audio_tokens": 11,
+      "accepted_prediction_tokens": 12,
+      "rejected_prediction_tokens": 13
     }
   },
   "service_tier": "default",

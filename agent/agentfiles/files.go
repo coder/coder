@@ -1127,8 +1127,8 @@ const errOldTextNotFoundLineEndings = errOldTextNotFoundPrefix + ", indentation,
 // lines) while letting the caller drive deliberate rewrites of
 // leading whitespace or endings.
 func fuzzyReplace(content string, edit workspacesdk.FileEdit) (string, error) {
-	search := edit.Search
-	replace := edit.Replace
+	search := edit.OldText
+	replace := edit.NewText
 
 	// An empty search string has no meaningful interpretation: it
 	// matches at every byte position, which means the caller has not
