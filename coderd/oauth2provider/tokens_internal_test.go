@@ -343,10 +343,9 @@ func TestExtractAuthorizeParams_Scopes(t *testing.T) {
 			}
 
 			// Extract authorize params
-			params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			params, failure := extractAuthorizeParams(req, callbackURL)
 
-			require.NoError(t, err)
-			require.Empty(t, validationErrs)
+			require.Nil(t, failure)
 			require.Equal(t, tc.expectedScopes, params.scope)
 		})
 	}
@@ -407,14 +406,13 @@ func TestExtractAuthorizeParams_CodeChallengeFormat(t *testing.T) {
 				URL:    reqURL,
 			}
 
-			_, validationErrs, err := extractAuthorizeParams(req, callbackURL)
+			_, failure := extractAuthorizeParams(req, callbackURL)
 			if tc.expectValid {
-				require.NoError(t, err)
-				require.Empty(t, validationErrs)
+				require.Nil(t, failure)
 			} else {
-				require.Error(t, err)
-				require.Len(t, validationErrs, 1)
-				require.Equal(t, "code_challenge", validationErrs[0].Field)
+				require.NotNil(t, failure)
+				require.Len(t, failure.validationErrors, 1)
+				require.Equal(t, "code_challenge", failure.validationErrors[0].Field)
 			}
 		})
 	}
@@ -442,9 +440,8 @@ func TestExtractAuthorizeParams_TokenResponseTypeDoesNotRequirePKCE(t *testing.T
 		URL:    reqURL,
 	}
 
-	params, validationErrs, err := extractAuthorizeParams(req, callbackURL)
-	require.NoError(t, err)
-	require.Empty(t, validationErrs)
+	params, failure := extractAuthorizeParams(req, callbackURL)
+	require.Nil(t, failure)
 	require.Equal(t, codersdk.OAuth2ProviderResponseTypeToken, params.responseType)
 }
 
