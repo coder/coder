@@ -210,10 +210,9 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
-// Shared pill sizing: flex-basis is a ~8ch floor, shrink-0 keeps the
-// pill from going below it, grow expands into free row space, and
-// max-w-max caps at the label's natural width (no dead space on short
-// labels). Below the floor the +N overflow absorbs the pressure.
+// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
+// it), grow expands into free row space, and max-w-max caps at the
+// label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
@@ -252,8 +251,7 @@ const ToolBadge: FC<{
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
-	// Inside the overflow popover, opening auto-focuses the badge and
-	// the focus-opened status tooltip would pop immediately.
+	// The overflow popover auto-focuses badges; suppress the tooltip there.
 	disableTooltip?: boolean;
 }> = ({
 	badge,
@@ -312,8 +310,7 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				{/* Hidden below md: touch taps focus the trigger and the
-				 * focus-opened tooltip sticks over the popover. */}
+				{/* Hidden below md: touch focus would stick the tooltip open. */}
 				{!disableTooltip && (
 					<TooltipContent className="hidden md:block">
 						{badge.statusLabel}
@@ -1465,11 +1462,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
-						{/* Badges and the +N pill stay mounted so the overflow
-						 * hook can measure them: overflowed badges are
-						 * display:none (releasing their space to the pills),
-						 * the +N pill merely invisible so its width stays
-						 * readable. */}
+						{/* Badges and the +N pill stay mounted for measurement:
+						 * overflowed badges are display:none, the pill merely
+						 * invisible so its width stays readable. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -1533,18 +1528,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Anchored above the +N pill (no mobile full-width
-								 * override) so it hugs the toolbar row. */}
+								{/* Anchored above the +N pill; hugs the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
 									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
 									onInteractOutside={(event) => {
-										// The workspace pill portals its menu (and Radix
-										// focus guards) outside this popover. Dismissing
-										// would unmount the pill with its open menu, so
-										// ignore focus shifts entirely and pointer
-										// presses that land inside the menu.
+										// The workspace pill portals its menu outside
+										// this popover; dismissing would unmount the
+										// open menu. Ignore focus shifts and pointer
+										// presses inside the menu.
 										if (event.detail.originalEvent.type !== "pointerdown") {
 											event.preventDefault();
 											return;

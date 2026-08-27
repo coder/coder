@@ -1709,8 +1709,8 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 			name: /Fable 5/,
 		});
 		await waitFor(() => {
-			// Re-measure the floor inside the retry so late font loads
-			// cannot compare widths from different font states.
+			// Re-measure the floor inside the retry so font loads cannot
+			// skew the comparison.
 			const floor = measurePillFloor(canvasElement);
 			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
 		});
@@ -1754,7 +1754,7 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 			expectNotTruncated(modelLabel);
 			expectNotTruncated(workspaceLabel);
 		});
-		// The workspace pill is no longer clamped to 200px.
+		// The pill can exceed 200px: no fixed cap.
 		const pillButton = canvas.getByRole("button", {
 			name: /workspace menu/,
 		});
@@ -1808,8 +1808,7 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 
 /**
  * Opening the +N popover auto-focuses its first badge; the status
- * tooltip must not pop over the popover (md and up, where tooltip
- * content is not CSS-hidden).
+ * tooltip stays suppressed (md and up).
  */
 export const OverflowPopoverSuppressesStatusTooltip: Story = {
 	args: {
@@ -1818,8 +1817,7 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 		selectedMCPServerIds: [githubMCPConnected.id],
 		attachedWorkspace: {
 			id: MockWorkspace.id,
-			// Wide enough that the badge cannot fit inline at tablet
-			// width and collapses into the +N popover.
+			// Wide enough to collapse into the +N popover at tablet width.
 			name: "an-extremely-long-attached-workspace-name-that-cannot-fit-inline-at-tablet-width",
 			route: `/@${MockWorkspace.owner_name}/attached`,
 			statusIcon: <MonitorDotIcon className="size-3" />,
@@ -1842,8 +1840,7 @@ export const OverflowPopoverSuppressesStatusTooltip: Story = {
 		expect(
 			within(popover).getByText(/an-extremely-long-attached-workspace/),
 		).toBeInTheDocument();
-		// Auto-focus lands on the badge; its status tooltip stays
-		// suppressed inside the popover.
+		// Auto-focus lands on the badge; the status tooltip stays hidden.
 		for (const el of within(document.body).queryAllByText(
 			"Workspace stopped",
 		)) {

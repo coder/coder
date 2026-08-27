@@ -58,10 +58,9 @@ interface WorkspacePillProps {
 	sshCommand?: string;
 	folder?: string;
 	onRemoveWorkspace?: () => void;
-	// Rendered inside the +N overflow popover: suppress the status
-	// tooltip (opening the popover auto-focuses the trigger, which
-	// would pop the tooltip immediately) and make the menu non-modal
-	// so one outside click dismisses both the menu and the popover.
+	// Rendered inside the +N overflow popover: suppresses the status
+	// tooltip and makes the menu non-modal so one outside click
+	// dismisses both layers.
 	inOverflowPopover?: boolean;
 }
 
@@ -162,8 +161,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
-					{/* Hidden below md: touch taps focus the trigger and the
-					 * focus-opened tooltip sticks over the dropdown. */}
+					{/* Hidden below md: touch focus would stick the tooltip open. */}
 					<TooltipContent className="hidden md:block">
 						{statusLabel}
 					</TooltipContent>
@@ -173,17 +171,14 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				// Above the composer on mobile (not bottom-anchored): the
-				// bottom variant overlays the toolbar, so releasing the
-				// opening press would select whichever item lands under
-				// the pointer (e.g. Detach workspace).
+				// Above the composer on mobile so the opening press cannot
+				// release onto a menu item.
 				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{/* Scrolls when the capped above-composer height cannot fit
-				 * every item on mobile; a no-op on desktop. overflow-x-hidden:
-				 * the scroll-area CSS sets overflow-y, which would otherwise
-				 * compute overflow-x to auto and show a horizontal bar.
-				 * role=none keeps the wrapper out of the menu's ARIA tree. */}
+				{/* Scrolls within the capped above-composer height on mobile;
+				 * no-op on desktop. overflow-x-hidden avoids a horizontal
+				 * scrollbar; role=none keeps the wrapper out of the menu's
+				 * ARIA tree. */}
 				<div
 					role="none"
 					className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden"
