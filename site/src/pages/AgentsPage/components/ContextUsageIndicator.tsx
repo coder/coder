@@ -169,18 +169,9 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-// Ring diameter per design review: sized against the neighboring mic glyph
-// (which fills ~16px of its 18px size-icon-sm box) plus 2px of presence all
-// around. The stroke sits a step heavier than the mic's thinned stroke
-// (1.5px vs ~1.1px effective).
 const RING_SIZE = 20;
 const RING_STROKE = 1.5;
 
-// Exclamation glyph shown when the pinned context drifted or failed to load.
-// Inherits the indicator tone via currentColor. Drawn on a ring-sized canvas
-// so it shares the ring's coordinate system and cannot drift off center: the
-// path (a 1.79427x14 design export) is scaled to GLYPH_HEIGHT and translated
-// to the exact canvas center.
 const GLYPH_HEIGHT = 11;
 const GLYPH_PATH_WIDTH = 1.79427;
 const GLYPH_PATH_HEIGHT = 14;
