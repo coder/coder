@@ -1321,6 +1321,43 @@ export const PreservesAttachmentsOnFailedSend: Story = {
 	},
 };
 
+export const RestoresSanitizedAttachments: Story = {
+	args: {
+		...defaultArgs,
+	},
+	beforeEach: () => {
+		localStorage.clear();
+		// A corrupt sibling must not block restoring the valid entry and
+		// must be dropped from storage by the restore's sanitize rewrite.
+		localStorage.setItem(
+			"agents.persisted-attachments",
+			JSON.stringify([
+				{
+					fileId: "persisted-file-1",
+					fileName: "photo.png",
+					fileType: "image/png",
+					lastModified: 1000,
+					organizationId: "my-organization-id",
+				},
+				{ fileId: 123, corruptMarker: true },
+			]),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(canvas.getByLabelText("Remove photo.png")).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			const stored = localStorage.getItem("agents.persisted-attachments");
+			expect(stored).not.toBeNull();
+			const parsed = JSON.parse(stored!);
+			expect(parsed).toHaveLength(1);
+			expect(parsed[0].fileId).toBe("persisted-file-1");
+		});
+	},
+};
+
 export const HookDispatchFailed: Story = {
 	args: {
 		...defaultArgs,

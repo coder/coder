@@ -5,7 +5,6 @@ import {
 } from "#/storage";
 import { decodeDataURL } from "./dataUrls";
 
-/** Matches the pre-existing 30 day draft retention window. */
 const maxStoredDraftAgeMs = 30 * 24 * 60 * 60 * 1000;
 
 /**
