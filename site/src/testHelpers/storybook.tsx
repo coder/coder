@@ -90,6 +90,7 @@ type CallbackFn = (ev?: MessageEvent) => void;
 //     }
 //
 // Events may set delayMs to defer delivery after listeners are registered.
+// connectionIndex targets the zero-based socket created for a route.
 export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	const param = parameters.webSocket;
 
@@ -101,6 +102,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	const isRouted = !Array.isArray(param);
 	const broadcastEvents = isRouted ? [] : param;
 	const routedEvents = isRouted ? param : {};
+	const connectionCounts = new Map<string, number>();
 
 	window.WebSocket = class WebSocket {
 		public readyState = 1;
@@ -109,10 +111,20 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 
 		#listeners = new Map<string, CallbackFn>();
 		#callEventsDelay: number | undefined;
+		#connectionIndex: number;
+		#routeKey: string | undefined;
 		#url: string;
 
 		constructor(url?: string) {
 			this.#url = url ?? "";
+			this.#routeKey = isRouted
+				? Object.keys(routedEvents).find((key) => this.#url.includes(key))
+				: undefined;
+			const connectionCountKey = isRouted
+				? (this.#routeKey ?? this.#url)
+				: "broadcast";
+			this.#connectionIndex = connectionCounts.get(connectionCountKey) ?? 0;
+			connectionCounts.set(connectionCountKey, this.#connectionIndex + 1);
 		}
 
 		send() {}
@@ -123,11 +135,13 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 			// Determine which events this socket should receive.
 			let events = broadcastEvents;
 			if (isRouted) {
-				const matchingKey = Object.keys(routedEvents).find((key) =>
-					this.#url.includes(key),
-				);
-				events = matchingKey ? routedEvents[matchingKey] : [];
+				events = this.#routeKey ? routedEvents[this.#routeKey] : [];
 			}
+			events = events.filter(
+				(entry) =>
+					entry.connectionIndex === undefined ||
+					entry.connectionIndex === this.#connectionIndex,
+			);
 
 			if (events.length === 0) {
 				return;

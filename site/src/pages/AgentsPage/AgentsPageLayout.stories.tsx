@@ -1072,6 +1072,7 @@ const chatWatchEvent = (
 	delayMs = 0,
 	chatSummaryGenerationRemainingMs?: number,
 	chatSummaryGenerationStartedAt?: string,
+	connectionIndex?: number,
 ) => ({
 	event: "message" as const,
 	data: JSON.stringify({
@@ -1081,13 +1082,18 @@ const chatWatchEvent = (
 		chat_summary_generation_started_at: chatSummaryGenerationStartedAt,
 	} satisfies TypesGen.ChatWatchEvent),
 	delayMs,
+	connectionIndex,
 });
 
 const watchedChatPageParameters = (
 	chat: Chat,
 	watchEvents: readonly (
 		| ReturnType<typeof chatWatchEvent>
-		| { event: "open"; delayMs?: number }
+		| {
+				event: "open" | "close" | "error";
+				delayMs?: number;
+				connectionIndex?: number;
+		  }
 	)[],
 ) => ({
 	queries: watchedChatQueries(chat),
@@ -1234,14 +1240,17 @@ export const SummaryReconnectClearsStaleGeneratingState: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
+		{ event: "open", connectionIndex: 0 },
 		chatWatchEvent(
 			"chat_summary_generating",
 			watchedChat(),
 			750,
 			undefined,
 			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+			0,
 		),
-		{ event: "open", delayMs: 3_000 },
+		{ event: "close", delayMs: 3_000, connectionIndex: 0 },
+		{ event: "open", connectionIndex: 1 },
 	]),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

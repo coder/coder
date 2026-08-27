@@ -13,8 +13,17 @@ import type { ReactRouterAddonStoryParameters } from "storybook-addon-remix-reac
 
 declare module "@storybook/react-vite" {
 	type WebSocketEvent =
-		| { event: "message"; data: string; delayMs?: number }
-		| { event: "open" | "error" | "close"; delayMs?: number };
+		| {
+				event: "message";
+				data: string;
+				delayMs?: number;
+				connectionIndex?: number;
+		  }
+		| {
+				event: "open" | "error" | "close";
+				delayMs?: number;
+				connectionIndex?: number;
+		  };
 	interface Parameters {
 		features?: (FeatureName | ({ name: FeatureName } & Partial<Feature>))[];
 		experiments?: Experiments;
