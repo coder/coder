@@ -169,10 +169,11 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-// The ring matches the neighboring mic icon: same 18px (size-icon-sm) box
-// and a stroke weight equal to the mic's effective weight (lucide draws at
-// stroke 2 on a 24 viewBox; at 18px that is 1.5px).
-const RING_SIZE = 18;
+// The ring is sized to the mic glyph's visual height rather than its box:
+// the lucide mic only fills ~16px of its 18px (size-icon-sm) box, so an
+// 18px ring reads larger than the mic. The stroke sits a step heavier than
+// the mic's (1.5px vs ~1.1px effective) per design.
+const RING_SIZE = 16;
 const RING_STROKE = 1.5;
 
 // Exclamation glyph shown when the pinned context drifted or failed to load.

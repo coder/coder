@@ -1546,7 +1546,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									{speech.isRecording ? (
 										<XIcon />
 									) : (
-										<MicIcon strokeWidth={1.75} />
+										<MicIcon strokeWidth={1.5} />
 									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
