@@ -53,11 +53,12 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	// Default an unset registry to the public one so both the base and module
-	// render paths interpolate a valid host instead of an empty source.
-	registryBase := req.RegistryURL
-	if registryBase == "" {
-		registryBase = DefaultRegistryBase
+	// Normalize the registry (default empty, strip a pasted scheme, reject a
+	// path/credentials) so the base and module render paths interpolate the
+	// same valid host into module sources.
+	registryBase, err := NormalizeRegistryBase(req.RegistryURL)
+	if err != nil {
+		return nil, err
 	}
 
 	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)

@@ -415,3 +415,70 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		})
 	}
 }
+
+// TestNormalizeRegistryBase covers the boundary trimming Compose applies to the
+// deployment registry value before it is interpolated into a module source: an
+// empty value defaults, a pasted scheme and trailing slashes are stripped, and a
+// value that is not a bare host is rejected.
+func TestNormalizeRegistryBase(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Accepts", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			in   string
+			want string
+		}{
+			{"Empty", "", templatebuilder.DefaultRegistryBase},
+			{"WhitespaceOnly", "   ", templatebuilder.DefaultRegistryBase},
+			{"BareHost", "registry.coder.com", "registry.coder.com"},
+			{"SurroundingSpace", "  mirror.internal  ", "mirror.internal"},
+			{"HostPort", "mirror.example.com:8443", "mirror.example.com:8443"},
+			{"HTTPSStripped", "https://mirror.example.com", "mirror.example.com"},
+			{"HTTPStripped", "http://mirror.example.com", "mirror.example.com"},
+			{"UppercaseSchemeStripped", "HTTPS://mirror.example.com", "mirror.example.com"},
+			{"TrailingSlashStripped", "https://mirror.example.com/", "mirror.example.com"},
+			{"TrailingSlashesStripped", "mirror.example.com///", "mirror.example.com"},
+			{"SchemeAndPortAndSlash", "https://mirror.example.com:8443/", "mirror.example.com:8443"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				got, err := templatebuilder.NormalizeRegistryBase(tc.in)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, got)
+			})
+		}
+	})
+
+	t.Run("Rejects", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			in   string
+		}{
+			{"Path", "mirror.example.com/coder"},
+			{"Query", "mirror.example.com?a=b"},
+			{"Fragment", "mirror.example.com#frag"},
+			{"DoubledScheme", "https://https://mirror.example.com"},
+			{"InteriorSpace", "mirror .example.com"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := templatebuilder.NormalizeRegistryBase(tc.in)
+				require.ErrorContains(t, err, "bare host")
+			})
+		}
+	})
+
+	t.Run("RejectsCredentialsWithoutEcho", func(t *testing.T) {
+		t.Parallel()
+		// Userinfo must be rejected, not silently stripped, and the rejection must
+		// not echo the credential it rejected.
+		_, err := templatebuilder.NormalizeRegistryBase("https://user:s3cr3t-token@mirror.example.com")
+		require.ErrorContains(t, err, "bare host")
+		require.NotContains(t, err.Error(), "s3cr3t-token")
+	})
+}
