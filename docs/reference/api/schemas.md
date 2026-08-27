@@ -10320,6 +10320,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "users": [
     {
       "avatar_url": "http://example.com",
+      "email": "user@example.com",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "role": "read",
@@ -10412,6 +10413,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "avatar_url": "http://example.com",
+  "email": "user@example.com",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "role": "read",
@@ -10424,6 +10426,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name         | Type                                                         | Required | Restrictions | Description |
 |--------------|--------------------------------------------------------------|----------|--------------|-------------|
 | `avatar_url` | string                                                       | false    |              |             |
+| `email`      | string                                                       | true     |              |             |
 | `id`         | string                                                       | true     |              |             |
 | `name`       | string                                                       | false    |              |             |
 | `role`       | [codersdk.MCPServerConfigRole](#codersdkmcpserverconfigrole) | false    |              |             |

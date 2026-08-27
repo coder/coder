@@ -585,25 +585,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
-	// When workspace data is available the badge renders as the
-	// interactive WorkspacePill; its overflow-popover fallback uses the
-	// richer attachedWorkspace data when present.
-	let workspacePillBadge: ToolBadgeData | undefined;
-	if (workspace && workspaceAgent && chatId) {
-		workspacePillBadge = attachedWorkspace
-			? { kind: "attached-workspace", ...attachedWorkspace }
-			: { kind: "workspace", name: workspace.name };
-	}
-
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
 	if (shouldOverflowPlanningBadge) {
 		allBadges.push({ kind: "planning" });
 	}
-	if (workspacePillBadge) {
-		allBadges.push(workspacePillBadge);
-	} else if (attachedWorkspace) {
+	// When workspace data is available, WorkspacePill handles
+	// the display (including app dropdown). Otherwise fall back
+	// to the simple attached-workspace ToolBadge.
+	if (!(workspace && workspaceAgent && chatId) && attachedWorkspace) {
 		allBadges.push({ kind: "attached-workspace", ...attachedWorkspace });
 	}
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
@@ -1456,37 +1447,24 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						 * hide and reorder via CSS. The pill is invisible
 						 * when there's no overflow but still occupies
 						 * layout space, preventing measurement flicker. */}
+						{workspace && workspaceAgent && chatId && (
+							<span className="ml-1 sm:ml-0">
+								<WorkspacePill
+									workspace={workspace}
+									agent={workspaceAgent}
+									chatId={chatId}
+									sshCommand={sshCommand}
+									folder={folder}
+									onRemoveWorkspace={removeWorkspaceHandler}
+								/>
+							</span>
+						)}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
 						>
 							{allBadges.map((badge, i) => {
 								const isOverflow = overflowCount > 0 && i >= visibleCount;
-								if (
-									badge === workspacePillBadge &&
-									workspace &&
-									workspaceAgent &&
-									chatId
-								) {
-									return (
-										<span
-											key="workspace-pill"
-											className={cn(
-												"flex min-w-[calc(8ch_+_3.125rem)] text-xs",
-												isOverflow && "invisible order-1",
-											)}
-										>
-											<WorkspacePill
-												workspace={workspace}
-												agent={workspaceAgent}
-												chatId={chatId}
-												sshCommand={sshCommand}
-												folder={folder}
-												onRemoveWorkspace={removeWorkspaceHandler}
-											/>
-										</span>
-									);
-								}
 								return (
 									<ToolBadge
 										key={badge.kind === "mcp" ? badge.server.id : badge.kind}

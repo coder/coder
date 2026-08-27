@@ -84,6 +84,12 @@ const (
 	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
 
+	// slowPrepareThreshold is the generation-preparation duration
+	// above which a warning is logged. Preparation runs before
+	// every generation step, so sustained slowness (workspace
+	// dials, MCP connects) taxes the whole turn.
+	slowPrepareThreshold = 30 * time.Second
+
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
 	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
