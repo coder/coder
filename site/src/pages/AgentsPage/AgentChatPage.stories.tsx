@@ -4386,7 +4386,10 @@ export const ArchiveDuringImageResize: Story = {
 			await canvas.findByRole("button", { name: "Remove screenshot.png" }),
 		).toBeInTheDocument();
 		// Still resizing, not failed: the archive below must interrupt a
-		// live processing window, not clean up an errored chip.
+		// live processing window, not clean up an errored chip. The
+		// settle delay gives a broken fixture's decode-failure path time
+		// to flip the chip to an error state, which must not happen.
+		await new Promise((resolve) => setTimeout(resolve, 250));
 		expect(canvas.queryByLabelText("Upload error")).not.toBeInTheDocument();
 
 		await userEvent.click(
