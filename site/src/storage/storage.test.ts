@@ -136,6 +136,32 @@ describe("storage core", () => {
 		expect(boolKey.set(true)).toEqual({ ok: false, reason: "quota" });
 	});
 
+	it("rejects writes whose encoding cannot decode back", () => {
+		numberKey.set(7);
+		const listener = vi.fn();
+		const unsubscribe = numberKey.subscribe(listener);
+
+		expect(numberKey.set(Number.NaN)).toEqual({ ok: false, reason: "invalid" });
+		expect(numberKey.set(479.5)).toEqual({ ok: false, reason: "invalid" });
+		expect(numberKey.set(Number.MAX_SAFE_INTEGER + 1)).toEqual({
+			ok: false,
+			reason: "invalid",
+		});
+
+		expect(listener).not.toHaveBeenCalled();
+		expect(localStorage.getItem("test.number")).toBe("7");
+		expect(numberKey.get()).toBe(7);
+		unsubscribe();
+	});
+
+	it("reports unserializable values as invalid instead of throwing", () => {
+		const cyclic: string[] = [];
+		// biome-ignore lint/suspicious/noExplicitAny: building a cyclic value on purpose
+		(cyclic as any).push(cyclic);
+		expect(listKey.set(cyclic)).toEqual({ ok: false, reason: "invalid" });
+		expect(localStorage.getItem("test.list")).toBeNull();
+	});
+
 	it("reports removal failures from remove and set(null)", () => {
 		numberKey.set(7);
 		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
@@ -241,6 +267,24 @@ describe("storage core", () => {
 		);
 		expect(listener).toHaveBeenCalledTimes(1);
 		expect(boolKey.get()).toBe(true);
+		unsubscribe();
+	});
+
+	it("notifies session-backed keys on events from same-tab frames", () => {
+		sessionKey.set("stale");
+		// A same-origin iframe writes the shared session area: no set()
+		// runs in this document, only the event.
+		sessionStorage.setItem("test.session", "fresh");
+		const listener = vi.fn();
+		const unsubscribe = sessionKey.subscribe(listener);
+		dispatchEvent(
+			new StorageEvent("storage", {
+				key: "test.session",
+				storageArea: sessionStorage,
+			}),
+		);
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(sessionKey.get()).toBe("fresh");
 		unsubscribe();
 	});
 

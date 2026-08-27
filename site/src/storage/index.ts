@@ -17,7 +17,7 @@
 
 export type PersistResult =
 	| { ok: true }
-	| { ok: false; reason: "quota" | "unavailable" };
+	| { ok: false; reason: "quota" | "unavailable" | "invalid" };
 
 type StorageArea = "local" | "session";
 
@@ -186,21 +186,26 @@ const notifyKeyChanged = (area: StorageArea, key: string): void => {
 };
 
 addEventListener("storage", (event: StorageEvent) => {
-	// sessionStorage is per-tab, so cross-tab events only matter for
-	// localStorage.
-	let isLocalArea = false;
+	// localStorage events arrive from other tabs; sessionStorage
+	// events arrive from same-origin frames in this tab, which share
+	// the session area with this document.
+	let area: StorageArea;
 	try {
-		isLocalArea = event.storageArea === localStorage;
+		if (event.storageArea === localStorage) {
+			area = "local";
+		} else if (event.storageArea === sessionStorage) {
+			area = "session";
+		} else {
+			return;
+		}
 	} catch {
 		return;
 	}
-	if (!isLocalArea) {
-		return;
-	}
 	if (event.key === null) {
-		// localStorage.clear() in another tab.
+		// clear() of the whole area elsewhere in this origin.
+		const prefix = `${area}:`;
 		for (const [cacheKey, listeners] of keyListeners) {
-			if (cacheKey.startsWith("local:")) {
+			if (cacheKey.startsWith(prefix)) {
 				for (const listener of listeners) {
 					listener();
 				}
@@ -208,7 +213,7 @@ addEventListener("storage", (event: StorageEvent) => {
 		}
 		return;
 	}
-	notifyKeyChanged("local", event.key);
+	notifyKeyChanged(area, event.key);
 });
 
 // -- Key handles ------------------------------------------------------------
@@ -269,7 +274,20 @@ const createHandle = <T>(
 		if (value === null || value === undefined) {
 			return remove();
 		}
-		const raw = codec.encode(value);
+		let raw: string;
+		try {
+			raw = codec.encode(value);
+		} catch {
+			// JSON.stringify throws on cyclic values; surface it as a
+			// result instead of aborting the caller's event handler.
+			return { ok: false, reason: "invalid" };
+		}
+		// A value whose encoding does not decode back (NaN, unsafe
+		// integers) would read as the default after reload; reject it
+		// so live and reloaded reads stay consistent.
+		if (codec.decode(raw) === undefined) {
+			return { ok: false, reason: "invalid" };
+		}
 		const result = writeRaw(area, key, raw);
 		if (!result.ok) {
 			// Reads keep reflecting what actually persisted; callers can
