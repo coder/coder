@@ -3,7 +3,14 @@ import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
 import { toast } from "sonner";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -53,7 +60,8 @@ import { belowLgViewportMediaQuery } from "#/utils/mobile";
 import AgentChatPage from "./AgentChatPage";
 import type { AgentsPageOutletContext } from "./AgentsPageLayout";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
-import { rightPanelOpenStorage } from "./storage";
+import { clearChatStorage, rightPanelOpenStorage } from "./storage";
+import { chatDraftAttachmentStorageKey } from "./utils/chatDraftAttachmentStorage";
 
 // ---------------------------------------------------------------------------
 // Layout wrapper: provides outlet context for the child route.
@@ -4213,5 +4221,123 @@ export const SendRejectedByHookDispatchFailure: Story = {
 			await canvas.findByText("Dispatch 0f2c1f3e timed out after 1.5s."),
 		).toBeVisible();
 		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// Archive-during-upload draft cleanup
+// ---------------------------------------------------------------------------
+
+/**
+ * Outlet whose archive request runs the same per-chat storage cleanup
+ * the layout's archive mutation performs on success; the mutation
+ * wiring itself is covered in chats.test.ts.
+ */
+const ArchiveCleanupLayout: FC = () => (
+	<div className="flex h-full">
+		<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+			<Outlet
+				context={
+					{
+						chatErrorReasons: {},
+						setChatErrorReason: () => {},
+						clearChatErrorReason: () => {},
+						requestArchiveAgent: (chatId: string) => {
+							clearChatStorage(chatId);
+						},
+						requestArchiveAndDeleteWorkspace: (
+							_chatId: string,
+							_workspaceId: string,
+						) => {},
+						requestUnarchiveAgent: () => {},
+						requestPinAgent: () => {},
+						requestUnpinAgent: () => {},
+						isArchiving: false,
+						archivingChatId: undefined,
+						activeChatChildren: undefined,
+						isSidebarCollapsed: false,
+						onToggleSidebarCollapsed: () => {},
+						onExpandSidebar: () => {},
+						onChatReady: () => {},
+					} satisfies AgentsPageOutletContext
+				}
+			/>
+		</div>
+	</div>
+);
+
+const archiveDraftStorageKey = chatDraftAttachmentStorageKey(
+	"test-org-id",
+	CHAT_ID,
+);
+
+let resolveDraftUpload: (value: { id: string }) => void = () => undefined;
+
+/** Archiving while an attachment upload is in flight clears the
+ *  persisted draft, and the late upload completion must not recreate it. */
+export const ArchiveDuringAttachmentUpload: Story = {
+	render: () => <ArchiveCleanupLayout />,
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Archive during upload",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		localStorage.removeItem(archiveDraftStorageKey);
+		spyOn(API.experimental, "uploadChatFile").mockReturnValue(
+			new Promise((resolve) => {
+				resolveDraftUpload = resolve;
+			}),
+		);
+		return () => localStorage.removeItem(archiveDraftStorageKey);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const fileInput =
+			canvasElement.querySelector<HTMLInputElement>('input[type="file"]');
+		if (!fileInput) {
+			throw new Error("attachment file input not found");
+		}
+		await userEvent.upload(
+			fileInput,
+			new File(["draft body"], "notes.txt", { type: "text/plain" }),
+		);
+		// The remove affordance is opacity-0 until hover, so assert
+		// presence rather than visibility.
+		expect(
+			await canvas.findByRole("button", { name: "Remove notes.txt" }),
+		).toBeInTheDocument();
+		// The pending draft record persists while the upload is in flight.
+		await waitFor(() => {
+			expect(localStorage.getItem(archiveDraftStorageKey)).not.toBeNull();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		// The dropdown renders in a portal outside the canvas.
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+		await waitFor(() => {
+			expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+		});
+
+		// The upload finishing later must not resurrect the archived
+		// chat's draft record.
+		resolveDraftUpload({ id: "late-file" });
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Remove notes.txt" }),
+			).not.toBeInTheDocument();
+		});
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
 	},
 };

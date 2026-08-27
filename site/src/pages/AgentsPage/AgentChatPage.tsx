@@ -140,26 +140,6 @@ import {
 	resolveChatSlashCommandAvailability,
 } from "./utils/slashCommands";
 
-/**
- * Below the `lg` breakpoint, chat and the right panel are mutually
- * exclusive, so a panel left open on a wide window would hide chat as
- * soon as the window narrows. This suppresses the panel while narrow
- * without touching the persisted preference: widening restores the
- * panel, and an explicit user action (clearSuppression) overrides it.
- */
-export function useRightPanelNarrowSuppression() {
-	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
-	const [suppressed, setSuppressed] = useState(isBelowLg);
-	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
-	// Render-time state adjustment on breakpoint crossings; see
-	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	if (isBelowLg !== prevIsBelowLg) {
-		setPrevIsBelowLg(isBelowLg);
-		setSuppressed(isBelowLg);
-	}
-	return { suppressed, clearSuppression: () => setSuppressed(false) };
-}
-
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
 class BuiltInCommandPendingError extends Error {}
@@ -872,15 +852,28 @@ const AgentChatPage: FC = () => {
 	const [sidebarPanelPreference, setSidebarPanelPreference] = useStorage(
 		rightPanelOpenStorage,
 	);
-	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
-		useRightPanelNarrowSuppression();
+	// Below the lg breakpoint, chat and the right panel are mutually
+	// exclusive, so a panel left open on a wide window would hide chat
+	// as soon as the window narrows. Suppress the panel while narrow
+	// without touching the persisted preference: widening restores the
+	// panel, and an explicit user action clears the suppression.
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
+	const [panelSuppressedOnNarrow, setPanelSuppressedOnNarrow] =
+		useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setPanelSuppressedOnNarrow(isBelowLg);
+	}
 	// Canonical panel visibility: the persisted preference gated by the
 	// narrow-viewport suppression. Only this derived value may be
 	// rendered or handed to children; the raw preference stays local.
 	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
 
 	const handleSetShowSidebarPanel = (next: boolean) => {
-		clearSuppression();
+		setPanelSuppressedOnNarrow(false);
 		setSidebarPanelPreference(next);
 	};
 

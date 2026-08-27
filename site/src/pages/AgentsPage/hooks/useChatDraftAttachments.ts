@@ -83,6 +83,14 @@ type UploadRegistryEntry = {
 // write storage or notify UI again.
 const activeDraftUploads = new Map<string, UploadRegistryEntry>();
 
+// Resize jobs enter activeDraftUploads only after the resize completes,
+// so chat cleanup tracks them here; an abandoned job must not register
+// an upload for a chat whose storage was just cleared.
+const activeResizeJobs = new Map<
+	string,
+	{ chatId: string; abandoned: boolean }
+>();
+
 const isTerminalRegistryStatus = (entry: UploadRegistryEntry) =>
 	entry.status === "uploaded" || entry.status === "error";
 
@@ -394,14 +402,19 @@ const removeRegistryEntriesForScope = (
 };
 
 /**
- * Invalidate a chat's in-flight uploads so their late async
- * completions cannot rewrite draft records after archive or delete
- * cleanup removed the chat's storage.
+ * Invalidate a chat's in-flight uploads and resize jobs so their late
+ * async completions cannot rewrite draft records after archive or
+ * delete cleanup removed the chat's storage.
  */
 export const invalidateChatDraftUploads = (chatId: string): void => {
 	for (const entry of Array.from(activeDraftUploads.values())) {
 		if (entry.chatId === chatId) {
 			removeRegistryEntry(entry.clientId);
+		}
+	}
+	for (const job of activeResizeJobs.values()) {
+		if (job.chatId === chatId) {
+			job.abandoned = true;
 		}
 	}
 };
@@ -604,7 +617,9 @@ export function useChatDraftAttachments(
 			resized = null;
 		}
 
-		if (abandonedResizesRef.current.has(clientId)) {
+		const resizeJob = activeResizeJobs.get(clientId);
+		activeResizeJobs.delete(clientId);
+		if (resizeJob?.abandoned || abandonedResizesRef.current.has(clientId)) {
 			return;
 		}
 		if (!organizationId || !chatId) {
@@ -768,6 +783,7 @@ export function useChatDraftAttachments(
 				};
 				nextViews.push(view);
 				resizeJobs.push({ clientId, file });
+				activeResizeJobs.set(clientId, { chatId, abandoned: false });
 				continue;
 			}
 			const view = { ...baseView, ...computePreview(file, "pending") };
@@ -883,4 +899,5 @@ export const resetChatDraftAttachmentRegistryForTest = () => {
 		notifySubscribers(entry);
 	}
 	activeDraftUploads.clear();
+	activeResizeJobs.clear();
 };

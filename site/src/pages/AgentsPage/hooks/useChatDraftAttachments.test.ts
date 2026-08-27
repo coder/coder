@@ -574,6 +574,45 @@ describe("useChatDraftAttachments", () => {
 			unmount();
 		});
 
+		it("does not recreate storage when chat cleanup happens mid-resize", async () => {
+			const resize = await import("../utils/resizeImage");
+			let releaseResize: (value: File | null) => void = () => undefined;
+			vi.spyOn(resize, "resizeImageToMaxBytes").mockImplementation(
+				() =>
+					new Promise<File | null>((resolveFn) => {
+						releaseResize = resolveFn;
+					}),
+			);
+			const uploadSpy = vi.spyOn(API.experimental, "uploadChatFile");
+
+			const { result, unmount } = renderHook(() =>
+				useChatDraftAttachments(orgID, chatID, { provider: "anthropic" }),
+			);
+			const original = makeOversizeImage();
+			act(() => {
+				result.current.handleAttach([original]);
+			});
+			expect(result.current.uploadStates.get(original)).toMatchObject({
+				status: "processing",
+			});
+
+			// Archive cleanup fires while the chat route stays mounted with
+			// the same scope, so scope checks alone cannot stop the job.
+			clearChatStorage(chatID);
+
+			const replacement = new File([new Uint8Array(1024)], "photo.webp", {
+				type: "image/webp",
+				lastModified: 200,
+			});
+			await act(async () => {
+				releaseResize(replacement);
+			});
+
+			expect(uploadSpy).not.toHaveBeenCalled();
+			expect(localStorage.getItem(storageKey)).toBeNull();
+			unmount();
+		});
+
 		it("swaps the original for a smaller resized File and starts the upload", async () => {
 			const upload = createDeferred<{ id: string }>();
 			const uploadSpy = vi

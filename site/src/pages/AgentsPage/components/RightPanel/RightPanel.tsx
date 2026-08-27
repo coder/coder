@@ -142,7 +142,9 @@ function useResizableDrag({
 			nextSnap = "closed";
 		} else {
 			nextSnap = "normal";
-			setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, raw)));
+			// Drag widths are fractional under zoom (getBoundingClientRect);
+			// integerCodec rejects fractional strings on decode.
+			setWidth(Math.round(Math.min(maxWidth, Math.max(MIN_WIDTH, raw))));
 		}
 		setDragSnap(nextSnap);
 
@@ -210,7 +212,7 @@ export const RightPanel = ({
 		const handleResize = () => {
 			setStoredWidth((prev) => {
 				const max = getSideBySideMaxWidth(panelRef.current);
-				return widthFromStored(prev) > max ? max : prev;
+				return widthFromStored(prev) > max ? Math.round(max) : prev;
 			});
 		};
 		handleResize();
