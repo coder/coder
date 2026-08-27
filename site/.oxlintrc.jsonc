@@ -155,6 +155,7 @@
 		"prefer-namespace-keyword": "error",
 		"approx-constant": "error",
 		"no-export": "error",
+		"no-explicit-any": "error",
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -173,7 +174,6 @@
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
-		"no-explicit-any": "off", // suspicious/noExplicitAny (medium: Biome suppressions to migrate)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
 		"new-for-builtins": "off", // correctness/noInvalidBuiltinInstantiation (medium)
 		"no-empty-object-type": "off", // complexity/noBannedTypes (medium)
