@@ -28,6 +28,67 @@ export type AIAgentOrigin = "chat" | "workspace";
 
 export const AIAgentOrigins: AIAgentOrigin[] = ["chat", "workspace"];
 
+// From codersdk/aiaudittrail.go
+/**
+ * AIAuditTrailEvent is one event in the merged timeline. OccurredAt is the
+ * effective date and RecordedAt the recording date; both are preserved
+ * because an observed transition may be recorded long after it happened.
+ * Cross-source ordering by OccurredAt is presentation, not a total-order
+ * claim; within one journal the entry id in Detail is authoritative.
+ */
+export interface AIAuditTrailEvent {
+	readonly id: string;
+	readonly type: AIAuditTrailEventType;
+	readonly occurred_at: string;
+	readonly recorded_at: string;
+	readonly ai_agent_id: string;
+	readonly owner: AIAuditTrailOwner;
+	readonly workspace_id?: string;
+	readonly summary: string;
+	// empty interface{} type, falling back to unknown
+	readonly detail: Record<string, unknown>;
+}
+
+// From codersdk/aiaudittrail.go
+export type AIAuditTrailEventType =
+	| "ai_agent_lifecycle"
+	| "authorization_lifecycle"
+	| "credential_lifecycle"
+	| "credential_use"
+	| "egress"
+	| "sandbox_session";
+
+export const AIAuditTrailEventTypes: AIAuditTrailEventType[] = [
+	"ai_agent_lifecycle",
+	"authorization_lifecycle",
+	"credential_lifecycle",
+	"credential_use",
+	"egress",
+	"sandbox_session",
+];
+
+// From codersdk/aiaudittrail.go
+/**
+ * AIAuditTrailOwner is the principal the trail was filtered by, under
+ * current-owner semantics: the ledger's present owner, not necessarily the
+ * owner at the time an event occurred.
+ */
+export interface AIAuditTrailOwner {
+	readonly type: string;
+	readonly id: string;
+	readonly username: string;
+}
+
+// From codersdk/aiaudittrail.go
+export interface AIAuditTrailResponse {
+	readonly events: readonly AIAuditTrailEvent[];
+	/**
+	 * Count is the number of events returned. There is no total across the
+	 * heterogeneous sources.
+	 */
+	readonly count: number;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents a tool call with associated

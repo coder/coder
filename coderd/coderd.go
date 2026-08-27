@@ -1531,6 +1531,13 @@ func New(options *Options) *API {
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
+		// The AI audit trail authorizes in dbauthz against the
+		// ai_audit_trail resource owned by the user being read, so members
+		// reach their own trail and auditors reach anyone's.
+		r.Route("/ai-audit", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/timeline", api.aiAuditTimeline)
+		})
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

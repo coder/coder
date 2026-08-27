@@ -1,5 +1,67 @@
 # Audit
 
+## Get AI agent audit trail timeline
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/ai-audit/timeline \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /ai-audit/timeline`
+
+### Parameters
+
+| Name          | In    | Type              | Required | Description                                                          |
+|---------------|-------|-------------------|----------|----------------------------------------------------------------------|
+| `owner`       | query | string            | false    | Owner user ID, username, or 'me' (default). Current-owner semantics. |
+| `after_time`  | query | string(date-time) | false    | Lower time bound, exclusive (RFC3339)                                |
+| `before_time` | query | string(date-time) | false    | Upper time bound, exclusive (RFC3339)                                |
+| `ai_agent_id` | query | string(uuid)      | false    | Filter to one AI agent                                               |
+| `types`       | query | string            | false    | Comma-separated event types                                          |
+| `limit`       | query | integer           | false    | Page size (default 100, max 1000)                                    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "events": [
+    {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+      "detail": {
+        "property1": null,
+        "property2": null
+      },
+      "id": "string",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "owner": {
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "type": "string",
+        "username": "string"
+      },
+      "recorded_at": "2019-08-24T14:15:22Z",
+      "summary": "string",
+      "type": "ai_agent_lifecycle",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIAuditTrailResponse](schemas.md#codersdkaiaudittrailresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get audit logs
 
 ### Code samples

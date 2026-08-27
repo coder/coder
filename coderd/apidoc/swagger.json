@@ -49,6 +49,68 @@
 				}
 			}
 		},
+		"/ai-audit/timeline": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Audit"],
+				"summary": "Get AI agent audit trail timeline",
+				"operationId": "get-ai-agent-audit-trail-timeline",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Owner user ID, username, or 'me' (default). Current-owner semantics.",
+						"name": "owner",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Lower time bound, exclusive (RFC3339)",
+						"name": "after_time",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Upper time bound, exclusive (RFC3339)",
+						"name": "before_time",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Filter to one AI agent",
+						"name": "ai_agent_id",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Comma-separated event types",
+						"name": "types",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size (default 100, max 1000)",
+						"name": "limit",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIAuditTrailResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/experimental/chats": {
 			"get": {
 				"description": "Experimental: this endpoint is subject to change.",
@@ -14173,6 +14235,92 @@
 			"type": "string",
 			"enum": ["chat", "workspace"],
 			"x-enum-varnames": ["AIAgentOriginChat", "AIAgentOriginWorkspace"]
+		},
+		"codersdk.AIAuditTrailEvent": {
+			"type": "object",
+			"properties": {
+				"ai_agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"detail": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"id": {
+					"type": "string"
+				},
+				"occurred_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"owner": {
+					"$ref": "#/definitions/codersdk.AIAuditTrailOwner"
+				},
+				"recorded_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"summary": {
+					"type": "string"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.AIAuditTrailEventType"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.AIAuditTrailEventType": {
+			"type": "string",
+			"enum": [
+				"ai_agent_lifecycle",
+				"authorization_lifecycle",
+				"credential_lifecycle",
+				"credential_use",
+				"sandbox_session",
+				"egress"
+			],
+			"x-enum-varnames": [
+				"AIAuditTrailEventAIAgentLifecycle",
+				"AIAuditTrailEventAuthorizationLifecycle",
+				"AIAuditTrailEventCredentialLifecycle",
+				"AIAuditTrailEventCredentialUse",
+				"AIAuditTrailEventSandboxSession",
+				"AIAuditTrailEventEgress"
+			]
+		},
+		"codersdk.AIAuditTrailOwner": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"type": {
+					"type": "string"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIAuditTrailResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"description": "Count is the number of events returned. There is no total across the\nheterogeneous sources.",
+					"type": "integer"
+				},
+				"events": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIAuditTrailEvent"
+					}
+				}
+			}
 		},
 		"codersdk.AIBridgeAgenticAction": {
 			"type": "object",

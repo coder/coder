@@ -502,6 +502,111 @@
 |---------------------|
 | `chat`, `workspace` |
 
+## codersdk.AIAuditTrailEvent
+
+```json
+{
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "detail": {
+    "property1": null,
+    "property2": null
+  },
+  "id": "string",
+  "occurred_at": "2019-08-24T14:15:22Z",
+  "owner": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "type": "string",
+    "username": "string"
+  },
+  "recorded_at": "2019-08-24T14:15:22Z",
+  "summary": "string",
+  "type": "ai_agent_lifecycle",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type                                                             | Required | Restrictions | Description |
+|--------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `ai_agent_id`      | string                                                           | false    |              |             |
+| `detail`           | object                                                           | false    |              |             |
+| » `[any property]` | any                                                              | false    |              |             |
+| `id`               | string                                                           | false    |              |             |
+| `occurred_at`      | string                                                           | false    |              |             |
+| `owner`            | [codersdk.AIAuditTrailOwner](#codersdkaiaudittrailowner)         | false    |              |             |
+| `recorded_at`      | string                                                           | false    |              |             |
+| `summary`          | string                                                           | false    |              |             |
+| `type`             | [codersdk.AIAuditTrailEventType](#codersdkaiaudittraileventtype) | false    |              |             |
+| `workspace_id`     | string                                                           | false    |              |             |
+
+## codersdk.AIAuditTrailEventType
+
+```json
+"ai_agent_lifecycle"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                               |
+|------------------------------------------------------------------------------------------------------------------------|
+| `ai_agent_lifecycle`, `authorization_lifecycle`, `credential_lifecycle`, `credential_use`, `egress`, `sandbox_session` |
+
+## codersdk.AIAuditTrailOwner
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "type": "string",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+|------------|--------|----------|--------------|-------------|
+| `id`       | string | false    |              |             |
+| `type`     | string | false    |              |             |
+| `username` | string | false    |              |             |
+
+## codersdk.AIAuditTrailResponse
+
+```json
+{
+  "count": 0,
+  "events": [
+    {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+      "detail": {
+        "property1": null,
+        "property2": null
+      },
+      "id": "string",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "owner": {
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "type": "string",
+        "username": "string"
+      },
+      "recorded_at": "2019-08-24T14:15:22Z",
+      "summary": "string",
+      "type": "ai_agent_lifecycle",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                              | Required | Restrictions | Description                                                                                 |
+|----------|-------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------|
+| `count`  | integer                                                           | false    |              | Count is the number of events returned. There is no total across the heterogeneous sources. |
+| `events` | array of [codersdk.AIAuditTrailEvent](#codersdkaiaudittrailevent) | false    |              |                                                                                             |
+
 ## codersdk.AIBridgeAgenticAction
 
 ```json
