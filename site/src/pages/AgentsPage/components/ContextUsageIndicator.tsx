@@ -169,15 +169,22 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-// Ring dimensions match the workspace/token usage rings in UsageIndicator so
-// the chat input indicators read as one family.
-const RING_SIZE = 28;
-const RING_STROKE = 1;
+// Styling matches the workspace/token usage rings in UsageIndicator (thin
+// stroke, default track), sized to the 18px (size-icon-sm) mic icon beside it.
+const RING_SIZE = 18;
+const RING_STROKE = 1.25;
 
 // Exclamation glyph centered in the ring when the pinned context drifted or
-// failed to load. Inherits the indicator tone via currentColor.
+// failed to load. Inherits the indicator tone via currentColor. Rendered
+// larger than its native 2x10 design size so it stays legible in the ring.
 const ExclamationGlyph: FC = () => (
-	<svg width="2" height="10" viewBox="0 0 2 10" fill="none" aria-hidden="true">
+	<svg
+		width="2.6"
+		height="13"
+		viewBox="0 0 2 10"
+		fill="none"
+		aria-hidden="true"
+	>
 		<path
 			d="M0.643145 8.67322C0.991187 8.67339 1.27302 8.95542 1.27335 9.30343C1.27335 9.65172 0.991393 9.93531 0.643145 9.93548H0.630208C0.281814 9.93548 0 9.65182 0 9.30343C0.000333666 8.95532 0.28202 8.67322 0.630208 8.67322H0.643145ZM0 5.67742V0.630208C0 0.281814 0.281814 0 0.630208 0C0.978603 0 1.26042 0.281814 1.26042 0.630208V5.67742C1.26008 6.02553 0.978398 6.30763 0.630208 6.30763C0.282019 6.30763 0.000332691 6.02553 0 5.67742Z"
 			fill="currentColor"
