@@ -100,10 +100,7 @@
 		"consistent-type-exports": "error",
 		"prefer-literal-enum-member": "error",
 		"prefer-node-protocol": "error",
-		"prefer-const": [
-			"error",
-			{ "destructuring": "all" }
-		],
+		"prefer-const": ["error", { "destructuring": "all" }],
 
 		// --- style (coder-enabled as error) ---
 		"prefer-as-const": "error",
