@@ -1290,6 +1290,100 @@
 				]
 			}
 		},
+		"/api/v2/ai-audit/agents": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Audit"],
+				"summary": "List AI agent identities for a sponsor",
+				"operationId": "list-ai-agent-identities-for-a-sponsor",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Sponsor user ID, username, or 'me' (default)",
+						"name": "sponsor",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIAuditAgent"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/ai-audit/timeline": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Audit"],
+				"summary": "Get the AI activity timeline for a sponsor",
+				"operationId": "get-the-ai-activity-timeline-for-a-sponsor",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Sponsor user ID, username, or 'me' (default)",
+						"name": "sponsor",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Restrict events to one agentic identity",
+						"name": "ai_agent_id",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Exclusive lower bound on occurred_at (RFC3339)",
+						"name": "after_time",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"format": "date-time",
+						"description": "Exclusive upper bound on occurred_at (RFC3339); pass the last event's occurred_at to page",
+						"name": "before_time",
+						"in": "query"
+					},
+					{
+						"type": "string",
+						"description": "Comma-separated event types to include",
+						"name": "types",
+						"in": "query"
+					},
+					{
+						"type": "integer",
+						"description": "Page size (default 100, max 1000)",
+						"name": "limit",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AIAuditTimelineResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/ai-gateway/clients": {
 			"get": {
 				"description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
@@ -1684,7 +1778,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before.",
+						"description": "Search query in the format `key:value`. Available keys are: initiator, sponsor, provider, provider_name, model, client, session_id, started_after, started_before.",
 						"name": "q",
 						"in": "query"
 					},
@@ -14810,6 +14904,114 @@
 				"AIAgentStateDormant",
 				"AIAgentStateRetired"
 			]
+		},
+		"codersdk.AIAuditAgent": {
+			"type": "object",
+			"properties": {
+				"creation_site_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"creation_site_type": {
+					"type": "string"
+				},
+				"creation_time": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"display_name": {
+					"description": "DisplayName is computed from the creation site and ID; agents store\nno name.",
+					"type": "string"
+				},
+				"id": {
+					"description": "ID is the ai_agent_ledger identity. Audit records reference it as\nai_agent_id.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"state": {
+					"description": "State is active, dormant, or retired.",
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIAuditEvent": {
+			"type": "object",
+			"properties": {
+				"ai_agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"detail": {
+					"type": "object",
+					"additionalProperties": {}
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"occurred_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"sponsor": {
+					"$ref": "#/definitions/codersdk.MinimalUser"
+				},
+				"summary": {
+					"type": "string"
+				},
+				"type": {
+					"$ref": "#/definitions/codersdk.AIAuditEventType"
+				},
+				"workspace_id": {
+					"description": "WorkspaceID is zero when the source record does not reference a\nworkspace or the reference did not survive cleanup.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"workspace_name": {
+					"description": "WorkspaceName is only set for sources that snapshot it (escalations).",
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.AIAuditEventType": {
+			"type": "string",
+			"enum": [
+				"sandbox_session_started",
+				"sandbox_session_ended",
+				"egress",
+				"bridge_session_started",
+				"tool_call",
+				"escalation_created",
+				"escalation_resolved"
+			],
+			"x-enum-varnames": [
+				"AIAuditEventTypeSandboxSessionStarted",
+				"AIAuditEventTypeSandboxSessionEnded",
+				"AIAuditEventTypeEgress",
+				"AIAuditEventTypeBridgeSessionStarted",
+				"AIAuditEventTypeToolCall",
+				"AIAuditEventTypeEscalationCreated",
+				"AIAuditEventTypeEscalationResolved"
+			]
+		},
+		"codersdk.AIAuditTimelineResponse": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"description": "Count is the number of events returned. Heterogeneous sources make a\ngrand total impractical, so there is none.",
+					"type": "integer"
+				},
+				"events": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AIAuditEvent"
+					}
+				}
+			}
 		},
 		"codersdk.AIBridgeAgenticAction": {
 			"type": "object",

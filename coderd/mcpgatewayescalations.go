@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -66,6 +67,11 @@ func (api *API) mcpGatewayEscalations(rw http.ResponseWriter, r *http.Request) {
 	escalations, err := api.Database.ListMCPGatewayEscalationsBySponsor(dbauthz.AsSystemRestricted(ctx), database.ListMCPGatewayEscalationsBySponsorParams{
 		SponsorUserID: sponsorUserID,
 		Status:        string(status),
+		// Zero values disable the timeline window, agent filter, and limit.
+		AIAgentID:  uuid.Nil,
+		AfterTime:  time.Time{},
+		BeforeTime: time.Time{},
+		Limit:      0,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

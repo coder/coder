@@ -1519,29 +1519,34 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
+	-- Filter sponsor_user_id
+	AND CASE
+		WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.sponsor_user_id = $4::uuid
+		ELSE true
+	END
 	-- Filter provider
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $5::text != '' THEN aibridge_interceptions.provider = $5::text
 		ELSE true
 	END
 	-- Filter provider_name
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.provider_name = $6::text
 		ELSE true
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $7::text != '' THEN aibridge_interceptions.model = $7::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $8::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $8::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
+		WHEN $9::text != '' THEN aibridge_interceptions.session_id = $9::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -1552,6 +1557,7 @@ type CountAIBridgeSessionsParams struct {
 	StartedAfter  time.Time `db:"started_after" json:"started_after"`
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
@@ -1564,6 +1570,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
+		arg.SponsorUserID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,
@@ -2585,6 +2592,86 @@ func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg Li
 	return items, nil
 }
 
+const listAIBridgeSessionStartsBySponsor = `-- name: ListAIBridgeSessionStartsBySponsor :many
+SELECT
+	ai.session_id,
+	ai.initiator_id,
+	MIN(ai.started_at)::timestamptz AS started_at,
+	COALESCE(MIN(ai.client), 'Unknown')::text AS client,
+	array_agg(DISTINCT ai.provider)::text[] AS providers,
+	array_agg(DISTINCT ai.model)::text[] AS models
+FROM aibridge_interceptions ai
+WHERE ai.sponsor_user_id = $1::uuid
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $2::uuid
+		ELSE true
+	END
+GROUP BY ai.session_id, ai.initiator_id
+HAVING
+	($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) < $4::timestamptz)
+ORDER BY MIN(ai.started_at) DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAIBridgeSessionStartsBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeSessionStartsBySponsorRow struct {
+	SessionID   string    `db:"session_id" json:"session_id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	Client      string    `db:"client" json:"client"`
+	Providers   []string  `db:"providers" json:"providers"`
+	Models      []string  `db:"models" json:"models"`
+}
+
+// Returns one row per bridge session attributed to a sponsoring user for
+// the AI audit timeline. The window applies to the session start (the
+// earliest interception), computed over all of the session's interceptions
+// so sessions spanning the window boundary are not misreported as starting
+// inside it. Zero bounds disable the window.
+func (q *sqlQuerier) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg ListAIBridgeSessionStartsBySponsorParams) ([]ListAIBridgeSessionStartsBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionStartsBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionStartsBySponsorRow
+	for rows.Next() {
+		var i ListAIBridgeSessionStartsBySponsorRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.InitiatorID,
+			&i.StartedAt,
+			&i.Client,
+			pq.Array(&i.Providers),
+			pq.Array(&i.Models),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH paginated_threads AS (
 	SELECT
@@ -2758,29 +2845,34 @@ session_page AS (
 			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
+		-- Filter sponsor_user_id
+		AND CASE
+			WHEN $5::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.sponsor_user_id = $5::uuid
+			ELSE true
+		END
 		-- Filter provider
 		AND CASE
-			WHEN $5::text != '' THEN ai.provider = $5::text
+			WHEN $6::text != '' THEN ai.provider = $6::text
 			ELSE true
 		END
 		-- Filter provider_name
 		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			WHEN $7::text != '' THEN ai.provider_name = $7::text
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN $7::text != '' THEN ai.model = $7::text
+			WHEN $8::text != '' THEN ai.model = $8::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $9::text != '' THEN COALESCE(ai.client, 'Unknown') = $9::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $9::text != '' THEN ai.session_id = $9::text
+			WHEN $10::text != '' THEN ai.session_id = $10::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -2804,8 +2896,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
-	OFFSET $10
+	LIMIT COALESCE(NULLIF($12::integer, 0), 100)
+	OFFSET $11
 )
 SELECT
 	sp.session_id,
@@ -2903,6 +2995,7 @@ type ListAIBridgeSessionsParams struct {
 	StartedAfter   time.Time `db:"started_after" json:"started_after"`
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	SponsorUserID  uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Provider       string    `db:"provider" json:"provider"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
@@ -2955,6 +3048,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
+		arg.SponsorUserID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,
@@ -3093,6 +3187,88 @@ func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context
 			&i.ProviderItemID,
 			&i.Disposition,
 			&i.EscalationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeToolUsagesBySponsor = `-- name: ListAIBridgeToolUsagesBySponsor :many
+SELECT
+	tu.id,
+	tu.created_at,
+	tu.interception_id,
+	COALESCE(tu.server_url, '')::text AS server_url,
+	tu.tool,
+	tu.disposition,
+	tu.escalation_id,
+	ai.initiator_id AS ai_agent_id
+FROM aibridge_tool_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+WHERE ai.sponsor_user_id = $1::uuid
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $2::uuid
+		ELSE true
+	END
+	AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at < $4::timestamptz)
+ORDER BY tu.created_at DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAIBridgeToolUsagesBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeToolUsagesBySponsorRow struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	InterceptionID uuid.UUID     `db:"interception_id" json:"interception_id"`
+	ServerUrl      string        `db:"server_url" json:"server_url"`
+	Tool           string        `db:"tool" json:"tool"`
+	Disposition    string        `db:"disposition" json:"disposition"`
+	EscalationID   uuid.NullUUID `db:"escalation_id" json:"escalation_id"`
+	AIAgentID      uuid.UUID     `db:"ai_agent_id" json:"ai_agent_id"`
+}
+
+// Returns tool calls attributed to a sponsoring user for the AI audit
+// timeline, newest first. Zero bounds disable the window.
+func (q *sqlQuerier) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg ListAIBridgeToolUsagesBySponsorParams) ([]ListAIBridgeToolUsagesBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeToolUsagesBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeToolUsagesBySponsorRow
+	for rows.Next() {
+		var i ListAIBridgeToolUsagesBySponsorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.InterceptionID,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Disposition,
+			&i.EscalationID,
+			&i.AIAgentID,
 		); err != nil {
 			return nil, err
 		}
@@ -4390,6 +4566,169 @@ func (q *sqlQuerier) InsertAISandboxNetworkEvents(ctx context.Context, arg Inser
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const listAISandboxNetworkEventAggregatesBySponsor = `-- name: ListAISandboxNetworkEventAggregatesBySponsor :many
+SELECT
+	e.session_id,
+	e.host,
+	e.action,
+	e.ai_agent_id,
+	s.workspace_id AS workspace_id,
+	MAX(e.occurred_at)::timestamptz AS last_occurred_at,
+	COUNT(*)::bigint AS event_count,
+	(array_agg(e.protocol ORDER BY e.occurred_at DESC, e.id DESC))[1]::text AS protocol,
+	(array_agg(e.port ORDER BY e.occurred_at DESC, e.id DESC))[1]::integer AS port
+FROM ai_sandbox_network_events e
+LEFT JOIN ai_sandbox_sessions s ON s.id = e.session_id
+WHERE e.sponsor_user_id = $1
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN e.ai_agent_id = $2::uuid
+		ELSE true
+	END
+	AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at < $4::timestamptz)
+GROUP BY e.session_id, e.host, e.action, e.ai_agent_id, s.workspace_id
+ORDER BY last_occurred_at DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAISandboxNetworkEventAggregatesBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAISandboxNetworkEventAggregatesBySponsorRow struct {
+	SessionID      uuid.UUID     `db:"session_id" json:"session_id"`
+	Host           string        `db:"host" json:"host"`
+	Action         string        `db:"action" json:"action"`
+	AIAgentID      uuid.UUID     `db:"ai_agent_id" json:"ai_agent_id"`
+	WorkspaceID    uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	LastOccurredAt time.Time     `db:"last_occurred_at" json:"last_occurred_at"`
+	EventCount     int64         `db:"event_count" json:"event_count"`
+	Protocol       string        `db:"protocol" json:"protocol"`
+	Port           int32         `db:"port" json:"port"`
+}
+
+// Aggregates egress decisions per (session, host, action) bucket for the
+// sponsor timeline. Raw events stay behind the per-session drill-down.
+// occurred_at aggregates to the newest occurrence in the bucket; protocol
+// and port snapshot that newest event. The session join recovers the
+// workspace for drill-down links and is LEFT so events survive session
+// purges.
+func (q *sqlQuerier) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg ListAISandboxNetworkEventAggregatesBySponsorParams) ([]ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAISandboxNetworkEventAggregatesBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAISandboxNetworkEventAggregatesBySponsorRow
+	for rows.Next() {
+		var i ListAISandboxNetworkEventAggregatesBySponsorRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.Host,
+			&i.Action,
+			&i.AIAgentID,
+			&i.WorkspaceID,
+			&i.LastOccurredAt,
+			&i.EventCount,
+			&i.Protocol,
+			&i.Port,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAISandboxSessionsBySponsor = `-- name: ListAISandboxSessionsBySponsor :many
+SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions
+WHERE sponsor_user_id = $1
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai_agent_id = $2::uuid
+		ELSE true
+	END
+	AND (
+		(
+			($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at > $3::timestamptz)
+			AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at < $4::timestamptz)
+		)
+		OR (
+			ended_at IS NOT NULL
+			AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at > $3::timestamptz)
+			AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at < $4::timestamptz)
+		)
+	)
+ORDER BY GREATEST(started_at, COALESCE(ended_at, started_at)) DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAISandboxSessionsBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+// Lists confinement sessions attributed to a sponsoring user whose start or
+// end falls inside the (@after_time, @before_time) window, newest activity
+// first. Zero time bounds disable that bound.
+func (q *sqlQuerier) ListAISandboxSessionsBySponsor(ctx context.Context, arg ListAISandboxSessionsBySponsorParams) ([]AISandboxSession, error) {
+	rows, err := q.db.QueryContext(ctx, listAISandboxSessionsBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxSession
+	for rows.Next() {
+		var i AISandboxSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ReporterAgentID,
+			&i.ConfinedAgentID,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.EgressEnforcement,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertAISandboxSession = `-- name: UpsertAISandboxSession :one
@@ -19565,16 +19904,46 @@ const listMCPGatewayEscalationsBySponsor = `-- name: ListMCPGatewayEscalationsBy
 SELECT id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by FROM mcp_gateway_escalations
 WHERE sponsor_user_id = $1
   AND ($2::text = '' OR status = $2::text)
-ORDER BY created_at DESC
+  AND CASE
+    WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai_agent_id = $3::uuid
+    ELSE true
+  END
+  AND (
+    (
+      ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR created_at > $4::timestamptz)
+      AND ($5::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR created_at < $5::timestamptz)
+    )
+    OR (
+      resolved_at IS NOT NULL
+      AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR resolved_at > $4::timestamptz)
+      AND ($5::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR resolved_at < $5::timestamptz)
+    )
+  )
+ORDER BY GREATEST(created_at, COALESCE(resolved_at, created_at)) DESC
+LIMIT NULLIF($6::integer, 0)
 `
 
 type ListMCPGatewayEscalationsBySponsorParams struct {
 	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Status        string    `db:"status" json:"status"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
 }
 
+// Lists escalations for a sponsor, optionally windowed on creation or
+// resolution time for the sponsor timeline. Zero bounds disable the window;
+// a zero limit returns all rows (management API behavior).
 func (q *sqlQuerier) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg ListMCPGatewayEscalationsBySponsorParams) ([]MCPGatewayEscalation, error) {
-	rows, err := q.db.QueryContext(ctx, listMCPGatewayEscalationsBySponsor, arg.SponsorUserID, arg.Status)
+	rows, err := q.db.QueryContext(ctx, listMCPGatewayEscalationsBySponsor,
+		arg.SponsorUserID,
+		arg.Status,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

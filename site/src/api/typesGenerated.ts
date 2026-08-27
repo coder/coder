@@ -127,6 +127,89 @@ export type AIAgentState = "active" | "dormant" | "retired";
 
 export const AIAgentStates: AIAgentState[] = ["active", "dormant", "retired"];
 
+// From codersdk/aiaudit.go
+/**
+ * AIAuditAgent is an agentic identity from the AI agent ledger, attributed
+ * to the sponsoring user accountable for its activity.
+ */
+export interface AIAuditAgent {
+	/**
+	 * ID is the ai_agent_ledger identity. Audit records reference it as
+	 * ai_agent_id.
+	 */
+	readonly id: string;
+	/**
+	 * DisplayName is computed from the creation site and ID; agents store
+	 * no name.
+	 */
+	readonly display_name: string;
+	readonly owner_id: string;
+	readonly creation_site_type: string;
+	readonly creation_site_id: string;
+	readonly creation_time: string;
+	/**
+	 * State is active, dormant, or retired.
+	 */
+	readonly state: string;
+}
+
+// From codersdk/aiaudit.go
+/**
+ * AIAuditEvent is one entry in the sponsor activity timeline. Detail carries
+ * content-free, type-specific fields; conversation content stays behind the
+ * drill-down surfaces (bridge session threads, escalation viewer, and the
+ * per-session egress table).
+ */
+export interface AIAuditEvent {
+	readonly id: string;
+	readonly type: AIAuditEventType;
+	readonly occurred_at: string;
+	readonly ai_agent_id: string;
+	readonly sponsor: MinimalUser;
+	/**
+	 * WorkspaceID is zero when the source record does not reference a
+	 * workspace or the reference did not survive cleanup.
+	 */
+	readonly workspace_id?: string;
+	/**
+	 * WorkspaceName is only set for sources that snapshot it (escalations).
+	 */
+	readonly workspace_name?: string;
+	readonly summary: string;
+	// empty interface{} type, falling back to unknown
+	readonly detail: Record<string, unknown>;
+}
+
+// From codersdk/aiaudit.go
+export type AIAuditEventType =
+	| "bridge_session_started"
+	| "egress"
+	| "escalation_created"
+	| "escalation_resolved"
+	| "sandbox_session_ended"
+	| "sandbox_session_started"
+	| "tool_call";
+
+export const AIAuditEventTypes: AIAuditEventType[] = [
+	"bridge_session_started",
+	"egress",
+	"escalation_created",
+	"escalation_resolved",
+	"sandbox_session_ended",
+	"sandbox_session_started",
+	"tool_call",
+];
+
+// From codersdk/aiaudit.go
+export interface AIAuditTimelineResponse {
+	readonly events: readonly AIAuditEvent[];
+	/**
+	 * Count is the number of events returned. Heterogeneous sources make a
+	 * grand total impractical, so there is none.
+	 */
+	readonly count: number;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents a tool call with associated

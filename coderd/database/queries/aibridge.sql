@@ -320,6 +320,11 @@ WHERE
 		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
 		ELSE true
 	END
+	-- Filter sponsor_user_id
+	AND CASE
+		WHEN @sponsor_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.sponsor_user_id = @sponsor_user_id::uuid
+		ELSE true
+	END
 	-- Filter provider
 	AND CASE
 		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
@@ -410,6 +415,11 @@ session_page AS (
 		-- Filter initiator_id
 		AND CASE
 			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @initiator_id::uuid
+			ELSE true
+		END
+		-- Filter sponsor_user_id
+		AND CASE
+			WHEN @sponsor_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.sponsor_user_id = @sponsor_user_id::uuid
 			ELSE true
 		END
 		-- Filter provider
@@ -808,3 +818,53 @@ SELECT
 	COUNT(*)::bigint AS request_count,
 	COUNT(*) FILTER (WHERE has_unpriced_usage)::bigint AS unpriced_request_count
 FROM per_request;
+
+-- name: ListAIBridgeSessionStartsBySponsor :many
+-- Returns one row per bridge session attributed to a sponsoring user for
+-- the AI audit timeline. The window applies to the session start (the
+-- earliest interception), computed over all of the session's interceptions
+-- so sessions spanning the window boundary are not misreported as starting
+-- inside it. Zero bounds disable the window.
+SELECT
+	ai.session_id,
+	ai.initiator_id,
+	MIN(ai.started_at)::timestamptz AS started_at,
+	COALESCE(MIN(ai.client), 'Unknown')::text AS client,
+	array_agg(DISTINCT ai.provider)::text[] AS providers,
+	array_agg(DISTINCT ai.model)::text[] AS models
+FROM aibridge_interceptions ai
+WHERE ai.sponsor_user_id = @sponsor_user_id::uuid
+	AND CASE
+		WHEN @ai_agent_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @ai_agent_id::uuid
+		ELSE true
+	END
+GROUP BY ai.session_id, ai.initiator_id
+HAVING
+	(@after_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) > @after_time::timestamptz)
+	AND (@before_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) < @before_time::timestamptz)
+ORDER BY MIN(ai.started_at) DESC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100);
+
+-- name: ListAIBridgeToolUsagesBySponsor :many
+-- Returns tool calls attributed to a sponsoring user for the AI audit
+-- timeline, newest first. Zero bounds disable the window.
+SELECT
+	tu.id,
+	tu.created_at,
+	tu.interception_id,
+	COALESCE(tu.server_url, '')::text AS server_url,
+	tu.tool,
+	tu.disposition,
+	tu.escalation_id,
+	ai.initiator_id AS ai_agent_id
+FROM aibridge_tool_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+WHERE ai.sponsor_user_id = @sponsor_user_id::uuid
+	AND CASE
+		WHEN @ai_agent_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @ai_agent_id::uuid
+		ELSE true
+	END
+	AND (@after_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at > @after_time::timestamptz)
+	AND (@before_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at < @before_time::timestamptz)
+ORDER BY tu.created_at DESC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100);

@@ -1,5 +1,128 @@
 # Audit
 
+## List AI agent identities for a sponsor
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-audit/agents \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-audit/agents`
+
+### Parameters
+
+| Name      | In    | Type   | Required | Description                                  |
+|-----------|-------|--------|----------|----------------------------------------------|
+| `sponsor` | query | string | false    | Sponsor user ID, username, or 'me' (default) |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "creation_site_id": "ef1bb01e-c877-422c-959f-1d403da8b9cb",
+    "creation_site_type": "string",
+    "creation_time": "2019-08-24T14:15:22Z",
+    "display_name": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "state": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIAuditAgent](schemas.md#codersdkaiauditagent) |
+
+<h3 id="list-ai-agent-identities-for-a-sponsor-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name                   | Type              | Required | Restrictions | Description                                                                    |
+|------------------------|-------------------|----------|--------------|--------------------------------------------------------------------------------|
+| `[array item]`         | array             | false    |              |                                                                                |
+| `» creation_site_id`   | string(uuid)      | false    |              |                                                                                |
+| `» creation_site_type` | string            | false    |              |                                                                                |
+| `» creation_time`      | string(date-time) | false    |              |                                                                                |
+| `» display_name`       | string            | false    |              | Display name is computed from the creation site and ID; agents store no name.  |
+| `» id`                 | string(uuid)      | false    |              | ID is the ai_agent_ledger identity. Audit records reference it as ai_agent_id. |
+| `» owner_id`           | string(uuid)      | false    |              |                                                                                |
+| `» state`              | string            | false    |              | State is active, dormant, or retired.                                          |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the AI activity timeline for a sponsor
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-audit/timeline \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-audit/timeline`
+
+### Parameters
+
+| Name          | In    | Type              | Required | Description                                                                               |
+|---------------|-------|-------------------|----------|-------------------------------------------------------------------------------------------|
+| `sponsor`     | query | string            | false    | Sponsor user ID, username, or 'me' (default)                                              |
+| `ai_agent_id` | query | string(uuid)      | false    | Restrict events to one agentic identity                                                   |
+| `after_time`  | query | string(date-time) | false    | Exclusive lower bound on occurred_at (RFC3339)                                            |
+| `before_time` | query | string(date-time) | false    | Exclusive upper bound on occurred_at (RFC3339); pass the last event's occurred_at to page |
+| `types`       | query | string            | false    | Comma-separated event types to include                                                    |
+| `limit`       | query | integer           | false    | Page size (default 100, max 1000)                                                         |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "count": 0,
+  "events": [
+    {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+      "detail": {
+        "property1": null,
+        "property2": null
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "sponsor": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "summary": "string",
+      "type": "sandbox_session_started",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                         |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AIAuditTimelineResponse](schemas.md#codersdkaiaudittimelineresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get audit logs
 
 ### Code samples

@@ -921,6 +921,26 @@ func (s *MethodTestSuite) TestMCPGatewayEscalations() {
 		dbm.EXPECT().ListMCPGatewayEscalationsBySponsor(gomock.Any(), arg).Return([]database.MCPGatewayEscalation{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("ListAIBridgeSessionStartsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAIBridgeSessionStartsBySponsorParams{}
+		dbm.EXPECT().ListAIBridgeSessionStartsBySponsor(gomock.Any(), arg).Return([]database.ListAIBridgeSessionStartsBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListAIBridgeToolUsagesBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAIBridgeToolUsagesBySponsorParams{}
+		dbm.EXPECT().ListAIBridgeToolUsagesBySponsor(gomock.Any(), arg).Return([]database.ListAIBridgeToolUsagesBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListAISandboxSessionsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxSessionsBySponsorParams{}
+		dbm.EXPECT().ListAISandboxSessionsBySponsor(gomock.Any(), arg).Return([]database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListAISandboxNetworkEventAggregatesBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxNetworkEventAggregatesBySponsorParams{}
+		dbm.EXPECT().ListAISandboxNetworkEventAggregatesBySponsor(gomock.Any(), arg).Return([]database.ListAISandboxNetworkEventAggregatesBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("ResolveMCPGatewayEscalation", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.ResolveMCPGatewayEscalationParams{}
 		dbm.EXPECT().ResolveMCPGatewayEscalation(gomock.Any(), arg).Return(database.MCPGatewayEscalation{}, nil).AnyTimes()
@@ -7077,6 +7097,9 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID, InitiatorID: initID})
+		// The sponsor, when set, becomes the RBAC owner; pin it so the
+		// asserted object matches the params-derived owner.
+		intc.SponsorUserID = uuid.NullUUID{}
 
 		params := database.InsertAIBridgeInterceptionParams{ID: intc.ID, InitiatorID: intc.InitiatorID, Provider: intc.Provider, Model: intc.Model}
 		db.EXPECT().GetUserByID(gomock.Any(), initID).Return(user, nil).AnyTimes() // Validation.

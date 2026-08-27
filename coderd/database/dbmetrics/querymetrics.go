@@ -5098,6 +5098,14 @@ func (m queryMetricsStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg database.ListAIBridgeSessionStartsBySponsorParams) ([]database.ListAIBridgeSessionStartsBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSessionStartsBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionStartsBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionStartsBySponsor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeSessionThreads(ctx, arg)
@@ -5130,6 +5138,14 @@ func (m queryMetricsStore) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.C
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg database.ListAIBridgeToolUsagesBySponsorParams) ([]database.ListAIBridgeToolUsagesBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeToolUsagesBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeToolUsagesBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeToolUsagesBySponsor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeUserPromptsByInterceptionIDs(ctx, interceptionIds)
@@ -5143,6 +5159,22 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	r0, r1 := m.s.ListAIGatewayKeys(ctx)
 	m.queryLatencies.WithLabelValues("ListAIGatewayKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIGatewayKeys").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg database.ListAISandboxNetworkEventAggregatesBySponsorParams) ([]database.ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxNetworkEventAggregatesBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxNetworkEventAggregatesBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxNetworkEventAggregatesBySponsor").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAISandboxSessionsBySponsor(ctx context.Context, arg database.ListAISandboxSessionsBySponsorParams) ([]database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxSessionsBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxSessionsBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxSessionsBySponsor").Inc()
 	return r0, r1
 }
 

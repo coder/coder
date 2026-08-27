@@ -398,6 +398,7 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
+	filter.SponsorUserID = parseUser(ctx, db, parser, values, "sponsor", actorID)
 	filter.Provider = parser.String(values, "", "provider")
 	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
 	filter.Model = parser.String(values, "", "model")

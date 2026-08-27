@@ -549,6 +549,35 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, 0, res.Count)
 		require.Empty(t, res.Sessions)
+
+		// Session initiated by another identity (user3, standing in for an
+		// AI agent) sponsored by user2. Created after the assertions above
+		// so it cannot perturb their expected counts.
+		_, user3 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		s3EndedAt := now.Add(3 * time.Minute)
+		s3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:   user3.ID,
+			SponsorUserID: uuid.NullUUID{UUID: user2.ID, Valid: true},
+			Provider:      "openai",
+			Model:         "gpt-5",
+			StartedAt:     now.Add(2 * time.Minute),
+		}, &s3EndedAt)
+
+		// Filter by sponsor.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Sponsor: user2.Username,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Equal(t, s3.ID.String(), res.Sessions[0].ID)
+
+		// Sponsor "me" (the owner sponsors nothing).
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Sponsor: codersdk.Me,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, res.Count)
+		require.Empty(t, res.Sessions)
 	})
 
 	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
