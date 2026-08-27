@@ -164,6 +164,28 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		require.Empty(t, notifEnq.Sent())
 	})
 
+	t.Run("PriceMustMatchProviderAndModel", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, logger, db, _, notifEnq, clk := setup(t)
+		seedOwner(t, db)
+		initiator := dbgen.User(t, db, database.User{})
+		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
+		seedUnpricedModelUsage(t, db, initiator, provider, "target-model", clk.Now(), 100)
+
+		// The model matches the OpenAI price, and the provider matches the other
+		// Anthropic price. Neither price matches anthropic/target-model exactly.
+		seedPrice(ctx, t, db, "openai", "target-model")
+		seedPrice(ctx, t, db, "anthropic", "different-model")
+		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
+
+		sent := notifEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateAIModelsUnpricedReport))
+		require.Len(t, sent, 1)
+		require.Equal(t, []map[string]any{
+			{"provider": "anthropic", "model": "target-model"},
+		}, modelsFromPayload(t, sent[0].Data))
+	})
+
 	t.Run("OpenAICompat_IsNotReported", func(t *testing.T) {
 		t.Parallel()
 
