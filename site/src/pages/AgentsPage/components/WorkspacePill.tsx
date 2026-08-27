@@ -173,104 +173,112 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				// Above the composer on mobile (not bottom-anchored): the
+				// bottom variant overlays the toolbar, so releasing the
+				// opening press would select whichever item lands under
+				// the pointer (e.g. Detach workspace).
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{showPortsView ? (
-					<MobilePortsPanel
-						workspace={workspace}
-						agent={agent}
-						host={host}
-						portsData={portsData}
-						onBack={() => {
-							setFocusPortsOnMain(true);
-							setView("main");
-						}}
-					/>
-				) : (
-					<>
-						{hasVSCode && (
-							<VSCodeMenuItem
-								variant="vscode"
-								label="VS Code"
-								workspace={workspace}
-								agent={agent}
-								chatId={chatId}
-								folder={folder}
-								isRunning={isRunning}
-								generateKey={generateKey}
-								isGeneratingKey={isGeneratingKey}
-							/>
-						)}
-						{hasVSCodeInsiders && (
-							<VSCodeMenuItem
-								variant="vscode-insiders"
-								label="VS Code Insiders"
-								workspace={workspace}
-								agent={agent}
-								chatId={chatId}
-								folder={folder}
-								isRunning={isRunning}
-								generateKey={generateKey}
-								isGeneratingKey={isGeneratingKey}
-							/>
-						)}
-						{userApps.map((app) => (
-							<AppMenuItem
-								key={app.id}
-								app={app}
-								workspace={workspace}
-								agent={agent}
-								isRunning={isRunning}
-							/>
-						))}
-						{hasTerminal && (
-							<TerminalMenuItem
-								workspace={workspace}
-								agent={agent}
-								isRunning={isRunning}
-							/>
-						)}
-						{portForwardingEnabled && (
-							<PortsMenuItem
-								workspace={workspace}
-								agent={agent}
-								host={host}
-								portsData={portsData}
-								isRunning={isRunning}
-								isBelowMd={isBelowMd}
-								focusOnMount={focusPortsOnMain}
-								onFocusApplied={() => setFocusPortsOnMain(false)}
-								onSelectInline={() => {
-									setFocusPortsOnMain(false);
-									setView("ports");
-								}}
-							/>
-						)}
-						{hasItemsAboveSeparator && (
-							<DropdownMenuSeparator className="my-1" />
-						)}
-
-						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-						<DropdownMenuItem asChild>
-							<Link to={route} target="_blank" rel="noreferrer">
-								<MonitorIcon className="size-3.5" />
-								View Workspace
-							</Link>
-						</DropdownMenuItem>
-						{onRemoveWorkspace && (
-							<>
+				{/* Scrolls when the capped above-composer height cannot fit
+				 * every item on mobile; a no-op on desktop. */}
+				<div className="mobile-full-width-dropdown-scroll-area min-h-0">
+					{showPortsView ? (
+						<MobilePortsPanel
+							workspace={workspace}
+							agent={agent}
+							host={host}
+							portsData={portsData}
+							onBack={() => {
+								setFocusPortsOnMain(true);
+								setView("main");
+							}}
+						/>
+					) : (
+						<>
+							{hasVSCode && (
+								<VSCodeMenuItem
+									variant="vscode"
+									label="VS Code"
+									workspace={workspace}
+									agent={agent}
+									chatId={chatId}
+									folder={folder}
+									isRunning={isRunning}
+									generateKey={generateKey}
+									isGeneratingKey={isGeneratingKey}
+								/>
+							)}
+							{hasVSCodeInsiders && (
+								<VSCodeMenuItem
+									variant="vscode-insiders"
+									label="VS Code Insiders"
+									workspace={workspace}
+									agent={agent}
+									chatId={chatId}
+									folder={folder}
+									isRunning={isRunning}
+									generateKey={generateKey}
+									isGeneratingKey={isGeneratingKey}
+								/>
+							)}
+							{userApps.map((app) => (
+								<AppMenuItem
+									key={app.id}
+									app={app}
+									workspace={workspace}
+									agent={agent}
+									isRunning={isRunning}
+								/>
+							))}
+							{hasTerminal && (
+								<TerminalMenuItem
+									workspace={workspace}
+									agent={agent}
+									isRunning={isRunning}
+								/>
+							)}
+							{portForwardingEnabled && (
+								<PortsMenuItem
+									workspace={workspace}
+									agent={agent}
+									host={host}
+									portsData={portsData}
+									isRunning={isRunning}
+									isBelowMd={isBelowMd}
+									focusOnMount={focusPortsOnMain}
+									onFocusApplied={() => setFocusPortsOnMain(false)}
+									onSelectInline={() => {
+										setFocusPortsOnMain(false);
+										setView("ports");
+									}}
+								/>
+							)}
+							{hasItemsAboveSeparator && (
 								<DropdownMenuSeparator className="my-1" />
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onClick={onRemoveWorkspace}
-								>
-									<UnlinkIcon className="size-3.5" />
-									Detach workspace
-								</DropdownMenuItem>
-							</>
-						)}
-					</>
-				)}
+							)}
+
+							{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
+							<DropdownMenuItem asChild>
+								<Link to={route} target="_blank" rel="noreferrer">
+									<MonitorIcon className="size-3.5" />
+									View Workspace
+								</Link>
+							</DropdownMenuItem>
+							{onRemoveWorkspace && (
+								<>
+									<DropdownMenuSeparator className="my-1" />
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={onRemoveWorkspace}
+									>
+										<UnlinkIcon className="size-3.5" />
+										Detach workspace
+									</DropdownMenuItem>
+								</>
+							)}
+						</>
+					)}
+				</div>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

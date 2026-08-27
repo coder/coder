@@ -600,8 +600,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
-	// The workspace badge renders as the interactive WorkspacePill,
-	// inline and inside the overflow popover alike.
 	let workspacePillBadge: ToolBadgeData | undefined;
 	if (workspace && workspaceAgent && chatId) {
 		workspacePillBadge = attachedWorkspace

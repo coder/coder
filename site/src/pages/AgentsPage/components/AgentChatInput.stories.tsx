@@ -1622,8 +1622,7 @@ export const LongWorkspaceNameMobile: Story = {
 				"my-super-extremely-long-workspace-name-that-overflows",
 			),
 		).toBeInTheDocument();
-		// The workspace collapses as the interactive pill: its trigger
-		// still opens the workspace menu from inside the popover.
+		// The workspace stays an interactive pill inside the popover.
 		const pillTrigger = within(popover).getByRole("button", {
 			name: /workspace menu/,
 		});
@@ -1644,7 +1643,7 @@ export const LongWorkspaceNameMobile: Story = {
 		await waitFor(() => {
 			expect(menuItem).toBeVisible();
 		});
-		// One outside click dismisses both the menu and the popover.
+		// One outside click must dismiss both the menu and the popover.
 		await userEvent.click(getEditor(canvasElement));
 		await waitFor(() => {
 			expect(within(document.body).queryByRole("menu")).toBeNull();
@@ -1765,7 +1764,6 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 			name: /workspace menu/,
 		});
 		expect(pillButton.getBoundingClientRect().width).toBeGreaterThan(200);
-		// Nothing overflowed into the +N pill.
 		expect(canvas.queryByRole("button", { name: /more item/ })).toBeNull();
 	},
 };
@@ -1796,16 +1794,12 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Neither wide badge fits next to the model pill, so both
-		// collapse into the overflow pill.
 		const overflowPill = await canvas.findByRole("button", {
 			name: /more item/,
 		});
 		await waitFor(() => {
 			expect(overflowPill).toBeVisible();
 		});
-		// The hidden badge released its space, so the model label gets
-		// the freed room.
 		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
 		await waitFor(() => {
 			expectNotTruncated(modelLabel);
