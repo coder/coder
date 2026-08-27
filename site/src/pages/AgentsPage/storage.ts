@@ -16,7 +16,6 @@ import {
 	jsonCodec,
 	stringCodec,
 } from "#/storage";
-import { invalidateChatDraftUploads } from "./hooks/useChatDraftAttachments";
 import { chatDraftAttachmentsStorage } from "./utils/chatDraftAttachmentStorage";
 
 export const chatFullWidthStorage = defineStorageKey<boolean>({
@@ -104,13 +103,30 @@ export const chatDefaultTerminalHiddenStorage = defineEntityStorageKey<boolean>(
 	},
 );
 
+const chatCleanupListeners = new Set<(chatId: string) => void>();
+
+/**
+ * Register extra cleanup to run when a chat's storage is cleared. The
+ * draft-upload module registers on load instead of being imported
+ * here, which keeps this module (reachable from the eager dashboard
+ * bundle through the skeletons) from pulling the chat attachment
+ * implementation into the initial chunk.
+ */
+export function registerChatStorageCleanup(
+	listener: (chatId: string) => void,
+): void {
+	chatCleanupListeners.add(listener);
+}
+
 /**
  * Remove every per-chat key for the given chat. Wire this into every
  * mutation that archives or deletes a chat so per-chat keys cannot
  * leak.
  */
 export function clearChatStorage(chatId: string): void {
-	invalidateChatDraftUploads(chatId);
+	for (const listener of chatCleanupListeners) {
+		listener(chatId);
+	}
 	chatDraftInputStorage.clear(chatId);
 	chatSidebarTabStorage.clear(chatId);
 	chatRightPanelTabsStorage.clear(chatId);

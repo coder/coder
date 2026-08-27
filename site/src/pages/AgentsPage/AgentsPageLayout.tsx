@@ -82,6 +82,7 @@ import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { clearChatStorage, emptyInputDraftStorage } from "./storage";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
+	ArchiveAndDeleteError,
 	archiveChatAndDeleteWorkspace,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
@@ -332,6 +333,12 @@ const AgentsPageLayout: FC = () => {
 				error,
 				(path) => navigate(path),
 			);
+			// A delete-step failure means the archive itself committed
+			// and the chat stays archived, so per-chat storage cleanup
+			// must still run even if the watch socket misses the event.
+			if (error instanceof ArchiveAndDeleteError && error.step === "delete") {
+				clearChatStorage(chatId);
+			}
 			// The archive may have committed server-side even when the
 			// request appeared to fail (transport errors), and on delete
 			// failures the chat stays archived; refetch every chat

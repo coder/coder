@@ -3,6 +3,7 @@ import { API } from "#/api/api";
 import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import { generateUUID } from "#/utils/random";
 import type { UploadState } from "../components/AgentChatInput";
+import { registerChatStorageCleanup } from "../storage";
 import {
 	getChatFileURL,
 	renameChatFileForUpload,
@@ -409,9 +410,11 @@ const removeRegistryEntriesForScope = (
 /**
  * Invalidate a chat's in-flight uploads and resize jobs so their late
  * async completions cannot rewrite draft records after archive or
- * delete cleanup removed the chat's storage.
+ * delete cleanup removed the chat's storage. Registered with the
+ * storage module below instead of exported, so the eager bundle never
+ * imports this module.
  */
-export const invalidateChatDraftUploads = (chatId: string): void => {
+const invalidateChatDraftUploads = (chatId: string): void => {
 	for (const entry of Array.from(activeDraftUploads.values())) {
 		if (entry.chatId === chatId) {
 			removeRegistryEntry(entry.clientId);
@@ -426,6 +429,8 @@ export const invalidateChatDraftUploads = (chatId: string): void => {
 		listener(chatId);
 	}
 };
+
+registerChatStorageCleanup(invalidateChatDraftUploads);
 
 const hydrateViews = (
 	organizationId: string | undefined,
