@@ -1621,7 +1621,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										speech.isRecording ? "Cancel voice input" : "Voice input"
 									}
 								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
+									{speech.isRecording ? (
+										<XIcon />
+									) : (
+										<MicIcon strokeWidth={1.5} />
+									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
 									<span
@@ -1636,11 +1640,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator
-								usage={contextUsage}
-								onRefreshContext={onRefreshContext}
-								isRefreshingContext={isRefreshingContext}
-							/>
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported &&
+										!isStreaming &&
+										!speech.error &&
+										"-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>
