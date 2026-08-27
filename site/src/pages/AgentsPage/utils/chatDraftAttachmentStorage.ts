@@ -1,4 +1,8 @@
-import { defineEntityStorageKey, stringCodec } from "#/storage";
+import {
+	defineEntityStorageKey,
+	type PersistResult,
+	stringCodec,
+} from "#/storage";
 import { decodeDataURL } from "./dataUrls";
 
 /** Matches the pre-existing 30 day draft retention window. */
@@ -41,9 +45,7 @@ export type RestoredChatDraftAttachment = {
 	file: File;
 };
 
-type ChatDraftAttachmentPersistResult =
-	| { ok: true }
-	| { ok: false; reason: "quota" | "unavailable" };
+type ChatDraftAttachmentPersistResult = PersistResult;
 
 export const chatDraftAttachmentStorageKey = (
 	organizationId: string,
@@ -258,7 +260,9 @@ const fileForRecord = (record: ChatDraftAttachmentRecord): File | null => {
 const pruneExpiredChatDraftAttachments = () => {
 	const now = Date.now();
 	for (const suffix of chatDraftAttachmentsStorage.listStoredSuffixes()) {
-		const handle = chatDraftAttachmentsStorage.forId(suffix);
+		// Stored suffixes are dot-joined ID parts; forId takes the parts
+		// themselves, and a joined suffix would trip its delimiter guard.
+		const handle = chatDraftAttachmentsStorage.forId(...suffix.split("."));
 		const stored = handle.get();
 		if (!stored) {
 			continue;
