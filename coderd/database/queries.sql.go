@@ -3049,26 +3049,30 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
+visible_effective AS (
+	-- The effective group and budget only when the group belongs to the queried
+	-- group's organization.
+	SELECT
+		effective.user_id,
+		effective.raw_effective_group_id AS group_id,
+		effective.spend_limit_micros,
+		effective.limit_source
 	FROM effective
-	WHERE raw_effective_group_id = $1
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source,
+	visible_effective.group_id AS effective_group_id,
+	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective.limit_source AS effective_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
-LEFT JOIN groups effective_group
-	ON effective_group.id = effective.raw_effective_group_id
-	AND effective_group.organization_id = queried_group.organization_id
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN visible_effective
+	ON visible_effective.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = $1
@@ -3076,9 +3080,9 @@ LEFT JOIN ai_user_daily_spend spend
 GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.group_id,
+	visible_effective.spend_limit_micros,
+	visible_effective.limit_source
 ORDER BY effective.user_id
 `
 
@@ -3089,25 +3093,24 @@ type GetGroupMembersAISpendParams struct {
 }
 
 type GetGroupMembersAISpendRow struct {
-	UserID           uuid.UUID      `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	EffectiveGroupID uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
-	SpendLimitMicros sql.NullInt64  `db:"spend_limit_micros" json:"spend_limit_micros"`
-	LimitSource      sql.NullString `db:"limit_source" json:"limit_source"`
-	GroupSpendMicros int64          `db:"group_spend_micros" json:"group_spend_micros"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
+	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
+	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
-// returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective group
-// falls back to the Everyone group, and effective_group_id is null only when
-// that group belongs to a different organization than the queried group.
+// returned. effective_spend_limit_micros and effective_limit_source describe
+// the user's effective budget when its group belongs to the queried group's
+// organization. The effective group falls back to the Everyone group, and
+// effective_group_id is null only when that group belongs to a different
+// organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-// whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
 	if err != nil {
@@ -3121,8 +3124,8 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.UserID,
 			&i.OrganizationID,
 			&i.EffectiveGroupID,
-			&i.SpendLimitMicros,
-			&i.LimitSource,
+			&i.EffectiveSpendLimitMicros,
+			&i.EffectiveLimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
 			return nil, err
@@ -9597,7 +9600,7 @@ WHERE
                     AND cm.role IN ('user', 'assistant')
                     AND (
                         (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $16))
-                        OR (cm.search_tsv_config = 'simple' AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $16))
                     )
             )
             -- Skip an explicit pr_number lookup unless the search is a valid bigint.
@@ -27674,7 +27677,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, templateID
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names
 WHERE
@@ -27720,6 +27723,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
+		&i.AllowWorkspaceRenames,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -27732,7 +27736,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon
 FROM
 	template_with_names AS templates
 WHERE
@@ -27786,6 +27790,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.DisableModuleCache,
 		&i.TimeTilAutostopNotify,
 		&i.AgentsAllowed,
+		&i.AllowWorkspaceRenames,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 		&i.CreatedByName,
@@ -27797,7 +27802,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames, created_by_avatar_url, created_by_username, created_by_name, organization_name, organization_display_name, organization_icon FROM template_with_names AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -27844,6 +27849,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
+			&i.AllowWorkspaceRenames,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -27866,7 +27872,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
+	t.id, t.created_at, t.updated_at, t.organization_id, t.deleted, t.name, t.provisioner, t.active_version_id, t.description, t.default_ttl, t.created_by, t.icon, t.user_acl, t.group_acl, t.display_name, t.allow_user_cancel_workspace_jobs, t.allow_user_autostart, t.allow_user_autostop, t.failure_ttl, t.time_til_dormant, t.time_til_dormant_autodelete, t.autostop_requirement_days_of_week, t.autostop_requirement_weeks, t.autostart_block_days_of_week, t.require_active_version, t.deprecated, t.activity_bump, t.max_port_sharing_level, t.use_classic_parameter_flow, t.cors_behavior, t.disable_module_cache, t.time_til_autostop_notify, t.agents_allowed, t.allow_workspace_renames, t.created_by_avatar_url, t.created_by_username, t.created_by_name, t.organization_name, t.organization_display_name, t.organization_icon
 FROM
 	template_with_names AS t
 LEFT JOIN
@@ -28036,6 +28042,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.DisableModuleCache,
 			&i.TimeTilAutostopNotify,
 			&i.AgentsAllowed,
+			&i.AllowWorkspaceRenames,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -28076,10 +28083,11 @@ INSERT INTO
 		max_port_sharing_level,
 		use_classic_parameter_flow,
 		cors_behavior,
-		agents_allowed
+		agents_allowed,
+		allow_workspace_renames
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 `
 
 type InsertTemplateParams struct {
@@ -28101,6 +28109,7 @@ type InsertTemplateParams struct {
 	UseClassicParameterFlow      bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParams) error {
@@ -28123,6 +28132,7 @@ func (q *sqlQuerier) InsertTemplate(ctx context.Context, arg InsertTemplateParam
 		arg.UseClassicParameterFlow,
 		arg.CorsBehavior,
 		arg.AgentsAllowed,
+		arg.AllowWorkspaceRenames,
 	)
 	return err
 }
@@ -28226,7 +28236,8 @@ SET
 	use_classic_parameter_flow = $10,
 	cors_behavior = $11,
 	disable_module_cache = $12,
-	agents_allowed = $13
+	agents_allowed = $13,
+	allow_workspace_renames = $14
 WHERE
 	id = $1
 `
@@ -28245,6 +28256,7 @@ type UpdateTemplateMetaByIDParams struct {
 	CorsBehavior                 CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache           bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	AgentsAllowed                bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames        bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTemplateMetaByIDParams) error {
@@ -28262,6 +28274,7 @@ func (q *sqlQuerier) UpdateTemplateMetaByID(ctx context.Context, arg UpdateTempl
 		arg.CorsBehavior,
 		arg.DisableModuleCache,
 		arg.AgentsAllowed,
+		arg.AllowWorkspaceRenames,
 	)
 	return err
 }
@@ -39515,7 +39528,7 @@ LEFT JOIN LATERAL (
 ) latest_build ON TRUE
 LEFT JOIN LATERAL (
 	SELECT
-		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed
+		id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level, use_classic_parameter_flow, cors_behavior, disable_module_cache, time_til_autostop_notify, agents_allowed, allow_workspace_renames
 	FROM
 		templates
 	WHERE

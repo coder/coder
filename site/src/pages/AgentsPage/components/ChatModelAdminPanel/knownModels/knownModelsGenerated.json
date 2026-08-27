@@ -331,9 +331,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 65536,
-			"inputCost": 1.5,
-			"outputCost": 9,
-			"cacheReadCost": 0.15
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
 		},
 		{
 			"provider": "google",
@@ -342,9 +342,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 65536,
-			"inputCost": 1.5,
-			"outputCost": 7.5,
-			"cacheReadCost": 0.15
+			"inputCost": 0.75,
+			"outputCost": 3.75,
+			"cacheReadCost": 0.075
 		}
 	],
 	"openai": [
@@ -356,10 +356,10 @@
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
 			"reasoningEffort": "medium",
-			"inputCost": 5,
-			"outputCost": 30,
-			"cacheReadCost": 0.5,
-			"cacheWriteCost": 6.25
+			"inputCost": 4,
+			"outputCost": 20,
+			"cacheReadCost": 0.4,
+			"cacheWriteCost": 5
 		},
 		{
 			"provider": "openai",
@@ -465,10 +465,10 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2.5,
-			"outputCost": 15,
-			"cacheReadCost": 0.25,
-			"cacheWriteCost": 3.125
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "openrouter",
@@ -500,10 +500,9 @@
 			"displayName": "GPT OSS 120B",
 			"aliases": [],
 			"contextLimit": 131072,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.03,
-			"outputCost": 0.17,
-			"cacheReadCost": 0.03
+			"maxOutputTokens": 117964,
+			"inputCost": 0.037,
+			"outputCost": 0.17
 		},
 		{
 			"provider": "openrouter",
@@ -511,7 +510,7 @@
 			"displayName": "Kimi K3",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 1048576,
+			"maxOutputTokens": 943718,
 			"inputCost": 3,
 			"outputCost": 15,
 			"cacheReadCost": 0.3
@@ -522,10 +521,10 @@
 			"displayName": "GLM-5.2",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 131072,
-			"inputCost": 0.966,
-			"outputCost": 3.036,
-			"cacheReadCost": 0.1932
+			"maxOutputTokens": 262144,
+			"inputCost": 1.19,
+			"outputCost": 3.74,
+			"cacheReadCost": 0.221
 		},
 		{
 			"provider": "openrouter",
@@ -606,9 +605,9 @@
 			"aliases": [],
 			"contextLimit": 1048576,
 			"maxOutputTokens": 384000,
-			"inputCost": 0.088606,
-			"outputCost": 0.177212,
-			"cacheReadCost": 0.017721
+			"inputCost": 0.07952,
+			"outputCost": 0.15904,
+			"cacheReadCost": 0.015904
 		},
 		{
 			"provider": "openrouter",
@@ -616,10 +615,10 @@
 			"displayName": "DeepSeek V4 Pro",
 			"aliases": [],
 			"contextLimit": 1048576,
-			"maxOutputTokens": 393216,
-			"inputCost": 1.6,
-			"outputCost": 3.2,
-			"cacheReadCost": 0.135
+			"maxOutputTokens": 384000,
+			"inputCost": 0.87,
+			"outputCost": 1.74,
+			"cacheReadCost": 0.0725
 		},
 		{
 			"provider": "openrouter",
@@ -639,7 +638,7 @@
 			"displayName": "Qwen3 Coder Next",
 			"aliases": [],
 			"contextLimit": 262144,
-			"maxOutputTokens": 262144,
+			"maxOutputTokens": 235929,
 			"inputCost": 0.12,
 			"outputCost": 0.8,
 			"cacheReadCost": 0.07
@@ -653,10 +652,10 @@
 			"aliases": [],
 			"contextLimit": 1050000,
 			"maxOutputTokens": 128000,
-			"inputCost": 2.5,
-			"outputCost": 15,
-			"cacheReadCost": 0.25,
-			"cacheWriteCost": 3.125
+			"inputCost": 2,
+			"outputCost": 10,
+			"cacheReadCost": 0.2,
+			"cacheWriteCost": 2.5
 		},
 		{
 			"provider": "vercel",

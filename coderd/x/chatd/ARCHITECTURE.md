@@ -119,6 +119,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
+- `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
 
 ### Transitions used by the chat worker
 
@@ -151,12 +152,14 @@ stateDiagram-v2
     W --> R0: SendMessage
     W --> R0: EditMessage
     W --> R0: RequestCompaction
+    W --> W: ClearContext
     W --> E0: FinishError
     W --> XW: SetArchived(true)
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
+    E0 --> W: ClearContext
     E0 --> XE0: SetArchived(true)
 
     E1 --> R1: SendMessage
@@ -418,11 +421,19 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 ## HTTP endpoints
 
-<!-- TODO(CODAGT-709): Document organization-scoped model discovery here. -->
-
-<!-- TODO(CODAGT-709): Document organization-scoped model-config write serialization here. -->
-
 This section maps the public endpoints that mutate chat state to the transitions they use.
+
+### Organization-scoped model discovery
+
+Clients discover models through `GET /api/v2/organizations/{organization}/chats/models`. The handler requires either full API token scope or chat model configuration read scope, then queries only configs in the requested organization that pass the caller's RBAC filter.
+
+Provider configuration remains deployment-scoped and is read under Chatd's restricted system context. The response projects providers to redacted descriptors rather than exposing credentials, endpoints, or custom headers. It evaluates availability for the caller from deployment credentials and user-provided keys, and returns the readable model configs, provider availability, and unsupported provider types.
+
+### Model configuration write serialization
+
+Model configuration writes are serialized per organization by `inChatModelConfigWriteTx`. The helper opens a `ReadCommitted` transaction and takes a Postgres advisory lock keyed by the organization ID before re-reading or changing model configs. `ReadCommitted` is required so reads after acquiring the lock observe writes committed by the previous lock holder.
+
+The write paths maintain exactly one default whenever an organization has at least one live model config. The partial unique index permits at most one default per organization, while the locked write logic self-promotes the first config, unsets an old default before replacing it, and elects a replacement when the current default is demoted or deleted. Election prefers an enabled config whose provider is enabled, then falls back to another live config. If the only config is explicitly demoted, it is promoted again to preserve the invariant.
 
 ### `POST /api/experimental/chats`
 
@@ -562,6 +573,15 @@ This endpoint uses `RequestCompaction`:
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
+### `POST /api/experimental/chats/{chat}/clear`
+
+This endpoint uses `ClearContext`:
+
+- `W -> ClearContext -> W`
+- `E0 -> ClearContext -> W`
+
+No other input states are supported: generating chats and chats with queued messages get a conflict error, and archived chats are rejected. Unlike `/compact`, there is no worker round-trip and no model call: the endpoint builds the boundary triplet itself and commits it synchronously inside the API transaction. The transcript is preserved; only future prompts stop seeing pre-clear history. Clearing from an error state clears `last_error`, so a context-overflowed chat gets an instant recovery path that discards the oversized history instead of summarizing it. The prompt-assembly query needs no changes because the clear boundary reuses the compressed model-only anchor shape produced by compaction. Boundary detection (`latestContextBoundaryIndex`) recognizes both `chat_summarized` and `chat_cleared` boundaries, so clear and compaction never reach across each other's boundary. If no active model-visible non-system message follows the latest boundary, the transaction rolls back with a "nothing to clear" conflict, so an empty or already-cleared chat never gains a duplicate boundary. The endpoint is owner-only for symmetry with `/compact`. The web UI surfaces it as the `/clear` slash command.
+
 ## Pubsub
 
 The chat worker and the stream loop need real-time notifications when the chat state changes to ensure they are responsive. To achieve this, we use pubsub.
@@ -601,8 +621,6 @@ There are 2 notification channels:
 
 # Chat worker
 
-<!-- TODO(CODAGT-709): Document organization-local model selection and fallback here. -->
-
 A chat worker lives inside every coderd replica. It acquires chats, calls the LLM API, executes tools, handles interrupts and tool-result waits, and commits completed outcomes through the core state machine.
 
 The chat worker is responsible for:
@@ -614,6 +632,12 @@ The chat worker is responsible for:
 - cleaning up runners when a chat is no longer owned by the runner, which it detects by inspecting `chat:update:{chat_id}` notifications and database sync results.
 
 A chat worker is identified by a **worker ID**, which is regenerated on worker startup.
+
+## Organization-local model selection and fallback
+
+A chat may use model configs only from its own organization. Chat creation, message sends, and message edits reject an explicit config that is disabled, unavailable to the caller, or belongs to another organization.
+
+Queued-message promotion revalidates the stored model with daemon authorization. It keeps the model when the model and its provider are enabled and the model belongs to the chat's organization. Worker generation preparation revalidates with the chat owner's authorization context, so it also requires the model to remain readable by the owner. When those checks make the stored model unavailable, the path selects that organization's enabled default. If no local default is available, processing fails with `ErrNoDefaultChatModelConfig`; it never falls back to another organization's model.
 
 ## Acquisition loop
 
@@ -866,8 +890,14 @@ The generation goroutine supports:
 
 Model configs may carry a `reasoning_effort` config (`{default, max}`) inside `chat_model_configs.options`. Users select a per-turn effort when sending or editing a message; the value is stored on `chat_messages.reasoning_effort` and on `chat_queued_messages.reasoning_effort` for queued messages. Queued messages carry the value through promotion, and `chats.last_reasoning_effort` tracks the most recent message that set one, mirroring `last_model_config_id`.
 
-<!-- TODO(CODAGT-872): Document organization-scoped subagent model overrides (personal and admin overrides are now per-organization rows, not deployment site configs). -->
-Subagent spawning is a second source of both values. `spawn_agent` accepts optional `model_config_id` and `reasoning_effort` args (discoverable via the `list_subagent_models` tool): an explicit model selection becomes the child chat's `last_model_config_id` and wins over personal and deployment subagent overrides and over parent inheritance, and an explicit effort is stored on the child's initial message and wins over effort carried by those overrides. Both are validated at spawn time (enabled config, enabled provider, usable credentials, effort on the global scale) and rejected with tool errors before the child chat is created; `computer_use` spawns reject both args because their model routing is specialized. Generation-time resolution and clamping below apply to the child unchanged.
+Subagent spawning is a second source of both values. Organization admin overrides are stored in `chat_organization_model_overrides`, keyed by organization and subagent context. Personal overrides are stored in `chat_user_model_overrides`, keyed by user, organization, and context. Model references are typed UUIDs constrained to configs in the same organization.
+
+Subagent model and effort resolution follows this precedence:
+
+1. Explicit `spawn_agent` arguments. Optional `model_config_id` and `reasoning_effort` args are discoverable via `list_subagent_models`. An explicit model becomes the child chat's `last_model_config_id`, and an explicit effort is stored on the child's initial message. Each explicit value wins over personal overrides, organization admin overrides, and parent inheritance. The values are validated at spawn time for an enabled config and provider, matching organization, usable credentials, and effort on the global scale. Invalid values produce a tool error before child creation. `computer_use` spawns reject both arguments because their model routing is specialized.
+2. Personal member override. When personal overrides are enabled, Chatd reads the row for the chat owner, organization, and subagent context. Mode `chat_default` stops override resolution and preserves the subagent type's default or inheritance behavior. Mode `model` selects the row's model and optional effort; if that selection becomes unusable, resolution falls through softly to the organization admin override. Mode `deployment_default` retains its legacy name but also defers to the organization admin override.
+3. Organization admin override. Chatd reads the row for the chat's organization and the `general` or `explore` context. An unset or unusable row falls through softly to the subagent type's default.
+4. Subagent type default. Both `general` and `explore` subagents inherit the parent chat's current model.
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
@@ -924,13 +954,18 @@ The model editor scopes the field to openai-typed providers with a `providers` s
 
 Compaction is an auxiliary LLM call: when the conversation approaches the context limit, the generation goroutine asks a model to summarize the history, commits the summary as a compressed boundary, and continues the turn on the chat model.
 
-<!-- TODO(CODAGT-872): Document the organization-scoped compaction override (route moved to /api/experimental/organizations/{organization}/chats/model-overrides/compaction, storage moved to typed chat_organization_model_overrides rows resolved by the chat's organization, and the malformed-string fallback no longer applies). -->
-By default the summary is generated with the chat model. Admins can override the compaction model deployment-wide via the `compaction` context of the chat model override API (`/api/experimental/chats/config/model-override/{context}`, stored in the `agents_chat_compaction_model_override` site config). The override affects only the summary call; thresholds, compressed-message storage, and the post-compaction assistant generation keep using the chat model.
+By default the summary is generated with the chat model. Organization admins can select a dedicated compaction model via `PUT /api/v2/organizations/{organization}/chats/model-overrides/compaction`. The selection is stored as a typed `chat_organization_model_overrides` row and resolved using the chat's organization. Its composite foreign key binds the model config UUID to that organization, so cross-organization and malformed string references cannot be stored. The override affects only the summary call; compressed-message storage and the post-compaction assistant generation keep using the chat model.
 
 Details that follow from the override:
 
-- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window. The post-compaction "still over limit" check stays against the chat model's limit, since continuation runs on the chat model.
-- Failure semantics: an unset override uses the chat model. Stale or malformed stored references (deleted or disabled config or provider, missing credentials, non-UUID value) fall back to the chat model with a log. A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback. The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
+- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window.
+  The post-compaction "still over limit" check uses that same stricter limit; otherwise a smaller compaction-model window could trigger repeated compactions instead of a terminal error.
+- Failure semantics: an unset override uses the chat model.
+  A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation.
+  Failure to read the override row or load provider credentials stops preparation.
+  A failure while resolving the referenced model config or provider is logged and falls back to the chat model.
+  A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
+  The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
 - Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
@@ -1262,13 +1297,13 @@ WHERE id = ANY($1::uuid[]);
 
 We make use of a relay mechanism when there are multiple coderd replicas. If a client connects to the stream endpoint on replica A, but the chat worker that owns the chat is on replica B, the endpoint will connect to replica B and relay streaming message parts.
 
-There exists a `GET /api/experimental/chats/{chat}/stream/parts` endpoint that is responsible exclusively for streaming message parts. That endpoint talks to the chat worker on the same replica to obtain the message parts and relay them to the client.
+There exists a `GET /api/v2/chats/{chat}/stream/parts` endpoint that is responsible exclusively for streaming message parts. That endpoint talks to the chat worker on the same replica to obtain the message parts and relay them to the client.
 
 The flow is:
 
-1. Client connects to the `GET /api/experimental/chats/{chat}/stream` endpoint.
+1. Client connects to the `GET /api/v2/chats/{chat}/stream` endpoint.
 2. The endpoint checks the database to see which replica owns the chat and resolves the replica's address.
-3. The endpoint connects to the `GET /api/experimental/chats/{chat}/stream/parts` endpoint on that replica.
+3. The endpoint connects to the `GET /api/v2/chats/{chat}/stream/parts` endpoint on that replica.
 4. The stream endpoint relays both the full chat state and the streaming message parts to the client.
 
 Some edge cases:
@@ -1298,7 +1333,7 @@ The parts endpoint is a WebSocket endpoint.
 
 Connection setup:
 
-- the URL identifies the chat ID, for example `GET /api/experimental/chats/{chat}/stream/parts`;
+- the URL identifies the chat ID, for example `GET /api/v2/chats/{chat}/stream/parts`;
 - the endpoint accepts the connection regardless of whether the local replica owns the chat;
 - after connecting, the client sends control messages over the WebSocket to choose which episode it wants.
 

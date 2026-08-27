@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -73,7 +72,7 @@ func TestTemplates(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			DeprecationMessage: ptr.Ref("Stop using this template"),
+			DeprecationMessage: new("Stop using this template"),
 		})
 		require.NoError(t, err)
 		assert.Greater(t, updated.UpdatedAt, template.UpdatedAt)
@@ -114,7 +113,7 @@ func TestTemplates(t *testing.T) {
 		require.ErrorContains(t, err, "deprecated")
 
 		// Unset deprecated and try again
-		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{DeprecationMessage: ptr.Ref("")})
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{DeprecationMessage: new("")})
 		require.NoError(t, err)
 		assert.False(t, updated.Deprecated)
 		assert.Empty(t, updated.DeprecationMessage)
@@ -175,7 +174,7 @@ func TestTemplates(t *testing.T) {
 			}},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.MaxPortShareLevel = ptr.Ref(codersdk.WorkspaceAgentPortShareLevelPublic)
+			ctr.MaxPortShareLevel = new(codersdk.WorkspaceAgentPortShareLevelPublic)
 		})
 		require.Equal(t, template.MaxPortShareLevel, codersdk.WorkspaceAgentPortShareLevelPublic)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -260,7 +259,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        ptr.Ref(template.Name),
+			Name:        new(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -277,10 +276,10 @@ func TestTemplates(t *testing.T) {
 
 		// Ensure a missing field is a noop
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        ptr.Ref(template.Name),
+			Name:        new(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
-			Icon:        ptr.Ref(template.Icon + "something"),
+			Icon:        new(template.Icon + "something"),
 		})
 		require.NoError(t, err)
 		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
@@ -314,7 +313,7 @@ func TestTemplates(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:        ptr.Ref(template.Name),
+			Name:        new(template.Name),
 			DisplayName: &template.DisplayName,
 			Description: &template.Description,
 			Icon:        &template.Icon,
@@ -350,12 +349,12 @@ func TestTemplates(t *testing.T) {
 
 		ctx := context.Background()
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         ptr.Ref(template.Name),
+			Name:                         new(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
-			DefaultTTLMillis:             ptr.Ref(time.Hour.Milliseconds()),
+			AllowUserCancelWorkspaceJobs: new(template.AllowUserCancelWorkspaceJobs),
+			DefaultTTLMillis:             new(time.Hour.Milliseconds()),
 			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 				Weeks:      3,
@@ -404,14 +403,14 @@ func TestTemplates(t *testing.T) {
 			)
 
 			updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-				Name:                           ptr.Ref(template.Name),
+				Name:                           new(template.Name),
 				DisplayName:                    &template.DisplayName,
 				Description:                    &template.Description,
 				Icon:                           &template.Icon,
-				AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
-				TimeTilDormantMillis:           ptr.Ref(inactivityTTL.Milliseconds()),
-				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
-				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
+				AllowUserCancelWorkspaceJobs:   new(template.AllowUserCancelWorkspaceJobs),
+				TimeTilDormantMillis:           new(inactivityTTL.Milliseconds()),
+				FailureTTLMillis:               new(failureTTL.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: new(dormantTTL.Milliseconds()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, failureTTL.Milliseconds(), updated.FailureTTLMillis)
@@ -473,14 +472,14 @@ func TestTemplates(t *testing.T) {
 				// nolint: paralleltest // context is from parent t.Run
 				t.Run(c.Name, func(t *testing.T) {
 					_, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-						Name:                           ptr.Ref(template.Name),
+						Name:                           new(template.Name),
 						DisplayName:                    &template.DisplayName,
 						Description:                    &template.Description,
 						Icon:                           &template.Icon,
-						AllowUserCancelWorkspaceJobs:   ptr.Ref(template.AllowUserCancelWorkspaceJobs),
-						TimeTilDormantMillis:           ptr.Ref(c.TimeTilDormantMS),
-						FailureTTLMillis:               ptr.Ref(c.FailureTTLMS),
-						TimeTilDormantAutoDeleteMillis: ptr.Ref(c.DormantAutoDeleteMS),
+						AllowUserCancelWorkspaceJobs:   new(template.AllowUserCancelWorkspaceJobs),
+						TimeTilDormantMillis:           new(c.TimeTilDormantMS),
+						FailureTTLMillis:               new(c.FailureTTLMS),
+						TimeTilDormantAutoDeleteMillis: new(c.DormantAutoDeleteMS),
 					})
 					require.Error(t, err)
 					cerr, ok := codersdk.AsError(err)
@@ -531,7 +530,7 @@ func TestTemplates(t *testing.T) {
 
 		dormantTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
+			TimeTilDormantAutoDeleteMillis: new(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -549,7 +548,7 @@ func TestTemplates(t *testing.T) {
 		// Disable the time_til_dormant_auto_delete on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
 		updated, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: ptr.Ref[int64](0),
+			TimeTilDormantAutoDeleteMillis: new(int64(0)),
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 0, updated.TimeTilDormantAutoDeleteMillis)
@@ -606,8 +605,8 @@ func TestTemplates(t *testing.T) {
 		dormantTTL := time.Minute
 		//nolint:gocritic // non-template-admin cannot update template meta
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
-			UpdateWorkspaceDormantAt:       ptr.Ref(true),
+			TimeTilDormantAutoDeleteMillis: new(dormantTTL.Milliseconds()),
+			UpdateWorkspaceDormantAt:       new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
@@ -663,8 +662,8 @@ func TestTemplates(t *testing.T) {
 
 		inactivityTTL := time.Minute
 		updated, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis:      ptr.Ref(inactivityTTL.Milliseconds()),
-			UpdateWorkspaceLastUsedAt: ptr.Ref(true),
+			TimeTilDormantMillis:      new(inactivityTTL.Milliseconds()),
+			UpdateWorkspaceLastUsedAt: new(true),
 		})
 		require.NoError(t, err)
 		require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
@@ -708,14 +707,14 @@ func TestTemplates(t *testing.T) {
 
 		// Update the field and assert it persists.
 		updatedTemplate, err := anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: ptr.Ref(false),
+			RequireActiveVersion: new(false),
 		})
 		require.NoError(t, err)
 		require.False(t, updatedTemplate.RequireActiveVersion)
 
 		// Flip it back to ensure we aren't hardcoding to a default value.
 		updatedTemplate, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: ptr.Ref(true),
+			RequireActiveVersion: new(true),
 		})
 		require.NoError(t, err)
 		require.True(t, updatedTemplate.RequireActiveVersion)
@@ -1005,12 +1004,12 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, len(acl.Groups))
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         ptr.Ref(template.Name),
+			Name:                         new(template.Name),
 			DisplayName:                  &template.DisplayName,
 			Description:                  &template.Description,
 			Icon:                         &template.Icon,
-			AllowUserCancelWorkspaceJobs: ptr.Ref(template.AllowUserCancelWorkspaceJobs),
-			DisableEveryoneGroupAccess:   ptr.Ref(true),
+			AllowUserCancelWorkspaceJobs: new(template.AllowUserCancelWorkspaceJobs),
+			DisableEveryoneGroupAccess:   new(true),
 		})
 		require.NoError(t, err)
 

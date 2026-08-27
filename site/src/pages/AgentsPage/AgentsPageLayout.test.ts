@@ -341,7 +341,7 @@ describe("useFileAttachments persistence", () => {
 		expect(state).toEqual({ status: "uploaded", fileId: "file-1" });
 
 		const previewUrl = result.current.previewUrls.get(file);
-		expect(previewUrl).toBe("/api/experimental/chats/files/file-1");
+		expect(previewUrl).toBe("/api/v2/chats/files/file-1");
 		unmount();
 	});
 

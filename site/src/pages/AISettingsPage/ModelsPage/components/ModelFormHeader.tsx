@@ -2,7 +2,7 @@ import {
 	ArrowLeftIcon,
 	CopyIcon,
 	EllipsisVerticalIcon,
-	Share2Icon,
+	ShieldIcon,
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
@@ -89,8 +89,8 @@ export const ModelFormHeader: FC<{
 							<DropdownMenuContent align="end">
 								{onShareModel && (
 									<DropdownMenuItem onClick={onShareModel}>
-										<Share2Icon className="size-icon-sm" />
-										Share model
+										<ShieldIcon className="size-icon-sm" />
+										Manage permissions
 									</DropdownMenuItem>
 								)}
 								{onDuplicate && (

@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -25,7 +24,7 @@ func TestResolveReasoningEffort(t *testing.T) {
 		{name: "RequestedWinsWithoutMax", requested: new(codersdk.ChatModelReasoningEffortHigh), config: effortConfig("medium", ""), want: new(codersdk.ChatModelReasoningEffortHigh)},
 		{name: "RequestedClampedToMax", requested: new(codersdk.ChatModelReasoningEffortXHigh), config: effortConfig("low", "medium"), want: new(codersdk.ChatModelReasoningEffortMedium)},
 		{name: "DefaultClampedToMax", config: effortConfig("xhigh", "medium"), want: new(codersdk.ChatModelReasoningEffortMedium)},
-		{name: "InvalidRequestedFallsBackToDefault", requested: ptr.Ref(" HIGH "), config: effortConfig("low", "high"), want: new(codersdk.ChatModelReasoningEffortLow)},
+		{name: "InvalidRequestedFallsBackToDefault", requested: new(" HIGH "), config: effortConfig("low", "high"), want: new(codersdk.ChatModelReasoningEffortLow)},
 		{name: "InvalidMaxReturnsNil", requested: new(codersdk.ChatModelReasoningEffortMedium), config: effortConfig("low", " HIGH ")},
 		{name: "EmptyConfigReturnsNil", config: &codersdk.ChatModelReasoningEffortConfig{}},
 		{name: "MaxSupported", requested: new(codersdk.ChatModelReasoningEffortMax), config: effortConfig("medium", "max"), want: new(codersdk.ChatModelReasoningEffortMax)},
@@ -75,10 +74,10 @@ func TestSelectableReasoningEfforts(t *testing.T) {
 func effortConfig(defaultEffort, maxEffort string) *codersdk.ChatModelReasoningEffortConfig {
 	cfg := &codersdk.ChatModelReasoningEffortConfig{}
 	if defaultEffort != "" {
-		cfg.Default = ptr.Ref(defaultEffort)
+		cfg.Default = new(defaultEffort)
 	}
 	if maxEffort != "" {
-		cfg.Max = ptr.Ref(maxEffort)
+		cfg.Max = new(maxEffort)
 	}
 	return cfg
 }

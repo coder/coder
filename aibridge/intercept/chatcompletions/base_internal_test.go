@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -42,8 +41,9 @@ func TestRecordTokenUsage(t *testing.T) {
 				CompletionTokens: 50,
 				TotalTokens:      150,
 				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
-					CachedTokens: 40,
-					AudioTokens:  3,
+					CachedTokens:     40,
+					CacheWriteTokens: 25,
+					AudioTokens:      3,
 				},
 				CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
 					AcceptedPredictionTokens: 7,
@@ -53,11 +53,12 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "cmpl_full",
-				Input:                60, // 100 prompt - 40 cached
-				Output:               50,
-				CacheReadInputTokens: 40,
+				InterceptionID:        id.String(),
+				MsgID:                 "cmpl_full",
+				Input:                 35, // 100 prompt - 40 cache read - 25 cache write
+				Output:                50,
+				CacheReadInputTokens:  40,
+				CacheWriteInputTokens: 25,
 				ExtraTokenTypes: map[string]int64{
 					"prompt_audio":                   3,
 					"completion_accepted_prediction": 7,
@@ -97,20 +98,22 @@ func TestRecordTokenUsage(t *testing.T) {
 			// CachedTokens. Input must clamp to 0 so it never panics a
 			// Prometheus counter when used as an increment.
 			name:  "cached_tokens_exceed_prompt_tokens_clamps_to_zero",
-			msgID: "cmpl_clamp",
+			msgID: "cmpl_cached_exceed",
 			usage: openai.CompletionUsage{
 				PromptTokens:     40,
 				CompletionTokens: 20,
 				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
-					CachedTokens: 100,
+					CachedTokens:     30,
+					CacheWriteTokens: 30,
 				},
 			},
 			expected: &recorder.TokenUsageRecord{
-				InterceptionID:       id.String(),
-				MsgID:                "cmpl_clamp",
-				Input:                0, // max(0, 40 prompt - 100 cached)
-				Output:               20,
-				CacheReadInputTokens: 100,
+				InterceptionID:        id.String(),
+				MsgID:                 "cmpl_cached_exceed",
+				Input:                 0, // max(0, 40 prompt - 60 cached)
+				Output:                20,
+				CacheReadInputTokens:  30,
+				CacheWriteInputTokens: 30,
 				ExtraTokenTypes: map[string]int64{
 					"prompt_audio":                   0,
 					"completion_accepted_prediction": 0,
@@ -145,6 +148,60 @@ func TestRecordTokenUsage(t *testing.T) {
 	}
 }
 
+func TestSumUsage(t *testing.T) {
+	t.Parallel()
+
+	first := openai.CompletionUsage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     10,
+			CacheWriteTokens: 20,
+			AudioTokens:      30,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 40,
+			RejectedPredictionTokens: 50,
+			AudioTokens:              60,
+			ReasoningTokens:          70,
+		},
+	}
+	second := openai.CompletionUsage{
+		PromptTokens:     200,
+		CompletionTokens: 100,
+		TotalTokens:      300,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     1,
+			CacheWriteTokens: 2,
+			AudioTokens:      3,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 4,
+			RejectedPredictionTokens: 5,
+			AudioTokens:              6,
+			ReasoningTokens:          7,
+		},
+	}
+
+	require.Equal(t, openai.CompletionUsage{
+		PromptTokens:     300,
+		CompletionTokens: 150,
+		TotalTokens:      450,
+		PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+			CachedTokens:     11,
+			CacheWriteTokens: 22,
+			AudioTokens:      33,
+		},
+		CompletionTokensDetails: openai.CompletionUsageCompletionTokensDetails{
+			AcceptedPredictionTokens: 44,
+			RejectedPredictionTokens: 55,
+			AudioTokens:              66,
+			ReasoningTokens:          77,
+		},
+	}, sumUsage(first, second))
+}
+
 func TestScanForCorrelatingToolCallID(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +229,7 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 				openai.UserMessage("hello"),
 				openai.ToolMessage("result", "call_abc"),
 			},
-			expected: utils.PtrTo("call_abc"),
+			expected: new("call_abc"),
 		},
 		{
 			name: "multiple tool messages returns last",
@@ -182,7 +239,7 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 				openai.AssistantMessage("thinking"),
 				openai.ToolMessage("second result", "call_second"),
 			},
-			expected: utils.PtrTo("call_second"),
+			expected: new("call_second"),
 		},
 		{
 			name: "last message is not a tool message",

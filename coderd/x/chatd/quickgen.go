@@ -25,7 +25,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -72,7 +71,7 @@ func generateQuickgenObject[T any](
 	model fantasy.LanguageModel,
 	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResult[T], error) {
-	call.Temperature = ptr.Ref(quickgenTemperature)
+	call.Temperature = new(quickgenTemperature)
 	var result *fantasy.ObjectResult[T]
 	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
 		var genErr error
@@ -551,9 +550,6 @@ func validateGeneratedTitle(title string) error {
 	if title == "" {
 		return xerrors.New("generated title was empty")
 	}
-	if len(strings.Fields(title)) > 8 {
-		return xerrors.New("generated title exceeded 8 words")
-	}
 	return nil
 }
 
@@ -652,10 +648,19 @@ func titlePasteText(
 	return pasteText, nil
 }
 
+// titleMaxWords caps generated titles at the prompt's stated 2-8 word
+// budget. Quickgen pins temperature, so a model that overshoots the
+// budget for a given conversation keeps overshooting on retry; keeping
+// the first words of an otherwise good title beats failing generation.
+const titleMaxWords = 8
+
 func normalizeTitleOutput(title string) string {
 	title = normalizeShortTextOutput(title)
 	if title == "" {
 		return ""
+	}
+	if words := strings.Fields(title); len(words) > titleMaxWords {
+		title = strings.Join(words[:titleMaxWords], " ")
 	}
 	return truncateRunes(title, 80)
 }

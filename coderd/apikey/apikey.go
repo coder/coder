@@ -13,7 +13,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -82,31 +84,29 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 
 	bitlen := len(ip) * 8
 
-	var scopes database.APIKeyScopes
+	var requested database.APIKeyScopes
 	switch {
 	case len(params.Scopes) > 0:
-		scopes = params.Scopes
+		requested = params.Scopes
 	case params.Scope != "":
-		var scope database.APIKeyScope
-		switch params.Scope {
-		case "all":
-			scope = database.ApiKeyScopeCoderAll
-		case "application_connect":
-			scope = database.ApiKeyScopeCoderApplicationConnect
-		default:
-			scope = params.Scope
-		}
-		scopes = database.APIKeyScopes{scope}
+		requested = database.APIKeyScopes{params.Scope}
 	default:
 		// Default to coder:all scope for backward compatibility.
-		scopes = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+		requested = database.APIKeyScopes{database.ApiKeyScopeCoderAll}
 	}
 
-	for _, s := range scopes {
-		if !s.Valid() {
+	// Canonicalize scope names before validating them against the set of known
+	// scopes.
+	scopes := make(database.APIKeyScopes, 0, len(requested))
+	for _, s := range requested {
+		canonical := database.APIKeyScope(rbac.CanonicalScopeName(rbac.ScopeName(s)))
+		if !canonical.Valid() {
 			return database.InsertAPIKeyParams{}, "", xerrors.Errorf("invalid API key scope: %q", s)
 		}
+		scopes = append(scopes, canonical)
 	}
+	// Ensure scopes are still unique after canonicalizing.
+	scopes = slice.Unique(scopes)
 
 	token := fmt.Sprintf("%s-%s", keyID, keySecret)
 
