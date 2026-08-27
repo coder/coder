@@ -1384,12 +1384,64 @@ func TestFallthrough(t *testing.T) {
 func TestAnthropicInjectedTools(t *testing.T) {
 	t.Parallel()
 
-	for _, streaming := range []bool{true, false} {
-		t.Run(fmt.Sprintf("streaming=%v", streaming), func(t *testing.T) {
+	tests := []struct {
+		name              string
+		streaming         bool
+		expectTokenUsages []*recorder.TokenUsageRecord
+	}{
+		{
+			name:      "streaming",
+			streaming: true,
+			expectTokenUsages: []*recorder.TokenUsageRecord{
+				{
+					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					Input:    7545,
+					Output:   1,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01JWGa2JHsKBHL28Cjr2dvPK",
+					Output:   74,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					Input:    7763,
+					Output:   1,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+				{
+					MsgID:    "msg_01LZSVzMCLivzXrp6ZnTcmeG",
+					Output:   128,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+			},
+		},
+		{
+			name: "blocking",
+			expectTokenUsages: []*recorder.TokenUsageRecord{
+				{
+					MsgID:    "msg_01FwkWU26guw9EwkL8zeacPL",
+					Input:    7545,
+					Output:   75,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "standard"},
+				},
+				{
+					MsgID:    "msg_01Sr5BnPSwodTo8Df4XvUBg5",
+					Input:    7763,
+					Output:   129,
+					Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Build the requirements & make the assertions which are common to all providers.
-			bridgeServer, mockMCP, resp := setupInjectedToolTest(t, fixtures.AntSingleInjectedTool, streaming, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
+			bridgeServer, mockMCP, resp := setupInjectedToolTest(t, fixtures.AntSingleInjectedTool, tc.streaming, defaultTracer, pathAnthropicMessages, anthropicToolResultValidator(t))
 			defer resp.Body.Close()
 
 			// Ensure expected tool was invoked with expected input.
@@ -1411,7 +1463,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 				content *anthropic.ContentBlockUnion
 				message anthropic.Message
 			)
-			if streaming {
+			if tc.streaming {
 				// Parse the response stream.
 				decoder := ssestream.NewDecoder(resp)
 				stream := ssestream.NewStream[anthropic.MessageStreamEventUnion](decoder, nil)
@@ -1449,7 +1501,7 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			// represented in the response.
 			//
 			// See https://github.com/anthropics/anthropic-sdk-go/blob/v1.12.0/message.go#L2619-L2622
-			if !streaming {
+			if !tc.streaming {
 				assert.EqualValues(t, 15308, message.Usage.InputTokens)
 			}
 			assert.EqualValues(t, 204, message.Usage.OutputTokens)
@@ -1457,6 +1509,13 @@ func TestAnthropicInjectedTools(t *testing.T) {
 			// Ensure tokens used during injected tool invocation are accounted for.
 			assert.EqualValues(t, 15308, bridgeServer.Recorder.TotalInputTokens())
 			assert.EqualValues(t, 204, bridgeServer.Recorder.TotalOutputTokens())
+
+			tokenUsages := bridgeServer.Recorder.RecordedTokenUsages()
+			for _, usage := range tokenUsages {
+				usage.InterceptionID = ""
+				usage.CreatedAt = time.Time{}
+			}
+			require.ElementsMatch(t, tc.expectTokenUsages, tokenUsages)
 
 			// Ensure we received exactly one prompt.
 			promptUsages := bridgeServer.Recorder.RecordedPromptUsages()
@@ -1583,6 +1642,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 					Output:                45,
 					CacheReadInputTokens:  100,
 					CacheWriteInputTokens: 20,
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 					ExtraTokenTypes: map[string]int64{
 						"prompt_audio":                   3,
 						"completion_accepted_prediction": 6,
@@ -1597,6 +1657,7 @@ func TestOpenAIInjectedTools(t *testing.T) {
 					Output:                60,
 					CacheReadInputTokens:  4864,
 					CacheWriteInputTokens: 10,
+					Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 					ExtraTokenTypes: map[string]int64{
 						"prompt_audio":                   9,
 						"completion_accepted_prediction": 12,

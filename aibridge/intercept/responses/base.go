@@ -348,6 +348,12 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		usage.InputTokensDetails.CachedTokens-
 		usage.InputTokensDetails.CacheWriteTokens)
 
+	serviceTier := string(response.ServiceTier)
+	var metadata recorder.Metadata
+	if serviceTier != "" {
+		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
+	}
+
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:        i.ID().String(),
 		MsgID:                 response.ID,
@@ -355,6 +361,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.InputTokensDetails.CachedTokens,
 		CacheWriteInputTokens: usage.InputTokensDetails.CacheWriteTokens,
+		Metadata:              metadata,
 		ExtraTokenTypes: map[string]int64{
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,

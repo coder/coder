@@ -811,7 +811,7 @@ Coder MCP tools automatically injected.
     "summary": null
   },
   "safety_identifier": null,
-  "service_tier": "default",
+  "service_tier": "priority",
   "status": "completed",
   "store": true,
   "temperature": 1,
