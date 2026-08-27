@@ -394,9 +394,18 @@ opens with the name that caused the rejection:
 Omitting `scope` requests the application's registered scopes, or full access
 if it was registered without any.
 
-The negotiated scope is recorded on the authorization and shown on the consent
-page. It does not yet restrict what the issued token can do (see
-[Limitations](#limitations)).
+The negotiated scope is recorded on the authorization, shown on the consent
+page, and applied to the access token issued when the code is exchanged.
+
+### "invalid_scope" from the token endpoint
+
+`POST /oauth2/tokens` mints the access token with the scope recorded on the
+authorization code, or on the refresh token when refreshing. If that stored
+scope names something this deployment cannot mint, the exchange answers HTTP
+400 with `error=invalid_scope` and an `error_description` naming the value.
+
+The usual cause is a grant made against a scope the deployment has since
+dropped. Authorize again to negotiate a scope it still supports.
 
 ### "PKCE verification failed"
 
