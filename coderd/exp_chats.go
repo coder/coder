@@ -285,15 +285,17 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	encoder = json.NewEncoder(wsNetConn)
-	for _, chat := range activeSummaryGenerations {
+	for _, generation := range activeSummaryGenerations {
+		remainingMs := generation.RemainingMs
 		if err := encoder.Encode(codersdk.ChatWatchEvent{
-			Kind: codersdk.ChatWatchEventKindChatSummaryGenerating,
-			Chat: db2sdk.Chat(chat, nil, nil),
+			Kind:                             codersdk.ChatWatchEventKindChatSummaryGenerating,
+			Chat:                             db2sdk.Chat(generation.Chat, nil, nil),
+			ChatSummaryGenerationRemainingMS: &remainingMs,
 		}); err != nil {
 			encoder = nil
 			close(encoderReady)
 			logger.Debug(ctx, "failed to replay chat summary generation",
-				slog.F("chat_id", chat.ID), slog.Error(err))
+				slog.F("chat_id", generation.Chat.ID), slog.Error(err))
 			return
 		}
 	}

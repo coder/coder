@@ -3622,6 +3622,11 @@ export interface ChatUser extends MinimalUser {
 export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
 	readonly chat: Chat;
+	/**
+	 * ChatSummaryGenerationRemainingMS is present on chat_summary_generating
+	 * events so clients do not restart the generation timeout after reconnecting.
+	 */
+	readonly chat_summary_generation_remaining_ms?: number;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
 }
 

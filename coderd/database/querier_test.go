@@ -16184,7 +16184,9 @@ func TestUpdateChatSummary(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, activeGenerations, 1)
-	require.Equal(t, chat.ID, activeGenerations[0].ID)
+	require.Equal(t, chat.ID, activeGenerations[0].Chat.ID)
+	require.Positive(t, activeGenerations[0].RemainingMs)
+	require.LessOrEqual(t, activeGenerations[0].RemainingMs, int64(60_000))
 
 	expiredGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
 		OwnerID:       owner.ID,

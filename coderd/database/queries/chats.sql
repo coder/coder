@@ -1488,13 +1488,24 @@ WHERE
     AND started_at = sqlc.arg('generation_started_at')::timestamptz;
 
 -- name: GetActiveChatSummaryGenerationsByOwnerID :many
-SELECT c.*
+WITH params AS (
+    SELECT @max_age_seconds::int AS max_age_seconds
+)
+SELECT
+    sqlc.embed(c),
+    (
+        GREATEST(
+            0,
+            params.max_age_seconds::bigint - FLOOR(EXTRACT(EPOCH FROM NOW() - g.started_at))::bigint
+        ) * 1000
+    )::bigint AS remaining_ms
 FROM chat_summary_generations g
 JOIN chats_expanded c ON c.id = g.chat_id
+CROSS JOIN params
 WHERE
     c.owner_id = @owner_id::uuid
     AND c.parent_chat_id IS NULL
-    AND g.started_at > NOW() - (INTERVAL '1 second' * @max_age_seconds::int)
+    AND g.started_at > NOW() - (INTERVAL '1 second' * params.max_age_seconds)
 ORDER BY g.started_at;
 
 -- name: UpdateChatSummary :execrows

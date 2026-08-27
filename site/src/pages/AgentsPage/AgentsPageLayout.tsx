@@ -587,10 +587,22 @@ const AgentsPageLayout: FC = () => {
 				current.size === 0 ? current : new Set(),
 			);
 		};
-		const markSummaryGenerating = (chatId: string) => {
+		const markSummaryGenerating = (
+			chatId: string,
+			timeoutMs = chatSummaryGeneratingTimeoutMs,
+		) => {
 			const previousTimeout = summaryGeneratingTimeouts.get(chatId);
 			if (previousTimeout !== undefined) {
 				clearTimeout(previousTimeout);
+			}
+			const boundedTimeoutMs = Math.max(
+				0,
+				Math.min(timeoutMs, chatSummaryGeneratingTimeoutMs),
+			);
+			if (boundedTimeoutMs === 0) {
+				summaryGeneratingTimeouts.delete(chatId);
+				clearSummaryGenerating(chatId);
+				return;
 			}
 			setSummaryGeneratingChatIds((current) => {
 				if (current.has(chatId)) {
@@ -601,7 +613,7 @@ const AgentsPageLayout: FC = () => {
 			const timeout = setTimeout(() => {
 				summaryGeneratingTimeouts.delete(chatId);
 				clearSummaryGenerating(chatId);
-			}, chatSummaryGeneratingTimeoutMs);
+			}, boundedTimeoutMs);
 			summaryGeneratingTimeouts.set(chatId, timeout);
 		};
 
@@ -617,7 +629,10 @@ const AgentsPageLayout: FC = () => {
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
 					if (chatEvent.kind === "chat_summary_generating") {
-						markSummaryGenerating(updatedChat.id);
+						markSummaryGenerating(
+							updatedChat.id,
+							chatEvent.chat_summary_generation_remaining_ms,
+						);
 					} else if (
 						chatEvent.kind === "chat_summary_change" ||
 						chatEvent.kind === "chat_summary_failed" ||

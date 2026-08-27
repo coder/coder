@@ -367,7 +367,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
-	GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg GetActiveChatSummaryGenerationsByOwnerIDParams) ([]Chat, error)
+	GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg GetActiveChatSummaryGenerationsByOwnerIDParams) ([]GetActiveChatSummaryGenerationsByOwnerIDRow, error)
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)

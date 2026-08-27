@@ -20051,6 +20051,10 @@ const docTemplate = `{
                 "chat": {
                     "$ref": "#/definitions/codersdk.Chat"
                 },
+                "chat_summary_generation_remaining_ms": {
+                    "description": "ChatSummaryGenerationRemainingMS is present on chat_summary_generating\nevents so clients do not restart the generation timeout after reconnecting.",
+                    "type": "integer"
+                },
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatWatchEventKind"
                 },

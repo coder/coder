@@ -3035,8 +3035,17 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 	return q.db.GetActiveAISeatCount(ctx)
 }
 
-func (q *querier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetActiveChatSummaryGenerationsByOwnerID)(ctx, arg)
+func (q *querier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
+	rows, err := q.db.GetActiveChatSummaryGenerationsByOwnerID(ctx, arg)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if err := q.authorizeContext(ctx, policy.ActionRead, row.Chat); err != nil {
+			return nil, err
+		}
+	}
+	return rows, nil
 }
 
 func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {

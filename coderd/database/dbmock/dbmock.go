@@ -2280,10 +2280,10 @@ func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 }
 
 // GetActiveChatSummaryGenerationsByOwnerID mocks base method.
-func (m *MockStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
+func (m *MockStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetActiveChatSummaryGenerationsByOwnerID", ctx, arg)
-	ret0, _ := ret[0].([]database.Chat)
+	ret0, _ := ret[0].([]database.GetActiveChatSummaryGenerationsByOwnerIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

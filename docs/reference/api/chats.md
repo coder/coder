@@ -719,6 +719,7 @@ Experimental: this endpoint is subject to change.
     ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
+  "chat_summary_generation_remaining_ms": 0,
   "kind": "status_change",
   "tool_calls": [
     {

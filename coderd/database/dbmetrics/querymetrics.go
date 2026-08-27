@@ -1296,7 +1296,7 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
+func (m queryMetricsStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.GetActiveChatSummaryGenerationsByOwnerIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetActiveChatSummaryGenerationsByOwnerID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetActiveChatSummaryGenerationsByOwnerID").Observe(time.Since(start).Seconds())

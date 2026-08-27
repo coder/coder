@@ -1893,9 +1893,12 @@ const (
 // ActionRequired, ToolCalls contains the pending dynamic tool
 // invocations the client must execute and submit back.
 type ChatWatchEvent struct {
-	Kind      ChatWatchEventKind   `json:"kind"`
-	Chat      Chat                 `json:"chat"`
-	ToolCalls []ChatStreamToolCall `json:"tool_calls,omitempty"`
+	Kind ChatWatchEventKind `json:"kind"`
+	Chat Chat               `json:"chat"`
+	// ChatSummaryGenerationRemainingMS is present on chat_summary_generating
+	// events so clients do not restart the generation timeout after reconnecting.
+	ChatSummaryGenerationRemainingMS *int64               `json:"chat_summary_generation_remaining_ms,omitempty"`
+	ToolCalls                        []ChatStreamToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatStreamEvent represents a real-time update for chat streaming.

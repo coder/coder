@@ -5312,6 +5312,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
+  "chat_summary_generation_remaining_ms": 0,
   "kind": "status_change",
   "tool_calls": [
     {
@@ -5325,11 +5326,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name         | Type                                                                | Required | Restrictions | Description |
-|--------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `chat`       | [codersdk.Chat](#codersdkchat)                                      | false    |              |             |
-| `kind`       | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |             |
-| `tool_calls` | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |             |
+| Name                                   | Type                                                                | Required | Restrictions | Description                                                                                                                                            |
+|----------------------------------------|---------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `chat`                                 | [codersdk.Chat](#codersdkchat)                                      | false    |              |                                                                                                                                                        |
+| `chat_summary_generation_remaining_ms` | integer                                                             | false    |              | Chat summary generation remaining ms is present on chat_summary_generating events so clients do not restart the generation timeout after reconnecting. |
+| `kind`                                 | [codersdk.ChatWatchEventKind](#codersdkchatwatcheventkind)          | false    |              |                                                                                                                                                        |
+| `tool_calls`                           | array of [codersdk.ChatStreamToolCall](#codersdkchatstreamtoolcall) | false    |              |                                                                                                                                                        |
 
 ## codersdk.ChatWatchEventKind
 

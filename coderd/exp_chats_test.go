@@ -3187,6 +3187,13 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, wsjson.Read(ctx, conn, &payload))
 		require.Equal(t, codersdk.ChatWatchEventKindChatSummaryGenerating, payload.Kind)
 		require.Equal(t, chat.ID, payload.Chat.ID)
+		require.NotNil(t, payload.ChatSummaryGenerationRemainingMS)
+		require.Positive(t, *payload.ChatSummaryGenerationRemainingMS)
+		require.LessOrEqual(
+			t,
+			*payload.ChatSummaryGenerationRemainingMS,
+			codersdk.ChatSummaryGenerationTimeout.Milliseconds(),
+		)
 	})
 
 	t.Run("CreatedEventIncludesAllChatFields", func(t *testing.T) {

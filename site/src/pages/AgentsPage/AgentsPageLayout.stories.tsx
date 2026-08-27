@@ -1061,9 +1061,14 @@ const chatWatchEvent = (
 	kind: TypesGen.ChatWatchEventKind,
 	chat: Chat,
 	delayMs = 0,
+	chatSummaryGenerationRemainingMs?: number,
 ) => ({
 	event: "message" as const,
-	data: JSON.stringify({ kind, chat } satisfies TypesGen.ChatWatchEvent),
+	data: JSON.stringify({
+		kind,
+		chat,
+		chat_summary_generation_remaining_ms: chatSummaryGenerationRemainingMs,
+	} satisfies TypesGen.ChatWatchEvent),
 	delayMs,
 });
 
@@ -1137,6 +1142,44 @@ export const SummaryWatchEventsUpdateOpenPanel: Story = {
 				"Generated summary from the watch event.",
 				{},
 				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const SummaryReplayUsesRemainingTimeout: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("chat_summary_generating", watchedChat(), 750, 1_000),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(
+			await summary.findByText("Not enough details to summarize."),
+		).toBeVisible();
+		expect(
+			await summary.findByRole("status", undefined, { timeout: 3_000 }),
+		).toHaveTextContent("Generating summary");
+		expect(
+			await summary.findByText(
+				"Not enough details to summarize.",
+				{},
+				{ timeout: 3_000 },
 			),
 		).toBeVisible();
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();

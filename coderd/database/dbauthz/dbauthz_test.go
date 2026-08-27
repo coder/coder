@@ -998,8 +998,12 @@ func (s *MethodTestSuite) TestChats() {
 			OwnerID:       chat.OwnerID,
 			MaxAgeSeconds: 120,
 		}
-		dbm.EXPECT().GetActiveChatSummaryGenerationsByOwnerID(gomock.Any(), arg).Return([]database.Chat{chat}, nil).AnyTimes()
-		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
+		rows := []database.GetActiveChatSummaryGenerationsByOwnerIDRow{{
+			Chat:        chat,
+			RemainingMs: 60_000,
+		}}
+		dbm.EXPECT().GetActiveChatSummaryGenerationsByOwnerID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("SoftDeleteContextFileMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
