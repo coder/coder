@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -93,8 +94,8 @@ type ConnectSummary struct {
 	Outcome    ConnectOutcome `json:"outcome"`
 	DurationMS int64          `json:"duration_ms"`
 	ToolCount  int            `json:"tool_count,omitempty"`
-	// Error is the redacted connect error, present unless the
-	// outcome is connected or no_tools.
+	// Error is the redacted, size-bounded connect error, present
+	// unless the outcome is connected or no_tools.
 	Error string `json:"error,omitempty"`
 }
 
@@ -207,10 +208,10 @@ func connectAllWithHooks(
 			switch {
 			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
 				summary.Outcome = ConnectOutcomeTimeout
-				summary.Error = redactErrorURL(connectErr)
+				summary.Error = summaryError(connectErr)
 			case connectErr != nil:
 				summary.Outcome = ConnectOutcomeError
-				summary.Error = redactErrorURL(connectErr)
+				summary.Error = summaryError(connectErr)
 			case len(serverTools) == 0:
 				summary.Outcome = ConnectOutcomeNoTools
 			default:
@@ -659,6 +660,28 @@ func redactErrorURL(err error) string {
 		return urlErr.Error()
 	}
 	return err.Error()
+}
+
+// maxSummaryErrorLen bounds the persisted connect error in bytes.
+// Protocol errors can embed arbitrarily large remote-controlled
+// response bodies, so without this cap a single retained summary
+// could inflate the JSONB row and every debug-runs payload
+// regardless of the entry-count cap.
+const maxSummaryErrorLen = 512
+
+// summaryError renders a connect error for the persisted summary:
+// credential-bearing URLs are redacted and the result is truncated
+// to maxSummaryErrorLen bytes on a rune boundary.
+func summaryError(err error) string {
+	msg := redactErrorURL(err)
+	if len(msg) <= maxSummaryErrorLen {
+		return msg
+	}
+	cut := maxSummaryErrorLen
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + "... (truncated)"
 }
 
 // MCPToolIdentifier is implemented by tools that originate from

@@ -34,3 +34,10 @@ func ConnectAllForTest(
 // BuildAuthHeadersForTest exposes buildAuthHeaders for external
 // tests.
 var BuildAuthHeadersForTest = buildAuthHeaders
+
+// SummaryErrorForTest exposes summaryError for external tests.
+var SummaryErrorForTest = summaryError
+
+// MaxSummaryErrorLenForTest exposes the persisted-error byte cap for
+// external tests.
+const MaxSummaryErrorLenForTest = maxSummaryErrorLen
