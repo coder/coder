@@ -9,7 +9,7 @@ import type { PersistResult, StorageKeyHandle } from "#/storage";
  */
 export function useStorage<T>(
 	handle: StorageKeyHandle<T>,
-): [T, (value: T | ((prev: T) => T)) => PersistResult, () => void] {
+): [T, (value: T | ((prev: T) => T)) => PersistResult, () => PersistResult] {
 	const value = useSyncExternalStore(handle.subscribe, handle.getSnapshot);
 	const set = useCallback(
 		(next: T | ((prev: T) => T)) =>

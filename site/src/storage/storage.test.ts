@@ -108,6 +108,20 @@ describe("storage core", () => {
 		expect(literalKey.get()).toBe("a");
 	});
 
+	it("rejects malformed or unsafe integers instead of truncating them", () => {
+		localStorage.setItem("test.number", "12px");
+		expect(numberKey.get()).toBeNull();
+
+		localStorage.setItem("test.number", "1e3");
+		expect(numberKey.get()).toBeNull();
+
+		localStorage.setItem("test.number", "9".repeat(400));
+		expect(numberKey.get()).toBeNull();
+
+		localStorage.setItem("test.number", "-7");
+		expect(numberKey.get()).toBe(-7);
+	});
+
 	it("removes the key when setting null", () => {
 		numberKey.set(7);
 		expect(localStorage.getItem("test.number")).toBe("7");
@@ -120,6 +134,16 @@ describe("storage core", () => {
 			throw new DOMException("full", "QuotaExceededError");
 		});
 		expect(boolKey.set(true)).toEqual({ ok: false, reason: "quota" });
+	});
+
+	it("reports removal failures from remove and set(null)", () => {
+		numberKey.set(7);
+		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+			throw new Error("denied");
+		});
+		expect(numberKey.remove()).toEqual({ ok: false, reason: "unavailable" });
+		expect(numberKey.set(null)).toEqual({ ok: false, reason: "unavailable" });
+		expect(localStorage.getItem("test.number")).toBe("7");
 	});
 
 	it("keeps reads on persisted bytes when persistence fails", () => {
@@ -162,6 +186,25 @@ describe("storage core", () => {
 		const value = ["x"];
 		listKey.set(value);
 		expect(listKey.getSnapshot()).toBe(value);
+	});
+
+	it("scopes snapshot caches to each handle on a shared key", () => {
+		const asBool = defineStorageKey<boolean>({
+			key: "test.shared",
+			codec: booleanCodec,
+			defaultValue: false,
+		});
+		const asString = defineStorageKey<string | null>({
+			key: "test.shared",
+			codec: stringCodec,
+			defaultValue: null,
+		});
+		expect(asBool.get()).toBe(false);
+		expect(asString.get()).toBeNull();
+
+		localStorage.setItem("test.shared", "true");
+		expect(asBool.get()).toBe(true);
+		expect(asString.get()).toBe("true");
 	});
 
 	it("supports sessionStorage-backed keys", () => {
