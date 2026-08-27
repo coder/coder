@@ -74,7 +74,7 @@ export const UserMessageContent: FC<{
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
 				className={cn(
-					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
+					"rounded-lg rounded-br-none border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
 					isEditing &&
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
