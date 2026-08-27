@@ -11,12 +11,12 @@ is named explicitly.
 
 ## Implementation status
 
-| Slice | Contents                                                                                                                                                      | Status  |
-|-------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| 1     | `ai_audit_trail` RBAC resource, owner-scoped time-windowed queries over the three lifecycle journals, the use journal, and the egress logs (migration 000593) | pending |
-| 2     | `GET /api/v2/ai-audit/timeline` merged event feed (frozen contract below), codersdk client, tests                                                             | pending |
-| 3     | AI Activity page in the site (`/ai-activity`)                                                                                                                 | pending |
-| 4     | Docs                                                                                                                                                          | pending |
+| Slice | Contents                                                                                                                                                      | Status                             |
+|-------|---------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| 1     | `ai_audit_trail` RBAC resource, owner-scoped time-windowed queries over the three lifecycle journals, the use journal, and the egress logs (migration 000593) | done (`522f28120e`)                |
+| 2     | `GET /api/v2/ai-audit/timeline` merged event feed (frozen contract below), codersdk client, tests                                                             | done (`ab9c14d4cb`)                |
+| 3     | AI Activity page in the site (`/ai-activity`)                                                                                                                 | done (`dcc4d65881`)                |
+| 4     | Docs                                                                                                                                                          | this spec is the PoC documentation |
 
 ## Grounding in the design corpus
 
