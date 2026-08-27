@@ -45,6 +45,7 @@ type MCPOrganizationStoryPermissions = Readonly<{
 	create?: boolean;
 	update?: boolean;
 	delete?: boolean;
+	share?: boolean;
 }>;
 
 const organizationPermissionsResponse = (
@@ -68,7 +69,9 @@ const organizationPermissionsResponse = (
 							? permissions?.update
 							: permission === "deleteMCPServerConfig"
 								? permissions?.delete
-								: false;
+								: permission === "shareMCPServerConfig"
+									? permissions?.share
+									: false;
 			return [key, Boolean(allowed)];
 		}),
 	);
@@ -320,6 +323,45 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 		await expect(
 			await canvas.findByRole("heading", {
 				name: `detail-org:${MockOrganization2.name}`,
+			}),
+		).toBeVisible();
+	},
+};
+
+export const ShareOnlyOrgAdminCanOpenMCPServer: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: false,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: [
+				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/:serverId",
+					element: <DetailRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { share: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("button", { name: /Coder/ }));
+		await expect(
+			await canvas.findByRole("heading", {
+				name: `detail-org:${MockDefaultOrganization.name}`,
 			}),
 		).toBeVisible();
 	},

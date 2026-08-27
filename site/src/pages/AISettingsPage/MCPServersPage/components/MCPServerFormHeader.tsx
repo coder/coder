@@ -1,4 +1,4 @@
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, Share2Icon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -33,6 +33,7 @@ interface MCPServerFormHeaderProps {
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
+	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -44,6 +45,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onShareServer,
 	onToggleEnabled,
 }) => {
 	const disabledReasonId = useId();
@@ -53,16 +55,29 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 		<>
 			<div className="flex items-center justify-between">
 				{listPath && <MCPServerFormBackLink to={listPath} />}
-				{isEditing && server && onRequestDelete && (
+				{isEditing && server && (onShareServer || onRequestDelete) && (
 					<div className="flex items-center gap-2">
-						<Button
-							type="button"
-							variant="destructive"
-							disabled={isDisabled}
-							onClick={onRequestDelete}
-						>
-							<span>Delete</span>
-						</Button>
+						{onShareServer && (
+							<Button
+								type="button"
+								variant="outline"
+								disabled={isDisabled}
+								onClick={onShareServer}
+							>
+								<Share2Icon />
+								<span>Manage permissions</span>
+							</Button>
+						)}
+						{onRequestDelete && (
+							<Button
+								type="button"
+								variant="destructive"
+								disabled={isDisabled}
+								onClick={onRequestDelete}
+							>
+								<span>Delete</span>
+							</Button>
+						)}
 					</div>
 				)}
 			</div>
