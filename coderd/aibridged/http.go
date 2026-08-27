@@ -18,17 +18,21 @@ import (
 var _ http.Handler = &Server{}
 
 var (
-	ErrNoAuthKey             = xerrors.New("no authentication key provided")
-	ErrConnect               = xerrors.New("could not connect to coderd")
-	ErrUnauthorized          = xerrors.New("unauthorized")
-	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
-	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
+	ErrNoAuthKey           = xerrors.New("no authentication key provided")
+	ErrConnect             = xerrors.New("could not connect to coderd")
+	ErrUnauthorized        = xerrors.New("unauthorized")
+	ErrServeRequestHandler = xerrors.New("failed to serve request handler")
+	ErrBudgetCheck         = xerrors.New("internal server error checking user AI budget")
 )
+
+// ErrAcquireRequestHandler is retained for compatibility.
+// Deprecated: use ErrServeRequestHandler.
+var ErrAcquireRequestHandler = ErrServeRequestHandler
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
 // This function will validate that the given API key may be used to perform the request.
 //
-// An [aibridge.RequestBridge] instance is acquired from a pool based on the API key's
+// An [aibridge.RequestBridge] instance is served from a pool based on the API key's
 // owner (referred to as the "initiator"); this instance is responsible for the
 // AI Bridge-specific handling of the request.
 //
@@ -170,16 +174,14 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		"Username": resp.GetUsername(),
 	}))
 
-	handler, err := s.GetRequestHandler(ctx, Request{
+	err = s.Serve(ctx, Request{
 		SessionKey:  key,
 		APIKeyID:    resp.ApiKeyId,
 		InitiatorID: id,
-	})
+	}, rw, r)
 	if err != nil {
-		logger.Warn(ctx, "failed to acquire request handler", slog.Error(err))
-		http.Error(rw, ErrAcquireRequestHandler.Error(), http.StatusInternalServerError)
+		logger.Warn(ctx, "failed to serve request handler", slog.Error(err))
+		http.Error(rw, ErrServeRequestHandler.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	handler.ServeHTTP(rw, r)
 }
