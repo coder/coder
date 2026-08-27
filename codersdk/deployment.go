@@ -4989,7 +4989,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Template Builder Registry URL",
-			Description: "The module registry host the template builder uses for module source paths, for example \"registry.coder.com\" or \"mirror.internal:8443\". An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
+			Description: "The module registry host the template builder uses for module source paths (for example, \"registry.coder.com\" or \"mirror.internal:8443\"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.",
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,

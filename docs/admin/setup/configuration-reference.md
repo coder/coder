@@ -1797,7 +1797,7 @@ Disable the template builder feature for guided template creation. When disabled
 
 ### Registry URL
 
-The module registry host the template builder uses for module source paths, for example "registry.coder.com" or "mirror.internal:8443". An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
+The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
 
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server.md#--template-builder-registry-url)

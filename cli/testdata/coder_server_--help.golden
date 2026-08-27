@@ -921,8 +921,8 @@ TEMPLATE BUILDER OPTIONS:
 
       --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The module registry host the template builder uses for module source
-          paths, for example "registry.coder.com" or "mirror.internal:8443". An
-          http(s):// scheme and trailing slash are stripped; a path, query,
+          paths (for example, "registry.coder.com" or "mirror.internal:8443").
+          An http(s):// scheme and trailing slash are stripped; a path, query,
           fragment, or credentials is rejected.
 
 USER QUIET HOURS SCHEDULE OPTIONS: 
