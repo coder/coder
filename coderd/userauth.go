@@ -78,7 +78,7 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // the user to an oauth user.
 //
 // @Summary Convert user to oauth authentication
-// @ID convert-user-from-password-to-oauth-authentication
+// @ID convert-user-to-oauth-authentication
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
@@ -2156,10 +2156,11 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
+	conversionCtx := dbauthz.AsLoginTypeConverter(ctx, claims.UserID)
+
 	if claims.FromLoginType == codersdk.LoginTypeGithub && claims.ToLoginType == codersdk.LoginTypeOIDC {
 		// Only a GitHub-authenticated conversion with signed state can bypass email matching.
-		// nolint:gocritic // Signed state authorizes this system lookup.
-		sourceUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), claims.UserID)
+		sourceUser, err := db.GetUserByID(conversionCtx, claims.UserID)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				return database.User{}, idpsync.HTTPError{
@@ -2207,8 +2208,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
-	// nolint:gocritic // Signed conversion state authorizes this system update.
-	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+	user, err = db.UpdateUserLoginType(conversionCtx, database.UpdateUserLoginTypeParams{
 		NewLoginType: params.LoginType,
 		UserID:       user.ID,
 	})

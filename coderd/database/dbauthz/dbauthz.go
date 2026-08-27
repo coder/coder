@@ -518,6 +518,26 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	subjectLoginTypeConverter = func(userID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeLoginTypeConverter,
+			FriendlyName: "Login Type Converter",
+			ID:           userID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "logintypeconverter"},
+					DisplayName: "Login Type Converter",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceUser.Type: {policy.ActionRead, policy.ActionUpdatePersonal},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectSystemRestricted = rbac.Subject{
 		Type:         rbac.SubjectTypeSystemRestricted,
 		FriendlyName: "System",
@@ -966,6 +986,12 @@ func AsChatdKeyMinter(ctx context.Context, userID uuid.UUID) context.Context {
 // OAuth2 token refresh results for the specified token owner only.
 func AsChatdTokenOwner(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectChatdTokenOwner(userID))
+}
+
+// AsLoginTypeConverter returns a context scoped to the specified user's login
+// type conversion.
+func AsLoginTypeConverter(ctx context.Context, userID uuid.UUID) context.Context {
+	return As(ctx, subjectLoginTypeConverter(userID))
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -8474,7 +8500,7 @@ func (q *querier) UpdateUserLinkedID(ctx context.Context, arg database.UpdateUse
 }
 
 func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, rbac.ResourceUserObject(arg.UserID)); err != nil {
 		return database.User{}, err
 	}
 	return q.db.UpdateUserLoginType(ctx, arg)

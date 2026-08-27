@@ -12225,7 +12225,7 @@ const docTemplate = `{
                     "Authorization"
                 ],
                 "summary": "Convert user to oauth authentication",
-                "operationId": "convert-user-from-password-to-oauth-authentication",
+                "operationId": "convert-user-to-oauth-authentication",
                 "parameters": [
                     {
                         "description": "Convert request",

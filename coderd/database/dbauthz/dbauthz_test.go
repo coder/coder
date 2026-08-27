@@ -5539,7 +5539,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.UpdateUserLoginTypeParams{NewLoginType: database.LoginTypePassword, UserID: u.ID}
 		dbm.EXPECT().UpdateUserLoginType(gomock.Any(), arg).Return(testutil.Fake(s.T(), faker, database.User{}), nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+		check.Args(arg).Asserts(rbac.ResourceUserObject(arg.UserID), policy.ActionUpdatePersonal)
 	}))
 	s.Run("GetWorkspaceAgentStatsAndLabels", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		t := time.Time{}
@@ -7760,6 +7760,33 @@ func TestAsAPIKeyRevoker(t *testing.T) {
 		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceApiKey.WithOwner(otherUserID.String()))
 		require.Error(t, err, "other users' api keys should not be deletable")
 	})
+}
+
+func TestAsLoginTypeConverter(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	otherUserID := uuid.New()
+	ctx := dbauthz.AsLoginTypeConverter(context.Background(), userID)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+	require.Equal(t, rbac.SubjectTypeLoginTypeConverter, actor.Type)
+	require.Equal(t, userID.String(), actor.ID)
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	for _, action := range rbac.ResourceUser.AvailableActions() {
+		err := auth.Authorize(ctx, actor, action, rbac.ResourceUserObject(userID))
+		if action == policy.ActionRead || action == policy.ActionUpdatePersonal {
+			require.NoError(t, err, "own user should allow %s", action)
+			continue
+		}
+		require.Error(t, err, "own user should deny %s", action)
+	}
+
+	for _, action := range []policy.Action{policy.ActionRead, policy.ActionUpdatePersonal} {
+		err := auth.Authorize(ctx, actor, action, rbac.ResourceUserObject(otherUserID))
+		require.Error(t, err, "other user should deny %s", action)
+	}
 }
 
 func TestAsChatdKeyMinter(t *testing.T) {
