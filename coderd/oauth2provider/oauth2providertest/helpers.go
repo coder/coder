@@ -383,26 +383,3 @@ func AuthorizeOAuth2AppExpectingError(t *testing.T, client *codersdk.Client, bas
 
 	require.Equal(t, expectedStatusCode, resp.StatusCode, "unexpected status code")
 }
-
-func AuthorizeOAuth2AppExpectingRedirectError(t *testing.T, client *codersdk.Client, baseURL string, params AuthorizeParams, expectedError string) {
-	t.Helper()
-
-	resp := doAuthorizeRequest(t, client, baseURL, params)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusFound, resp.StatusCode, "unexpected status code")
-
-	location, err := url.Parse(resp.Header.Get("Location"))
-	require.NoError(t, err, "failed to parse redirect URL")
-
-	callback, err := url.Parse(TestRedirectURI)
-	require.NoError(t, err)
-	require.Equal(t, callback.Host, location.Host, "error left the registered callback")
-	require.Equal(t, callback.Path, location.Path, "error left the registered callback")
-
-	query := location.Query()
-	require.Equal(t, expectedError, query.Get("error"))
-	require.NotEmpty(t, query.Get("error_description"))
-	require.Equal(t, params.State, query.Get("state"), "state parameter mismatch")
-	require.Empty(t, query.Get("code"), "error redirect carries an authorization code")
-}

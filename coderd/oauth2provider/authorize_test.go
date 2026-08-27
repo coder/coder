@@ -598,21 +598,35 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
-	// GET as well as POST: the consent page must not render for a method the
-	// POST will refuse after the user clicks Allow.
+	// GET as well as POST, since the consent page must not render for a method
+	// the POST will refuse after the user clicks Allow. Explicit as well as
+	// omitted redirect_uri, since the two take different paths through the
+	// parser and must reach the same check.
 	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
 		t.Parallel()
 
 		app := seedApp(t)
-		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			t.Run(method, func(t *testing.T) {
+		for _, tc := range []struct {
+			name        string
+			method      string
+			redirectURI string
+		}{
+			{"GET", http.MethodGet, ""},
+			{"GETExplicitRedirectURI", http.MethodGet, appCallbackURL},
+			{"POST", http.MethodPost, ""},
+			{"POSTExplicitRedirectURI", http.MethodPost, appCallbackURL},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
 
 				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
 				query.Set("code_challenge_method", "plain")
+				if tc.redirectURI != "" {
+					query.Set("redirect_uri", tc.redirectURI)
+				}
 
-				resp := sendAuthorizeRequest(ctx, t, client, method, query)
+				resp := sendAuthorizeRequest(ctx, t, client, tc.method, query)
 				defer resp.Body.Close()
 
 				requireAuthorizeErrorRedirect(t, resp,
