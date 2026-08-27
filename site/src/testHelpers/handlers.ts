@@ -87,11 +87,11 @@ export const handlers = [
 		() => HttpResponse.json(M.MockMCPServerConfigACLAvailable),
 	),
 	http.get(
-		"/api/experimental/organizations/:organizationId/mcp-servers/:serverId/acl",
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
 		() => HttpResponse.json(M.MockMCPServerConfigACL),
 	),
 	http.patch(
-		"/api/experimental/organizations/:organizationId/mcp-servers/:serverId/acl",
+		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl",
 		() => new HttpResponse(null, { status: 204 }),
 	),
 
