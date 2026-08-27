@@ -26,6 +26,16 @@ var aiModelPriceSources = []string{
 	string(codersdk.AIModelPriceSourceFilterAll),
 }
 
+// aiModelPriceUpsertProviders lists the provider types accepted for
+// operator-set prices. An openai-compat provider can represent any upstream
+// vendor, but prices are keyed by provider type and model. Two such providers
+// using the same model share a price, which can misattribute costs when the
+// upstream prices differ.
+var aiModelPriceUpsertProviders = append(
+	providers.SupportedStrings(),
+	string(database.AIProviderTypeOpenaiCompat),
+)
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary List AI model prices
@@ -190,7 +200,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 		}}
 	}
 
-	supportedProviders := strings.Join(providers.SupportedStrings(), ", ")
+	supportedProviders := strings.Join(aiModelPriceUpsertProviders, ", ")
 	seen := make(map[modelKey]struct{}, len(requested))
 	var validations []codersdk.ValidationError
 
@@ -204,7 +214,7 @@ func validateAIModelPrices(requested []codersdk.AIModelPriceUpsert, raw []map[st
 				Field:  field + ".provider",
 				Detail: fmt.Sprintf("Provider is required. Supported providers: %s.", supportedProviders),
 			})
-		case !slices.Contains(providers.Supported, database.AIProviderType(price.Provider)):
+		case !slices.Contains(aiModelPriceUpsertProviders, price.Provider):
 			validations = append(validations, codersdk.ValidationError{
 				Field:  field + ".provider",
 				Detail: fmt.Sprintf("Provider %q is not supported. Supported providers: %s.", price.Provider, supportedProviders),

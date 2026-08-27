@@ -2,11 +2,11 @@ package providers
 
 import "github.com/coder/coder/v2/coderd/database"
 
-// Supported lists the providers a model price may be set for.
+// Supported lists the providers included in the generated model price book.
 //
-// openai-compat is excluded: it is a generic passthrough, so the upstream
-// vendor is unknown and a price cannot be attributed to it. Listed explicitly
-// rather than derived from ai_provider_type so a new provider is opt-in.
+// openai-compat is excluded because it is a generic passthrough and does not
+// identify an upstream vendor. Listed explicitly rather than derived from
+// ai_provider_type so a new provider is opt-in.
 var Supported = []database.AIProviderType{
 	database.AIProviderTypeAnthropic,
 	database.AIProviderTypeAzure,
@@ -18,7 +18,7 @@ var Supported = []database.AIProviderType{
 	database.AIProviderTypeVercel,
 }
 
-// SupportedStrings returns the supported providers as plain strings.
+// SupportedStrings returns the generated price book providers as strings.
 func SupportedStrings() []string {
 	ids := make([]string, len(Supported))
 	for i, provider := range Supported {
