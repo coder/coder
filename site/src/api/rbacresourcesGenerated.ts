@@ -120,6 +120,9 @@ export const RBACResourceActions: Partial<
 		delete: "delete license",
 		read: "read licenses",
 	},
+	mcp_gateway: {
+		use: "use the MCP gateway",
+	},
 	notification_message: {
 		create: "create notification messages",
 		delete: "delete notification messages",

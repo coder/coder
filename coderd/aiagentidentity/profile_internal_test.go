@@ -8,26 +8,31 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 func TestValidateProfileBuiltIns(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		profile Profile
+		name          string
+		profile       Profile
+		wantAllowList int
 	}{
 		{
-			name:    "chat",
-			profile: ChatAgentProfile(uuid.New()),
+			name:          "chat",
+			profile:       ChatAgentProfile(uuid.New()),
+			wantAllowList: 6,
 		},
 		{
-			name:    "workspace",
-			profile: WorkspaceAgentIdentityProfile(uuid.New()),
+			name:          "workspace",
+			profile:       WorkspaceAgentIdentityProfile(uuid.New()),
+			wantAllowList: 2,
 		},
 		{
-			name:    "sandbox",
-			profile: SandboxIdentityProfile(uuid.New(), uuid.New()),
+			name:          "sandbox",
+			profile:       SandboxIdentityProfile(uuid.New(), uuid.New()),
+			wantAllowList: 2,
 		},
 	}
 	for _, tt := range tests {
@@ -36,6 +41,13 @@ func TestValidateProfileBuiltIns(t *testing.T) {
 
 			validated, err := validateProfile(tt.profile)
 			require.NoError(t, err)
+			require.Len(t, tt.profile.Scopes, 7)
+			require.Contains(t, tt.profile.Scopes, database.ApiKeyScopeMcpGatewayUse)
+			require.Len(t, tt.profile.AllowList, tt.wantAllowList)
+			require.Contains(t, tt.profile.AllowList, rbac.AllowListElement{
+				Type: rbac.ResourceMcpGateway.Type,
+				ID:   policy.WildcardSymbol,
+			})
 			require.Equal(t, tt.profile.Scopes, validated.Scopes)
 			require.ElementsMatch(t, tt.profile.AllowList, validated.AllowList)
 		})
@@ -144,6 +156,7 @@ func TestValidateProfileAcceptedScopeCatalog(t *testing.T) {
 		database.ApiKeyScopeWorkspaceStop,
 		database.ApiKeyScopeWorkspaceSsh,
 		database.ApiKeyScopeWorkspaceApplicationConnect,
+		database.ApiKeyScopeMcpGatewayUse,
 	}
 	allowList := database.AllowList{{
 		Type: rbac.ResourceWorkspace.Type,
@@ -160,6 +173,6 @@ func TestValidateProfileAcceptedScopeCatalog(t *testing.T) {
 		}
 	}
 
-	require.Len(t, accepted, 12)
+	require.Len(t, accepted, 13)
 	require.ElementsMatch(t, expected, accepted)
 }

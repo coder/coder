@@ -1,0 +1,1 @@
+-- No-op for MCP gateway scopes: keep enum values to avoid dependency churn.
