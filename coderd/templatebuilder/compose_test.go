@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/templatebuilder"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestCompose(t *testing.T) {
@@ -616,7 +615,7 @@ func TestComposeBaseHonorsRegistryMirror(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, string(result.MainTF), "mirror.internal.example/coder/git-clone/coder")
 		require.NotContains(t, string(result.MainTF),
-			codersdk.DefaultTemplateBuilderRegistryURL+"/coder/git-clone/coder")
+			templatebuilder.DefaultRegistryBase+"/coder/git-clone/coder")
 	})
 
 	t.Run("DefaultsWhenUnset", func(t *testing.T) {
@@ -626,7 +625,7 @@ func TestComposeBaseHonorsRegistryMirror(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Contains(t, string(result.MainTF),
-			codersdk.DefaultTemplateBuilderRegistryURL+"/coder/git-clone/coder")
+			templatebuilder.DefaultRegistryBase+"/coder/git-clone/coder")
 	})
 }
 

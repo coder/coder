@@ -4992,7 +4992,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     DefaultTemplateBuilderRegistryURL,
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -5121,10 +5121,6 @@ type AIConfig struct {
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
-
-// DefaultTemplateBuilderRegistryURL is the module registry the template builder
-// uses for module source paths when CODER_TEMPLATE_BUILDER_REGISTRY_URL is unset.
-const DefaultTemplateBuilderRegistryURL = "registry.coder.com"
 
 type TemplateBuilderConfig struct {
 	Disabled    serpent.Bool   `json:"disabled,omitempty"`

@@ -10,8 +10,6 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
-
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -59,7 +57,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	// render paths interpolate a valid host instead of an empty source.
 	registryBase := req.RegistryURL
 	if registryBase == "" {
-		registryBase = codersdk.DefaultTemplateBuilderRegistryURL
+		registryBase = DefaultRegistryBase
 	}
 
 	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues, registryBase)
