@@ -1032,6 +1032,9 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 // Gateway. Copilot is always BYOK, while other providers may use centralized
 // or BYOK authentication.
 func prepareAIGatewayAuth(headers http.Header, coderToken, providerType string) {
+	// Copilot is always BYOK, even when a route does not include a provider
+	// credential (e.g., /_ping). Prevent the Coder token from being forwarded
+	// to Copilot as a provider credential.
 	if providerType == aibridgeconfig.ProviderCopilot {
 		headers.Set(agplaibridge.HeaderCoderToken, coderToken)
 
