@@ -210,11 +210,11 @@ To change the default model:
 The Models list reflects whether each model can actually be used:
 
 - When a model's connected provider has been deleted, the **Provider** column
-  shows **Unset** with an info tooltip that reads "The provider connected to
-  this model has been deleted."
-- When a model's provider is missing or disabled, the **Status** column
-  shows **Disabled**, regardless of the model's own enabled setting. Such a
-  model cannot serve chat requests.
+  shows **Unset**.
+- When a model's provider is missing or disabled, an **Unavailable** badge
+  appears beside the model name. The badge's tooltip explains whether the
+  provider was deleted or disabled. Such a model cannot serve chat requests.
+- When a model is disabled, a **Disabled** badge appears beside the model name.
 
 To reconnect a model to a working provider, open the model from the list,
 pick a new provider from the **Provider** dropdown, and click **Save**. The
@@ -380,7 +380,7 @@ from the Agents settings page.
 1. Each enabled provider is listed with a status indicator:
    - **Key saved**, your personal key is active and will be used for requests to
      that provider.
-   - **Using shared key**, no personal key is set and Coder is using
+   - **Shared key**, no personal key is set and Coder is using
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.
