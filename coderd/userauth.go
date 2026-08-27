@@ -77,7 +77,7 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // postConvertLoginType replies with an oauth state token capable of converting
 // the user to an oauth user.
 //
-// @Summary Convert user from password to oauth authentication
+// @Summary Convert user to oauth authentication
 // @ID convert-user-from-password-to-oauth-authentication
 // @Security CoderSessionToken
 // @Accept json
@@ -123,23 +123,34 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This handles the email/pass checking.
-	user, _, ok := api.loginRequest(ctx, rw, codersdk.LoginWithPasswordRequest{
-		Email:    user.Email,
-		Password: req.Password,
-	})
-	if !ok {
-		return
-	}
+	switch user.LoginType {
+	case database.LoginTypePassword:
+		authenticatedUser, _, ok := api.loginRequest(ctx, rw, codersdk.LoginWithPasswordRequest{
+			Email:    user.Email,
+			Password: req.Password,
+		})
+		if !ok {
+			return
+		}
+		user = authenticatedUser
+	case database.LoginTypeGithub:
+		if req.ToType != codersdk.LoginTypeOIDC {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "GitHub-authenticated accounts can only convert to OpenID Connect.",
+			})
+			return
+		}
 
-	// Only support converting from password auth.
-	if user.LoginType != database.LoginTypePassword {
-		// This is checked in loginRequest, but checked again here in case that shared
-		// function changes its checks. Just some defensive programming.
-		// This login type is **required** to be password based to prevent
-		// users from converting other login types to OIDC.
+		apiKey := httpmw.APIKey(r)
+		if apiKey.UserID != user.ID || apiKey.LoginType != database.LoginTypeGithub {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "GitHub account conversion must be initiated by the user's GitHub session.",
+			})
+			return
+		}
+	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "User account must have password based authentication.",
+			Message: "User account must have password or GitHub authentication.",
 		})
 		return
 	}
@@ -1520,9 +1531,10 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If a new user is authenticating for the first time
-	// the audit action is 'register', not 'login'
-	if user.ID == uuid.Nil {
+	// If a new user is authenticating for the first time, the audit action is
+	// 'register', not 'login'. A conversion can intentionally start with an
+	// OIDC email that has no matching Coder user.
+	if user.ID == uuid.Nil && !isMergeStateString(state.StateString) {
 		aReq.Action = database.AuditActionRegister
 	}
 
@@ -1759,8 +1771,8 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		user = params.User
 		link = params.Link
 
-		// If you do a convert to OIDC and your email does not match, we need to
-		// catch this and not make a new account.
+		// Conversion state selects the existing user after both source and target
+		// identities have been authenticated.
 		if isMergeStateString(params.State.StateString) {
 			// Always clear this cookie. If it succeeds, we no longer need it.
 			// If it fails, we no longer care about it.
@@ -2053,7 +2065,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	if ok && oldKey != nil && isConvertLoginType {
 		// If this is a convert login type, and it succeeds, then delete the old
 		// session. Force the user to log back in.
-		err := api.Database.DeleteAPIKeyByID(r.Context(), oldKey.ID)
+		err := api.Database.DeleteAPIKeyByID(
+			dbauthz.AsAPIKeyRevoker(r.Context(), user.ID),
+			oldKey.ID,
+		)
 		if err != nil {
 			// Do not block this login if we fail to delete the old API key.
 			// Just delete the cookie and continue.
@@ -2090,19 +2105,10 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	return cookies, user, key, nil
 }
 
-// convertUserToOauth will convert a user from password base loginType to
-// an oauth login type. If it fails, it will return a httpError
+// convertUserToOauth converts a user to an oauth login type. If it fails, it
+// returns an HTTP error.
 func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params *oauthLoginParams) (database.User, error) {
 	user := params.User
-
-	// Trying to convert to OIDC, but the email does not match.
-	// So do not make a new user, just block the request.
-	if user.ID == uuid.Nil {
-		return database.User{}, idpsync.HTTPError{
-			Code: http.StatusBadRequest,
-			Msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
-		}
-	}
 
 	jwtCookie, err := r.Cookie(OAuthConvertCookieValue)
 	if err != nil {
@@ -2129,8 +2135,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
-	// At this point, this request could be an attempt to convert from
-	// password auth to oauth auth. Always log these attempts.
+	// At this point, this request could be an attempt to convert an account to
+	// OAuth authentication. Always log these attempts.
 	var (
 		auditor           = *api.Auditor.Load()
 		oauthConvertAudit = params.initAuditRequest(&audit.RequestParams{
@@ -2158,6 +2164,46 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
+	if claims.FromLoginType == codersdk.LoginTypeGithub && claims.ToLoginType == codersdk.LoginTypeOIDC {
+		// A GitHub session and the signed conversion state prove ownership of the
+		// source account. The verified OIDC identity proves ownership of the target
+		// account, so this route does not depend on their email addresses matching.
+		// Do not use this exception for other conversion types.
+		// nolint:gocritic // Conversion state authorizes a system lookup of its source user.
+		sourceUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), claims.UserID)
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				return database.User{}, idpsync.HTTPError{
+					Code: http.StatusInternalServerError,
+					Msg:  "Failed to load source account.",
+				}
+			}
+
+			return database.User{}, idpsync.HTTPError{
+				Code: http.StatusForbidden,
+				Msg:  "Request to convert login type failed. The source account no longer exists.",
+			}
+		}
+
+		if user.ID != uuid.Nil && user.ID != sourceUser.ID {
+			return database.User{}, idpsync.HTTPError{
+				Code: http.StatusForbidden,
+				Msg:  "The OpenID Connect identity is already linked to another Coder user.",
+			}
+		}
+		user = sourceUser
+		oauthConvertAudit.Old = user
+	}
+
+	// Do not create an account when a non-GitHub conversion cannot resolve the
+	// user by the existing identity or verified email address.
+	if user.ID == uuid.Nil {
+		return database.User{}, idpsync.HTTPError{
+			Code: http.StatusBadRequest,
+			Msg:  fmt.Sprintf("The oidc account with the email %q does not match the email of the account you are trying to convert. Contact your administrator to resolve this issue.", params.Email),
+		}
+	}
+
 	// Make sure the merge state generated matches this OIDC login request.
 	// It needs to have the correct login type information for this
 	// user.
@@ -2173,8 +2219,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
-	// nolint:gocritic // system query to update user login type. The user already
-	// provided their password to authenticate this request.
+	// nolint:gocritic // System query to update the login type after source
+	// account authentication and signed conversion state validation.
 	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: params.LoginType,
 		UserID:       user.ID,

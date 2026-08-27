@@ -3816,7 +3816,11 @@ export interface ConvertLoginRequest {
 	 * ToType is the login type to convert to.
 	 */
 	readonly to_type: LoginType;
-	readonly password: string;
+	/**
+	 * Password confirms password-authenticated accounts before conversion.
+	 * It is required only when the current login type is password.
+	 */
+	readonly password?: string;
 }
 
 // From codersdk/aigatewaykeys.go

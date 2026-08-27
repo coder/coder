@@ -31,6 +31,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -49,6 +50,34 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func setGitHubSession(ctx context.Context, t testing.TB, api *coderd.API, client *codersdk.Client, userID uuid.UUID) {
+	t.Helper()
+
+	_, err := api.Database.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+		NewLoginType: database.LoginTypeGithub,
+		UserID:       userID,
+	})
+	require.NoError(t, err)
+
+	_, err = api.Database.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeGithub,
+		LinkedID:  uuid.NewString(),
+		Claims:    database.UserLinkClaims{},
+	})
+	require.NoError(t, err)
+
+	key, token, err := apikey.Generate(apikey.CreateParams{
+		UserID:    userID,
+		LoginType: database.LoginTypeGithub,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	_, err = api.Database.InsertAPIKey(dbauthz.AsSystemRestricted(ctx), key)
+	require.NoError(t, err)
+	client.SetSessionToken(token)
+}
 
 // This test specifically tests logging in with OIDC when an expired
 // OIDC session token exists.
@@ -2311,6 +2340,224 @@ func TestUserOIDC(t *testing.T) {
 		info, err := client.User(ctx, userData.ID.String())
 		require.NoError(t, err)
 		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
+	})
+
+	t.Run("GitHubToOIDCConvert", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Auditor:    auditor,
+			OIDCConfig: cfg,
+		})
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		setGitHubSession(ctx, t, api, user, userData.ID)
+
+		const oidcEmail = "oidc-user@example.com"
+		claims := jwt.MapClaims{
+			"email":          oidcEmail,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}
+		var err error
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType: codersdk.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+
+		_, _ = fake.LoginWithClient(t, user, claims, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+			for _, cookie := range user.HTTPClient.Jar.Cookies(r.URL) {
+				r.AddCookie(cookie)
+			}
+		})
+
+		info, err := client.User(ctx, userData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, userData.ID, info.ID)
+		require.ElementsMatch(t, userData.OrganizationIDs, info.OrganizationIDs)
+		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
+		require.Equal(t, oidcEmail, info.Email)
+
+		_, err = user.User(ctx, codersdk.Me)
+		require.Error(t, err)
+	})
+
+	t.Run("GitHubToOIDCConvertRejectsIdentityLinkedToAnotherUser", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		source, sourceData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		_, targetData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		setGitHubSession(ctx, t, api, source, sourceData.ID)
+
+		oidcSubject := uuid.NewString()
+		_, err := api.Database.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
+			NewLoginType: database.LoginTypeOIDC,
+			UserID:       targetData.ID,
+		})
+		require.NoError(t, err)
+		_, err = api.Database.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
+			UserID:    targetData.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  fake.IssuerURL().String() + "||" + oidcSubject,
+			Claims:    database.UserLinkClaims{},
+		})
+		require.NoError(t, err)
+
+		source.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		source.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := source.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType: codersdk.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+
+		_, response := fake.LoginWithClient(t, source, jwt.MapClaims{
+			"email":          "oidc-user@example.com",
+			"email_verified": true,
+			"sub":            oidcSubject,
+		}, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, source.SessionToken())
+			for _, cookie := range source.HTTPClient.Jar.Cookies(r.URL) {
+				r.AddCookie(cookie)
+			}
+		})
+		require.Equal(t, http.StatusForbidden, response.StatusCode)
+
+		sourceInfo, err := client.User(ctx, sourceData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeGithub, sourceInfo.LoginType)
+		require.Equal(t, sourceData.Email, sourceInfo.Email)
+
+		targetInfo, err := client.User(ctx, targetData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeOIDC, targetInfo.LoginType)
+	})
+
+	t.Run("PasswordToOIDCConvertRejectsMismatchedEmail", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		var err error
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		_, response := fake.LoginWithClient(t, user, jwt.MapClaims{
+			"email":          "oidc-user@example.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
+		}, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+			for _, cookie := range user.HTTPClient.Jar.Cookies(r.URL) {
+				r.AddCookie(cookie)
+			}
+		})
+		require.Equal(t, http.StatusBadRequest, response.StatusCode)
+
+		info, err := client.User(ctx, userData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypePassword, info.LoginType)
+		require.Equal(t, userData.Email, info.Email)
+	})
+
+	t.Run("GitHubToOIDCConvertRequiresGitHubSession", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		passwordSessionToken := client.SessionToken()
+		setGitHubSession(ctx, t, api, client, owner.UserID)
+
+		client.SetSessionToken(passwordSessionToken)
+		_, err := client.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType: codersdk.LoginTypeOIDC,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	})
+
+	t.Run("GitHubToOIDCConvertRequiresOwnAccount", func(t *testing.T) {
+		t.Parallel()
+
+		client, _, api := coderdtest.NewWithAPI(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		_, victim := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		setGitHubSession(ctx, t, api, client, owner.UserID)
+		victimClient := codersdk.New(client.URL)
+		setGitHubSession(ctx, t, api, victimClient, victim.ID)
+
+		_, err := client.ConvertUserLoginType(ctx, victim.ID.String(), codersdk.ConvertLoginRequest{
+			ToType: codersdk.LoginTypeOIDC,
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+
+		victim, err = client.User(ctx, victim.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeGithub, victim.LoginType)
 	})
 
 	t.Run("BadJWT", func(t *testing.T) {

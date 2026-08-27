@@ -68,6 +68,28 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 	require.NotEmpty(t, refreshed.AccessToken, "access token is empty on refresh")
 }
 
+// TestFakeIDPRemoteKeySet verifies that the fake IDP publishes signing-key
+// metadata accepted by an OIDC provider discovered over HTTP.
+func TestFakeIDPRemoteKeySet(t *testing.T) {
+	t.Parallel()
+
+	fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
+	oauthConfig := fake.OauthConfig(t, nil)
+	provider, err := oidc.NewProvider(context.Background(), fake.IssuerURL().String())
+	require.NoError(t, err)
+
+	token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{"sub": "test-subject"})
+	require.NoError(t, err)
+	idToken, ok := token.Extra("id_token").(string)
+	require.True(t, ok)
+
+	_, err = provider.Verifier(&oidc.Config{
+		ClientID:             oauthConfig.ClientID,
+		SupportedSigningAlgs: []string{"RS256"},
+	}).Verify(context.Background(), idToken)
+	require.NoError(t, err)
+}
+
 // TestIDPIssuerMismatch emulates a situation where the IDP issuer url does
 // not match the one in the well-known config and claims.
 // This can happen in some edge cases and in some azure configurations.

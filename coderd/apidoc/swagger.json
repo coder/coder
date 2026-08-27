@@ -10853,7 +10853,7 @@
 				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Authorization"],
-				"summary": "Convert user from password to oauth authentication",
+				"summary": "Convert user to oauth authentication",
 				"operationId": "convert-user-from-password-to-oauth-authentication",
 				"parameters": [
 					{
@@ -19414,9 +19414,10 @@
 		},
 		"codersdk.ConvertLoginRequest": {
 			"type": "object",
-			"required": ["password", "to_type"],
+			"required": ["to_type"],
 			"properties": {
 				"password": {
+					"description": "Password confirms password-authenticated accounts before conversion.\nIt is required only when the current login type is password.",
 					"type": "string"
 				},
 				"to_type": {
