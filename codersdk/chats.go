@@ -1316,10 +1316,11 @@ type ChatModel struct {
 }
 
 // ChatModelACL is the access control list for an organization-scoped chat
-// model. Each principal is mapped to its effective model role.
+// model. Each principal includes the identity details needed to display and
+// manage the ACL without separate directory lookups.
 type ChatModelACL struct {
-	UserRoles  map[string]ChatRole `json:"user_roles"`
-	GroupRoles map[string]ChatRole `json:"group_roles"`
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
 }
 
 // UpdateChatModelACLRequest is a sparse update of a chat model ACL. Only the
@@ -2245,6 +2246,31 @@ func (c *Client) ChatModelACL(ctx context.Context, organizationID, modelID uuid.
 	return modelACL, ReadBodyAsJSON(res, &modelACL)
 }
 
+// ChatModelACLAvailable returns available users and groups that can be assigned
+// chat model permissions. The optional request applies q/limit/offset/after_id
+// to users. Groups reuse the user search query and q/limit semantics. Pass
+// codersdk.UsersRequest{} when no filtering is desired.
+func (c *Client) ChatModelACLAvailable(ctx context.Context, organizationID, modelID uuid.UUID, req UsersRequest) (ACLAvailable, error) {
+	res, err := c.Request(
+		ctx,
+		http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/chats/models/%s/acl/available", organizationID, modelID),
+		nil,
+		req.Pagination.asRequestOption(),
+		req.asRequestOption(),
+	)
+	if err != nil {
+		return ACLAvailable{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ACLAvailable{}, ReadBodyAsError(res)
+	}
+
+	var acl ACLAvailable
+	return acl, ReadBodyAsJSON(res, &acl)
+}
+
 // UpdateChatModelACL applies a sparse access control list update to a chat
 // model in an organization.
 func (c *Client) UpdateChatModelACL(ctx context.Context, organizationID, modelID uuid.UUID, req UpdateChatModelACLRequest) error {
@@ -2275,8 +2301,8 @@ func (c *Client) DeleteChatModel(ctx context.Context, organizationID, modelID uu
 // ChatModelProviderDescriptor is the redacted view of an AI provider carried
 // on the org model collection response. It carries only the capability
 // metadata the Models UI needs; key material, base URLs, and headers are
-// never exposed. The fields mirror what /api/experimental/chats/models
-// already discloses to any authenticated caller.
+// never exposed. The fields mirror the provider descriptors returned by the
+// organization-scoped chat models collection.
 type ChatModelProviderDescriptor struct {
 	ID                 uuid.UUID                          `json:"id" format:"uuid"`
 	Type               string                             `json:"type"`
