@@ -155,6 +155,13 @@ export function useOverflowCount(
 // that clip (overflow-x hidden or clip) count, and only the widest
 // per sibling, so nested wrappers cannot double-count. Reserving this
 // keeps sibling pills at full width in preference to inline items.
+//
+// Stability invariant: when a pill absorbs freed space and grows by
+// some delta, the container's left edge shifts right by that same
+// delta while the pill's clipped deficit shrinks by it, so the two
+// cancel and `available` stays constant regardless of how far the
+// pills have grown. Measurements therefore reach a fixed point
+// instead of oscillating between hide and show.
 function siblingTruncationDeficit(
 	parent: HTMLElement,
 	container: HTMLElement,

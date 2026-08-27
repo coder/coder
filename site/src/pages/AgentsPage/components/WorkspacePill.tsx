@@ -182,8 +182,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				{/* Scrolls when the capped above-composer height cannot fit
 				 * every item on mobile; a no-op on desktop. overflow-x-hidden:
 				 * the scroll-area CSS sets overflow-y, which would otherwise
-				 * compute overflow-x to auto and show a horizontal bar. */}
-				<div className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden">
+				 * compute overflow-x to auto and show a horizontal bar.
+				 * role=none keeps the wrapper out of the menu's ARIA tree. */}
+				<div
+					role="none"
+					className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden"
+				>
 					{showPortsView ? (
 						<MobilePortsPanel
 							workspace={workspace}

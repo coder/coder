@@ -287,7 +287,7 @@ const ToolBadge: FC<{
 
 	if (badge.kind === "attached-workspace") {
 		return (
-			<Tooltip open={disableTooltip ? false : undefined}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<span
 						className={cn(
@@ -314,9 +314,11 @@ const ToolBadge: FC<{
 				</TooltipTrigger>
 				{/* Hidden below md: touch taps focus the trigger and the
 				 * focus-opened tooltip sticks over the popover. */}
-				<TooltipContent className="hidden md:block">
-					{badge.statusLabel}
-				</TooltipContent>
+				{!disableTooltip && (
+					<TooltipContent className="hidden md:block">
+						{badge.statusLabel}
+					</TooltipContent>
+				)}
 			</Tooltip>
 		);
 	}
