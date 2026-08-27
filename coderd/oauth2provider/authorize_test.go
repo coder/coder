@@ -598,19 +598,27 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		}
 	})
 
+	// GET as well as POST: the consent page must not render for a method the
+	// POST will refuse after the user clicks Allow.
 	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
 		app := seedApp(t)
-		query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-		query.Set("code_challenge_method", "plain")
+		for _, method := range []string{http.MethodGet, http.MethodPost} {
+			t.Run(method, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-		resp := sendAuthorizeRequest(ctx, t, client, http.MethodPost, query)
-		defer resp.Body.Close()
+				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+				query.Set("code_challenge_method", "plain")
 
-		requireAuthorizeErrorRedirect(t, resp,
-			codersdk.OAuth2ErrorCodeInvalidRequest, "use 'S256'")
+				resp := sendAuthorizeRequest(ctx, t, client, method, query)
+				defer resp.Body.Close()
+
+				requireAuthorizeErrorRedirect(t, resp,
+					codersdk.OAuth2ErrorCodeInvalidRequest, "use 'S256'")
+			})
+		}
 	})
 
 	t.Run("CancelLinkCarriesAccessDenied", func(t *testing.T) {

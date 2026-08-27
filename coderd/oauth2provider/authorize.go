@@ -422,6 +422,16 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 			return
 		}
 
+		// Checked here as well as on POST for the same reason the scope is
+		// negotiated below: the page must not render for a request POST will
+		// refuse. Only POST defaults an omitted method, because only POST
+		// records it on the code row, and the validator accepts an empty value.
+		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
+			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
+			return
+		}
+
 		// Negotiated here as well as on POST, so a request that cannot succeed
 		// fails before the consent page renders rather than after the user
 		// clicks Allow. The result also decides what the page states.
