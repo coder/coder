@@ -2855,11 +2855,12 @@ export interface ChatModel {
 // From codersdk/chats.go
 /**
  * ChatModelACL is the access control list for an organization-scoped chat
- * model. Each principal is mapped to its effective model role.
+ * model. Each principal includes the identity details needed to display and
+ * manage the ACL without separate directory lookups.
  */
 export interface ChatModelACL {
-	readonly user_roles: Record<string, ChatRole>;
-	readonly group_roles: Record<string, ChatRole>;
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
 }
 
 // From codersdk/chats.go
