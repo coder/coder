@@ -4893,9 +4893,10 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Responses
 
-| Status | Meaning                                                 | Description                     | Schema |
-|--------|---------------------------------------------------------|---------------------------------|--------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | Returns HTML authorization page |        |
+| Status | Meaning                                                    | Description                                                                            | Schema |
+|--------|------------------------------------------------------------|----------------------------------------------------------------------------------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)    | Returns HTML authorization page                                                        |        |
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Redirects to the app's registered callback carrying an OAuth2 error (RFC 6749 4.1.2.1) |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4929,9 +4930,9 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Responses
 
-| Status | Meaning                                                    | Description                              | Schema |
-|--------|------------------------------------------------------------|------------------------------------------|--------|
-| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Returns redirect with authorization code |        |
+| Status | Meaning                                                    | Description                                                                                                            | Schema |
+|--------|------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|--------|
+| 302    | [Found](https://tools.ietf.org/html/rfc7231#section-6.4.3) | Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1) |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
