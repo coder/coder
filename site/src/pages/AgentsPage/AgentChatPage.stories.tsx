@@ -3358,11 +3358,15 @@ export const SlashClearCommandSubmits: Story = {
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.keyboard("/clear");
-		expect(
-			await within(document.body).findByText(
-				"Clear the conversation context; the next message starts fresh",
-			),
-		).toBeVisible();
+		// The menu popover fades in from opacity 0, so retry the visibility
+		// check instead of racing the entrance animation (flaked under pixel).
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3406,11 +3410,13 @@ export const SlashClearCommandConflictShowsError: Story = {
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.keyboard("/clear");
-		expect(
-			await within(document.body).findByText(
-				"Clear the conversation context; the next message starts fresh",
-			),
-		).toBeVisible();
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
