@@ -115,7 +115,10 @@ describe("mcpServerFormLogic", () => {
 		});
 
 		expect(values.toolDefault).toBe("disabled");
-		expect(values.toolRules).toEqual([{ tool: "search", enabled: false }]);
+		// Legacy rules without an action are normalized on load.
+		expect(values.toolRules).toEqual([
+			{ tool: "search", enabled: false, action: "disabled" },
+		]);
 
 		const formValues = validValues({
 			toolDefault: "disabled",
@@ -128,6 +131,33 @@ describe("mcpServerFormLogic", () => {
 		expect(buildUpdateMCPServerConfigRequest(formValues)).toMatchObject({
 			tool_default: "disabled",
 			tool_rules: [{ tool: "search", enabled: false }],
+		});
+	});
+
+	it("round-trips the escalate disposition", () => {
+		const values = buildInitialMCPServerFormValues({
+			...MockCoderMCPServer,
+			tool_default: "escalate",
+			tool_rules: [
+				{ tool: "create_issue", action: "escalate", enabled: false },
+				{ tool: "get_me", action: "enabled", enabled: true },
+			],
+		});
+		expect(values.toolDefault).toBe("escalate");
+
+		const request = buildCreateMCPServerConfigRequest(
+			validValues({
+				toolDefault: "escalate",
+				toolRules: values.toolRules,
+			}),
+		);
+		expect(request).toMatchObject({
+			tool_default: "escalate",
+			tool_rules: [
+				// The legacy boolean mirrors the action; escalate fails closed.
+				{ tool: "create_issue", action: "escalate", enabled: false },
+				{ tool: "get_me", action: "enabled", enabled: true },
+			],
 		});
 	});
 

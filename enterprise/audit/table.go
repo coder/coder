@@ -31,6 +31,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AISeatState":                   {codersdk.AuditActionCreate},
 	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"MCPGatewayEscalation":          {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
 	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -427,6 +428,22 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"api_key_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":     ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
+	},
+	&database.MCPGatewayEscalation{}: {
+		"id":                   ActionTrack,
+		"mcp_server_config_id": ActionIgnore, // Snapshot attribution; never changes.
+		"server_slug":          ActionTrack,
+		"server_url":           ActionTrack,
+		"tool":                 ActionTrack,
+		"input":                ActionSecret, // Tool arguments can contain secrets.
+		"ai_agent_id":          ActionIgnore, // Snapshot attribution; never changes.
+		"sponsor_user_id":      ActionIgnore, // Snapshot attribution; never changes.
+		"workspace_name":       ActionTrack,
+		"status":               ActionTrack,
+		"created_at":           ActionIgnore, // Implicit; never changes.
+		"expires_at":           ActionTrack,
+		"resolved_at":          ActionTrack,
+		"resolved_by":          ActionTrack,
 	},
 	&database.MCPServerConfig{}: {
 		"id":                          ActionTrack,

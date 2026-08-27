@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/aibridge/budget"
@@ -132,9 +133,10 @@ type Server struct {
 	budgetPolicy codersdk.AIBudgetPolicy
 	// budgetPeriod is the deployment-configured budgeting period used to
 	// derive the window over which user AI spend is aggregated.
-	budgetPeriod  codersdk.AIBudgetPeriod
-	clock         quartz.Clock
-	notifEnqueuer notifications.Enqueuer
+	budgetPeriod            codersdk.AIBudgetPeriod
+	clock                   quartz.Clock
+	notifEnqueuer           notifications.Enqueuer
+	notifEnqueuerConfigured bool
 	// metrics records cost-control metrics. May be nil.
 	metrics *Metrics
 }
@@ -171,21 +173,22 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	}
 
 	srv := &Server{
-		lifecycleCtx:        lifecycleCtx,
-		store:               opts.Store,
-		authorizer:          opts.Authorizer,
-		pubsub:              opts.Pubsub,
-		logger:              opts.Logger,
-		accessURL:           opts.AccessURL,
-		externalAuthConfigs: eac,
-		structuredLogging:   opts.GatewayCfg.StructuredLogging.Value(),
-		aiSeatTracker:       opts.AISeatTracker,
-		experiments:         opts.Experiments,
-		budgetPolicy:        codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
-		budgetPeriod:        codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
-		clock:               opts.Clock,
-		notifEnqueuer:       enqueuer,
-		metrics:             opts.Metrics,
+		lifecycleCtx:            lifecycleCtx,
+		store:                   opts.Store,
+		authorizer:              opts.Authorizer,
+		pubsub:                  opts.Pubsub,
+		logger:                  opts.Logger,
+		accessURL:               opts.AccessURL,
+		externalAuthConfigs:     eac,
+		structuredLogging:       opts.GatewayCfg.StructuredLogging.Value(),
+		aiSeatTracker:           opts.AISeatTracker,
+		experiments:             opts.Experiments,
+		budgetPolicy:            codersdk.NewAIBudgetPolicyFromString(opts.GatewayCfg.BudgetPolicy),
+		budgetPeriod:            codersdk.NewAIBudgetPeriodFromString(opts.GatewayCfg.BudgetPeriod),
+		clock:                   opts.Clock,
+		notifEnqueuer:           enqueuer,
+		notifEnqueuerConfigured: opts.Enqueuer != nil,
+		metrics:                 opts.Metrics,
 	}
 
 	if opts.GatewayCfg.InjectCoderMCPTools {
@@ -554,6 +557,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 			slog.F("server_url", in.GetServerUrl()),
 			slog.F("injected", in.GetInjected()),
 			slog.F("invocation_error", in.GetInvocationError()),
+			slog.F("disposition", in.GetDisposition()),
+			slog.F("escalation_id", in.GetEscalationId()),
 			slog.F("created_at", in.GetCreatedAt().AsTime()),
 			slog.F("metadata", metadata),
 		)
@@ -562,6 +567,19 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 	out, err := json.Marshal(metadata)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to marshal aibridge metadata from proto to JSON", slog.F("metadata", in), slog.Error(err))
+	}
+
+	disposition := in.GetDisposition()
+	if disposition == "" {
+		disposition = "permitted"
+	}
+	var escalationID uuid.NullUUID
+	if in.GetEscalationId() != "" {
+		id, err := uuid.Parse(in.GetEscalationId())
+		if err != nil {
+			return nil, xerrors.Errorf("invalid escalation ID %q: %w", in.GetEscalationId(), err)
+		}
+		escalationID = uuid.NullUUID{UUID: id, Valid: true}
 	}
 
 	_, err = s.store.InsertAIBridgeToolUsage(ctx, database.InsertAIBridgeToolUsageParams{
@@ -577,6 +595,8 @@ func (s *Server) RecordToolUsage(ctx context.Context, in *proto.RecordToolUsageR
 		InvocationError:    sql.NullString{String: in.GetInvocationError(), Valid: in.InvocationError != nil},
 		Metadata:           out,
 		CreatedAt:          in.GetCreatedAt().AsTime(),
+		Disposition:        disposition,
+		EscalationID:       escalationID,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert tool usage: %w", err)
@@ -705,6 +725,7 @@ func (s *Server) GetMCPGatewayServerConfig(ctx context.Context, in *proto.GetMCP
 		protoRules = append(protoRules, &proto.MCPGatewayToolRule{
 			Tool:    rule.Tool,
 			Enabled: rule.Enabled,
+			Action:  string(rule.Action),
 		})
 	}
 
@@ -836,6 +857,108 @@ externalAuthLoop:
 		AccessTokens: tokens,
 		Errors:       tokenErrs,
 	}, errs
+}
+
+// CreateMCPGatewayEscalation creates a pending sponsor approval request for an
+// MCP tool call.
+func (s *Server) CreateMCPGatewayEscalation(ctx context.Context, in *proto.CreateMCPGatewayEscalationRequest) (*proto.CreateMCPGatewayEscalationResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	_, principal, err := s.authenticateAPIKey(ctx, in.GetKey(), "")
+	if err != nil {
+		return nil, err
+	}
+	// Escalation is sponsor approval. A human-held key has no sponsor to
+	// ask, so escalated tools fail closed for humans rather than writing a
+	// human UUID into a column that means "AI agent identity".
+	if !principal.SponsorUserID.Valid {
+		return nil, xerrors.New("escalated tools require an AI identity: human-held keys have no sponsor to approve the call")
+	}
+	sponsorID := principal.SponsorUserID.UUID
+
+	serverConfigID, err := uuid.Parse(in.GetMcpServerConfigId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid MCP server config ID %q: %w", in.GetMcpServerConfigId(), err)
+	}
+
+	now := dbtime.Now()
+	escalationID := uuid.New()
+	insertCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // The gateway persists internal approval state for the authenticated identity.
+	escalation, err := s.store.InsertMCPGatewayEscalation(insertCtx, database.InsertMCPGatewayEscalationParams{
+		ID:                escalationID,
+		MCPServerConfigID: serverConfigID,
+		ServerSlug:        in.GetServerSlug(),
+		ServerUrl:         in.GetServerUrl(),
+		Tool:              in.GetTool(),
+		Input:             json.RawMessage(in.GetInput()),
+		AIAgentID:         principal.InitiatorID,
+		SponsorUserID:     sponsorID,
+		WorkspaceName:     in.GetWorkspaceName(),
+		Status:            "pending",
+		CreatedAt:         now,
+		ExpiresAt:         now.Add(5 * time.Minute),
+		ResolvedAt:        sql.NullTime{},
+		ResolvedBy:        uuid.NullUUID{},
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("insert MCP gateway escalation: %w", err)
+	}
+
+	if !s.notifEnqueuerConfigured {
+		s.logger.Warn(ctx, "notification enqueuer is unavailable for MCP gateway escalation", slog.F("escalation_id", escalationID))
+	} else {
+		notifyCtx := dbauthz.AsNotifier(ctx) //nolint:gocritic // The notifier actor is required to enqueue sponsor notifications.
+		_, err := s.notifEnqueuer.Enqueue(notifyCtx, sponsorID, notifications.TemplateMCPGatewayEscalationRequested, map[string]string{
+			"tool":           in.GetTool(),
+			"server_slug":    in.GetServerSlug(),
+			"workspace_name": in.GetWorkspaceName(),
+		}, "mcp_gateway")
+		if err != nil {
+			s.logger.Warn(ctx, "failed to enqueue MCP gateway escalation notification", slog.F("escalation_id", escalationID), slog.Error(err))
+		}
+	}
+
+	return &proto.CreateMCPGatewayEscalationResponse{
+		Id:        escalation.ID.String(),
+		ExpiresAt: timestamppb.New(escalation.ExpiresAt),
+	}, nil
+}
+
+// WaitMCPGatewayEscalation waits for an MCP gateway approval request to leave
+// pending, or returns pending when the long-poll window ends.
+func (s *Server) WaitMCPGatewayEscalation(ctx context.Context, in *proto.WaitMCPGatewayEscalationRequest) (*proto.WaitMCPGatewayEscalationResponse, error) {
+	escalationID, err := uuid.Parse(in.GetId())
+	if err != nil {
+		return nil, xerrors.Errorf("invalid MCP gateway escalation ID %q: %w", in.GetId(), err)
+	}
+
+	readCtx := dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // The gateway polls its internal approval state by generated ID.
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	timer := time.NewTimer(50 * time.Second)
+	defer timer.Stop()
+
+	for {
+		escalation, err := s.store.GetMCPGatewayEscalationByID(readCtx, escalationID)
+		if err != nil {
+			return nil, xerrors.Errorf("get MCP gateway escalation: %w", err)
+		}
+		if escalation.Status != "pending" {
+			return &proto.WaitMCPGatewayEscalationResponse{Status: escalation.Status}, nil
+		}
+		if dbtime.Now().After(escalation.ExpiresAt) {
+			return &proto.WaitMCPGatewayEscalationResponse{Status: "expired"}, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+			return &proto.WaitMCPGatewayEscalationResponse{Status: "pending"}, nil
+		case <-ticker.C:
+		}
+	}
 }
 
 // GetMCPUpstreamCredential returns a fresh external-auth token owned by the

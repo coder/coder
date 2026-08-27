@@ -73,6 +73,7 @@ type mcpGatewayPlan struct {
 	forward        []json.RawMessage
 	local          []json.RawMessage
 	toolCalls      []mcpGatewayToolCall
+	escalatedCall  *mcpGatewayToolCall
 	toolsListIDs   map[string]struct{}
 	filterResponse bool
 	batch          bool
@@ -83,7 +84,10 @@ type mcpGatewayToolCall struct {
 	Tool            string
 	Input           string
 	JSONRPCID       string
+	JSONRPCIDRaw    json.RawMessage
 	InvocationError string
+	Disposition     string
+	EscalationID    string
 }
 
 type mcpGatewayError struct {
@@ -160,6 +164,7 @@ func newMCPGatewayPolicy(cfg *proto.MCPGatewayServerConfig) (mcpGatewayPolicy, e
 	for _, rule := range cfg.GetToolRules() {
 		rules = append(rules, codersdk.MCPServerToolRule{
 			Tool:    rule.GetTool(),
+			Action:  codersdk.MCPServerToolAction(rule.GetAction()),
 			Enabled: rule.GetEnabled(),
 		})
 	}
@@ -187,14 +192,16 @@ func newMCPGatewayPolicy(cfg *proto.MCPGatewayServerConfig) (mcpGatewayPolicy, e
 	return policy, nil
 }
 
-func (p mcpGatewayPolicy) allowed(tool string) bool {
-	if !mcptools.Allowed(p.tools, tool) {
-		return false
-	}
+func (p mcpGatewayPolicy) evaluate(tool string) mcptools.Action {
+	// The regex lists are binary and apply on top of the rule layers, so a
+	// regex-excluded tool cannot be escalated into existence.
 	if p.denylist != nil && p.denylist.MatchString(tool) {
-		return false
+		return mcptools.ActionBlock
 	}
-	return p.allowlist == nil || p.allowlist.MatchString(tool)
+	if p.allowlist != nil && !p.allowlist.MatchString(tool) {
+		return mcptools.ActionBlock
+	}
+	return mcptools.Evaluate(p.tools, tool)
 }
 
 func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (mcpGatewayPlan, error) {
@@ -214,12 +221,16 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 				plan.filterResponse = true
 			}
 		case mcp.MethodToolsCall:
-			call := mcpGatewayToolCall{JSONRPCID: mcpGatewayIDValue(item.Envelope.ID)}
+			call := mcpGatewayToolCall{
+				JSONRPCID:    mcpGatewayIDValue(item.Envelope.ID),
+				JSONRPCIDRaw: append(json.RawMessage(nil), item.Envelope.ID...),
+			}
 			var params mcp.CallToolParams
 			if err := json.Unmarshal(item.Envelope.Params, &params); err != nil || strings.TrimSpace(params.Name) == "" {
 				call.Tool = params.Name
 				call.Input = "null"
 				call.InvocationError = "invalid tools/call parameters"
+				call.Disposition = "blocked"
 				plan.toolCalls = append(plan.toolCalls, call)
 				if len(item.Envelope.ID) > 0 {
 					plan.local = append(plan.local, marshalMCPGatewayError(
@@ -237,8 +248,10 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 			}
 			call.Tool = params.Name
 			call.Input = string(input)
-			if !policy.allowed(params.Name) {
+			switch policy.evaluate(params.Name) {
+			case mcptools.ActionBlock:
 				call.InvocationError = fmt.Sprintf("tool %q denied by MCP gateway policy", params.Name)
+				call.Disposition = "blocked"
 				plan.toolCalls = append(plan.toolCalls, call)
 				if len(item.Envelope.ID) > 0 {
 					plan.local = append(plan.local, marshalMCPGatewayError(
@@ -249,6 +262,25 @@ func planMCPGatewayRequest(request mcpGatewayRequest, policy mcpGatewayPolicy) (
 					))
 				}
 				continue
+			case mcptools.ActionEscalate:
+				if !request.Batch {
+					plan.escalatedCall = &call
+					continue
+				}
+				call.InvocationError = fmt.Sprintf("tool %q cannot be called because escalated tools cannot be called in batches", params.Name)
+				call.Disposition = "blocked"
+				plan.toolCalls = append(plan.toolCalls, call)
+				if len(item.Envelope.ID) > 0 {
+					plan.local = append(plan.local, marshalMCPGatewayError(
+						item.Envelope.ID,
+						mcp.INTERNAL_ERROR,
+						call.InvocationError,
+						map[string]any{"tool": params.Name, "disposition": "escalate"},
+					))
+				}
+				continue
+			case mcptools.ActionPermit:
+				call.Disposition = "permitted"
 			}
 			plan.toolCalls = append(plan.toolCalls, call)
 			plan.forward = append(plan.forward, item.Raw)
@@ -310,7 +342,6 @@ func (s *Server) startMCPGatewayRecording(
 	authz *proto.AuthorizeMCPGatewayResponse,
 	cfg *proto.MCPGatewayServerConfig,
 	userAgent string,
-	toolCalls []mcpGatewayToolCall,
 ) string {
 	interceptionID := uuid.NewString()
 	startedAt := time.Now()
@@ -332,6 +363,13 @@ func (s *Server) startMCPGatewayRecording(
 		return ""
 	}
 
+	return interceptionID
+}
+
+func (s *Server) recordMCPGatewayToolUsages(ctx context.Context, client DRPCClient, interceptionID string, cfg *proto.MCPGatewayServerConfig, toolCalls []mcpGatewayToolCall) {
+	if interceptionID == "" {
+		return
+	}
 	serverURL := cfg.GetUrl()
 	for _, call := range toolCalls {
 		var invocationError *string
@@ -348,15 +386,19 @@ func (s *Server) startMCPGatewayRecording(
 			CreatedAt:       timestamppb.Now(),
 			ToolCallId:      call.JSONRPCID,
 			ItemId:          call.JSONRPCID,
+			Disposition:     call.Disposition,
+			EscalationId:    call.EscalationID,
 		})
 		if err != nil {
 			s.logger.Warn(ctx, "failed to record MCP gateway tool usage", slog.F("server_slug", cfg.GetSlug()), slog.F("tool", call.Tool), slog.Error(err))
 		}
 	}
-	return interceptionID
 }
 
 func (s *Server) endMCPGatewayRecording(ctx context.Context, client DRPCClient, interceptionID, slug string) {
+	if ctx.Err() != nil {
+		return
+	}
 	_, err := client.RecordInterceptionEnded(ctx, &proto.RecordInterceptionEndedRequest{
 		Id:      interceptionID,
 		EndedAt: timestamppb.Now(),
@@ -444,11 +486,19 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(nil, mcp.INTERNAL_ERROR, err.Error(), nil))
 		return
 	}
-	if len(plan.toolCalls) > 0 {
-		interceptionID := s.startMCPGatewayRecording(ctx, client, authz, cfg, r.UserAgent(), plan.toolCalls)
+	interceptionID := ""
+	if len(plan.toolCalls) > 0 || plan.escalatedCall != nil {
+		interceptionID = s.startMCPGatewayRecording(ctx, client, authz, cfg, r.UserAgent())
 		if interceptionID != "" {
 			defer s.endMCPGatewayRecording(ctx, client, interceptionID, cfg.GetSlug())
 		}
+	}
+	if len(plan.toolCalls) > 0 {
+		s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, plan.toolCalls)
+	}
+	if plan.escalatedCall != nil {
+		s.holdMCPGatewayEscalation(rw, r, client, token, authz.GetInitiatorId(), cfg, body, interceptionID, *plan.escalatedCall)
+		return
 	}
 	if len(plan.forward) == 0 {
 		writeMCPGatewayLocalResponses(rw, plan)
@@ -464,6 +514,254 @@ func (s *Server) serveMCPGateway(rw http.ResponseWriter, r *http.Request, client
 		}
 	}
 	s.forwardMCPGatewayResponse(rw, r, client, token, authz.GetInitiatorId(), cfg, forwardBody, &plan, mcpGatewayResponseID(request))
+}
+
+type mcpGatewayEscalationWaitResult struct {
+	status string
+	err    error
+}
+
+func (s *Server) holdMCPGatewayEscalation(
+	rw http.ResponseWriter,
+	r *http.Request,
+	client DRPCClient,
+	token string,
+	initiatorID string,
+	cfg *proto.MCPGatewayServerConfig,
+	body []byte,
+	interceptionID string,
+	call mcpGatewayToolCall,
+) {
+	ctx := r.Context()
+	created, err := client.CreateMCPGatewayEscalation(ctx, &proto.CreateMCPGatewayEscalationRequest{
+		Key:               token,
+		McpServerConfigId: cfg.GetId(),
+		ServerSlug:        cfg.GetSlug(),
+		ServerUrl:         cfg.GetUrl(),
+		Tool:              call.Tool,
+		Input:             call.Input,
+		WorkspaceName:     "",
+	})
+	if err != nil || created.GetId() == "" {
+		call.Disposition = "blocked"
+		call.InvocationError = "failed to create MCP gateway escalation"
+		s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+		s.logger.Warn(ctx, call.InvocationError, slog.F("server_slug", cfg.GetSlug()), slog.Error(err))
+		writeMCPGatewayJSON(rw, http.StatusOK, marshalMCPGatewayError(call.JSONRPCIDRaw, mcp.INTERNAL_ERROR, call.InvocationError, nil))
+		return
+	}
+
+	call.EscalationID = created.GetId()
+	expiresAt := time.Now().Add(5 * time.Minute)
+	if created.GetExpiresAt() != nil && created.GetExpiresAt().IsValid() {
+		expiresAt = created.GetExpiresAt().AsTime()
+	}
+
+	rw.Header().Set("Content-Type", "text/event-stream")
+	rw.WriteHeader(http.StatusOK)
+	controller := http.NewResponseController(rw)
+	_ = controller.Flush()
+	_, _ = fmt.Fprintf(rw, ": escalation pending %s\n\n", call.EscalationID)
+	_ = controller.Flush()
+
+	status, err := s.waitMCPGatewayEscalation(ctx, rw, controller, client, call.EscalationID, expiresAt)
+	if err != nil {
+		if ctx.Err() == nil {
+			s.logger.Warn(ctx, "failed while waiting for MCP gateway escalation", slog.F("escalation_id", call.EscalationID), slog.Error(err))
+		}
+		return
+	}
+
+	switch status {
+	case "approved":
+		call.Disposition = "escalated_approved"
+		s.forwardApprovedMCPGatewayEscalation(rw, r, client, token, initiatorID, cfg, body, interceptionID, call)
+	case "denied", "expired":
+		call.Disposition = "escalated_" + status
+		call.InvocationError = fmt.Sprintf("MCP gateway escalation was %s", status)
+		s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+		writeMCPGatewaySSEMessage(rw, controller, marshalMCPGatewayError(
+			call.JSONRPCIDRaw,
+			mcp.INTERNAL_ERROR,
+			call.InvocationError,
+			map[string]any{"escalation_id": call.EscalationID, "status": status},
+		))
+	default:
+		call.Disposition = "escalated_denied"
+		call.InvocationError = fmt.Sprintf("MCP gateway escalation returned unexpected status %q", status)
+		s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+		writeMCPGatewaySSEMessage(rw, controller, marshalMCPGatewayError(
+			call.JSONRPCIDRaw,
+			mcp.INTERNAL_ERROR,
+			call.InvocationError,
+			map[string]any{"escalation_id": call.EscalationID, "status": status},
+		))
+	}
+}
+
+func (s *Server) waitMCPGatewayEscalation(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	controller *http.ResponseController,
+	client DRPCClient,
+	escalationID string,
+	expiresAt time.Time,
+) (string, error) {
+	holdCtx, cancel := context.WithDeadline(ctx, expiresAt.Add(s.mcpEscalationHoldGrace))
+	defer cancel()
+	keepalive := time.NewTicker(s.mcpEscalationKeepaliveInterval)
+	defer keepalive.Stop()
+
+	writeKeepalive := func() {
+		_, _ = io.WriteString(rw, ": keepalive\n\n")
+		_ = controller.Flush()
+	}
+	waitForPoll := func() error {
+		timer := time.NewTimer(s.mcpEscalationPollInterval)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-holdCtx.Done():
+				return holdCtx.Err()
+			case <-keepalive.C:
+				writeKeepalive()
+			case <-timer.C:
+				return nil
+			}
+		}
+	}
+
+	for {
+		result := make(chan mcpGatewayEscalationWaitResult, 1)
+		go func() {
+			response, err := client.WaitMCPGatewayEscalation(holdCtx, &proto.WaitMCPGatewayEscalationRequest{Id: escalationID})
+			result <- mcpGatewayEscalationWaitResult{status: response.GetStatus(), err: err}
+		}()
+
+	waitResponse:
+		for {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			case <-holdCtx.Done():
+				if ctx.Err() != nil {
+					return "", ctx.Err()
+				}
+				return "expired", nil
+			case <-keepalive.C:
+				writeKeepalive()
+			case waited := <-result:
+				if waited.err != nil {
+					if holdCtx.Err() != nil && ctx.Err() == nil {
+						return "expired", nil
+					}
+					return "", waited.err
+				}
+				if waited.status != "" && waited.status != "pending" {
+					return waited.status, nil
+				}
+				if err := waitForPoll(); err != nil {
+					if holdCtx.Err() != nil && ctx.Err() == nil {
+						return "expired", nil
+					}
+					return "", err
+				}
+				break waitResponse
+			}
+		}
+	}
+}
+
+func (s *Server) forwardApprovedMCPGatewayEscalation(
+	rw http.ResponseWriter,
+	r *http.Request,
+	client DRPCClient,
+	token string,
+	initiatorID string,
+	cfg *proto.MCPGatewayServerConfig,
+	body []byte,
+	interceptionID string,
+	call mcpGatewayToolCall,
+) {
+	ctx := r.Context()
+	controller := http.NewResponseController(rw)
+	authHeaders, externalAuth, failure, err := s.resolveMCPGatewayUpstreamAuth(ctx, client, token, initiatorID, cfg)
+	if err == nil && failure == nil {
+		var response *http.Response
+		response, err = doMCPGatewayUpstreamRequest(ctx, r, cfg.GetUrl(), body, "application/json, text/event-stream", authHeaders)
+		if err == nil && response.StatusCode == http.StatusUnauthorized && externalAuth {
+			_ = response.Body.Close()
+			authHeaders, failure, err = s.refreshMCPGatewayUpstreamAuth(ctx, client, token, initiatorID, cfg)
+			if err == nil && failure == nil {
+				response, err = doMCPGatewayUpstreamRequest(ctx, r, cfg.GetUrl(), body, "application/json, text/event-stream", authHeaders)
+			}
+		}
+		if response != nil {
+			defer response.Body.Close()
+			if err == nil && failure == nil {
+				contentType := strings.ToLower(response.Header.Get("Content-Type"))
+				switch {
+				case strings.Contains(contentType, "text/event-stream"):
+					s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+					relayMCPGatewaySSE(rw, controller, response.Body)
+					return
+				case strings.Contains(contentType, "application/json"):
+					responseBody, readErr := io.ReadAll(response.Body)
+					if readErr == nil {
+						var compact bytes.Buffer
+						if json.Compact(&compact, responseBody) == nil {
+							responseBody = compact.Bytes()
+						}
+						s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+						writeMCPGatewaySSEMessage(rw, controller, responseBody)
+						return
+					}
+					err = readErr
+				default:
+					err = xerrors.New("upstream MCP server did not return JSON or SSE")
+				}
+			}
+		}
+	}
+
+	message := "failed to forward approved MCP gateway escalation"
+	data := map[string]any{"escalation_id": call.EscalationID, "status": "approved"}
+	if failure != nil {
+		message = failure.Message
+		for key, value := range failure.Data {
+			data[key] = value
+		}
+	}
+	call.InvocationError = message
+	s.recordMCPGatewayToolUsages(ctx, client, interceptionID, cfg, []mcpGatewayToolCall{call})
+	if err != nil {
+		s.logger.Warn(ctx, message, slog.F("escalation_id", call.EscalationID), slog.Error(err))
+	}
+	writeMCPGatewaySSEMessage(rw, controller, marshalMCPGatewayError(call.JSONRPCIDRaw, mcp.INTERNAL_ERROR, message, data))
+}
+
+func writeMCPGatewaySSEMessage(rw http.ResponseWriter, controller *http.ResponseController, body []byte) {
+	_, _ = fmt.Fprintf(rw, "event: message\ndata: %s\n\n", bytes.TrimSpace(body))
+	_ = controller.Flush()
+}
+
+func relayMCPGatewaySSE(rw http.ResponseWriter, controller *http.ResponseController, body io.Reader) {
+	reader := bufio.NewReader(body)
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			_, _ = io.WriteString(rw, line)
+			if line == "\n" || line == "\r\n" {
+				_ = controller.Flush()
+			}
+		}
+		if err != nil {
+			_ = controller.Flush()
+			return
+		}
+	}
 }
 
 func mcpGatewayResponseID(request mcpGatewayRequest) json.RawMessage {
@@ -902,7 +1200,9 @@ func filterMCPGatewayResponseObject(body []byte, plan mcpGatewayPlan) ([]byte, e
 		if err := json.Unmarshal(tool, &descriptor); err != nil {
 			return nil, xerrors.Errorf("decode tools/list tool: %w", err)
 		}
-		if plan.policy.allowed(descriptor.Name) {
+		// Escalated tools stay listed: the model must be able to see a tool
+		// to call it, and the approval hold happens at call time.
+		if plan.policy.evaluate(descriptor.Name) != mcptools.ActionBlock {
 			allowed = append(allowed, tool)
 		}
 	}

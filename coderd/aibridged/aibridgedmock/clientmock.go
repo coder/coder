@@ -57,6 +57,21 @@ func (mr *MockDRPCClientMockRecorder) AuthorizeMCPGateway(ctx, in any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeMCPGateway", reflect.TypeOf((*MockDRPCClient)(nil).AuthorizeMCPGateway), ctx, in)
 }
 
+// CreateMCPGatewayEscalation mocks base method.
+func (m *MockDRPCClient) CreateMCPGatewayEscalation(ctx context.Context, in *proto.CreateMCPGatewayEscalationRequest) (*proto.CreateMCPGatewayEscalationResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateMCPGatewayEscalation", ctx, in)
+	ret0, _ := ret[0].(*proto.CreateMCPGatewayEscalationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateMCPGatewayEscalation indicates an expected call of CreateMCPGatewayEscalation.
+func (mr *MockDRPCClientMockRecorder) CreateMCPGatewayEscalation(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMCPGatewayEscalation", reflect.TypeOf((*MockDRPCClient)(nil).CreateMCPGatewayEscalation), ctx, in)
+}
+
 // DRPCConn mocks base method.
 func (m *MockDRPCClient) DRPCConn() drpc.Conn {
 	m.ctrl.T.Helper()
@@ -264,6 +279,21 @@ func (m *MockDRPCClient) RecordToolUsage(ctx context.Context, in *proto.RecordTo
 func (mr *MockDRPCClientMockRecorder) RecordToolUsage(ctx, in any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RecordToolUsage", reflect.TypeOf((*MockDRPCClient)(nil).RecordToolUsage), ctx, in)
+}
+
+// WaitMCPGatewayEscalation mocks base method.
+func (m *MockDRPCClient) WaitMCPGatewayEscalation(ctx context.Context, in *proto.WaitMCPGatewayEscalationRequest) (*proto.WaitMCPGatewayEscalationResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WaitMCPGatewayEscalation", ctx, in)
+	ret0, _ := ret[0].(*proto.WaitMCPGatewayEscalationResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// WaitMCPGatewayEscalation indicates an expected call of WaitMCPGatewayEscalation.
+func (mr *MockDRPCClientMockRecorder) WaitMCPGatewayEscalation(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitMCPGatewayEscalation", reflect.TypeOf((*MockDRPCClient)(nil).WaitMCPGatewayEscalation), ctx, in)
 }
 
 // WatchAIProviders mocks base method.

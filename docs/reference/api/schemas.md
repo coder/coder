@@ -5580,6 +5580,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "tool_rules": [
     {
+      "action": "enabled",
       "enabled": true,
       "tool": "string"
     }
@@ -5627,7 +5628,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------------|-----------------------------------------------------------------------------|
 | `auth_type`    | `api_key`, `custom_headers`, `external_auth`, `none`, `oauth2`, `user_oidc` |
 | `availability` | `default_off`, `default_on`, `force_on`                                     |
-| `tool_default` | `disabled`, `enabled`                                                       |
+| `tool_default` | `disabled`, `enabled`, `escalate`                                           |
 | `transport`    | `sse`, `streamable_http`                                                    |
 
 ## codersdk.CreateOrganizationRequest
@@ -9236,6 +9237,48 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 |-----------------|--------|----------|--------------|-------------|
 | `session_token` | string | true     |              |             |
 
+## codersdk.MCPGatewayEscalation
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "expires_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input": "string",
+  "server_slug": "string",
+  "status": "pending",
+  "tool": "string",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                       | Required | Restrictions | Description |
+|------------------|----------------------------------------------------------------------------|----------|--------------|-------------|
+| `created_at`     | string                                                                     | false    |              |             |
+| `expires_at`     | string                                                                     | false    |              |             |
+| `id`             | string                                                                     | false    |              |             |
+| `input`          | string                                                                     | false    |              |             |
+| `server_slug`    | string                                                                     | false    |              |             |
+| `status`         | [codersdk.MCPGatewayEscalationStatus](#codersdkmcpgatewayescalationstatus) | false    |              |             |
+| `tool`           | string                                                                     | false    |              |             |
+| `workspace_name` | string                                                                     | false    |              |             |
+
+## codersdk.MCPGatewayEscalationStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                   |
+|--------------------------------------------|
+| `approved`, `denied`, `expired`, `pending` |
+
 ## codersdk.MCPServerConfig
 
 ```json
@@ -9272,6 +9315,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
   ],
   "tool_rules": [
     {
+      "action": "enabled",
       "enabled": true,
       "tool": "string"
     }
@@ -9333,10 +9377,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 | `token_revocation_error` | string  | false    |              |             |
 | `token_revoked`          | boolean | false    |              |             |
 
+## codersdk.MCPServerToolAction
+
+```json
+"enabled"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `disabled`, `enabled`, `escalate` |
+
 ## codersdk.MCPServerToolRule
 
 ```json
 {
+  "action": "enabled",
   "enabled": true,
   "tool": "string"
 }
@@ -9344,10 +9403,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 
 ### Properties
 
-| Name      | Type    | Required | Restrictions | Description |
-|-----------|---------|----------|--------------|-------------|
-| `enabled` | boolean | false    |              |             |
-| `tool`    | string  | true     |              |             |
+| Name      | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                             |
+|-----------|--------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action`  | [codersdk.MCPServerToolAction](#codersdkmcpservertoolaction) | false    |              | Action is one of enabled, disabled, or escalate. When empty, the legacy Enabled boolean decides between enabled and disabled.                                                                           |
+| `enabled` | boolean                                                      | false    |              | Enabled is the legacy binary form of Action. It is kept in sync on write so older readers keep working; escalate mirrors as disabled, the fail-closed reading for consumers without escalation support. |
+| `tool`    | string                                                       | true     |              |                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property | Value(s)                          |
+|----------|-----------------------------------|
+| `action` | `disabled`, `enabled`, `escalate` |
 
 ## codersdk.MatchedProvisioners
 
@@ -12133,9 +12199,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit - FeatureAgen
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_gateway_escalation`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -14738,6 +14804,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   ],
   "tool_rules": [
     {
+      "action": "enabled",
       "enabled": true,
       "tool": "string"
     }
@@ -14785,7 +14852,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------|-----------------------------------------------------------------------------|
 | `auth_type`    | `api_key`, `custom_headers`, `external_auth`, `none`, `oauth2`, `user_oidc` |
 | `availability` | `default_off`, `default_on`, `force_on`                                     |
-| `tool_default` | `disabled`, `enabled`                                                       |
+| `tool_default` | `disabled`, `enabled`, `escalate`                                           |
 | `transport`    | `sse`, `streamable_http`                                                    |
 
 ## codersdk.UpdateOrganizationRequest

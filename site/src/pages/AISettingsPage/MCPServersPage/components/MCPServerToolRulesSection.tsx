@@ -10,17 +10,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { Switch } from "#/components/Switch/Switch";
 import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	getMCPServerToolRuleErrors,
+	isToolDisposition,
 	type MCPServerFormValues,
+	TOOL_DISPOSITION_OPTIONS,
+	toolRuleAction,
 } from "./mcpServerFormLogic";
-
-const TOOL_DEFAULT_OPTIONS = [
-	{ value: "enabled", label: "Enabled" },
-	{ value: "disabled", label: "Disabled" },
-] as const;
 
 interface MCPServerToolRulesSectionProps {
 	form: FormikContextType<MCPServerFormValues>;
@@ -41,8 +38,10 @@ export const MCPServerToolRulesSection: FC<MCPServerToolRulesSectionProps> = ({
 		<div className="space-y-5">
 			<p className="m-0 text-sm text-content-secondary">
 				An exact tool name rule overrides the server default. Tools without a
-				matching rule use the server default. The legacy allow and deny regex
-				lists in Behavior also apply, so a tool must pass both controls.
+				matching rule use the server default. Escalated tools stay visible, but
+				each call is held until the sponsoring user approves it. The legacy
+				allow and deny regex lists in Behavior also apply, so a tool must pass
+				both controls.
 			</p>
 			<Field
 				label="Default tool state"
@@ -52,7 +51,7 @@ export const MCPServerToolRulesSection: FC<MCPServerToolRulesSectionProps> = ({
 				<Select
 					value={form.values.toolDefault}
 					onValueChange={(value) => {
-						if (value === "enabled" || value === "disabled") {
+						if (isToolDisposition(value)) {
 							void form.setFieldValue("toolDefault", value);
 						}
 					}}
@@ -62,7 +61,7 @@ export const MCPServerToolRulesSection: FC<MCPServerToolRulesSectionProps> = ({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						{TOOL_DEFAULT_OPTIONS.map((option) => (
+						{TOOL_DISPOSITION_OPTIONS.map((option) => (
 							<SelectItem key={option.value} value={option.value}>
 								{option.label}
 							</SelectItem>
@@ -80,7 +79,7 @@ export const MCPServerToolRulesSection: FC<MCPServerToolRulesSectionProps> = ({
 				{form.values.toolRules.map((rule, index) => {
 					const toolNameId = `${formId}-tool-rule-${index}-name`;
 					const toolNameErrorId = `${toolNameId}-error`;
-					const enabledId = `${formId}-tool-rule-${index}-enabled`;
+					const actionId = `${formId}-tool-rule-${index}-action`;
 					const error = toolRuleErrors[index];
 
 					return (
@@ -122,21 +121,38 @@ export const MCPServerToolRulesSection: FC<MCPServerToolRulesSectionProps> = ({
 										</p>
 									)}
 								</Field>
-								<Field label="Enabled" htmlFor={enabledId}>
-									<Switch
-										id={enabledId}
-										checked={rule.enabled}
-										onCheckedChange={(enabled) =>
+								<Field label="Action" htmlFor={actionId}>
+									<Select
+										value={toolRuleAction(rule)}
+										onValueChange={(value) => {
+											if (!isToolDisposition(value)) {
+												return;
+											}
 											setToolRules(
 												form.values.toolRules.map((currentRule, ruleIndex) =>
 													ruleIndex === index
-														? { ...currentRule, enabled }
+														? {
+																...currentRule,
+																action: value,
+																enabled: value === "enabled",
+															}
 														: currentRule,
 												),
-											)
-										}
+											);
+										}}
 										disabled={disabled}
-									/>
+									>
+										<SelectTrigger id={actionId} className="w-56 shadow-none">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{TOOL_DISPOSITION_OPTIONS.map((option) => (
+												<SelectItem key={option.value} value={option.value}>
+													{option.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
 								</Field>
 								<Button
 									variant="subtle"

@@ -291,6 +291,8 @@ sql:
           resource_type_ai_provider: ResourceTypeAIProvider
           resource_type_ai_provider_key: ResourceTypeAIProviderKey
           resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
+          mcp_gateway_escalation: MCPGatewayEscalation
+          mcp_gateway_escalations: MCPGatewayEscalations
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

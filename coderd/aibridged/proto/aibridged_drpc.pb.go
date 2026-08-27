@@ -317,6 +317,8 @@ type DRPCMCPConfiguratorClient interface {
 	GetMCPServerAccessTokensBatch(ctx context.Context, in *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 	GetMCPUpstreamCredential(ctx context.Context, in *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
 	GetMCPGatewayServerConfig(ctx context.Context, in *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error)
+	CreateMCPGatewayEscalation(ctx context.Context, in *CreateMCPGatewayEscalationRequest) (*CreateMCPGatewayEscalationResponse, error)
+	WaitMCPGatewayEscalation(ctx context.Context, in *WaitMCPGatewayEscalationRequest) (*WaitMCPGatewayEscalationResponse, error)
 }
 
 type drpcMCPConfiguratorClient struct {
@@ -365,11 +367,31 @@ func (c *drpcMCPConfiguratorClient) GetMCPGatewayServerConfig(ctx context.Contex
 	return out, nil
 }
 
+func (c *drpcMCPConfiguratorClient) CreateMCPGatewayEscalation(ctx context.Context, in *CreateMCPGatewayEscalationRequest) (*CreateMCPGatewayEscalationResponse, error) {
+	out := new(CreateMCPGatewayEscalationResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/CreateMCPGatewayEscalation", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcMCPConfiguratorClient) WaitMCPGatewayEscalation(ctx context.Context, in *WaitMCPGatewayEscalationRequest) (*WaitMCPGatewayEscalationResponse, error) {
+	out := new(WaitMCPGatewayEscalationResponse)
+	err := c.cc.Invoke(ctx, "/proto.MCPConfigurator/WaitMCPGatewayEscalation", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCMCPConfiguratorServer interface {
 	GetMCPServerConfigs(context.Context, *GetMCPServerConfigsRequest) (*GetMCPServerConfigsResponse, error)
 	GetMCPServerAccessTokensBatch(context.Context, *GetMCPServerAccessTokensBatchRequest) (*GetMCPServerAccessTokensBatchResponse, error)
 	GetMCPUpstreamCredential(context.Context, *GetMCPUpstreamCredentialRequest) (*GetMCPUpstreamCredentialResponse, error)
 	GetMCPGatewayServerConfig(context.Context, *GetMCPGatewayServerConfigRequest) (*GetMCPGatewayServerConfigResponse, error)
+	CreateMCPGatewayEscalation(context.Context, *CreateMCPGatewayEscalationRequest) (*CreateMCPGatewayEscalationResponse, error)
+	WaitMCPGatewayEscalation(context.Context, *WaitMCPGatewayEscalationRequest) (*WaitMCPGatewayEscalationResponse, error)
 }
 
 type DRPCMCPConfiguratorUnimplementedServer struct{}
@@ -390,9 +412,17 @@ func (s *DRPCMCPConfiguratorUnimplementedServer) GetMCPGatewayServerConfig(conte
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCMCPConfiguratorUnimplementedServer) CreateMCPGatewayEscalation(context.Context, *CreateMCPGatewayEscalationRequest) (*CreateMCPGatewayEscalationResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCMCPConfiguratorUnimplementedServer) WaitMCPGatewayEscalation(context.Context, *WaitMCPGatewayEscalationRequest) (*WaitMCPGatewayEscalationResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCMCPConfiguratorDescription struct{}
 
-func (DRPCMCPConfiguratorDescription) NumMethods() int { return 4 }
+func (DRPCMCPConfiguratorDescription) NumMethods() int { return 6 }
 
 func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -432,6 +462,24 @@ func (DRPCMCPConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc
 						in1.(*GetMCPGatewayServerConfigRequest),
 					)
 			}, DRPCMCPConfiguratorServer.GetMCPGatewayServerConfig, true
+	case 4:
+		return "/proto.MCPConfigurator/CreateMCPGatewayEscalation", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCMCPConfiguratorServer).
+					CreateMCPGatewayEscalation(
+						ctx,
+						in1.(*CreateMCPGatewayEscalationRequest),
+					)
+			}, DRPCMCPConfiguratorServer.CreateMCPGatewayEscalation, true
+	case 5:
+		return "/proto.MCPConfigurator/WaitMCPGatewayEscalation", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCMCPConfiguratorServer).
+					WaitMCPGatewayEscalation(
+						ctx,
+						in1.(*WaitMCPGatewayEscalationRequest),
+					)
+			}, DRPCMCPConfiguratorServer.WaitMCPGatewayEscalation, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -499,6 +547,38 @@ type drpcMCPConfigurator_GetMCPGatewayServerConfigStream struct {
 }
 
 func (x *drpcMCPConfigurator_GetMCPGatewayServerConfigStream) SendAndClose(m *GetMCPGatewayServerConfigResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCMCPConfigurator_CreateMCPGatewayEscalationStream interface {
+	drpc.Stream
+	SendAndClose(*CreateMCPGatewayEscalationResponse) error
+}
+
+type drpcMCPConfigurator_CreateMCPGatewayEscalationStream struct {
+	drpc.Stream
+}
+
+func (x *drpcMCPConfigurator_CreateMCPGatewayEscalationStream) SendAndClose(m *CreateMCPGatewayEscalationResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCMCPConfigurator_WaitMCPGatewayEscalationStream interface {
+	drpc.Stream
+	SendAndClose(*WaitMCPGatewayEscalationResponse) error
+}
+
+type drpcMCPConfigurator_WaitMCPGatewayEscalationStream struct {
+	drpc.Stream
+}
+
+func (x *drpcMCPConfigurator_WaitMCPGatewayEscalationStream) SendAndClose(m *WaitMCPGatewayEscalationResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
 		return err
 	}

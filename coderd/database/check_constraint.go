@@ -28,6 +28,7 @@ const (
 	CheckAibridgeTokenUsagesCostMicrosCheck                    CheckConstraint = "aibridge_token_usages_cost_micros_check"                      // aibridge_token_usages
 	CheckAibridgeTokenUsagesInputPriceMicrosCheck              CheckConstraint = "aibridge_token_usages_input_price_micros_check"               // aibridge_token_usages
 	CheckAibridgeTokenUsagesOutputPriceMicrosCheck             CheckConstraint = "aibridge_token_usages_output_price_micros_check"              // aibridge_token_usages
+	CheckAibridgeToolUsagesDispositionCheck                    CheckConstraint = "aibridge_tool_usages_disposition_check"                       // aibridge_tool_usages
 	CheckAPIKeysAllowListNotEmpty                              CheckConstraint = "api_keys_allow_list_not_empty"                                // api_keys
 	CheckAPIKeysHolderTypeCheck                                CheckConstraint = "api_keys_holder_type_check"                                   // api_keys
 	CheckAuthorizationLedgerScopeReserved                      CheckConstraint = "authorization_ledger_scope_reserved"                          // authorization_ledger
@@ -64,6 +65,7 @@ const (
 	CheckOrganizationIDNotZero                                 CheckConstraint = "organization_id_not_zero"                                     // custom_roles
 	CheckGroupAIBudgetsSpendLimitMicrosCheck                   CheckConstraint = "group_ai_budgets_spend_limit_micros_check"                    // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck                       CheckConstraint = "groups_chat_spend_limit_micros_check"                         // groups
+	CheckMcpGatewayEscalationsStatusCheck                      CheckConstraint = "mcp_gateway_escalations_status_check"                         // mcp_gateway_escalations
 	CheckMcpServerConfigsAuthTypeCheck                         CheckConstraint = "mcp_server_configs_auth_type_check"                           // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                     CheckConstraint = "mcp_server_configs_availability_check"                        // mcp_server_configs
 	CheckMcpServerConfigsToolDefaultCheck                      CheckConstraint = "mcp_server_configs_tool_default_check"                        // mcp_server_configs

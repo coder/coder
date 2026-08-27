@@ -6064,6 +6064,36 @@ export interface LoginWithPasswordResponse {
 	readonly session_token: string;
 }
 
+// From codersdk/mcpgatewayescalations.go
+/**
+ * MCPGatewayEscalation is an MCP tool call awaiting or recording sponsor
+ * approval.
+ */
+export interface MCPGatewayEscalation {
+	readonly id: string;
+	readonly server_slug: string;
+	readonly tool: string;
+	readonly input: string;
+	readonly workspace_name: string;
+	readonly status: MCPGatewayEscalationStatus;
+	readonly created_at: string;
+	readonly expires_at: string;
+}
+
+// From codersdk/mcpgatewayescalations.go
+export type MCPGatewayEscalationStatus =
+	| "approved"
+	| "denied"
+	| "expired"
+	| "pending";
+
+export const MCPGatewayEscalationStatuses: MCPGatewayEscalationStatus[] = [
+	"approved",
+	"denied",
+	"expired",
+	"pending",
+];
+
 // From codersdk/mcp.go
 /**
  * MCPServerConfig represents an admin-configured MCP server.
@@ -6134,11 +6164,30 @@ export interface MCPServerOAuth2DisconnectResponse {
 }
 
 // From codersdk/mcp.go
+export type MCPServerToolAction = "disabled" | "enabled" | "escalate";
+
+export const MCPServerToolActions: MCPServerToolAction[] = [
+	"disabled",
+	"enabled",
+	"escalate",
+];
+
+// From codersdk/mcp.go
 /**
- * MCPServerToolRule explicitly enables or disables one upstream tool.
+ * MCPServerToolRule sets the gateway disposition for one upstream tool.
  */
 export interface MCPServerToolRule {
 	readonly tool: string;
+	/**
+	 * Action is one of enabled, disabled, or escalate. When empty, the
+	 * legacy Enabled boolean decides between enabled and disabled.
+	 */
+	readonly action?: MCPServerToolAction;
+	/**
+	 * Enabled is the legacy binary form of Action. It is kept in sync on
+	 * write so older readers keep working; escalate mirrors as disabled,
+	 * the fail-closed reading for consumers without escalation support.
+	 */
 	readonly enabled: boolean;
 }
 
@@ -8041,6 +8090,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_gateway_escalation"
 	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
@@ -8080,6 +8130,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_gateway_escalation",
 	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",

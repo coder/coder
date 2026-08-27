@@ -57,9 +57,29 @@ type Server struct {
 	// server. Entries expire lazily on lookup and are evicted immediately after
 	// an upstream authentication failure.
 	mcpCredentialCache sync.Map
+
+	mcpEscalationPollInterval      time.Duration
+	mcpEscalationKeepaliveInterval time.Duration
+	mcpEscalationHoldGrace         time.Duration
 }
 
-func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer) (*Server, error) {
+// ServerOption configures an aibridged server.
+type ServerOption func(*Server)
+
+// WithMCPGatewayEscalationIntervals configures the delay between escalation
+// status polls and the interval between SSE keepalive comments.
+func WithMCPGatewayEscalationIntervals(pollInterval, keepaliveInterval time.Duration) ServerOption {
+	return func(server *Server) {
+		if pollInterval > 0 {
+			server.mcpEscalationPollInterval = pollInterval
+		}
+		if keepaliveInterval > 0 {
+			server.mcpEscalationKeepaliveInterval = keepaliveInterval
+		}
+	}
+}
+
+func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger, tracer trace.Tracer, options ...ServerOption) (*Server, error) {
 	if rpcDialer == nil {
 		return nil, xerrors.Errorf("nil rpcDialer given")
 	}
@@ -74,6 +94,13 @@ func New(ctx context.Context, pool Pooler, rpcDialer Dialer, logger slog.Logger,
 		cancelFn:     cancel,
 
 		requestBridgePool: pool,
+
+		mcpEscalationPollInterval:      time.Second,
+		mcpEscalationKeepaliveInterval: 10 * time.Second,
+		mcpEscalationHoldGrace:         5 * time.Second,
+	}
+	for _, option := range options {
+		option(daemon)
 	}
 
 	daemon.wg.Add(1)

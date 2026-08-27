@@ -4402,6 +4402,118 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/mcp-gateway/escalations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP Servers"
+                ],
+                "summary": "List MCP gateway escalations",
+                "operationId": "list-mcp-gateway-escalations",
+                "parameters": [
+                    {
+                        "enum": [
+                            "pending",
+                            "approved",
+                            "denied",
+                            "expired"
+                        ],
+                        "type": "string",
+                        "description": "Escalation status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.MCPGatewayEscalation"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/mcp-gateway/escalations/{id}/approve": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP Servers"
+                ],
+                "summary": "Approve an MCP gateway escalation",
+                "operationId": "approve-mcp-gateway-escalation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP gateway escalation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/mcp-gateway/escalations/{id}/deny": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MCP Servers"
+                ],
+                "summary": "Deny an MCP gateway escalation",
+                "operationId": "deny-mcp-gateway-escalation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "MCP gateway escalation ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/notifications/custom": {
             "post": {
                 "consumes": [
@@ -20528,7 +20640,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "enabled",
-                        "disabled"
+                        "disabled",
+                        "escalate"
                     ]
                 },
                 "tool_deny_list": {
@@ -22868,6 +22981,53 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MCPGatewayEscalation": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "expires_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input": {
+                    "type": "string"
+                },
+                "server_slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/codersdk.MCPGatewayEscalationStatus"
+                },
+                "tool": {
+                    "type": "string"
+                },
+                "workspace_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.MCPGatewayEscalationStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "approved",
+                "denied",
+                "expired"
+            ],
+            "x-enum-varnames": [
+                "MCPGatewayEscalationStatusPending",
+                "MCPGatewayEscalationStatusApproved",
+                "MCPGatewayEscalationStatusDenied",
+                "MCPGatewayEscalationStatusExpired"
+            ]
+        },
         "codersdk.MCPServerConfig": {
             "type": "object",
             "properties": {
@@ -22995,13 +23155,40 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MCPServerToolAction": {
+            "type": "string",
+            "enum": [
+                "enabled",
+                "disabled",
+                "escalate"
+            ],
+            "x-enum-varnames": [
+                "MCPServerToolActionEnabled",
+                "MCPServerToolActionDisabled",
+                "MCPServerToolActionEscalate"
+            ]
+        },
         "codersdk.MCPServerToolRule": {
             "type": "object",
             "required": [
                 "tool"
             ],
             "properties": {
+                "action": {
+                    "description": "Action is one of enabled, disabled, or escalate. When empty, the\nlegacy Enabled boolean decides between enabled and disabled.",
+                    "enum": [
+                        "enabled",
+                        "disabled",
+                        "escalate"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.MCPServerToolAction"
+                        }
+                    ]
+                },
                 "enabled": {
+                    "description": "Enabled is the legacy binary form of Action. It is kept in sync on\nwrite so older readers keep working; escalate mirrors as disabled,\nthe fail-closed reading for consumers without escalation support.",
                     "type": "boolean"
                 },
                 "tool": {
@@ -25615,6 +25802,7 @@ const docTemplate = `{
                 "ai_seat",
                 "ai_provider",
                 "ai_provider_key",
+                "mcp_gateway_escalation",
                 "mcp_server_config",
                 "ai_gateway_key",
                 "group_ai_budget",
@@ -25654,6 +25842,7 @@ const docTemplate = `{
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
                 "ResourceTypeAIProviderKey",
+                "ResourceTypeMCPGatewayEscalation",
                 "ResourceTypeMCPServerConfig",
                 "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
@@ -27728,7 +27917,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "enabled",
-                        "disabled"
+                        "disabled",
+                        "escalate"
                     ]
                 },
                 "tool_deny_list": {

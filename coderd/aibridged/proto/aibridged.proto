@@ -33,6 +33,10 @@ service MCPConfigurator {
   // GetMCPGatewayServerConfig returns the enabled MCP server configuration
   // addressed by its public gateway slug.
   rpc GetMCPGatewayServerConfig(GetMCPGatewayServerConfigRequest) returns (GetMCPGatewayServerConfigResponse);
+  // CreateMCPGatewayEscalation creates a pending sponsor approval request.
+  rpc CreateMCPGatewayEscalation(CreateMCPGatewayEscalationRequest) returns (CreateMCPGatewayEscalationResponse);
+  // WaitMCPGatewayEscalation waits for an approval request to leave pending.
+  rpc WaitMCPGatewayEscalation(WaitMCPGatewayEscalationRequest) returns (WaitMCPGatewayEscalationResponse);
 }
 
 // Authorizer handles all Coder-related authorization functions.
@@ -140,6 +144,8 @@ message RecordToolUsageRequest {
   // carried the tool call, distinct from tool_call_id (the call_id correlation
   // key). Empty for chat completions and Anthropic messages.
   string item_id = 11;
+  string disposition = 12;
+  string escalation_id = 13;
 }
 message RecordToolUsageResponse {}
 
@@ -201,6 +207,9 @@ message GetMCPGatewayServerConfigRequest {
 message MCPGatewayToolRule {
   string tool = 1;
   bool enabled = 2;
+  // Action is "enabled", "disabled", or "escalate". Empty means the legacy
+  // enabled boolean decides.
+  string action = 3;
 }
 
 message MCPGatewayServerConfig {
@@ -225,6 +234,30 @@ message GetMCPGatewayServerConfigResponse {
   // found is false for unknown and disabled server slugs.
   bool found = 1;
   MCPGatewayServerConfig config = 2;
+}
+
+message CreateMCPGatewayEscalationRequest {
+  string key = 1;
+  string mcp_server_config_id = 2;
+  string server_slug = 3;
+  string server_url = 4;
+  string tool = 5;
+  string input = 6;
+  string workspace_name = 7;
+}
+
+message CreateMCPGatewayEscalationResponse {
+  string id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message WaitMCPGatewayEscalationRequest {
+  string id = 1;
+}
+
+message WaitMCPGatewayEscalationResponse {
+  // status is pending, approved, denied, or expired.
+  string status = 1;
 }
 
 message IsAuthorizedRequest {

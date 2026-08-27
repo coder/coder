@@ -49,6 +49,7 @@ const (
 	ResourceTypeAISeat               ResourceType = "ai_seat"
 	ResourceTypeAIProvider           ResourceType = "ai_provider"
 	ResourceTypeAIProviderKey        ResourceType = "ai_provider_key"
+	ResourceTypeMCPGatewayEscalation ResourceType = "mcp_gateway_escalation"
 	ResourceTypeMCPServerConfig      ResourceType = "mcp_server_config"
 	ResourceTypeAIGatewayKey         ResourceType = "ai_gateway_key"
 	ResourceTypeGroupAIBudget        ResourceType = "group_ai_budget"
@@ -122,6 +123,8 @@ func (r ResourceType) FriendlyString() string {
 		return "ai provider"
 	case ResourceTypeAIProviderKey:
 		return "ai provider key"
+	case ResourceTypeMCPGatewayEscalation:
+		return "MCP gateway escalation"
 	case ResourceTypeMCPServerConfig:
 		return "MCP server"
 	case ResourceTypeAIGatewayKey:

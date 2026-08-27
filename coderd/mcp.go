@@ -1760,6 +1760,18 @@ func normalizeMCPToolRules(rules []codersdk.MCPServerToolRule) ([]codersdk.MCPSe
 			return nil, xerrors.Errorf("tool_rules contains duplicate tool %q", rule.Tool)
 		}
 		seen[rule.Tool] = struct{}{}
+		// Stored rules always carry an explicit action, and the legacy
+		// boolean mirrors it so older readers keep working. Escalate
+		// mirrors as disabled: the fail-closed reading for consumers
+		// without escalation support.
+		switch rule.Action {
+		case codersdk.MCPServerToolActionEnabled, codersdk.MCPServerToolActionDisabled, codersdk.MCPServerToolActionEscalate:
+		case "":
+			rule.Action = rule.EffectiveAction()
+		default:
+			return nil, xerrors.Errorf("tool_rules[%d].action %q must be enabled, disabled, or escalate", i, rule.Action)
+		}
+		rule.Enabled = rule.Action == codersdk.MCPServerToolActionEnabled
 		normalized = append(normalized, rule)
 	}
 	return normalized, nil

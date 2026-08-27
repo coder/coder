@@ -902,6 +902,36 @@ func (s *MethodTestSuite) TestAISandboxAudit() {
 	}))
 }
 
+// TestMCPGatewayEscalations covers the held tool call approval storage from
+// AI_AGENT_MCP_ESCALATION_SPEC.md. Sponsor scoping is enforced by the HTTP
+// handlers; the store methods are system-guarded, matching the AI sandbox
+// audit precedent.
+func (s *MethodTestSuite) TestMCPGatewayEscalations() {
+	s.Run("InsertMCPGatewayEscalation", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.InsertMCPGatewayEscalationParams{}
+		dbm.EXPECT().InsertMCPGatewayEscalation(gomock.Any(), arg).Return(database.MCPGatewayEscalation{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetMCPGatewayEscalationByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetMCPGatewayEscalationByID(gomock.Any(), uuid.Nil).Return(database.MCPGatewayEscalation{}, nil).AnyTimes()
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListMCPGatewayEscalationsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListMCPGatewayEscalationsBySponsorParams{}
+		dbm.EXPECT().ListMCPGatewayEscalationsBySponsor(gomock.Any(), arg).Return([]database.MCPGatewayEscalation{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ResolveMCPGatewayEscalation", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ResolveMCPGatewayEscalationParams{}
+		dbm.EXPECT().ResolveMCPGatewayEscalation(gomock.Any(), arg).Return(database.MCPGatewayEscalation{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("ExpireMCPGatewayEscalations", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ExpireMCPGatewayEscalations(gomock.Any(), sql.NullTime{}).Return(int64(0), nil).AnyTimes()
+		check.Args(sql.NullTime{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}
+
 func (s *MethodTestSuite) TestAISandboxes() {
 	s.Run("InsertAISandbox", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertAISandboxParams{}
@@ -3786,12 +3816,16 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// Ensure the RBAC is not the dormant type.
 		require.Equal(s.T(), rbac.ResourceWorkspace.Type, ws.RBACObject().Type)
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
-		// Explicitly create the expected object.
+		// Explicitly create the expected object, including the AI designation
+		// when the randomized workspace carries one.
 		expected := rbac.ResourceWorkspace.WithID(ws.ID).
 			InOrg(ws.OrganizationID).
 			WithOwner(ws.OwnerID.String()).
 			WithGroupACL(ws.GroupACL.RBACACL()).
 			WithACLUserList(ws.UserACL.RBACACL())
+		if ws.AIAgentID.Valid {
+			expected = expected.WithAIAgentID(ws.AIAgentID.UUID.String())
+		}
 		check.Args(ws.ID).Asserts(expected, policy.ActionRead).Returns(ws)
 	}))
 	s.Run("DormantWorkspace/GetWorkspaceByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

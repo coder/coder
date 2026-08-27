@@ -600,7 +600,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_gateway_key',
     'user_ai_budget_override',
     'oauth2_provider_settings',
-    'mcp_server_config'
+    'mcp_server_config',
+    'mcp_gateway_escalation'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1823,7 +1824,10 @@ CREATE TABLE aibridge_tool_usages (
     metadata jsonb,
     created_at timestamp with time zone NOT NULL,
     provider_tool_call_id text,
-    provider_item_id text
+    provider_item_id text,
+    disposition text DEFAULT 'permitted'::text NOT NULL,
+    escalation_id uuid,
+    CONSTRAINT aibridge_tool_usages_disposition_check CHECK ((disposition = ANY (ARRAY['permitted'::text, 'blocked'::text, 'escalated_approved'::text, 'escalated_denied'::text, 'escalated_expired'::text])))
 );
 
 COMMENT ON TABLE aibridge_tool_usages IS 'Audit log of tool calls in intercepted requests in AI Bridge';
@@ -2813,6 +2817,34 @@ CREATE SEQUENCE licenses_id_seq
 
 ALTER SEQUENCE licenses_id_seq OWNED BY licenses.id;
 
+CREATE TABLE mcp_gateway_escalations (
+    id uuid NOT NULL,
+    mcp_server_config_id uuid NOT NULL,
+    server_slug text NOT NULL,
+    server_url text NOT NULL,
+    tool text NOT NULL,
+    input jsonb NOT NULL,
+    ai_agent_id uuid NOT NULL,
+    sponsor_user_id uuid NOT NULL,
+    workspace_name text DEFAULT ''::text NOT NULL,
+    status text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    resolved_at timestamp with time zone,
+    resolved_by uuid,
+    CONSTRAINT mcp_gateway_escalations_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'denied'::text, 'expired'::text])))
+);
+
+COMMENT ON TABLE mcp_gateway_escalations IS 'MCP tool calls held for sponsor approval. Attribution and server columns are snapshots without foreign keys so audit history survives configuration and identity cleanup.';
+
+COMMENT ON COLUMN mcp_gateway_escalations.mcp_server_config_id IS 'MCP server configuration snapshot. Not a foreign key; retained after server configuration deletion.';
+
+COMMENT ON COLUMN mcp_gateway_escalations.ai_agent_id IS 'AI agent identity snapshot. Not a foreign key to ai_agents; retained after identity revocation and cleanup.';
+
+COMMENT ON COLUMN mcp_gateway_escalations.sponsor_user_id IS 'Sponsoring human user snapshot. Not a foreign key to users; retained after user cleanup.';
+
+COMMENT ON COLUMN mcp_gateway_escalations.resolved_by IS 'Resolving user snapshot. Not a foreign key to users; retained after user cleanup.';
+
 CREATE TABLE mcp_server_configs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     display_name text NOT NULL,
@@ -2850,7 +2882,7 @@ CREATE TABLE mcp_server_configs (
     tool_default text DEFAULT 'enabled'::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text, 'external_auth'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
-    CONSTRAINT mcp_server_configs_tool_default_check CHECK ((tool_default = ANY (ARRAY['enabled'::text, 'disabled'::text]))),
+    CONSTRAINT mcp_server_configs_tool_default_check CHECK ((tool_default = ANY (ARRAY['enabled'::text, 'disabled'::text, 'escalate'::text]))),
     CONSTRAINT mcp_server_configs_tool_rules_check CHECK ((jsonb_typeof(tool_rules) = 'array'::text)),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );
@@ -4787,6 +4819,9 @@ ALTER TABLE ONLY licenses
 ALTER TABLE ONLY licenses
     ADD CONSTRAINT licenses_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY mcp_gateway_escalations
+    ADD CONSTRAINT mcp_gateway_escalations_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY mcp_server_configs
     ADD CONSTRAINT mcp_server_configs_pkey PRIMARY KEY (id);
 
@@ -5296,6 +5331,10 @@ CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
 CREATE INDEX idx_inbox_notifications_user_id_template_id_targets ON inbox_notifications USING btree (user_id, template_id, targets);
+
+CREATE INDEX idx_mcp_gateway_escalations_sponsor_user_id_status ON mcp_gateway_escalations USING btree (sponsor_user_id, status);
+
+CREATE INDEX idx_mcp_gateway_escalations_status_expires_at ON mcp_gateway_escalations USING btree (status, expires_at);
 
 CREATE INDEX idx_mcp_server_configs_enabled ON mcp_server_configs USING btree (enabled) WHERE (enabled = true);
 

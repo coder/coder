@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -264,6 +265,7 @@ type sqlcQuerier interface {
 	// of the test-only in-memory database. Do not use this in new code.
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
+	ExpireMCPGatewayEscalations(ctx context.Context, resolvedAt sql.NullTime) (int64, error)
 	// Firstly, collect api_keys owned by the prebuilds user that correlate
 	// to workspaces no longer owned by the prebuilds user.
 	// Next, collect api_keys that belong to the prebuilds user but have no token name.
@@ -778,6 +780,7 @@ type sqlcQuerier interface {
 	// the state wanted rather than the states excluded stays right when it arrives.
 	GetLiveAIAgentByCreationSite(ctx context.Context, arg GetLiveAIAgentByCreationSiteParams) (AIAgentLedger, error)
 	GetLogoURL(ctx context.Context) (string, error)
+	GetMCPGatewayEscalationByID(ctx context.Context, id uuid.UUID) (MCPGatewayEscalation, error)
 	GetMCPServerConfigByID(ctx context.Context, id uuid.UUID) (MCPServerConfig, error)
 	GetMCPServerConfigBySlug(ctx context.Context, slug string) (MCPServerConfig, error)
 	GetMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
@@ -1330,6 +1333,7 @@ type sqlcQuerier interface {
 	InsertGroupMember(ctx context.Context, arg InsertGroupMemberParams) error
 	InsertInboxNotification(ctx context.Context, arg InsertInboxNotificationParams) (InboxNotification, error)
 	InsertLicense(ctx context.Context, arg InsertLicenseParams) (License, error)
+	InsertMCPGatewayEscalation(ctx context.Context, arg InsertMCPGatewayEscalationParams) (MCPGatewayEscalation, error)
 	InsertMCPServerConfig(ctx context.Context, arg InsertMCPServerConfigParams) (MCPServerConfig, error)
 	InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error)
 	// Inserts any group by name that does not exist. All new groups are given
@@ -1474,6 +1478,7 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg ListMCPGatewayEscalationsBySponsorParams) ([]MCPGatewayEscalation, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)
@@ -1578,6 +1583,7 @@ type sqlcQuerier interface {
 	// Sets the target queued message's position to one less than the
 	// current minimum position for that chat, moving it to the head.
 	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
+	ResolveMCPGatewayEscalation(ctx context.Context, arg ResolveMCPGatewayEscalationParams) (MCPGatewayEscalation, error)
 	// Posting a retirement. Conditioned on the posting reference the caller expects
 	// to find, so that two concurrent posters cannot both believe they succeeded.
 	RetireAIAgent(ctx context.Context, arg RetireAIAgentParams) (AIAgentLedger, error)
