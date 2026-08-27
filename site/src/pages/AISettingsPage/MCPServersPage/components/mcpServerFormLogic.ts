@@ -13,6 +13,7 @@ export const AUTH_TYPE_OPTIONS = [
 	{ value: "api_key", label: "API key" },
 	{ value: "custom_headers", label: "Custom headers" },
 	{ value: "user_oidc", label: "User OIDC identity" },
+	{ value: "external_auth", label: "External auth provider" },
 ] as const;
 
 export const AUTH_TYPE_LABELS = Object.fromEntries(
@@ -50,6 +51,9 @@ export interface MCPServerFormValues {
 	url: string;
 	transport: string;
 	authType: string;
+	externalAuthProviderID: string;
+	toolDefault: "enabled" | "disabled";
+	toolRules: TypesGen.MCPServerToolRule[];
 	oauth2ClientID: string;
 	oauth2ClientSecret: string;
 	oauth2SecretTouched: boolean;
@@ -89,6 +93,9 @@ export const buildInitialMCPServerFormValues = (
 	url: server?.url ?? "",
 	transport: server?.transport ?? "streamable_http",
 	authType: server?.auth_type ?? "none",
+	externalAuthProviderID: server?.external_auth_provider_id ?? "",
+	toolDefault: server?.tool_default === "disabled" ? "disabled" : "enabled",
+	toolRules: server?.tool_rules.map((rule) => ({ ...rule })) ?? [],
 	oauth2ClientID: server?.oauth2_client_id ?? "",
 	oauth2ClientSecret: server?.has_oauth2_secret ? SECRET_PLACEHOLDER : "",
 	oauth2SecretTouched: false,
@@ -110,6 +117,29 @@ export const buildInitialMCPServerFormValues = (
 	customHeadersTouched: false,
 });
 
+export const getMCPServerToolRuleErrors = (
+	rules: readonly TypesGen.MCPServerToolRule[],
+): Array<string | undefined> => {
+	const toolCounts = new Map<string, number>();
+	for (const rule of rules) {
+		const tool = rule.tool.trim();
+		if (tool !== "") {
+			toolCounts.set(tool, (toolCounts.get(tool) ?? 0) + 1);
+		}
+	}
+
+	return rules.map((rule) => {
+		const tool = rule.tool.trim();
+		if (tool === "") {
+			return "Enter a tool name.";
+		}
+		if ((toolCounts.get(tool) ?? 0) > 1) {
+			return "Tool names must be unique.";
+		}
+		return undefined;
+	});
+};
+
 export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
@@ -117,7 +147,12 @@ export const canSubmitMCPServerForm = (
 	!isDisabled &&
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
-	values.url.trim() !== "";
+	values.url.trim() !== "" &&
+	(values.authType !== "external_auth" ||
+		values.externalAuthProviderID.trim() !== "") &&
+	getMCPServerToolRuleErrors(values.toolRules).every(
+		(error) => error === undefined,
+	);
 
 export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
@@ -146,7 +181,19 @@ export const buildCreateMCPServerConfigRequest = (
 		forward_coder_headers: values.forwardCoderHeaders,
 		tool_allow_list: toolAllowList,
 		tool_deny_list: toolDenyList,
+		tool_default: values.toolDefault,
+		tool_rules: values.toolRules.map((rule) => ({
+			tool: rule.tool.trim(),
+			enabled: rule.enabled,
+		})),
 	};
+
+	if (values.authType === "external_auth") {
+		return {
+			...request,
+			external_auth_provider_id: values.externalAuthProviderID.trim(),
+		};
+	}
 
 	if (values.authType === "oauth2") {
 		const oauth2ClientSecret =

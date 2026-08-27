@@ -21,6 +21,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -33,6 +34,29 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+const mcpServerConfigsPath = "/api/v2/ai-gateway/mcp-servers"
+
+// mcpServerConfigsHandler registers the MCP server configuration routes.
+func mcpServerConfigsHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return func(r chi.Router) {
+		r.Use(middlewares...)
+		r.Get("/", api.listMCPServerConfigs)
+		r.Post("/", api.createMCPServerConfig)
+		r.Route("/{mcpServer}", func(r chi.Router) {
+			r.Get("/", api.getMCPServerConfig)
+			r.Patch("/", api.updateMCPServerConfig)
+			r.Delete("/", api.deleteMCPServerConfig)
+			r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
+			r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
+			r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
+		})
+	}
+}
+
+func mcpServerOAuth2CallbackPath(id uuid.UUID) string {
+	return fmt.Sprintf("%s/%s/oauth2/callback", mcpServerConfigsPath, id)
+}
 
 // oidcMCPTokenSource implements mcpclient.UserOIDCTokenSource using
 // the same refresh strategy as provisionerdserver.ObtainOIDCAccessToken.
@@ -143,8 +167,12 @@ func shouldRefreshOIDCToken(link database.UserLink) (bool, time.Time) {
 }
 
 // @Summary List MCP server configs
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @ID list-mcp-server-configs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags MCP Servers
+// @Success 200 {array} codersdk.MCPServerConfig
+// @Router /api/v2/ai-gateway/mcp-servers [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
@@ -217,13 +245,30 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// @Summary Create MCP server config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Create an MCP server config
+// @ID create-mcp-server-config
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags MCP Servers
+// @Param request body codersdk.CreateMCPServerConfigRequest true "Create MCP server config request"
+// @Success 201 {object} codersdk.MCPServerConfig
+// @Router /api/v2/ai-gateway/mcp-servers [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
 	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -350,7 +395,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			// Now build the callback URL with the actual ID.
-			callbackURL := fmt.Sprintf("%s/api/experimental/mcp/servers/%s/oauth2/callback", api.AccessURL.String(), inserted.ID)
+			callbackURL := api.AccessURL.ResolveReference(&url.URL{Path: mcpServerOAuth2CallbackPath(inserted.ID)}).String()
 			httpClient := api.HTTPClient
 			if httpClient == nil {
 				httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -445,6 +490,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			aReq.New = updated
 			httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(updated))
 			return
 		} else if req.OAuth2ClientID == "" || req.OAuth2AuthURL == "" || req.OAuth2TokenURL == "" {
@@ -568,12 +614,18 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	aReq.New = inserted
 	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
 }
 
-// @Summary Get MCP server config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get an MCP server config
+// @ID get-mcp-server-config
+// @Security CoderSessionToken
+// @Produce json
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 200 {object} codersdk.MCPServerConfig
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer} [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
@@ -641,13 +693,31 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
-// @Summary Update MCP server config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update an MCP server config
+// @ID update-mcp-server-config
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Param request body codersdk.UpdateMCPServerConfigRequest true "Update MCP server config request"
+// @Success 200 {object} codersdk.MCPServerConfig
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer} [patch]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
 	apiKey := httpmw.APIKey(r)
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -727,6 +797,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
+		aReq.Old = existing
 
 		displayName := existing.DisplayName
 		if req.DisplayName != nil {
@@ -985,6 +1056,9 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
 			ID:                      existing.ID,
 		})
+		if err == nil {
+			aReq.New = updated
+		}
 		return err
 	}, nil)
 	if err != nil {
@@ -1020,11 +1094,26 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
 }
 
-// @Summary Delete MCP server config
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Delete an MCP server config
+// @ID delete-mcp-server-config
+// @Security CoderSessionToken
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 204
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer} [delete]
 func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.MCPServerConfig](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	defer commitAudit()
+
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
 		return
@@ -1035,7 +1124,8 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID); err != nil {
+	config, err := api.Database.GetMCPServerConfigByID(ctx, mcpServerID)
+	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
@@ -1046,6 +1136,7 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	aReq.Old = config
 
 	if err := api.Database.DeleteMCPServerConfigByID(ctx, mcpServerID); err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1059,8 +1150,12 @@ func (api *API) deleteMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Initiate MCP server OAuth2 connect
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @ID initiate-mcp-server-oauth2-connect
+// @Security CoderSessionToken
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 307
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer}/oauth2/connect [get]
 // Redirects the user to the MCP server's OAuth2 authorization URL.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1111,7 +1206,7 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 	// The callback URL is on our server; after the exchange we store
 	// the token and close the popup.
 	state := uuid.New().String()
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    state,
@@ -1153,8 +1248,12 @@ func (api *API) mcpServerOAuth2Connect(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Handle MCP server OAuth2 callback
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @ID handle-mcp-server-oauth2-callback
+// @Security CoderSessionToken
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 200
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer}/oauth2/callback [get]
 // Exchanges the authorization code for tokens and stores them.
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
@@ -1230,7 +1329,7 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	// Clear the state cookie.
-	callbackPath := fmt.Sprintf("/api/experimental/mcp/servers/%s/oauth2/callback", config.ID)
+	callbackPath := mcpServerOAuth2CallbackPath(config.ID)
 	http.SetCookie(rw, api.DeploymentValues.HTTPCookies.Apply(&http.Cookie{
 		Name:     "mcp_oauth2_state_" + config.ID.String(),
 		Value:    "",
@@ -1333,8 +1432,13 @@ func (api *API) mcpServerOAuth2Callback(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Disconnect MCP server OAuth2 token
-// @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @ID disconnect-mcp-server-oauth2-token
+// @Security CoderSessionToken
+// @Produce json
+// @Tags MCP Servers
+// @Param mcpServer path string true "MCP server config ID" format(uuid)
+// @Success 200 {object} codersdk.MCPServerOAuth2DisconnectResponse
+// @Router /api/v2/ai-gateway/mcp-servers/{mcpServer}/oauth2/disconnect [delete]
 // Removes the user's stored OAuth2 token for an MCP server.
 // Provider revocation is best-effort and cannot block local deletion.
 func (api *API) mcpServerOAuth2Disconnect(rw http.ResponseWriter, r *http.Request) {

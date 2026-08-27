@@ -1654,6 +1654,10 @@
 							"path": "./reference/api/insights.md"
 						},
 						{
+							"title": "MCP Servers",
+							"path": "./reference/api/mcpservers.md"
+						},
+						{
 							"title": "Members",
 							"path": "./reference/api/members.md"
 						},

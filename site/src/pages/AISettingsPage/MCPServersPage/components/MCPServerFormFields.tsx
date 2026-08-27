@@ -1,10 +1,13 @@
 import type { FormikContextType } from "formik";
 import { type FC, useId } from "react";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import {
 	InputGroup,
+	InputGroupAddon,
 	InputGroupInput,
 } from "#/components/InputGroup/InputGroup";
 import {
@@ -18,6 +21,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { MCPServerAuthSection } from "./MCPServerAuthSection";
 import { MCPServerBehaviorSection } from "./MCPServerBehaviorSection";
 import { CollapsibleSection, Field } from "./MCPServerFormFieldPrimitives";
+import { MCPServerToolRulesSection } from "./MCPServerToolRulesSection";
 import {
 	type MCPServerFormValues,
 	slugify,
@@ -30,6 +34,10 @@ interface MCPServerFormFieldsProps {
 	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
+	externalAuthProviders: readonly ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	onCancel: () => void;
 	showDetails: boolean;
 	setShowDetails: (open: boolean) => void;
@@ -37,6 +45,8 @@ interface MCPServerFormFieldsProps {
 	setShowAuth: (open: boolean) => void;
 	showBehavior: boolean;
 	setShowBehavior: (open: boolean) => void;
+	showToolRules: boolean;
+	setShowToolRules: (open: boolean) => void;
 }
 
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
@@ -45,6 +55,10 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	isDisabled,
 	canSubmit,
 	isEditing,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	onCancel,
 	showDetails,
 	setShowDetails,
@@ -52,8 +66,14 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	setShowAuth,
 	showBehavior,
 	setShowBehavior,
+	showToolRules,
+	setShowToolRules,
 }) => {
 	const formId = useId();
+	const slug = form.values.slug.trim();
+	const gatewayURL = slug
+		? `${accessURL.replace(/\/$/, "")}/api/v2/ai-gateway/mcp/${slug}`
+		: "";
 
 	return (
 		<div className="border border-solid p-6 rounded-lg">
@@ -131,6 +151,29 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							</Select>
 						</Field>
 					</div>
+					<Field
+						label="Gateway URL"
+						htmlFor={`${formId}-gateway-url`}
+						description="Use this URL to connect MCP clients through the Coder gateway."
+						className="sm:col-span-2"
+					>
+						<InputGroup>
+							<InputGroupInput
+								id={`${formId}-gateway-url`}
+								value={gatewayURL}
+								placeholder="Enter a slug to generate the gateway URL."
+								readOnly
+							/>
+							<InputGroupAddon align="inline-end">
+								<CopyButton
+									type="button"
+									text={gatewayURL}
+									label="Copy gateway URL"
+									disabled={gatewayURL === ""}
+								/>
+							</InputGroupAddon>
+						</InputGroup>
+					</Field>
 				</div>
 
 				<div className="overflow-hidden rounded-lg border border-solid border-border">
@@ -178,18 +221,36 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 							form={form}
 							formId={formId}
 							disabled={isDisabled}
+							externalAuthProviders={externalAuthProviders}
+							isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+							externalAuthProvidersError={externalAuthProvidersError}
 						/>
 					</CollapsibleSection>
 
 					<CollapsibleSection
 						title="Behavior"
-						description="Availability, model intent, identity headers, and tool governance."
+						description="Availability, model intent, identity headers, and legacy tool filters."
 						open={showBehavior}
 						onOpenChange={setShowBehavior}
 						className="border-0 border-t border-solid border-border"
 						contentClassName="space-y-6 pt-5 pl-6"
 					>
 						<MCPServerBehaviorSection
+							form={form}
+							formId={formId}
+							disabled={isDisabled}
+						/>
+					</CollapsibleSection>
+
+					<CollapsibleSection
+						title="Tool rules"
+						description="Set the default state and exact-name overrides for tools."
+						open={showToolRules}
+						onOpenChange={setShowToolRules}
+						className="border-0 border-t border-solid border-border"
+						contentClassName="pt-5 pl-6"
+					>
+						<MCPServerToolRulesSection
 							form={form}
 							formId={formId}
 							disabled={isDisabled}

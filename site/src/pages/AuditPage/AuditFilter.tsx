@@ -147,6 +147,10 @@ export const useResourceTypeFilterMenu = ({
 			label = "Git SSH Key";
 		}
 
+		if (type === "mcp_server_config") {
+			label = "MCP Server";
+		}
+
 		if (type === "template_version") {
 			label = "Template Version";
 		}

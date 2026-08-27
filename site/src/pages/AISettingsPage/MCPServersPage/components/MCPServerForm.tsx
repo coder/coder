@@ -16,6 +16,10 @@ import {
 type MCPServerFormCreateProps = {
 	server?: undefined;
 	isSaving: boolean;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	isDeleting?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
@@ -29,6 +33,10 @@ type MCPServerFormCreateProps = {
 type MCPServerFormEditProps = {
 	server: TypesGen.MCPServerConfig;
 	isSaving: boolean;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	isDeleting: boolean;
 	onCreateServer?: undefined;
 	onUpdateServer: (
@@ -45,6 +53,10 @@ type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
 	isSaving,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	isDeleting = false,
 	onCreateServer,
 	onUpdateServer,
@@ -57,12 +69,13 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [showDetails, setShowDetails] = useState(false);
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
+	const [showToolRules, setShowToolRules] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
 		initialValues: buildInitialMCPServerFormValues(server),
 		onSubmit: async (values) => {
-			if (isSaving) return;
+			if (!canSubmitMCPServerForm(values, isSaving || isDeleting)) return;
 			if (server && onUpdateServer) {
 				await onUpdateServer(
 					server.id,
@@ -101,6 +114,10 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					isDisabled={isDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
+					externalAuthProviders={externalAuthProviders}
+					isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+					externalAuthProvidersError={externalAuthProvidersError}
+					accessURL={accessURL}
 					onCancel={onCancel}
 					showDetails={showDetails}
 					setShowDetails={setShowDetails}
@@ -108,6 +125,8 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 					setShowAuth={setShowAuth}
 					showBehavior={showBehavior}
 					setShowBehavior={setShowBehavior}
+					showToolRules={showToolRules}
+					setShowToolRules={setShowToolRules}
 				/>
 			</div>
 			<MCPServerFormDialogs

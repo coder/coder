@@ -254,7 +254,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 
 	const handleConnect = (server: TypesGen.MCPServerConfig) => {
 		setConnectingServerId(server.id);
-		const connectUrl = `/api/experimental/mcp/servers/${encodeURIComponent(server.id)}/oauth2/connect`;
+		const connectUrl = `/api/v2/ai-gateway/mcp-servers/${encodeURIComponent(server.id)}/oauth2/connect`;
 		popupRef.current = window.open(
 			connectUrl,
 			"_blank",

@@ -8,6 +8,7 @@ import {
 	mcpServerConfigs,
 	updateMCPServerConfig,
 } from "#/api/queries/chats";
+import { externalAuths } from "#/api/queries/externalAuth";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
@@ -20,6 +21,7 @@ const UpdateMCPServerPage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const serversQuery = useQuery(mcpServerConfigs());
+	const externalAuthsQuery = useQuery(externalAuths());
 	const updateMutation = useMutation(updateMCPServerConfig(queryClient));
 	const deleteMutation = useMutation(deleteMCPServerConfig(queryClient));
 	const server = serversQuery.data?.find((item) => item.id === serverId);
@@ -38,6 +40,10 @@ const UpdateMCPServerPage: FC = () => {
 			) : (
 				<UpdateMCPServerPageView
 					server={server}
+					externalAuthProviders={externalAuthsQuery.data?.providers ?? []}
+					isLoadingExternalAuthProviders={externalAuthsQuery.isLoading}
+					externalAuthProvidersError={externalAuthsQuery.error}
+					accessURL={location.origin}
 					isSaving={updateMutation.isPending}
 					isDeleting={deleteMutation.isPending}
 					onCancel={() => void navigate("/ai/settings/mcp-servers")}

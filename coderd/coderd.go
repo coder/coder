@@ -1467,19 +1467,7 @@ func New(options *Options) *API {
 				apiKeyMiddleware,
 			)
 			// MCP server configuration endpoints.
-			r.Route("/servers", func(r chi.Router) {
-				r.Get("/", api.listMCPServerConfigs)
-				r.Post("/", api.createMCPServerConfig)
-				r.Route("/{mcpServer}", func(r chi.Router) {
-					r.Get("/", api.getMCPServerConfig)
-					r.Patch("/", api.updateMCPServerConfig)
-					r.Delete("/", api.deleteMCPServerConfig)
-					// OAuth2 user flow
-					r.Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					r.Get("/oauth2/callback", api.mcpServerOAuth2Callback)
-					r.Delete("/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-				})
-			})
+			r.Route("/servers", mcpServerConfigsHandler(api))
 			// MCP HTTP transport endpoint with mandatory authentication
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
@@ -2182,6 +2170,9 @@ func New(options *Options) *API {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
 		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
+		// The enterprise AI Gateway catch-all is a wildcard, so chi gives this
+		// literal management route precedence in all editions.
+		r.Route("/ai-gateway/mcp-servers", mcpServerConfigsHandler(api, apiKeyMiddleware))
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 

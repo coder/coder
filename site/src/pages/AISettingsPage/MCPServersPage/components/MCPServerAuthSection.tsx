@@ -1,6 +1,8 @@
 import type { FormikContextType } from "formik";
 import { PlusIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
+import { getErrorMessage } from "#/api/errors";
+import type { ExternalAuthLinkProvider } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
@@ -17,22 +19,52 @@ import {
 	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
-interface MCPServerAuthSectionProps {
+interface MCPServerAuthFieldsProps {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
 	disabled: boolean;
+}
+
+interface MCPServerAuthSectionProps extends MCPServerAuthFieldsProps {
+	externalAuthProviders: readonly ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
 }
 
 export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	form,
 	formId,
 	disabled,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
 }) => {
+	const hasExternalAuthProviders = externalAuthProviders.length > 0;
+	const externalAuthUnavailable =
+		isLoadingExternalAuthProviders ||
+		Boolean(externalAuthProvidersError) ||
+		!hasExternalAuthProviders;
+	const externalAuthDescription = isLoadingExternalAuthProviders
+		? "Loading configured external auth providers."
+		: externalAuthProvidersError
+			? getErrorMessage(
+					externalAuthProvidersError,
+					"Configured external auth providers could not be loaded.",
+				)
+			: !hasExternalAuthProviders
+				? "No external auth providers are configured. Configure one before using this authentication method."
+				: undefined;
+	const externalAuthProviderRequired =
+		form.values.authType === "external_auth" &&
+		form.values.externalAuthProviderID.trim() === "";
+	const externalAuthProviderErrorId = `${formId}-external-auth-provider-error`;
+
 	return (
 		<>
 			<Field
 				label="Authentication method"
 				htmlFor={`${formId}-auth`}
+				description={externalAuthDescription}
 				className="max-w-md"
 			>
 				<Select
@@ -45,13 +77,64 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 					</SelectTrigger>
 					<SelectContent>
 						{AUTH_TYPE_OPTIONS.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
+							<SelectItem
+								key={option.value}
+								value={option.value}
+								disabled={
+									option.value === "external_auth" && externalAuthUnavailable
+								}
+							>
 								{option.label}
 							</SelectItem>
 						))}
 					</SelectContent>
 				</Select>
 			</Field>
+			{form.values.authType === "external_auth" && (
+				<Field
+					label="External auth provider"
+					htmlFor={`${formId}-external-auth-provider`}
+					required
+					className="max-w-md"
+				>
+					<Select
+						value={form.values.externalAuthProviderID}
+						onValueChange={(value) =>
+							void form.setFieldValue("externalAuthProviderID", value)
+						}
+						disabled={disabled || externalAuthUnavailable}
+					>
+						<SelectTrigger
+							id={`${formId}-external-auth-provider`}
+							className="shadow-none"
+							aria-invalid={externalAuthProviderRequired}
+							aria-describedby={
+								externalAuthProviderRequired
+									? externalAuthProviderErrorId
+									: undefined
+							}
+						>
+							<SelectValue placeholder="Select a provider" />
+						</SelectTrigger>
+						<SelectContent>
+							{externalAuthProviders.map((provider) => (
+								<SelectItem key={provider.id} value={provider.id}>
+									{provider.display_name || provider.id}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					{externalAuthProviderRequired && (
+						<p
+							id={externalAuthProviderErrorId}
+							className="m-0 text-xs text-content-destructive"
+							role="alert"
+						>
+							Select an external auth provider.
+						</p>
+					)}
+				</Field>
+			)}
 			{form.values.authType === "oauth2" && (
 				<OAuth2Fields form={form} formId={formId} disabled={disabled} />
 			)}
@@ -70,7 +153,7 @@ export const MCPServerAuthSection: FC<MCPServerAuthSectionProps> = ({
 	);
 };
 
-const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
+const OAuth2Fields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -144,7 +227,7 @@ const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
 	</div>
 );
 
-const APIKeyFields: FC<MCPServerAuthSectionProps> = ({
+const APIKeyFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,
@@ -212,7 +295,7 @@ const SecretInput: FC<{
 	/>
 );
 
-const CustomHeadersFields: FC<MCPServerAuthSectionProps> = ({
+const CustomHeadersFields: FC<MCPServerAuthFieldsProps> = ({
 	form,
 	formId,
 	disabled,

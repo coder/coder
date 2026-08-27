@@ -5,6 +5,10 @@ import { MCPServerForm } from "../components/MCPServerForm";
 
 interface UpdateMCPServerPageViewProps {
 	server: TypesGen.MCPServerConfig;
+	externalAuthProviders: readonly TypesGen.ExternalAuthLinkProvider[];
+	isLoadingExternalAuthProviders: boolean;
+	externalAuthProvidersError?: unknown;
+	accessURL: string;
 	isSaving: boolean;
 	isDeleting: boolean;
 	onUpdateServer: (
@@ -18,6 +22,10 @@ interface UpdateMCPServerPageViewProps {
 
 const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	server,
+	externalAuthProviders,
+	isLoadingExternalAuthProviders,
+	externalAuthProvidersError,
+	accessURL,
 	isSaving,
 	isDeleting,
 	onUpdateServer,
@@ -31,6 +39,10 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 			<MCPServerForm
 				key={server.id}
 				server={server}
+				externalAuthProviders={externalAuthProviders}
+				isLoadingExternalAuthProviders={isLoadingExternalAuthProviders}
+				externalAuthProvidersError={externalAuthProvidersError}
+				accessURL={accessURL}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
 				onUpdateServer={onUpdateServer}

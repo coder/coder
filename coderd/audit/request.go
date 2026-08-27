@@ -142,6 +142,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AIProviderKey:
 		return typed.ID.String()
+	case database.MCPServerConfig:
+		return typed.Slug
 	case database.AIGatewayKey:
 		return typed.Name
 	case database.AuditableGroupAIBudget:
@@ -233,6 +235,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AIProviderKey:
 		return typed.ID
+	case database.MCPServerConfig:
+		return typed.ID
 	case database.AIGatewayKey:
 		return typed.ID
 	case database.AuditableGroupAIBudget:
@@ -308,6 +312,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeAIProvider
 	case database.AIProviderKey:
 		return database.ResourceTypeAIProviderKey
+	case database.MCPServerConfig:
+		return database.ResourceTypeMcpServerConfig
 	case database.AIGatewayKey:
 		return database.ResourceTypeAIGatewayKey
 	case database.AuditableGroupAIBudget:
@@ -389,6 +395,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.AIProviderKey:
 		// AI provider keys inherit the deployment scope of their parent
 		// provider.
+		return false
+	case database.MCPServerConfig:
+		// MCP server configs are deployment-scoped, not org-scoped.
 		return false
 	case database.AIGatewayKey:
 		// AI Gateway keys are deployment-scoped, not org-scoped.
