@@ -1449,6 +1449,26 @@ const pagerdutyMCP = buildMCPServer({
 	enabled: true,
 });
 
+// Wide badges that cannot fit next to the model pill at phone width,
+// forcing them into the +N overflow.
+const confluenceWideMCP = buildMCPServer({
+	id: "mcp-confluence-wide",
+	display_name: "Confluence Cloud Enterprise Wiki",
+	slug: "confluence-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
+const datadogWideMCP = buildMCPServer({
+	id: "mcp-datadog-wide",
+	display_name: "Datadog Infrastructure Monitoring",
+	slug: "datadog-wide",
+	availability: "default_on",
+	auth_type: "none",
+	enabled: true,
+});
+
 /** Many tools with a workspace at 414px — forces overflow and "+N" pill. */
 export const OverflowBadges: Story = {
 	args: {
@@ -1719,5 +1739,55 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 		expect(pillButton.getBoundingClientRect().width).toBeGreaterThan(200);
 		// Nothing overflowed into the +N pill.
 		expect(canvas.queryByRole("button", { name: /more item/ })).toBeNull();
+	},
+};
+
+/**
+ * When badges overflow into +N, they release their layout space so
+ * the model label expands to full width instead of staying pinned at
+ * the 8ch floor next to a fake gap.
+ */
+export const ModelExpandsWhileBadgesOverflow: Story = {
+	args: {
+		...mcpDefaults,
+		selectedModel: "model-long",
+		modelOptions: [
+			{
+				id: "model-long",
+				provider: "anthropic",
+				model: "claude-sonnet-4-5",
+				displayName: "Claude Sonnet 4.5",
+			},
+		],
+		mcpServers: [confluenceWideMCP, datadogWideMCP],
+		selectedMCPServerIds: [confluenceWideMCP.id, datadogWideMCP.id],
+	},
+	parameters: {
+		viewport: { defaultViewport: "mobile2" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Neither wide badge fits next to the model pill, so both
+		// collapse into the overflow pill.
+		const overflowPill = await canvas.findByRole("button", {
+			name: /more item/,
+		});
+		await waitFor(() => {
+			expect(overflowPill).toBeVisible();
+		});
+		// The hidden badge released its space, so the model label gets
+		// the freed room and renders untruncated.
+		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
+		await waitFor(() => {
+			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
+				modelLabel.clientWidth,
+			);
+		});
+		await userEvent.click(overflowPill);
+		const popover = await within(document.body).findByRole("dialog");
+		expect(
+			within(popover).getByText("Datadog Infrastructure Monitoring"),
+		).toBeInTheDocument();
 	},
 };

@@ -1460,10 +1460,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
-						 * Overflow badges use invisible + order-1 to
-						 * hide and reorder via CSS. The pill is invisible
-						 * when there's no overflow but still occupies
-						 * layout space, preventing measurement flicker. */}
+						 * Overflow badges use display:none so they release
+						 * their layout space to the growing pills; the
+						 * overflow hook caches their last visible width.
+						 * The pill is invisible when there's no overflow
+						 * but still occupies layout space, preventing
+						 * measurement flicker. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -1484,7 +1486,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 												// selector: ~8ch floor, grow into free
 												// space, cap at the name's natural width.
 												"flex min-w-0 shrink-0 grow basis-[calc(8ch_+_3.125rem)] max-w-max text-xs",
-												isOverflow && "invisible order-1",
+												isOverflow && "hidden",
 											)}
 										>
 											<WorkspacePill
@@ -1508,14 +1510,13 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
 										isDisabled={isDisabled}
-										className={isOverflow ? "invisible order-1" : undefined}
+										className={isOverflow ? "hidden" : undefined}
 									/>
 								);
 							})}
 							{/* Pill; always in the DOM so it permanently
-							 * reserves layout space. Invisible when nothing
-							 * overflows. CSS order keeps it before order-1
-							 * (overflow) badges. */}
+							 * reserves layout space and its width can be
+							 * measured. Invisible when nothing overflows. */}
 							<Popover
 								open={overflowPopoverOpen && overflowCount > 0}
 								onOpenChange={setOverflowPopoverOpen}
