@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
@@ -248,21 +249,21 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			expectPath: "/v1/models",
 		},
 		{
-			name:        "copilot_ping",
-			requestPath: "/copilot/_ping",
+			name:        "copilot_known_route",
+			requestPath: "/copilot/models",
 			provider: func(_ *testing.T, baseURL string) provider.Provider {
 				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
 			},
-			expectPath: "/_ping",
+			expectPath: "/models",
 		},
 		{
-			name:          "copilot_auto",
+			name:          "copilot_unknown_route",
 			requestMethod: http.MethodPost,
-			requestPath:   "/copilot/auto",
+			requestPath:   "/copilot/future/endpoint",
 			provider: func(_ *testing.T, baseURL string) provider.Provider {
 				return aibridge.NewCopilotProvider(config.Copilot{BaseURL: baseURL})
 			},
-			expectPath: "/auto",
+			expectPath: "/future/endpoint",
 		},
 	}
 
@@ -292,6 +293,43 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			assert.Contains(t, resp.Body.String(), upstreamRespBody)
 		})
 	}
+}
+
+func TestBridgedRouteTakesPrecedenceOverPassthroughCatchAll(t *testing.T) {
+	t.Parallel()
+
+	upstreamCalled := false
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		upstreamCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(upstream.Close)
+
+	interceptorCalled := false
+	prov := &testutil.MockProvider{
+		NameStr:     "test",
+		URL:         upstream.URL,
+		Bridged:     []string{"/responses"},
+		Passthrough: []string{"/"},
+		InterceptorFunc: func(http.ResponseWriter, *http.Request, trace.Tracer) (intercept.Interceptor, error) {
+			interceptorCalled = true
+			return nil, xerrors.New("test interceptor error")
+		},
+	}
+	bridge, err := aibridge.NewRequestBridge(
+		t.Context(),
+		[]provider.Provider{prov},
+		nil, nil, slogtest.Make(t, nil), nil, bridgeTestTracer,
+	)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/test/responses", nil)
+	resp := httptest.NewRecorder()
+	bridge.ServeHTTP(resp, req)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.True(t, interceptorCalled)
+	assert.False(t, upstreamCalled)
 }
 
 func TestWebSocketUpgradeRejected(t *testing.T) {
