@@ -328,7 +328,19 @@ func (c validatedCallbackURL) codeURL(state, code string) *url.URL {
 // Holding a validatedCallbackURL is what licenses the redirect: errors raised
 // before extractAuthorizeParams returns have nothing to build one from, and
 // §4.1.2.1 requires informing the user there instead.
-func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
+//
+// Logged because the failure leaves in a Location header, which loggermw does
+// not record, so an operator asked why an app cannot sign in would otherwise
+// see a 302 indistinguishable from the successful one. Info, not Warn: these
+// are client errors, and one line per failed authorization is in proportion to
+// the request logging already emitted.
+func redirectAuthorizeError(rw http.ResponseWriter, r *http.Request, logger slog.Logger, callback validatedCallbackURL, state string, code codersdk.OAuth2ErrorCode, description string) {
+	app := httpmw.OAuth2ProviderApp(r)
+	logger.Info(r.Context(), "oauth2 authorization rejected",
+		slog.F("app_id", app.ID.String()),
+		slog.F("error", string(code)),
+		slog.F("error_description", description))
+
 	// 302 rather than 307, matching the success redirect below: some external
 	// OAuth2 apps and browsers do not handle 307.
 	http.Redirect(rw, r, callback.errorURL(state, code, description).String(), http.StatusFound)
@@ -416,7 +428,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// is supported, and §4.1.2.1 names unsupported_response_type among the
 		// errors the client learns of through its own callback.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
 			return
@@ -427,7 +439,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// refuse. Only POST defaults an omitted method, because only POST
 		// records it on the code row, and the validator accepts an empty value.
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
@@ -437,7 +449,7 @@ func ShowAuthorizePage(accessURL *url.URL, logger slog.Logger) http.HandlerFunc 
 		// clicks Allow. The result also decides what the page states.
 		grantedScope, err := negotiateScope(r.Context(), logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
@@ -498,7 +510,7 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 		// OAuth 2.1 removes the implicit grant. Only
 		// authorization code flow is supported.
 		if params.responseType != codersdk.OAuth2ProviderResponseTypeCode {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
 				"Only response_type=code is supported")
 			return
@@ -510,14 +522,14 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 			params.codeChallengeMethod = string(codersdk.OAuth2PKCECodeChallengeMethodS256)
 		}
 		if err := codersdk.ValidatePKCECodeChallengeMethod(params.codeChallengeMethod); err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidRequest, err.Error())
 			return
 		}
 
 		grantedScope, err := negotiateScope(ctx, logger, app, params.scope)
 		if err != nil {
-			redirectAuthorizeError(rw, r, params.redirectURL, params.state,
+			redirectAuthorizeError(rw, r, logger, params.redirectURL, params.state,
 				codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
