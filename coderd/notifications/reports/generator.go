@@ -48,6 +48,8 @@ func runReport(ctx context.Context, logger slog.Logger, db database.Store, lockI
 	}
 }
 
+// NewReportGenerator periodically generates failed workspace build and
+// unpriced AI model reports.
 func NewReportGenerator(ctx context.Context, logger slog.Logger, db database.Store, enqueuer notifications.Enqueuer, clk quartz.Clock) io.Closer {
 	closed := make(chan struct{})
 
