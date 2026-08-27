@@ -12,7 +12,6 @@ import {
 	booleanCodec,
 	defineEntityStorageKey,
 	defineStorageKey,
-	integerCodec,
 	jsonCodec,
 	stringCodec,
 } from "#/storage";
@@ -30,9 +29,22 @@ export const rightPanelOpenStorage = defineStorageKey<boolean>({
 	defaultValue: false,
 });
 
+/**
+ * Pre-upgrade builds persisted raw drag widths, which are fractional
+ * under browser zoom; accept and round any finite number so upgrading
+ * does not reset the panel.
+ */
+const legacyToleratedWidthCodec = {
+	decode: (raw: string) => {
+		const parsed = Number(raw);
+		return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
+	},
+	encode: (value: number) => String(value),
+};
+
 export const rightPanelWidthStorage = defineStorageKey<number | null>({
 	key: "agents.right-panel-width",
-	codec: integerCodec,
+	codec: legacyToleratedWidthCodec,
 	defaultValue: null,
 });
 
