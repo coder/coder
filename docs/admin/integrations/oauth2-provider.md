@@ -396,6 +396,23 @@ Omitting the parameter is allowed and means `S256`.
 An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
 This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
 
+### "invalid_request" for a rejected parameter
+
+Coder validates every authorization parameter before issuing a code, and reports all the failing fields together in one `error_description`.
+Common causes are a `code_challenge` outside the 43 to 128 character unreserved set, a `resource` that is not an absolute URI without a fragment, a `response_type` value Coder cannot parse, and a query parameter the endpoint does not accept.
+
+The rejection redirects to your registered callback with `error=invalid_request`, an `error_description` naming the fields, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+Two failures stay on Coder rather than reaching your callback, because in both cases the callback is not yet trustworthy:
+
+- A `redirect_uri` that does not parse, or that does not exactly match the one registered for the application.
+  Redirecting to it would defeat the check that just rejected it, so Coder answers 400 (see ["Invalid redirect_uri"](#invalid-redirect_uri)).
+- A missing or unparsable `client_id`, which leaves Coder unable to tell whose registration the callback was matched against.
+
+Earlier releases answered on Coder for all of these: `GET` rendered an "Invalid Query Parameters" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
