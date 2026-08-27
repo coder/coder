@@ -5001,6 +5001,14 @@ func (m queryMetricsStore) LinkChatFiles(ctx context.Context, arg database.LinkC
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIAgentLifecycleTrailEvents(ctx context.Context, arg database.ListAIAgentLifecycleTrailEventsParams) ([]database.ListAIAgentLifecycleTrailEventsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIAgentLifecycleTrailEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIAgentLifecycleTrailEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIAgentLifecycleTrailEvents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeClients(ctx, arg)
@@ -5089,6 +5097,30 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAISandboxEgressTrailAggregates(ctx context.Context, arg database.ListAISandboxEgressTrailAggregatesParams) ([]database.ListAISandboxEgressTrailAggregatesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxEgressTrailAggregates(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxEgressTrailAggregates").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxEgressTrailAggregates").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAISandboxSessionTrailRows(ctx context.Context, arg database.ListAISandboxSessionTrailRowsParams) ([]database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxSessionTrailRows(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxSessionTrailRows").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxSessionTrailRows").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAuthorizationLifecycleTrailEvents(ctx context.Context, arg database.ListAuthorizationLifecycleTrailEventsParams) ([]database.ListAuthorizationLifecycleTrailEventsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAuthorizationLifecycleTrailEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAuthorizationLifecycleTrailEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAuthorizationLifecycleTrailEvents").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
@@ -5102,6 +5134,22 @@ func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context,
 	r0, r1 := m.s.ListChatContextResourcesByChatID(ctx, chatID)
 	m.queryLatencies.WithLabelValues("ListChatContextResourcesByChatID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatContextResourcesByChatID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListCredentialLifecycleTrailEvents(ctx context.Context, arg database.ListCredentialLifecycleTrailEventsParams) ([]database.ListCredentialLifecycleTrailEventsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListCredentialLifecycleTrailEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListCredentialLifecycleTrailEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListCredentialLifecycleTrailEvents").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListCredentialUseTrailEvents(ctx context.Context, arg database.ListCredentialUseTrailEventsParams) ([]database.ListCredentialUseTrailEventsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListCredentialUseTrailEvents(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListCredentialUseTrailEvents").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListCredentialUseTrailEvents").Inc()
 	return r0, r1
 }
 

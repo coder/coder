@@ -1386,6 +1386,13 @@ type sqlcQuerier interface {
 	// already linked). A positive value means the cap blocked that many
 	// new links.
 	LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error)
+	// The AI audit trail assembles owner-scoped events from the entity
+	// lifecycle journals, the credential use journal, and the egress activity
+	// logs. The ai_agent_ledger resolves current ownership (owner_type 'user'
+	// in v1); the journals supply the history. Time bounds are exclusive and
+	// use the zero-time sentinel convention. Every query takes @owner_id so
+	// authorization can bind to the owner being read.
+	ListAIAgentLifecycleTrailEvents(ctx context.Context, arg ListAIAgentLifecycleTrailEventsParams) ([]ListAIAgentLifecycleTrailEventsRow, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
 	// Finds all unique AI Bridge interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.
@@ -1433,6 +1440,16 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
+	// Egress decisions aggregated per (session, host, action) bucket within
+	// the window. Raw events stay behind the per-session drill-down.
+	ListAISandboxEgressTrailAggregates(ctx context.Context, arg ListAISandboxEgressTrailAggregatesParams) ([]ListAISandboxEgressTrailAggregatesRow, error)
+	// Sessions are activity log rows carrying sponsor snapshots; one row can
+	// yield a started and an ended event, so the window test is a superset
+	// match and the handler trims per event.
+	ListAISandboxSessionTrailRows(ctx context.Context, arg ListAISandboxSessionTrailRowsParams) ([]AISandboxSession, error)
+	// Journal lines carry the event and subject; the actor and dates live on
+	// line 0 of the entry, so every line joins back to it.
+	ListAuthorizationLifecycleTrailEvents(ctx context.Context, arg ListAuthorizationLifecycleTrailEventsParams) ([]ListAuthorizationLifecycleTrailEventsRow, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
@@ -1440,6 +1457,12 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// One row per credential a journal entry acts on. The api_key line table
+	// contributes the token name where the line describes an api_key issuance.
+	ListCredentialLifecycleTrailEvents(ctx context.Context, arg ListCredentialLifecycleTrailEventsParams) ([]ListCredentialLifecycleTrailEventsRow, error)
+	// Presentations are individual events, accepted and refused alike. The
+	// actor is the verifier, the party the presentation was made to.
+	ListCredentialUseTrailEvents(ctx context.Context, arg ListCredentialUseTrailEventsParams) ([]ListCredentialUseTrailEventsRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error)

@@ -430,6 +430,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read AI seat state",
 		},
 	},
+	"ai_audit_trail": {
+		Name: "AIAuditTrail",
+		Actions: map[Action]ActionDefinition{
+			ActionRead: "read the assembled audit trail of AI agents a user owns",
+		},
+	},
 	"boundary_log": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create boundary log records",

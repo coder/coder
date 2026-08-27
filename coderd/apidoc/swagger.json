@@ -15108,6 +15108,8 @@
 			"enum": [
 				"all",
 				"application_connect",
+				"ai_audit_trail:*",
+				"ai_audit_trail:read",
 				"ai_gateway_key:*",
 				"ai_gateway_key:create",
 				"ai_gateway_key:delete",
@@ -15348,6 +15350,8 @@
 			"x-enum-varnames": [
 				"APIKeyScopeAll",
 				"APIKeyScopeApplicationConnect",
+				"APIKeyScopeAiAuditTrailAll",
+				"APIKeyScopeAiAuditTrailRead",
 				"APIKeyScopeAiGatewayKeyAll",
 				"APIKeyScopeAiGatewayKeyCreate",
 				"APIKeyScopeAiGatewayKeyDelete",
@@ -22339,6 +22343,7 @@
 			"type": "string",
 			"enum": [
 				"*",
+				"ai_audit_trail",
 				"ai_gateway_key",
 				"ai_model_price",
 				"ai_provider",
@@ -22392,6 +22397,7 @@
 			],
 			"x-enum-varnames": [
 				"ResourceWildcard",
+				"ResourceAIAuditTrail",
 				"ResourceAIGatewayKey",
 				"ResourceAiModelPrice",
 				"ResourceAIProvider",

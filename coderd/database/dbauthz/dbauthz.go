@@ -7046,6 +7046,13 @@ func (q *querier) LinkChatFiles(ctx context.Context, arg database.LinkChatFilesP
 	return q.db.LinkChatFiles(ctx, arg)
 }
 
+func (q *querier) ListAIAgentLifecycleTrailEvents(ctx context.Context, arg database.ListAIAgentLifecycleTrailEventsParams) ([]database.ListAIAgentLifecycleTrailEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIAgentLifecycleTrailEvents(ctx, arg)
+}
+
 func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -7130,6 +7137,27 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 	return q.db.ListAIGatewayKeys(ctx)
 }
 
+func (q *querier) ListAISandboxEgressTrailAggregates(ctx context.Context, arg database.ListAISandboxEgressTrailAggregatesParams) ([]database.ListAISandboxEgressTrailAggregatesRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListAISandboxEgressTrailAggregates(ctx, arg)
+}
+
+func (q *querier) ListAISandboxSessionTrailRows(ctx context.Context, arg database.ListAISandboxSessionTrailRowsParams) ([]database.AISandboxSession, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListAISandboxSessionTrailRows(ctx, arg)
+}
+
+func (q *querier) ListAuthorizationLifecycleTrailEvents(ctx context.Context, arg database.ListAuthorizationLifecycleTrailEventsParams) ([]database.ListAuthorizationLifecycleTrailEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListAuthorizationLifecycleTrailEvents(ctx, arg)
+}
+
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err
@@ -7146,6 +7174,20 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 		return nil, err
 	}
 	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
+}
+
+func (q *querier) ListCredentialLifecycleTrailEvents(ctx context.Context, arg database.ListCredentialLifecycleTrailEventsParams) ([]database.ListCredentialLifecycleTrailEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListCredentialLifecycleTrailEvents(ctx, arg)
+}
+
+func (q *querier) ListCredentialUseTrailEvents(ctx context.Context, arg database.ListCredentialUseTrailEventsParams) ([]database.ListCredentialUseTrailEventsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.ListCredentialUseTrailEvents(ctx, arg)
 }
 
 func (q *querier) ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerKey, error) {

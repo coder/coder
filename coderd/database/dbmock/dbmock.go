@@ -9358,6 +9358,21 @@ func (mr *MockStoreMockRecorder) LinkChatFiles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LinkChatFiles", reflect.TypeOf((*MockStore)(nil).LinkChatFiles), ctx, arg)
 }
 
+// ListAIAgentLifecycleTrailEvents mocks base method.
+func (m *MockStore) ListAIAgentLifecycleTrailEvents(ctx context.Context, arg database.ListAIAgentLifecycleTrailEventsParams) ([]database.ListAIAgentLifecycleTrailEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIAgentLifecycleTrailEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIAgentLifecycleTrailEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIAgentLifecycleTrailEvents indicates an expected call of ListAIAgentLifecycleTrailEvents.
+func (mr *MockStoreMockRecorder) ListAIAgentLifecycleTrailEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIAgentLifecycleTrailEvents", reflect.TypeOf((*MockStore)(nil).ListAIAgentLifecycleTrailEvents), ctx, arg)
+}
+
 // ListAIBridgeClients mocks base method.
 func (m *MockStore) ListAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -9523,6 +9538,51 @@ func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
+// ListAISandboxEgressTrailAggregates mocks base method.
+func (m *MockStore) ListAISandboxEgressTrailAggregates(ctx context.Context, arg database.ListAISandboxEgressTrailAggregatesParams) ([]database.ListAISandboxEgressTrailAggregatesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAISandboxEgressTrailAggregates", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAISandboxEgressTrailAggregatesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAISandboxEgressTrailAggregates indicates an expected call of ListAISandboxEgressTrailAggregates.
+func (mr *MockStoreMockRecorder) ListAISandboxEgressTrailAggregates(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAISandboxEgressTrailAggregates", reflect.TypeOf((*MockStore)(nil).ListAISandboxEgressTrailAggregates), ctx, arg)
+}
+
+// ListAISandboxSessionTrailRows mocks base method.
+func (m *MockStore) ListAISandboxSessionTrailRows(ctx context.Context, arg database.ListAISandboxSessionTrailRowsParams) ([]database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAISandboxSessionTrailRows", ctx, arg)
+	ret0, _ := ret[0].([]database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAISandboxSessionTrailRows indicates an expected call of ListAISandboxSessionTrailRows.
+func (mr *MockStoreMockRecorder) ListAISandboxSessionTrailRows(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAISandboxSessionTrailRows", reflect.TypeOf((*MockStore)(nil).ListAISandboxSessionTrailRows), ctx, arg)
+}
+
+// ListAuthorizationLifecycleTrailEvents mocks base method.
+func (m *MockStore) ListAuthorizationLifecycleTrailEvents(ctx context.Context, arg database.ListAuthorizationLifecycleTrailEventsParams) ([]database.ListAuthorizationLifecycleTrailEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAuthorizationLifecycleTrailEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAuthorizationLifecycleTrailEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAuthorizationLifecycleTrailEvents indicates an expected call of ListAuthorizationLifecycleTrailEvents.
+func (mr *MockStoreMockRecorder) ListAuthorizationLifecycleTrailEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAuthorizationLifecycleTrailEvents", reflect.TypeOf((*MockStore)(nil).ListAuthorizationLifecycleTrailEvents), ctx, arg)
+}
+
 // ListAuthorizedAIBridgeClients mocks base method.
 func (m *MockStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -9611,6 +9671,36 @@ func (m *MockStore) ListChatContextResourcesByChatID(ctx context.Context, chatID
 func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
+}
+
+// ListCredentialLifecycleTrailEvents mocks base method.
+func (m *MockStore) ListCredentialLifecycleTrailEvents(ctx context.Context, arg database.ListCredentialLifecycleTrailEventsParams) ([]database.ListCredentialLifecycleTrailEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCredentialLifecycleTrailEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.ListCredentialLifecycleTrailEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListCredentialLifecycleTrailEvents indicates an expected call of ListCredentialLifecycleTrailEvents.
+func (mr *MockStoreMockRecorder) ListCredentialLifecycleTrailEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCredentialLifecycleTrailEvents", reflect.TypeOf((*MockStore)(nil).ListCredentialLifecycleTrailEvents), ctx, arg)
+}
+
+// ListCredentialUseTrailEvents mocks base method.
+func (m *MockStore) ListCredentialUseTrailEvents(ctx context.Context, arg database.ListCredentialUseTrailEventsParams) ([]database.ListCredentialUseTrailEventsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCredentialUseTrailEvents", ctx, arg)
+	ret0, _ := ret[0].([]database.ListCredentialUseTrailEventsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListCredentialUseTrailEvents indicates an expected call of ListCredentialUseTrailEvents.
+func (mr *MockStoreMockRecorder) ListCredentialUseTrailEvents(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCredentialUseTrailEvents", reflect.TypeOf((*MockStore)(nil).ListCredentialUseTrailEvents), ctx, arg)
 }
 
 // ListProvisionerKeysByOrganization mocks base method.

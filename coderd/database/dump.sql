@@ -273,7 +273,9 @@ CREATE TYPE api_key_scope AS ENUM (
     'workspace_build_orchestration:create',
     'workspace_build_orchestration:delete',
     'workspace_build_orchestration:read',
-    'workspace_build_orchestration:update'
+    'workspace_build_orchestration:update',
+    'ai_audit_trail:*',
+    'ai_audit_trail:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -5110,7 +5112,11 @@ CREATE INDEX idx_ai_sandbox_network_events_occurred_at ON ai_sandbox_network_eve
 
 CREATE INDEX idx_ai_sandbox_network_events_session_id ON ai_sandbox_network_events USING btree (session_id);
 
+CREATE INDEX idx_ai_sandbox_network_events_sponsor_occurred ON ai_sandbox_network_events USING btree (sponsor_user_id, occurred_at);
+
 CREATE INDEX idx_ai_sandbox_sessions_ai_agent_id ON ai_sandbox_sessions USING btree (ai_agent_id);
+
+CREATE INDEX idx_ai_sandbox_sessions_sponsor_started ON ai_sandbox_sessions USING btree (sponsor_user_id, started_at);
 
 CREATE INDEX idx_ai_sandbox_sessions_started_at ON ai_sandbox_sessions USING btree (started_at);
 

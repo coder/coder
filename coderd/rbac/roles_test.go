@@ -860,6 +860,26 @@ func TestRolePermissions(t *testing.T) {
 				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgWorkspaceAccessUser},
 			},
 		},
+		// Users read their own AI agent audit trail; owners and site
+		// auditors read anyone's.
+		{
+			Name:     "AIAuditTrailMyOwn",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAIAuditTrail.WithOwner(currentUser.String()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, auditor, memberMe, agentsAccessUser, orgWorkspaceAccessUser},
+				false: {setOtherOrg, setOrgNotMe, templateAdmin, userAdmin},
+			},
+		},
+		{
+			Name:     "AIAuditTrailOtherOwner",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceAIAuditTrail.WithOwner(uuid.NewString()),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, auditor},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, orgWorkspaceAccessUser, templateAdmin, userAdmin},
+			},
+		},
 		{
 			Name:     "ProvisionerDaemons",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},

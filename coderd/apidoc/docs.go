@@ -16907,6 +16907,8 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_audit_trail:*",
+                "ai_audit_trail:read",
                 "ai_gateway_key:*",
                 "ai_gateway_key:create",
                 "ai_gateway_key:delete",
@@ -17147,6 +17149,8 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiAuditTrailAll",
+                "APIKeyScopeAiAuditTrailRead",
                 "APIKeyScopeAiGatewayKeyAll",
                 "APIKeyScopeAiGatewayKeyCreate",
                 "APIKeyScopeAiGatewayKeyDelete",
@@ -24411,6 +24415,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_audit_trail",
                 "ai_gateway_key",
                 "ai_model_price",
                 "ai_provider",
@@ -24464,6 +24469,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAIAuditTrail",
                 "ResourceAIGatewayKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",

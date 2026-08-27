@@ -15,6 +15,13 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAIAuditTrail
+	// Valid Actions
+	//  - "ActionRead" :: read the assembled audit trail of AI agents a user owns
+	ResourceAIAuditTrail = Object{
+		Type: "ai_audit_trail",
+	}
+
 	// ResourceAIGatewayKey
 	// Valid Actions
 	//  - "ActionCreate" :: create an AI Gateway key
@@ -499,6 +506,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAIAuditTrail,
 		ResourceAIGatewayKey,
 		ResourceAiModelPrice,
 		ResourceAIProvider,

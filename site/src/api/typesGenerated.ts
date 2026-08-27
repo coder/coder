@@ -734,6 +734,8 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_audit_trail:*"
+	| "ai_audit_trail:read"
 	| "ai_gateway_key:*"
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
@@ -974,6 +976,8 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_audit_trail:*",
+	"ai_audit_trail:read",
 	"ai_gateway_key:*",
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
@@ -7694,6 +7698,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_audit_trail"
 	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_model_price"
@@ -7747,6 +7752,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_audit_trail",
 	"ai_gateway_key",
 	"ai_provider",
 	"ai_model_price",

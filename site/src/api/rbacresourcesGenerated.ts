@@ -8,6 +8,9 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	ai_audit_trail: {
+		read: "read the assembled audit trail of AI agents a user owns",
+	},
 	ai_gateway_key: {
 		create: "create an AI Gateway key",
 		delete: "delete an AI Gateway key",

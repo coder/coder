@@ -581,6 +581,41 @@ func (s *MethodTestSuite) TestAIAgentLifecycle() {
 	}))
 }
 
+// TestAIAuditTrail covers the owner-scoped trail reads. Each query binds
+// authorization to the owner named in its parameters.
+func (s *MethodTestSuite) TestAIAuditTrail() {
+	s.Run("ListAIAgentLifecycleTrailEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAIAgentLifecycleTrailEventsParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListAIAgentLifecycleTrailEvents(gomock.Any(), arg).Return([]database.ListAIAgentLifecycleTrailEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+	s.Run("ListAuthorizationLifecycleTrailEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAuthorizationLifecycleTrailEventsParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListAuthorizationLifecycleTrailEvents(gomock.Any(), arg).Return([]database.ListAuthorizationLifecycleTrailEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+	s.Run("ListCredentialLifecycleTrailEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListCredentialLifecycleTrailEventsParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListCredentialLifecycleTrailEvents(gomock.Any(), arg).Return([]database.ListCredentialLifecycleTrailEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+	s.Run("ListCredentialUseTrailEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListCredentialUseTrailEventsParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListCredentialUseTrailEvents(gomock.Any(), arg).Return([]database.ListCredentialUseTrailEventsRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+	s.Run("ListAISandboxSessionTrailRows", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxSessionTrailRowsParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListAISandboxSessionTrailRows(gomock.Any(), arg).Return([]database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+	s.Run("ListAISandboxEgressTrailAggregates", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxEgressTrailAggregatesParams{OwnerID: uuid.New(), Limit: 10}
+		dbm.EXPECT().ListAISandboxEgressTrailAggregates(gomock.Any(), arg).Return([]database.ListAISandboxEgressTrailAggregatesRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAIAuditTrail.WithOwner(arg.OwnerID.String()), policy.ActionRead)
+	}))
+}
+
 // TestCredentialLifecycle covers the credential journal and ledger.
 func (s *MethodTestSuite) TestCredentialLifecycle() {
 	s.Run("NextCredentialLifecycleJournalEntryID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

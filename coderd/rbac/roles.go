@@ -480,6 +480,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
 			ResourceBoundaryLog.Type: {policy.ActionRead},
+			// Allow auditors to read any user's AI agent audit trail.
+			ResourceAIAuditTrail.Type: {policy.ActionRead},
 		}),
 		User:    []Permission{},
 		ByOrgID: map[string]OrgPermissions{},
