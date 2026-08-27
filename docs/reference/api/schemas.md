@@ -3078,10 +3078,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
       "context_file_content": "string",
       "context_file_directory": "string",
       "context_file_os": "string",
@@ -3093,18 +3090,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
       "parsed_commands": [
@@ -3174,10 +3165,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "args_delta": "string",
   "completed_at": "2019-08-24T14:15:22Z",
   "content": "string",
-  "context_file_agent_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
   "context_file_content": "string",
   "context_file_directory": "string",
   "context_file_os": "string",
@@ -3189,18 +3177,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "end_line": 0,
-  "file_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
   "hook_rewritten": true,
   "is_error": true,
   "is_media": true,
-  "mcp_server_config_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
   "media_type": "string",
   "name": "string",
   "parsed_commands": [
@@ -3239,7 +3221,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
-| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_agent_id`        | string                                                       | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
 | `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
 | `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
 | `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
@@ -3249,12 +3231,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
 | `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_id`                      | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `hook_rewritten`               | boolean                                                      | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_server_config_id`         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
@@ -3345,10 +3327,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -3360,18 +3339,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -3428,10 +3401,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -3443,18 +3413,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -3696,25 +3660,55 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "group_roles": {
-    "property1": "read",
-    "property2": "read"
-  },
-  "user_roles": {
-    "property1": "read",
-    "property2": "read"
-  }
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name               | Type                                   | Required | Restrictions | Description |
-|--------------------|----------------------------------------|----------|--------------|-------------|
-| `group_roles`      | object                                 | false    |              |             |
-| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
-| `user_roles`       | object                                 | false    |              |             |
-| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
 ## codersdk.ChatModelAnthropicProviderOptions
 
@@ -4713,10 +4707,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
       "context_file_content": "string",
       "context_file_directory": "string",
       "context_file_os": "string",
@@ -4728,18 +4719,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
       "parsed_commands": [
@@ -4879,10 +4864,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -4894,18 +4876,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -4960,10 +4936,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "args_delta": "string",
       "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
       "context_file_content": "string",
       "context_file_directory": "string",
       "context_file_os": "string",
@@ -4975,18 +4948,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
       "hook_rewritten": true,
       "is_error": true,
       "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
       "media_type": "string",
       "name": "string",
       "parsed_commands": [
@@ -5029,10 +4996,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -5044,18 +5008,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -5147,10 +5105,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "args_delta": "string",
     "completed_at": "2019-08-24T14:15:22Z",
     "content": "string",
-    "context_file_agent_id": {
-      "uuid": "string",
-      "valid": true
-    },
+    "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
     "context_file_content": "string",
     "context_file_directory": "string",
     "context_file_os": "string",
@@ -5162,18 +5117,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       0
     ],
     "end_line": 0,
-    "file_id": {
-      "uuid": "string",
-      "valid": true
-    },
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "file_name": "string",
     "hook_rewritten": true,
     "is_error": true,
     "is_media": true,
-    "mcp_server_config_id": {
-      "uuid": "string",
-      "valid": true
-    },
+    "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
     "media_type": "string",
     "name": "string",
     "parsed_commands": [
@@ -5883,10 +5832,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -5898,18 +5844,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -5965,10 +5905,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -5980,18 +5917,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -6048,10 +5979,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -6063,18 +5991,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -8878,10 +8800,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -8893,18 +8812,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -8960,10 +8873,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -8975,18 +8885,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -17386,10 +17290,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -17468,10 +17369,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ]
     }
   ],
-  "task_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "task_id": "string",
   "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
@@ -17511,7 +17409,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `owner_id`                                  | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `owner_name`                                | string                                                                  | false    |              | Owner name is the username of the owner of the workspace.                                                                                                                                                                                                                                                                                   |
 | `shared_with`                               | array of [codersdk.SharedWorkspaceActor](#codersdksharedworkspaceactor) | false    |              |                                                                                                                                                                                                                                                                                                                                             |
-| `task_id`                                   | [uuid.NullUUID](#uuidnulluuid)                                          | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
+| `task_id`                                   | string                                                                  | false    |              | Task ID if set, indicates that the workspace is relevant to the given codersdk.Task.                                                                                                                                                                                                                                                        |
 | `template_active_version_id`                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_allow_user_cancel_workspace_jobs` | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `template_display_name`                     | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
@@ -17688,10 +17586,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "name": "string",
   "operating_system": "string",
-  "parent_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
   "scripts": [
@@ -17751,7 +17646,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `metadata`                   | array of [codersdk.WorkspaceAgentMetadata](#codersdkworkspaceagentmetadata)                  | false    |              | Metadata is only populated on the workspaces list endpoint when the request opts in with the include_agent_metadata search key, and it only carries the requested keys. The description's script is always empty here: it can be long, and list consumers want values. |
 | `name`                       | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
-| `parent_id`                  | [uuid.NullUUID](#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                                        |
+| `parent_id`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                                                                                                                        |
@@ -17867,10 +17762,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "name": "string",
   "status": "running",
-  "subagent_id": {
-    "uuid": "string",
-    "valid": true
-  },
+  "subagent_id": "7b85d465-b649-4b8b-9da8-5f731c1d294d",
   "workspace_folder": "string"
 }
 ```
@@ -17887,7 +17779,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`               | string                                                                                 | false    |              |                            |
 | `name`             | string                                                                                 | false    |              |                            |
 | `status`           | [codersdk.WorkspaceAgentDevcontainerStatus](#codersdkworkspaceagentdevcontainerstatus) | false    |              | Additional runtime fields. |
-| `subagent_id`      | [uuid.NullUUID](#uuidnulluuid)                                                         | false    |              |                            |
+| `subagent_id`      | string                                                                                 | false    |              |                            |
 | `workspace_folder` | string                                                                                 | false    |              |                            |
 
 ## codersdk.WorkspaceAgentDevcontainerAgent
@@ -18061,10 +17953,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "name": "string",
       "status": "running",
-      "subagent_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "subagent_id": "7b85d465-b649-4b8b-9da8-5f731c1d294d",
       "workspace_folder": "string"
     }
   ],
@@ -18735,10 +18624,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ],
           "name": "string",
           "operating_system": "string",
-          "parent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -19222,10 +19108,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       ],
       "name": "string",
       "operating_system": "string",
-      "parent_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
       "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
       "scripts": [
@@ -19578,10 +19461,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 ],
                 "name": "string",
                 "operating_system": "string",
-                "parent_id": {
-                  "uuid": "string",
-                  "valid": true
-                },
+                "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
                 "scripts": [
@@ -19660,10 +19540,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           ]
         }
       ],
-      "task_id": {
-        "uuid": "string",
-        "valid": true
-      },
+      "task_id": "string",
       "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
@@ -19818,7 +19695,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "captivePortal": "string",
     "globalV4": "string",
     "globalV6": "string",
-    "hairPinning": "string",
     "icmpv4": true,
     "ipv4": true,
     "ipv4CanSend": true,
@@ -20355,7 +20231,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       "captivePortal": "string",
       "globalV4": "string",
       "globalV6": "string",
-      "hairPinning": "string",
       "icmpv4": true,
       "ipv4": true,
       "ipv4CanSend": true,
@@ -21037,7 +20912,6 @@ None
   "captivePortal": "string",
   "globalV4": "string",
   "globalV6": "string",
-  "hairPinning": "string",
   "icmpv4": true,
   "ipv4": true,
   "ipv4CanSend": true,
@@ -21067,30 +20941,29 @@ None
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description                                                                                                                        |
-|-------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.                                     |
-| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                                                             |
-| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                                                           |
-| `hairPinning`           | string  | false    |              | Hairpinning is whether the router supports communicating between two local devices through the NATted public IP address (on IPv4). |
-| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                                                     |
-| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                                                  |
-| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                                                 |
-| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                                                  |
-| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                                                 |
-| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4).                                |
-| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                                                         |
-| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                                                            |
-| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                                                        |
-| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                                                   |
-| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
-| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
+| Name                    | Type    | Required | Restrictions | Description                                                                                         |
+|-------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.      |
+| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                              |
+| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                            |
+| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                      |
+| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                   |
+| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                  |
+| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                   |
+| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                  |
+| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4). |
+| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                          |
+| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                             |
+| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                         |
+| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                    |
+| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                     |
+| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                           |
 
 ## oauth2.Token
 
@@ -21579,22 +21452,6 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 ### Properties
 
 None
-
-## uuid.NullUUID
-
-```json
-{
-  "uuid": "string",
-  "valid": true
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description                       |
-|---------|---------|----------|--------------|-----------------------------------|
-| `uuid`  | string  | false    |              |                                   |
-| `valid` | boolean | false    |              | Valid is true if UUID is not NULL |
 
 ## workspaceapps.AccessMethod
 

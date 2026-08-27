@@ -1,4 +1,6 @@
-# MCP Servers
+---
+title: MCP Servers
+---
 
 Organization admins can register external MCP servers that provide additional
 tools for agent chat sessions. Each organization has its own set of MCP

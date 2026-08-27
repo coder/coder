@@ -1149,7 +1149,7 @@ func New(options *Options) *API {
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		options.DeploymentValues.HTTPCookies.Middleware,
-		tracing.Middleware(api.TracerProvider),
+		tracing.Middleware(api.TracerProvider, tracing.DefaultRoutePatterns, "coderd"),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		loggermw.Logger(api.Logger, func(r *http.Request) string {

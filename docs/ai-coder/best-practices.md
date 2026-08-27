@@ -1,4 +1,6 @@
-# Best Practices
+---
+title: Best Practices
+---
 
 This document includes a mix of cultural and technical best practices and guidelines for introducing AI agents into your organization.
 

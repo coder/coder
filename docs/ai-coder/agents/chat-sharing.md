@@ -1,14 +1,16 @@
-# Chat Sharing
+---
+title: Chat Sharing
+---
 
 Chat sharing lets you give other users or groups read-only access to a Coder Agents conversation.
 
 ## Share a chat
 
 1. Open the chat you want to share on the **Agents** page. Only top-level chats can be shared; sub-agent chats inherit sharing from their parent.
-1. Click the share icon in the chat top bar.
-1. Click the **Search for user or group** field.
+1. Select the share icon in the chat top bar.
+1. Select the **Search for user or group** field.
 1. Search for and select a user or group.
-1. Click **Add member** to grant **Read** access.
+1. Select **Add member** to grant **Read** access.
 1. If you shared with a group, copy the chat URL from your browser and send it to the group members.
 
 Coder does not create a separate share link. Users you share with directly receive a **Chat Shared** notification with a link to open the chat. Members who gain access only through a group are not notified.

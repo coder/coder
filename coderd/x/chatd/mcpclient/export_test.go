@@ -24,7 +24,7 @@ func ConnectAllForTest(
 	configs []database.MCPServerConfig,
 	timeout time.Duration,
 	reaperDone func(),
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	return connectAllWithHooks(
 		ctx, logger, configs, nil, uuid.Nil, nil, nil,
 		timeout, connectHooks{reaperDone: reaperDone},
@@ -34,3 +34,10 @@ func ConnectAllForTest(
 // BuildAuthHeadersForTest exposes buildAuthHeaders for external
 // tests.
 var BuildAuthHeadersForTest = buildAuthHeaders
+
+// SummaryErrorForTest exposes summaryError for external tests.
+var SummaryErrorForTest = summaryError
+
+// MaxSummaryErrorLenForTest exposes the persisted-error byte cap for
+// external tests.
+const MaxSummaryErrorLenForTest = maxSummaryErrorLen
