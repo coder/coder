@@ -4337,6 +4337,8 @@ export const ArchiveDuringAttachmentUpload: Story = {
 	},
 };
 
+let rejectPinnedDecode: (reason: Error) => void = () => undefined;
+
 /** Archiving while an image is still resizing must clear the blocking
  *  "processing" chip; the job never reaches the upload registry. */
 export const ArchiveDuringImageResize: Story = {
@@ -4357,12 +4359,23 @@ export const ArchiveDuringImageResize: Story = {
 		localStorage.removeItem(archiveDraftStorageKey);
 		// Pin the real resize pipeline inside its decode step so the
 		// attachment deterministically stays in "processing" while the
-		// chat is archived. The pinned decode also parks the module's
-		// sequential resize queue, so no other story may resize images.
-		spyOn(window, "createImageBitmap").mockReturnValue(
-			new Promise<ImageBitmap>(() => {}),
-		);
-		return () => localStorage.removeItem(archiveDraftStorageKey);
+		// chat is archived. The deferred rejection lets the story settle
+		// the decode afterward, draining the module-level sequential
+		// resize queue instead of wedging later stories' resizes.
+		const pinnedDecode = new Promise<ImageBitmap>((_resolve, reject) => {
+			rejectPinnedDecode = reject;
+		});
+		// Swallow the rejection when play fails before reaching the
+		// decode, so the settle below can't become an unhandled
+		// rejection with no consumer attached.
+		pinnedDecode.catch(() => undefined);
+		spyOn(window, "createImageBitmap").mockReturnValue(pinnedDecode);
+		return () => {
+			// Safety net when play fails mid-story; a second reject after
+			// the in-play settle is a no-op.
+			rejectPinnedDecode(new Error("story cleanup"));
+			localStorage.removeItem(archiveDraftStorageKey);
+		};
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -4405,6 +4418,13 @@ export const ArchiveDuringImageResize: Story = {
 				canvas.queryByRole("button", { name: "Remove screenshot.png" }),
 			).not.toBeInTheDocument();
 		});
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+
+		// Settle the pinned decode now that cleanup is verified: the
+		// queued resize finishes (rejecting), and the abandoned job must
+		// swallow it without resurrecting the archived chat's record.
+		rejectPinnedDecode(new Error("resize interrupted by archive"));
+		await new Promise((resolve) => setTimeout(resolve, 0));
 		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
 	},
 };
