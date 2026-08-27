@@ -260,10 +260,18 @@ const fileForRecord = (record: ChatDraftAttachmentRecord): File | null => {
 const pruneExpiredChatDraftAttachments = () => {
 	const now = Date.now();
 	for (const suffix of chatDraftAttachmentsStorage.listStoredSuffixes()) {
-		// Stored suffixes are dot-joined ID parts; forId takes the parts
-		// themselves, and a joined suffix would trip its delimiter guard.
+		// listStoredSuffixes returns dot-joined ID parts; forId expects
+		// the parts themselves.
 		const handle = chatDraftAttachmentsStorage.forId(...suffix.split("."));
-		const stored = handle.get();
+		// Read raw: handle.get() would cache each chat's full payload in
+		// the family's permanently memoized handle, keeping swept base64
+		// data in memory after removal.
+		let stored: string | null;
+		try {
+			stored = localStorage.getItem(handle.key);
+		} catch {
+			continue;
+		}
 		if (!stored) {
 			continue;
 		}

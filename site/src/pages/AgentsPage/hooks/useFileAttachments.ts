@@ -93,12 +93,13 @@ function restorePersistedAttachments(currentOrgId: string): {
 	}
 	const matched = persisted.filter((p) => p.organizationId === currentOrgId);
 
-	if (matched.length !== persisted.length) {
-		if (matched.length > 0) {
-			persistedAttachmentsStorage.set(matched);
-		} else {
-			persistedAttachmentsStorage.remove();
-		}
+	if (matched.length === 0) {
+		persistedAttachmentsStorage.remove();
+	} else {
+		// The codec silently drops corrupt and legacy entries, so raw
+		// storage may hold more than `persisted` reflects; rewrite the
+		// sanitized survivors so invalid entries do not linger.
+		persistedAttachmentsStorage.set(matched);
 	}
 
 	const attachments: File[] = [];

@@ -56,6 +56,21 @@ describe("useFileAttachments org scoping", () => {
 		expect(uploadedFileIds(result.current)).toStrictEqual(["file-b"]);
 	});
 
+	it("rewrites storage when the codec drops corrupt entries", () => {
+		localStorage.setItem(
+			persistedAttachmentsKey,
+			JSON.stringify([
+				persistEntry("file-a", "a.txt", "org-a"),
+				{ fileId: 123, corruptMarker: true },
+			]),
+		);
+		const { result } = renderAttachments({ orgId: "org-a" });
+		expect(uploadedFileIds(result.current)).toStrictEqual(["file-a"]);
+		const raw = localStorage.getItem(persistedAttachmentsKey) ?? "";
+		expect(raw).toContain("file-a");
+		expect(raw).not.toContain("corruptMarker");
+	});
+
 	it("drops another org's attachments when the org changes", async () => {
 		localStorage.setItem(
 			persistedAttachmentsKey,
