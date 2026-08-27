@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -158,7 +157,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	requireSDKError(t, err, http.StatusNotFound)
 
 	err = sharedClientExp.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
-		Title: ptr.Ref("should not rename"),
+		Title: new("should not rename"),
 	})
 	requireSDKError(t, err, http.StatusNotFound)
 

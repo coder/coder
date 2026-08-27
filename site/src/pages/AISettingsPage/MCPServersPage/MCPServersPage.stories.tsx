@@ -24,7 +24,7 @@ import {
 import AddMCPServerPage from "./AddMCPServerPage/AddMCPServerPage";
 import MCPServersPage from "./MCPServersPage";
 import { orgSearchParam } from "./organizationParam";
-import { MockCoderMCPServer } from "./testFixtures";
+import { MockCoderMCPServer, MockGitHubMCPServer } from "./testFixtures";
 import UpdateMCPServerPage from "./UpdateMCPServerPage/UpdateMCPServerPage";
 
 const MockOrganization2MCPServer: TypesGen.MCPServerConfig = {
@@ -45,6 +45,7 @@ type MCPOrganizationStoryPermissions = Readonly<{
 	create?: boolean;
 	update?: boolean;
 	delete?: boolean;
+	share?: boolean;
 }>;
 
 const organizationPermissionsResponse = (
@@ -68,7 +69,9 @@ const organizationPermissionsResponse = (
 							? permissions?.update
 							: permission === "deleteMCPServerConfig"
 								? permissions?.delete
-								: false;
+								: permission === "shareMCPServerConfig"
+									? permissions?.share
+									: false;
 			return [key, Boolean(allowed)];
 		}),
 	);
@@ -325,6 +328,45 @@ export const DeleteOnlyOrgAdminCanOpenMCPServer: Story = {
 	},
 };
 
+export const ShareOnlyOrgAdminCanOpenMCPServer: Story = {
+	parameters: {
+		permissions: {
+			editDeploymentConfig: false,
+			viewAnyMCPServerConfigs: false,
+			createAnyMCPServerConfig: false,
+			updateAnyMCPServerConfig: false,
+			deleteAnyMCPServerConfig: false,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: [
+				{ path: "/ai/settings/mcp-servers", useStoryElement: true },
+				{
+					path: "/ai/settings/mcp-servers/:serverId",
+					element: <DetailRedirectProbe />,
+				},
+			],
+		}),
+	},
+	beforeEach: () => {
+		mockOrganizationPermissions({
+			[MockDefaultOrganization.id]: { share: true },
+		});
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(await canvas.findByRole("button", { name: /Coder/ }));
+		await expect(
+			await canvas.findByRole("heading", {
+				name: `detail-org:${MockDefaultOrganization.name}`,
+			}),
+		).toBeVisible();
+	},
+};
+
 export const UpdateOnlyOrgAdminUsesAuthorizedOrganization: Story = {
 	parameters: {
 		permissions: {
@@ -538,12 +580,52 @@ export const AddDeepLinkShowsSingleCreatableOrganization: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const organization = await canvas.findByRole("button", {
-			name: `Organization ${MockOrganization2.display_name}`,
-		});
+		const organization = await canvas.findByLabelText(
+			`Organization ${MockOrganization2.display_name}`,
+		);
 		await expect(organization).toBeVisible();
-		await expect(organization).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).not.toBeInTheDocument();
 		await expect(canvas.getByLabelText(/display name/i)).toBeVisible();
+	},
+};
+
+export const ListSearchFiltersServers: Story = {
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/mcp-servers" },
+			routing: { path: "/ai/settings/mcp-servers" },
+		}),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([
+			MockCoderMCPServer,
+			MockGitHubMCPServer,
+		]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Coder")).toBeVisible();
+		await expect(canvas.getByText("GitHub")).toBeVisible();
+
+		const search = canvas.getByRole("searchbox", { name: "Search servers" });
+		await userEvent.type(search, "github");
+		await expect(canvas.getByText("GitHub")).toBeVisible();
+		expect(canvas.queryByText("Coder")).not.toBeInTheDocument();
+
+		await userEvent.clear(search);
+		await userEvent.type(search, "no-such-server");
+		await expect(
+			canvas.getByText("No servers match your search"),
+		).toBeVisible();
+
+		await userEvent.clear(search);
+		await expect(canvas.getByText("Coder")).toBeVisible();
+		await expect(canvas.getByText("GitHub")).toBeVisible();
 	},
 };
 
@@ -1240,6 +1322,7 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
+		await userEvent.type(canvas.getByLabelText(/display name/i), " v2");
 		await expect(
 			canvas.getByRole("button", { name: "Update server" }),
 		).toBeEnabled();
@@ -1259,7 +1342,7 @@ export const UpdateOnlyOrgAdminCanUpdateMCPServer: Story = {
 			body.queryByRole("option", { name: "User OIDC identity" }),
 		).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Server actions" }),
+			canvas.queryByRole("button", { name: "Delete" }),
 		).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: /delete server/i }),
@@ -1333,7 +1416,6 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await expect(await canvas.findByLabelText(/display name/i)).toHaveValue(
 			"Coder",
 		);
@@ -1357,12 +1439,7 @@ export const UserOIDCOrgAdminCannotUpdate: Story = {
 		await expect(
 			canvas.getByLabelText(/authentication method/i),
 		).toHaveTextContent("User OIDC identity");
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Server actions" }),
-		);
-		await expect(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		).toBeEnabled();
+		await expect(canvas.getByRole("button", { name: "Delete" })).toBeEnabled();
 	},
 };
 
@@ -1427,12 +1504,7 @@ export const DeleteOnlyOrgAdminCanDeleteWithoutUpdating: Story = {
 		).toBeDisabled();
 		await expect(canvas.getByLabelText(/tool allow list/i)).toBeDisabled();
 		await expect(canvas.getByLabelText(/tool deny list/i)).toBeDisabled();
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Server actions" }),
-		);
-		await userEvent.click(
-			await body.findByRole("menuitem", { name: "Remove" }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Delete" }));
 		await userEvent.click(
 			await body.findByRole("button", { name: "Delete MCP server" }),
 		);

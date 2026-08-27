@@ -21,7 +21,7 @@ type ProvisionerTagProps = {
 
 export const ProvisionerTag: FC<ProvisionerTagProps> = ({ label, value }) => {
 	return (
-		<Badge size="sm" className="whitespace-nowrap">
+		<Badge className="whitespace-nowrap">
 			[{label}
 			{value && `=${value}`}]
 		</Badge>
@@ -46,7 +46,7 @@ export const ProvisionerTruncateTags: FC<ProvisionerTagsProps> = ({ tags }) => {
 	return (
 		<ProvisionerTags>
 			<ProvisionerTag label={firstKey} value={firstValue} />
-			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
+			{remainderCount > 0 && <Badge>+{remainderCount}</Badge>}
 		</ProvisionerTags>
 	);
 };

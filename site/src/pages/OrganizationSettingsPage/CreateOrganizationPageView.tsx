@@ -1,17 +1,24 @@
 import { useFormik } from "formik";
 import { ArrowLeftIcon } from "lucide-react";
 import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
 import { Link, useNavigate } from "react-router";
+import { toast } from "sonner";
 import * as Yup from "yup";
 import { isApiValidationError } from "#/api/errors";
+import { createOrganization } from "#/api/queries/organizations";
 import type { CreateOrganizationRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { Badges, PremiumBadge } from "#/components/Badges/Badges";
 import { Button } from "#/components/Button/Button";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
-import { SettingsHeaderDocsLink } from "#/components/SettingsHeader/SettingsHeader";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
@@ -38,15 +45,20 @@ const validationSchema = Yup.object({
 });
 
 interface CreateOrganizationPageViewProps {
-	error: unknown;
-	onSubmit: (values: CreateOrganizationRequest) => Promise<void>;
 	isEntitled: boolean;
 	permissions: Permissions;
 }
 
 export const CreateOrganizationPageView: FC<
 	CreateOrganizationPageViewProps
-> = ({ error, onSubmit, isEntitled, permissions }) => {
+> = ({ isEntitled, permissions }) => {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const createOrganizationMutation = useMutation(
+		createOrganization(queryClient),
+	);
+	const error = createOrganizationMutation.error;
+
 	const form = useFormik<CreateOrganizationRequest>({
 		initialValues: {
 			name: "",
@@ -55,54 +67,50 @@ export const CreateOrganizationPageView: FC<
 			icon: "",
 		},
 		validationSchema,
-		onSubmit,
+		onSubmit: (values) => {
+			createOrganizationMutation.mutate(values, {
+				onSuccess: () => {
+					toast.success(`Organization "${values.name}" created successfully.`);
+					void navigate(`/organizations/${values.name}`);
+				},
+			});
+		},
 	});
-	const navigate = useNavigate();
 	const getFieldHelpers = getFormHelpers(form, error);
 	const descriptionField = getFieldHelpers("description", {
 		maxLength: MAX_DESCRIPTION_CHAR_LIMIT,
+		helperText: "Optional. Short summary of this organization.",
+	});
+	const iconField = getFieldHelpers("icon", {
+		helperText: "Optional. URL or emoji shown for this organization.",
 	});
 	const descriptionErrorId = `${descriptionField.id}-error`;
 	const descriptionHelperId = `${descriptionField.id}-helper`;
 
 	return (
-		<div className="flex flex-row font-medium">
-			<div className="absolute left-12">
-				<Link
-					to="/organizations"
-					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
-				>
-					<ArrowLeftIcon size={20} />
-					Go Back
-				</Link>
+		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,800px)_1fr] gap-x-4 gap-y-6">
+			<div>
+				<Button variant="subtle" asChild className="-ml-3">
+					<Link to="/organizations">
+						<ArrowLeftIcon />
+						<span>Back to organizations</span>
+					</Link>
+				</Button>
 			</div>
-			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
-				<div className="flex flex-col items-center">
-					{Boolean(error) && !isApiValidationError(error) && (
-						<div className="mb-8">
-							<ErrorAlert error={error} />
-						</div>
-					)}
-
-					{isEntitled && (
-						<Badges>
-							<PremiumBadge />
-						</Badges>
-					)}
-
-					<header className="flex flex-col items-center">
-						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
-						<p className="max-w-md text-sm text-content-secondary text-center">
-							Organize your deployment into multiple platform teams with unique
-							provisioners, templates, groups, and members.{" "}
+			<div className="flex flex-col gap-4 w-full mx-auto max-w-2xl">
+				<div className="flex flex-col">
+					<SettingsHeader>
+						<SettingsHeaderTitle>New Organization</SettingsHeaderTitle>
+						<SettingsHeaderDescription>
+							Isolate members, templates, and provisioners for a team or
+							project.{" "}
 							<SettingsHeaderDocsLink
 								href={docs("/admin/users/organizations")}
 							/>
-						</p>
-					</header>
-				</div>
-				{!isEntitled ? (
-					<div className="mx-auto w-full max-w-4xl">
+						</SettingsHeaderDescription>
+					</SettingsHeader>
+
+					{!isEntitled ? (
 						<PremiumPaywall
 							source="multiple_organizations"
 							message="Organizations"
@@ -114,89 +122,103 @@ export const CreateOrganizationPageView: FC<
 							]}
 							canViewPremium={permissions.viewAllLicenses}
 						/>
-					</div>
-				) : (
-					<div className="flex flex-col gap-4 w-full max-w-xl min-w-72 mx-auto">
-						<form
-							onSubmit={form.handleSubmit}
-							aria-label="Organization settings form"
-							className="flex flex-col gap-6 w-full"
-						>
-							<fieldset
-								disabled={form.isSubmitting}
-								className="flex flex-col gap-6 w-full border-none"
+					) : (
+						<div className="border border-solid p-6 rounded-lg">
+							<form
+								onSubmit={form.handleSubmit}
+								aria-label="Organization settings form"
+								className="flex flex-col gap-6 w-full"
 							>
-								<FormField
-									field={getFieldHelpers("name")}
-									label="Slug"
-									onChange={onChangeTrimmed(form)}
-								/>
-								<FormField
-									field={getFieldHelpers("display_name")}
-									label="Display name"
-								/>
-								<div className="flex flex-col gap-2">
-									<Label htmlFor={descriptionField.id}>Description</Label>
-									<Textarea
-										id={descriptionField.id}
-										name={descriptionField.name}
-										value={descriptionField.value}
-										onChange={descriptionField.onChange}
-										onBlur={descriptionField.onBlur}
-										rows={2}
-										aria-invalid={descriptionField.error}
-										aria-describedby={
-											descriptionField.error
-												? descriptionErrorId
-												: descriptionField.helperText
-													? descriptionHelperId
-													: undefined
-										}
-										className={cn(
-											descriptionField.error && "border-border-destructive",
-										)}
-									/>
-									{descriptionField.error ? (
-										<span
-											id={descriptionErrorId}
-											className="text-xs text-content-destructive"
-										>
-											{descriptionField.helperText}
-										</span>
-									) : (
-										descriptionField.helperText && (
+								{Boolean(error) && !isApiValidationError(error) && (
+									<ErrorAlert error={error} />
+								)}
+								<fieldset
+									disabled={form.isSubmitting}
+									className="flex flex-col gap-6 w-full border-none p-0 m-0"
+								>
+									<div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
+										<FormField
+											field={getFieldHelpers("name", {
+												helperText: "Unique identifier used in URLs.",
+											})}
+											label="Slug"
+											required
+											className="w-full"
+											onChange={onChangeTrimmed(form)}
+										/>
+										<FormField
+											field={getFieldHelpers("display_name", {
+												helperText:
+													"Friendly name. Defaults to the slug if blank.",
+											})}
+											label="Display name"
+											className="w-full"
+										/>
+									</div>
+									<div className="flex flex-col gap-2">
+										<Label htmlFor={descriptionField.id}>Description</Label>
+										<Textarea
+											id={descriptionField.id}
+											name={descriptionField.name}
+											value={descriptionField.value}
+											onChange={descriptionField.onChange}
+											onBlur={descriptionField.onBlur}
+											rows={2}
+											aria-invalid={descriptionField.error}
+											aria-describedby={
+												descriptionField.error
+													? descriptionErrorId
+													: descriptionField.helperText
+														? descriptionHelperId
+														: undefined
+											}
+											className={cn(
+												"resize-none",
+												descriptionField.error && "border-border-destructive",
+											)}
+										/>
+										{descriptionField.error ? (
 											<span
-												id={descriptionHelperId}
-												className="text-xs text-content-secondary"
+												id={descriptionErrorId}
+												className="text-xs text-content-destructive"
 											>
 												{descriptionField.helperText}
 											</span>
-										)
-									)}
+										) : (
+											descriptionField.helperText && (
+												<span
+													id={descriptionHelperId}
+													className="text-xs text-content-secondary"
+												>
+													{descriptionField.helperText}
+												</span>
+											)
+										)}
+									</div>
+									<IconField
+										{...iconField}
+										disabled={form.isSubmitting}
+										onChange={onChangeTrimmed(form)}
+										onPickEmoji={(value) => {
+											void form.setFieldValue("icon", value);
+											void form.setFieldTouched("icon", true);
+										}}
+									/>
+								</fieldset>
+								<div className="flex justify-end gap-4">
+									<Button asChild variant="outline">
+										<Link to="/organizations">Cancel</Link>
+									</Button>
+									<Button type="submit" disabled={form.isSubmitting}>
+										<Spinner loading={form.isSubmitting} />
+										Create organization
+									</Button>
 								</div>
-								<IconField
-									{...getFieldHelpers("icon")}
-									onChange={onChangeTrimmed(form)}
-									onPickEmoji={(value) => form.setFieldValue("icon", value)}
-								/>
-							</fieldset>
-							<div className="flex flex-row gap-2">
-								<Button type="submit" disabled={form.isSubmitting}>
-									{form.isSubmitting && <Spinner />}
-									Save
-								</Button>
-								<Button
-									variant="outline"
-									type="button"
-									onClick={() => navigate("/organizations")}
-								>
-									Cancel
-								</Button>
-							</div>
-						</form>
-					</div>
-				)}
+							</form>
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
+		</section>
 	);
 };
