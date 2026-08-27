@@ -248,6 +248,32 @@ export const TypeFacetPrefix: Story = {
 	},
 };
 
+export const TypeRawCategoryValue: Story = {
+	render: () => <FilterComboboxHarness initialQuery="" />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "status:starting");
+		await expect(
+			await body.findByText("No Status matches", {
+				ignore: '[role="status"], script, style',
+			}),
+		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: "Remove status:starting" }),
+		).not.toBeInTheDocument();
+		await userEvent.keyboard("{Enter}");
+		await expect(
+			canvas.getByRole("button", { name: "Remove status:starting" }),
+		).toBeVisible();
+		await expect(input).toHaveValue("");
+	},
+};
+
 export const TypeaheadMatchingCategories: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
@@ -350,6 +376,59 @@ export const LiveResourcePreviews: Story = {
 		);
 		await expect(body.getByText("Workspaces")).toBeVisible();
 		await expect(body.getByText("alice · docker")).toBeVisible();
+	},
+};
+
+export const HidesStaleResourcePreviews: Story = {
+	render: () => (
+		<FilterComboboxHarness
+			initialQuery=""
+			searchResultsLabel="Workspaces"
+			getSearchResults={async (query) => {
+				if (query === "dev") {
+					return [
+						{
+							value: "ws-dev",
+							label: "devbox",
+							subtitle: "alice · docker",
+							href: "/@alice/devbox",
+						},
+					];
+				}
+				if (query === "prod") {
+					return [
+						{
+							value: "ws-prod",
+							label: "prodbox",
+							subtitle: "bob · kubernetes",
+							href: "/@bob/prodbox",
+						},
+					];
+				}
+				return [];
+			}}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const input = canvas.getByRole("combobox", {
+			name: "Search and filter…",
+		});
+		await userEvent.click(input);
+		await userEvent.type(input, "dev");
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /devbox/i })).toBeVisible(),
+		);
+		await userEvent.clear(input);
+		await userEvent.type(input, "p");
+		await expect(
+			body.queryByRole("option", { name: /devbox/i }),
+		).not.toBeInTheDocument();
+		await userEvent.type(input, "rod");
+		await waitFor(() =>
+			expect(body.getByRole("option", { name: /prodbox/i })).toBeVisible(),
+		);
 	},
 };
 

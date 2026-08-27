@@ -168,8 +168,10 @@ export const FilterComboboxContent: FC<FilterComboboxContentProps> = ({
 			data-empty={isEmpty ? "" : undefined}
 			onOpenAutoFocus={(event) => event.preventDefault()}
 			onInteractOutside={(event) => {
-				const target = event.target as Node | null;
-				if (target && anchorRef?.current?.contains(target)) {
+				if (
+					event.target instanceof Node &&
+					anchorRef?.current?.contains(event.target)
+				) {
 					event.preventDefault();
 				}
 			}}

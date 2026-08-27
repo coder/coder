@@ -8,6 +8,7 @@ import {
 import { useQueries, useQuery } from "react-query";
 import { useDebouncedFunction, useDebouncedValue } from "#/hooks/debounce";
 import {
+	chipToken,
 	collectValueSuggestions,
 	composeFilterQuery,
 	dedupeChips,
@@ -357,7 +358,9 @@ export const useFilterCombobox = ({
 		),
 	);
 
-	const searchResults = searchResultsQuery.data ?? [];
+	const searchResults = typeaheadQueryPending
+		? []
+		: (searchResultsQuery.data ?? []);
 	const searchResultsLoading =
 		(hasSearchResultsLoader && typeaheadQueryPending) ||
 		(searchResultsQuery.isFetching && !searchResultsQuery.isError);
@@ -572,7 +575,33 @@ export const useFilterCombobox = ({
 			return;
 		}
 
-		// Enter is committed by cmdk through the highlighted item's `onSelect`.
+		// Let cmdk commit a currently highlighted category option. If there is no
+		// rendered option to select, Enter commits the typed value directly so
+		// valid backend values do not have to appear in the suggestion list.
+		if (
+			event.key === "Enter" &&
+			mode === "category" &&
+			activeCategoryKey !== null &&
+			inputValue.trim().length > 0
+		) {
+			const highlighted = highlightedItemRef.current;
+			const candidate = chipToken(activeCategoryKey, inputValue.trim());
+			const hasHighlightedOption = activeOptions?.some(
+				(option) =>
+					(option.token ?? chipToken(activeCategoryKey, option.value)) ===
+					highlighted,
+			);
+			if (
+				!activeOptionsLoading &&
+				!hasHighlightedOption &&
+				parseChipToken(candidate, chipKeys)
+			) {
+				event.preventDefault();
+				selectCategoryOption(candidate);
+				return;
+			}
+		}
+
 		// Tab completes the highlighted filter only. A highlighted resource
 		// preview has no chip token, so Tab falls through to the default focus
 		// move rather than navigating.

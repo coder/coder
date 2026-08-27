@@ -1,5 +1,5 @@
 import { ListFilterIcon, SearchIcon } from "lucide-react";
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -225,7 +225,7 @@ export function FilterCombobox({
 
 const OPTION_ITEM_CLASS = "gap-2 px-2 py-2.5";
 
-function resultIcon(result: SearchResult) {
+function ResultIcon({ result }: { result: SearchResult }): ReactNode {
 	if (result.startIcon) {
 		return <span aria-hidden>{result.startIcon}</span>;
 	}
@@ -274,10 +274,17 @@ function TypeaheadList({
 	onSelectSearchResult,
 	onRetry,
 }: TypeaheadListProps) {
-	const valueSuggestionsByCategory = Map.groupBy(
-		valueSuggestions,
-		(suggestion) => suggestion.categoryLabel,
-	);
+	const valueSuggestionsByCategory = new Map<string, ValueSuggestion[]>();
+	for (const suggestion of valueSuggestions) {
+		const categorySuggestions = valueSuggestionsByCategory.get(
+			suggestion.categoryLabel,
+		);
+		if (categorySuggestions) {
+			categorySuggestions.push(suggestion);
+		} else {
+			valueSuggestionsByCategory.set(suggestion.categoryLabel, [suggestion]);
+		}
+	}
 
 	const isEmpty =
 		listedCategories.length === 0 &&
@@ -340,7 +347,7 @@ function TypeaheadList({
 								value={result.value}
 								onSelect={() => onSelectSearchResult(result)}
 							>
-								{resultIcon(result)}
+								<ResultIcon result={result} />
 								<span className="flex min-w-0 flex-col">
 									<span className="truncate text-content-primary">
 										{result.label}
