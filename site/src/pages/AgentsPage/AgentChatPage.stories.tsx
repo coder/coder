@@ -4336,3 +4336,59 @@ export const ArchiveDuringAttachmentUpload: Story = {
 		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
 	},
 };
+
+/** Archiving while an image is still resizing must clear the blocking
+ *  "processing" chip; the job never reaches the upload registry. */
+export const ArchiveDuringImageResize: Story = {
+	render: () => <ArchiveCleanupLayout />,
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Archive during image resize",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		localStorage.removeItem(archiveDraftStorageKey);
+		// Pin the real resize pipeline inside its decode step so the
+		// attachment deterministically stays in "processing" while the
+		// chat is archived. The pinned decode also parks the module's
+		// sequential resize queue, so no other story may resize images.
+		spyOn(window, "createImageBitmap").mockReturnValue(
+			new Promise<ImageBitmap>(() => {}),
+		);
+		return () => localStorage.removeItem(archiveDraftStorageKey);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.upload(
+			canvas.getByTestId("attachment-file-input"),
+			new File([new Uint8Array(11 * 1024 * 1024)], "screenshot.png", {
+				type: "image/png",
+			}),
+		);
+		expect(
+			await canvas.findByRole("button", { name: "Remove screenshot.png" }),
+		).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Open agent actions" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+
+		// The processing chip must not linger and block sending.
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Remove screenshot.png" }),
+			).not.toBeInTheDocument();
+		});
+		expect(localStorage.getItem(archiveDraftStorageKey)).toBeNull();
+	},
+};
