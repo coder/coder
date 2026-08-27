@@ -61,6 +61,7 @@ import {
 	chatRightPanelTabsStorage,
 	chatSidebarTabStorage,
 } from "./storage";
+import { chatWidthClass } from "./utils/chatWidth";
 import {
 	isUserRightPanelTab,
 	type PortSelection,
@@ -1184,7 +1185,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 						<div
 							className={cn(
 								"mx-auto w-full py-6",
-								chatFullWidth ? "max-w-full" : "max-w-3xl",
+								chatWidthClass(chatFullWidth),
 							)}
 						>
 							<ChatConversationSkeleton />

@@ -7,6 +7,7 @@ import {
 	rightPanelOpenStorage,
 	rightPanelWidthStorage,
 } from "../storage";
+import { chatWidthClass } from "../utils/chatWidth";
 import { loadPersistedLeftSidebarWidth } from "./ChatsSidebar/sidebarWidth";
 
 const DEFAULT_PANEL_WIDTH = 480;
@@ -137,10 +138,7 @@ export const RightPanelSkeleton: FC = () => (
 const ChatInputSkeleton: FC<{ fullWidth: boolean }> = ({ fullWidth }) => (
 	<div className="shrink-0 overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin">
 		<div
-			className={cn(
-				"mx-auto w-full pb-0 sm:pb-4",
-				fullWidth ? "max-w-full" : "max-w-3xl",
-			)}
+			className={cn("mx-auto w-full pb-0 sm:pb-4", chatWidthClass(fullWidth))}
 		>
 			<div className="rounded-2xl bg-surface-secondary/45 p-1 shadow-xs">
 				<div className="min-h-[60px] sm:min-h-24 px-3 py-2" />
@@ -182,7 +180,7 @@ export const AgentChatPageSkeleton: FC = () => {
 						<div
 							className={cn(
 								"mx-auto w-full py-6",
-								chatFullWidth ? "max-w-full" : "max-w-3xl",
+								chatWidthClass(chatFullWidth),
 							)}
 						>
 							<ChatConversationSkeleton />

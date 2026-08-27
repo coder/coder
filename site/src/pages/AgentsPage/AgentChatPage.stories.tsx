@@ -4300,13 +4300,8 @@ export const ArchiveDuringAttachmentUpload: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const fileInput =
-			canvasElement.querySelector<HTMLInputElement>('input[type="file"]');
-		if (!fileInput) {
-			throw new Error("attachment file input not found");
-		}
 		await userEvent.upload(
-			fileInput,
+			canvas.getByTestId("attachment-file-input"),
 			new File(["draft body"], "notes.txt", { type: "text/plain" }),
 		);
 		// The remove affordance is opacity-0 until hover, so assert

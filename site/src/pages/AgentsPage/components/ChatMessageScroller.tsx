@@ -9,6 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useStorage } from "#/hooks/useStorage";
 import { chatFullWidthStorage } from "../storage";
+import { chatWidthClass } from "../utils/chatWidth";
 
 interface EarlierMessagesProps {
 	hasMoreMessages: boolean;
@@ -122,7 +123,7 @@ export const ChatMessageScroller: FC<ChatMessageScrollerProps> = ({
 					aria-busy={earlierMessages.isFetchingMoreMessages || undefined}
 					className={cn(
 						"mx-auto flex w-full flex-col gap-2 px-4 py-6",
-						chatFullWidth ? "max-w-full" : "max-w-3xl",
+						chatWidthClass(chatFullWidth),
 					)}
 				>
 					{children}
