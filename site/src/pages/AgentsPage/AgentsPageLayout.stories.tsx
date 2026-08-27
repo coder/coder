@@ -30,11 +30,13 @@ import {
 	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	MockWorkspace,
 } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withToaster,
 	withWebSocket,
 } from "#/testHelpers/storybook";
 import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
@@ -57,6 +59,7 @@ import {
 } from "./components/ChatsSidebar/sidebarWidth";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { rightPanelOpenStorage } from "./storage";
+import { chatDraftAttachmentStorageKey } from "./utils/chatDraftAttachmentStorage";
 
 const defaultModelID = "model-config-1";
 
@@ -1131,6 +1134,95 @@ export const UnarchiveWatchEventRecoversArchivedChat: Story = {
 			canvas.queryByText("This agent has been archived and is read-only."),
 		).not.toBeInTheDocument();
 		expect(canvas.queryByText("Chat not found")).not.toBeInTheDocument();
+	},
+};
+
+const archiveAndDeleteDraftKey = chatDraftAttachmentStorageKey(
+	watchedChat().organization_id,
+	WATCHED_CHAT_ID,
+);
+
+/** When the archive commits but the workspace delete fails, the
+ *  layout's error branch must still clear the chat's storage even
+ *  though no archive watch event was delivered. */
+export const ArchiveAndDeleteDeleteFailureClearsChatStorage: Story = {
+	decorators: [withProxyProvider(), withToaster],
+	beforeEach: () => {
+		mockChats([watchedChat({ workspace_id: MockWorkspace.id })]);
+		const cleanup = mockAgentChatPageAPIs();
+		spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
+		spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		spyOn(API, "deleteWorkspace").mockRejectedValue(
+			new Error("workspace delete exploded"),
+		);
+		// A fresh well-formed record: the mount-time prune sweep removes
+		// empty or expired families, which would make the cleanup
+		// assertion pass vacuously.
+		localStorage.setItem(
+			archiveAndDeleteDraftKey,
+			JSON.stringify([
+				{
+					status: "uploaded",
+					clientId: "seeded-draft",
+					fileId: "seeded-file",
+					fileName: "draft.png",
+					fileType: "image/png",
+					lastModified: 1,
+					size: 10,
+					updatedAt: Date.now(),
+					organizationId: watchedChat().organization_id,
+					chatId: WATCHED_CHAT_ID,
+				},
+			]),
+		);
+		return () => {
+			cleanup();
+			localStorage.removeItem(archiveAndDeleteDraftKey);
+		};
+	},
+	parameters: watchedChatPageParameters(
+		watchedChat({ workspace_id: MockWorkspace.id }),
+		[],
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Open agent actions" }),
+		);
+		// The dropdown and the delete dialog render in portals outside
+		// the canvas.
+		await userEvent.click(
+			await screen.findByRole("menuitem", {
+				name: "Archive & delete workspace",
+			}),
+		);
+		// The dialog remounts when the pending workspace name resolves
+		// (key={pendingWorkspaceName}), so query and fill the input inside
+		// waitFor rather than typing into a possibly stale mount.
+		await waitFor(() => {
+			const nameInput = screen.getByLabelText(
+				"Name of the workspace to delete",
+			);
+			fireEvent.change(nameInput, {
+				target: { value: MockWorkspace.name },
+			});
+			expect(nameInput).toHaveValue(MockWorkspace.name);
+		});
+		await waitFor(() => {
+			expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+		});
+		await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => {
+			expect(localStorage.getItem(archiveAndDeleteDraftKey)).toBeNull();
+		});
+		await waitFor(() => {
+			expect(
+				screen.getByText(
+					"The chat was archived but the workspace delete failed. Unarchive it from the archived filter, or open the workspace to delete it manually.",
+				),
+			).toBeVisible();
+		});
 	},
 };
 
