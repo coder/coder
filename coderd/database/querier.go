@@ -390,6 +390,7 @@ type sqlcQuerier interface {
 	GetAISandboxNetworkEventsByAIAgentIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByAIAgentIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionID(ctx context.Context, sessionID uuid.UUID) ([]AISandboxNetworkEvent, error)
 	GetAISandboxNetworkEventsBySessionIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsBySessionIDPagedParams) ([]AISandboxNetworkEvent, error)
+	GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]AISandboxNetworkEvent, error)
 	GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (AISandboxSession, error)
 	// Confinement sessions naming one AI agent. Reads the attribution snapshot
 	// directly rather than resolving through a workspace, so a session found here

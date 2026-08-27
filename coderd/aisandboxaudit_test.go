@@ -271,22 +271,33 @@ func TestAISandboxAuditReadAPI(t *testing.T) {
 	firstPage, err := fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, 0, 1)
 	require.NoError(t, err)
 	require.Len(t, firstPage, 1)
-	require.Equal(t, firstStored.SessionID, firstPage[0].SessionID)
-	require.Equal(t, firstStored.Host, firstPage[0].Host)
-	require.Equal(t, int(firstStored.Port), firstPage[0].Port)
-	require.Equal(t, codersdk.AISandboxNetworkProtocol(firstStored.Protocol), firstPage[0].Protocol)
-	require.Equal(t, codersdk.AISandboxNetworkEventAction(firstStored.Action), firstPage[0].Action)
-	require.Equal(t, firstStored.PolicyRevision, firstPage[0].PolicyRevision)
+	require.Equal(t, secondStored.SessionID, firstPage[0].SessionID)
+	require.Equal(t, secondStored.Host, firstPage[0].Host)
+	require.Equal(t, int(secondStored.Port), firstPage[0].Port)
+	require.Equal(t, codersdk.AISandboxNetworkProtocol(secondStored.Protocol), firstPage[0].Protocol)
+	require.Equal(t, codersdk.AISandboxNetworkEventAction(secondStored.Action), firstPage[0].Action)
+	require.Equal(t, secondStored.PolicyRevision, firstPage[0].PolicyRevision)
 
-	secondPage, err := fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, firstStored.ID, 1)
+	secondPage, err := fixture.client.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, secondStored.ID, 1)
 	require.NoError(t, err)
 	require.Len(t, secondPage, 1)
-	require.Equal(t, secondStored.Host, secondPage[0].Host)
+	require.Equal(t, firstStored.Host, secondPage[0].Host)
+
+	workspacePage, err := fixture.client.WorkspaceAISandboxNetworkEvents(ctx, workspaceID, 0, 1)
+	require.NoError(t, err)
+	require.Len(t, workspacePage, 1)
+	require.Equal(t, secondStored.Host, workspacePage[0].Host)
+	workspacePage, err = fixture.client.WorkspaceAISandboxNetworkEvents(ctx, workspaceID, workspacePage[0].ID, 1)
+	require.NoError(t, err)
+	require.Len(t, workspacePage, 1)
+	require.Equal(t, firstStored.Host, workspacePage[0].Host)
 
 	unrelatedClient, _ := coderdtest.CreateAnotherUser(t, fixture.client, fixture.owner.OrganizationID)
 	_, err = unrelatedClient.WorkspaceAISandboxSessions(ctx, workspaceID)
 	requireAISandboxAuditStatusOneOf(t, err, http.StatusForbidden, http.StatusNotFound)
 	_, err = unrelatedClient.AISandboxSessionNetworkEvents(ctx, workspaceID, sessionID, 0, 1)
+	requireAISandboxAuditStatusOneOf(t, err, http.StatusForbidden, http.StatusNotFound)
+	_, err = unrelatedClient.WorkspaceAISandboxNetworkEvents(ctx, workspaceID, 0, 1)
 	requireAISandboxAuditStatusOneOf(t, err, http.StatusForbidden, http.StatusNotFound)
 
 	otherWorkspace := dbfake.WorkspaceBuild(t, fixture.db, database.WorkspaceTable{
@@ -326,6 +337,47 @@ func TestAISandboxAuditReadAPI(t *testing.T) {
 	require.NotNil(t, foundAgent)
 	require.NotNil(t, foundAgent.AIAgentID)
 	require.Equal(t, fixture.agentUserID, *foundAgent.AIAgentID)
+}
+
+func TestAISandboxAuditWatch(t *testing.T) {
+	t.Parallel()
+
+	fixture := newBoundAISandboxAuditFixture(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	workspaceID := fixture.workspace.Workspace.ID
+	conn, err := fixture.client.WatchWorkspaceAISandboxActivity(ctx, workspaceID)
+	require.NoError(t, err)
+	defer conn.CloseNow()
+
+	sessionID := uuid.New()
+	startedAt := time.Now().UTC().Add(-time.Minute)
+	err = fixture.agentClient.PostAISandboxSession(ctx, agentsdk.PostAISandboxSessionRequest{
+		ID:                sessionID,
+		EgressEnforcement: codersdk.AISandboxEgressEnforcementForced,
+		StartedAt:         startedAt,
+	})
+	require.NoError(t, err)
+
+	_, message, err := conn.Read(ctx)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(message))
+
+	err = fixture.agentClient.PatchAISandboxNetworkEvents(ctx, agentsdk.PatchAISandboxNetworkEventsRequest{
+		Events: []agentsdk.AISandboxNetworkEvent{{
+			SessionID:      sessionID,
+			OccurredAt:     startedAt.Add(time.Second),
+			Protocol:       agentsdk.AISandboxNetworkProtocolConnect,
+			Host:           "packages.example.com",
+			Port:           443,
+			Action:         agentsdk.AISandboxNetworkEventActionAllowed,
+			PolicyRevision: 1,
+		}},
+	})
+	require.NoError(t, err)
+
+	_, message, err = conn.Read(ctx)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, string(message))
 }
 
 func TestAISandboxAuditNetworkEvents(t *testing.T) {

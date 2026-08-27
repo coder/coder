@@ -1,10 +1,13 @@
-import type { FC } from "react";
-import { useInfiniteQuery, useQuery } from "react-query";
+import { type FC, useEffect } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "react-query";
+import { watchWorkspaceAISandboxActivity } from "#/api/api";
 import {
-	infiniteAISandboxSessionNetworkEvents,
+	infiniteWorkspaceAISandboxNetworkEvents,
+	workspaceAISandboxActivityKey,
 	workspaceAISandboxSessions,
+	workspaceAISandboxSessionsKey,
 } from "#/api/queries/workspaces";
-import type { AISandboxSession } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -17,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { formatDate } from "#/utils/time";
 
 const enforcementVariant = {
@@ -41,10 +45,39 @@ interface WorkspaceAIEgressActivityProps {
 export const WorkspaceAIEgressActivity: FC<WorkspaceAIEgressActivityProps> = ({
 	workspaceId,
 }) => {
+	const queryClient = useQueryClient();
 	const sessionsQuery = useQuery(workspaceAISandboxSessions(workspaceId));
+	const eventsQuery = useInfiniteQuery(
+		infiniteWorkspaceAISandboxNetworkEvents(workspaceId),
+	);
 	const sessions = sessionsQuery.data ?? [];
+	const events = eventsQuery.data?.pages.flat() ?? [];
+	const sessionsByID = new Map(
+		sessions.map((session) => [session.id, session]),
+	);
 
-	if (sessionsQuery.isLoading) {
+	useEffect(() => {
+		const reload = () => {
+			void Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: workspaceAISandboxSessionsKey(workspaceId),
+				}),
+				queryClient.invalidateQueries({
+					queryKey: workspaceAISandboxActivityKey(workspaceId),
+				}),
+			]);
+		};
+		return createReconnectingWebSocket({
+			connect() {
+				const socket = watchWorkspaceAISandboxActivity(workspaceId);
+				socket.addEventListener("message", reload);
+				return socket;
+			},
+			onOpen: reload,
+		});
+	}, [queryClient, workspaceId]);
+
+	if (sessionsQuery.isLoading || eventsQuery.isLoading) {
 		return (
 			<section className="flex flex-col gap-4">
 				<Header />
@@ -55,13 +88,31 @@ export const WorkspaceAIEgressActivity: FC<WorkspaceAIEgressActivityProps> = ({
 		);
 	}
 
-	if (sessions.length === 0) {
+	const queryError = sessionsQuery.error ?? eventsQuery.error;
+	if (queryError) {
+		return (
+			<section className="flex flex-col gap-4">
+				<Header />
+				<ErrorAlert error={queryError} />
+			</section>
+		);
+	}
+
+	if (events.length === 0) {
 		return (
 			<section className="flex flex-col gap-4">
 				<Header />
 				<EmptyState
-					message="No confinement sessions yet"
-					description="Egress activity appears once a confined agent reports a session."
+					message={
+						sessions.length === 0
+							? "No confinement sessions yet"
+							: "No egress attempts recorded"
+					}
+					description={
+						sessions.length === 0
+							? "Egress activity appears once a confined agent reports a session."
+							: undefined
+					}
 				/>
 			</section>
 		);
@@ -70,13 +121,76 @@ export const WorkspaceAIEgressActivity: FC<WorkspaceAIEgressActivityProps> = ({
 	return (
 		<section className="flex flex-col gap-4">
 			<Header />
-			{sessions.map((session) => (
-				<SessionCard
-					key={session.id}
-					workspaceId={workspaceId}
-					session={session}
-				/>
-			))}
+			<div className="flex flex-col gap-3 rounded-lg border border-solid border-border p-4">
+				<Table aria-label="AI egress network events">
+					<TableHeader>
+						<TableRow>
+							<TableHead>Time</TableHead>
+							<TableHead>Protocol</TableHead>
+							<TableHead>Destination</TableHead>
+							<TableHead>Action</TableHead>
+							<TableHead>Enforcement</TableHead>
+							<TableHead>Policy</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{events.map((event) => {
+							const enforcement = sessionsByID.get(
+								event.session_id,
+							)?.egress_enforcement;
+							return (
+								<TableRow key={event.id}>
+									<TableCell>
+										{formatDate(new Date(event.occurred_at))}
+									</TableCell>
+									<TableCell>{event.protocol}</TableCell>
+									<TableCell>
+										{event.host}:{event.port}
+									</TableCell>
+									<TableCell>
+										<Badge
+											variant={
+												event.action === "denied" ? "destructive" : "default"
+											}
+											size="xs"
+										>
+											{event.action}
+										</Badge>
+									</TableCell>
+									<TableCell>
+										{enforcement ? (
+											<Badge
+												variant={enforcementVariant[enforcement]}
+												size="xs"
+												title={enforcementHelp[enforcement]}
+											>
+												{enforcement}
+											</Badge>
+										) : (
+											"Unknown"
+										)}
+									</TableCell>
+									<TableCell>{event.policy_revision}</TableCell>
+								</TableRow>
+							);
+						})}
+					</TableBody>
+				</Table>
+
+				<div className="flex items-center gap-3">
+					<Spinner loading={eventsQuery.isFetchingNextPage} size="sm" />
+					{eventsQuery.hasNextPage && (
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={eventsQuery.isFetchingNextPage}
+							onClick={() => eventsQuery.fetchNextPage()}
+						>
+							Load more
+						</Button>
+					)}
+				</div>
+			</div>
 		</section>
 	);
 };
@@ -92,89 +206,3 @@ const Header: FC = () => (
 		</span>
 	</div>
 );
-
-interface SessionCardProps {
-	workspaceId: string;
-	session: AISandboxSession;
-}
-
-const SessionCard: FC<SessionCardProps> = ({ workspaceId, session }) => {
-	const eventsQuery = useInfiniteQuery(
-		infiniteAISandboxSessionNetworkEvents(workspaceId, session.id),
-	);
-	const events = eventsQuery.data?.pages.flat() ?? [];
-
-	return (
-		<div className="flex flex-col gap-3 rounded-lg border border-solid border-border p-4">
-			<div className="flex flex-wrap items-center gap-3">
-				<Badge variant={enforcementVariant[session.egress_enforcement]}>
-					{session.egress_enforcement}
-				</Badge>
-				<span className="text-sm text-content-secondary">
-					{enforcementHelp[session.egress_enforcement]}
-				</span>
-				<span className="text-xs text-content-secondary ml-auto">
-					{formatDate(new Date(session.started_at))}
-					{session.ended_at
-						? ` to ${formatDate(new Date(session.ended_at))}`
-						: " (open)"}
-				</span>
-			</div>
-
-			{events.length === 0 && !eventsQuery.isLoading ? (
-				<EmptyState message="No egress attempts recorded for this session" />
-			) : (
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Time</TableHead>
-							<TableHead>Protocol</TableHead>
-							<TableHead>Destination</TableHead>
-							<TableHead>Action</TableHead>
-							<TableHead>Policy</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{events.map((event) => (
-							<TableRow key={event.id}>
-								<TableCell>{formatDate(new Date(event.occurred_at))}</TableCell>
-								<TableCell>{event.protocol}</TableCell>
-								<TableCell>
-									{event.host}:{event.port}
-								</TableCell>
-								<TableCell>
-									<Badge
-										variant={
-											event.action === "denied" ? "destructive" : "default"
-										}
-										size="xs"
-									>
-										{event.action}
-									</Badge>
-								</TableCell>
-								<TableCell>{event.policy_revision}</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			)}
-
-			<div className="flex items-center gap-3">
-				<Spinner
-					loading={eventsQuery.isLoading || eventsQuery.isFetchingNextPage}
-					size="sm"
-				/>
-				{eventsQuery.hasNextPage && (
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={eventsQuery.isFetchingNextPage}
-						onClick={() => eventsQuery.fetchNextPage()}
-					>
-						Load more
-					</Button>
-				)}
-			</div>
-		</div>
-	);
-};

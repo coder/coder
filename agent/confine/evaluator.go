@@ -145,17 +145,37 @@ func (*policyEvaluator) IsMCPEndpoint(ctx context.Context, _ string, _ uint16, _
 }
 
 // EvaluateMCP implements policy.Evaluator.
-func (e *policyEvaluator) EvaluateMCP(ctx context.Context, _ policy.MCPCall) (policy.Decision, error) {
+//
+// The AI egress proxy cannot evaluate MCP tool calls on their merits: the
+// template egress policy carries network rules only (see
+// codersdk.AIEgressRule), so there are no tool-level rules to consult and
+// any inspected call must fail closed.
+//
+// Calls to the platform control channel are the exception. That traffic
+// terminates at Coder's own MCP gateway, which resolves the upstream
+// credential and applies the server's tool rules, allow and deny lists and
+// escalation flow before forwarding anything upstream. Denying it here
+// would break the only sanctioned MCP path out of the sandbox without
+// adding containment, because the gateway has already made the decision.
+// Reaching the control channel at all still requires passing the network
+// evaluation above.
+func (e *policyEvaluator) EvaluateMCP(ctx context.Context, call policy.MCPCall) (policy.Decision, error) {
 	if err := ctx.Err(); err != nil {
 		return policy.Decision{}, err
 	}
+	action := policy.ActionDeny
+	reason := "MCP inspection is not supported by the AI egress proxy"
+	if e != nil && e.controlChannelAllowed(call.Host, call.Port) {
+		action = policy.ActionAllow
+		reason = "MCP call targets the platform control channel, which enforces its own tool policy"
+	}
 	return policy.Decision{
-		Action:     policy.ActionDeny,
-		Verdict:    policy.ActionDeny,
+		Action:     action,
+		Verdict:    action,
 		Mode:       policy.ModeEnforce,
 		Generation: e.Generation(),
 		TLS:        policy.TLSPassthrough,
-		Reason:     "MCP inspection is not supported by the AI egress proxy",
+		Reason:     reason,
 	}, nil
 }
 

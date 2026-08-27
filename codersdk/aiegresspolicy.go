@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/websocket"
 )
 
 // AIEgressRule permits outbound traffic to a single host pattern. The
@@ -142,8 +144,8 @@ type AISandboxSession struct {
 
 // AISandboxNetworkEventView is one retained egress policy decision.
 type AISandboxNetworkEventView struct {
-	// ID is the stable row identifier and keyset pagination cursor: pass
-	// the last event's ID as after_id to fetch the next page.
+	// ID is the stable row identifier and keyset pagination cursor. Pass the
+	// last event's ID as before_id to fetch the next, older page.
 	ID             int64                       `json:"id"`
 	SessionID      uuid.UUID                   `json:"session_id" format:"uuid"`
 	OccurredAt     time.Time                   `json:"occurred_at" format:"date-time"`
@@ -170,13 +172,13 @@ func (c *Client) WorkspaceAISandboxSessions(ctx context.Context, workspaceID uui
 }
 
 // AISandboxSessionNetworkEvents lists retained egress decisions for a session
-// in ascending database ID order. AfterID is an exclusive cursor. Limit values
-// of zero use the server default.
-func (c *Client) AISandboxSessionNetworkEvents(ctx context.Context, workspaceID, sessionID uuid.UUID, afterID int64, limit int) ([]AISandboxNetworkEventView, error) {
+// from newest to oldest. BeforeID is an exclusive cursor. Limit values of zero
+// use the server default.
+func (c *Client) AISandboxSessionNetworkEvents(ctx context.Context, workspaceID, sessionID uuid.UUID, beforeID int64, limit int) ([]AISandboxNetworkEventView, error) {
 	reqOpts := []RequestOption{func(r *http.Request) {
 		query := r.URL.Query()
-		if afterID > 0 {
-			query.Set("after_id", strconv.FormatInt(afterID, 10))
+		if beforeID > 0 {
+			query.Set("before_id", strconv.FormatInt(beforeID, 10))
 		}
 		if limit > 0 {
 			query.Set("limit", strconv.Itoa(limit))
@@ -193,4 +195,35 @@ func (c *Client) AISandboxSessionNetworkEvents(ctx context.Context, workspaceID,
 	}
 	var events []AISandboxNetworkEventView
 	return events, ReadBodyAsJSON(res, &events)
+}
+
+// WorkspaceAISandboxNetworkEvents lists retained egress decisions across a
+// workspace from newest to oldest. BeforeID is an exclusive cursor.
+func (c *Client) WorkspaceAISandboxNetworkEvents(ctx context.Context, workspaceID uuid.UUID, beforeID int64, limit int) ([]AISandboxNetworkEventView, error) {
+	reqOpts := []RequestOption{func(r *http.Request) {
+		query := r.URL.Query()
+		if beforeID > 0 {
+			query.Set("before_id", strconv.FormatInt(beforeID, 10))
+		}
+		if limit > 0 {
+			query.Set("limit", strconv.Itoa(limit))
+		}
+		r.URL.RawQuery = query.Encode()
+	}}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/ai-sandbox-activity", workspaceID), nil, reqOpts...)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var events []AISandboxNetworkEventView
+	return events, ReadBodyAsJSON(res, &events)
+}
+
+// WatchWorkspaceAISandboxActivity watches for changes to retained AI sandbox
+// sessions and network events in a workspace.
+func (c *Client) WatchWorkspaceAISandboxActivity(ctx context.Context, workspaceID uuid.UUID) (*websocket.Conn, error) {
+	return c.Dial(ctx, fmt.Sprintf("/api/v2/workspaces/%s/ai-sandbox-activity/watch", workspaceID), nil)
 }

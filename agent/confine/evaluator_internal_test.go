@@ -243,6 +243,65 @@ func TestPolicyEvaluatorGenerationAndMCP(t *testing.T) {
 	require.Contains(t, decision.Reason, "not supported")
 }
 
+// TestPolicyEvaluatorMCPAllowsControlChannel pins the one destination whose
+// MCP tool calls survive inspection. Coder's MCP gateway terminates control
+// channel traffic and enforces the server's tool policy itself, so denying
+// here would break every sandboxed MCP client while adding no containment.
+// Everything else still fails closed: the egress policy has no tool rules.
+func TestPolicyEvaluatorMCPAllowsControlChannel(t *testing.T) {
+	t.Parallel()
+
+	engine := NewPolicyEngine("coder.example.com", 8443)
+	engine.Update(codersdk.AIEgressPolicy{
+		Revision: 4,
+		// A network-allowed destination that is not the control channel:
+		// reachable, but still not MCP-inspectable.
+		Rules: []codersdk.AIEgressRule{{Host: "api.githubcopilot.com", Ports: []int{443}}},
+	})
+	evaluator := newPolicyEvaluator(engine, DestinationOptions{
+		AlwaysAllowHost: "CODER.Example.COM.",
+		AlwaysAllowPort: 8443,
+	})
+
+	tests := []struct {
+		name    string
+		host    string
+		port    uint16
+		allowed bool
+	}{
+		{name: "control channel", host: "coder.example.com", port: 8443, allowed: true},
+		{name: "control channel normalized", host: "Coder.Example.Com.", port: 8443, allowed: true},
+		{name: "control channel wrong port", host: "coder.example.com", port: 443, allowed: false},
+		{name: "network allowed but not control channel", host: "api.githubcopilot.com", port: 443, allowed: false},
+		{name: "unrelated host", host: "evil.example.com", port: 443, allowed: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			decision, err := evaluator.EvaluateMCP(t.Context(), policy.MCPCall{
+				Host: tt.host,
+				Port: tt.port,
+				Path: "/api/v2/ai-gateway/mcp/github",
+				Tool: "get_me",
+			})
+			require.NoError(t, err)
+			require.NoError(t, policy.ValidateMCPDecision(decision))
+			require.EqualValues(t, 4, decision.Generation)
+			require.Equal(t, decision.Action, decision.Verdict)
+
+			if tt.allowed {
+				require.Equal(t, policy.ActionAllow, decision.Action)
+				require.Contains(t, decision.Reason, "control channel")
+				return
+			}
+			require.Equal(t, policy.ActionDeny, decision.Action)
+			require.Contains(t, decision.Reason, "not supported")
+		})
+	}
+}
+
 func TestPolicyEvaluatorResolutionFailureDenies(t *testing.T) {
 	t.Parallel()
 

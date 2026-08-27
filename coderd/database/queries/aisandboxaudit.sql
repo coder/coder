@@ -134,14 +134,44 @@ ORDER BY occurred_at ASC, id ASC;
 -- name: GetAISandboxNetworkEventsBySessionIDPaged :many
 SELECT e.* FROM ai_sandbox_network_events e
 WHERE e.session_id = @session_id
-  AND e.id > @after_id
+  AND (
+      @before_id::bigint = 0
+      OR ROW(e.occurred_at, e.id) < (
+          SELECT cursor.occurred_at, cursor.id
+          FROM ai_sandbox_network_events cursor
+          WHERE cursor.id = @before_id
+            AND cursor.session_id = @session_id
+      )
+  )
   AND EXISTS (
       SELECT 1
       FROM ai_sandbox_sessions s
       WHERE s.id = e.session_id
         AND s.workspace_id = @workspace_id
   )
-ORDER BY e.id ASC
+ORDER BY e.occurred_at DESC, e.id DESC
+LIMIT @limit_count;
+
+-- name: GetAISandboxNetworkEventsByWorkspaceIDPaged :many
+SELECT e.* FROM ai_sandbox_network_events e
+WHERE EXISTS (
+    SELECT 1
+    FROM ai_sandbox_sessions s
+    WHERE s.id = e.session_id
+      AND s.workspace_id = @workspace_id
+)
+  AND (
+      @before_id::bigint = 0
+      OR ROW(e.occurred_at, e.id) < (
+          SELECT cursor.occurred_at, cursor.id
+          FROM ai_sandbox_network_events cursor
+          JOIN ai_sandbox_sessions cursor_session
+            ON cursor_session.id = cursor.session_id
+          WHERE cursor.id = @before_id
+            AND cursor_session.workspace_id = @workspace_id
+      )
+  )
+ORDER BY e.occurred_at DESC, e.id DESC
 LIMIT @limit_count;
 
 -- name: GetAISandboxNetworkEventsByAIAgentIDPaged :many

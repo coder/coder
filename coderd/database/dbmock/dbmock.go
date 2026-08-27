@@ -2281,6 +2281,21 @@ func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsBySessionIDPaged(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsBySessionIDPaged", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsBySessionIDPaged), ctx, arg)
 }
 
+// GetAISandboxNetworkEventsByWorkspaceIDPaged mocks base method.
+func (m *MockStore) GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAISandboxNetworkEventsByWorkspaceIDPaged", ctx, arg)
+	ret0, _ := ret[0].([]database.AISandboxNetworkEvent)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAISandboxNetworkEventsByWorkspaceIDPaged indicates an expected call of GetAISandboxNetworkEventsByWorkspaceIDPaged.
+func (mr *MockStoreMockRecorder) GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAISandboxNetworkEventsByWorkspaceIDPaged", reflect.TypeOf((*MockStore)(nil).GetAISandboxNetworkEventsByWorkspaceIDPaged), ctx, arg)
+}
+
 // GetAISandboxSessionByID mocks base method.
 func (m *MockStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	m.ctrl.T.Helper()

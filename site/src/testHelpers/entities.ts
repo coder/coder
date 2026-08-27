@@ -5747,26 +5747,26 @@ export const MockAISandboxSession: TypesGen.AISandboxSession = {
 	created_at: "2024-05-28T12:00:00Z",
 };
 
+export const MockAISandboxNetworkEvent: TypesGen.AISandboxNetworkEventView = {
+	id: 1,
+	session_id: MockAISandboxSession.id,
+	occurred_at: "2024-05-28T12:00:05Z",
+	protocol: "connect",
+	host: "github.com",
+	port: 443,
+	action: "allowed",
+	policy_revision: 3,
+};
+
 export const MockAISandboxNetworkEvents: TypesGen.AISandboxNetworkEventView[] =
 	[
 		{
-			id: 1,
-			session_id: MockAISandboxSession.id,
-			occurred_at: "2024-05-28T12:00:05Z",
-			protocol: "connect",
-			host: "github.com",
-			port: 443,
-			action: "allowed",
-			policy_revision: 3,
-		},
-		{
+			...MockAISandboxNetworkEvent,
 			id: 2,
-			session_id: MockAISandboxSession.id,
 			occurred_at: "2024-05-28T12:00:09Z",
 			protocol: "sni",
 			host: "pastebin.example.com",
-			port: 443,
 			action: "denied",
-			policy_revision: 3,
 		},
+		MockAISandboxNetworkEvent,
 	];

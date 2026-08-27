@@ -1306,6 +1306,14 @@ func (m queryMetricsStore) GetAISandboxNetworkEventsBySessionIDPaged(ctx context
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx context.Context, arg database.GetAISandboxNetworkEventsByWorkspaceIDPagedParams) ([]database.AISandboxNetworkEvent, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAISandboxNetworkEventsByWorkspaceIDPaged(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAISandboxNetworkEventsByWorkspaceIDPaged").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAISandboxNetworkEventsByWorkspaceIDPaged").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAISandboxSessionByID(ctx context.Context, id uuid.UUID) (database.AISandboxSession, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAISandboxSessionByID(ctx, id)

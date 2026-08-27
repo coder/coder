@@ -1963,6 +1963,8 @@ func New(options *Options) *API {
 				r.Get("/resolve-autostart", api.resolveAutostart)
 				r.Get("/ai-sandbox-sessions", api.workspaceAISandboxSessions)
 				r.Get("/ai-sandbox-sessions/{session}/network-events", api.workspaceAISandboxSessionNetworkEvents)
+				r.Get("/ai-sandbox-activity", api.workspaceAISandboxNetworkEvents)
+				r.Get("/ai-sandbox-activity/watch", api.watchWorkspaceAISandboxActivity)
 				r.Route("/port-share", func(r chi.Router) {
 					r.Get("/", api.workspaceAgentPortShares)
 					r.Post("/", api.postWorkspaceAgentPortShare)

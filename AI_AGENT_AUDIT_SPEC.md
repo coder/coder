@@ -48,7 +48,7 @@ and an AI Activity page.
 | `tool_call` (with disposition)                     | `aibridge_tool_usages` join interceptions        | via interception  |
 | `escalation_created`, `escalation_resolved`        | `mcp_gateway_escalations`                        | `sponsor_user_id` |
 
-The identity registry (`ai_agents.owner_user_id`, query
+The identity registry (`ai_agent_ledger.owner_id`, query
 `GetAIAgentsByOwnerID`) lists which agentic identities a sponsor owns and
 anchors the sponsor picker plus per-agent filtering.
 
@@ -142,9 +142,11 @@ supports `me`), threaded through `ListAIBridgeSessions` /
 GET /api/v2/ai-audit/agents?sponsor=<user|me>
 ```
 
-Returns the sponsor's agentic identities from `ai_agents`
-(`GetAIAgentsByOwnerID`): `{user_id, username, owner_user_id, origin_type,
-origin_id, created_at, deleted}`. Same authorization rule as the timeline.
+Returns the sponsor's agentic identities from `ai_agent_ledger`
+(`GetAIAgentsByOwner`, filtered to `owner_type = 'user'`): `{id,
+display_name, owner_id, creation_site_type, creation_site_id,
+creation_time, state}`. Display names are computed from the creation site
+and ID; agents store no name. Same authorization rule as the timeline.
 
 ## Web UI (slice 4)
 

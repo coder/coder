@@ -5160,7 +5160,11 @@ CREATE INDEX idx_ai_sandbox_network_events_occurred_at ON ai_sandbox_network_eve
 
 CREATE INDEX idx_ai_sandbox_network_events_session_id ON ai_sandbox_network_events USING btree (session_id);
 
+CREATE INDEX idx_ai_sandbox_network_events_sponsor_occurred_at ON ai_sandbox_network_events USING btree (sponsor_user_id, occurred_at DESC);
+
 CREATE INDEX idx_ai_sandbox_sessions_ai_agent_id ON ai_sandbox_sessions USING btree (ai_agent_id);
+
+CREATE INDEX idx_ai_sandbox_sessions_sponsor_started_at ON ai_sandbox_sessions USING btree (sponsor_user_id, started_at DESC);
 
 CREATE INDEX idx_ai_sandbox_sessions_started_at ON ai_sandbox_sessions USING btree (started_at);
 
@@ -5187,6 +5191,8 @@ CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING
 CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_sessions_filter ON aibridge_interceptions USING btree (initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
+
+CREATE INDEX idx_aibridge_interceptions_sponsor_started_at ON aibridge_interceptions USING btree (sponsor_user_id, started_at DESC) WHERE (sponsor_user_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_started_id_desc ON aibridge_interceptions USING btree (started_at DESC, id DESC);
 

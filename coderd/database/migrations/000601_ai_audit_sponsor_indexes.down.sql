@@ -1,0 +1,3 @@
+DROP INDEX idx_ai_sandbox_network_events_sponsor_occurred_at;
+DROP INDEX idx_ai_sandbox_sessions_sponsor_started_at;
+DROP INDEX idx_aibridge_interceptions_sponsor_started_at;

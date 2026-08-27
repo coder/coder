@@ -1809,16 +1809,16 @@ None
 
 ### Properties
 
-| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                |
-|-------------------|------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------|
-| `action`          | [codersdk.AISandboxNetworkEventAction](#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                            |
-| `host`            | string                                                                       | false    |              |                                                                                                                            |
-| `id`              | integer                                                                      | false    |              | ID is the stable row identifier and keyset pagination cursor: pass the last event's ID as after_id to fetch the next page. |
-| `occurred_at`     | string                                                                       | false    |              |                                                                                                                            |
-| `policy_revision` | integer                                                                      | false    |              |                                                                                                                            |
-| `port`            | integer                                                                      | false    |              |                                                                                                                            |
-| `protocol`        | [codersdk.AISandboxNetworkProtocol](#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                            |
-| `session_id`      | string                                                                       | false    |              |                                                                                                                            |
+| Name              | Type                                                                         | Required | Restrictions | Description                                                                                                                        |
+|-------------------|------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
+| `action`          | [codersdk.AISandboxNetworkEventAction](#codersdkaisandboxnetworkeventaction) | false    |              |                                                                                                                                    |
+| `host`            | string                                                                       | false    |              |                                                                                                                                    |
+| `id`              | integer                                                                      | false    |              | ID is the stable row identifier and keyset pagination cursor. Pass the last event's ID as before_id to fetch the next, older page. |
+| `occurred_at`     | string                                                                       | false    |              |                                                                                                                                    |
+| `policy_revision` | integer                                                                      | false    |              |                                                                                                                                    |
+| `port`            | integer                                                                      | false    |              |                                                                                                                                    |
+| `protocol`        | [codersdk.AISandboxNetworkProtocol](#codersdkaisandboxnetworkprotocol)       | false    |              |                                                                                                                                    |
+| `session_id`      | string                                                                       | false    |              |                                                                                                                                    |
 
 ## codersdk.AISandboxNetworkProtocol
 

@@ -826,8 +826,8 @@ export const AISandboxNetworkEventActions: AISandboxNetworkEventAction[] = [
  */
 export interface AISandboxNetworkEventView {
 	/**
-	 * ID is the stable row identifier and keyset pagination cursor: pass
-	 * the last event's ID as after_id to fetch the next page.
+	 * ID is the stable row identifier and keyset pagination cursor. Pass the
+	 * last event's ID as before_id to fetch the next, older page.
 	 */
 	readonly id: number;
 	readonly session_id: string;

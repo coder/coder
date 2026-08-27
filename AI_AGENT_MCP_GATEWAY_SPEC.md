@@ -339,7 +339,7 @@ isolation. It must use the same canonical subject construction as normal
 API authentication:
 
 - for a human key, use that human's live roles;
-- for an AI key, resolve `ai_agents.owner_user_id` and use the sponsor's live
+- for an AI key, resolve `ai_agent_ledger.owner_id` and use the sponsor's live
   roles;
 - intersect those roles with the key's scope set;
 - intersect the scope allow-list with the key's persisted resource
@@ -407,10 +407,10 @@ identity lookup needed before the broker actor exists.
 
 Credential ownership must be resolved as follows:
 
-| API key owner | Credential owner           |
-|---------------|----------------------------|
-| Human user    | The key owner.             |
-| AI agent user | `ai_agents.owner_user_id`. |
+| API key owner | Credential owner            |
+|---------------|-----------------------------|
+| Human user    | The key owner.              |
+| AI agent user | `ai_agent_ledger.owner_id`. |
 
 For an AI key, the broker must never query an external-auth link under the
 AI user's ID. The authoritative sponsor resolution is represented at
@@ -558,7 +558,7 @@ Drive tests from these:
 3. **Canonical authorization.** Gateway use is the intersection of sponsor
    roles, key scopes, and the key resource allow-list.
 4. **Sponsor resolution.** An AI key always resolves credentials through
-   `ai_agents.owner_user_id`, never through the AI user row.
+   `ai_agent_ledger.owner_id`, never through the AI user row.
 5. **Broker least privilege.** Sponsor token reads and refresh writes use
    only the MCP token-broker actor.
 6. **Concealment.** Unknown, disabled, and unauthorized slugs all return
