@@ -2,8 +2,7 @@ package chatd
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"database/sql"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -15,68 +14,52 @@ import (
 
 const titleGenerationOverrideContext = "title_generation"
 
-type parsedModelOverride struct {
-	modelConfigID   uuid.UUID
-	reasoningEffort *string
-}
-
-func parseModelOverride(raw string) (parsedModelOverride, bool) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return parsedModelOverride{}, true
-	}
-	rawID, rawEffort, hasEffort := strings.Cut(trimmed, ":")
-	modelConfigID, err := uuid.Parse(rawID)
-	if err != nil || (hasEffort && rawEffort == "") {
-		return parsedModelOverride{}, false
-	}
-	parsed := parsedModelOverride{modelConfigID: modelConfigID}
-	if hasEffort {
-		parsed.reasoningEffort = &rawEffort
-	}
-	return parsed, true
-}
-
 func readTitleGenerationModelOverride(
 	ctx context.Context,
 	db database.Store,
-) (string, error) {
+	organizationID uuid.UUID,
+) (database.ChatOrganizationModelOverride, error) {
 	//nolint:gocritic // Chatd is internal, not a user, so this read uses AsChatd.
 	chatdCtx := dbauthz.AsChatd(ctx)
-	raw, err := db.GetChatTitleGenerationModelOverride(chatdCtx)
+	override, err := db.GetChatOrganizationModelOverride(chatdCtx, database.GetChatOrganizationModelOverrideParams{
+		OrganizationID: organizationID,
+		Context:        titleGenerationOverrideContext,
+	})
 	if err != nil {
-		return "", xerrors.Errorf(
+		return database.ChatOrganizationModelOverride{}, xerrors.Errorf(
 			"get chat title generation model override: %w",
 			err,
 		)
 	}
-	return raw, nil
+	return override, nil
 }
 
-// resolveTitleGenerationModelOverride resolves the deployment-wide title
-// generation model override. overrideSet is true when an override was
-// configured; in that case any returned error is a hard failure. When
-// overrideSet is false, callers may fall back to the default title model.
+// resolveTitleGenerationModelOverride resolves the chat organization's title
+// generation model override. A configured but unusable override is a hard
+// failure. When no row is configured, callers may use the default title model.
 func (p *Server) resolveTitleGenerationModelOverride(
 	ctx context.Context,
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, bool, error) {
-	raw, err := readTitleGenerationModelOverride(ctx, p.db)
+	override, err := readTitleGenerationModelOverride(ctx, p.db, chat.OrganizationID)
 	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return resolvedModelCall{}, false, nil
+		}
 		return resolvedModelCall{}, false, xerrors.Errorf(
 			"read title generation model override: %w",
 			err,
 		)
 	}
 
-	modelConfig, _, overrideEffort, overrideSet, err := p.resolveConfiguredModelOverride(
+	modelConfig, _, overrideEffort, overrideSet, err := p.resolveOrganizationModelOverride(
 		ctx,
 		titleGenerationOverrideContext,
-		raw,
+		override,
 		chat.OwnerID,
 		func(ctx context.Context, modelConfigID uuid.UUID) (database.ChatModelConfig, string, error) {
-			return p.resolveModelConfigForOrganization(ctx, chat.OrganizationID, modelConfigID)
+			return p.resolveModelConfigAndNormalizedProvider(ctx, chat.OwnerID, modelConfigID)
 		},
 		func(ctx context.Context, ownerID uuid.UUID, aiProviderID uuid.UUID) (chatprovider.ProviderAPIKeys, error) {
 			return p.resolveUserProviderAPIKeys(ctx, ownerID, aiProviderID)
@@ -84,9 +67,6 @@ func (p *Server) resolveTitleGenerationModelOverride(
 		modelOverrideFailureModeHard,
 	)
 	if err != nil {
-		if errors.Is(err, errModelConfigOutsideOrganization) {
-			return resolvedModelCall{}, false, err
-		}
 		return resolvedModelCall{}, overrideSet, err
 	}
 	if !overrideSet {

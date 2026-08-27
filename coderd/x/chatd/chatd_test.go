@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -2207,6 +2206,147 @@ func TestEditMessageRejectsNonUserMessage(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.True(t, errors.Is(err, chatd.ErrEditedMessageNotUser))
+}
+
+func TestEditMessage_MCPServerIDs(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	optionalConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Optional MCP",
+		Slug:           "optional-mcp",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "edit-mcp-server-ids",
+		ModelConfigID:      model.ID,
+		MCPServerIDs:       []uuid.UUID{},
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	latestUserMessageID := func(chatID uuid.UUID) int64 {
+		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		})
+		require.NoError(t, err)
+		var id int64
+		for _, message := range messages {
+			if message.Role == database.ChatMessageRoleUser && !message.Deleted {
+				id = message.ID
+			}
+		}
+		require.NotZero(t, id)
+		return id
+	}
+
+	// An edit that provides MCP server IDs replaces the selection.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit with mcp")},
+		MCPServerIDs:    &[]uuid.UUID{optionalConfig.ID},
+	})
+	require.NoError(t, err)
+
+	dbChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// A nil selection preserves the persisted one.
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit without mcp")},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs)
+
+	// An edit that clears the list cannot remove a force_on server
+	// (Cure53 CDM-02-010 parity with the send path).
+	forcedConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Forced MCP",
+		Slug:           "forced-mcp",
+		Availability:   "force_on",
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(chat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit clearing mcp")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{forcedConfig.ID}, dbChat.MCPServerIDs,
+		"force_on MCP server must survive an emptied mcp_server_ids edit")
+
+	// Explore child chats keep the spawn-time MCP snapshot immutable.
+	exploreContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText("explore"),
+	})
+	require.NoError(t, err)
+	createdExplore, err := chatstate.CreateChat(ctx, db, ps, chatstate.CreateChatInput{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ParentChatID:      uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: chat.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Title:             "explore-mcp-immutable",
+		Mode: database.NullChatMode{
+			ChatMode: database.ChatModeExplore,
+			Valid:    true,
+		},
+		MCPServerIDs: []uuid.UUID{optionalConfig.ID},
+		ClientType:   database.ChatClientTypeApi,
+		InitialMessages: []chatstate.Message{
+			{
+				Role:           database.ChatMessageRoleUser,
+				Content:        exploreContent,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ContentVersion: chatprompt.CurrentContentVersion,
+				CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+				ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+			},
+		},
+	})
+	require.NoError(t, err)
+	exploreChat := createdExplore.Chat
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          exploreChat.ID,
+		CreatedBy:       user.ID,
+		EditedMessageID: latestUserMessageID(exploreChat.ID),
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edit explore")},
+		MCPServerIDs:    &[]uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dbChat, err = db.GetChatByID(ctx, exploreChat.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{optionalConfig.ID}, dbChat.MCPServerIDs,
+		"explore subagent MCP snapshot must be immutable after spawn")
 }
 
 // TestEditMessageDebugCleanupDeletesPreEditRuns verifies that
@@ -5775,7 +5915,11 @@ func TestActiveServer_CompactionModelOverride(t *testing.T) {
 				Max:     &effort,
 			},
 		})
-		require.NoError(t, db.UpsertChatCompactionModelOverride(ctx, overrideModel.ID.String()))
+		require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: overrideModel.OrganizationID,
+			Context:        string(codersdk.ChatModelOverrideContextCompaction),
+			ModelConfigID:  overrideModel.ID,
+		}))
 		return overrideModel
 	}
 
@@ -6052,7 +6196,7 @@ func TestActiveServer_AnthropicModelReasoningEffort(t *testing.T) {
 			model.Model = tt.model
 			model = updateChatModelContextLimit(t, db, model)
 			model = updateChatModelCallConfig(t, db, model, codersdk.ChatModelCallConfig{
-				MaxOutputTokens: ptr.Ref(int64(4096)),
+				MaxOutputTokens: new(int64(4096)),
 				ReasoningEffort: &codersdk.ChatModelReasoningEffortConfig{
 					Default: &tt.effort,
 					Max:     &tt.effort,
@@ -6444,6 +6588,15 @@ func TestActiveServer_ToolExecutionAndPolicy(t *testing.T) {
 			} else {
 				require.False(t, call.ProviderExecuted)
 				require.False(t, result.ProviderExecuted)
+			}
+		}
+
+		// Batch runtime bills a dedicated model-only usage row, so no
+		// user-visible tool row ever carries runtime.
+		messages := chatMessages(ctx, t, db, chat.ID)
+		for _, msg := range messages {
+			if msg.Role == database.ChatMessageRoleTool {
+				require.False(t, msg.RuntimeMs.Valid)
 			}
 		}
 	})
@@ -7199,7 +7352,7 @@ func TestActiveServer_AnthropicContext1MBetaHeader(t *testing.T) {
 		generationRequests := runChat(t, &codersdk.ChatModelCallConfig{
 			ProviderOptions: &codersdk.ChatModelProviderOptions{
 				Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-					Context1MEnabled: ptr.Ref(true),
+					Context1MEnabled: new(true),
 				},
 			},
 		})
@@ -11040,6 +11193,429 @@ func TestMCPServerToolInvocation(t *testing.T) {
 		"MCP tool result should be persisted as a tool message in the database")
 }
 
+func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectPerPreparation(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	var callCount atomic.Int32
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		if callCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk(
+					"test-mcp__echo",
+					`{"input":"hello from LLM"}`,
+				),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Got it!")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AlwaysEnableDebugLogs = true
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "mcp-connect-debug-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Echo something via MCP."),
+		},
+	})
+	require.NoError(t, err)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var chatTurnRuns []database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, runsErr := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if runsErr != nil {
+			return false
+		}
+		chatTurnRuns = chatTurnRuns[:0]
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) {
+				chatTurnRuns = append(chatTurnRuns, run)
+			}
+		}
+		return len(chatTurnRuns) == 1 && chatTurnRuns[0].FinishedAt.Valid
+	}, testutil.IntervalFast)
+
+	require.Len(t, chatTurnRuns, 1)
+	var summary struct {
+		MCPConnect []struct {
+			Slug    string `json:"slug"`
+			Outcome string `json:"outcome"`
+		} `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(chatTurnRuns[0].Summary, &summary))
+	// A tool-call turn runs at least three preparations: the
+	// assistant step that requests the tool, the local tool
+	// execution step, and the assistant step that consumes the
+	// result. Each preparation reconnects to the MCP server and
+	// must contribute its connect outcome to the finalized run.
+	require.GreaterOrEqual(t, len(summary.MCPConnect), 3)
+	for _, entry := range summary.MCPConnect {
+		require.Equal(t, "test-mcp", entry.Slug)
+		require.Equal(t, "connected", entry.Outcome)
+	}
+}
+
+func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnDecisionError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	// Every streamed assistant response is a high-usage tool call,
+	// so the turn compacts once and the post-compaction assistant
+	// is still over the context limit: the next decision fails
+	// terminally with the still-over-limit error.
+	var streamCount atomic.Int32
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			if strings.Contains(anthropicRequestBody(t, *req), "You are performing a context compaction") {
+				return anthropicCompactionResponse("summary text for compaction")
+			}
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		if streamCount.Add(1) == 1 {
+			return highUsageReadFileResponse("/tmp/a.txt")
+		}
+		return highUsageReadFileResponse("/tmp/b.txt")
+	})
+
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = updateChatModelCompressionThreshold(t, db, model, 100, 70)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	setupToolExecutionAgentConn(t, mockConn)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/a.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+		Times(1)
+	mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/b.txt", int64(1), int64(0), gomock.Any()).
+		Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1\tpackage main"}, nil).
+		Times(1)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+		cfg.AlwaysEnableDebugLogs = true
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+		Title:          "mcp-connect-decision-error-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("read the files"),
+		},
+	})
+	require.NoError(t, err)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var chatTurnRuns []database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, runsErr := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if runsErr != nil {
+			return false
+		}
+		chatTurnRuns = chatTurnRuns[:0]
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) {
+				chatTurnRuns = append(chatTurnRuns, run)
+			}
+		}
+		return len(chatTurnRuns) == 1 && chatTurnRuns[0].FinishedAt.Valid
+	}, testutil.IntervalFast)
+
+	require.Len(t, chatTurnRuns, 1)
+	var summary struct {
+		MCPConnect []struct {
+			Slug    string `json:"slug"`
+			Outcome string `json:"outcome"`
+		} `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(chatTurnRuns[0].Summary, &summary))
+	// The turn performs six preparations: the first assistant step,
+	// its tool execution, the compaction, the post-compaction
+	// assistant step, its tool execution, and the preparation whose
+	// decision fails with still-over-limit. Each one must
+	// contribute its connect outcome, including the final
+	// preparation that exits through the decision error.
+	require.GreaterOrEqual(t, len(summary.MCPConnect), 6)
+	for _, entry := range summary.MCPConnect {
+		require.Equal(t, "test-mcp", entry.Slug)
+		require.Equal(t, "connected", entry.Outcome)
+	}
+}
+
+// overrideReadFailStore wraps a database.Store so
+// GetChatOrganizationModelOverride fails once the test arms it,
+// making a later generation preparation fail after its MCP connect
+// phase has already completed.
+type overrideReadFailStore struct {
+	database.Store
+	fail *atomic.Bool
+}
+
+func (s *overrideReadFailStore) GetChatOrganizationModelOverride(ctx context.Context, arg database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error) {
+	if s.fail.Load() {
+		return database.ChatOrganizationModelOverride{}, xerrors.New("injected compaction override read failure")
+	}
+	return s.Store.GetChatOrganizationModelOverride(ctx, arg)
+}
+
+func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnPrepareError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	// Serving the first assistant stream arms the failure, so the
+	// next preparation completes its MCP connect phase and then
+	// fails reading the compaction override before returning a
+	// prepared generation.
+	var failOverrideReads atomic.Bool
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		failOverrideReads.Store(true)
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done!")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, &overrideReadFailStore{Store: db, fail: &failOverrideReads}, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AlwaysEnableDebugLogs = true
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "mcp-connect-prepare-error-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Say done."),
+		},
+	})
+	require.NoError(t, err)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var chatTurnRuns []database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, runsErr := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if runsErr != nil {
+			return false
+		}
+		chatTurnRuns = chatTurnRuns[:0]
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) {
+				chatTurnRuns = append(chatTurnRuns, run)
+			}
+		}
+		return len(chatTurnRuns) == 1 && chatTurnRuns[0].FinishedAt.Valid
+	}, testutil.IntervalFast)
+
+	require.Len(t, chatTurnRuns, 1)
+	var summary struct {
+		MCPConnect []struct {
+			Slug    string `json:"slug"`
+			Outcome string `json:"outcome"`
+		} `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(chatTurnRuns[0].Summary, &summary))
+	// The preparation feeding the assistant step records one
+	// outcome. The following preparation connects to the MCP server
+	// and then fails reading the compaction override; its attempts
+	// must still contribute their connect outcomes even though
+	// preparation never returns a prepared generation.
+	require.GreaterOrEqual(t, len(summary.MCPConnect), 2)
+	for _, entry := range summary.MCPConnect {
+		require.Equal(t, "test-mcp", entry.Slug)
+		require.Equal(t, "connected", entry.Outcome)
+	}
+}
+
+func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnFirstPrepareError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done!")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	// Armed from the start: the very first preparation connects to
+	// the MCP server and then fails reading the compaction override,
+	// so no model or compaction action ever creates the debug run
+	// through Ensure.
+	var failOverrideReads atomic.Bool
+	failOverrideReads.Store(true)
+	server := newActiveTestServer(t, &overrideReadFailStore{Store: db, fail: &failOverrideReads}, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AlwaysEnableDebugLogs = true
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "mcp-connect-first-prepare-error-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Say done."),
+		},
+	})
+	require.NoError(t, err)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var chatTurnRuns []database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, runsErr := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if runsErr != nil {
+			return false
+		}
+		chatTurnRuns = chatTurnRuns[:0]
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) {
+				chatTurnRuns = append(chatTurnRuns, run)
+			}
+		}
+		return len(chatTurnRuns) == 1 && chatTurnRuns[0].FinishedAt.Valid
+	}, testutil.IntervalFast)
+
+	require.Len(t, chatTurnRuns, 1)
+	var summary struct {
+		MCPConnect []struct {
+			Slug    string `json:"slug"`
+			Outcome string `json:"outcome"`
+		} `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(chatTurnRuns[0].Summary, &summary))
+	// Every preparation fails after its connect phase, so the run
+	// exists only because recording the outcomes created it; it must
+	// carry at least the first attempt's connect outcome.
+	require.GreaterOrEqual(t, len(summary.MCPConnect), 1)
+	for _, entry := range summary.MCPConnect {
+		require.Equal(t, "test-mcp", entry.Slug)
+		require.Equal(t, "connected", entry.Outcome)
+	}
+}
+
 func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	t.Parallel()
 
@@ -12331,7 +12907,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 		want      string
 	}{
 		{name: "PreservesByDefault", want: "low"},
-		{name: "Overrides", requested: ptr.Ref("high"), want: "high"},
+		{name: "Overrides", requested: new("high"), want: "high"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -12347,7 +12923,7 @@ func TestEditMessageReasoningEffort(t *testing.T) {
 				OrganizationID:     org.ID,
 				Title:              "edit-reasoning-effort",
 				ModelConfigID:      model.ID,
-				ReasoningEffort:    ptr.Ref("low"),
+				ReasoningEffort:    new("low"),
 				InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
 			})
 			require.NoError(t, err)

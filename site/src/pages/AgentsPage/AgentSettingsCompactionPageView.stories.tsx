@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModel } from "#/testHelpers/chatModels";
+import { MockDefaultOrganization } from "#/testHelpers/entities";
 import {
 	AgentSettingsCompactionPageView,
 	type AgentSettingsCompactionPageViewProps,
@@ -9,19 +10,18 @@ import {
 const baseArgs: AgentSettingsCompactionPageViewProps = {
 	models: [
 		{
+			...MockChatModel,
 			id: "model-config-1",
+			organization_id: MockDefaultOrganization.id,
 			ai_provider_id: "prov-openai",
 			model: "gpt-4.1-mini",
 			display_name: "GPT 4.1 Mini",
-			enabled: true,
 			is_default: false,
 			context_limit: 1_000_000,
-			compression_threshold: 70,
-			created_at: "2026-03-12T12:00:00.000Z",
-			updated_at: "2026-03-12T12:00:00.000Z",
 		},
-	] as TypesGen.ChatModel[],
+	],
 	providerTypeByID: new Map<string, string>([["prov-openai", "openai"]]),
+	organizations: [MockDefaultOrganization],
 	modelsError: undefined,
 	isLoadingModels: false,
 	thresholds: [
@@ -51,7 +51,7 @@ export const SavesThreshold: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const thresholdInput = await canvas.findByLabelText(
-			"GPT 4.1 Mini compaction threshold",
+			`GPT 4.1 Mini compaction threshold for ${MockDefaultOrganization.display_name}`,
 		);
 
 		await userEvent.clear(thresholdInput);
@@ -75,7 +75,7 @@ export const ResetsThreshold: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const resetButton = await canvas.findByLabelText(
-			"Reset GPT 4.1 Mini to default",
+			`Reset GPT 4.1 Mini for ${MockDefaultOrganization.display_name} to default`,
 		);
 
 		await waitFor(() => {
@@ -93,7 +93,7 @@ export const InvalidThresholdIsRejected: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const thresholdInput = await canvas.findByLabelText(
-			"GPT 4.1 Mini compaction threshold",
+			`GPT 4.1 Mini compaction threshold for ${MockDefaultOrganization.display_name}`,
 		);
 
 		await userEvent.clear(thresholdInput);

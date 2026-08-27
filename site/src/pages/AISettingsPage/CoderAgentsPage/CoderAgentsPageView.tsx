@@ -1,6 +1,13 @@
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import {
+	getOrganizationLabel,
+	OrganizationAutocomplete,
+} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -9,24 +16,21 @@ import {
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import {
-	filterModelsWithEnabledProvider,
-	type ProviderInfo,
-} from "#/pages/AgentsPage/utils/modelOptions";
-import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
 } from "./components/AdminPersonalModelOverridesSettings";
-import {
-	type MutationCallbacks,
-	SubagentModelOverrideSettings,
-} from "./components/SubagentModelOverrideSettings";
-
-type SaveModelOverride = (
-	req: TypesGen.UpdateChatModelOverrideRequest,
-	options?: MutationCallbacks,
-) => void;
+import type { MutationCallbacks } from "./components/SubagentModelOverrideSettings";
 
 export interface CoderAgentsPageViewProps {
+	organization?: TypesGen.Organization;
+	organizations: readonly TypesGen.Organization[];
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
+	organizationAccessError?: unknown;
+	organizationPermissionsError?: unknown;
+	requestedOrganizationDenied: boolean;
+	isOrganizationAccessLoading: boolean;
+	organizationSettings?: ReactNode;
+	canEditDeploymentConfig: boolean;
 	adminOverridesData?: TypesGen.ChatPersonalModelOverridesAdminSettings;
 	adminOverridesError?: unknown;
 	onRetryAdminOverrides?: () => void;
@@ -34,27 +38,6 @@ export interface CoderAgentsPageViewProps {
 	onSaveAdminOverrides: SavePersonalModelOverridesAdminSetting;
 	isSavingAdminOverrides: boolean;
 	isSaveAdminOverridesError: boolean;
-	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	compactionModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
-	models: TypesGen.ChatModel[] | undefined;
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
-	modelsError: unknown;
-	isLoadingModels: boolean;
-	isFetchingModels: boolean;
-	onSaveGeneralModelOverride?: SaveModelOverride;
-	isSavingGeneralModelOverride?: boolean;
-	isSaveGeneralModelOverrideError?: boolean;
-	onSaveTitleGenerationModel: SaveModelOverride;
-	isSavingTitleGenerationModel: boolean;
-	isSaveTitleGenerationModelError: boolean;
-	onSaveCompactionModel: SaveModelOverride;
-	isSavingCompactionModel: boolean;
-	isSaveCompactionModelError: boolean;
-	onSaveExploreModelOverride: SaveModelOverride;
-	isSavingExploreModelOverride: boolean;
-	isSaveExploreModelOverrideError: boolean;
 	showAdvisorSettings: boolean;
 	advisorConfigData: TypesGen.AdvisorConfig | undefined;
 	isAdvisorConfigLoading: boolean;
@@ -81,6 +64,15 @@ export interface CoderAgentsPageViewProps {
 }
 
 export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
+	organization,
+	organizations,
+	onSelectOrganization,
+	organizationAccessError,
+	organizationPermissionsError,
+	requestedOrganizationDenied,
+	isOrganizationAccessLoading,
+	organizationSettings,
+	canEditDeploymentConfig,
 	adminOverridesData,
 	adminOverridesError,
 	onRetryAdminOverrides,
@@ -88,27 +80,6 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	onSaveAdminOverrides,
 	isSavingAdminOverrides,
 	isSaveAdminOverridesError,
-	generalModelOverrideData,
-	titleGenerationModelOverrideData,
-	compactionModelOverrideData,
-	exploreModelOverrideData,
-	models,
-	providerInfoByID,
-	modelsError,
-	isLoadingModels,
-	isFetchingModels,
-	onSaveGeneralModelOverride,
-	isSavingGeneralModelOverride = false,
-	isSaveGeneralModelOverrideError = false,
-	onSaveTitleGenerationModel,
-	isSavingTitleGenerationModel,
-	isSaveTitleGenerationModelError,
-	onSaveCompactionModel,
-	isSavingCompactionModel,
-	isSaveCompactionModelError,
-	onSaveExploreModelOverride,
-	isSavingExploreModelOverride,
-	isSaveExploreModelOverrideError,
 	showAdvisorSettings,
 	advisorConfigData,
 	isAdvisorConfigLoading,
@@ -125,119 +96,123 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isSavingComputerUseProvider,
 	computerUseProviderSaveError,
 }) => {
-	const enabledModels = filterModelsWithEnabledProvider(
-		(models ?? []).filter((modelConfig) => modelConfig.enabled),
-		providerInfoByID,
-	);
-	const showGeneralModelSection =
-		onSaveGeneralModelOverride !== undefined ||
-		generalModelOverrideData !== undefined ||
-		isSavingGeneralModelOverride ||
-		isSaveGeneralModelOverrideError;
-
 	return (
-		<div className="flex max-w-4xl flex-col gap-8">
+		<div className="flex max-w-4xl flex-col gap-10">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Coder Agents</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Configure deployment-wide defaults for Coder Agents and agent-specific
+					Configure organization model choices and deployment-wide Coder Agents
 					capabilities.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
-				<AdminPersonalModelOverridesSettings
-					adminSettings={adminOverridesData}
-					adminSettingsError={adminOverridesError}
-					onRetryAdminSettings={onRetryAdminOverrides}
-					isRetryingAdminSettings={isRetryingAdminOverrides}
-					onSaveAdminSetting={onSaveAdminOverrides}
-					isSavingAdminSetting={isSavingAdminOverrides}
-					isSaveAdminSettingError={isSaveAdminOverridesError}
-				/>
-				{showGeneralModelSection && onSaveGeneralModelOverride && (
-					<SubagentModelOverrideSettings
-						title="General model"
-						description="Used by delegated agents that can edit files or run commands."
-						modelOverrideData={generalModelOverrideData}
-						enabledModels={enabledModels}
-						providerInfoByID={providerInfoByID}
-						modelsError={modelsError}
-						isLoading={isLoadingModels}
-						onSaveModelOverride={onSaveGeneralModelOverride}
-						isSaving={isSavingGeneralModelOverride}
-						isSaveError={isSaveGeneralModelOverrideError}
-						saveErrorMessage="Failed to save general model override."
-					/>
-				)}
-				<SubagentModelOverrideSettings
-					title="Title generation model"
-					description="Leave unset to use Coder's title default, which prefers fast models from configured providers."
-					modelOverrideData={titleGenerationModelOverrideData}
-					enabledModels={enabledModels}
-					providerInfoByID={providerInfoByID}
-					modelsError={modelsError}
-					isLoading={isLoadingModels}
-					onSaveModelOverride={onSaveTitleGenerationModel}
-					isSaving={isSavingTitleGenerationModel}
-					isSaveError={isSaveTitleGenerationModelError}
-					saveErrorMessage="Failed to save title generation model."
-					unsetPlaceholder="Use title default"
-					unavailableModelWarning="The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting."
-				/>
-				<SubagentModelOverrideSettings
-					title="Compaction model"
-					description="Used to summarize long conversations when they approach the model's context limit. Leave unset to summarize with the chat model."
-					modelOverrideData={compactionModelOverrideData}
-					enabledModels={enabledModels}
-					providerInfoByID={providerInfoByID}
-					modelsError={modelsError}
-					isLoading={isLoadingModels}
-					onSaveModelOverride={onSaveCompactionModel}
-					isSaving={isSavingCompactionModel}
-					isSaveError={isSaveCompactionModelError}
-					saveErrorMessage="Failed to save compaction model."
-					unsetPlaceholder="Use chat model"
-				/>
-				<SubagentModelOverrideSettings
-					title="Explore subagent model"
-					description="Used for read-only codebase exploration before work returns to the main agent."
-					modelOverrideData={exploreModelOverrideData}
-					enabledModels={enabledModels}
-					providerInfoByID={providerInfoByID}
-					modelsError={modelsError}
-					isLoading={isLoadingModels}
-					onSaveModelOverride={onSaveExploreModelOverride}
-					isSaving={isSavingExploreModelOverride}
-					isSaveError={isSaveExploreModelOverrideError}
-					saveErrorMessage="Failed to save Explore model override."
-				/>
-				{showVirtualDesktopSettings && (
-					<VirtualDesktopSettings
-						computerUseProviderData={computerUseProviderData}
-						isLoadingComputerUseProvider={isLoadingComputerUseProvider}
-						onSaveComputerUseProvider={onSaveComputerUseProvider}
-						isSavingComputerUseProvider={isSavingComputerUseProvider}
-						computerUseProviderSaveError={computerUseProviderSaveError}
-					/>
-				)}
-				{showAdvisorSettings && (
-					<AdvisorSettings
-						advisorConfigData={advisorConfigData}
-						isAdvisorConfigLoading={isAdvisorConfigLoading}
-						isAdvisorConfigFetching={isAdvisorConfigFetching}
-						isAdvisorConfigLoadError={isAdvisorConfigLoadError}
-						enabledModels={enabledModels}
-						providerInfoByID={providerInfoByID}
-						modelsError={modelsError}
-						isLoadingModels={isLoadingModels}
-						isFetchingModels={isFetchingModels}
-						onSaveAdvisorConfig={onSaveAdvisorConfig}
-						isSavingAdvisorConfig={isSavingAdvisorConfig}
-						isSaveAdvisorConfigError={isSaveAdvisorConfigError}
-						saveAdvisorConfigError={saveAdvisorConfigError}
-					/>
-				)}
-			</div>
+
+			{isOrganizationAccessLoading ? (
+				<Loader label="Loading organization settings" />
+			) : organization ? (
+				<section
+					aria-labelledby="organization-agent-settings"
+					className="flex flex-col gap-6"
+				>
+					<div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+						<div>
+							<h2
+								id="organization-agent-settings"
+								className="m-0 text-xl font-semibold"
+							>
+								Organization settings
+							</h2>
+							<p className="mt-1 mb-0 text-sm text-content-secondary">
+								Choose model and reasoning defaults for each Coder Agents
+								context.
+							</p>
+						</div>
+						{organizations.length > 1 && (
+							<OrganizationAutocomplete
+								value={organization}
+								ariaLabel={`Organization ${getOrganizationLabel(
+									organization,
+									organizations,
+								)}`}
+								options={organizations}
+								triggerClassName="w-60"
+								optionsTabbable
+								onChange={(nextOrganization) => {
+									if (nextOrganization) {
+										onSelectOrganization(nextOrganization);
+									}
+								}}
+							/>
+						)}
+					</div>
+					{requestedOrganizationDenied && (
+						<Alert severity="warning">
+							The requested organization is not available. Showing settings for{" "}
+							{organization.display_name || organization.name} instead.
+						</Alert>
+					)}
+					{organizationAccessError != null && (
+						<ErrorAlert error={organizationAccessError} />
+					)}
+					{organizationPermissionsError != null && (
+						<ErrorAlert error={organizationPermissionsError} />
+					)}
+					{organizationSettings}
+				</section>
+			) : organizationAccessError != null ? (
+				<ErrorAlert error={organizationAccessError} />
+			) : null}
+
+			{canEditDeploymentConfig && (
+				<section
+					aria-labelledby="deployment-agent-settings"
+					className="flex flex-col gap-6"
+				>
+					<div>
+						<h2
+							id="deployment-agent-settings"
+							className="m-0 text-xl font-semibold"
+						>
+							Deployment settings
+						</h2>
+						<p className="mt-1 mb-0 text-sm text-content-secondary">
+							Configure Coder Agents capabilities that apply to every
+							organization.
+						</p>
+					</div>
+					<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
+						<AdminPersonalModelOverridesSettings
+							adminSettings={adminOverridesData}
+							adminSettingsError={adminOverridesError}
+							onRetryAdminSettings={onRetryAdminOverrides}
+							isRetryingAdminSettings={isRetryingAdminOverrides}
+							onSaveAdminSetting={onSaveAdminOverrides}
+							isSavingAdminSetting={isSavingAdminOverrides}
+							isSaveAdminSettingError={isSaveAdminOverridesError}
+						/>
+						{showVirtualDesktopSettings && (
+							<VirtualDesktopSettings
+								computerUseProviderData={computerUseProviderData}
+								isLoadingComputerUseProvider={isLoadingComputerUseProvider}
+								onSaveComputerUseProvider={onSaveComputerUseProvider}
+								isSavingComputerUseProvider={isSavingComputerUseProvider}
+								computerUseProviderSaveError={computerUseProviderSaveError}
+							/>
+						)}
+						{showAdvisorSettings && (
+							<AdvisorSettings
+								advisorConfigData={advisorConfigData}
+								isAdvisorConfigLoading={isAdvisorConfigLoading}
+								isAdvisorConfigFetching={isAdvisorConfigFetching}
+								isAdvisorConfigLoadError={isAdvisorConfigLoadError}
+								onSaveAdvisorConfig={onSaveAdvisorConfig}
+								isSavingAdvisorConfig={isSavingAdvisorConfig}
+								isSaveAdvisorConfigError={isSaveAdvisorConfigError}
+								saveAdvisorConfigError={saveAdvisorConfigError}
+							/>
+						)}
+					</div>
+				</section>
+			)}
 		</div>
 	);
 };

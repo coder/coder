@@ -201,6 +201,21 @@ export const ModelsUnavailable: Story = {
 	},
 };
 
+export const SomeModelsUnavailable: Story = {
+	args: {
+		areModelsUnavailable: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"Some enabled model badges are temporarily unavailable.",
+			),
+		).toBeVisible();
+		expect(canvas.getByText(baseModel.display_name)).toBeVisible();
+	},
+};
+
 export const SavingSingleProvider: Story = {
 	args: {
 		providerItems: [
@@ -350,7 +365,7 @@ export const ShowsProviderStatuses: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Key saved")).toBeVisible();
-		await expect(canvas.getByText("Using shared key")).toBeVisible();
+		await expect(canvas.getByText("Shared key")).toBeVisible();
 		await expect(canvas.getByText("No key")).toBeVisible();
 		await expect(
 			canvas.getByText(

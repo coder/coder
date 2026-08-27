@@ -245,6 +245,25 @@ export const Default: Story = {
 	},
 };
 
+export const CachedModelsWithRefetchError: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			modelCatalogError={new Error("Failed to refresh available models.")}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("Failed to refresh available models."),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("combobox", {
+				name: defaultModelOptions[0].displayName,
+			}),
+		).toBeVisible();
+	},
+};
+
 /** Archived agent displays the read-only banner below the top bar. */
 export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
@@ -346,7 +365,7 @@ export const QueuedForCapacityCommunityAdmin: Story = {
 		const trialLink = canvas.getByRole("link", {
 			name: /start an unlimited trial/i,
 		});
-		expect(trialLink).toHaveAttribute("href", "https://coder.com/trial");
+		expect(trialLink).toHaveAttribute("href", "/deployment/premium");
 		const learnMoreLink = canvas.getByRole("link", { name: /learn more/i });
 		expect(learnMoreLink).toHaveAttribute(
 			"href",
@@ -1569,7 +1588,7 @@ export const FailedHistoryPageOffersKeyboardRetry: Story = {
 export const TerminalFocusOnTabSwitch: Story = {
 	parameters: {
 		pixel: { exclude: true },
-		webSocket: { "/api/v2/workspaceagents/": [{ event: "message", data: "" }] },
+		webSocket: [],
 	},
 	decorators: [withWebSocket],
 	render: () => (
@@ -1595,12 +1614,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 			return el;
 		});
 
-		// The xterm focus target is a textarea inside the terminal container.
+		const terminal = within(terminalContainer);
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);
@@ -1610,12 +1629,12 @@ export const TerminalFocusOnTabSwitch: Story = {
 		await userEvent.click(gitTab);
 		await userEvent.click(terminalTab);
 
-		// Focus should return to the terminal textarea.
+		// Focus should return to the terminal input.
 		await waitFor(
 			() => {
-				const textarea = terminalContainer.querySelector("textarea");
-				expect(textarea).not.toBeNull();
-				expect(document.activeElement).toBe(textarea);
+				expect(
+					terminal.getByRole("textbox", { name: "Terminal input" }),
+				).toHaveFocus();
 			},
 			{ timeout: 3000 },
 		);

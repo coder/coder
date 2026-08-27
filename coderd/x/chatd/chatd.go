@@ -70,7 +70,6 @@ const (
 	homeInstructionLookupTimeout = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
-	manualTitlePersistTimeout    = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -84,6 +83,12 @@ const (
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
+
+	// slowPrepareThreshold is the generation-preparation duration
+	// above which a warning is logged. Preparation runs before
+	// every generation step, so sustained slowness (workspace
+	// dials, MCP connects) taxes the whole turn.
+	slowPrepareThreshold = 30 * time.Second
 
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
@@ -163,9 +168,10 @@ type Server struct {
 	inflightMu     sync.Mutex
 	inflightClosed atomic.Bool
 
-	db       database.Store
-	workerID uuid.UUID
-	logger   slog.Logger
+	db                 database.Store
+	workerID           uuid.UUID
+	logger             slog.Logger
+	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
 
 	streamPartsDialer StreamPartsDialer
 
@@ -209,11 +215,11 @@ type Server struct {
 	chatHeartbeatInterval      time.Duration
 }
 
-func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) codersdk.AdvisorConfig {
+func (p *Server) loadAdvisorConfig(ctx context.Context, logger slog.Logger) advisorRuntimeConfig {
 	cfg, err := p.configCache.AdvisorConfig(ctx)
 	if err != nil {
 		logger.Warn(ctx, "failed to load advisor config", slog.Error(err))
-		return codersdk.AdvisorConfig{}
+		return advisorRuntimeConfig{}
 	}
 	return cfg
 }
@@ -244,49 +250,68 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-// resolveAdvisorModelOverride resolves the configured advisor override
-// model. ok is false when no override is configured or the override is
-// unavailable, in which case the advisor uses the chat model. An error is
-// a hard failure: the override has a linked provider and failed to build.
+const advisorOverrideContext = "advisor"
+
+// resolveAdvisorModelOverride resolves the advisor model override for the
+// chat's organization. Missing or unusable overrides fall back to the chat
+// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
-	advisorCfg codersdk.AdvisorConfig,
 	maxOutputTokens int64,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	if advisorCfg.ModelConfigID == uuid.Nil {
+	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
+	override, err := p.db.GetChatOrganizationModelOverride(
+		dbauthz.AsChatd(ctx),
+		database.GetChatOrganizationModelOverrideParams{
+			OrganizationID: chat.OrganizationID,
+			Context:        advisorOverrideContext,
+		},
+	)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return resolvedModelCall{}, false, nil
+		}
+		logger.Warn(
+			ctx,
+			"failed to load advisor model override, continuing with chat model",
+			slog.F("organization_id", chat.OrganizationID),
+			slog.Error(err),
+		)
 		return resolvedModelCall{}, false, nil
 	}
 
-	// Re-read the override instead of using the cache so disabled models
-	// or providers stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(
-		ctx,
-		advisorCfg.ModelConfigID,
-	)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
+	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if modelCtxErr != nil {
 		logger.Warn(
 			ctx,
-			"advisor model config belongs to another organization, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			"failed to load advisor model authorization, continuing with chat model",
+			slog.F("model_config_id", override.ModelConfigID),
+			slog.Error(modelCtxErr),
 		)
 		return resolvedModelCall{}, false, nil
+	}
+	// Re-read the model row for every runtime so disabled models or providers
+	// stop routing advisor prompts immediately.
+	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
+	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
+		err = sql.ErrNoRows
 	}
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			logger.Warn(
 				ctx,
 				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", advisorCfg.ModelConfigID),
+				slog.F("model_config_id", override.ModelConfigID),
 			)
 			return resolvedModelCall{}, false, nil
 		}
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", override.ModelConfigID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -296,13 +321,11 @@ func (p *Server) resolveAdvisorModelOverride(
 		purpose:         "advisor",
 		chat:            chat,
 		explicitConfig:  &overrideConfig,
-		requestedEffort: advisorCfg.ReasoningEffort,
+		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
-		// Malformed options always fall back; route and client errors are
-		// hard failures only when the config has a linked provider.
 		var parseErr modelCallConfigParseError
 		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -310,19 +333,18 @@ func (p *Server) resolveAdvisorModelOverride(
 		logger.Warn(
 			ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", advisorCfg.ModelConfigID),
+			slog.F("model_config_id", override.ModelConfigID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
 	}
-
 	return resolved, true, nil
 }
 
 func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
-	advisorCfg codersdk.AdvisorConfig,
+	advisorCfg advisorRuntimeConfig,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -351,7 +373,6 @@ func (p *Server) newAdvisorRuntime(
 	advisor, ok, err := p.resolveAdvisorModelOverride(
 		ctx,
 		chat,
-		advisorCfg,
 		maxOutputTokens,
 		modelOpts,
 		logger,
@@ -367,7 +388,7 @@ func (p *Server) newAdvisorRuntime(
 		advisor, err = p.resolveModelCall(ctx, modelCallSpec{
 			purpose:         "advisor",
 			chat:            chat,
-			maxOutputTokens: ptr.Ref(maxOutputTokens),
+			maxOutputTokens: &maxOutputTokens,
 			buildOptions:    modelOpts,
 		})
 		if err != nil {
@@ -544,10 +565,13 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 
 	// If the chat was rebound to a different agent (e.g. a workspace rebuild
 	// produced a new agent), re-pin its context to the new agent so it stops
-	// injecting the previous agent's resources. Best-effort: a context error
-	// must never fail the binding. The pinned context fields on updatedChat
-	// are background state, reloaded on the next snapshot fetch.
-	if chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID {
+	// injecting the previous agent's resources. Workspace lifecycle tools clear
+	// the agent binding while preserving the pin, so a missing prior agent also
+	// requires a re-pin when pinned context exists. Best-effort: a context error
+	// must never fail the binding. The pinned context fields on updatedChat are
+	// background state, reloaded on the next snapshot fetch.
+	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
+	if hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID) {
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
 		repinCtx := dbauthz.AsChatd(ctx)
 		if repinErr := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
@@ -1157,6 +1181,10 @@ type EditMessageOptions struct {
 	// original message's model is preserved.
 	ModelConfigID   uuid.UUID
 	ReasoningEffort *string
+	// MCPServerIDs, when non-nil, replaces the chat's MCP server
+	// selection before the replacement turn runs. When nil the
+	// current selection is preserved.
+	MCPServerIDs *[]uuid.UUID
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1225,6 +1253,36 @@ func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organi
 		}
 	}
 	return merged, nil
+}
+
+// applyRequestedMCPServerIDs replaces the chat's MCP server selection
+// inside the state-machine transaction when a request provides one.
+// Explore child chats keep the spawn-time snapshot immutable. Force On
+// MCP servers are enforced server-side so a caller cannot remove them
+// by tampering with the update (Cure53 CDM-02-010).
+func (p *Server) applyRequestedMCPServerIDs(ctx context.Context, store database.Store, lockedChat database.Chat, requested *[]uuid.UUID) (database.Chat, error) {
+	if requested == nil {
+		return lockedChat, nil
+	}
+	if isExploreSubagentMode(lockedChat.Mode) {
+		p.logger.Warn(ctx,
+			"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
+			slog.F("chat_id", lockedChat.ID),
+		)
+		return lockedChat, nil
+	}
+	enforcedIDs, err := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requested)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	updated, err := store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
+		ID:           lockedChat.ID,
+		MCPServerIDs: enforcedIDs,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("update chat mcp server ids: %w", err)
+	}
+	return updated, nil
 }
 
 // CreateChat creates a chat with its initial history through
@@ -1498,30 +1556,9 @@ func (p *Server) SendMessage(
 			return err
 		}
 
-		// Update MCP server IDs on the chat when explicitly provided.
-		// Explore child chats keep the spawn-time snapshot immutable.
-		if requestedMCPServerIDs != nil {
-			if isExploreSubagentMode(lockedChat.Mode) {
-				p.logger.Warn(ctx,
-					"ignoring explore subagent mcp server ids update, snapshot is immutable after spawn",
-					slog.F("chat_id", opts.ChatID),
-				)
-			} else {
-				// Force On MCP servers are enforced server-side so a
-				// caller cannot remove them by tampering with the
-				// update (Cure53 CDM-02-010).
-				enforcedIDs, enforceErr := enforceForcedMCPServerIDs(ctx, store, lockedChat.OrganizationID, lockedChat.OwnerID, *requestedMCPServerIDs)
-				if enforceErr != nil {
-					return enforceErr
-				}
-				lockedChat, err = store.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{
-					ID:           opts.ChatID,
-					MCPServerIDs: enforcedIDs,
-				})
-				if err != nil {
-					return xerrors.Errorf("update chat mcp server ids: %w", err)
-				}
-			}
+		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, requestedMCPServerIDs)
+		if err != nil {
+			return err
 		}
 
 		messageCreatedBy := opts.CreatedBy
@@ -1579,10 +1616,31 @@ func (p *Server) SendMessage(
 	return result, nil
 }
 
-func chatdModelConfigLookupContext(ctx context.Context) context.Context {
-	//nolint:gocritic // Chat message admission needs daemon-scoped
-	// deployment-config reads for model config validation.
-	return dbauthz.AsChatd(ctx)
+func (p *Server) callerModelConfigContext(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
+	if p.modelConfigContext == nil {
+		return ctx, nil
+	}
+	return p.modelConfigContext(ctx, ownerID)
+}
+
+func callerModelConfigContext(
+	ctx context.Context,
+	store database.Store,
+	ownerID uuid.UUID,
+) (context.Context, error) {
+	if ownerID == uuid.Nil {
+		return ctx, nil
+	}
+	if actor, ok := dbauthz.ActorFromContext(ctx); ok &&
+		actor.Type == rbac.SubjectTypeUser && actor.ID == ownerID.String() {
+		return ctx, nil
+	}
+	actor, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return nil, xerrors.Errorf("load model config authorization: %w", err)
+	}
+	//nolint:gocritic // Background Chatd work must use the chat owner's model ACLs.
+	return dbauthz.As(ctx, actor), nil
 }
 
 func resolveSendMessageModelConfigID(
@@ -1592,7 +1650,7 @@ func resolveSendMessageModelConfigID(
 	requested uuid.UUID,
 ) (uuid.UUID, error) {
 	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat.OrganizationID, chat.LastModelConfigID)
+		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
 	}
 
 	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
@@ -1609,8 +1667,7 @@ func requireEnabledChatModelConfig(
 	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) error {
-	chatdCtx := chatdModelConfigLookupContext(ctx)
-	config, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID)
+	config, err := store.GetEnabledChatModelConfigByID(ctx, modelConfigID)
 	if err == nil {
 		if config.OrganizationID == organizationID {
 			return nil
@@ -1640,8 +1697,7 @@ func validateCreateModelConfigID(
 	if modelConfigID == uuid.Nil {
 		return xerrors.Errorf("%w: %s", ErrInvalidModelConfigID, modelConfigID)
 	}
-	chatdCtx := chatdModelConfigLookupContext(ctx)
-	config, err := store.GetChatModelConfigByID(chatdCtx, modelConfigID)
+	config, err := store.GetChatModelConfigByID(ctx, modelConfigID)
 	if err == nil {
 		if config.OrganizationID == organizationID {
 			return nil
@@ -1657,17 +1713,16 @@ func validateCreateModelConfigID(
 func resolveFallbackModelConfigID(
 	ctx context.Context,
 	store database.Store,
-	organizationID uuid.UUID,
+	chat database.Chat,
 	modelConfigID uuid.UUID,
 ) (uuid.UUID, error) {
-	chatdCtx := chatdModelConfigLookupContext(ctx)
 	if modelConfigID != uuid.Nil {
-		config, err := store.GetEnabledChatModelConfigByID(chatdCtx, modelConfigID)
+		config, err := store.GetEnabledChatModelConfigByID(ctx, modelConfigID)
 		if err == nil {
-			if config.OrganizationID == organizationID {
+			if config.OrganizationID == chat.OrganizationID {
 				return modelConfigID, nil
 			}
-		} else if !errors.Is(err, sql.ErrNoRows) {
+		} else if !errors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
 			return uuid.Nil, xerrors.Errorf(
 				"get chat model config %s: %w",
 				modelConfigID,
@@ -1676,7 +1731,7 @@ func resolveFallbackModelConfigID(
 		}
 	}
 
-	defaultConfig, err := effectiveDefaultChatModelConfig(chatdCtx, store, organizationID)
+	defaultConfig, err := effectiveDefaultChatModelConfig(ctx, store, chat.OrganizationID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return uuid.Nil, ErrNoDefaultChatModelConfig
@@ -1718,29 +1773,44 @@ func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.U
 	return nil
 }
 
+func loadEffectiveChatModelConfigs(
+	ctx context.Context,
+	store database.Store,
+	organizationID uuid.UUID,
+) (database.EffectiveChatModelConfigs, error) {
+	rows, err := store.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
+	if err != nil {
+		return database.EffectiveChatModelConfigs{}, err
+	}
+	return database.DeriveEffectiveChatModelConfigs(rows), nil
+}
+
 func effectiveDefaultChatModelConfig(
 	ctx context.Context,
 	store database.Store,
 	organizationID uuid.UUID,
 ) (database.ChatModelConfig, error) {
-	rows, err := store.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
+	effective, err := loadEffectiveChatModelConfigs(ctx, store, organizationID)
 	if err != nil {
 		return database.ChatModelConfig{}, err
 	}
-	for _, row := range rows {
-		if row.ChatModelConfig.IsDefault {
-			return row.ChatModelConfig, nil
-		}
+	if effective.DefaultConfig.ID == uuid.Nil {
+		return database.ChatModelConfig{}, sql.ErrNoRows
 	}
-	return database.ChatModelConfig{}, sql.ErrNoRows
+	return effective.DefaultConfig, nil
 }
 
+// enabledChatModelConfigsForOrganization returns enabled configs from the chat organization.
 func enabledChatModelConfigsForOrganization(
 	ctx context.Context,
 	store database.Store,
 	organizationID uuid.UUID,
 ) ([]database.GetEnabledChatModelConfigsByOrganizationRow, error) {
-	return store.GetEnabledChatModelConfigsByOrganization(ctx, organizationID)
+	effective, err := loadEffectiveChatModelConfigs(ctx, store, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return effective.Configs, nil
 }
 
 // EditMessage replaces an earlier user message and discards the
@@ -1836,6 +1906,11 @@ func (p *Server) EditMessage(
 		}
 		editedMsg = target
 
+		lockedChat, err = p.applyRequestedMCPServerIDs(ctx, store, lockedChat, opts.MCPServerIDs)
+		if err != nil {
+			return err
+		}
+
 		modelOverride, err := validateModelConfigOverride(ctx, store, lockedChat.OrganizationID, opts.ModelConfigID)
 		if err != nil {
 			return err
@@ -1848,7 +1923,7 @@ func (p *Server) EditMessage(
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID
 			}
-			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat.OrganizationID, preserved)
+			resolved, err := resolveFallbackModelConfigID(ctx, store, lockedChat, preserved)
 			if err != nil {
 				return err
 			}
@@ -2454,23 +2529,6 @@ func (t *generatedChatTitle) Load() (string, bool) {
 	return t.title, true
 }
 
-// RegenerateChatTitle regenerates a chat title from the chat's visible
-// messages, persists it when it changes, and broadcasts the update.
-func (p *Server) RegenerateChatTitle(
-	ctx context.Context,
-	chat database.Chat,
-) (database.Chat, error) {
-	// Reuse chatd's scoped auth context for chat model config reads while
-	// keeping chat ownership authorization at the HTTP layer.
-	//nolint:gocritic // Non-admin users need chatd-scoped config reads here.
-	chatdCtx := dbauthz.AsChatd(ctx)
-	return p.regenerateChatTitleWithStore(
-		chatdCtx,
-		p.db,
-		chat,
-	)
-}
-
 // RenameChatTitle persists a user-supplied chat title.
 func (p *Server) RenameChatTitle(
 	ctx context.Context,
@@ -2585,40 +2643,6 @@ func (p *Server) generateManualTitleCandidate(
 	}
 
 	return title, nil
-}
-
-func (p *Server) regenerateChatTitleWithStore(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-) (database.Chat, error) {
-	title, err := p.generateManualTitleCandidate(ctx, store, chat)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if title == "" {
-		return chat, nil
-	}
-
-	// Generation already happened; don't let a client disconnect drop the
-	// title write.
-	persistCtx, persistCancel := context.WithTimeout(context.WithoutCancel(ctx), manualTitlePersistTimeout)
-	defer persistCancel()
-
-	updatedChat, wroteTitle, err := persistManualTitle(persistCtx, store, chat, title)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("update chat title: %w", err)
-	}
-	// Publish only when this regeneration wrote the title. When a
-	// concurrent rename won the race, the rename path already published
-	// the fresher title; re-publishing the re-read row here could
-	// deliver a stale title_change after an even newer rename.
-	if !wroteTitle {
-		return updatedChat, nil
-	}
-
-	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindTitleChange, nil)
-	return updatedChat, nil
 }
 
 func (p *Server) prepareManualTitleDebugRun(
@@ -2761,9 +2785,6 @@ func (p *Server) resolveManualTitleModel(
 		modelOpts,
 	)
 	if overrideErr != nil {
-		if errors.Is(overrideErr, errModelConfigOutsideOrganization) {
-			return p.resolveDefaultManualTitleModel(ctx, chat, modelOpts)
-		}
 		if overrideSet {
 			return resolvedModelCall{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
@@ -2778,7 +2799,11 @@ func (p *Server) resolveManualTitleModel(
 		return overrideResolved, nil
 	}
 
-	configs, err := enabledChatModelConfigsForOrganization(ctx, store, chat.OrganizationID)
+	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if err != nil {
+		return resolvedModelCall{}, err
+	}
+	configs, err := enabledChatModelConfigsForOrganization(modelCtx, store, chat.OrganizationID)
 	if err != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
@@ -2805,36 +2830,6 @@ func (p *Server) resolveManualTitleModel(
 			slog.Error(err),
 		)
 		return p.resolveFallbackManualTitleModel(ctx, chat, modelOpts)
-	}
-	return resolved, nil
-}
-
-func (p *Server) resolveDefaultManualTitleModel(
-	ctx context.Context,
-	chat database.Chat,
-	modelOpts modelBuildOptions,
-) (resolvedModelCall, error) {
-	config, err := p.configCache.DefaultModelConfig(ctx, chat.OrganizationID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, ErrNoDefaultChatModelConfig
-		}
-		return resolvedModelCall{}, xerrors.Errorf(
-			"get default manual title model config: %w",
-			err,
-		)
-	}
-	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
-		purpose:        "title",
-		chat:           chat,
-		explicitConfig: &config,
-		buildOptions:   modelOpts,
-	})
-	if err != nil {
-		return resolvedModelCall{}, xerrors.Errorf(
-			"create default manual title model: %w",
-			err,
-		)
 	}
 	return resolved, nil
 }
@@ -2886,46 +2881,6 @@ func mergeManualTitleMessages(
 		appendUnique(tailMessagesDesc[i])
 	}
 	return merged
-}
-
-// persistManualTitle writes newTitle only if the chat title still
-// matches the caller's snapshot. The returned bool reports whether the
-// title was actually written; it is false when a concurrent writer
-// changed the title first or when newTitle matches the current title.
-// Token usage for manual title generation is not recorded here; AI
-// Gateway tracks it independently, and writing to chat_messages outside
-// the chatstate state machine would break in-flight task fences.
-func persistManualTitle(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	newTitle string,
-) (database.Chat, bool, error) {
-	updatedChat := chat
-	wroteTitle := false
-	err := store.InTx(func(tx database.Store) error {
-		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
-		if err != nil {
-			return xerrors.Errorf("lock chat for manual title persist: %w", err)
-		}
-		updatedChat = lockedChat
-		wroteTitle = false
-		if lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
-			updatedChat, err = tx.UpdateChatByID(ctx, database.UpdateChatByIDParams{
-				ID:    chat.ID,
-				Title: newTitle,
-			})
-			if err != nil {
-				return xerrors.Errorf("update chat title: %w", err)
-			}
-			wroteTitle = true
-		}
-		return nil
-	}, nil)
-	if err != nil {
-		return database.Chat{}, false, err
-	}
-	return updatedChat, wroteTitle, nil
 }
 
 type chatMessage struct {
@@ -3111,10 +3066,13 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		hookDispatcher = nil
 	}
 	p := &Server{
-		cancel:                         cancel,
-		db:                             cfg.Database,
-		workerID:                       workerID,
-		logger:                         cfg.Logger.Named("processor"),
+		cancel:   cancel,
+		db:       cfg.Database,
+		workerID: workerID,
+		logger:   cfg.Logger.Named("processor"),
+		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
+			return callerModelConfigContext(ctx, cfg.Database, ownerID)
+		},
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
@@ -3216,8 +3174,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 				return
 			}
 			switch ev.Kind {
-			case coderdpubsub.ChatConfigEventModelConfig:
-				p.configCache.InvalidateModelConfig(ev.EntityID)
 			case coderdpubsub.ChatConfigEventUserPrompt:
 				p.configCache.InvalidateUserPrompt(ev.EntityID)
 			case coderdpubsub.ChatConfigEventAdvisorConfig:
@@ -4263,20 +4219,18 @@ func (p *Server) resolveUserProviderAPIKeys(
 
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
+	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	modelConfigID uuid.UUID,
 ) (database.ChatModelConfig, string, error) {
-	if modelConfigID == uuid.Nil {
-		return database.ChatModelConfig{}, "", sql.ErrNoRows
-	}
-	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
+	modelConfig, providerName, err := p.resolveModelConfigAndNormalizedProvider(ctx, ownerID, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
 	}
 	if modelConfig.OrganizationID != organizationID {
 		return database.ChatModelConfig{}, "", errModelConfigOutsideOrganization
 	}
-	return p.resolveNormalizedProviderForModelConfig(ctx, modelConfig)
+	return modelConfig, providerName, nil
 }
 
 // resolveModelConfig looks up the chat's enabled model config by its
@@ -4287,34 +4241,32 @@ func (p *Server) resolveModelConfig(
 	ctx context.Context,
 	chat database.Chat,
 ) (database.ChatModelConfig, error) {
+	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)
+	if err != nil {
+		return database.ChatModelConfig{}, err
+	}
 	if chat.LastModelConfigID != uuid.Nil {
-		modelConfig, err := p.configCache.ModelConfigByID(ctx, chat.LastModelConfigID)
+		modelConfig, err := p.db.GetEnabledChatModelConfigByID(
+			modelCtx,
+			chat.LastModelConfigID,
+		)
 		if err == nil {
-			if modelConfig.Enabled && modelConfig.OrganizationID == chat.OrganizationID && modelConfig.AIProviderID.Valid {
-				provider, providerErr := p.db.GetAIProviderByID(
-					chatdModelConfigLookupContext(ctx),
-					modelConfig.AIProviderID.UUID,
-				)
-				switch {
-				case providerErr == nil && provider.Enabled:
-					return modelConfig, nil
-				case providerErr == nil, xerrors.Is(providerErr, sql.ErrNoRows):
-				default:
-					return database.ChatModelConfig{}, xerrors.Errorf(
-						"get AI provider %s: %w",
-						modelConfig.AIProviderID.UUID, providerErr,
-					)
-				}
+			if modelConfig.OrganizationID == chat.OrganizationID {
+				return modelConfig, nil
 			}
-		} else if !xerrors.Is(err, sql.ErrNoRows) {
+			err = sql.ErrNoRows
+		}
+		if !xerrors.Is(err, sql.ErrNoRows) && !dbauthz.IsNotAuthorizedError(err) {
 			return database.ChatModelConfig{}, xerrors.Errorf(
 				"get chat model config %s: %w",
 				chat.LastModelConfigID, err,
 			)
 		}
+		// The model config is unavailable or belongs to another organization.
+		// Fall through to the local default.
 	}
 
-	defaultConfig, err := p.configCache.DefaultModelConfig(ctx, chat.OrganizationID)
+	defaultConfig, err := effectiveDefaultChatModelConfig(modelCtx, p.db, chat.OrganizationID)
 	if err != nil {
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return database.ChatModelConfig{}, ErrNoDefaultChatModelConfig

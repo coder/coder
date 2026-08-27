@@ -59,16 +59,13 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-12">
-			<SettingsHeader
-				actions={
+			<SettingsHeader>
+				<SettingsHeaderTitle>Sharing</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Share this workspace with other users and groups.{" "}
 					<SettingsHeaderDocsLink
 						href={docs("/user-guides/shared-workspaces")}
 					/>
-				}
-			>
-				<SettingsHeaderTitle>Sharing</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Share this workspace with other users and groups.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

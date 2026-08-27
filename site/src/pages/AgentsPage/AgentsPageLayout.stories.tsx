@@ -62,6 +62,7 @@ const defaultModelID = "model-config-1";
 const defaultModels: TypesGen.ChatModel[] = [
 	{
 		id: defaultModelID,
+		organization_id: "my-organization-id",
 		ai_provider_id: "provider-openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -105,34 +106,16 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 
 const AgentsRouteElement = () => (
 	<CoderAgentsPageView
+		organization={undefined}
+		organizations={[]}
+		onSelectOrganization={fn()}
+		requestedOrganizationDenied={false}
+		isOrganizationAccessLoading={false}
+		canEditDeploymentConfig
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}
 		isSaveAdminOverridesError={false}
-		exploreModelOverrideData={{
-			context: "explore",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		titleGenerationModelOverrideData={{
-			context: "title_generation",
-			model_config_id: "",
-			is_malformed: false,
-		}}
-		models={[]}
-		providerInfoByID={new Map()}
-		modelsError={undefined}
-		isLoadingModels={false}
-		isFetchingModels={false}
-		onSaveTitleGenerationModel={fn()}
-		isSavingTitleGenerationModel={false}
-		isSaveTitleGenerationModelError={false}
-		onSaveCompactionModel={fn()}
-		isSavingCompactionModel={false}
-		isSaveCompactionModelError={false}
-		onSaveExploreModelOverride={fn()}
-		isSavingExploreModelOverride={false}
-		isSaveExploreModelOverrideError={false}
 		showAdvisorSettings={false}
 		advisorConfigData={undefined}
 		isAdvisorConfigLoading={false}
@@ -301,32 +284,27 @@ const meta: Meta<typeof AgentsPageLayout> = {
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			general: {
 				context: "general",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			explore: {
 				context: "explore",
 				mode: "deployment_default",
 				model_config_id: "",
 				is_set: false,
-				is_malformed: false,
 			},
 			deployment_defaults: {
 				general: {
 					context: "general",
 					model_config_id: "",
-					is_malformed: false,
 				},
 				explore: {
 					context: "explore",
 					model_config_id: "",
-					is_malformed: false,
 				},
 			},
 		});
@@ -347,37 +325,35 @@ const meta: Meta<typeof AgentsPageLayout> = {
 			custom_prompt: "",
 		});
 		// Mocks for child route pages that fetch their own data.
-		spyOn(API.experimental, "getChatModelAvailability").mockResolvedValue({
-			providers: [
-				{
-					provider: "openai",
-					available: true,
-					models: [
-						{
-							id: "openai:gpt-4o",
-							provider: "openai",
-							model: "gpt-4o",
-							display_name: "GPT-4o",
-						},
-					],
-				},
-			],
-			unsupported_providers: [],
-		});
-		spyOn(API.experimental, "getChatModels").mockResolvedValue([
-			{
-				id: defaultModelID,
-				ai_provider_id: "provider-openai",
-				model: "gpt-4o",
-				display_name: "GPT-4o",
-				enabled: true,
-				is_default: false,
-				context_limit: 200000,
-				compression_threshold: 70,
-				created_at: "2026-02-18T00:00:00.000Z",
-				updated_at: "2026-02-18T00:00:00.000Z",
-			},
-		]);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) => ({
+				models: [
+					{
+						...defaultModels[0],
+						id:
+							organizationId === MockDefaultOrganization.id
+								? defaultModelID
+								: `${defaultModelID}-${organizationId}`,
+						organization_id: organizationId,
+					},
+				],
+				providers: [
+					{
+						id: defaultModels[0].ai_provider_id,
+						type: "openai",
+						display_name: "OpenAI",
+						icon: "",
+						enabled: true,
+						has_api_key: true,
+						has_user_api_key: false,
+						has_effective_api_key: true,
+						allow_user_api_key: false,
+						available: true,
+					},
+				],
+				unsupported_providers: [],
+			}),
+		);
 		spyOn(API.experimental, "getUserAIProviderKeyConfigs").mockResolvedValue([
 			{
 				provider: {
@@ -1230,6 +1206,26 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
+export const OpensSettingsForOrgModelAdmins: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+	},
+};
+
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1278,7 +1274,7 @@ export const SettingsViewCoderAgentsLink: Story = {
 		await waitFor(() => {
 			expect(
 				screen.getByText(
-					"Configure deployment-wide defaults for Coder Agents and agent-specific capabilities.",
+					/organization model choices and deployment-wide Coder Agents capabilities/,
 				),
 			).toBeInTheDocument();
 		});

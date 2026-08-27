@@ -1,4 +1,6 @@
 import {
+	MockMCPServerConfigACL,
+	MockMCPServerConfigACLAvailable,
 	MockProvisionerJob,
 	MockStoppedWorkspace,
 	MockTemplate,
@@ -195,6 +197,7 @@ describe("api.ts", () => {
 					members: ids.map((id) => ({
 						user_id: id,
 						effective_group_id: null,
+						effective_budget: null,
 						group_budget: null,
 						group_spend_micros: 0,
 					})),
@@ -432,18 +435,13 @@ describe("api.ts", () => {
 	});
 
 	describe("chat configuration endpoints", () => {
+		const organizationId = "organization/id";
+
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModelAvailability(),
-				{
-					providers: [],
-				},
-			],
-			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModels(),
-				[],
+				"/api/v2/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
+				{ models: [], providers: [], unsupported_providers: [] },
 			],
 		])("returns response data for %s", async (path, request, responseData) => {
 			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
@@ -456,14 +454,22 @@ describe("api.ts", () => {
 			expect(result).toStrictEqual(responseData);
 		});
 
+		it("rejects chat model responses without a models array", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: { providers: [], unsupported_providers: [] },
+			});
+
+			await expect(
+				API.experimental.getChatModels(organizationId),
+			).rejects.toThrow(
+				"Invalid chat models response: models must be an array.",
+			);
+		});
+
 		it.each<[string, () => Promise<unknown>]>([
 			[
-				"/api/experimental/chats/models",
-				() => API.experimental.getChatModelAvailability(),
-			],
-			[
-				"/api/experimental/chats/model-configs",
-				() => API.experimental.getChatModels(),
+				"/api/v2/organizations/organization%2Fid/chats/models",
+				() => API.experimental.getChatModels(organizationId),
 			],
 		])("rethrows axios errors for %s", async (path, request) => {
 			const expectedError = new Error("request failed");
@@ -471,6 +477,97 @@ describe("api.ts", () => {
 
 			await expect(request()).rejects.toBe(expectedError);
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+
+		it("uses organization-nested chat model item paths", async () => {
+			const modelId = "model/id";
+			const responseData = { id: modelId };
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({
+				data: responseData,
+			});
+			vi.spyOn(axiosInstance, "delete").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModel(organizationId, modelId),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.updateChatModel(organizationId, modelId, {
+					enabled: true,
+				}),
+			).resolves.toStrictEqual(responseData);
+			await expect(
+				API.experimental.deleteChatModel(organizationId, modelId),
+			).resolves.toBeUndefined();
+
+			const itemPath =
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid";
+			expect(axiosInstance.get).toHaveBeenCalledWith(itemPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(itemPath, {
+				enabled: true,
+			});
+			expect(axiosInstance.delete).toHaveBeenCalledWith(itemPath);
+		});
+
+		it("uses organization-nested chat model ACL paths", async () => {
+			const modelId = "model/id";
+			const acl = { user_roles: {}, group_roles: {} };
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: acl });
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getChatModelACL(organizationId, modelId),
+			).resolves.toStrictEqual(acl);
+			await expect(
+				API.experimental.updateChatModelACL(organizationId, modelId, acl),
+			).resolves.toBeUndefined();
+
+			const aclPath =
+				"/api/v2/organizations/organization%2Fid/chats/models/model%2Fid/acl";
+			expect(axiosInstance.get).toHaveBeenCalledWith(aclPath);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, acl);
+		});
+
+		it("uses organization-nested MCP server ACL paths", async () => {
+			const serverId = "server/id";
+			const update: TypesGen.UpdateMCPServerConfigACLRequest = {
+				user_roles: { "user-1": "read" },
+			};
+			vi.spyOn(axiosInstance, "get")
+				.mockResolvedValueOnce({ data: MockMCPServerConfigACL })
+				.mockResolvedValueOnce({ data: MockMCPServerConfigACLAvailable });
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await expect(
+				API.experimental.getMCPServerConfigACL(organizationId, serverId),
+			).resolves.toStrictEqual(MockMCPServerConfigACL);
+			await expect(
+				API.experimental.getMCPServerConfigACLAvailable(
+					organizationId,
+					serverId,
+					{ q: "alice@example.com", limit: 25 },
+				),
+			).resolves.toStrictEqual(MockMCPServerConfigACLAvailable);
+			await expect(
+				API.experimental.updateMCPServerConfigACL(
+					organizationId,
+					serverId,
+					update,
+				),
+			).resolves.toBeUndefined();
+
+			const aclPath =
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl";
+			const aclAvailablePath =
+				"/api/v2/organizations/organization%2Fid/mcp-servers/server%2Fid/acl/available";
+			expect(axiosInstance.get).toHaveBeenNthCalledWith(1, aclPath);
+			expect(axiosInstance.get).toHaveBeenNthCalledWith(
+				2,
+				`${aclAvailablePath}?q=alice%40example.com&limit=25`,
+			);
+			expect(axiosInstance.patch).toHaveBeenCalledWith(aclPath, update);
 		});
 	});
 
@@ -590,7 +687,7 @@ describe("api.ts", () => {
 			const result = await API.experimental.getChatACL(chatId);
 
 			expect(axiosInstance.get).toHaveBeenCalledWith(
-				`/api/experimental/chats/${chatId}/acl`,
+				`/api/v2/chats/${chatId}/acl`,
 			);
 			expect(result).toStrictEqual(chatACL);
 		});
@@ -605,7 +702,7 @@ describe("api.ts", () => {
 			await API.experimental.updateChatACL(chatId, request);
 
 			expect(axiosInstance.patch).toHaveBeenCalledWith(
-				`/api/experimental/chats/${chatId}/acl`,
+				`/api/v2/chats/${chatId}/acl`,
 				request,
 			);
 		});

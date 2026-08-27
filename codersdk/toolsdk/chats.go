@@ -2,10 +2,8 @@ package toolsdk
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
@@ -17,11 +15,6 @@ import (
 )
 
 const chatIDDescription = "UUID of the chat."
-
-func isForbiddenError(err error) bool {
-	var sdkErr *codersdk.Error
-	return errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusForbidden
-}
 
 func parseChatID(chatID string) (uuid.UUID, error) {
 	if chatID == "" {
@@ -104,11 +97,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
-					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Defaults to the deployment default model.",
+					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Defaults to the organization's default model.",
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -132,15 +125,11 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				return ChatToolStatus{}, xerrors.New("organization_id must be a valid UUID")
 			}
 		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			var err error
+			orgID, err = defaultCreateChatOrganization(ctx, deps)
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
-			// Admins can remove a user's only organization membership.
-			if len(me.OrganizationIDs) == 0 {
-				return ChatToolStatus{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			orgID = me.OrganizationIDs[0]
 		}
 		var modelConfigID *uuid.UUID
 		if args.ModelConfigID != "" {
@@ -164,6 +153,44 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 		}
 		return chatToolStatus(deps, chat), nil
 	},
+}
+
+func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
+	me, err := deps.coderClient.User(ctx, codersdk.Me)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	// Admins can remove a user's only organization membership.
+	if len(me.OrganizationIDs) == 0 {
+		return uuid.Nil, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+	}
+	if len(me.OrganizationIDs) == 1 {
+		return me.OrganizationIDs[0], nil
+	}
+
+	expClient := codersdk.NewExperimentalClient(deps.coderClient)
+	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
+	}
+	// Pinned chats sort before recently updated chats. If the user has 100
+	// pinned chats, this batch may not contain their latest chat, which is an
+	// acceptable tradeoff for keeping organization selection to one request.
+	var latest *codersdk.Chat
+	for i := range chats {
+		if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
+			latest = &chats[i]
+		}
+	}
+	if latest != nil {
+		return latest.OrganizationID, nil
+	}
+	return uuid.Nil, xerrors.New("organization_id is required because the authenticated user belongs to multiple organizations and has not created a chat yet")
 }
 
 type GetChatArgs struct {
@@ -866,58 +893,61 @@ type ChatModelConfigSummary struct {
 	IsDefault   bool   `json:"is_default"`
 }
 
+type ListChatModelConfigsArgs struct {
+	OrganizationID string `json:"organization_id"`
+}
+
 type ListChatModelConfigsResponse struct {
 	ModelConfigs []ChatModelConfigSummary `json:"model_configs"`
 }
 
-var ListChatModelConfigs = Tool[NoArgs, ListChatModelConfigsResponse]{
+var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsResponse]{
 	Tool: aisdk.Tool{
 		Name: ToolNameListChatModelConfigs,
 		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
 
 Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
 		Schema: aisdk.Schema{
-			Properties: map[string]any{},
-			Required:   []string{},
+			Properties: map[string]any{
+				"organization_id": map[string]any{
+					"type":        "string",
+					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+				},
+			},
+			Required: []string{},
 		},
 	},
 	MCPAnnotations: mcpReadOnlyAnnotations,
-	Handler: func(ctx context.Context, deps Deps, _ NoArgs) (ListChatModelConfigsResponse, error) {
-		configs, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx)
+	Handler: func(ctx context.Context, deps Deps, args ListChatModelConfigsArgs) (ListChatModelConfigsResponse, error) {
+		var organizationID uuid.UUID
+		if args.OrganizationID != "" {
+			var err error
+			organizationID, err = uuid.Parse(args.OrganizationID)
+			if err != nil {
+				return ListChatModelConfigsResponse{}, xerrors.New("organization_id must be a valid UUID")
+			}
+		} else {
+			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			if err != nil {
+				return ListChatModelConfigsResponse{}, xerrors.Errorf("get authenticated user: %w", err)
+			}
+			if len(me.OrganizationIDs) == 0 {
+				return ListChatModelConfigsResponse{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
+			}
+			organizationID = me.OrganizationIDs[0]
+		}
+
+		response, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx, organizationID)
 		if err != nil {
 			return ListChatModelConfigsResponse{}, xerrors.Errorf("list chat model configs: %w", err)
 		}
-		// Admin model lists include disabled providers; non-admin lists are
-		// already filtered server-side.
-		var providerEnabled map[uuid.UUID]bool
-		providers, err := deps.coderClient.AIProviders(ctx)
-		switch {
-		case err == nil:
-			providerEnabled = make(map[uuid.UUID]bool, len(providers))
-			for _, provider := range providers {
-				providerEnabled[provider.ID] = provider.Enabled
-			}
-		case isForbiddenError(err):
-			// Deployment-config readers can receive the unfiltered admin list
-			// without provider access, so fail closed unless both requests return 403.
-			_, dcErr := deps.coderClient.DeploymentConfig(ctx)
-			switch {
-			case dcErr == nil:
-				return ListChatModelConfigsResponse{}, xerrors.New("cannot verify provider availability for the admin model config list: missing AI provider read permission")
-			case !isForbiddenError(dcErr):
-				return ListChatModelConfigsResponse{}, xerrors.Errorf("verify deployment config access: %w", dcErr)
-			}
-		default:
-			return ListChatModelConfigsResponse{}, xerrors.Errorf("list AI providers: %w", err)
+		providerEnabled := make(map[uuid.UUID]bool, len(response.Providers))
+		for _, provider := range response.Providers {
+			providerEnabled[provider.ID] = provider.Enabled
 		}
-		summaries := make([]ChatModelConfigSummary, 0, len(configs))
-		for _, config := range configs {
-			if !config.Enabled {
-				continue
-			}
-			// A non-nil map is authoritative because soft-deleted providers are
-			// absent while their configs remain in the admin response.
-			if providerEnabled != nil && !providerEnabled[config.AIProviderID] {
+		summaries := make([]ChatModelConfigSummary, 0, len(response.Models))
+		for _, config := range response.Models {
+			if !config.Enabled || !providerEnabled[config.AIProviderID] {
 				continue
 			}
 			summaries = append(summaries, ChatModelConfigSummary{

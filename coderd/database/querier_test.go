@@ -1465,8 +1465,8 @@ func TestGetAuthorizedChats(t *testing.T) {
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: member.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: secondMember.ID, OrganizationID: org.ID})
 
 	// Create FK dependencies: a chat provider and model config.
 	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
@@ -1653,7 +1653,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// Use a dedicated user for pagination to avoid interference
 		// with the other parallel subtests.
 		paginationUser := dbgen.User(t, db, database.User{})
-		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID, Roles: []string{rbac.RoleAgentsAccess()}})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: paginationUser.ID, OrganizationID: org.ID})
 		for i := range 7 {
 			dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    org.ID,
@@ -1727,12 +1727,10 @@ func TestGetAuthorizedChatsACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -1845,12 +1843,10 @@ func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: recipient.ID, GroupID: group.ID})
@@ -1949,12 +1945,10 @@ func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         owner.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
 		UserID:         recipient.ID,
 		OrganizationID: org.ID,
-		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 
 	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
@@ -6489,6 +6483,85 @@ func TestGetUserStatusCounts(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestGetChatOrganizationModelOverridesByContext(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	availableOrg := dbgen.Organization(t, db, database.Organization{})
+	availableModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-available-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: availableOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: availableOrg.ID,
+		Context:        "general",
+		ModelConfigID:  availableModel.ID,
+	}))
+
+	// An override referencing a disabled model reports the model unavailable.
+	// dbgen coerces Enabled=false to true, so disable it after insertion.
+	disabledOrg := dbgen.Organization(t, db, database.Organization{})
+	disabledModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-disabled-" + uuid.NewString(),
+		OrganizationID: disabledOrg.ID,
+	})
+	_, err := db.UpdateChatModelConfig(ctx, database.UpdateChatModelConfigParams{
+		ID:                   disabledModel.ID,
+		Model:                disabledModel.Model,
+		DisplayName:          disabledModel.DisplayName,
+		Enabled:              false,
+		IsDefault:            disabledModel.IsDefault,
+		ContextLimit:         disabledModel.ContextLimit,
+		CompressionThreshold: disabledModel.CompressionThreshold,
+		Options:              disabledModel.Options,
+		AIProviderID:         disabledModel.AIProviderID,
+	})
+	require.NoError(t, err)
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: disabledOrg.ID,
+		Context:        "general",
+		ModelConfigID:  disabledModel.ID,
+	}))
+
+	// Deleted organizations are excluded from the bulk read.
+	deletedOrg := dbgen.Organization(t, db, database.Organization{})
+	deletedOrgModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:          "bulk-deleted-org-" + uuid.NewString(),
+		Enabled:        true,
+		OrganizationID: deletedOrg.ID,
+	})
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(ctx, database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: deletedOrg.ID,
+		Context:        "general",
+		ModelConfigID:  deletedOrgModel.ID,
+	}))
+	require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{
+		ID:        deletedOrg.ID,
+		UpdatedAt: dbtime.Now(),
+	}))
+
+	rows, err := db.GetChatOrganizationModelOverridesByContext(ctx, "general")
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	byOrg := make(map[uuid.UUID]database.GetChatOrganizationModelOverridesByContextRow, len(rows))
+	for _, row := range rows {
+		byOrg[row.OrganizationID] = row
+	}
+	available := byOrg[availableOrg.ID]
+	require.True(t, available.ModelAvailable)
+	require.Equal(t, availableModel.Model, available.Model)
+	require.NotEmpty(t, available.ProviderType)
+	unavailable := byOrg[disabledOrg.ID]
+	require.False(t, unavailable.ModelAvailable)
+	require.Empty(t, unavailable.Model)
+
+	otherContext, err := db.GetChatOrganizationModelOverridesByContext(ctx, "advisor")
+	require.NoError(t, err)
+	require.Empty(t, otherContext)
 }
 
 func TestOrganizationDeleteTrigger(t *testing.T) {
@@ -11111,13 +11184,13 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 		LastModelConfigID: mc.ID,
 	})
 
-	insertMessage := func(chatID uuid.UUID, runtimeMs int64, createdAt time.Time, deleted bool) {
+	insertMessage := func(chatID uuid.UUID, role database.ChatMessageRole, runtimeMs int64, createdAt time.Time, deleted bool) {
 		t.Helper()
 		msg := dbgen.ChatMessage(t, db, database.ChatMessage{
 			ChatID:        chatID,
 			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
 			ModelConfigID: uuid.NullUUID{UUID: mc.ID, Valid: true},
-			Role:          database.ChatMessageRoleAssistant,
+			Role:          role,
 			RuntimeMs:     sql.NullInt64{Int64: runtimeMs, Valid: true},
 		})
 		_, err := sqlDB.ExecContext(ctx, "UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3", createdAt, deleted, msg.ID)
@@ -11126,22 +11199,24 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 
 	// Counted: on the inclusive start boundary, in the middle (across two
 	// chats), soft-deleted, and just before the exclusive end boundary.
-	insertMessage(chat1.ID, 1, rangeStart, false)
-	insertMessage(chat2.ID, 2, rangeStart.Add(30*time.Minute), false)
-	insertMessage(chat1.ID, 4, rangeStart.Add(45*time.Minute), true)
-	insertMessage(chat1.ID, 8, rangeEnd.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 1, rangeStart, false)
+	insertMessage(chat2.ID, database.ChatMessageRoleAssistant, 2, rangeStart.Add(30*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 4, rangeStart.Add(45*time.Minute), true)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 8, rangeEnd.Add(-time.Second), false)
+	// Tool rows count because runtime totals are role-agnostic.
+	insertMessage(chat1.ID, database.ChatMessageRoleTool, 64, rangeStart.Add(20*time.Minute), false)
 	// Not counted: before the range, on the exclusive end boundary, and a
 	// NULL runtime (runtime 0 is stored as NULL).
-	insertMessage(chat1.ID, 16, rangeStart.Add(-time.Second), false)
-	insertMessage(chat1.ID, 32, rangeEnd, false)
-	insertMessage(chat1.ID, 0, rangeStart.Add(10*time.Minute), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 16, rangeStart.Add(-time.Second), false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 32, rangeEnd, false)
+	insertMessage(chat1.ID, database.ChatMessageRoleAssistant, 0, rangeStart.Add(10*time.Minute), false)
 
 	total, err = db.GetTotalChatMessageRuntimeMsInRange(ctx, database.GetTotalChatMessageRuntimeMsInRangeParams{
 		StartTime: rangeStart,
 		EndTime:   rangeEnd,
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 15, total)
+	require.EqualValues(t, 79, total)
 }
 
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
@@ -12483,15 +12558,15 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 		params.Enabled = false
 	})
 
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	configs, err := store.GetEnabledChatModelConfigsByOrganization(ctx, enabledConfig.OrganizationID)
 	require.NoError(t, err)
-	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.True(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == enabledConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledProviderConfig.ID
 	}))
-	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsRow) bool {
+	require.False(t, slices.ContainsFunc(configs, func(row database.GetEnabledChatModelConfigsByOrganizationRow) bool {
 		return row.ChatModelConfig.ID == disabledModelConfig.ID
 	}))
 
@@ -14267,54 +14342,54 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
 
 	tests := []struct {
-		name               string
-		groupLimit         int64
-		overrideLimit      int64
-		spend              int64
-		wantEffectiveGroup bool
-		wantLimit          sql.NullInt64
-		wantSource         sql.NullString
-		wantSpend          int64
+		name                string
+		groupLimit          int64
+		overrideLimit       int64
+		spend               int64
+		wantEffectiveGroup  bool
+		wantEffectiveLimit  sql.NullInt64
+		wantEffectiveSource sql.NullString
+		wantSpend           int64
 	}{
 		{
-			name:               "NoBudgetNoSpend",
-			wantEffectiveGroup: false,
-			wantLimit:          sql.NullInt64{},
-			wantSource:         sql.NullString{},
-			wantSpend:          0,
+			name:                "NoBudgetNoSpend",
+			wantEffectiveGroup:  false,
+			wantEffectiveLimit:  sql.NullInt64{},
+			wantEffectiveSource: sql.NullString{},
+			wantSpend:           0,
 		},
 		{
-			name:               "GroupBudget",
-			groupLimit:         1_000_000,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
-			wantSource:         sql.NullString{String: "group", Valid: true},
-			wantSpend:          0,
+			name:                "GroupBudget",
+			groupLimit:          1_000_000,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "group", Valid: true},
+			wantSpend:           0,
 		},
 		{
-			name:               "OverrideBudget",
-			overrideLimit:      500_000,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 500_000, Valid: true},
-			wantSource:         sql.NullString{String: "user_override", Valid: true},
-			wantSpend:          0,
+			name:                "OverrideBudget",
+			overrideLimit:       500_000,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 500_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "user_override", Valid: true},
+			wantSpend:           0,
 		},
 		{
-			name:               "NoBudgetWithSpend",
-			spend:              250,
-			wantEffectiveGroup: false,
-			wantLimit:          sql.NullInt64{},
-			wantSource:         sql.NullString{},
-			wantSpend:          250,
+			name:                "NoBudgetWithSpend",
+			spend:               250,
+			wantEffectiveGroup:  false,
+			wantEffectiveLimit:  sql.NullInt64{},
+			wantEffectiveSource: sql.NullString{},
+			wantSpend:           250,
 		},
 		{
-			name:               "BudgetWithSpend",
-			groupLimit:         1_000_000,
-			spend:              250,
-			wantEffectiveGroup: true,
-			wantLimit:          sql.NullInt64{Int64: 1_000_000, Valid: true},
-			wantSource:         sql.NullString{String: "group", Valid: true},
-			wantSpend:          250,
+			name:                "BudgetWithSpend",
+			groupLimit:          1_000_000,
+			spend:               250,
+			wantEffectiveGroup:  true,
+			wantEffectiveLimit:  sql.NullInt64{Int64: 1_000_000, Valid: true},
+			wantEffectiveSource: sql.NullString{String: "group", Valid: true},
+			wantSpend:           250,
 		},
 	}
 
@@ -14370,8 +14445,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 			} else {
 				require.False(t, got[0].EffectiveGroupID.Valid, "expected no effective group")
 			}
-			require.Equal(t, tt.wantLimit, got[0].SpendLimitMicros)
-			require.Equal(t, tt.wantSource, got[0].LimitSource)
+			require.Equal(t, tt.wantEffectiveLimit, got[0].EffectiveSpendLimitMicros)
+			require.Equal(t, tt.wantEffectiveSource, got[0].EffectiveLimitSource)
 			require.Equal(t, tt.wantSpend, got[0].GroupSpendMicros)
 		})
 	}
@@ -14417,8 +14492,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, int64(250), byID[userB.ID].GroupSpendMicros)
 		for _, row := range got {
 			require.False(t, row.EffectiveGroupID.Valid)
-			require.False(t, row.SpendLimitMicros.Valid)
-			require.False(t, row.LimitSource.Valid)
 		}
 	})
 
@@ -14452,8 +14525,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: per-user spend is summed across all days in the period.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(600), got[0].GroupSpendMicros)
 	})
 
@@ -14502,8 +14573,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the override target wins over the highest-limit group.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: overrideTarget.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 500_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "user_override", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14553,8 +14624,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the tie falls to the lowest group ID.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: winner, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14589,11 +14660,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: effective_group_id resolves to the Everyone group.
+		// Then: effective_group_id resolves to the Everyone group and exposes
+		// its effective budget without treating it as the queried group's budget.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14628,11 +14700,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: with no budget, the effective group falls back to the Everyone
-		// group. The limit and source are null, and queried-group spend is returned.
+		// group. The effective and queried-group budgets are null, and
+		// queried-group spend is returned.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: org.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14675,8 +14748,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// returns.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14712,13 +14785,12 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Then: queried-group spend is returned, effective_group_id is the
-		// other group, and the limit and source are null because the queried
-		// group is not the effective source.
+		// Then: queried-group spend is returned, effective_group_id and its
+		// budget identify the other group, and the queried-group budget is null.
 		require.Len(t, got, 1)
 		require.Equal(t, uuid.NullUUID{UUID: other.ID, Valid: true}, got[0].EffectiveGroupID)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.Equal(t, sql.NullInt64{Int64: 1_000_000, Valid: true}, got[0].EffectiveSpendLimitMicros)
+		require.Equal(t, sql.NullString{String: "group", Valid: true}, got[0].EffectiveLimitSource)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14750,8 +14822,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: spend attributed to the other group is not counted.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14781,8 +14851,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, member.ID, got[0].UserID)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(0), got[0].GroupSpendMicros)
 	})
 
@@ -14854,8 +14922,8 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// The queried-group spend is still returned.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid, "cross-org effective group must be masked")
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
+		require.False(t, got[0].EffectiveSpendLimitMicros.Valid)
+		require.False(t, got[0].EffectiveLimitSource.Valid)
 		require.Equal(t, int64(250), got[0].GroupSpendMicros)
 	})
 
@@ -14890,8 +14958,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: only current-period spend is aggregated.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros)
 	})
 
@@ -14928,8 +14994,6 @@ func TestGetGroupMembersAISpend(t *testing.T) {
 		// Then: the prior UTC day's spend is excluded from the aggregate.
 		require.Len(t, got, 1)
 		require.False(t, got[0].EffectiveGroupID.Valid)
-		require.False(t, got[0].SpendLimitMicros.Valid)
-		require.False(t, got[0].LimitSource.Valid)
 		require.Equal(t, int64(25), got[0].GroupSpendMicros,
 			"sum must exclude prevMonthLastDay row after normalization")
 	})
@@ -18254,10 +18318,22 @@ func TestGetChatsSearch(t *testing.T) {
 	pendingChat := createRoot("plain four")
 	insertMsg(pendingChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "elasticsearch indexing")
 
+	// Simulates the post-migration drain window: a vector produced with
+	// the 'simple' config whose search_tsv_config was never stamped
+	// (pre-migration backfill or an old binary mid rolling upgrade).
+	// Such rows must keep their pre-migration exact-form matching until
+	// the sweep rewrites them.
+	staleChat := createRoot("plain stale")
+	staleMsg := insertMsg(staleChat.ID, database.ChatMessageRoleUser, database.ChatMessageVisibilityBoth, "refactoring codebase")
+	_, err = sqlDB.ExecContext(ctx,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'refactoring codebase'), search_tsv_config = NULL WHERE id = $1`,
+		staleMsg.ID)
+	require.NoError(t, err)
+
 	// Prove role/visibility predicates exclude rows even when search_tsv
 	// is set.
 	_, err = sqlDB.ExecContext(ctx,
-		`UPDATE chat_messages SET search_tsv = to_tsvector('simple', 'forbidden secret token') WHERE id = ANY($1)`,
+		`UPDATE chat_messages SET search_tsv = to_tsvector('english', 'forbidden secret token') WHERE id = ANY($1)`,
 		pq.Array([]int64{toolMsg.ID, modelOnlyMsg.ID}))
 	require.NoError(t, err)
 
@@ -18268,7 +18344,7 @@ func TestGetChatsSearch(t *testing.T) {
 		titleChat.ID, archivedChat.ID, prTitleChat.ID, mergedChat.ID,
 		msgChat.ID, assistantMsgChat.ID, userVisMsgChat.ID,
 		assistantUserVisMsgChat.ID, deletedMsgChat.ID, childParent.ID,
-		ineligibleChat.ID, pendingChat.ID,
+		ineligibleChat.ID, pendingChat.ID, staleChat.ID,
 	}
 
 	tests := []struct {
@@ -18279,8 +18355,20 @@ func TestGetChatsSearch(t *testing.T) {
 		{"Title/Match", database.GetChatsParams{Search: "pipeline alpha"}, []uuid.UUID{titleChat.ID}},
 		{"Title/CaseInsensitiveMultiWord", database.GetChatsParams{Search: "ALPHA DEPLOY"}, []uuid.UUID{titleChat.ID}},
 		{"Title/AndSemantics", database.GetChatsParams{Search: "deploy nonexistent"}, nil},
+		// Titles keep the 'simple' config, which does not stem, so
+		// inflected query forms only match message bodies.
+		{"Title/NoStemming", database.GetChatsParams{Search: "deploying pipelines"}, nil},
 		{"PRTitle/Match", database.GetChatsParams{Search: "authentication"}, []uuid.UUID{prTitleChat.ID, mergedChat.ID}},
+		{"PRTitle/NoStemming", database.GetChatsParams{Search: "authenticating"}, nil},
 		{"Message/Match", database.GetChatsParams{Search: "kubernetes restart"}, []uuid.UUID{msgChat.ID}},
+		// The 'english' config stems both sides, so inflected query forms
+		// match the stored words.
+		{"Message/StemmedMatch", database.GetChatsParams{Search: "restarting clusters"}, []uuid.UUID{msgChat.ID}},
+		// Stale 'simple' vectors are queried with their own config: the
+		// exact form matches like before the migration, the stemmed form
+		// does not until the sweep rewrites the row.
+		{"Message/StaleVectorExactFormMatch", database.GetChatsParams{Search: "refactoring codebase"}, []uuid.UUID{staleChat.ID}},
+		{"Message/StaleVectorNoStemming", database.GetChatsParams{Search: "refactor"}, nil},
 		{"Message/AssistantRoleMatch", database.GetChatsParams{Search: "grafana tuning"}, []uuid.UUID{assistantMsgChat.ID}},
 		{"Message/UserVisibilityMatch", database.GetChatsParams{Search: "vault rotation"}, []uuid.UUID{userVisMsgChat.ID}},
 		{"Message/AssistantUserVisibilityMatch", database.GetChatsParams{Search: "redis eviction"}, []uuid.UUID{assistantUserVisMsgChat.ID}},
@@ -19437,4 +19525,36 @@ func TestGetAIModelPrices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetChatSiteConfigValue(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_chat_retention_days",
+		Value: "30",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "agents_unset",
+		Value: "not a chat setting",
+	}))
+	require.NoError(t, db.UpsertRuntimeConfig(ctx, database.UpsertRuntimeConfigParams{
+		Key:   "derp_mesh_key",
+		Value: "secret",
+	}))
+
+	value, err := db.GetChatSiteConfigValue(ctx, "agents_chat_retention_days")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{Value: "30", Exists: true}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "agents_unset")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
+
+	value, err = db.GetChatSiteConfigValue(ctx, "derp_mesh_key")
+	require.NoError(t, err)
+	require.Equal(t, database.GetChatSiteConfigValueRow{}, value)
 }

@@ -70,8 +70,8 @@ Coder Agents does not change your workspace network requirements.
 When a user submits a prompt, the control plane processes it as a background
 job:
 
-1. The prompt is saved to the database and the chat is marked `pending`.
-1. The control plane picks up the chat and marks it `running`.
+1. The prompt is saved to the database and the chat is marked `running`.
+1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
 1. If the response includes tool calls, the control plane executes them
@@ -141,7 +141,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `read_file`      | Reads file contents with line-number pagination.                                                                                                                                                                                                                                   |
 | `write_file`     | Writes content to a file.                                                                                                                                                                                                                                                          |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                                                                                                                                                                                                                 |
+| `edit_files`     | Performs atomic, per-file edits across one or more files, replacing `old_text` with `new_text`.                                                                                                                                                                                    |
 | `execute`        | Runs a shell command, waiting for completion up to a timeout.                                                                                                                                                                                                                      |
 | `process_output` | Retrieves output from a tracked process.                                                                                                                                                                                                                                           |
 | `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |
@@ -163,14 +163,15 @@ workspace connection. Platform and orchestration tools are only available to
 root chats — sub-agents spawned by `spawn_agent` do not have access to them
 and cannot create workspaces or spawn further sub-agents.
 
-| Tool                | What it does                                                                            |
-|---------------------|-----------------------------------------------------------------------------------------|
-| `list_templates`    | Browses available workspace templates, sorted by popularity.                            |
-| `read_template`     | Gets template details and configurable parameters.                                      |
-| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                       |
-| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.  |
-| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation. |
-| `ask_user_question` | Asks the user structured clarification questions during plan mode.                      |
+| Tool                | What it does                                                                                      |
+|---------------------|---------------------------------------------------------------------------------------------------|
+| `list_templates`    | Browses available workspace templates, sorted by popularity.                                      |
+| `read_template`     | Gets template details and configurable parameters.                                                |
+| `create_workspace`  | Creates a workspace from a template and waits for it to be ready.                                 |
+| `start_workspace`   | Starts the chat's workspace if it is currently stopped. Idempotent if already running.            |
+| `stop_workspace`    | Stops the chat's workspace and waits for the stop build to finish. Idempotent if already stopped. |
+| `propose_plan`      | Presents a Markdown plan file from the workspace for user review before implementation.           |
+| `ask_user_question` | Asks the user structured clarification questions during plan mode.                                |
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is
 active. In that mode, `write_file` and `edit_files` are restricted to the
@@ -214,6 +215,14 @@ These tools are conditionally available based on the workspace contents.
 |-------------------|--------------------------------------------------------------------------------------------------------------------------------|
 | `read_skill`      | Reads the instructions for a workspace skill by name. Available when the workspace has skills discovered in `.agents/skills/`. |
 | `read_skill_file` | Reads a supporting file from a skill's directory.                                                                              |
+
+### MCP tool search
+
+This tool runs in the control plane and replaces the full MCP tool schemas with a searchable catalog, so a large MCP surface does not consume the context window.
+
+| Tool         | What it does                                                                                                                                                                                           |
+|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `find_tools` | Searches the deferred MCP tool catalog by keyword or exact name and activates the matching tools. Available only when the `mcp-tool-search` experiment is enabled and the turn has MCP tools to defer. |
 
 ## What runs where
 
@@ -290,12 +299,12 @@ plane, not from the workspace's network.
 
 ### Centralized enforcement
 
-Administrators control which models are available, the system prompt, and tool
-configuration from the control plane. Developers can select from the set of
-admin-enabled models when starting or continuing a chat, but cannot add their
-own providers or override system prompts or tool permissions. When an
-administrator removes a model or modifies the system prompt, the change applies
-to all agent sessions immediately.
+Administrators control which models are available, the system prompt, and tool configuration from the control plane.
+The system prompt and the tool configuration are deployment-wide.
+The model list belongs to an organization, so a chat can only use the models of its own organization.
+Developers can select from the set of admin-enabled models when starting or continuing a chat, but cannot add their own providers or override system prompts or tool permissions.
+When an administrator removes a model or modifies the system prompt, the change applies to all affected agent sessions immediately.
+Refer to [Organization scope](./platform-controls/organizations.md) for the settings that belong to each scope.
 
 ### User identity on every action
 

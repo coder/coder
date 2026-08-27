@@ -1568,6 +1568,64 @@ func AllChatMessageRoleValues() []ChatMessageRole {
 	}
 }
 
+type ChatMessageSearchTsvConfig string
+
+const (
+	ChatMessageSearchTsvConfigSimple  ChatMessageSearchTsvConfig = "simple"
+	ChatMessageSearchTsvConfigEnglish ChatMessageSearchTsvConfig = "english"
+)
+
+func (e *ChatMessageSearchTsvConfig) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ChatMessageSearchTsvConfig(s)
+	case string:
+		*e = ChatMessageSearchTsvConfig(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ChatMessageSearchTsvConfig: %T", src)
+	}
+	return nil
+}
+
+type NullChatMessageSearchTsvConfig struct {
+	ChatMessageSearchTsvConfig ChatMessageSearchTsvConfig `json:"chat_message_search_tsv_config"`
+	Valid                      bool                       `json:"valid"` // Valid is true if ChatMessageSearchTsvConfig is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullChatMessageSearchTsvConfig) Scan(value interface{}) error {
+	if value == nil {
+		ns.ChatMessageSearchTsvConfig, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ChatMessageSearchTsvConfig.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullChatMessageSearchTsvConfig) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ChatMessageSearchTsvConfig), nil
+}
+
+func (e ChatMessageSearchTsvConfig) Valid() bool {
+	switch e {
+	case ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish:
+		return true
+	}
+	return false
+}
+
+func AllChatMessageSearchTsvConfigValues() []ChatMessageSearchTsvConfig {
+	return []ChatMessageSearchTsvConfig{
+		ChatMessageSearchTsvConfigSimple,
+		ChatMessageSearchTsvConfigEnglish,
+	}
+}
+
 type ChatMessageVisibility string
 
 const (
@@ -3632,6 +3690,7 @@ const (
 	ResourceTypeChatInstructionSettings     ResourceType = "chat_instruction_settings"
 	ResourceTypeMCPServerConfig             ResourceType = "mcp_server_config"
 	ResourceTypeChatModelConfig             ResourceType = "chat_model_config"
+	ResourceTypeChatOperationalSettings     ResourceType = "chat_operational_settings"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3709,7 +3768,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeOauth2ProviderSettings,
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
-		ResourceTypeChatModelConfig:
+		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings:
 		return true
 	}
 	return false
@@ -3756,6 +3816,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatInstructionSettings,
 		ResourceTypeMCPServerConfig,
 		ResourceTypeChatModelConfig,
+		ResourceTypeChatOperationalSettings,
 	}
 }
 
@@ -5241,6 +5302,8 @@ type ChatMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	// Used for full text search. NULL initially, populated async via background job.
 	SearchTsv interface{} `db:"search_tsv" json:"search_tsv"`
+	// Text search config that produced search_tsv. NULL means an unknown config (a pre-migration vector or one written by an old binary); the dbpurge sweep re-vectorizes such rows.
+	SearchTsvConfig NullChatMessageSearchTsvConfig `db:"search_tsv_config" json:"search_tsv_config"`
 }
 
 type ChatModelConfig struct {
@@ -5262,6 +5325,14 @@ type ChatModelConfig struct {
 	OrganizationID       uuid.UUID       `db:"organization_id" json:"organization_id"`
 	GroupACL             ChatACL         `db:"group_acl" json:"group_acl"`
 	UserACL              ChatACL         `db:"user_acl" json:"user_acl"`
+}
+
+type ChatOrganizationModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	ModelConfigID   uuid.UUID      `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ChatQueuedMessage struct {
@@ -5341,6 +5412,16 @@ type ChatUsageLimitConfig struct {
 	Period             string    `db:"period" json:"period"`
 	CreatedAt          time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt          time.Time `db:"updated_at" json:"updated_at"`
+}
+
+type ChatUserModelOverride struct {
+	ID              uuid.UUID      `db:"id" json:"id"`
+	UserID          uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	Context         string         `db:"context" json:"context"`
+	Mode            string         `db:"mode" json:"mode"`
+	ModelConfigID   uuid.NullUUID  `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort sql.NullString `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
 type ConnectionLog struct {
@@ -6031,6 +6112,7 @@ type Template struct {
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
 	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	AgentsAllowed                 bool            `db:"agents_allowed" json:"agents_allowed"`
+	AllowWorkspaceRenames         bool            `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -6085,6 +6167,8 @@ type TemplateTable struct {
 	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	// Whether Coder Agents can create workspaces using this template.
 	AgentsAllowed bool `db:"agents_allowed" json:"agents_allowed"`
+	// Whether workspaces built from this template may be renamed. Renaming can be destructive for templates whose Terraform references the workspace name.
+	AllowWorkspaceRenames bool `db:"allow_workspace_renames" json:"allow_workspace_renames"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

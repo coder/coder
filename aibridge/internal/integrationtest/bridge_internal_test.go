@@ -41,7 +41,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -1172,13 +1171,13 @@ func TestSessionIDTracking(t *testing.T) {
 	}{
 		// Session in header.
 		{
-			name:            "mux",
+			name:            "xum",
 			fixture:         fixtures.AntSimple,
-			expectedClient:  aibridge.ClientMux,
-			expectSessionID: "mux-workspace-321",
+			expectedClient:  aibridge.ClientXum,
+			expectSessionID: "xum-workspace-321",
 			header: http.Header{
-				"User-Agent":         []string{"mux/1.0.0"},
-				"X-Mux-Workspace-Id": []string{"mux-workspace-321"},
+				"User-Agent":         []string{"xum/1.0.0"},
+				"X-Mux-Workspace-Id": []string{"xum-workspace-321"},
 			},
 		},
 		// Session in body.
@@ -1828,7 +1827,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    nil,
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1836,7 +1835,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1844,7 +1843,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAny},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAny,
 		},
 		{
@@ -1852,7 +1851,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceTool, "name": "some_tool"},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceTool,
 		},
 		{
@@ -1869,7 +1868,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    nil,
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1877,7 +1876,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1885,7 +1884,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAny},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAny,
 		},
 		{
@@ -1893,7 +1892,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceTool, "name": "some_tool"},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceTool,
 		},
 		{
@@ -1909,7 +1908,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1917,7 +1916,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Without injected or builtin tools - disable_parallel_tool_use should NOT be set.
@@ -1959,7 +1958,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1967,7 +1966,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSingleBuiltinTool,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Without injected or builtin tools - disable_parallel_tool_use should be preserved if set.
@@ -1976,7 +1975,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -1984,7 +1983,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Request already has disable_parallel_tool_use set - with injected tools it should be set to true.
@@ -1993,7 +1992,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -2001,7 +2000,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             true,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		// Request already has disable_parallel_tool_use set - without injected tools it should be preserved.
@@ -2010,7 +2009,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": true},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(true),
+			expectDisableParallel:         new(true),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 		{
@@ -2018,7 +2017,7 @@ func TestAnthropicToolChoiceParallelDisabled(t *testing.T) {
 			fixture:                       fixtures.AntSimple,
 			toolChoice:                    map[string]any{"type": toolChoiceAuto, "disable_parallel_tool_use": false},
 			withInjectedTools:             false,
-			expectDisableParallel:         utils.PtrTo(false),
+			expectDisableParallel:         new(false),
 			expectToolChoiceTypeInRequest: toolChoiceAuto,
 		},
 	}
@@ -2101,59 +2100,59 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 			name:              "with injected and builtin tools: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls unset",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With injected tools but without builtin tools: parallel_tool_calls should be forced false.
 		{
 			name:              "with injected tools only: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls unset",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With builtin tools but without injected tools: parallel_tool_calls should be preserved.
 		{
 			name:              "with builtin tools only: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSingleBuiltinTool,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls unset",
@@ -2167,15 +2166,15 @@ func TestChatCompletionsParallelToolCallsDisabled(t *testing.T) {
 			name:              "no tools: parallel_tool_calls true",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "no tools: parallel_tool_calls false",
 			fixture:           fixtures.OaiChatSimple,
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "no tools: parallel_tool_calls unset",

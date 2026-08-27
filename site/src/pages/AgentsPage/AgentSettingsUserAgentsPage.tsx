@@ -1,37 +1,90 @@
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	chatModelAvailability,
 	chatModels,
 	updateUserChatPersonalModelOverride,
 	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	getDefaultOrganizationId,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
 import { resolveModelSelector } from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
+	const { organizations } = useDashboard();
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
+	const [selectedOrganizationId, setSelectedOrganizationId] = useState(
+		defaultOrganizationId,
+	);
+	const selectedOrganization =
+		organizations.find(
+			(organization) => organization.id === selectedOrganizationId,
+		) ??
+		organizations.find(
+			(organization) => organization.id === defaultOrganizationId,
+		) ??
+		organizations[0];
+	const organizationId = selectedOrganization?.id ?? "";
+	// Remount on organization change so mutation state (pending saves,
+	// errors) from one organization never renders on another's form.
+	return (
+		<AgentSettingsUserAgentsPageContent
+			key={organizationId}
+			organizations={organizations}
+			selectedOrganization={selectedOrganization}
+			organizationId={organizationId}
+			onSelectOrganization={(organization) =>
+				setSelectedOrganizationId(organization.id)
+			}
+		/>
+	);
+};
+
+interface AgentSettingsUserAgentsPageContentProps {
+	organizations: readonly TypesGen.Organization[];
+	selectedOrganization: TypesGen.Organization | undefined;
+	organizationId: string;
+	onSelectOrganization: (organization: TypesGen.Organization) => void;
+}
+
+const AgentSettingsUserAgentsPageContent: FC<
+	AgentSettingsUserAgentsPageContentProps
+> = ({
+	organizations,
+	selectedOrganization,
+	organizationId,
+	onSelectOrganization,
+}) => {
 	const queryClient = useQueryClient();
-	const overridesQuery = useQuery(userChatPersonalModelOverrides());
-	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
-	const modelsQuery = useQuery(chatModels());
-	const providerConfigsQuery = useQuery(userChatProviderConfigs());
+	const overridesQuery = useQuery(
+		userChatPersonalModelOverrides(organizationId),
+	);
+	const modelsQuery = useQuery(chatModels(organizationId));
 	const saveRootModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
 	const saveGeneralModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
 	const saveExploreModelOverrideMutation = useMutation(
-		updateUserChatPersonalModelOverride(queryClient),
+		updateUserChatPersonalModelOverride(queryClient, organizationId),
 	);
+
+	const organizationModelConfigs = modelsQuery.data?.models ?? [];
+
 	const { options: modelOptions, isModelCatalogLoading } = resolveModelSelector(
+		organizationId,
 		modelsQuery,
-		chatModelAvailabilityQuery,
-		providerConfigsQuery,
 	);
-	const modelsError = modelsQuery.error ?? chatModelAvailabilityQuery.error;
+	const hasNoOrganizationModels =
+		organizationId !== "" &&
+		!modelsQuery.isLoading &&
+		modelsQuery.error === null &&
+		modelsQuery.data !== undefined &&
+		modelOptions.length === 0;
 
 	const saveModelOverride = (
 		context: TypesGen.ChatPersonalModelOverrideContext,
@@ -55,9 +108,14 @@ const AgentSettingsUserAgentsPage: FC = () => {
 			isRetryingOverrides={overridesQuery.isFetching}
 			isLoadingOverrides={overridesQuery.isLoading}
 			modelOptions={modelOptions}
-			models={modelsQuery.data ?? []}
-			modelsError={modelsError}
+			organizations={organizations}
+			selectedOrganization={selectedOrganization}
+			onSelectOrganization={onSelectOrganization}
+			models={organizationModelConfigs}
+			modelsError={modelsQuery.error}
 			isLoadingModels={isModelCatalogLoading}
+			isOrganizationUnresolved={organizationId === ""}
+			hasNoOrganizationModels={hasNoOrganizationModels}
 			onSaveRootModelOverride={saveModelOverride(
 				"root",
 				saveRootModelOverrideMutation,

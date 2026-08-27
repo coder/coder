@@ -4,7 +4,6 @@ import (
 	"context"
 	"mime"
 	"net/http"
-	neturl "net/url"
 	"slices"
 	"strings"
 
@@ -25,17 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatutil"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-var supportedProviderNames = []string{
-	fantasyanthropic.Name,
-	fantasyazure.Name,
-	fantasybedrock.Name,
-	fantasygoogle.Name,
-	fantasyopenai.Name,
-	fantasyopenaicompat.Name,
-	fantasyopenrouter.Name,
-	fantasyvercel.Name,
-}
 
 var providerDisplayNameByName = map[string]string{
 	fantasyanthropic.Name:    "Anthropic",
@@ -205,13 +193,6 @@ type ConfiguredProvider struct {
 	AllowCentralAPIKeyFallback bool
 }
 
-// ConfiguredModel is an enabled model loaded from database config.
-type ConfiguredModel struct {
-	Provider    string
-	Model       string
-	DisplayName string
-}
-
 // APIKey returns the effective API key for a provider.
 func (k ProviderAPIKeys) APIKey(provider string) string {
 	normalized := NormalizeProvider(provider)
@@ -262,30 +243,6 @@ func (k ProviderAPIKeys) Region(provider string) string {
 		return ""
 	}
 	return strings.TrimSpace(k.RegionByProvider[normalized])
-}
-
-// ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
-func ProviderBaseURLHostname(baseURL string) string {
-	parsed, ok := parseProviderBaseURL(baseURL)
-	if !ok {
-		return ""
-	}
-	return strings.ToLower(parsed.Hostname())
-}
-
-func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
-	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
-		return nil, false
-	}
-	parsed, err := neturl.Parse(baseURL)
-	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
-		parsed, err = neturl.Parse("https://" + baseURL)
-	}
-	if err != nil {
-		return nil, false
-	}
-	return parsed, true
 }
 
 // setRegion records a normalized, non-empty region for a provider. The
@@ -487,128 +444,6 @@ func setResolvedProviderAPIKey(keys *ProviderAPIKeys, provider string, apiKey st
 	}
 }
 
-type ModelCatalog struct{}
-
-func NewModelCatalog() *ModelCatalog {
-	return &ModelCatalog{}
-}
-
-// ListConfiguredModels returns a model catalog from enabled DB-backed model
-// configs. The second return value reports whether DB-backed models were used.
-func (*ModelCatalog) ListConfiguredModels(
-	configuredProviders []ConfiguredProvider,
-	configuredModels []ConfiguredModel,
-	availabilityByProvider map[string]ProviderAvailability,
-	enabledProviders map[string]struct{},
-) (codersdk.ChatModelAvailabilityResponse, bool) {
-	if len(configuredModels) == 0 {
-		return codersdk.ChatModelAvailabilityResponse{}, false
-	}
-
-	modelsByProvider := make(map[string][]codersdk.ChatModelCatalogEntry)
-	seenByProvider := make(map[string]map[string]struct{})
-	providerSet := make(map[string]struct{})
-
-	for _, provider := range configuredProviders {
-		normalized := NormalizeProvider(provider.Provider)
-		if normalized == "" {
-			continue
-		}
-		providerSet[normalized] = struct{}{}
-	}
-
-	for _, model := range configuredModels {
-		provider, modelID, err := ResolveModelWithProviderHint(model.Model, model.Provider)
-		if err != nil {
-			continue
-		}
-
-		providerSet[provider] = struct{}{}
-		if seenByProvider[provider] == nil {
-			seenByProvider[provider] = make(map[string]struct{})
-		}
-		normalizedModelID := strings.ToLower(strings.TrimSpace(modelID))
-		if _, ok := seenByProvider[provider][normalizedModelID]; ok {
-			continue
-		}
-		seenByProvider[provider][normalizedModelID] = struct{}{}
-		modelsByProvider[provider] = append(
-			modelsByProvider[provider],
-			newChatModelCatalogEntry(provider, modelID, model.DisplayName),
-		)
-	}
-
-	providers := orderProviders(providerSet)
-	if len(providers) == 0 {
-		return codersdk.ChatModelAvailabilityResponse{}, false
-	}
-
-	response := codersdk.ChatModelAvailabilityResponse{
-		Providers: make([]codersdk.ChatModelProvider, 0, len(providers)),
-	}
-	for _, provider := range providers {
-		if _, ok := enabledProviders[provider]; !ok {
-			continue
-		}
-
-		models := modelsByProvider[provider]
-		sortChatModelCatalogEntries(models)
-
-		result := codersdk.ChatModelProvider{
-			Provider: provider,
-			Models:   models,
-		}
-		if avail, ok := availabilityByProvider[provider]; ok {
-			result.Available = avail.Available
-			if !avail.Available {
-				result.UnavailableReason = avail.UnavailableReason
-			}
-		} else {
-			result.Available = false
-			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		}
-
-		response.Providers = append(response.Providers, result)
-	}
-
-	return response, true
-}
-
-// ListConfiguredProviderAvailability returns provider availability derived from
-// the policy-aware availability map for enabled providers.
-func (*ModelCatalog) ListConfiguredProviderAvailability(
-	availabilityByProvider map[string]ProviderAvailability,
-	enabledProviders map[string]struct{},
-) codersdk.ChatModelAvailabilityResponse {
-	response := codersdk.ChatModelAvailabilityResponse{
-		Providers: make([]codersdk.ChatModelProvider, 0, len(supportedProviderNames)),
-	}
-
-	for _, provider := range supportedProviderNames {
-		if _, ok := enabledProviders[provider]; !ok {
-			continue
-		}
-
-		result := codersdk.ChatModelProvider{
-			Provider: provider,
-			Models:   []codersdk.ChatModelCatalogEntry{},
-		}
-		if avail, ok := availabilityByProvider[provider]; ok {
-			result.Available = avail.Available
-			if !avail.Available {
-				result.UnavailableReason = avail.UnavailableReason
-			}
-		} else {
-			result.Available = false
-			result.UnavailableReason = codersdk.ChatModelProviderUnavailableMissingAPIKey
-		}
-
-		response.Providers = append(response.Providers, result)
-	}
-
-	return response
-}
-
 // PruneDisabledProviderKeys removes entries from keys that do not
 // belong to an enabled provider. It clears ByProvider,
 // BaseURLByProvider, and RegionByProvider entries for disabled
@@ -639,48 +474,6 @@ func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[strin
 	if _, ok := enabledProviders[NormalizeProvider("anthropic")]; !ok {
 		keys.Anthropic = ""
 	}
-}
-
-func newChatModelCatalogEntry(provider, modelID, displayName string) codersdk.ChatModelCatalogEntry {
-	name := strings.TrimSpace(displayName)
-	if name == "" {
-		name = modelID
-	}
-
-	return codersdk.ChatModelCatalogEntry{
-		ID:          canonicalModelID(provider, modelID),
-		Provider:    provider,
-		Model:       modelID,
-		DisplayName: name,
-	}
-}
-
-func sortChatModelCatalogEntries(models []codersdk.ChatModelCatalogEntry) {
-	slices.SortFunc(models, func(a, b codersdk.ChatModelCatalogEntry) int {
-		return strings.Compare(a.Model, b.Model)
-	})
-}
-
-func canonicalModelID(provider, modelID string) string {
-	return NormalizeProvider(provider) + ":" + strings.TrimSpace(modelID)
-}
-
-func orderProviders(providerSet map[string]struct{}) []string {
-	if len(providerSet) == 0 {
-		return nil
-	}
-
-	ordered := make([]string, 0, len(providerSet))
-	for _, provider := range supportedProviderNames {
-		if _, ok := providerSet[provider]; ok {
-			ordered = append(ordered, provider)
-		}
-	}
-
-	// Unknown providers are dropped. The providerSet keys are
-	// already normalized, so any provider not in
-	// supportedProviderNames is silently excluded.
-	return ordered
 }
 
 // NormalizeProvider canonicalizes a provider name.

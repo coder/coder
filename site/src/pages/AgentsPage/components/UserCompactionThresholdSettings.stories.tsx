@@ -2,12 +2,27 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModel } from "#/testHelpers/chatModels";
-import { MockUserOwner } from "#/testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization2,
+	MockUserOwner,
+} from "#/testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
+
+const modelsOrganization = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+};
+
+const organizationWithEmptyDisplayName = {
+	...MockDefaultOrganization,
+	id: MockChatModel.organization_id,
+	display_name: "",
+};
 
 const mockModels: TypesGen.ChatModel[] = [
 	{
@@ -53,6 +68,7 @@ const meta = {
 			["provider-1", "openai"],
 			["provider-anthropic", "anthropic"],
 		]),
+		organizations: [modelsOrganization],
 		thresholds: [],
 		isThresholdsLoading: false,
 		thresholdsError: undefined,
@@ -79,9 +95,15 @@ export const Default: Story = {
 		expect(canvas.queryByText("GPT-3.5 (Disabled)")).not.toBeInTheDocument();
 
 		// Each badge announces provider + model (the icon itself is decorative).
-		expect(canvas.getByLabelText("OpenAI GPT-4o")).toBeInTheDocument();
 		expect(
-			canvas.getByLabelText("Anthropic Claude Sonnet"),
+			canvas.getByLabelText(
+				`OpenAI GPT-4o in ${MockDefaultOrganization.display_name}`,
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByLabelText(
+				`Anthropic Claude Sonnet in ${MockDefaultOrganization.display_name}`,
+			),
 		).toBeInTheDocument();
 
 		// No footer visible when nothing is dirty
@@ -96,6 +118,26 @@ export const Default: Story = {
 				canvas.getByRole("button", { name: /Save 1 change/i }),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+export const EmptyOrganizationDisplayNameFallsBackToName: Story = {
+	args: {
+		organizations: [organizationWithEmptyDisplayName],
+		thresholds: [{ model_config_id: "model-1", threshold_percent: 90 }],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${organizationWithEmptyDisplayName.name}`,
+			}),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("button", {
+				name: `Reset GPT-4o for ${organizationWithEmptyDisplayName.name} to default`,
+			}),
+		).toBeVisible();
 	},
 };
 
@@ -276,9 +318,153 @@ export const PartialSaveFailure: Story = {
 	},
 };
 
+export const OrganizationFilter: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const filter = await canvas.findByRole("button", {
+			name: `Organization ${modelsOrganization.display_name}`,
+		});
+
+		expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+		expect(canvas.queryByText("Claude Sonnet")).not.toBeInTheDocument();
+
+		await userEvent.click(filter);
+		const option = await within(document.body).findByRole("option", {
+			name: MockOrganization2.display_name,
+		});
+		await userEvent.click(option);
+
+		await waitFor(() => {
+			expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+			expect(canvas.getByText("Claude Sonnet")).toBeInTheDocument();
+		});
+
+		expect(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		).toBeInTheDocument();
+	},
+};
+
+export const SingleOrganizationHidesFilter: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("GPT-4o");
+		expect(
+			canvas.queryByRole("button", { name: /^Organization / }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const OrganizationFilterScopesSaveActions: Story = {
+	args: {
+		models: [
+			mockModels[0],
+			{
+				...mockModels[1],
+				organization_id: MockOrganization2.id,
+			},
+		],
+		organizations: [modelsOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const gpt4oInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		await userEvent.type(gpt4oInput, "95");
+		await canvas.findByRole("button", { name: /Save 1 change/i });
+
+		// Switch to the other organization: the draft belongs to a hidden
+		// row, so the footer must disappear.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${modelsOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(canvas.queryByRole("button", { name: /Save/i })).toBeNull();
+		});
+
+		// Editing the visible row saves only that row.
+		const claudeInput = await canvas.findByRole("textbox", {
+			name: /Claude Sonnet compaction threshold/i,
+		});
+		await userEvent.type(claudeInput, "50");
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /Save 1 change/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveThreshold).toHaveBeenCalledWith("model-2", 50);
+			expect(args.onSaveThreshold).not.toHaveBeenCalledWith("model-1", 95);
+		});
+
+		// Switching back restores the hidden draft and its footer.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: `Organization ${MockOrganization2.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await within(document.body).findByRole("option", {
+				name: modelsOrganization.display_name,
+			}),
+		);
+		const restoredInput = await canvas.findByRole("textbox", {
+			name: /GPT-4o compaction threshold/i,
+		});
+		expect(restoredInput).toHaveValue("95");
+		// Wait out the temporary "Saved" footer state (2.5s) before the
+		// action buttons reappear.
+		await waitFor(
+			() => {
+				expect(
+					canvas.getByRole("button", { name: /Save 1 change/i }),
+				).toBeInTheDocument();
+			},
+			{ timeout: 5000 },
+		);
+	},
+};
+
 export const ErrorState: Story = {
 	name: "Error",
 	args: {
 		thresholdsError: new globalThis.Error("Failed to load thresholds"),
+	},
+};
+
+export const PartialModelLoadError: Story = {
+	args: {
+		modelsError: new globalThis.Error(
+			"Failed to load models from one organization",
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load models from one organization"),
+		).toBeVisible();
+		expect(
+			canvas.getByRole("textbox", {
+				name: `GPT-4o compaction threshold for ${MockDefaultOrganization.display_name}`,
+			}),
+		).toBeEnabled();
 	},
 };

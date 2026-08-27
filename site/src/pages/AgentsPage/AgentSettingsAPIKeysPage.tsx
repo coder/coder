@@ -4,12 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
-	chatModels,
 	deleteUserChatProviderKey,
 	upsertUserChatProviderKey,
 	userChatProviderConfigs,
 } from "#/api/queries/chats";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsAPIKeysPageView } from "./AgentSettingsAPIKeysPageView";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 
 const incrementResetToken = (
 	current: Record<string, number>,
@@ -21,12 +22,15 @@ const incrementResetToken = (
 
 const AgentSettingsAPIKeysPage: FC = () => {
 	const queryClient = useQueryClient();
+	const { organizations } = useDashboard();
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
 	const [providerPanelResetTokens, setProviderPanelResetTokens] = useState<
 		Record<string, number>
 	>({});
 
 	const providersQuery = useQuery(userChatProviderConfigs());
-	const modelsQuery = useQuery(chatModels());
 
 	const upsertMutationOptions = upsertUserChatProviderKey(queryClient);
 	const upsertMutation = useMutation({
@@ -78,9 +82,11 @@ const AgentSettingsAPIKeysPage: FC = () => {
 			error={providersQuery.error}
 			isLoading={providersQuery.isLoading}
 			providerItems={providerItems}
-			models={modelsQuery.data ?? []}
-			isModelsLoading={modelsQuery.isLoading}
-			areModelsUnavailable={Boolean(modelsQuery.error)}
+			models={organizationModels.models}
+			isModelsLoading={organizationModels.isLoading}
+			areModelsUnavailable={Boolean(
+				organizationModels.error ?? organizationModels.partialError,
+			)}
 			onSave={(providerConfigId, apiKey) => {
 				upsertMutation.mutate({
 					providerConfigId,

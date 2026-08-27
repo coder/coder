@@ -20,7 +20,7 @@ import (
 )
 
 // TestChatModelConfigListReadContracts pins the visible config set for each
-// role. The legacy endpoint reads only the default organization's configs.
+// role after chat model config reads become organization-scoped.
 func TestChatModelConfigListReadContracts(t *testing.T) {
 	t.Parallel()
 
@@ -51,6 +51,18 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	}, func(params *database.InsertChatModelConfigParams) {
 		params.Enabled = false
 	})
+	disabledProvider := dbgen.AIProvider(t, rawDB, database.AIProvider{
+		Type: database.AIProviderTypeAnthropic,
+	}, func(params *database.InsertAIProviderParams) {
+		params.Enabled = false
+	})
+	providerDisabled := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
+		AIProviderID:   uuid.NullUUID{UUID: disabledProvider.ID, Valid: true},
+		OrganizationID: defaultOrg.ID,
+		GroupACL: database.ChatACL{
+			defaultOrg.ID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		},
+	})
 	denied := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{
 		OrganizationID: defaultOrg.ID,
 		GroupACL:       database.ChatACL{},
@@ -64,23 +76,40 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 	})
 	require.True(t, ownEnabled.Enabled)
 	require.False(t, ownDisabled.Enabled)
+	require.False(t, disabledProvider.Enabled)
+	require.True(t, providerDisabled.Enabled)
 	require.True(t, denied.Enabled)
 	require.True(t, otherEnabled.Enabled)
 
 	for _, testCase := range []struct {
-		name       string
-		scope      codersdk.APIKeyScope
-		wantStatus int
+		name                 string
+		scopes               []codersdk.APIKeyScope
+		wantCollectionStatus int
+		wantItemStatus       int
+		wantACLStatus        int
 	}{
-		{name: "ModelRead", scope: codersdk.APIKeyScopeChatModelConfigRead},
-		{name: "WorkspaceRead", scope: codersdk.APIKeyScopeWorkspaceRead, wantStatus: http.StatusForbidden},
+		{
+			name: "ModelReadWithOrganizationRead",
+			scopes: []codersdk.APIKeyScope{
+				codersdk.APIKeyScopeOrganizationRead,
+				codersdk.APIKeyScopeChatModelConfigRead,
+			},
+			wantACLStatus: http.StatusNotFound,
+		},
+		{
+			name:                 "WorkspaceRead",
+			scopes:               []codersdk.APIKeyScope{codersdk.APIKeyScopeOrganizationRead, codersdk.APIKeyScopeWorkspaceRead},
+			wantCollectionStatus: http.StatusForbidden,
+			wantItemStatus:       http.StatusNotFound,
+			wantACLStatus:        http.StatusNotFound,
+		},
 	} {
 		t.Run("TokenScope/"+testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
-				Scopes: []codersdk.APIKeyScope{testCase.scope},
+				Scopes: testCase.scopes,
 			})
 			require.NoError(t, err)
 			scopedClient := codersdk.New(
@@ -90,108 +119,126 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			)
 			t.Cleanup(scopedClient.HTTPClient.CloseIdleConnections)
 
-			configs, err := codersdk.NewExperimentalClient(scopedClient).ChatModels(ctx)
-			if testCase.wantStatus != 0 {
-				requireSDKError(t, err, testCase.wantStatus)
-				return
+			experimentalClient := codersdk.NewExperimentalClient(scopedClient)
+			response, listErr := experimentalClient.ChatModels(ctx, defaultOrg.ID)
+			model, itemErr := experimentalClient.ChatModel(ctx, defaultOrg.ID, ownEnabled.ID)
+			_, aclErr := experimentalClient.ChatModelACL(ctx, defaultOrg.ID, ownEnabled.ID)
+			if testCase.wantCollectionStatus != 0 {
+				requireSDKError(t, listErr, testCase.wantCollectionStatus)
+			} else {
+				require.NoError(t, listErr)
+				require.NotEmpty(t, response.Models)
 			}
-			require.NoError(t, err)
-			require.NotEmpty(t, configs)
+			if testCase.wantItemStatus != 0 {
+				requireSDKError(t, itemErr, testCase.wantItemStatus)
+			} else {
+				require.NoError(t, itemErr)
+				require.Equal(t, ownEnabled.ID, model.ID)
+			}
+			requireSDKError(t, aclErr, testCase.wantACLStatus)
+		})
+	}
+
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	for _, endpoint := range []struct {
+		name string
+		call func(context.Context, uuid.UUID) error
+	}{
+		{
+			name: "Collection",
+			call: func(ctx context.Context, organizationID uuid.UUID) error {
+				_, err := memberClient.ChatModels(ctx, organizationID)
+				return err
+			},
+		},
+		{
+			name: "Item",
+			call: func(ctx context.Context, organizationID uuid.UUID) error {
+				_, err := memberClient.ChatModel(ctx, organizationID, otherEnabled.ID)
+				return err
+			},
+		},
+		{
+			name: "ACL",
+			call: func(ctx context.Context, organizationID uuid.UUID) error {
+				_, err := memberClient.ChatModelACL(ctx, organizationID, otherEnabled.ID)
+				return err
+			},
+		},
+	} {
+		t.Run("ConcealsHiddenOrganization/"+endpoint.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			var concealedMessage string
+			for _, organizationID := range []uuid.UUID{otherOrg.ID, uuid.New()} {
+				err := endpoint.call(ctx, organizationID)
+				sdkErr := requireSDKError(t, err, http.StatusNotFound)
+				if concealedMessage == "" {
+					concealedMessage = sdkErr.Message
+				}
+				require.Equal(t, concealedMessage, sdkErr.Message)
+			}
 		})
 	}
 
 	testCases := []struct {
-		name    string
-		client  func(t *testing.T, ctx context.Context) *codersdk.ExperimentalClient
-		visible []uuid.UUID
-		hidden  []uuid.UUID
+		name       string
+		client     func(t *testing.T, ctx context.Context) *codersdk.ExperimentalClient
+		seesDenied bool
 	}{
 		{
-			name: "OwnerSeesDefaultOrgConfigs",
+			name: "Member",
+			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
+				rawClient, _ := coderdtest.CreateAnotherUser(
+					t,
+					client.Client,
+					defaultOrg.ID,
+				)
+				return codersdk.NewExperimentalClient(rawClient)
+			},
+		},
+		{
+			name:       "Owner",
+			seesDenied: true,
 			client: func(*testing.T, context.Context) *codersdk.ExperimentalClient {
 				return client
 			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID},
-			hidden:  []uuid.UUID{otherEnabled.ID},
 		},
 		{
-			name: "SiteAuditorSeesDefaultOrgConfigs",
+			name:       "SiteAuditor",
+			seesDenied: true,
 			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
 				rawClient, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID, rbac.RoleAuditor())
 				return codersdk.NewExperimentalClient(rawClient)
 			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID},
-			hidden:  []uuid.UUID{otherEnabled.ID},
 		},
 		{
-			name: "CustomSiteReadRoleSeesDefaultOrgConfigs",
+			name:       "CustomSiteReadRole",
+			seesDenied: true,
 			client: func(t *testing.T, ctx context.Context) *codersdk.ExperimentalClient {
 				return newSiteCustomRoleClient(ctx, t, client, rawDB, defaultOrg.ID, database.CustomRolePermission{
 					ResourceType: rbac.ResourceChatModelConfig.Type,
 					Action:       policy.ActionRead,
 				})
 			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID},
-			hidden:  []uuid.UUID{otherEnabled.ID},
 		},
 		{
-			name: "AgentsAccessUsesRowACL",
-			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
-				rawClient, _ := coderdtest.CreateAnotherUser(
-					t,
-					client.Client,
-					defaultOrg.ID,
-					rbac.ScopedRoleAgentsAccess(defaultOrg.ID),
-				)
-				return codersdk.NewExperimentalClient(rawClient)
-			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID},
-			hidden:  []uuid.UUID{denied.ID, otherEnabled.ID},
-		},
-		{
-			name: "DeploymentConfigReadOnlyUsesRowACL",
-			client: func(t *testing.T, ctx context.Context) *codersdk.ExperimentalClient {
-				return newSiteCustomRoleClient(ctx, t, client, rawDB, defaultOrg.ID, database.CustomRolePermission{
-					ResourceType: rbac.ResourceDeploymentConfig.Type,
-					Action:       policy.ActionRead,
-				})
-			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID},
-			hidden:  []uuid.UUID{denied.ID, otherEnabled.ID},
-		},
-		{
-			name: "DefaultOrgAdminKeepsEnabledList",
+			name:       "OrgAdmin",
+			seesDenied: true,
 			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
 				rawClient, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID, rbac.ScopedRoleOrgAdmin(defaultOrg.ID))
 				return codersdk.NewExperimentalClient(rawClient)
 			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID},
-			hidden:  []uuid.UUID{otherEnabled.ID},
 		},
 		{
-			name: "DefaultOrgAuditorKeepsEnabledList",
+			name:       "OrgAuditor",
+			seesDenied: true,
 			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
 				rawClient, _ := coderdtest.CreateAnotherUser(t, client.Client, defaultOrg.ID, rbac.ScopedRoleOrgAuditor(defaultOrg.ID))
 				return codersdk.NewExperimentalClient(rawClient)
 			},
-			visible: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID},
-			hidden:  []uuid.UUID{otherEnabled.ID},
-		},
-		{
-			name: "NonDefaultOrgAdminSeesNoDefaultOrgConfigs",
-			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
-				rawClient, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
-				return codersdk.NewExperimentalClient(rawClient)
-			},
-			hidden: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID, otherEnabled.ID},
-		},
-		{
-			name: "NonDefaultOrgAuditorSeesNoDefaultOrgConfigs",
-			client: func(t *testing.T, _ context.Context) *codersdk.ExperimentalClient {
-				rawClient, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID, rbac.ScopedRoleOrgAuditor(otherOrg.ID))
-				return codersdk.NewExperimentalClient(rawClient)
-			},
-			hidden: []uuid.UUID{ownEnabled.ID, ownDisabled.ID, denied.ID, otherEnabled.ID},
 		},
 	}
 
@@ -200,14 +247,20 @@ func TestChatModelConfigListReadContracts(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			models, err := testCase.client(t, ctx).ChatModels(ctx)
+			models, err := testCase.client(t, ctx).ChatModels(ctx, defaultOrg.ID)
 			require.NoError(t, err)
-			for _, id := range testCase.visible {
-				require.True(t, containsChatModel(models, id), "must see ChatModel %s", id)
-			}
-			for _, id := range testCase.hidden {
-				require.False(t, containsChatModel(models, id), "must not see ChatModel %s", id)
-			}
+			require.True(t, containsChatModel(models.Models, ownEnabled.ID))
+			require.True(t, containsChatModel(models.Models, ownDisabled.ID))
+			require.True(t, containsChatModel(models.Models, providerDisabled.ID))
+			require.Equal(t, testCase.seesDenied, containsChatModel(models.Models, denied.ID))
+			require.False(t, containsChatModel(models.Models, otherEnabled.ID))
+
+			disabledProviderIndex := slices.IndexFunc(models.Providers, func(provider codersdk.ChatModelProviderDescriptor) bool {
+				return provider.ID == disabledProvider.ID
+			})
+			require.NotEqual(t, -1, disabledProviderIndex)
+			require.False(t, models.Providers[disabledProviderIndex].Enabled)
+			require.False(t, models.Providers[disabledProviderIndex].Available)
 		})
 	}
 }

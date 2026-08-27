@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
-	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -802,10 +801,16 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), msg.ID).Return(nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		configID := uuid.New()
-		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), configID).Return(configID, nil).AnyTimes()
-		check.Args(configID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(configID)
+	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
+		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatModelConfigByID(gomock.Any(), config.ID).Return(config.ID, nil).AnyTimes()
+		object := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(config.ID).Asserts(object, policy.ActionDelete).Returns(config.ID)
 	}))
 	s.Run("DeleteChatQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1074,6 +1079,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
+	s.Run("ReindexStaleChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
+		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
 		check.Args().Asserts()
@@ -1175,30 +1184,40 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
-		check.Args(config.ID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns(config)
+		object := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(config.ID).Asserts(object, policy.ActionRead).Returns(config)
 	}))
 	s.Run("GetDefaultChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetDefaultChatModelConfig(gomock.Any(), config.OrganizationID).Return(config, nil).AnyTimes()
-		check.Args(config.OrganizationID).Asserts().Returns(config)
+		object := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(config.OrganizationID).Asserts(object, policy.ActionRead).Returns(config)
 	}))
 	s.Run("GetChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetAuthorizedChatModelConfigs(gomock.Any(), gomock.Any()).Return([]database.ChatModelConfig{}, nil).AnyTimes()
+		orgID := uuid.New()
+		dbm.EXPECT().GetAuthorizedChatModelConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.ChatModelConfig{}, nil).AnyTimes()
 		// No asserts here because SQLFilter.
-		check.Args().Asserts()
+		check.Args(orgID).Asserts()
+	}))
+	s.Run("GetChatModelConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		dbm.EXPECT().GetChatModelConfigsByOrganization(gomock.Any(), orgID).Return([]database.ChatModelConfig{}, nil).AnyTimes()
+		check.Args(orgID).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate).Returns([]database.ChatModelConfig{})
 	}))
 	s.Run("GetAuthorizedChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetAuthorizedChatModelConfigs(gomock.Any(), gomock.Any()).Return([]database.ChatModelConfig{}, nil).AnyTimes()
+		orgID := uuid.New()
+		dbm.EXPECT().GetAuthorizedChatModelConfigs(gomock.Any(), orgID, gomock.Any()).Return([]database.ChatModelConfig{}, nil).AnyTimes()
 		// No asserts here because callers provide the SQL filter.
-		check.Args(emptyPreparedAuthorized{}).Asserts()
+		check.Args(orgID, emptyPreparedAuthorized{}).Asserts()
 	}))
-	s.Run("GetDefaultChatModelConfigCandidates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		configA := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
-		configB := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
-		dbm.EXPECT().GetDefaultChatModelConfigCandidates(gomock.Any()).Return([]database.ChatModelConfig{configA, configB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead).Returns([]database.ChatModelConfig{configA, configB})
-	}))
-
 	s.Run("GetChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		params := database.GetChatsParams{}
 		dbm.EXPECT().GetAuthorizedChats(gomock.Any(), params, gomock.Any()).Return([]database.GetChatsRow{}, nil).AnyTimes()
@@ -1276,21 +1295,32 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatComputerUseProvider(gomock.Any()).Return("anthropic", nil).AnyTimes()
 		check.Args().Asserts()
 	}))
-	s.Run("GetChatGeneralModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatGeneralModelOverride(gomock.Any()).Return("", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
+	s.Run("GetChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		arg := database.GetChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}
+		dbm.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), arg).Return(database.ChatOrganizationModelOverride{}, nil).AnyTimes()
+		object := rbac.ResourceChatModelConfig.InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+			orgID.String(): {policy.ActionRead},
+		})
+		check.Args(arg).Asserts(object, policy.ActionRead)
 	}))
-	s.Run("GetChatExploreModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatExploreModelOverride(gomock.Any()).Return("", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
+	s.Run("GetChatOrganizationModelOverrides", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		dbm.EXPECT().GetChatOrganizationModelOverrides(gomock.Any(), orgID).Return([]database.ChatOrganizationModelOverride{}, nil).AnyTimes()
+		object := rbac.ResourceChatModelConfig.InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+			orgID.String(): {policy.ActionRead},
+		})
+		check.Args(orgID).Asserts(object, policy.ActionRead)
 	}))
-	s.Run("GetChatTitleGenerationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
+	s.Run("GetChatOrganizationModelOverridesByContext", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), "advisor").Return([]database.GetChatOrganizationModelOverridesByContextRow{}, nil).AnyTimes()
+		check.Args("advisor").Asserts(rbac.ResourceChatModelConfig, policy.ActionRead)
 	}))
-	s.Run("GetChatCompactionModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatCompactionModelOverride(gomock.Any()).Return("", nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
+	s.Run("DeleteChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		arg := database.DeleteChatOrganizationModelOverrideParams{OrganizationID: orgID, Context: "general"}
+		dbm.EXPECT().DeleteChatOrganizationModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
 	s.Run("GetChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatPlanModeInstructions(gomock.Any()).Return("", nil).AnyTimes()
@@ -1303,23 +1333,40 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetEnabledChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
-		check.Args(config.ID).Asserts(rbac.ResourceChatModelConfig, policy.ActionRead).Returns(config)
+		object := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(config.ID).Asserts(object, policy.ActionRead).Returns(config)
 	}))
-	s.Run("GetEnabledChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		rowA := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsRow{})
-		rowB := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsRow{})
-		dbm.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.GetEnabledChatModelConfigsRow{rowA, rowB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceChatModelConfig, policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsRow{rowA, rowB})
-	}))
-
 	s.Run("GetEnabledChatModelConfigsByOrganization", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
-		rowA := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{})
-		rowB := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{})
+		rowA := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{
+			ChatModelConfig: database.ChatModelConfig{OrganizationID: orgID},
+		})
+		rowB := testutil.Fake(s.T(), faker, database.GetEnabledChatModelConfigsByOrganizationRow{
+			ChatModelConfig: database.ChatModelConfig{OrganizationID: orgID},
+		})
 		dbm.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), orgID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{rowA, rowB}, nil).AnyTimes()
-		check.Args(orgID).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsByOrganizationRow{rowA, rowB})
+		objectA := rbac.ResourceChatModelConfig.
+			WithID(rowA.ChatModelConfig.ID).
+			InOrg(rowA.ChatModelConfig.OrganizationID).
+			WithACLUserList(rowA.ChatModelConfig.UserACL.RBACACL()).
+			WithGroupACL(rowA.ChatModelConfig.GroupACL.RBACACL())
+		objectB := rbac.ResourceChatModelConfig.
+			WithID(rowB.ChatModelConfig.ID).
+			InOrg(rowB.ChatModelConfig.OrganizationID).
+			WithACLUserList(rowB.ChatModelConfig.UserACL.RBACACL()).
+			WithGroupACL(rowB.ChatModelConfig.GroupACL.RBACACL())
+		check.Args(orgID).Asserts(objectA, policy.ActionRead, objectB, policy.ActionRead).Returns([]database.GetEnabledChatModelConfigsByOrganizationRow{rowA, rowB})
 	}))
 
+	s.Run("GetChatSiteConfigValue", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		row := database.GetChatSiteConfigValueRow{Value: "30", Exists: true}
+		dbm.EXPECT().GetChatSiteConfigValue(gomock.Any(), "agents_chat_retention_days").Return(row, nil).AnyTimes()
+		check.Args("agents_chat_retention_days").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(row)
+	}))
 	s.Run("GetStaleChats", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		threshold := dbtime.Now()
 		chats := []database.Chat{testutil.Fake(s.T(), faker, database.Chat{})}
@@ -1360,13 +1407,14 @@ func (s *MethodTestSuite) TestChats() {
 	}))
 	s.Run("InsertChatModelConfig", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.InsertChatModelConfigParams{
-			Model:       "test-model",
-			DisplayName: "Test Model",
-			Enabled:     true,
+			Model:          "test-model",
+			DisplayName:    "Test Model",
+			Enabled:        true,
+			OrganizationID: uuid.New(),
 		}
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{Model: arg.Model, DisplayName: arg.DisplayName, Enabled: arg.Enabled})
 		dbm.EXPECT().InsertChatModelConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(arg.OrganizationID), policy.ActionCreate).Returns(config)
 	}))
 
 	s.Run("PopNextQueuedMessage", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1594,8 +1642,14 @@ func (s *MethodTestSuite) TestChats() {
 			DisplayName: "Updated Model",
 			Enabled:     true,
 		}
+		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatModelConfig(gomock.Any(), arg).Return(config, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate).Returns(config)
+		object := rbac.ResourceChatModelConfig.
+			WithID(config.ID).
+			InOrg(config.OrganizationID).
+			WithACLUserList(config.UserACL.RBACACL()).
+			WithGroupACL(config.GroupACL.RBACACL())
+		check.Args(arg).Asserts(object, policy.ActionUpdate).Returns(config)
 	}))
 
 	s.Run("UpdateChatModelConfigACLByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1668,7 +1722,7 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("UnsetDefaultChatModelConfigs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		orgID := uuid.New()
 		dbm.EXPECT().UnsetDefaultChatModelConfigs(gomock.Any(), orgID).Return(nil).AnyTimes()
-		check.Args(orgID).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+		check.Args(orgID).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatDiffStatus", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1739,21 +1793,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().UpsertChatComputerUseProvider(gomock.Any(), "anthropic").Return(nil).AnyTimes()
 		check.Args("anthropic").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
 	}))
-	s.Run("UpsertChatGeneralModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatGeneralModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("UpsertChatExploreModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatExploreModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("UpsertChatTitleGenerationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatTitleGenerationModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
-	}))
-	s.Run("UpsertChatCompactionModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().UpsertChatCompactionModelOverride(gomock.Any(), "").Return(nil).AnyTimes()
-		check.Args("").Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	s.Run("UpsertChatOrganizationModelOverride", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		arg := database.UpsertChatOrganizationModelOverrideParams{
+			OrganizationID: orgID,
+			Context:        "general",
+			ModelConfigID:  uuid.New(),
+		}
+		dbm.EXPECT().UpsertChatOrganizationModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChatModelConfig.InOrg(orgID), policy.ActionUpdate)
 	}))
 	s.Run("UpsertChatPlanModeInstructions", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertChatPlanModeInstructions(gomock.Any(), "").Return(nil).AnyTimes()
@@ -3231,28 +3279,30 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpsertUserChatDebugLoggingEnabled(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal)
 	}))
-	s.Run("ListUserChatPersonalModelOverrides", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetChatUserModelOverrides", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		key := chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot)
-		row := database.ListUserChatPersonalModelOverridesRow{Key: key, Value: "chat_default"}
+		arg := database.GetChatUserModelOverridesParams{UserID: u.ID, OrganizationID: uuid.New()}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().ListUserChatPersonalModelOverrides(gomock.Any(), u.ID).Return([]database.ListUserChatPersonalModelOverridesRow{row}, nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns([]database.ListUserChatPersonalModelOverridesRow{row})
+		dbm.EXPECT().GetChatUserModelOverrides(gomock.Any(), arg).Return([]database.ChatUserModelOverride{}, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns([]database.ChatUserModelOverride{})
 	}))
-	s.Run("GetUserChatPersonalModelOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetChatUserModelOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		key := chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot)
-		arg := database.GetUserChatPersonalModelOverrideParams{UserID: u.ID, Key: key}
+		arg := database.GetChatUserModelOverrideParams{UserID: u.ID, OrganizationID: uuid.New(), Context: "root"}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserChatPersonalModelOverride(gomock.Any(), arg).Return("chat_default", nil).AnyTimes()
-		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns("chat_default")
+		dbm.EXPECT().GetChatUserModelOverride(gomock.Any(), arg).Return(database.ChatUserModelOverride{}, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns(database.ChatUserModelOverride{})
 	}))
-	s.Run("UpsertUserChatPersonalModelOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpsertChatUserModelOverride", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
-		key := chatd.ChatPersonalModelOverrideKey(codersdk.ChatPersonalModelOverrideContextRoot)
-		arg := database.UpsertUserChatPersonalModelOverrideParams{UserID: u.ID, Key: key, Value: "chat_default"}
+		arg := database.UpsertChatUserModelOverrideParams{
+			UserID:         u.ID,
+			OrganizationID: uuid.New(),
+			Context:        "root",
+			Mode:           "chat_default",
+		}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().UpsertUserChatPersonalModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
+		dbm.EXPECT().UpsertChatUserModelOverride(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateUserChatCustomPrompt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -5562,6 +5612,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		dbm.EXPECT().GetWorkspaceAgentLogSourcesByAgentIDs(gomock.Any(), ids).Return([]database.WorkspaceAgentLogSource{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetProvisionerJobsByIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ids := []uuid.UUID{}
+		dbm.EXPECT().GetProvisionerJobsByIDs(gomock.Any(), ids).Return([]database.ProvisionerJob{}, nil).AnyTimes()
+		check.Args(ids).Asserts()
+	}))
 	s.Run("GetProvisionerJobsByIDsWithQueuePosition", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetProvisionerJobsByIDsWithQueuePositionParams{}
 		dbm.EXPECT().GetProvisionerJobsByIDsWithQueuePosition(gomock.Any(), arg).Return([]database.GetProvisionerJobsByIDsWithQueuePositionRow{}, nil).AnyTimes()
@@ -7760,6 +7815,10 @@ func TestAsChatd(t *testing.T) {
 		err = auth.Authorize(ctx, actor, policy.ActionUpdate, rbac.ResourceDeploymentConfig)
 		require.Error(t, err, "deployment config update should not be allowed")
 
+		// Chatd resolves organization model configs during background work.
+		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChatModelConfig.InOrg(uuid.New()))
+		require.NoError(t, err, "chat model config read should be allowed")
+
 		// Pin the complete ResourceUser action set: read_personal only.
 		// Token refresh persistence uses the per-user AsChatdTokenOwner subject.
 		for _, action := range rbac.ResourceUser.AvailableActions() {
@@ -7771,7 +7830,7 @@ func TestAsChatd(t *testing.T) {
 			}
 		}
 
-		// Organization read is temporarily needed for the pre-cutover default-org fallback.
+		// Organization reads support the pre-cutover default-org fallback.
 		err = auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceOrganization)
 		require.NoError(t, err, "organization read should be allowed")
 	})

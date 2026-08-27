@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -789,25 +790,57 @@ func enableInternalChatPersonalModelOverrides(
 	)
 }
 
+func upsertInternalChatOrganizationModelOverride(
+	t *testing.T,
+	db database.Store,
+	organizationID uuid.UUID,
+	overrideContext codersdk.ChatModelOverrideContext,
+	raw string,
+) {
+	t.Helper()
+	rawModelConfigID, effort, hasEffort := strings.Cut(raw, ":")
+	modelConfigID, err := uuid.Parse(rawModelConfigID)
+	require.NoError(t, err)
+	params := database.UpsertChatOrganizationModelOverrideParams{
+		OrganizationID: organizationID,
+		Context:        string(overrideContext),
+		ModelConfigID:  modelConfigID,
+	}
+	if hasEffort {
+		params.ReasoningEffort = sql.NullString{String: effort, Valid: true}
+	}
+	require.NoError(t, db.UpsertChatOrganizationModelOverride(systemRestrictedTestContext(t), params))
+}
+
 func upsertInternalUserChatPersonalModelOverride(
 	t *testing.T,
 	db database.Store,
 	userID uuid.UUID,
+	organizationID uuid.UUID,
 	overrideContext codersdk.ChatPersonalModelOverrideContext,
 	raw string,
 ) {
 	t.Helper()
-	require.NoError(
-		t,
-		db.UpsertUserChatPersonalModelOverride(
-			systemRestrictedTestContext(t),
-			database.UpsertUserChatPersonalModelOverrideParams{
-				UserID: userID,
-				Key:    ChatPersonalModelOverrideKey(overrideContext),
-				Value:  raw,
-			},
-		),
-	)
+	mode, modelConfigID, reasoningEffort := raw, uuid.NullUUID{}, sql.NullString{}
+	if rawMode, remainder, ok := strings.Cut(raw, ":"); ok {
+		mode = rawMode
+		rawModelConfigID, rawEffort, hasEffort := strings.Cut(remainder, ":")
+		modelConfigID = uuid.NullUUID{UUID: uuid.MustParse(rawModelConfigID), Valid: true}
+		if hasEffort {
+			reasoningEffort = sql.NullString{String: rawEffort, Valid: true}
+		}
+	}
+	require.NoError(t, db.UpsertChatUserModelOverride(
+		systemRestrictedTestContext(t),
+		database.UpsertChatUserModelOverrideParams{
+			UserID:          userID,
+			OrganizationID:  organizationID,
+			Context:         string(overrideContext),
+			Mode:            mode,
+			ModelConfigID:   modelConfigID,
+			ReasoningEffort: reasoningEffort,
+		},
+	))
 }
 
 func TestCreateChildSubagentChatInheritsWorkspaceBinding(t *testing.T) {
@@ -1052,7 +1085,7 @@ func TestSpawnAgent_GeneralUsesConfiguredModelOverride(t *testing.T) {
 	overrideModel := insertInternalChatModelConfig(
 		t, db, org.ID, "general-override-"+uuid.NewString(), true,
 	)
-	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, overrideModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, overrideModel.ID.String())
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-general-override",
 	)
@@ -1193,16 +1226,6 @@ func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
 				return deploymentModel.ID
 			},
 		},
-		{
-			name:                   "MalformedValueUsesDeploymentOverride",
-			enablePersonalOverride: true,
-			personalRaw: func(database.ChatModelConfig) string {
-				return "model:not-a-uuid"
-			},
-			wantModelID: func(_, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
-				return deploymentModel.ID
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -1221,7 +1244,7 @@ func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
 				"general-deployment-"+uuid.NewString(),
 				true,
 			)
-			require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, deploymentModel.ID.String()))
+			upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, deploymentModel.ID.String())
 			personalModel := insertInternalChatModelConfig(
 				t,
 				db,
@@ -1240,6 +1263,7 @@ func TestSpawnAgent_GeneralHonorsPersonalModelOverrides(t *testing.T) {
 					t,
 					db,
 					user.ID,
+					org.ID,
 					codersdk.ChatPersonalModelOverrideContextGeneral,
 					tt.personalRaw(personalModel),
 				)
@@ -1302,7 +1326,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 		"gpt-4o-mini",
 		true,
 	)
-	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, overrideModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, overrideModel.ID.String())
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
@@ -1372,7 +1396,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 		"gpt-4o-mini",
 		true,
 	)
-	require.NoError(t, db.UpsertChatGeneralModelOverride(ctx, overrideModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, overrideModel.ID.String())
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
@@ -1613,11 +1637,11 @@ type personalOverrideErrorStore struct {
 	database.Store
 }
 
-func (*personalOverrideErrorStore) GetUserChatPersonalModelOverride(
+func (*personalOverrideErrorStore) GetChatUserModelOverride(
 	context.Context,
-	database.GetUserChatPersonalModelOverrideParams,
-) (string, error) {
-	return "", xerrors.New("unexpected personal override lookup")
+	database.GetChatUserModelOverrideParams,
+) (database.ChatUserModelOverride, error) {
+	return database.ChatUserModelOverride{}, xerrors.New("unexpected personal override lookup")
 }
 
 func TestSpawnAgent_ExplicitModelSkipsConfiguredOverrides(t *testing.T) {
@@ -1670,14 +1694,15 @@ func TestSpawnAgent_ExplicitModelBeatsConfiguredOverrides(t *testing.T) {
 	selectedModel := insertInternalChatModelConfig(
 		t, db, org.ID, "general-selected-"+uuid.NewString(), true,
 	)
-	require.NoError(t, db.UpsertChatGeneralModelOverride(
-		ctx, deploymentModel.ID.String()+":medium",
-	))
+	upsertInternalChatOrganizationModelOverride(
+		t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, deploymentModel.ID.String()+":medium",
+	)
 	enableInternalChatPersonalModelOverrides(t, db)
 	upsertInternalUserChatPersonalModelOverride(
 		t,
 		db,
 		user.ID,
+		org.ID,
 		codersdk.ChatPersonalModelOverrideContextGeneral,
 		string(codersdk.ChatPersonalModelOverrideModeModel)+":"+personalModel.ID.String()+":low",
 	)
@@ -1781,9 +1806,9 @@ func TestSpawnAgent_ExplicitReasoningEffort(t *testing.T) {
 		deploymentModel := insertInternalChatModelConfig(
 			t, db, org.ID, "general-deployment-"+uuid.NewString(), true,
 		)
-		require.NoError(t, db.UpsertChatGeneralModelOverride(
-			ctx, deploymentModel.ID.String()+":low",
-		))
+		upsertInternalChatOrganizationModelOverride(
+			t, db, org.ID, codersdk.ChatModelOverrideContextGeneral, deploymentModel.ID.String()+":low",
+		)
 		parentChat := createInternalParentChat(
 			ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-effort-beats-override",
 		)
@@ -2104,7 +2129,7 @@ func TestSpawnAgent_ExploreUsesConfiguredModelOverride(t *testing.T) {
 	overrideModel := insertInternalChatModelConfig(
 		t, db, org.ID, "explore-override-"+uuid.NewString(), true,
 	)
-	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextExplore, overrideModel.ID.String())
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-explore-override",
 	)
@@ -2288,16 +2313,6 @@ func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
 				return deploymentModel.ID
 			},
 		},
-		{
-			name:                   "MalformedValueUsesDeploymentOverride",
-			enablePersonalOverride: true,
-			personalRaw: func(database.ChatModelConfig) string {
-				return "not-a-mode"
-			},
-			wantModelID: func(_, _, deploymentModel, _ database.ChatModelConfig) uuid.UUID {
-				return deploymentModel.ID
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -2323,7 +2338,7 @@ func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
 				"explore-deployment-"+uuid.NewString(),
 				true,
 			)
-			require.NoError(t, db.UpsertChatExploreModelOverride(ctx, deploymentModel.ID.String()))
+			upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextExplore, deploymentModel.ID.String())
 			personalModel := insertInternalChatModelConfig(
 				t,
 				db,
@@ -2342,6 +2357,7 @@ func TestSpawnAgent_ExploreHonorsPersonalModelOverrides(t *testing.T) {
 					t,
 					db,
 					user.ID,
+					org.ID,
 					codersdk.ChatPersonalModelOverrideContextExplore,
 					tt.personalRaw(personalModel),
 				)
@@ -2615,38 +2631,6 @@ func TestSpawnAgent_ExploreSnapshotsTurnStateParentState(t *testing.T) {
 		"Explore child should keep the turn-start MCP snapshot after parent mutations")
 }
 
-func TestSpawnAgent_ExploreFallsBackOnInvalidUUID(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
-
-	ctx := chatdTestContext(t)
-	user, org, parentModel := seedInternalChatDeps(t, db)
-	currentTurnModel := insertInternalChatModelConfig(
-		t, db, org.ID, "explore-invalid-override-"+uuid.NewString(), true,
-	)
-	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, "not-a-uuid"))
-	parentChat := createInternalParentChat(
-		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-invalid-override",
-	)
-
-	resp := runSubagentTool(
-		ctx,
-		t,
-		server,
-		parentChat,
-		currentTurnModel.ID,
-		spawnAgentToolName,
-		spawnAgentArgs{Type: subagentTypeExplore, Prompt: "inspect the handler flow"},
-	)
-	childID := requireSpawnAgentChildChatID(t, resp)
-
-	childChat, err := db.GetChatByID(ctx, childID)
-	require.NoError(t, err)
-	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
-}
-
 func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	t.Parallel()
 
@@ -2661,7 +2645,7 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideIsUnavailable(t *testing.T) {
 	disabledModel := insertInternalChatModelConfig(
 		t, db, org.ID, "explore-disabled-"+uuid.NewString(), false,
 	)
-	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, disabledModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextExplore, disabledModel.ID.String())
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-disabled",
 	)
@@ -2704,11 +2688,12 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	})
 
 	overrideModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: overrideProvider.ID, Valid: true},
-		Model:        "gpt-4o-mini",
-		DisplayName:  "Explore Override Missing User Key",
+		AIProviderID:   uuid.NullUUID{UUID: overrideProvider.ID, Valid: true},
+		OrganizationID: org.ID,
+		Model:          "gpt-4o-mini",
+		DisplayName:    "Explore Override Missing User Key",
 	})
-	require.NoError(t, db.UpsertChatExploreModelOverride(ctx, overrideModel.ID.String()))
+	upsertInternalChatOrganizationModelOverride(t, db, org.ID, codersdk.ChatModelOverrideContextExplore, overrideModel.ID.String())
 	parentChat := createInternalParentChat(
 		ctx, t, server, db, org.ID, user.ID, parentModel.ID, "parent-explore-missing-user-key",
 	)
@@ -4303,6 +4288,25 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		assert.Equal(t, child.ID, gotChat.ID)
 		assert.Equal(t, "zero timeout ok", report)
 	})
+}
+
+func TestUnbilledSubagentToolNamesMatchCatalog(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, _ := createParentChildChats(ctx, t, server, user, org, model)
+
+	catalog := make(map[string]bool)
+	for _, tool := range server.subagentTools(ctx, func() database.Chat { return parent }, parent.LastModelConfigID) {
+		catalog[tool.Info().Name] = true
+	}
+	for alias := range subagentToolNameAliases {
+		catalog[alias] = true
+	}
+	require.Equal(t, catalog, unbilledSubagentToolNames)
 }
 
 func TestWaitAgentToolSchema(t *testing.T) {

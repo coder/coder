@@ -1,33 +1,27 @@
-import type { ChatModel, ChatProviderConfig } from "#/api/typesGenerated";
+import type {
+	ChatModel,
+	ChatModelProviderDescriptor,
+} from "#/api/typesGenerated";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
+import { MockChatModelProviderDescriptor } from "#/testHelpers/chatModels";
 
 const now = "2026-02-18T12:00:00.000Z";
 
-const MockOpenAIProviderConfig: ChatProviderConfig = {
+const MockOpenAIProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockChatModelProviderDescriptor,
 	id: "prov-openai",
-	provider: "openai",
-	display_name: "OpenAI",
-	icon: "",
-	enabled: true,
-	has_api_key: true,
-	central_api_key_enabled: true,
-	allow_user_api_key: false,
-	allow_central_api_key_fallback: true,
-	base_url: "",
-	source: "database",
-	created_at: now,
-	updated_at: now,
 };
 
-const MockAnthropicProviderConfig: ChatProviderConfig = {
-	...MockOpenAIProviderConfig,
+const MockAnthropicProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockOpenAIProviderDescriptor,
 	id: "prov-anthropic",
-	provider: "anthropic",
+	type: "anthropic",
 	display_name: "Anthropic",
 };
 
 export const mockGPT5: ChatModel = {
 	id: "model-gpt5",
+	organization_id: "org-1",
 	ai_provider_id: "prov-openai",
 	model: "gpt-5",
 	display_name: "GPT-5",
@@ -62,15 +56,10 @@ export const MockOpenAIProviderState: ProviderState = {
 	key: "prov-openai",
 	provider: "openai",
 	label: "OpenAI",
-	providerConfig: MockOpenAIProviderConfig,
+	providerDescriptor: MockOpenAIProviderDescriptor,
 	models: [mockGPT5, mockDisabledModel],
-	catalogModelCount: 0,
-	hasManagedAPIKey: true,
-	hasCatalogAPIKey: true,
 	hasEffectiveAPIKey: true,
 	allowUserAPIKey: false,
-	isEnvPreset: false,
-	baseURL: "",
 };
 
 export const MockAnthropicProviderState: ProviderState = {
@@ -78,14 +67,14 @@ export const MockAnthropicProviderState: ProviderState = {
 	key: "prov-anthropic",
 	provider: "anthropic",
 	label: "Anthropic",
-	providerConfig: MockAnthropicProviderConfig,
+	providerDescriptor: MockAnthropicProviderDescriptor,
 	models: [mockClaude],
 };
 
-const MockGoogleProviderConfig: ChatProviderConfig = {
-	...MockOpenAIProviderConfig,
+const MockGoogleProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockOpenAIProviderDescriptor,
 	id: "prov-google",
-	provider: "google",
+	type: "google",
 	display_name: "Google",
 };
 
@@ -94,14 +83,14 @@ export const MockGoogleProviderState: ProviderState = {
 	key: "prov-google",
 	provider: "google",
 	label: "Google",
-	providerConfig: MockGoogleProviderConfig,
+	providerDescriptor: MockGoogleProviderDescriptor,
 	models: [],
 };
 
-const MockBedrockProviderConfig: ChatProviderConfig = {
-	...MockOpenAIProviderConfig,
+const MockBedrockProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockOpenAIProviderDescriptor,
 	id: "prov-bedrock",
-	provider: "bedrock",
+	type: "bedrock",
 	display_name: "AWS Bedrock",
 };
 
@@ -118,7 +107,7 @@ export const MockBedrockProviderState: ProviderState = {
 	key: "prov-bedrock",
 	provider: "bedrock",
 	label: "AWS Bedrock",
-	providerConfig: MockBedrockProviderConfig,
+	providerDescriptor: MockBedrockProviderDescriptor,
 	models: [mockBedrockClaude],
 };
 
@@ -127,17 +116,17 @@ export const MockAzureProviderState: ProviderState = {
 	key: "prov-azure",
 	provider: "azure",
 	label: "Azure OpenAI",
-	providerConfig: {
-		...MockOpenAIProviderConfig,
+	providerDescriptor: {
+		...MockOpenAIProviderDescriptor,
 		id: "prov-azure",
-		provider: "azure",
+		type: "azure",
 		display_name: "Azure OpenAI",
 	},
 	models: [],
 };
 
-const MockDisabledProviderConfig: ChatProviderConfig = {
-	...MockOpenAIProviderConfig,
+const MockDisabledProviderDescriptor: ChatModelProviderDescriptor = {
+	...MockOpenAIProviderDescriptor,
 	id: "prov-openai-disabled",
 	display_name: "OpenAI Secondary",
 	enabled: false,
@@ -157,7 +146,7 @@ export const MockDisabledProviderState: ProviderState = {
 	key: "prov-openai-disabled",
 	provider: "openai",
 	label: "OpenAI Secondary",
-	providerConfig: MockDisabledProviderConfig,
+	providerDescriptor: MockDisabledProviderDescriptor,
 	models: [mockProviderDisabledModel],
 };
 
@@ -166,19 +155,15 @@ export const MockCopilotProviderState: ProviderState = {
 	key: "prov-copilot",
 	provider: "copilot",
 	label: "GitHub Copilot",
-	providerConfig: {
-		...MockOpenAIProviderConfig,
+	providerDescriptor: {
+		...MockOpenAIProviderDescriptor,
 		id: "prov-copilot",
-		provider: "copilot",
+		type: "copilot",
 		display_name: "GitHub Copilot",
 	},
 	models: [],
 };
 
-// A model whose provider row has been deleted. In production such models
-// still appear in the top-level model list, but `deriveProviderStates`
-// drops them from every providerState.models. Stories should feed
-// this fixture through `models` alone; do not add it to a provider state.
 export const mockOrphanedModel: ChatModel = {
 	...mockGPT5,
 	id: "model-orphaned",

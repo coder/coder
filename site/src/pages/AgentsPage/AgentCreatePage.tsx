@@ -3,14 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import { chatProviderConfigs } from "#/api/queries/aiProviders";
-import {
-	chatModelAvailability,
-	chatModels,
-	createChat,
-	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
-} from "#/api/queries/chats";
+import { createChat } from "#/api/queries/chats";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -26,11 +19,6 @@ import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
-import {
-	countConfiguredProviderConfigs,
-	getUnsupportedProviderNames,
-	resolveModelSelector,
-} from "./utils/modelOptions";
 import { buildAgentChatPath } from "./utils/navigation";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
@@ -41,45 +29,11 @@ const AgentCreatePage: FC = () => {
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
 	const aiGatewayDisabled = !useAIGatewayEnabled();
-
-	const chatModelAvailabilityQuery = useQuery(chatModelAvailability());
-	const chatModelsQuery = useQuery(chatModels());
-	const chatProviderConfigsQuery = useQuery({
-		...chatProviderConfigs(),
-		enabled: permissions.editDeploymentConfig,
-	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
-	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
-	);
 	const preferencesQuery = useQuery(preferenceSettings());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
-
-	const { options: catalogModelOptions, isModelCatalogLoading } =
-		resolveModelSelector(
-			chatModelsQuery,
-			chatModelAvailabilityQuery,
-			userProviderConfigsQuery,
-		);
-	const providerCount =
-		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.isSuccess &&
-		chatModelAvailabilityQuery.isSuccess
-			? countConfiguredProviderConfigs(
-					chatProviderConfigsQuery.data,
-					chatModelAvailabilityQuery.data,
-				)
-			: undefined;
-	const modelCount =
-		chatModelsQuery.isSuccess && chatModelAvailabilityQuery.isSuccess
-			? catalogModelOptions.length
-			: undefined;
-	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelAvailabilityQuery.data,
-	);
 
 	const handleCreateChat = async ({
 		message,
@@ -122,10 +76,6 @@ const AgentCreatePage: FC = () => {
 		});
 	};
 
-	const rootPersonalModelOverride = personalModelOverridesQuery.data?.enabled
-		? personalModelOverridesQuery.data.root
-		: undefined;
-
 	const handleChimeToggle = () => {
 		const next = !chimeEnabled;
 		setChimeEnabledState(next);
@@ -165,18 +115,8 @@ const AgentCreatePage: FC = () => {
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}
-				modelCatalog={chatModelAvailabilityQuery.data}
-				modelOptions={catalogModelOptions}
 				canConfigureAgentSetup={permissions.editDeploymentConfig}
-				providerCount={providerCount}
-				modelCount={modelCount}
-				unsupportedProviderNames={unsupportedProviderNames}
 				aiGatewayDisabled={aiGatewayDisabled}
-				models={chatModelsQuery.data ?? []}
-				isModelCatalogLoading={isModelCatalogLoading}
-				isModelsLoading={chatModelsQuery.isLoading}
-				rootPersonalModelOverride={rootPersonalModelOverride}
-				isPersonalModelOverridesLoading={personalModelOverridesQuery.isLoading}
 				workspaceCount={workspacesQuery.data?.count}
 				workspaceOptions={workspacesQuery.data?.workspaces ?? []}
 				workspacesError={workspacesQuery.error}
