@@ -28,6 +28,10 @@ type chatWorker struct {
 	unsubscribe func()
 	wakeCh      chan struct{}
 	wg          sync.WaitGroup
+
+	// capacityWaitSince tracks when each chat was first refused a
+	// capacity slot. Only the acquisition loop reads or writes it.
+	capacityWaitSince map[uuid.UUID]time.Time
 }
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
@@ -40,7 +44,11 @@ func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{server: server, opts: withDefaults}, nil
+	return &chatWorker{
+		server:            server,
+		opts:              withDefaults,
+		capacityWaitSince: make(map[uuid.UUID]time.Time),
+	}, nil
 }
 
 // chatWorkerID returns this worker's configured worker ID.
@@ -207,6 +215,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 	acquired := int32(0)
 	rootPoolRefused := false
 	subagentPoolRefused := false
+	w.pruneCapacityWaits(rows)
 	for _, row := range rows {
 		if acquired >= w.opts.AcquisitionBatchSize {
 			return
@@ -220,6 +229,7 @@ func (w *chatWorker) acquireOnce(ctx context.Context, workerID uuid.UUID, manage
 		}
 		candidateAcquired, err := w.acquireCandidateSafely(ctx, workerID, manager, row.ID)
 		if errors.Is(err, errCapacityRefused) {
+			w.noteCapacityRefused(row.ID)
 			if isSubagent {
 				subagentPoolRefused = true
 			} else {
@@ -266,6 +276,7 @@ func (w *chatWorker) acquireCandidate(
 	chatID uuid.UUID,
 ) (bool, error) {
 	runnerID := uuid.New()
+	var acquiredChat database.Chat
 	machine := chatstate.NewChatMachine(w.opts.Store, w.opts.Pubsub, chatID)
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := store.GetChatByID(ctx, chatID)
@@ -304,6 +315,7 @@ func (w *chatWorker) acquireCandidate(
 			// worker into an immediate retry of this unowned chat.
 			return errCapacityRefused
 		}
+		acquiredChat = chat
 		_, err = tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
 	})
@@ -316,6 +328,7 @@ func (w *chatWorker) acquireCandidate(
 	if err != nil {
 		return false, err
 	}
+	w.recordCapacityWait(ctx, acquiredChat)
 	if err := manager.Spawn(ctx, spawnRunnerRequest{ChatID: chatID, WorkerID: workerID, RunnerID: runnerID}); err != nil {
 		if errAbandon := w.abandonAcquiredChat(ctx, workerID, runnerID, chatID); errAbandon != nil {
 			return false, errors.Join(err, errAbandon)

@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -67,6 +69,10 @@ type generationPrepared struct {
 	// ResolvedProvider is the configured provider identity used to label
 	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
+
+	// StageModel is the resolved model and effective reasoning effort
+	// the turn's stages are labeled with.
+	StageModel chatloop.StageModel
 
 	ModelConfigID        uuid.UUID
 	CallTemplate         fantasy.Call
@@ -441,129 +447,167 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if err != nil {
 			return xerrors.Errorf("load generation state: %w", err)
 		}
-		if s.server.hooks.Enabled() {
-			result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
-			if err != nil {
-				if errors.Is(err, errTaskExpectedExit) {
-					return err
-				}
-				return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-			}
-			if dispatched {
-				input.HistoryVersion = result.Chat.HistoryVersion
-				continue
-			}
+		turnCtx := input.Turn.Ensure(ctx, chat, triggerMessageTime(messages))
+		var again bool
+		input, again, err = s.runGenerationStep(turnCtx, machine, input, chat, messages)
+		if again {
+			continue
 		}
-		prepareInput := generationPrepareInput{
-			Chat:                      chat,
-			Messages:                  messages,
-			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
-		}
-		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
-			return s.server.prepareGeneration(ctx, prepareInput)
-		})
-		if err != nil {
-			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
-				return xerrors.Errorf("prepare generation: %w", err)
-			}
-			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-		}
-		cleanup := prepared.Cleanup
-		var decision generationDecision
-		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
-			decision = generationDecision{kind: generationActionGenerateAssistant}
-		} else {
-			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
-				return decideGenerationAction(generationDecisionInput{
-					chat:                       prepared.Chat,
-					messages:                   prepared.Messages,
-					dynamicToolNames:           prepared.DynamicToolNames,
-					exclusiveToolNames:         prepared.ExclusiveToolNames,
-					stopAfterTools:             prepared.StopAfterTools,
-					maxSteps:                   prepared.MaxSteps,
-					compactionEnabled:          prepared.Compaction != nil,
-					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
-				})
-			})
-		}
-		if err != nil {
-			cleanup()
-			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
-				return xerrors.Errorf("decide generation: %w", err)
-			}
-			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
-				metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
-				s.server.metrics.RecordCompaction(
-					metricProvider,
-					metricModel,
-					false,
-					errCompactionStillOverLimit,
-				)
-			}
-			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
-		}
-
-		var actionErr error
-		switch decision.kind {
-		case generationActionEnterRequiresAction:
-			cleanup()
-			return s.enterRequiresAction(ctx, machine, input)
-		case generationActionFinishTurn:
-			cleanup()
-			return s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
-		case generationActionGenerateAssistant:
-			actionErr = s.generateAssistant(ctx, machine, input, prepared)
-		case generationActionExecuteLocalTools:
-			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
-		case generationActionCompact:
-			actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
-		default:
-			return s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
-		}
-		cleanup()
-		if actionErr == nil {
-			return nil
-		}
-		// Task cancellation is handled by the runner, not here.
-		if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
-		}
-		if errors.Is(actionErr, chatloop.ErrInterrupted) {
-			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
-		}
-		if errors.Is(actionErr, errTaskExpectedExit) {
-			return xerrors.Errorf("generation action: %w", actionErr)
-		}
-		classified := chaterror.Classify(actionErr)
-		if classified.Retryable {
-			action := decision.kind
-			decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
-			if err != nil {
-				return xerrors.Errorf("record generation retry: %w", err)
-			}
-			if decision.retry {
-				s.opts.Logger.Warn(ctx, "chat generation retrying",
-					slog.F("chat_id", input.ChatID),
-					slog.F("worker_id", input.WorkerID),
-					slog.F("action", action),
-					slog.F("generation_attempt", decision.generationAttempt),
-					slog.F("delay", decision.delay),
-					slog.F("error_kind", classified.Kind),
-					slog.F("provider", classified.Provider),
-					slog.F("status_code", classified.StatusCode),
-					slogError(actionErr),
-				)
-				if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
-					return xerrors.Errorf("wait generation retry: %w", err)
-				}
-				continue
-			}
-			return s.finishGenerationError(ctx, machine, input, actionErr, requireGenerationAttempt(decision.generationAttempt))
-		}
-		return s.finishGenerationError(ctx, machine, input, actionErr, generationAttemptNotRequired)
+		return err
 	}
+}
+
+// runGenerationStep runs one step of a turn: preparation, the action
+// decision, and the action itself. It returns the input to use for
+// the next step and whether the caller must reload state and run one.
+// The returned input differs from the passed one when a step advances
+// the history version.
+func (s *taskStarter) runGenerationStep(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	chat database.Chat,
+	messages []database.ChatMessage,
+) (next chatWorkerTaskStartInput, again bool, err error) {
+	ctx, stepSpan := s.server.stages.Start(ctx, chatloop.StageGenerationStep,
+		attribute.String(chatloop.AttrChatID, input.ChatID.String()),
+		attribute.String(chatloop.AttrChatKind, chatKindAttr(chat)),
+		attribute.Int64(chatloop.AttrGenerationAttempt, input.GenerationAttempt),
+	)
+	defer func() { stepSpan.End(err) }()
+
+	if s.server.hooks.Enabled() {
+		result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
+		if err != nil {
+			if errors.Is(err, errTaskExpectedExit) {
+				return input, false, err
+			}
+			return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+		}
+		if dispatched {
+			input.HistoryVersion = result.Chat.HistoryVersion
+			return input, true, nil
+		}
+	}
+	prepareInput := generationPrepareInput{
+		Chat:                      chat,
+		Messages:                  messages,
+		RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
+	}
+	prepareCtx, prepareSpan := s.server.stages.Start(ctx, chatloop.StagePrepare)
+	prepared, err := retryGenerationPhase(prepareCtx, s, "prepare", func() (generationPrepared, error) {
+		return s.server.prepareGeneration(prepareCtx, prepareInput)
+	})
+	if err == nil {
+		providerAttr := attribute.String(chatloop.AttrProvider, prepared.ResolvedProvider)
+		prepareSpan.SetAttributes(providerAttr)
+		prepareSpan.SetModel(prepared.StageModel)
+		stepSpan.SetAttributes(providerAttr)
+		stepSpan.SetModel(prepared.StageModel)
+	}
+	prepareSpan.End(err)
+	if err != nil {
+		if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+			return input, false, xerrors.Errorf("prepare generation: %w", err)
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+	cleanup := prepared.Cleanup
+	var decision generationDecision
+	if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
+		decision = generationDecision{kind: generationActionGenerateAssistant}
+	} else {
+		decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
+			return decideGenerationAction(generationDecisionInput{
+				chat:                       prepared.Chat,
+				messages:                   prepared.Messages,
+				dynamicToolNames:           prepared.DynamicToolNames,
+				exclusiveToolNames:         prepared.ExclusiveToolNames,
+				stopAfterTools:             prepared.StopAfterTools,
+				maxSteps:                   prepared.MaxSteps,
+				compactionEnabled:          prepared.Compaction != nil,
+				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+				compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+			})
+		})
+	}
+	if err != nil {
+		cleanup()
+		if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+			return input, false, xerrors.Errorf("decide generation: %w", err)
+		}
+		if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
+			metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
+			s.server.metrics.RecordCompaction(
+				metricProvider,
+				metricModel,
+				false,
+				errCompactionStillOverLimit,
+			)
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
+	}
+
+	stepSpan.SetAttributes(attribute.String(chatloop.AttrGenerationAction, string(decision.kind)))
+	var actionErr error
+	switch decision.kind {
+	case generationActionEnterRequiresAction:
+		cleanup()
+		return input, false, s.enterRequiresAction(ctx, machine, input)
+	case generationActionFinishTurn:
+		cleanup()
+		return input, false, s.finishGenerationTurn(ctx, machine, input, decision, generationAttemptNotRequired)
+	case generationActionGenerateAssistant:
+		actionErr = s.generateAssistant(ctx, machine, input, prepared)
+	case generationActionExecuteLocalTools:
+		actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
+	case generationActionCompact:
+		actionErr = s.generateCompaction(ctx, machine, input, prepared, compactionSourceForDecision(decision))
+	default:
+		return input, false, s.finishGenerationError(ctx, machine, input, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
+	}
+	cleanup()
+	if actionErr == nil {
+		return input, false, nil
+	}
+	// Task cancellation is handled by the runner, not here.
+	if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
+		return input, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
+	}
+	if errors.Is(actionErr, chatloop.ErrInterrupted) {
+		return input, false, errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
+	}
+	if errors.Is(actionErr, errTaskExpectedExit) {
+		return input, false, xerrors.Errorf("generation action: %w", actionErr)
+	}
+	classified := chaterror.Classify(actionErr)
+	if classified.Retryable {
+		action := decision.kind
+		decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
+		if err != nil {
+			return input, false, xerrors.Errorf("record generation retry: %w", err)
+		}
+		if decision.retry {
+			s.opts.Logger.Warn(ctx, "chat generation retrying",
+				slog.F("chat_id", input.ChatID),
+				slog.F("worker_id", input.WorkerID),
+				slog.F("action", action),
+				slog.F("generation_attempt", decision.generationAttempt),
+				slog.F("delay", decision.delay),
+				slog.F("error_kind", classified.Kind),
+				slog.F("provider", classified.Provider),
+				slog.F("status_code", classified.StatusCode),
+				slogError(actionErr),
+			)
+			if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
+				return input, false, xerrors.Errorf("wait generation retry: %w", err)
+			}
+			return input, true, nil
+		}
+		return input, false, s.finishGenerationError(ctx, machine, input, actionErr, requireGenerationAttempt(decision.generationAttempt))
+	}
+	return input, false, s.finishGenerationError(ctx, machine, input, actionErr, generationAttemptNotRequired)
 }
 
 func loadGenerationState(
@@ -753,10 +797,13 @@ func (s *taskStarter) generateAssistant(
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
 		Metrics:              s.server.metrics,
+		Stages:               s.server.stages,
+		StageModel:           prepared.StageModel,
 	})
 	if err != nil {
 		return xerrors.Errorf("generate assistant: %w", err)
 	}
+	s.recordThinkingStages(runCtx, prepared, outcome.Step)
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, requireGenerationAttempt(attempt.number))
 	}
@@ -781,6 +828,31 @@ func (s *taskStarter) generateAssistant(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionGenerateAssistant, messages, generationCommitHooks{})
+}
+
+// recordThinkingStages emits one thinking stage per reasoning part of
+// a step, bounded by the part's own start and completion timestamps.
+// Parts are paired by index; a part without a completion timestamp
+// ends the sweep because later indexes cannot be paired either.
+func (s *taskStarter) recordThinkingStages(
+	ctx context.Context,
+	prepared generationPrepared,
+	step chatloop.PersistedStep,
+) {
+	for index, startedAt := range step.ReasoningStartedAt {
+		if index >= len(step.ReasoningCompletedAt) {
+			return
+		}
+		s.server.stages.Record(
+			ctx,
+			chatloop.StageThinking,
+			prepared.StageModel,
+			startedAt,
+			step.ReasoningCompletedAt[index],
+			nil,
+			attribute.String(chatloop.AttrProvider, prepared.ResolvedProvider),
+		)
+	}
 }
 
 func (s *taskStarter) admitStepToolCalls(
@@ -861,6 +933,41 @@ func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedA
 	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
 }
 
+// toolCallStageRecorder emits one tool_call stage per local tool call
+// while forwarding every callback to the billing recorder it wraps.
+// Completions arrive on the tool goroutines, so the pending starts are
+// mutex guarded.
+type toolCallStageRecorder struct {
+	inner  chatloop.ToolBillingRecorder
+	record func(dispatchIndex int, startedAt, completedAt time.Time)
+
+	mu     sync.Mutex
+	starts map[int]time.Time
+}
+
+func (r *toolCallStageRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	if r.inner != nil {
+		r.inner.RecordStart(dispatchIndex, startedAt)
+	}
+	r.mu.Lock()
+	r.starts[dispatchIndex] = startedAt
+	r.mu.Unlock()
+}
+
+func (r *toolCallStageRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
+	if r.inner != nil {
+		r.inner.RecordComplete(dispatchIndex, completedAt)
+	}
+	r.mu.Lock()
+	startedAt, started := r.starts[dispatchIndex]
+	delete(r.starts, dispatchIndex)
+	r.mu.Unlock()
+	if !started {
+		return
+	}
+	r.record(dispatchIndex, startedAt, completedAt)
+}
+
 func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -908,6 +1015,20 @@ func (s *taskStarter) executeLocalTools(
 				recordComplete: attempt.recordToolCompletion,
 			}
 		}
+		toolStages := &toolCallStageRecorder{
+			inner:  billingRecorder,
+			starts: make(map[int]time.Time, len(allowed)),
+			record: func(dispatchIndex int, startedAt, completedAt time.Time) {
+				toolName := ""
+				if dispatchIndex >= 0 && dispatchIndex < len(allowed) {
+					toolName = allowed[dispatchIndex].ToolName
+				}
+				s.server.stages.Record(ctx, chatloop.StageToolCall, prepared.StageModel, startedAt, completedAt, nil,
+					attribute.String(chatloop.AttrToolName, toolName),
+					attribute.String(chatloop.AttrProvider, provider),
+				)
+			},
+		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
 			Tools:              prepared.Tools,
 			ActiveTools:        prepared.ActiveTools,
@@ -922,7 +1043,7 @@ func (s *taskStarter) executeLocalTools(
 			ContextLimit:       prepared.ContextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
-			BillingRecorder:    billingRecorder,
+			BillingRecorder:    toolStages,
 			PublishMessagePart: attempt.publish,
 			Logger:             s.opts.Logger,
 			Metrics:            s.server.metrics,
@@ -1052,7 +1173,13 @@ func (s *taskStarter) generateCompaction(
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
-	outcome, err := chatloop.GenerateCompaction(runCtx, compactionOpts)
+	compactionCtx, compactionSpan := s.server.stages.Start(runCtx, chatloop.StageCompaction,
+		attribute.String(chatloop.AttrProvider, metricProvider),
+		attribute.String(chatloop.AttrCompactionSource, string(source)),
+	)
+	compactionSpan.SetModel(compactionStageModel(prepared, metricModel))
+	outcome, err := chatloop.GenerateCompaction(compactionCtx, compactionOpts)
+	compactionSpan.End(err)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return xerrors.Errorf("generate compaction: %w", err)
@@ -1106,6 +1233,18 @@ func (s *taskStarter) generateCompaction(
 		return xerrors.Errorf("commit compaction step: %w", err)
 	}
 	return nil
+}
+
+// compactionStageModel labels the compaction stage with the summary
+// model. The effort carries over only when the chat model runs the
+// summary; an override resolves its own call options, which this call
+// site does not see.
+func compactionStageModel(prepared generationPrepared, summaryModel string) chatloop.StageModel {
+	model := chatloop.StageModel{Model: summaryModel}
+	if prepared.Compaction != nil && prepared.Compaction.Override == nil {
+		model.Effort = prepared.StageModel.Effort
+	}
+	return model
 }
 
 // compactionMetricIdentity returns the provider/model labels for compaction
@@ -1246,7 +1385,11 @@ func (s *taskStarter) commitGenerationStep(
 	}
 	var committed database.Chat
 	insertedMessages := []runnerActionMessage{}
-	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	commitCtx, commitSpan := s.server.stages.Start(ctx, chatloop.StageCommit,
+		attribute.String(chatloop.AttrGenerationAction, string(kind)),
+		attribute.Int64(chatloop.AttrGenerationAttempt, attempt),
+	)
+	err := machine.Update(commitCtx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, requireGenerationAttempt(attempt)); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
 		}
@@ -1277,6 +1420,7 @@ func (s *taskStarter) commitGenerationStep(
 		committed = loadedChat
 		return nil
 	})
+	commitSpan.End(err)
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
@@ -1416,6 +1560,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 	fence generationAttemptFence,
 ) error {
 	var committed database.Chat
+	var promotedQueuedAt time.Time
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
@@ -1426,6 +1571,7 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		}
 		if finishResult.PromotedMessage != nil {
 			decision.promotedMessageID = finishResult.PromotedMessage.ID
+			promotedQueuedAt = finishResult.PromotedQueuedAt
 		}
 		committed = finishResult.Chat
 		return nil
@@ -1435,7 +1581,25 @@ func (s *taskStarter) finishGenerationTurnWithoutHook(
 		recordGenerationFinishFailure(input.DebugTurn, err)
 		return err
 	}
+	s.recordQueueWaitStage(ctx, input, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
+}
+
+// recordQueueWaitStage emits the queue_wait stage for a message just
+// promoted out of the queue, measured from the queued row's creation
+// to now. It is recorded against the turn span rather than the step
+// that observed the promotion, whose window does not contain the
+// queue wait. A zero queuedAt means the transition promoted nothing
+// and records no stage.
+func (s *taskStarter) recordQueueWaitStage(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	queuedAt time.Time,
+) {
+	s.server.stages.Record(input.Turn.Context(ctx), chatloop.StageQueueWait, chatloop.StageModel{},
+		queuedAt, time.Now(), nil,
+		attribute.String(chatloop.AttrChatID, input.ChatID.String()),
+	)
 }
 
 func (s *taskStarter) finishGenerationTurn(
@@ -1483,6 +1647,7 @@ func (s *taskStarter) finishGenerationTurn(
 	continueTurn := strings.TrimSpace(response.GetModelContext()) != "" && input.StopNudges.claim(nudgeKey)
 
 	var committed database.Chat
+	var promotedQueuedAt time.Time
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
@@ -1499,6 +1664,7 @@ func (s *taskStarter) finishGenerationTurn(
 			}
 			if finishResult.PromotedMessage != nil {
 				decision.promotedMessageID = finishResult.PromotedMessage.ID
+				promotedQueuedAt = finishResult.PromotedQueuedAt
 			}
 			committed = finishResult.Chat
 			return nil
@@ -1525,6 +1691,7 @@ func (s *taskStarter) finishGenerationTurn(
 			Kind: runnerActionKind(generationActionGenerateAssistant),
 		})
 	}
+	s.recordQueueWaitStage(ctx, input, promotedQueuedAt)
 	return s.completeGenerationTurn(ctx, input, committed, decision.promotedMessageID)
 }
 

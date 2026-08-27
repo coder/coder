@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -25,6 +26,10 @@ type modelClientRequest struct {
 type modelBuildOptions struct {
 	ActiveAPIKeyID string
 	RecordHTTP     bool
+	// StageModel labels the provider transport's lifecycle stages. It
+	// is set by the model call resolver, which knows the resolved model
+	// and effective reasoning effort before the client is built.
+	StageModel chatloop.StageModel
 }
 
 func (p *Server) enabledAIProviderByID(ctx context.Context, providerID uuid.UUID) (database.AIProvider, error) {

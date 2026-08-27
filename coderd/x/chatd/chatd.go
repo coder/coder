@@ -21,6 +21,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -199,6 +201,7 @@ type Server struct {
 	usageTracker         *workspacestats.UsageTracker
 	clock                quartz.Clock
 	metrics              *chatloop.Metrics
+	stages               *chatloop.StageTracer
 	chatWorker           *chatWorker
 	messagePartBuffer    *messagepartbuffer.Buffer
 	streamSyncPoller     *streamSyncPoller
@@ -2143,9 +2146,10 @@ func (p *Server) PromoteQueued(
 	}
 
 	var (
-		result      PromoteQueuedResult
-		refreshChat database.Chat
-		refreshedOK bool
+		result           PromoteQueuedResult
+		refreshChat      database.Chat
+		refreshedOK      bool
+		promotedQueuedAt time.Time
 	)
 	machine := p.newChatMachine(opts.ChatID)
 	updateErr := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
@@ -2165,6 +2169,7 @@ func (p *Server) PromoteQueued(
 		}
 		if promoteResult.InsertedMessage != nil {
 			result.PromotedMessage = *promoteResult.InsertedMessage
+			promotedQueuedAt = promoteResult.QueuedMessage.CreatedAt
 		}
 		// Capture the chat inside the transaction so the watch event
 		// published below uses the snapshot bump and status change
@@ -2183,6 +2188,12 @@ func (p *Server) PromoteQueued(
 
 	if refreshedOK {
 		p.publishChatPubsubEvent(refreshChat, codersdk.ChatWatchEventKindStatusChange, nil)
+	}
+	if !promotedQueuedAt.IsZero() {
+		p.stages.Record(ctx, chatloop.StageQueueWait, chatloop.StageModel{},
+			promotedQueuedAt, time.Now(), nil,
+			attribute.String(chatloop.AttrChatID, opts.ChatID.String()),
+		)
 	}
 	return result, nil
 }
@@ -3061,6 +3072,9 @@ type Config struct {
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
 	PrometheusRegistry             prometheus.Registerer
+	// TracerProvider supplies the tracer used for chat lifecycle
+	// spans. Nil disables tracing without disabling metrics.
+	TracerProvider trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -3190,6 +3204,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	} else {
 		p.metrics = chatloop.NopMetrics()
 	}
+	p.stages = chatloop.NewStageTracer(cfg.TracerProvider, p.metrics)
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
 	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: p.messagePartBuffer,
@@ -5081,7 +5096,11 @@ func (p *Server) Close() error {
 // must be called once the work completes to release the shutdown hook.
 // The caller is responsible for providing their own timeout.
 func (p *Server) inflightContext(reqCtx context.Context) (context.Context, func()) {
-	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	// Inflight work outlives the caller, so the caller's span is
+	// stripped from the context: spans started on this context become
+	// their own roots instead of children that end after their parent.
+	detached := trace.ContextWithSpanContext(context.WithoutCancel(reqCtx), trace.SpanContext{})
+	ctx, cancel := context.WithCancel(detached)
 	stop := context.AfterFunc(p.ctx, cancel)
 	return ctx, func() {
 		stop()

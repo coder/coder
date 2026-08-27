@@ -1448,6 +1448,11 @@ type FinishTurnInput struct{}
 type FinishTurnResult struct {
 	Chat            database.Chat
 	PromotedMessage *database.ChatMessage
+	// PromotedQueuedAt is the queued row's creation time when this
+	// transition promoted a queue head, and the zero time otherwise.
+	// The promoted history row carries its insertion time, so this is
+	// the only record of how long the message sat in the queue.
+	PromotedQueuedAt time.Time
 }
 
 // FinishTurn completes a running turn.
@@ -1509,8 +1514,9 @@ func (tx *Tx) FinishTurn(_ FinishTurnInput) (FinishTurnResult, error) {
 		promoted = &inserted[len(inserted)-1]
 	}
 	return FinishTurnResult{
-		Chat:            updated,
-		PromotedMessage: promoted,
+		Chat:             updated,
+		PromotedMessage:  promoted,
+		PromotedQueuedAt: head.CreatedAt,
 	}, nil
 }
 

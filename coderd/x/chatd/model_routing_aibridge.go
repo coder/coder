@@ -11,6 +11,7 @@ import (
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -66,6 +68,42 @@ const (
 	aiGatewayRequestFormatOpenAI aiGatewayRequestFormat = iota
 	aiGatewayRequestFormatAnthropic
 )
+
+// stageSpanRoundTripper emits one provider_attempt stage per HTTP
+// round trip to the model provider, so retried requests each get
+// their own span. model labels every attempt with the identity the
+// client was built for.
+type stageSpanRoundTripper struct {
+	base   http.RoundTripper
+	stages *chatloop.StageTracer
+	model  chatloop.StageModel
+}
+
+var _ http.RoundTripper = (*stageSpanRoundTripper)(nil)
+
+func (t *stageSpanRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	ctx, span := t.stages.Start(req.Context(), chatloop.StageProviderAttempt,
+		attribute.String(chatloop.AttrHTTPMethod, req.Method),
+		attribute.String(chatloop.AttrHTTPHost, req.URL.Host),
+	)
+	span.SetModel(t.model)
+	resp, err := t.base.RoundTrip(req.WithContext(ctx))
+	if resp != nil {
+		span.SetAttributes(attribute.Int(chatloop.AttrHTTPStatusCode, resp.StatusCode))
+		if err == nil && resp.StatusCode >= http.StatusBadRequest {
+			err = xerrors.Errorf("provider returned status %d", resp.StatusCode)
+			// The status error only marks the span; the response and the
+			// transport's own error are returned untouched.
+			span.End(err)
+			return resp, nil
+		}
+	}
+	// The span closes on response headers, not on body completion: the
+	// streamed body outlives this call and is measured by the stream
+	// stage.
+	span.End(err)
+	return resp, err
+}
 
 type aiGatewayRoundTripper struct {
 	base         http.RoundTripper
@@ -164,6 +202,7 @@ func (p *Server) newModel(
 	if opts.RecordHTTP {
 		baseRT = &chatdebug.RecordingTransport{Base: baseRT}
 	}
+	baseRT = &stageSpanRoundTripper{base: baseRT, stages: p.stages, model: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type)
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)

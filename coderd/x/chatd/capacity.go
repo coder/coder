@@ -2,11 +2,14 @@ package chatd
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
 type capacityMetrics struct {
@@ -43,6 +46,52 @@ func (w *chatWorker) capacityMetricsLoop(ctx context.Context) {
 			return
 		}
 		w.refreshCapacityMetrics(ctx)
+	}
+}
+
+// noteCapacityRefused remembers when a chat was first refused a
+// capacity slot. Only the acquisition loop touches the map, so it
+// needs no lock.
+func (w *chatWorker) noteCapacityRefused(chatID uuid.UUID) {
+	if _, ok := w.capacityWaitSince[chatID]; ok {
+		return
+	}
+	w.capacityWaitSince[chatID] = time.Now()
+}
+
+// recordCapacityWait emits the capacity_wait stage for a chat that is
+// being acquired after at least one capacity refusal, measured from
+// the first refusal this worker saw. Chats admitted on their first
+// attempt record nothing. The acquisition pass runs before the turn
+// span exists, so the turn scope is stated explicitly.
+func (w *chatWorker) recordCapacityWait(ctx context.Context, chat database.Chat) {
+	since, waited := w.capacityWaitSince[chat.ID]
+	if !waited {
+		return
+	}
+	delete(w.capacityWaitSince, chat.ID)
+	w.server.stages.RecordAs(ctx, chatloop.StageCapacityWait, chatloop.ScopeTurn, chatloop.StageModel{},
+		since, time.Now(), nil,
+		attribute.String(chatloop.AttrChatID, chat.ID.String()),
+		attribute.String(chatloop.AttrChatKind, chatKindAttr(chat)),
+	)
+}
+
+// pruneCapacityWaits drops wait starts for chats that are no longer
+// acquisition candidates, which happens when they are archived,
+// deleted, or picked up by another worker.
+func (w *chatWorker) pruneCapacityWaits(candidates []database.GetChatWorkerAcquisitionCandidatesRow) {
+	if len(w.capacityWaitSince) == 0 {
+		return
+	}
+	stillCandidate := make(map[uuid.UUID]struct{}, len(candidates))
+	for _, row := range candidates {
+		stillCandidate[row.ID] = struct{}{}
+	}
+	for chatID := range w.capacityWaitSince {
+		if _, ok := stillCandidate[chatID]; !ok {
+			delete(w.capacityWaitSince, chatID)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -34,6 +35,7 @@ type Metrics struct {
 	ToolResultTruncatedTotal  *prometheus.CounterVec
 	ToolErrorsTotal           *prometheus.CounterVec
 	TTFTSeconds               *prometheus.HistogramVec
+	StageDurationSeconds      *prometheus.HistogramVec
 	CompactionTotal           *prometheus.CounterVec
 	StepsTotal                *prometheus.CounterVec
 	StreamRetriesTotal        *prometheus.CounterVec
@@ -95,6 +97,14 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Help:      "Time-to-first-token: wall time from LLM request to first streamed chunk.",
 			Buckets:   []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		}, []string{"provider", "model"}),
+		StageDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "stage_duration_seconds",
+			Help:      "Wall time spent in each chat lifecycle stage. Stages overlap in wall time; this is a stage-time profile, not a partition of the turn. The scope label separates stages that run inside a chat turn from detached background work. The model and effort labels are empty for stages that run before a model is resolved.",
+			// 10ms .. ~11m, log-spaced.
+			Buckets: prometheus.ExponentialBuckets(0.01, 2, 17),
+		}, []string{"stage", "scope", "model", "effort"}),
 		CompactionTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -151,6 +161,16 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 // Useful for tests and when metrics collection is not desired.
 func NopMetrics() *Metrics {
 	return NewMetrics(prometheus.NewRegistry())
+}
+
+// RecordStageDuration observes one chat lifecycle stage duration.
+// model and effort are empty when the stage ran before a model was
+// resolved. Negative durations are dropped. No-op when m is nil.
+func (m *Metrics) RecordStageDuration(stage, scope, model, effort string, elapsed time.Duration) {
+	if m == nil || elapsed < 0 {
+		return
+	}
+	m.StageDurationSeconds.WithLabelValues(stage, scope, model, effort).Observe(elapsed.Seconds())
 }
 
 // RecordCompaction classifies and records a compaction attempt.

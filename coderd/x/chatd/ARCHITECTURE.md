@@ -655,6 +655,8 @@ For every matching chat, it locks it, checks if the chat still meets the aforeme
 
 When a chat is successfully acquired, the acquisition loop requests the [Runner manager](#runner-manager) to spawn a chat runner for it.
 
+<!-- TODO: document the acquisition loop's per-chat capacity refusal tracking, which now emits the `capacity_wait` lifecycle stage on the acquisition that follows a refusal. -->
+
 ### Load balancing
 
 The design doesn't attempt to distribute load between workers fairly. Whenever a chat needs an owner, all replicas race to acquire it. If there's a coder replica that has a lower latency to the database, it'll tend to acquire chats more frequently than other replicas.
@@ -778,6 +780,8 @@ State updates processed by the loop come from:
 
 The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub channel. During bootstrap, it must first subscribe to the channel and then fetch the initial state of the chat from the database to avoid missing any updates.
 
+<!-- TODO: document that the runner owns the turn-scoped `chat_turn` trace span, started by the first generation task and ended when the runner exits, and that the generation goroutine's stages hang off it. -->
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:
@@ -858,6 +862,8 @@ Retriable conditions include, but are not limited to:
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
+
+<!-- TODO: document the generation goroutine's lifecycle stages (`generation_step`, `prepare`, `mcp_connect`, `provider_attempt`, `stream`, `time_to_first_token`, `thinking`, `tool_call`, `commit`, `compaction`, `queue_wait`) and the `coderd_chatd_stage_duration_seconds` histogram they feed. -->
 
 - `CommitStep`: applied when an LLM API call returns a response.
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
