@@ -19,6 +19,7 @@ import (
 	aiblib "github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -4294,6 +4295,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// The default window echoes the current UTC month.
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "300", "150", "30", "15", "3000",
@@ -4354,6 +4356,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + only the retained row
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
@@ -4406,6 +4409,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + only the start-boundary row
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
@@ -4490,6 +4494,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + the retained row
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
@@ -4549,8 +4554,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		periodStart := "2026-03-01T00:00:00Z"
 		periodEnd := "2026-04-01T00:00:00Z"
 		// Ordered by provider then model: anthropic/claude-4, then openai/gpt-4.
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+		require.Equal(t, []string{userID, username, "", groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
+		require.Equal(t, []string{userID, username, "", groupID, groupName, orgID, orgName, "gpt-4", "openai", "openai-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
 	})
 
 	t.Run("SeparateRowPerProviderName", func(t *testing.T) {
@@ -4610,8 +4615,106 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		periodStart := "2026-03-01T00:00:00Z"
 		periodEnd := "2026-04-01T00:00:00Z"
 		// Ordered by provider name: anthropic-dev, then anthropic-prod.
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-dev", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
-		require.Equal(t, []string{userID, username, groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+		require.Equal(t, []string{userID, username, "", groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-dev", "100", "50", "0", "0", "1000", periodStart, periodEnd}, records[1])
+		require.Equal(t, []string{userID, username, "", groupID, groupName, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd}, records[2])
+	})
+
+	t.Run("UnionsCapabilitiesAcrossInterceptions", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-capabilities-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		// Three interceptions collapse into one row: one recorded before
+		// capabilities were annotated, one with no capabilities, and one with
+		// the workspace capability.
+		for _, annotations := range []database.AIBridgeInterceptionAnnotations{
+			{},
+			database.AIBridgeInterceptionCapabilities(nil),
+			database.AIBridgeInterceptionCapabilities([]string{string(capabilities.Workspace)}),
+		} {
+			intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod",
+				Model: "claude-4", StartedAt: inMonth, Annotations: annotations,
+			}, nil)
+			dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+				InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+				InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+			})
+		}
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2) // header + one aggregated row
+
+		// Capabilities are unioned into one cell, and the sums are unaffected by
+		// the capability expansion.
+		require.Equal(t, []string{
+			targetUser.ID.String(), targetUser.Username,
+			"workspace",
+			group.ID.String(), group.Name,
+			group.OrganizationID.String(), group.OrganizationName,
+			"claude-4", "anthropic", "anthropic-prod", "300", "150", "0", "0", "3000",
+			"2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z",
+		}, records[1])
+	})
+
+	t.Run("MultipleCapabilitiesAreSemicolonSeparated", func(t *testing.T) {
+		t.Parallel()
+
+		// Use fixed dates to keep the test deterministic.
+		now := time.Date(2026, time.March, 15, 12, 0, 0, 0, time.UTC)
+		clock := quartz.NewMock(t)
+		clock.Set(now)
+
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "export-multi-capabilities-group",
+			Clock:     clock,
+			Database:  db,
+			Pubsub:    ps,
+		})
+		ctx := testutil.Context(t, testutil.WaitLong)
+		inMonth := time.Date(2026, time.March, 10, 8, 0, 0, 0, time.UTC)
+		effectiveGroupID := uuid.NullUUID{UUID: group.ID, Valid: true}
+
+		intc := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID: targetUser.ID, Provider: "anthropic", ProviderName: "anthropic-prod",
+			Model: "claude-4", StartedAt: inMonth,
+			// A capability that does not exist yet is still exported verbatim,
+			// and values are emitted in sorted order.
+			Annotations: database.AIBridgeInterceptionCapabilities([]string{"workspace", "future"}),
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: intc.ID, CreatedAt: inMonth, EffectiveGroupID: effectiveGroupID,
+			InputTokens: 100, OutputTokens: 50, CostMicros: sql.NullInt64{Int64: 1000, Valid: true},
+		})
+
+		// Now: 15 March 2026 12:00 UTC.
+		res := requestAISpendExport(ctx, t, adminClient, group.OrganizationID, nil)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		records := readAISpendExportResponse(t, res)
+		require.Len(t, records, 2)
+		require.Equal(t, "future;workspace", records[1][2])
 	})
 
 	t.Run("SeparateRowPerGroup", func(t *testing.T) {
@@ -4677,8 +4780,8 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// Rows are ordered by group ID, which is a random UUID, so compare
 		// without depending on which group sorts first.
 		require.ElementsMatch(t, [][]string{
-			{userID, username, group.ID.String(), group.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd},
-			{userID, username, secondGroup.ID.String(), secondGroup.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd},
+			{userID, username, "", group.ID.String(), group.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000", periodStart, periodEnd},
+			{userID, username, "", secondGroup.ID.String(), secondGroup.Name, orgID, orgName, "claude-4", "anthropic", "anthropic-prod", "500", "250", "0", "0", "5000", periodStart, periodEnd},
 		}, records[1:])
 	})
 
@@ -4731,6 +4834,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + current-month row
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
@@ -4845,6 +4949,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + the requested organization's row
 		require.Equal(t, []string{
 			owner.UserID.String(), coderdtest.FirstUserParams.Username,
+			"",
 			group.ID.String(), group.Name,
 			owner.OrganizationID.String(), group.OrganizationName,
 			"claude-4", "anthropic", "anthropic-prod", "100", "50", "0", "0", "1000",
@@ -4894,6 +4999,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		require.Len(t, records, 2) // header + the escaped row
 		require.Equal(t, []string{
 			targetUser.ID.String(), targetUser.Username,
+			"",
 			group.ID.String(), group.Name,
 			group.OrganizationID.String(), group.OrganizationName,
 			`'=HYPERLINK("http://insecure/","invoice")`, "'+openai", "'@prod",
@@ -4937,7 +5043,7 @@ func TestExportOrganizationAISpend(t *testing.T) {
 		// column names are a published contract that a rename would break.
 		records := readAISpendExportResponse(t, res)
 		require.Equal(t, []string{
-			"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
+			"user_id", "username", "capabilities", "group_id", "group_name", "organization_id", "organization_name",
 			"model", "provider", "provider_name",
 			"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
 			"cost_micros", "period_start", "period_end",

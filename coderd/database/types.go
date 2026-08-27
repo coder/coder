@@ -442,6 +442,40 @@ func (a UserLinkClaims) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
+// AIBridgeInterceptionAnnotations holds server-derived annotations recorded on
+// an AI Bridge interception.
+type AIBridgeInterceptionAnnotations struct {
+	// Capabilities lists the capabilities the initiator held when the
+	// interception was recorded. A nil pointer omits the key and means
+	// capabilities were not resolved, which is distinct from a pointer to an
+	// empty slice meaning the initiator held none.
+	Capabilities *[]string `json:"capabilities,omitempty"`
+}
+
+// AIBridgeInterceptionCapabilities returns annotations recording the given
+// capabilities. A nil slice is stored as an empty list rather than an absent
+// key, so the annotations record that resolution ran.
+func AIBridgeInterceptionCapabilities(caps []string) AIBridgeInterceptionAnnotations {
+	if caps == nil {
+		caps = []string{}
+	}
+	return AIBridgeInterceptionAnnotations{Capabilities: &caps}
+}
+
+func (a *AIBridgeInterceptionAnnotations) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a AIBridgeInterceptionAnnotations) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
 func ParseIP(ipStr string) pqtype.Inet {
 	ip := net.ParseIP(ipStr)
 	ipNet := net.IPNet{}

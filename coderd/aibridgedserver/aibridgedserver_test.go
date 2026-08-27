@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/capabilities"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
@@ -4893,6 +4894,92 @@ func TestRecordInterceptionAISeat(t *testing.T) {
 			_, err = srv.RecordInterception(ctx, newRequest())
 			require.NoError(t, err)
 			require.Equal(t, tc.expectedCalls, tracker.calls.Load())
+		})
+	}
+}
+
+// stubCapabilityChecker returns fixed capabilities or a fixed error.
+type stubCapabilityChecker struct {
+	caps []capabilities.Capability
+	err  error
+}
+
+func (s stubCapabilityChecker) Capabilities(context.Context, uuid.UUID) ([]capabilities.Capability, error) {
+	return s.caps, s.err
+}
+
+// TestRecordInterceptionCapabilityAnnotations verifies the capability
+// annotations written alongside an interception. A resolution failure is
+// recorded as no annotations and does not fail the interception.
+func TestRecordInterceptionCapabilityAnnotations(t *testing.T) {
+	t.Parallel()
+
+	workspace := []string{string(capabilities.Workspace)}
+	none := []string{}
+
+	cases := []struct {
+		name     string
+		checker  capabilities.Checker
+		expected database.AIBridgeInterceptionAnnotations
+	}{
+		{
+			name:     "no checker leaves annotations empty",
+			checker:  nil,
+			expected: database.AIBridgeInterceptionAnnotations{},
+		},
+		{
+			name:     "workspace capability",
+			checker:  stubCapabilityChecker{caps: []capabilities.Capability{capabilities.Workspace}},
+			expected: database.AIBridgeInterceptionAnnotations{Capabilities: &workspace},
+		},
+		{
+			name:     "no capabilities records an empty list",
+			checker:  stubCapabilityChecker{},
+			expected: database.AIBridgeInterceptionAnnotations{Capabilities: &none},
+		},
+		{
+			name:     "resolution error leaves annotations empty",
+			checker:  stubCapabilityChecker{err: xerrors.New("boom")},
+			expected: database.AIBridgeInterceptionAnnotations{},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			var recorded database.AIBridgeInterceptionAnnotations
+			db.EXPECT().InsertAIBridgeInterception(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, params database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
+					recorded = params.Annotations
+					return database.AIBridgeInterception{}, nil
+				})
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			srv, err := aibridgedserver.NewServer(ctx, aibridgedserver.Options{
+				Store:             db,
+				AISeatTracker:     &countingSeatTracker{},
+				CapabilityChecker: tc.checker,
+				AccessURL:         "/",
+				GatewayCfg:        codersdk.AIBridgeConfig{},
+				Experiments:       requiredExperiments,
+				Logger:            testutil.Logger(t),
+				Clock:             quartz.NewReal(),
+			})
+			require.NoError(t, err)
+
+			_, err = srv.RecordInterception(ctx, &proto.RecordInterceptionRequest{
+				Id:          uuid.NewString(),
+				ApiKeyId:    uuid.NewString(),
+				InitiatorId: uuid.NewString(),
+				Provider:    "anthropic",
+				Model:       "claude-4-opus",
+				StartedAt:   timestamppb.Now(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, recorded)
 		})
 	}
 }

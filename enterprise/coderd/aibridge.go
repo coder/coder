@@ -1099,7 +1099,7 @@ func (api *API) organizationGroupsAISpend(rw http.ResponseWriter, r *http.Reques
 
 // AISpendExportCSVHeader is the CSV column order for the AI spend export.
 var AISpendExportCSVHeader = []string{
-	"user_id", "username", "group_id", "group_name", "organization_id", "organization_name",
+	"user_id", "username", "capabilities", "group_id", "group_name", "organization_id", "organization_name",
 	"model", "provider", "provider_name",
 	"input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
 	"cost_micros", "period_start", "period_end",
@@ -1199,6 +1199,7 @@ func (api *API) aiSpendExportPeriod(ctx context.Context, rw http.ResponseWriter,
 // @Description Returns per-user, per-group, per-model, per-provider aggregated AI spend for the organization as CSV, built from raw AI Gateway token usage.
 // @Description The optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.
 // @Description An explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead, and every row echoes the applied bounds.
+// @Description The capabilities column lists the distinct capabilities the user held across the interceptions behind the row, semicolon-separated. It is empty for interceptions recorded without capability annotations.
 // @Description Requires organization-level administrator permissions.
 // @ID export-organization-ai-spend-as-csv
 // @Security CoderSessionToken
@@ -1255,6 +1256,7 @@ func (api *API) exportOrganizationAISpend(rw http.ResponseWriter, r *http.Reques
 		if err := cw.Write([]string{
 			row.UserID.String(),
 			escapeCSVCell(row.Username),
+			escapeCSVCell(row.Capabilities),
 			row.GroupID.UUID.String(),
 			escapeCSVCell(row.GroupName),
 			row.OrganizationID.String(),
