@@ -33,6 +33,8 @@ import (
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -68,6 +70,8 @@ const (
 var _ aibridged.DRPCServer = &Server{}
 
 type store interface {
+	database.Store
+
 	// Recorder-related queries.
 	InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg database.InsertAIBridgeTokenUsageParams) (database.AIBridgeTokenUsage, error)
@@ -112,6 +116,7 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	authorizer          rbac.Authorizer
 	pubsub              pubsub.Pubsub
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
@@ -135,6 +140,7 @@ type Server struct {
 // Options carries the dependencies required to construct an aibridged Server.
 type Options struct {
 	Store         store
+	Authorizer    rbac.Authorizer
 	Pubsub        pubsub.Pubsub
 	AISeatTracker aiseats.SeatTracker
 	// Enqueuer enqueues notifications. When nil, NewServer substitutes a no-op
@@ -170,6 +176,7 @@ func NewServer(lifecycleCtx context.Context, opts Options) (*Server, error) {
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               opts.Store,
+		authorizer:          opts.Authorizer,
 		pubsub:              opts.Pubsub,
 		logger:              opts.Logger,
 		externalAuthConfigs: eac,
@@ -762,25 +769,53 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
+	key, principal, err := s.authenticateAPIKey(ctx, in.GetKey(), in.GetKeyId())
+	if err != nil {
+		return nil, err
+	}
+	return &proto.IsAuthorizedResponse{
+		OwnerId:  key.HolderID.String(),
+		ApiKeyId: key.ID,
+		Username: principal.DisplayName,
+	}, nil
+}
+
+// gatewayPrincipal carries the normalized identity facts for a validated
+// bridge credential: who acted, who is accountable, and how to display them.
+type gatewayPrincipal struct {
+	// InitiatorID is the acting identity: the AI agent ledger ID for an
+	// AI-held key, else the human holder's user ID.
+	InitiatorID uuid.UUID
+	// SponsorUserID is the accountable human owner for an AI-held key. A
+	// human holder is their own accountable principal and carries no
+	// sponsor.
+	SponsorUserID uuid.NullUUID
+	// DisplayName is the computed agent name for an AI holder, else the
+	// human holder's username.
+	DisplayName string
+}
+
+// authenticateAPIKey validates a bridge credential and resolves its holder.
+// Delegated requests (keyIDCredential) skip the secret check because the
+// caller never has the secret; trust is established at the in-process
+// transport boundary, not in this RPC.
+func (s *Server) authenticateAPIKey(ctx context.Context, keyCredential, keyIDCredential string) (database.APIKey, gatewayPrincipal, error) {
 	var (
 		keyID     string
 		keySecret string
-		// delegated requests skip the secret check: the caller never
-		// has the secret. Trust is established at the in-process
-		// transport boundary, not in this RPC.
 		delegated bool
 	)
 	switch {
-	case in.GetKey() != "" && in.GetKeyId() != "":
-		return nil, ErrAmbiguousAuth
-	case in.GetKeyId() != "":
-		keyID = in.GetKeyId()
+	case keyCredential != "" && keyIDCredential != "":
+		return database.APIKey{}, gatewayPrincipal{}, ErrAmbiguousAuth
+	case keyIDCredential != "":
+		keyID = keyIDCredential
 		delegated = true
 	default:
 		var err error
-		keyID, keySecret, err = httpmw.SplitAPIToken(in.GetKey())
+		keyID, keySecret, err = httpmw.SplitAPIToken(keyCredential)
 		if err != nil {
-			return nil, ErrInvalidKey
+			return database.APIKey{}, gatewayPrincipal{}, ErrInvalidKey
 		}
 	}
 
@@ -788,18 +823,18 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	key, err := s.store.GetAPIKeyByID(ctx, keyID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
-		return nil, ErrUnknownKey
+		return database.APIKey{}, gatewayPrincipal{}, ErrUnknownKey
 	}
 
 	// Key has not expired.
 	now := dbtime.Now()
 	if key.ExpiresAt.Before(now) {
-		return nil, ErrExpired
+		return database.APIKey{}, gatewayPrincipal{}, ErrExpired
 	}
 
 	// Key secret matches (skipped for delegated callers).
 	if !delegated && !apikey.ValidateHash(key.HashedSecret, keySecret) {
-		return nil, ErrInvalidKey
+		return database.APIKey{}, gatewayPrincipal{}, ErrInvalidKey
 	}
 
 	// **The key says what kind of actor holds it, and the holder decides which
@@ -811,31 +846,31 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		agent, err := s.store.GetAIAgentLedgerRowByID(identityCtx, agentID)
 		if err != nil {
 			s.logger.Warn(ctx, "failed to retrieve AI agent identity", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.Error(err))
-			return nil, ErrInvalidAIAgent
+			return database.APIKey{}, gatewayPrincipal{}, ErrInvalidAIAgent
 		}
 		// The ledger's state is the agent's liveness, standing where a users
 		// row's deleted and status flags stood for a human.
 		if agent.State != entity.AIAgentStateActive {
-			return nil, ErrInvalidAIAgent
+			return database.APIKey{}, gatewayPrincipal{}, ErrInvalidAIAgent
 		}
 
 		owner, err := s.store.GetUserByID(identityCtx, agent.OwnerID)
 		if err != nil {
 			s.logger.Warn(ctx, "failed to retrieve AI agent owner", slog.F("key_id", keyID), slog.F("ai_agent_id", agentID), slog.F("owner_user_id", agent.OwnerID), slog.Error(err))
-			return nil, ErrInvalidAIAgent
+			return database.APIKey{}, gatewayPrincipal{}, ErrInvalidAIAgent
 		}
 		if owner.Deleted {
-			return nil, ErrDeletedUser
+			return database.APIKey{}, gatewayPrincipal{}, ErrDeletedUser
 		}
 		if owner.Status != database.UserStatusActive {
-			return nil, ErrInactiveUser
+			return database.APIKey{}, gatewayPrincipal{}, ErrInactiveUser
 		}
 
-		return &proto.IsAuthorizedResponse{
-			OwnerId:  key.HolderID.String(),
-			ApiKeyId: key.ID,
+		return key, gatewayPrincipal{
+			InitiatorID:   agent.ID,
+			SponsorUserID: uuid.NullUUID{UUID: agent.OwnerID, Valid: true},
 			// Computed, there being no stored name to read.
-			Username: entity.DisplayName(entity.CreationSiteType(agent.CreationSiteType), agent.ID),
+			DisplayName: entity.DisplayName(entity.CreationSiteType(agent.CreationSiteType), agent.ID),
 		}, nil
 	}
 
@@ -843,25 +878,70 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	user, err := s.store.GetUserByID(ctx, key.HolderID.AsUserIDUnchecked())
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.HolderID), slog.Error(err))
-		return nil, ErrUnknownUser
+		return database.APIKey{}, gatewayPrincipal{}, ErrUnknownUser
 	}
 
 	// User is active, not deleted, and not a system user.
 	if user.Deleted {
-		return nil, ErrDeletedUser
+		return database.APIKey{}, gatewayPrincipal{}, ErrDeletedUser
 	}
 	if user.Status != database.UserStatusActive {
-		return nil, ErrInactiveUser
+		return database.APIKey{}, gatewayPrincipal{}, ErrInactiveUser
 	}
 	if user.IsSystem {
-		return nil, ErrSystemUser
+		return database.APIKey{}, gatewayPrincipal{}, ErrSystemUser
 	}
 
-	return &proto.IsAuthorizedResponse{
-		OwnerId:  key.HolderID.String(),
-		ApiKeyId: key.ID,
-		Username: user.Username,
+	return key, gatewayPrincipal{
+		InitiatorID: user.ID,
+		DisplayName: user.Username,
 	}, nil
+}
+
+// AuthorizeMCPGateway authenticates a full API token and checks its scope,
+// allow-list, and live roles for MCP gateway access. AI-held keys authorize
+// as their sponsoring human, narrowed by the key's capability ceiling, while
+// human-held keys authorize as themselves.
+func (s *Server) AuthorizeMCPGateway(ctx context.Context, in *proto.AuthorizeMCPGatewayRequest) (*proto.AuthorizeMCPGatewayResponse, error) {
+	//nolint:gocritic // AIBridged has specific authz rules.
+	ctx = dbauthz.AsAIBridged(ctx)
+
+	key, principal, err := s.authenticateAPIKey(ctx, in.GetKey(), "")
+	if err != nil {
+		return nil, err
+	}
+	if in.GetMcpServerConfigId() == "" {
+		return nil, xerrors.New("mcp_server_config_id is required")
+	}
+	if s.authorizer == nil {
+		return nil, xerrors.New("MCP gateway authorizer is not configured")
+	}
+
+	subject, userStatus, _, valErr := httpmw.APIKeyRBACSubject(ctx, s.store, key)
+	if valErr != nil {
+		if !valErr.Hard {
+			return nil, ErrInvalidAIAgent
+		}
+		return nil, xerrors.Errorf("build API key RBAC subject: %s", valErr.Response.Detail)
+	}
+	if userStatus != database.UserStatusActive {
+		return nil, ErrInactiveUser
+	}
+
+	resp := &proto.AuthorizeMCPGatewayResponse{
+		InitiatorId: principal.InitiatorID.String(),
+		ApiKeyId:    key.ID,
+		Username:    principal.DisplayName,
+	}
+	err = s.authorizer.Authorize(ctx, subject, policy.ActionUse, rbac.ResourceMcpGateway.WithIDString(in.GetMcpServerConfigId()))
+	if rbac.IsUnauthorizedError(err) {
+		return resp, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("authorize MCP gateway access: %w", err)
+	}
+	resp.Authorized = true
+	return resp, nil
 }
 
 // IsBudgetExceeded reports whether the user's AI spend has reached their

@@ -42,6 +42,21 @@ func (m *MockDRPCClient) EXPECT() *MockDRPCClientMockRecorder {
 	return m.recorder
 }
 
+// AuthorizeMCPGateway mocks base method.
+func (m *MockDRPCClient) AuthorizeMCPGateway(ctx context.Context, in *proto.AuthorizeMCPGatewayRequest) (*proto.AuthorizeMCPGatewayResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AuthorizeMCPGateway", ctx, in)
+	ret0, _ := ret[0].(*proto.AuthorizeMCPGatewayResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AuthorizeMCPGateway indicates an expected call of AuthorizeMCPGateway.
+func (mr *MockDRPCClientMockRecorder) AuthorizeMCPGateway(ctx, in any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AuthorizeMCPGateway", reflect.TypeOf((*MockDRPCClient)(nil).AuthorizeMCPGateway), ctx, in)
+}
+
 // DRPCConn mocks base method.
 func (m *MockDRPCClient) DRPCConn() drpc.Conn {
 	m.ctrl.T.Helper()

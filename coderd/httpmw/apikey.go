@@ -484,72 +484,9 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
-	// **The credential says what kind of party holds it**, so the subject is
-	// chosen from the key rather than discovered by fetching a user and reading
-	// its kind. That is the change: an AI agent is no longer a row in users, so
-	// there is nothing to fetch and no kind to read.
-	var (
-		actor      rbac.Subject
-		userStatus database.UserStatus
-		agentActor *aiagentidentity.AIAgentActor
-	)
-	if agentID, ok := key.AIAgentID(); ok {
-		subject, status, attribution, agentErr := AIAgentRBACSubject(ctx, cfg.DB, agentID, key.ScopeSet())
-		if agentErr != nil {
-			// Every refusal here is the same answer to the caller: this
-			// credential authenticates nobody who may act. Which of the
-			// conditions failed is the server's business and is not disclosed,
-			// the caller having presented a credential either way.
-			return nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
-		}
-		actor, userStatus = subject, status
-		agentActor = &attribution
-	} else {
-		userID, _ := key.UserID()
-		// Read for existence alone. Nothing about the user decides which
-		// subject is built any more, but a key naming a user who is not there
-		// is answered as an invalid credential rather than as a server error,
-		// which is what fetching the roles would give.
-		//nolint:gocritic // Authentication runs before a request actor exists.
-		_, userErr := cfg.DB.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
-		if userErr != nil {
-			if errors.Is(userErr, sql.ErrNoRows) {
-				return nil, invalidAIAgentError("API key user does not exist.")
-			}
-			return nil, &ValidateAPIKeyError{
-				Code: http.StatusInternalServerError,
-				Response: codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Internal error fetching API key user. %s", userErr.Error()),
-				},
-				Hard: true,
-			}
-		}
-
-		// **A user holds this key, and only a user can.** An AI agent's key
-		// says so in its holder type and took the branch above. There is no
-		// longer a second way to be an AI agent here, so there is no kind to
-		// read and no identity to resolve: what holds a credential is a
-		// property of the credential.
-		//
-		// The branch that used to stand here built an agent's subject by
-		// assigning onto the one UserRBACSubject returned, which carries a
-		// cached rego value that regoValue() short-circuits on, so neither
-		// assignment reached the policy. See P9 in
-		// poc_audit/security_findings.md. Deleting it is where that finding is
-		// answered rather than moved.
-		subject, status, subjectErr := UserRBACSubject(ctx, cfg.DB, userID, key.ScopeSet())
-		if subjectErr != nil {
-			return nil, &ValidateAPIKeyError{
-				Code: http.StatusInternalServerError,
-				Response: codersdk.Response{
-					Message: internalErrorMessage,
-					Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", subjectErr.Error()),
-				},
-				Hard: true,
-			}
-		}
-		actor, userStatus = subject, status
+	actor, userStatus, agentActor, subjectValErr := APIKeyRBACSubject(ctx, cfg.DB, *key)
+	if subjectValErr != nil {
+		return nil, subjectValErr
 	}
 
 	return &ValidateAPIKeyResult{
@@ -976,6 +913,75 @@ func extractExpectedAudience(accessURL *url.URL, r *http.Request) string {
 
 	// Normalize the URI according to RFC 3986 for consistent comparison
 	return normalizeAudienceURI(audience)
+}
+
+// APIKeyRBACSubject builds the canonical authorization subject for an already
+// validated API key. It is the non-HTTP core of ValidateAPIKey's subject
+// construction, shared with aibridged so the MCP gateway authenticates
+// tokens under exactly the same typed-holder rules as the HTTP middleware.
+//
+// **The credential says what kind of party holds it**, so the subject is
+// chosen from the key rather than discovered by fetching a user and reading
+// its kind. An AI agent is no longer a row in users, so there is nothing to
+// fetch and no kind to read.
+func APIKeyRBACSubject(ctx context.Context, db database.Store, key database.APIKey) (rbac.Subject, database.UserStatus, *aiagentidentity.AIAgentActor, *ValidateAPIKeyError) {
+	if agentID, ok := key.AIAgentID(); ok {
+		subject, status, attribution, agentErr := AIAgentRBACSubject(ctx, db, agentID, key.ScopeSet())
+		if agentErr != nil {
+			// Every refusal here is the same answer to the caller: this
+			// credential authenticates nobody who may act. Which of the
+			// conditions failed is the server's business and is not disclosed,
+			// the caller having presented a credential either way.
+			return rbac.Subject{}, "", nil, invalidAIAgentError("AI agent identity is invalid or has been revoked.")
+		}
+		return subject, status, &attribution, nil
+	}
+
+	userID, _ := key.UserID()
+	// Read for existence alone. Nothing about the user decides which
+	// subject is built any more, but a key naming a user who is not there
+	// is answered as an invalid credential rather than as a server error,
+	// which is what fetching the roles would give.
+	//nolint:gocritic // Authentication runs before a request actor exists.
+	_, userErr := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
+	if userErr != nil {
+		if errors.Is(userErr, sql.ErrNoRows) {
+			return rbac.Subject{}, "", nil, invalidAIAgentError("API key user does not exist.")
+		}
+		return rbac.Subject{}, "", nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching API key user. %s", userErr.Error()),
+			},
+			Hard: true,
+		}
+	}
+
+	// **A user holds this key, and only a user can.** An AI agent's key
+	// says so in its holder type and took the branch above. There is no
+	// longer a second way to be an AI agent here, so there is no kind to
+	// read and no identity to resolve: what holds a credential is a
+	// property of the credential.
+	//
+	// The branch that used to stand here built an agent's subject by
+	// assigning onto the one UserRBACSubject returned, which carries a
+	// cached rego value that regoValue() short-circuits on, so neither
+	// assignment reached the policy. See P9 in
+	// poc_audit/security_findings.md. Deleting it is where that finding is
+	// answered rather than moved.
+	subject, status, subjectErr := UserRBACSubject(ctx, db, userID, key.ScopeSet())
+	if subjectErr != nil {
+		return rbac.Subject{}, "", nil, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("Internal error fetching user's roles. %s", subjectErr.Error()),
+			},
+			Hard: true,
+		}
+	}
+	return subject, status, nil, nil
 }
 
 // AIAgentRBACSubject builds an AI agent's rbac.Subject from the AI agent

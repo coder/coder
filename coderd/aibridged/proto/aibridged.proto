@@ -34,6 +34,9 @@ service Authorizer {
   // IsAuthorized validates that a given Coder key is valid and the user is authorized to use AI Bridge.
   // TODO: add authorization; currently only key validation takes place.
   rpc IsAuthorized(IsAuthorizedRequest) returns (IsAuthorizedResponse);
+  // AuthorizeMCPGateway validates a full Coder API token and checks whether
+  // its canonical RBAC subject may use the requested MCP server configuration.
+  rpc AuthorizeMCPGateway(AuthorizeMCPGatewayRequest) returns (AuthorizeMCPGatewayResponse);
   // IsBudgetExceeded reports whether the user's AI spend has reached their
   // effective limit for the current deployment-configured budget period.
   rpc IsBudgetExceeded(IsBudgetExceededRequest) returns (IsBudgetExceededResponse);
@@ -185,6 +188,22 @@ message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
+}
+
+message AuthorizeMCPGatewayRequest {
+  // key is the full "<id>-<secret>" API token presented to the MCP gateway.
+  string key = 1;
+  // mcp_server_config_id identifies the MCP server configuration being used.
+  string mcp_server_config_id = 2;
+}
+
+message AuthorizeMCPGatewayResponse {
+  bool authorized = 1;
+  // initiator_id is the user ID attached to the API key. For AI identities,
+  // this is the agent user, while authorization uses the sponsoring human.
+  string initiator_id = 2;
+  string api_key_id = 3;
+  string username = 4;
 }
 
 message IsBudgetExceededRequest {
