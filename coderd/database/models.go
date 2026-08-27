@@ -3538,6 +3538,7 @@ const (
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
 	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 	ResourceTypeOauth2ProviderSettings      ResourceType = "oauth2_provider_settings"
+	ResourceTypeMcpServerConfig             ResourceType = "mcp_server_config"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3612,7 +3613,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
-		ResourceTypeOauth2ProviderSettings:
+		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeMcpServerConfig:
 		return true
 	}
 	return false
@@ -3656,6 +3658,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIGatewayKey,
 		ResourceTypeUserAIBudgetOverride,
 		ResourceTypeOauth2ProviderSettings,
+		ResourceTypeMcpServerConfig,
 	}
 }
 
@@ -5636,37 +5639,40 @@ type License struct {
 }
 
 type MCPServerConfig struct {
-	ID                      uuid.UUID      `db:"id" json:"id"`
-	DisplayName             string         `db:"display_name" json:"display_name"`
-	Slug                    string         `db:"slug" json:"slug"`
-	Description             string         `db:"description" json:"description"`
-	IconURL                 string         `db:"icon_url" json:"icon_url"`
-	Transport               string         `db:"transport" json:"transport"`
-	Url                     string         `db:"url" json:"url"`
-	AuthType                string         `db:"auth_type" json:"auth_type"`
-	OAuth2ClientID          string         `db:"oauth2_client_id" json:"oauth2_client_id"`
-	OAuth2ClientSecret      string         `db:"oauth2_client_secret" json:"oauth2_client_secret"`
-	OAuth2ClientSecretKeyID sql.NullString `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
-	OAuth2AuthURL           string         `db:"oauth2_auth_url" json:"oauth2_auth_url"`
-	OAuth2TokenURL          string         `db:"oauth2_token_url" json:"oauth2_token_url"`
-	OAuth2Scopes            string         `db:"oauth2_scopes" json:"oauth2_scopes"`
-	APIKeyHeader            string         `db:"api_key_header" json:"api_key_header"`
-	APIKeyValue             string         `db:"api_key_value" json:"api_key_value"`
-	APIKeyValueKeyID        sql.NullString `db:"api_key_value_key_id" json:"api_key_value_key_id"`
-	CustomHeaders           string         `db:"custom_headers" json:"custom_headers"`
-	CustomHeadersKeyID      sql.NullString `db:"custom_headers_key_id" json:"custom_headers_key_id"`
-	ToolAllowList           []string       `db:"tool_allow_list" json:"tool_allow_list"`
-	ToolDenyList            []string       `db:"tool_deny_list" json:"tool_deny_list"`
-	Availability            string         `db:"availability" json:"availability"`
-	Enabled                 bool           `db:"enabled" json:"enabled"`
-	CreatedBy               uuid.NullUUID  `db:"created_by" json:"created_by"`
-	UpdatedBy               uuid.NullUUID  `db:"updated_by" json:"updated_by"`
-	CreatedAt               time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
-	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
-	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
-	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
-	OAuth2RevocationURL     string         `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	ID                      uuid.UUID       `db:"id" json:"id"`
+	DisplayName             string          `db:"display_name" json:"display_name"`
+	Slug                    string          `db:"slug" json:"slug"`
+	Description             string          `db:"description" json:"description"`
+	IconURL                 string          `db:"icon_url" json:"icon_url"`
+	Transport               string          `db:"transport" json:"transport"`
+	Url                     string          `db:"url" json:"url"`
+	AuthType                string          `db:"auth_type" json:"auth_type"`
+	OAuth2ClientID          string          `db:"oauth2_client_id" json:"oauth2_client_id"`
+	OAuth2ClientSecret      string          `db:"oauth2_client_secret" json:"oauth2_client_secret"`
+	OAuth2ClientSecretKeyID sql.NullString  `db:"oauth2_client_secret_key_id" json:"oauth2_client_secret_key_id"`
+	OAuth2AuthURL           string          `db:"oauth2_auth_url" json:"oauth2_auth_url"`
+	OAuth2TokenURL          string          `db:"oauth2_token_url" json:"oauth2_token_url"`
+	OAuth2Scopes            string          `db:"oauth2_scopes" json:"oauth2_scopes"`
+	APIKeyHeader            string          `db:"api_key_header" json:"api_key_header"`
+	APIKeyValue             string          `db:"api_key_value" json:"api_key_value"`
+	APIKeyValueKeyID        sql.NullString  `db:"api_key_value_key_id" json:"api_key_value_key_id"`
+	CustomHeaders           string          `db:"custom_headers" json:"custom_headers"`
+	CustomHeadersKeyID      sql.NullString  `db:"custom_headers_key_id" json:"custom_headers_key_id"`
+	ToolAllowList           []string        `db:"tool_allow_list" json:"tool_allow_list"`
+	ToolDenyList            []string        `db:"tool_deny_list" json:"tool_deny_list"`
+	Availability            string          `db:"availability" json:"availability"`
+	Enabled                 bool            `db:"enabled" json:"enabled"`
+	CreatedBy               uuid.NullUUID   `db:"created_by" json:"created_by"`
+	UpdatedBy               uuid.NullUUID   `db:"updated_by" json:"updated_by"`
+	CreatedAt               time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time       `db:"updated_at" json:"updated_at"`
+	ModelIntent             bool            `db:"model_intent" json:"model_intent"`
+	AllowInPlanMode         bool            `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders     bool            `db:"forward_coder_headers" json:"forward_coder_headers"`
+	OAuth2RevocationURL     string          `db:"oauth2_revocation_url" json:"oauth2_revocation_url"`
+	ExternalAuthProviderID  sql.NullString  `db:"external_auth_provider_id" json:"external_auth_provider_id"`
+	ToolRules               json.RawMessage `db:"tool_rules" json:"tool_rules"`
+	ToolDefault             string          `db:"tool_default" json:"tool_default"`
 }
 
 type MCPServerUserToken struct {

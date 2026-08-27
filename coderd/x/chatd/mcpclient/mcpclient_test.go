@@ -22,6 +22,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // newTestMCPServer creates a streamable HTTP MCP server with the
@@ -234,6 +235,108 @@ func TestConnectAll_ToolDenyList(t *testing.T) {
 
 	require.Len(t, tools, 1)
 	assert.Equal(t, "filtered__echo", tools[0].Info().Name)
+}
+
+func TestToolAllowed(t *testing.T) {
+	t.Parallel()
+
+	toolRules := func(t *testing.T, rules ...codersdk.MCPServerToolRule) json.RawMessage {
+		t.Helper()
+		data, err := json.Marshal(rules)
+		require.NoError(t, err)
+		return data
+	}
+
+	tests := []struct {
+		name     string
+		config   database.MCPServerConfig
+		toolName string
+		want     bool
+	}{
+		{
+			name:     "no policies",
+			toolName: "read",
+			want:     true,
+		},
+		{
+			name:     "legacy allow exact match",
+			config:   database.MCPServerConfig{ToolAllowList: []string{"read"}},
+			toolName: "read",
+			want:     true,
+		},
+		{
+			name:     "legacy allow requires exact match",
+			config:   database.MCPServerConfig{ToolAllowList: []string{"read"}},
+			toolName: "read_all",
+			want:     false,
+		},
+		{
+			name:     "legacy deny exact match",
+			config:   database.MCPServerConfig{ToolDenyList: []string{"delete"}},
+			toolName: "delete",
+			want:     false,
+		},
+		{
+			name: "matching rule overrides disabled default",
+			config: database.MCPServerConfig{
+				ToolRules:   toolRules(t, codersdk.MCPServerToolRule{Tool: "read", Enabled: true}),
+				ToolDefault: "disabled",
+			},
+			toolName: "read",
+			want:     true,
+		},
+		{
+			name: "matching rule overrides enabled default",
+			config: database.MCPServerConfig{
+				ToolRules:   toolRules(t, codersdk.MCPServerToolRule{Tool: "delete", Enabled: false}),
+				ToolDefault: "enabled",
+			},
+			toolName: "delete",
+			want:     false,
+		},
+		{
+			name: "disabled default denies unmatched tool",
+			config: database.MCPServerConfig{
+				ToolRules:   toolRules(t, codersdk.MCPServerToolRule{Tool: "read", Enabled: true}),
+				ToolDefault: "disabled",
+			},
+			toolName: "write",
+			want:     false,
+		},
+		{
+			name: "legacy deny and explicit enable use and semantics",
+			config: database.MCPServerConfig{
+				ToolDenyList: []string{"delete"},
+				ToolRules:    toolRules(t, codersdk.MCPServerToolRule{Tool: "delete", Enabled: true}),
+				ToolDefault:  "disabled",
+			},
+			toolName: "delete",
+			want:     false,
+		},
+		{
+			name: "legacy allow and explicit disable use and semantics",
+			config: database.MCPServerConfig{
+				ToolAllowList: []string{"read"},
+				ToolRules:     toolRules(t, codersdk.MCPServerToolRule{Tool: "read", Enabled: false}),
+				ToolDefault:   "enabled",
+			},
+			toolName: "read",
+			want:     false,
+		},
+		{
+			name:     "malformed rules deny tool",
+			config:   database.MCPServerConfig{ToolRules: json.RawMessage(`{"tool":"read"}`)},
+			toolName: "read",
+			want:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, mcpclient.ToolAllowed(tt.config, tt.toolName))
+		})
+	}
 }
 
 func TestConnectAll_ConnectionFailure(t *testing.T) {

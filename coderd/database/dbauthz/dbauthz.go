@@ -865,6 +865,25 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectMCPGatewayTokenBroker = rbac.Subject{
+		Type:         rbac.SubjectTypeMCPGatewayTokenBroker,
+		FriendlyName: "MCP Gateway Token Broker",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "mcp-gateway-token-broker"},
+				DisplayName: "MCP Gateway Token Broker",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					// policy.ActionUpdatePersonal allows us to refresh tokens.
+					rbac.ResourceUser.Type: {policy.ActionReadPersonal, policy.ActionUpdatePersonal},
+				}),
+				User:    []rbac.Permission{},
+				ByOrgID: map[string]rbac.OrgPermissions{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -1017,6 +1036,12 @@ func AsSCIMProvisioner(ctx context.Context) context.Context {
 // read and refresh any user's external auth links.
 func AsExternalAuthCoordinator(ctx context.Context) context.Context {
 	return As(ctx, subjectExternalAuthCoordinator)
+}
+
+// AsMCPGatewayTokenBroker returns a context with an actor that has permission to
+// read and refresh any user's external auth links for MCP upstream credentials.
+func AsMCPGatewayTokenBroker(ctx context.Context) context.Context {
+	return As(ctx, subjectMCPGatewayTokenBroker)
 }
 
 var AsRemoveActor = rbac.Subject{

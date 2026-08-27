@@ -29,6 +29,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // toolNameSep separates the server slug from the original tool
@@ -289,11 +290,7 @@ func connectOne(
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
-		if !isToolAllowed(
-			mcpTool.Name,
-			cfg.ToolAllowList,
-			cfg.ToolDenyList,
-		) {
+		if !ToolAllowed(cfg, mcpTool.Name) {
 			logger.Debug(ctx, "skipping denied MCP tool",
 				slog.F("server_slug", cfg.Slug),
 				slog.F("tool_name", mcpTool.Name),
@@ -469,34 +466,31 @@ func buildAuthHeaders(
 	return headers
 }
 
-// isToolAllowed checks a tool name against the allow and deny
-// lists. When the allow list is non-empty only tools in it are
-// permitted and the deny list is ignored. When the allow list
-// is empty and the deny list is non-empty, tools in the deny
-// list are rejected. Both lists use exact string matching
-// against the original (non-prefixed) tool name.
-func isToolAllowed(
-	toolName string,
-	allowList []string,
-	denyList []string,
-) bool {
-	if len(allowList) > 0 {
-		for _, allowed := range allowList {
-			if allowed == toolName {
-				return true
-			}
+// ToolAllowed applies legacy tool lists and explicit tool rules. A tool must
+// pass both policies. Legacy lists use exact matching and preserve their
+// existing allow-list precedence over the deny list.
+func ToolAllowed(cfg database.MCPServerConfig, toolName string) bool {
+	if len(cfg.ToolAllowList) > 0 {
+		if !slices.Contains(cfg.ToolAllowList, toolName) {
+			return false
 		}
-		// Allow list is set but the tool isn't in it.
+	} else if slices.Contains(cfg.ToolDenyList, toolName) {
 		return false
 	}
 
-	for _, denied := range denyList {
-		if denied == toolName {
+	var rules []codersdk.MCPServerToolRule
+	if len(cfg.ToolRules) > 0 {
+		if err := json.Unmarshal(cfg.ToolRules, &rules); err != nil {
 			return false
 		}
 	}
+	for _, rule := range rules {
+		if rule.Tool == toolName {
+			return rule.Enabled
+		}
+	}
 
-	return true
+	return cfg.ToolDefault != "disabled"
 }
 
 // RedactURL strips userinfo and query parameters from a URL

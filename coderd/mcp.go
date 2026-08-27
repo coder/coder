@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -243,6 +245,28 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	toolRules, err := normalizeMCPToolRules(req.ToolRules)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid MCP tool rules.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	toolRulesJSON, err := marshalMCPToolRules(toolRules)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid MCP tool rules.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	toolDefault := normalizeMCPToolDefault(req.ToolDefault)
+	externalAuthProviderID := strings.TrimSpace(req.ExternalAuthProviderID)
+	if req.AuthType != "external_auth" {
+		externalAuthProviderID = ""
+	}
+
 	// Validate auth-type-dependent fields.
 	switch req.AuthType {
 	case "oauth2":
@@ -267,13 +291,17 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			}
 
 			inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-				DisplayName:             strings.TrimSpace(req.DisplayName),
-				Slug:                    strings.TrimSpace(req.Slug),
-				Description:             strings.TrimSpace(req.Description),
-				IconURL:                 strings.TrimSpace(req.IconURL),
-				Transport:               strings.TrimSpace(req.Transport),
-				Url:                     strings.TrimSpace(req.URL),
-				AuthType:                strings.TrimSpace(req.AuthType),
+				DisplayName: strings.TrimSpace(req.DisplayName),
+				Slug:        strings.TrimSpace(req.Slug),
+				Description: strings.TrimSpace(req.Description),
+				IconURL:     strings.TrimSpace(req.IconURL),
+				Transport:   strings.TrimSpace(req.Transport),
+				Url:         strings.TrimSpace(req.URL),
+				AuthType:    strings.TrimSpace(req.AuthType),
+				ExternalAuthProviderID: sql.NullString{
+					String: externalAuthProviderID,
+					Valid:  externalAuthProviderID != "",
+				},
 				OAuth2ClientID:          "",
 				OAuth2ClientSecret:      "",
 				OAuth2ClientSecretKeyID: sql.NullString{},
@@ -288,6 +316,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				CustomHeadersKeyID:      sql.NullString{},
 				ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 				ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+				ToolRules:               toolRulesJSON,
+				ToolDefault:             toolDefault,
 				Availability:            strings.TrimSpace(req.Availability),
 				Enabled:                 req.Enabled,
 				ModelIntent:             req.ModelIntent,
@@ -380,6 +410,7 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				Transport:               inserted.Transport,
 				Url:                     inserted.Url,
 				AuthType:                inserted.AuthType,
+				ExternalAuthProviderID:  inserted.ExternalAuthProviderID,
 				OAuth2ClientID:          result.clientID,
 				OAuth2ClientSecret:      result.clientSecret,
 				OAuth2ClientSecretKeyID: sql.NullString{},
@@ -394,12 +425,17 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				CustomHeadersKeyID:      inserted.CustomHeadersKeyID,
 				ToolAllowList:           inserted.ToolAllowList,
 				ToolDenyList:            inserted.ToolDenyList,
-				Availability:            inserted.Availability,
-				Enabled:                 inserted.Enabled,
-				ModelIntent:             inserted.ModelIntent,
-				AllowInPlanMode:         inserted.AllowInPlanMode,
-				ForwardCoderHeaders:     inserted.ForwardCoderHeaders,
-				UpdatedBy:               apiKey.HolderID.AsUserIDUnchecked(),
+				ToolRules: pqtype.NullRawMessage{
+					RawMessage: inserted.ToolRules,
+					Valid:      true,
+				},
+				ToolDefault:         inserted.ToolDefault,
+				Availability:        inserted.Availability,
+				Enabled:             inserted.Enabled,
+				ModelIntent:         inserted.ModelIntent,
+				AllowInPlanMode:     inserted.AllowInPlanMode,
+				ForwardCoderHeaders: inserted.ForwardCoderHeaders,
+				UpdatedBy:           apiKey.HolderID.AsUserIDUnchecked(),
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -432,6 +468,36 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	case "external_auth":
+		if externalAuthProviderID == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "External auth requires external_auth_provider_id.",
+			})
+			return
+		}
+		if !api.mcpExternalAuthProviderExists(externalAuthProviderID) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "External auth provider is not configured.",
+				Detail:  externalAuthProviderID,
+			})
+			return
+		}
+		req.OAuth2ClientID = ""
+		req.OAuth2ClientSecret = ""
+		req.OAuth2AuthURL = ""
+		req.OAuth2TokenURL = ""
+		req.OAuth2RevocationURL = ""
+		req.OAuth2Scopes = ""
+		req.APIKeyHeader = ""
+		req.APIKeyValue = ""
+		req.CustomHeaders = nil
+	case "none", "user_oidc":
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid MCP server auth type.",
+			Detail:  req.AuthType,
+		})
+		return
 	}
 
 	customHeadersJSON, err := marshalCustomHeaders(req.CustomHeaders)
@@ -444,13 +510,17 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	inserted, err := api.Database.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-		DisplayName:             strings.TrimSpace(req.DisplayName),
-		Slug:                    strings.TrimSpace(req.Slug),
-		Description:             strings.TrimSpace(req.Description),
-		IconURL:                 strings.TrimSpace(req.IconURL),
-		Transport:               strings.TrimSpace(req.Transport),
-		Url:                     strings.TrimSpace(req.URL),
-		AuthType:                strings.TrimSpace(req.AuthType),
+		DisplayName: strings.TrimSpace(req.DisplayName),
+		Slug:        strings.TrimSpace(req.Slug),
+		Description: strings.TrimSpace(req.Description),
+		IconURL:     strings.TrimSpace(req.IconURL),
+		Transport:   strings.TrimSpace(req.Transport),
+		Url:         strings.TrimSpace(req.URL),
+		AuthType:    strings.TrimSpace(req.AuthType),
+		ExternalAuthProviderID: sql.NullString{
+			String: externalAuthProviderID,
+			Valid:  externalAuthProviderID != "",
+		},
 		OAuth2ClientID:          strings.TrimSpace(req.OAuth2ClientID),
 		OAuth2ClientSecret:      strings.TrimSpace(req.OAuth2ClientSecret),
 		OAuth2ClientSecretKeyID: sql.NullString{},
@@ -465,6 +535,8 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		CustomHeadersKeyID:      sql.NullString{},
 		ToolAllowList:           coalesceStringSlice(trimStringSlice(req.ToolAllowList)),
 		ToolDenyList:            coalesceStringSlice(trimStringSlice(req.ToolDenyList)),
+		ToolRules:               toolRulesJSON,
+		ToolDefault:             toolDefault,
 		Availability:            strings.TrimSpace(req.Availability),
 		Enabled:                 req.Enabled,
 		ModelIntent:             req.ModelIntent,
@@ -629,6 +701,26 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	var requestedToolRules pqtype.NullRawMessage
+	if req.ToolRules != nil {
+		toolRules, err := normalizeMCPToolRules(*req.ToolRules)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid MCP tool rules.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		requestedToolRules, err = marshalMCPToolRules(toolRules)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid MCP tool rules.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+	}
+
 	var updated database.MCPServerConfig
 	err := api.Database.InTx(func(tx database.Store) error {
 		existing, err := tx.GetMCPServerConfigByID(ctx, mcpServerID)
@@ -669,6 +761,15 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		authType := existing.AuthType
 		if req.AuthType != nil {
 			authType = strings.TrimSpace(*req.AuthType)
+		}
+
+		externalAuthProviderID := existing.ExternalAuthProviderID
+		if req.ExternalAuthProviderID != nil {
+			providerID := strings.TrimSpace(*req.ExternalAuthProviderID)
+			externalAuthProviderID = sql.NullString{
+				String: providerID,
+				Valid:  providerID != "",
+			}
 		}
 
 		oauth2ClientID := existing.OAuth2ClientID
@@ -735,6 +836,19 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			toolDenyList = coalesceStringSlice(trimStringSlice(*req.ToolDenyList))
 		}
 
+		toolRules := pqtype.NullRawMessage{
+			RawMessage: existing.ToolRules,
+			Valid:      true,
+		}
+		if req.ToolRules != nil {
+			toolRules = requestedToolRules
+		}
+
+		toolDefault := existing.ToolDefault
+		if req.ToolDefault != nil {
+			toolDefault = normalizeMCPToolDefault(*req.ToolDefault)
+		}
+
 		availability := existing.Availability
 		if req.Availability != nil {
 			availability = strings.TrimSpace(*req.Availability)
@@ -758,6 +872,22 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		forwardCoderHeaders := existing.ForwardCoderHeaders
 		if req.ForwardCoderHeaders != nil {
 			forwardCoderHeaders = *req.ForwardCoderHeaders
+		}
+
+		if authType == "external_auth" {
+			if !externalAuthProviderID.Valid {
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+					Message: "External auth requires external_auth_provider_id.",
+				})
+			}
+			if !api.mcpExternalAuthProviderExists(externalAuthProviderID.String) {
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+					Message: "External auth provider is not configured.",
+					Detail:  externalAuthProviderID.String,
+				})
+			}
+		} else {
+			externalAuthProviderID = sql.NullString{}
 		}
 
 		// When auth_type changes, clear fields belonging to the
@@ -804,10 +934,9 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 				apiKeyHeader = ""
 				apiKeyValue = ""
 				apiKeyValueKeyID = sql.NullString{}
-			case "user_oidc":
-				// user_oidc forwards the calling user's OIDC access token
-				// from user_links at request time, so no admin-configured
-				// secrets are stored on the row.
+			case "user_oidc", "external_auth":
+				// These auth types resolve user credentials at request time, so
+				// no admin-configured secrets are stored on the row.
 				oauth2ClientID = ""
 				oauth2ClientSecret = ""
 				oauth2ClientSecretKeyID = sql.NullString{}
@@ -831,6 +960,7 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			Transport:               transport,
 			Url:                     serverURL,
 			AuthType:                authType,
+			ExternalAuthProviderID:  externalAuthProviderID,
 			OAuth2ClientID:          oauth2ClientID,
 			OAuth2ClientSecret:      oauth2ClientSecret,
 			OAuth2ClientSecretKeyID: oauth2ClientSecretKeyID,
@@ -845,6 +975,8 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 			CustomHeadersKeyID:      customHeadersKeyID,
 			ToolAllowList:           toolAllowList,
 			ToolDenyList:            toolDenyList,
+			ToolRules:               toolRules,
+			ToolDefault:             toolDefault,
 			Availability:            availability,
 			Enabled:                 enabled,
 			ModelIntent:             modelIntent,
@@ -856,6 +988,10 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 		return err
 	}, nil)
 	if err != nil {
+		if _, ok := httperror.IsResponder(err); ok {
+			httperror.WriteResponseError(ctx, rw, err)
+			return
+		}
 		switch {
 		case httpapi.Is404Error(err):
 			httpapi.ResourceNotFound(rw)
@@ -1431,6 +1567,10 @@ func parseMCPServerConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 // SDK type. Secrets are never returned; only has_* booleans are set.
 // Admin-only fields (OAuth2 client ID, auth URLs, etc.) are included.
 func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerConfig {
+	toolRules, err := unmarshalMCPToolRules(config.ToolRules)
+	if err != nil {
+		toolRules = []codersdk.MCPServerToolRule{}
+	}
 	return codersdk.MCPServerConfig{
 		ID:          config.ID,
 		DisplayName: config.DisplayName,
@@ -1441,13 +1581,14 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 		Transport: config.Transport,
 		URL:       config.Url,
 
-		AuthType:            config.AuthType,
-		OAuth2ClientID:      config.OAuth2ClientID,
-		HasOAuth2Secret:     config.OAuth2ClientSecret != "",
-		OAuth2AuthURL:       config.OAuth2AuthURL,
-		OAuth2TokenURL:      config.OAuth2TokenURL,
-		OAuth2RevocationURL: config.OAuth2RevocationURL,
-		OAuth2Scopes:        config.OAuth2Scopes,
+		AuthType:               config.AuthType,
+		ExternalAuthProviderID: config.ExternalAuthProviderID.String,
+		OAuth2ClientID:         config.OAuth2ClientID,
+		HasOAuth2Secret:        config.OAuth2ClientSecret != "",
+		OAuth2AuthURL:          config.OAuth2AuthURL,
+		OAuth2TokenURL:         config.OAuth2TokenURL,
+		OAuth2RevocationURL:    config.OAuth2RevocationURL,
+		OAuth2Scopes:           config.OAuth2Scopes,
 
 		APIKeyHeader: config.APIKeyHeader,
 		HasAPIKey:    config.APIKeyValue != "",
@@ -1456,6 +1597,8 @@ func convertMCPServerConfig(config database.MCPServerConfig) codersdk.MCPServerC
 
 		ToolAllowList: coalesceStringSlice(config.ToolAllowList),
 		ToolDenyList:  coalesceStringSlice(config.ToolDenyList),
+		ToolRules:     toolRules,
+		ToolDefault:   normalizeMCPToolDefault(config.ToolDefault),
 
 		Availability: config.Availability,
 
@@ -1499,6 +1642,61 @@ func marshalCustomHeaders(headers map[string]string) (string, error) {
 		return "", err
 	}
 	return string(encoded), nil
+}
+
+func normalizeMCPToolRules(rules []codersdk.MCPServerToolRule) ([]codersdk.MCPServerToolRule, error) {
+	normalized := make([]codersdk.MCPServerToolRule, 0, len(rules))
+	seen := make(map[string]struct{}, len(rules))
+	for i, rule := range rules {
+		rule.Tool = strings.TrimSpace(rule.Tool)
+		if rule.Tool == "" {
+			return nil, xerrors.Errorf("tool_rules[%d].tool must not be empty", i)
+		}
+		if _, ok := seen[rule.Tool]; ok {
+			return nil, xerrors.Errorf("tool_rules contains duplicate tool %q", rule.Tool)
+		}
+		seen[rule.Tool] = struct{}{}
+		normalized = append(normalized, rule)
+	}
+	return normalized, nil
+}
+
+func marshalMCPToolRules(rules []codersdk.MCPServerToolRule) (pqtype.NullRawMessage, error) {
+	data, err := json.Marshal(rules)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{
+		RawMessage: data,
+		Valid:      true,
+	}, nil
+}
+
+func unmarshalMCPToolRules(data json.RawMessage) ([]codersdk.MCPServerToolRule, error) {
+	if len(data) == 0 {
+		return []codersdk.MCPServerToolRule{}, nil
+	}
+	var rules []codersdk.MCPServerToolRule
+	if err := json.Unmarshal(data, &rules); err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
+func normalizeMCPToolDefault(toolDefault string) string {
+	if strings.TrimSpace(toolDefault) == "" {
+		return "enabled"
+	}
+	return strings.TrimSpace(toolDefault)
+}
+
+func (api *API) mcpExternalAuthProviderExists(providerID string) bool {
+	for _, config := range api.ExternalAuthConfigs {
+		if config != nil && config.ID == providerID {
+			return true
+		}
+	}
+	return false
 }
 
 // trimStringSlice trims whitespace from each element and drops empty

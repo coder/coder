@@ -4141,6 +4141,7 @@ export interface CreateMCPServerConfigRequest {
 	readonly transport: string;
 	readonly url: string;
 	readonly auth_type: string;
+	readonly external_auth_provider_id?: string;
 	readonly oauth2_client_id?: string;
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
@@ -4156,6 +4157,8 @@ export interface CreateMCPServerConfigRequest {
 	readonly custom_headers?: Record<string, string>;
 	readonly tool_allow_list?: readonly string[];
 	readonly tool_deny_list?: readonly string[];
+	readonly tool_rules?: readonly MCPServerToolRule[];
+	readonly tool_default?: string;
 	readonly availability: string;
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
@@ -6073,7 +6076,8 @@ export interface MCPServerConfig {
 	readonly icon_url: string;
 	readonly transport: string; // "streamable_http" or "sse"
 	readonly url: string;
-	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
+	readonly auth_type: string; // "none", "oauth2", "api_key", "custom_headers", "user_oidc", "external_auth"
+	readonly external_auth_provider_id?: string;
 	/**
 	 * OAuth2 fields (only populated for admins).
 	 */
@@ -6094,6 +6098,8 @@ export interface MCPServerConfig {
 	 */
 	readonly tool_allow_list: readonly string[];
 	readonly tool_deny_list: readonly string[];
+	readonly tool_rules: readonly MCPServerToolRule[];
+	readonly tool_default: string; // "enabled" or "disabled"
 	/**
 	 * Availability policy set by admin.
 	 */
@@ -6125,6 +6131,15 @@ export interface MCPServerConfig {
 export interface MCPServerOAuth2DisconnectResponse {
 	readonly token_revoked: boolean;
 	readonly token_revocation_error?: string;
+}
+
+// From codersdk/mcp.go
+/**
+ * MCPServerToolRule explicitly enables or disables one upstream tool.
+ */
+export interface MCPServerToolRule {
+	readonly tool: string;
+	readonly enabled: boolean;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -8026,6 +8041,7 @@ export type ResourceType =
 	| "idp_sync_settings_organization"
 	| "idp_sync_settings_role"
 	| "license"
+	| "mcp_server_config"
 	| "notification_template"
 	| "notifications_settings"
 	| "oauth2_provider_app"
@@ -8064,6 +8080,7 @@ export const ResourceTypes: ResourceType[] = [
 	"idp_sync_settings_organization",
 	"idp_sync_settings_role",
 	"license",
+	"mcp_server_config",
 	"notification_template",
 	"notifications_settings",
 	"oauth2_provider_app",
@@ -9849,6 +9866,7 @@ export interface UpdateMCPServerConfigRequest {
 	readonly transport?: string;
 	readonly url?: string;
 	readonly auth_type?: string;
+	readonly external_auth_provider_id?: string;
 	readonly oauth2_client_id?: string;
 	readonly oauth2_client_secret?: string;
 	readonly oauth2_auth_url?: string;
@@ -9864,6 +9882,8 @@ export interface UpdateMCPServerConfigRequest {
 	readonly custom_headers?: Record<string, string>;
 	readonly tool_allow_list?: string[];
 	readonly tool_deny_list?: string[];
+	readonly tool_rules?: MCPServerToolRule[];
+	readonly tool_default?: string;
 	readonly availability?: string;
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;

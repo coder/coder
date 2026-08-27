@@ -66,6 +66,8 @@ const (
 	CheckGroupsChatSpendLimitMicrosCheck                       CheckConstraint = "groups_chat_spend_limit_micros_check"                         // groups
 	CheckMcpServerConfigsAuthTypeCheck                         CheckConstraint = "mcp_server_configs_auth_type_check"                           // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck                     CheckConstraint = "mcp_server_configs_availability_check"                        // mcp_server_configs
+	CheckMcpServerConfigsToolDefaultCheck                      CheckConstraint = "mcp_server_configs_tool_default_check"                        // mcp_server_configs
+	CheckMcpServerConfigsToolRulesCheck                        CheckConstraint = "mcp_server_configs_tool_rules_check"                          // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                        CheckConstraint = "mcp_server_configs_transport_check"                           // mcp_server_configs
 	CheckMaxProvisionerLogsLength                              CheckConstraint = "max_provisioner_logs_length"                                  // provisioner_jobs
 	CheckNatsPortValidTcp                                      CheckConstraint = "nats_port_valid_tcp"                                          // replicas
