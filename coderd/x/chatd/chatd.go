@@ -4904,7 +4904,10 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	generationStartedAt, err := p.db.StartChatSummaryGeneration(ctx, chat.ID)
+	generationStartedAt, err := p.db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+	})
 	if err != nil {
 		logger.Debug(ctx, "failed to mark chat summary generation",
 			slog.F("chat_id", chat.ID), slog.Error(err))

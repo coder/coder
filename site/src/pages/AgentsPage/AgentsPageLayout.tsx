@@ -568,20 +568,20 @@ const AgentsPageLayout: FC = () => {
 			string,
 			ReturnType<typeof setTimeout>
 		>();
-		const summaryGenerationStartedAt = new Map<string, string>();
+		const latestSummaryGenerationStartedAt = new Map<string, string>();
 		const clearSummaryGenerating = (
 			chatId: string,
 			expectedGenerationStartedAt?: string,
 		) => {
-			const activeGenerationStartedAt = summaryGenerationStartedAt.get(chatId);
+			const latestGenerationStartedAt =
+				latestSummaryGenerationStartedAt.get(chatId);
 			if (
 				expectedGenerationStartedAt !== undefined &&
-				activeGenerationStartedAt !== undefined &&
-				expectedGenerationStartedAt !== activeGenerationStartedAt
+				latestGenerationStartedAt !== undefined &&
+				expectedGenerationStartedAt !== latestGenerationStartedAt
 			) {
 				return false;
 			}
-			summaryGenerationStartedAt.delete(chatId);
 			setSummaryGeneratingChatIds((current) => {
 				if (!current.has(chatId)) {
 					return current;
@@ -597,7 +597,7 @@ const AgentsPageLayout: FC = () => {
 				clearTimeout(timeout);
 			}
 			summaryGeneratingTimeouts.clear();
-			summaryGenerationStartedAt.clear();
+			latestSummaryGenerationStartedAt.clear();
 			setSummaryGeneratingChatIds((current) =>
 				current.size === 0 ? current : new Set(),
 			);
@@ -607,14 +607,33 @@ const AgentsPageLayout: FC = () => {
 			timeoutMs = chatSummaryGeneratingTimeoutMs,
 			generationStartedAt?: string,
 		) => {
+			const previousGenerationStartedAt =
+				latestSummaryGenerationStartedAt.get(chatId);
+			if (
+				generationStartedAt !== undefined &&
+				previousGenerationStartedAt !== undefined
+			) {
+				const generationStartedAtMs = Date.parse(generationStartedAt);
+				const previousGenerationStartedAtMs = Date.parse(
+					previousGenerationStartedAt,
+				);
+				if (
+					generationStartedAt === previousGenerationStartedAt ||
+					(Number.isFinite(generationStartedAtMs) &&
+						Number.isFinite(previousGenerationStartedAtMs) &&
+						generationStartedAtMs <= previousGenerationStartedAtMs)
+				) {
+					return;
+				}
+			}
 			const previousTimeout = summaryGeneratingTimeouts.get(chatId);
 			if (previousTimeout !== undefined) {
 				clearTimeout(previousTimeout);
 			}
 			if (generationStartedAt === undefined) {
-				summaryGenerationStartedAt.delete(chatId);
+				latestSummaryGenerationStartedAt.delete(chatId);
 			} else {
-				summaryGenerationStartedAt.set(chatId, generationStartedAt);
+				latestSummaryGenerationStartedAt.set(chatId, generationStartedAt);
 			}
 			const boundedTimeoutMs = Math.max(
 				0,
@@ -622,7 +641,9 @@ const AgentsPageLayout: FC = () => {
 			);
 			if (boundedTimeoutMs === 0) {
 				summaryGeneratingTimeouts.delete(chatId);
-				clearSummaryGenerating(chatId);
+				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatCostTree(queryClient, chatId);
+				}
 				return;
 			}
 			setSummaryGeneratingChatIds((current) => {
@@ -692,6 +713,7 @@ const AgentsPageLayout: FC = () => {
 					}
 
 					if (chatEvent.kind === "deleted") {
+						latestSummaryGenerationStartedAt.delete(updatedChat.id);
 						// The server publishes `deleted` when a chat is
 						// archived (one event per family member); there is
 						// no hard-delete wire event. Patch archive state in

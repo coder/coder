@@ -1475,10 +1475,22 @@ WHERE
     AND history_version = @expected_history_version::bigint;
 
 -- name: StartChatSummaryGeneration :one
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = @id::uuid
+        AND history_version = @expected_history_version::bigint
+    FOR UPDATE
+)
 INSERT INTO chat_summary_generations (chat_id)
-VALUES (@id::uuid)
+SELECT id FROM locked_chat
 ON CONFLICT (chat_id) DO UPDATE
-SET started_at = NOW()
+-- Clients order generation identities at millisecond precision.
+SET started_at = GREATEST(
+    NOW(),
+    chat_summary_generations.started_at + INTERVAL '1 millisecond'
+)
 RETURNING started_at;
 
 -- name: ClearChatSummaryGeneration :execrows

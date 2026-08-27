@@ -9767,18 +9767,18 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 }
 
 // StartChatSummaryGeneration mocks base method.
-func (m *MockStore) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
+func (m *MockStore) StartChatSummaryGeneration(ctx context.Context, arg database.StartChatSummaryGenerationParams) (time.Time, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "StartChatSummaryGeneration", ctx, id)
+	ret := m.ctrl.Call(m, "StartChatSummaryGeneration", ctx, arg)
 	ret0, _ := ret[0].(time.Time)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // StartChatSummaryGeneration indicates an expected call of StartChatSummaryGeneration.
-func (mr *MockStoreMockRecorder) StartChatSummaryGeneration(ctx, id any) *gomock.Call {
+func (mr *MockStoreMockRecorder) StartChatSummaryGeneration(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartChatSummaryGeneration", reflect.TypeOf((*MockStore)(nil).StartChatSummaryGeneration), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartChatSummaryGeneration", reflect.TypeOf((*MockStore)(nil).StartChatSummaryGeneration), ctx, arg)
 }
 
 // TouchChatDebugRunUpdatedAt mocks base method.

@@ -3175,7 +3175,10 @@ func TestWatchChats(t *testing.T) {
 
 		generationStartedAt, err := api.Database.StartChatSummaryGeneration(
 			dbauthz.AsChatd(ctx),
-			chat.ID,
+			database.StartChatSummaryGenerationParams{
+				ID:                     chat.ID,
+				ExpectedHistoryVersion: chat.HistoryVersion,
+			},
 		)
 		require.NoError(t, err)
 

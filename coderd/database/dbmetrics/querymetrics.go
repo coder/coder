@@ -5144,7 +5144,7 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
-func (m queryMetricsStore) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
+func (m queryMetricsStore) StartChatSummaryGeneration(ctx context.Context, id database.StartChatSummaryGenerationParams) (time.Time, error) {
 	start := time.Now()
 	r0, r1 := m.s.StartChatSummaryGeneration(ctx, id)
 	m.queryLatencies.WithLabelValues("StartChatSummaryGeneration").Observe(time.Since(start).Seconds())

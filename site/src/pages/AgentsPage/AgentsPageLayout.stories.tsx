@@ -1300,6 +1300,13 @@ export const StaleSummaryFailureKeepsNewGeneration: Story = {
 			NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT,
 		),
 		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			1_250,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
 			"chat_summary_failed",
 			watchedChat(),
 			1_500,
@@ -1317,6 +1324,18 @@ export const StaleSummaryFailureKeepsNewGeneration: Story = {
 			3_500,
 			undefined,
 			NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"chat_summary_generating",
+			watchedChat(),
+			4_000,
+			undefined,
+			WATCHED_SUMMARY_GENERATION_STARTED_AT,
+		),
+		chatWatchEvent(
+			"title_change",
+			watchedChat({ title: "Old generation ignored after completion" }),
+			4_500,
 		),
 	]),
 	play: async ({ canvasElement }) => {
@@ -1346,6 +1365,14 @@ export const StaleSummaryFailureKeepsNewGeneration: Story = {
 				{ timeout: 5_000 },
 			),
 		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+		expect(
+			await canvas.findAllByText(
+				"Old generation ignored after completion",
+				{},
+				{ timeout: 6_000 },
+			),
+		).not.toHaveLength(0);
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();
 	},
 };

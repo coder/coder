@@ -7339,15 +7339,15 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
-	chat, err := q.db.GetChatByID(ctx, id)
+func (q *querier) StartChatSummaryGeneration(ctx context.Context, arg database.StartChatSummaryGenerationParams) (time.Time, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
 		return time.Time{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return time.Time{}, err
 	}
-	return q.db.StartChatSummaryGeneration(ctx, id)
+	return q.db.StartChatSummaryGeneration(ctx, arg)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

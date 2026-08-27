@@ -16175,7 +16175,10 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, chat.Summary.Valid)
 	require.False(t, chat.SummaryGeneratedAt.Valid)
 
-	generationStartedAt, err := db.StartChatSummaryGeneration(ctx, chat.ID)
+	generationStartedAt, err := db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+	})
 	require.NoError(t, err)
 
 	activeGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
@@ -16188,6 +16191,28 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.True(t, generationStartedAt.Equal(activeGenerations[0].GenerationStartedAt))
 	require.Positive(t, activeGenerations[0].RemainingMs)
 	require.LessOrEqual(t, activeGenerations[0].RemainingMs, int64(60_000))
+
+	previousGenerationStartedAt := generationStartedAt
+	generationStartedAt, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, generationStartedAt.Sub(previousGenerationStartedAt), time.Millisecond)
+
+	_, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion - 1,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Len(t, activeGenerations, 1)
+	require.True(t, generationStartedAt.Equal(activeGenerations[0].GenerationStartedAt))
 
 	expiredGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
 		OwnerID:       owner.ID,
@@ -16293,7 +16318,10 @@ func TestUpdateChatSummary(t *testing.T) {
 
 	// A concurrent history update must win before the generation marker is
 	// deleted, otherwise reconnect replay loses track of the active worker.
-	generationStartedAt, err = db.StartChatSummaryGeneration(ctx, chat.ID)
+	generationStartedAt, err = db.StartChatSummaryGeneration(ctx, database.StartChatSummaryGenerationParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: fetched.HistoryVersion,
+	})
 	require.NoError(t, err)
 
 	historyTx, err := sqlDB.BeginTx(ctx, nil)

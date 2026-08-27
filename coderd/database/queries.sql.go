@@ -11604,15 +11604,32 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 }
 
 const startChatSummaryGeneration = `-- name: StartChatSummaryGeneration :one
+WITH locked_chat AS (
+    SELECT id
+    FROM chats
+    WHERE
+        id = $1::uuid
+        AND history_version = $2::bigint
+    FOR UPDATE
+)
 INSERT INTO chat_summary_generations (chat_id)
-VALUES ($1::uuid)
+SELECT id FROM locked_chat
 ON CONFLICT (chat_id) DO UPDATE
-SET started_at = NOW()
+SET started_at = GREATEST(
+    NOW(),
+    chat_summary_generations.started_at + INTERVAL '1 millisecond'
+)
 RETURNING started_at
 `
 
-func (q *sqlQuerier) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
-	row := q.db.QueryRowContext(ctx, startChatSummaryGeneration, id)
+type StartChatSummaryGenerationParams struct {
+	ID                     uuid.UUID `db:"id" json:"id"`
+	ExpectedHistoryVersion int64     `db:"expected_history_version" json:"expected_history_version"`
+}
+
+// Clients order generation identities at millisecond precision.
+func (q *sqlQuerier) StartChatSummaryGeneration(ctx context.Context, arg StartChatSummaryGenerationParams) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, startChatSummaryGeneration, arg.ID, arg.ExpectedHistoryVersion)
 	var started_at time.Time
 	err := row.Scan(&started_at)
 	return started_at, err
