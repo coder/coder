@@ -28,14 +28,16 @@ func TestRecordTokenUsage(t *testing.T) {
 	id := uuid.MustParse("22222222-2222-2222-2222-222222222222")
 
 	tests := []struct {
-		name     string
-		msgID    string
-		usage    openai.CompletionUsage
-		expected *recorder.TokenUsageRecord
+		name        string
+		msgID       string
+		usage       openai.CompletionUsage
+		serviceTier string
+		expected    *recorder.TokenUsageRecord
 	}{
 		{
-			name:  "with_all_token_details",
-			msgID: "cmpl_full",
+			name:        "with_all_token_details",
+			msgID:       "cmpl_full",
+			serviceTier: "default",
 			usage: openai.CompletionUsage{
 				PromptTokens:     100,
 				CompletionTokens: 50,
@@ -59,6 +61,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				Output:                50,
 				CacheReadInputTokens:  40,
 				CacheWriteInputTokens: 25,
+				Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
 				ExtraTokenTypes: map[string]int64{
 					"prompt_audio":                   3,
 					"completion_accepted_prediction": 7,
@@ -97,8 +100,9 @@ func TestRecordTokenUsage(t *testing.T) {
 			// Upstream violates the invariant that PromptTokens includes
 			// CachedTokens. Input must clamp to 0 so it never panics a
 			// Prometheus counter when used as an increment.
-			name:  "cached_tokens_exceed_prompt_tokens_clamps_to_zero",
-			msgID: "cmpl_cached_exceed",
+			name:        "cached_tokens_exceed_prompt_tokens_clamps_to_zero",
+			msgID:       "cmpl_cached_exceed",
+			serviceTier: "priority",
 			usage: openai.CompletionUsage{
 				PromptTokens:     40,
 				CompletionTokens: 20,
@@ -114,6 +118,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				Output:                20,
 				CacheReadInputTokens:  30,
 				CacheWriteInputTokens: 30,
+				Metadata:              recorder.Metadata{recorder.MetadataKeyServiceTier: "priority"},
 				ExtraTokenTypes: map[string]int64{
 					"prompt_audio":                   0,
 					"completion_accepted_prediction": 0,
@@ -136,7 +141,7 @@ func TestRecordTokenUsage(t *testing.T) {
 				logger:   slog.Make(),
 			}
 
-			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage)
+			base.recordTokenUsage(t.Context(), tc.msgID, tc.usage, tc.serviceTier)
 
 			tokens := rec.RecordedTokenUsages()
 			require.Len(t, tokens, 1)

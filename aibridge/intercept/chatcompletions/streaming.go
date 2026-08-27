@@ -276,7 +276,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		if processor.hasUsage {
 			lastUsage := processor.lastUsage
-			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
+			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage, processor.serviceTier)
 			cumulativeUsage = sumUsage(cumulativeUsage, lastUsage)
 		}
 
@@ -502,8 +502,9 @@ type streamProcessor struct {
 	pendingToolCall     bool
 	getInjectedToolFunc func(string) *mcp.Tool
 
-	lastUsage openai.CompletionUsage
-	hasUsage  bool
+	lastUsage   openai.CompletionUsage
+	hasUsage    bool
+	serviceTier string
 }
 
 func newStreamProcessor(ctx context.Context, logger slog.Logger, isToolInjectedFunc func(string) *mcp.Tool) *streamProcessor {
@@ -521,6 +522,10 @@ func (s *streamProcessor) process(chunk openai.ChatCompletionChunk) bool {
 	if !s.acc.AddChunk(chunk) {
 		s.logger.Debug(s.ctx, "failed to accumulate chunk", slog.F("chunk", chunk.RawJSON()))
 		// Potentially not fatal, move along in best effort...
+	}
+
+	if chunk.ServiceTier != "" {
+		s.serviceTier = string(chunk.ServiceTier)
 	}
 
 	// Some providers emit cumulative usage snapshots on every chunk, so the

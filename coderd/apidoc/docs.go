@@ -20053,12 +20053,8 @@ const docTemplate = `{
                 },
                 "context_file_agent_id": {
                     "description": "ContextFileAgentID is the workspace agent that provided\nthis context file. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "context_file_content": {
                     "description": "ContextFileContent holds the file content sent to the LLM.\nInternal only: stripped before API responses to keep\npayloads small. The backend reads it when building the\nprompt via partsToMessageParts.",
@@ -20099,12 +20095,8 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "file_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "file_name": {
                     "type": "string"
@@ -20120,12 +20112,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "mcp_server_config_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "media_type": {
                     "type": "string"
@@ -30627,11 +30615,7 @@ const docTemplate = `{
                 },
                 "task_id": {
                     "description": "TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string"
                 },
                 "template_active_version_id": {
                     "type": "string",
@@ -30788,12 +30772,8 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "parent_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "ready_at": {
                     "type": "string",
@@ -30948,12 +30928,8 @@ const docTemplate = `{
                     ]
                 },
                 "subagent_id": {
-                    "format": "uuid",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/uuid.NullUUID"
-                        }
-                    ]
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "workspace_folder": {
                     "type": "string"
@@ -33231,18 +33207,6 @@ const docTemplate = `{
         },
         "url.Userinfo": {
             "type": "object"
-        },
-        "uuid.NullUUID": {
-            "type": "object",
-            "properties": {
-                "uuid": {
-                    "type": "string"
-                },
-                "valid": {
-                    "description": "Valid is true if UUID is not NULL",
-                    "type": "boolean"
-                }
-            }
         },
         "workspaceapps.AccessMethod": {
             "type": "string",

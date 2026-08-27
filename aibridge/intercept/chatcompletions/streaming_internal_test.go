@@ -29,6 +29,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 		wantPromptTokens     int64
 		wantCompletionTokens int64
 		wantTotalTokens      int64
+		wantServiceTier      string
 	}{
 		{
 			name: "cumulative snapshots with trailing usage-less chunk",
@@ -52,6 +53,17 @@ func TestStreamProcessorUsage(t *testing.T) {
 			wantPromptTokens:     6000,
 			wantCompletionTokens: 30,
 			wantTotalTokens:      6030,
+		},
+		{
+			name: "service tier retained from earlier chunk",
+			chunks: []string{
+				`{"id":"chatcmpl-tier","service_tier":"priority","choices":[{"index":0,"delta":{"content":"one"}}]}`,
+				`{"id":"chatcmpl-tier","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":6000,"completion_tokens":30,"total_tokens":6030}}`,
+			},
+			wantPromptTokens:     6000,
+			wantCompletionTokens: 30,
+			wantTotalTokens:      6030,
+			wantServiceTier:      "priority",
 		},
 	}
 
@@ -88,6 +100,7 @@ func TestStreamProcessorUsage(t *testing.T) {
 			assert.Equal(t, tt.wantPromptTokens, usage.PromptTokens)
 			assert.Equal(t, tt.wantCompletionTokens, usage.CompletionTokens)
 			assert.Equal(t, tt.wantTotalTokens, usage.TotalTokens)
+			assert.Equal(t, tt.wantServiceTier, processor.serviceTier)
 		})
 	}
 }

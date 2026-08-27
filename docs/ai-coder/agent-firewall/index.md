@@ -1,4 +1,6 @@
-# Agent Firewall
+---
+title: Agent Firewall
+---
 
 Agent Firewall is a process-level firewall that restricts and audits what
 autonomous programs, such as AI agents, can access and use.

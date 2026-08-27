@@ -34,6 +34,7 @@ interface NavbarViewProps {
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
 	canViewModels: boolean;
+	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
@@ -51,6 +52,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	adminPermissions,
 	canCreateChat,
 	canViewModels,
+	canViewLicenses,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -142,6 +144,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
+						canViewLicenses={canViewLicenses}
 					/>
 				</div>
 
