@@ -29,11 +29,10 @@ export const Clean: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		const label = button.getAttribute("aria-label") ?? "";
-		expect(label).not.toContain("Context changed");
-		// The fixture carries an invalid skill, so the ring announces the
-		// resource issue instead of staying silent until hover.
-		expect(label).toContain("Some context resources failed to load.");
+		expect(button).not.toHaveAccessibleName(/Context changed/);
+		expect(button).toHaveAccessibleName(
+			/Some context resources failed to load/,
+		);
 
 		await userEvent.hover(button);
 		const body = within(document.body);
@@ -122,12 +121,10 @@ export const MultipleContextRoots: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		const label = button.getAttribute("aria-label") ?? "";
-		// Every pinned resource is ok, so the ring carries no status note.
-		expect(label).toContain("Context usage 24%");
-		expect(label).not.toContain("Context changed");
-		expect(label).not.toContain("failed to load");
-		expect(label).not.toContain("Context error");
+		expect(button).toHaveAccessibleName(/Context usage 24%/);
+		expect(button).not.toHaveAccessibleName(
+			/Context changed|failed to load|Context error/,
+		);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		// Both directories that contribute instruction files are listed, so the
@@ -194,9 +191,7 @@ export const Dirty: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").toContain(
-			"Context changed",
-		);
+		expect(button).toHaveAccessibleName(/Context changed/);
 
 		await userEvent.hover(button);
 		const body = within(document.body);
@@ -287,7 +282,7 @@ export const SnapshotError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
-		expect(button.getAttribute("aria-label") ?? "").toContain("Context error");
+		expect(button).toHaveAccessibleName(/Context error/);
 		await userEvent.hover(button);
 		const body = within(document.body);
 		await waitFor(() => expect(body.getByText("Context error")).toBeVisible());

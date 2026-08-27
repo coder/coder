@@ -175,13 +175,15 @@ const RING_SIZE = 18;
 const RING_STROKE = 1.25;
 
 // Exclamation glyph centered in the ring when the pinned context drifted or
-// failed to load. Inherits the indicator tone via currentColor. Rendered
-// larger than its native 2x10 design size so it stays legible in the ring.
+// failed to load. Inherits the indicator tone via currentColor. The viewBox
+// is trimmed to the drawn content (the design export was 2 units wide with
+// ~0.73 units of trailing whitespace) so the glyph centers optically, and it
+// renders larger than the native 10px design height to stay legible.
 const ExclamationGlyph: FC = () => (
 	<svg
-		width="2.6"
-		height="13"
-		viewBox="0 0 2 10"
+		width="1.41"
+		height="11"
+		viewBox="0 0 1.28 10"
 		fill="none"
 		aria-hidden="true"
 	>
