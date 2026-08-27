@@ -1,15 +1,7 @@
 {
-	// oxlint configuration for the Coder frontend.
-	//
-	// Strategy: Biome remains the authoritative JS/TS linter (see biome.jsonc).
-	// oxlint runs alongside it and enforces only the rules that already match
-	// Biome's behavior on this codebase. Rules whose oxlint implementation is
-	// stricter than Biome's equivalent are listed in the "migration backlog"
-	// block at the bottom as "off", with the Biome rule they map to and the
-	// number of findings that must be resolved before the rule can be turned on.
-	// To chip away: fix the code (or migrate the biome-ignore suppression) for a
-	// backlog rule, flip it to "error" here, and once it is green in oxlint it
-	// can be dropped from Biome.
+	// oxlint config for the Coder frontend. Biome (see biome.jsonc) remains the
+	// authoritative JS/TS linter; oxlint runs alongside it and enforces only the
+	// rules that already match Biome's behavior. See the migration backlog below.
 	"$schema": "./node_modules/oxlint/configuration_schema.json",
 	"plugins": ["typescript", "unicorn", "oxc", "react", "jsx-a11y", "vitest"],
 	// Turn every default-on category off so nothing runs unless explicitly
@@ -164,12 +156,17 @@
 		"no-export": "error",
 
 		// ==========================================================
-		// Migration backlog: rules whose oxlint implementation is
-		// stricter than Biome's equivalent. Biome still enforces
-		// these on JS/TS, so nothing is lost by keeping them off in
-		// oxlint. Format: "oxlint-rule": "off" // biomeRule (effort)
-		// Effort is the approximate work to fix/migrate before the
-		// rule can be turned on: small < medium < large < xl.
+		// Migration backlog (temporary; shrinks as we go).
+		// Each rule maps to a Biome rule, but oxlint's implementation
+		// is stricter, so it is disabled to keep oxlint to "nothing
+		// more" than Biome. Biome still enforces these on JS/TS, so
+		// nothing is lost. To chip away: fix the code (or migrate the
+		// biome-ignore suppression), flip the rule to "error", confirm
+		// oxlint stays green, then drop it from Biome. When this list
+		// is empty, oxlint can become the sole JS/TS linter.
+		// Format: "oxlint-rule": "off" // biomeRule (effort)
+		// Effort = approximate work before enabling:
+		// small < medium < large < xl.
 		// ==========================================================
 		"no-use-before-define": "off", // correctness/noInvalidUseBeforeDeclaration (xl: oxlint is lexical, Biome is control-flow-aware)
 		"no-autofocus": "off", // a11y/noAutofocus (large)
@@ -208,12 +205,14 @@
 		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
 		"exhaustive-deps": "off" // correctness/useExhaustiveDependencies (large: reimplementation; biome-ignore comments to migrate)
 	},
-	"ignorePatterns": ["e2e/**/*Generated.ts", "scripts/*.mjs"],
+	// typesGenerated.ts is generated, so ignore it entirely rather than
+	// tracking per-rule exceptions for it.
+	"ignorePatterns": [
+		"e2e/**/*Generated.ts",
+		"scripts/*.mjs",
+		"**/typesGenerated.ts"
+	],
 	"overrides": [
-		{
-			"files": ["**/typesGenerated.ts"],
-			"rules": { "no-empty-interface": "off" }
-		},
 		{
 			"files": [
 				"**/DiffViewer/parseDiff.ts",
