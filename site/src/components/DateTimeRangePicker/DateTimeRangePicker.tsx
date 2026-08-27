@@ -211,10 +211,12 @@ export const DateTimeRangePicker: FC<DateTimeRangePickerProps> = ({
 	return (
 		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
-				<Button variant="outline" size={size} className="group">
-					<CalendarIcon className="size-4 text-content-secondary" />
+				<Button variant="outline" size={size} className="group gap-2 pr-1.5">
+					<span className="size-icon-sm shrink-0">
+						<CalendarIcon strokeWidth={1.75} className="size-full p-0" />
+					</span>
 					<span>{triggerLabel}</span>
-					<ChevronDownIcon className="size-3.5 text-content-secondary" />
+					<ChevronDownIcon className="size-icon-sm" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
