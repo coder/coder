@@ -287,12 +287,7 @@ func (server *Server) prepareGeneration(
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
 	//
-	// The pending-user segment is derived from the persisted rows first:
-	// sanitization can drop an assistant row emptied of foreign
-	// provider-executed parts, which would merge the already-answered
-	// user row before it into the pending tail. Sanitizing the head
-	// alone is equivalent to sanitizing everything because the tail is
-	// user-only and the sanitizer only rewrites assistant rows.
+	// Derive the pending-user segment from unsanitized rows: sanitization can drop assistant separator rows, and it only rewrites assistant rows, so sanitizing the head alone is equivalent.
 	pendingRowsStart := pendingUserSegmentStart(promptRows)
 	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
 	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
@@ -358,14 +353,6 @@ func (server *Server) prepareGeneration(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		// The unanswered trailing user segment is converted separately
-		// so the compaction summarizer input can exclude it exactly,
-		// without re-deriving the segment from converted roles (which
-		// over-trims when conversion drops an intervening assistant
-		// row). Segment-wise conversion is equivalent to converting
-		// everything at once because the segment is user-only: tool
-		// name tracking and the missing tool call/result injections
-		// only act on assistant and tool messages.
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], server.chatFileResolver(providerType), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
@@ -482,10 +469,6 @@ func (server *Server) prepareGeneration(
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
 	prompt = renderPlanPathPrompt(prompt, planPathBlock)
-	// prompt so far excludes the pending tail, so the system-prompt
-	// stages above only ever saw the head. Merge the tail back for
-	// generation; the summarizer keeps the head only when the segment
-	// is usable, otherwise everything is summarized as before.
 	compactionPromptMessages := prompt
 	pendingUserRows := promptRows[pendingRowsStart:]
 	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 || !hasAssistantMessage(prompt) {

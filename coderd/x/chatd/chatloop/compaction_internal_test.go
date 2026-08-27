@@ -387,11 +387,6 @@ func TestGenerateCompaction_RequiresClock(t *testing.T) {
 	require.ErrorContains(t, err, "clock is required")
 }
 
-// TestGenerateCompaction_PendingUserMessagesPromptVariant verifies the
-// summary prompt tells the model that unanswered user message(s) exist
-// but are not visible, and that the system summary uses the
-// pending-user prefix instead of claiming the assistant was actively
-// working (CODAGT-737).
 func TestGenerateCompaction_PendingUserMessagesPromptVariant(t *testing.T) {
 	t.Parallel()
 

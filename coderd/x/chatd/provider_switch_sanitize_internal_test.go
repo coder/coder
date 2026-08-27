@@ -246,11 +246,6 @@ func TestModelConfigProviderIdentity(t *testing.T) {
 	})
 }
 
-// Regression for PR #28645 review: the pending-user segment must be
-// derived before provider-switch sanitization. Sanitization can drop an
-// assistant row emptied of foreign provider-executed parts, which would
-// otherwise merge the already-answered user row before it into the
-// pending tail and replay it as unanswered.
 func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T) {
 	t.Parallel()
 

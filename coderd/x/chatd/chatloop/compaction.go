@@ -76,10 +76,6 @@ const (
 		"has not yet addressed; they follow this summary verbatim. Orient " +
 		"yourself with the summary below, then address the user's pending " +
 		"message(s) directly:"
-	// compactionPendingUserNote is appended to the summary prompt when
-	// unanswered trailing user message(s) were excluded from the
-	// summarizer's input; without it the summarizer may describe the
-	// visible tail of the conversation as if it were the latest state.
 	compactionPendingUserNote = "Note: the user's most recent message(s) " +
 		"arrived immediately before this compaction, have not been " +
 		"responded to, and are intentionally excluded from the " +
@@ -269,8 +265,6 @@ func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (Compact
 		}
 	}
 	if config.PendingUserMessages {
-		// Appended even to custom prompts: the exclusion is a structural
-		// fact about the input, not a style preference.
 		config.SummaryPrompt += "\n\n" + compactionPendingUserNote
 	}
 	if config.Source == "" {

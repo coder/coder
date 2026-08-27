@@ -382,8 +382,6 @@ func buildCompactionMessages(input buildCompactionMessagesInput) (compactionMess
 	for i := range messages {
 		messages[i].Compressed = true
 	}
-	// Replay rows stay uncompressed and sort after the boundary trio, so
-	// the prompt window query includes them on the next generation pass.
 	for _, row := range input.pendingUserMessages {
 		messages = append(messages, chatstate.Message{
 			Role:           database.ChatMessageRoleUser,
@@ -569,16 +567,7 @@ func isContextBoundaryMessage(msg database.ChatMessage) bool {
 	return false
 }
 
-// pendingUserSegmentStart returns the index of the first row of the
-// unanswered trailing user segment: the contiguous run of user-role
-// rows after the last assistant or tool row. Returns len(promptRows)
-// when there is no such segment. The segment is excluded from the
-// summarizer's input and re-inserted verbatim after the compaction
-// boundary instead of being summarized (CODAGT-737).
-//
-// The scan runs on persisted rows, not the converted prompt: assistant
-// rows terminate the segment even when prompt conversion drops them,
-// so an older user message can never be mistaken for pending.
+// pendingUserSegmentStart returns the index of the first row of the trailing run of unanswered user-role rows (len(promptRows) when there is none); scanning persisted rows means assistant rows terminate the run even when prompt conversion drops them.
 func pendingUserSegmentStart(promptRows []database.ChatMessage) int {
 	start := len(promptRows)
 	for start > 0 {

@@ -96,11 +96,8 @@ type generationCompaction struct {
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
 
-	Required bool
-	Options  chatloop.GenerateCompactionOptions
-	// PendingUserRows are the unanswered trailing user message rows
-	// excluded from Options.Messages at prepare time; buildCompactionMessages
-	// replays them after the compaction boundary.
+	Required        bool
+	Options         chatloop.GenerateCompactionOptions
 	PendingUserRows []database.ChatMessage
 }
 
