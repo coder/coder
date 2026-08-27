@@ -116,7 +116,18 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 		}
 	}
 
-	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+	extraTokenTypes := make(map[string]int64)
+	if usage.ServerToolUse.WebSearchRequests != 0 {
+		extraTokenTypes["web_search_requests"] = usage.ServerToolUse.WebSearchRequests
+	}
+	if usage.CacheCreation.Ephemeral1hInputTokens != 0 {
+		extraTokenTypes["cache_ephemeral_1h_input"] = usage.CacheCreation.Ephemeral1hInputTokens
+	}
+	if usage.CacheCreation.Ephemeral5mInputTokens != 0 {
+		extraTokenTypes["cache_ephemeral_5m_input"] = usage.CacheCreation.Ephemeral5mInputTokens
+	}
+
+	usageRecord := recorder.TokenUsageRecord{
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
 		Input:                 usage.InputTokens,
@@ -124,12 +135,12 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 		CacheReadInputTokens:  usage.CacheReadInputTokens,
 		CacheWriteInputTokens: usage.CacheCreationInputTokens,
 		Metadata:              metadata,
-		ExtraTokenTypes: map[string]int64{
-			"web_search_requests":      usage.ServerToolUse.WebSearchRequests,
-			"cache_ephemeral_1h_input": usage.CacheCreation.Ephemeral1hInputTokens,
-			"cache_ephemeral_5m_input": usage.CacheCreation.Ephemeral5mInputTokens,
-		},
-	})
+	}
+	if len(extraTokenTypes) > 0 {
+		usageRecord.ExtraTokenTypes = extraTokenTypes
+	}
+
+	_ = i.recorder.RecordTokenUsage(ctx, &usageRecord)
 }
 
 func (i *interceptionBase) CorrelatingToolCallID() *string {
