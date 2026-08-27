@@ -3932,6 +3932,19 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatModelACLAvailable = async (
+		organizationId: string,
+		modelId: string,
+		options: TypesGen.UsersRequest,
+	): Promise<TypesGen.ACLAvailable> => {
+		const url = getURLWithSearchParams(
+			`${chatModelACLPath(organizationId, modelId)}/available`,
+			options,
+		);
+		const response = await this.axios.get<TypesGen.ACLAvailable>(url);
+		return response.data;
+	};
+
 	updateChatModelACL = async (
 		organizationId: string,
 		modelId: string,

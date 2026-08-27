@@ -19,6 +19,8 @@ import {
 import { MockChatModel } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatModelACL,
+	MockChatModelACLAvailable,
 	MockMCPServerConfigACL,
 	MockMCPServerConfigACLAvailable,
 } from "#/testHelpers/entities";
@@ -51,6 +53,8 @@ import {
 	chatMessagesKey,
 	chatModel,
 	chatModelACL,
+	chatModelACLAvailable,
+	chatModelACLAvailableKey,
 	chatModelACLKey,
 	chatModelKey,
 	chatPromptsKey,
@@ -136,6 +140,7 @@ vi.mock("#/api/api", () => ({
 			updateChatACL: vi.fn(),
 			getChatModel: vi.fn(),
 			getChatModelACL: vi.fn(),
+			getChatModelACLAvailable: vi.fn(),
 			updateChatModelACL: vi.fn(),
 			getMCPServerConfigACL: vi.fn(),
 			getMCPServerConfigACLAvailable: vi.fn(),
@@ -262,15 +267,45 @@ describe("chat model query factories", () => {
 		);
 	});
 
+	it("scopes model ACL candidates by organization, model, and options", async () => {
+		const options = { q: "alice@example.com", limit: 25 };
+		const otherOptions = { q: "bob@example.com", limit: 25 };
+		vi.mocked(API.experimental.getChatModelACLAvailable).mockResolvedValue(
+			MockChatModelACLAvailable,
+		);
+
+		const query = chatModelACLAvailable(organizationId, modelId, options);
+
+		expect(query.queryKey).toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(otherOrganizationId, modelId, options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, "other-model", options),
+		);
+		expect(query.queryKey).not.toEqual(
+			chatModelACLAvailableKey(organizationId, modelId, otherOptions),
+		);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACLAvailable);
+		expect(API.experimental.getChatModelACLAvailable).toHaveBeenCalledWith(
+			organizationId,
+			modelId,
+			options,
+		);
+	});
+
 	it("gets and sparsely updates an organization-scoped model ACL", async () => {
-		const acl = { user_roles: {}, group_roles: {} };
 		const req = { user_roles: { "user-1": "read" as const } };
-		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(acl);
+		vi.mocked(API.experimental.getChatModelACL).mockResolvedValue(
+			MockChatModelACL,
+		);
 		vi.mocked(API.experimental.updateChatModelACL).mockResolvedValue();
 
 		const query = chatModelACL(organizationId, modelId);
 		expect(query.queryKey).toEqual(chatModelACLKey(organizationId, modelId));
-		await expect(query.queryFn()).resolves.toEqual(acl);
+		await expect(query.queryFn()).resolves.toEqual(MockChatModelACL);
 		expect(API.experimental.getChatModelACL).toHaveBeenCalledWith(
 			organizationId,
 			modelId,

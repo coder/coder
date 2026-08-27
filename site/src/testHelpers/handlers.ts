@@ -82,6 +82,19 @@ export const handlers = [
 		},
 	),
 
+	// chat models
+	http.get(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl/available",
+		() => HttpResponse.json(M.MockChatModelACLAvailable),
+	),
+	http.get(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl",
+		() => HttpResponse.json(M.MockChatModelACL),
+	),
+	http.patch(
+		"/api/v2/organizations/:organizationId/chats/models/:modelId/acl",
+		() => new HttpResponse(null, { status: 204 }),
+	),
 	http.get(
 		"/api/v2/organizations/:organizationId/mcp-servers/:serverId/acl/available",
 		() => HttpResponse.json(M.MockMCPServerConfigACLAvailable),
