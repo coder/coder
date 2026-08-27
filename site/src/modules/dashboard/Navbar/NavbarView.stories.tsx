@@ -284,6 +284,7 @@ export const ForMember: Story = {
 
 export const ForMemberWithModelAccess: Story = {
 	parameters: {
+		pixel: { matrix: pixelWithDesktop },
 		reactRouter: reactRouterParameters({
 			location: { path: "/" },
 			routing: [
