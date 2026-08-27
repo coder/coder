@@ -4366,15 +4366,28 @@ export const ArchiveDuringImageResize: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		// A real 1x1 PNG with padding appended after IEND: decoders
+		// ignore trailing bytes, so the dimension probe succeeds and the
+		// job reaches the pinned createImageBitmap while over the size
+		// cap.
+		const tinyPng = Uint8Array.from(
+			atob(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			),
+			(char) => char.charCodeAt(0),
+		);
 		await userEvent.upload(
 			canvas.getByTestId("attachment-file-input"),
-			new File([new Uint8Array(11 * 1024 * 1024)], "screenshot.png", {
+			new File([tinyPng, new Uint8Array(11 * 1024 * 1024)], "screenshot.png", {
 				type: "image/png",
 			}),
 		);
 		expect(
 			await canvas.findByRole("button", { name: "Remove screenshot.png" }),
 		).toBeInTheDocument();
+		// Still resizing, not failed: the archive below must interrupt a
+		// live processing window, not clean up an errored chip.
+		expect(canvas.queryByLabelText("Upload error")).not.toBeInTheDocument();
 
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Open agent actions" }),
