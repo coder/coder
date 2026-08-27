@@ -110,7 +110,7 @@
 		"prefer-node-protocol": "error",
 		"prefer-const": [
 			"error",
-			{ "destructuring": "all", "ignoreReadBeforeAssign": false }
+			{ "destructuring": "all" }
 		],
 
 		// --- style (coder-enabled as error) ---
