@@ -550,7 +550,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	seedApp := func(t *testing.T) database.OAuth2ProviderApp {
+	seedAppInCatalog := func(t *testing.T) database.OAuth2ProviderApp {
 		t.Helper()
 		return dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
 			Name:        testutil.GetRandomName(t),
@@ -561,40 +561,45 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 
 	t.Run("UnsupportedResponseTypeRedirected", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		app := seedApp(t)
-
+		app := seedAppInCatalog(t)
 		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-			query.Set("response_type", "token")
+			t.Run(method, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-			resp := sendAuthorizeRequest(ctx, t, client, method, query)
-			defer resp.Body.Close()
+				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+				query.Set("response_type", "token")
 
-			requireAuthorizeErrorRedirect(t, resp,
-				codersdk.OAuth2ErrorCodeUnsupportedResponseType,
-				"Only response_type=code is supported")
+				resp := sendAuthorizeRequest(ctx, t, client, method, query)
+				defer resp.Body.Close()
+
+				requireAuthorizeErrorRedirect(t, resp,
+					codersdk.OAuth2ErrorCodeUnsupportedResponseType, "Only response_type=code is supported")
+			})
 		}
 	})
 
 	t.Run("UnparseableResponseTypeNotRedirected", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
 
-		app := seedApp(t)
-
+		app := seedAppInCatalog(t)
 		for _, method := range []string{http.MethodGet, http.MethodPost} {
-			query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
-			query.Set("response_type", "not_a_response_type")
+			t.Run(method, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
 
-			resp := sendAuthorizeRequest(ctx, t, client, method, query)
-			defer resp.Body.Close()
+				query := authorizeQuery(t, app.ID.String(), scopeInCatalog)
+				query.Set("response_type", "not_a_response_type")
 
-			require.Equal(t, http.StatusBadRequest, resp.StatusCode,
-				"%s: extractAuthorizeParams failures answer on Coder whether or not the callback was trustworthy, and this request omits redirect_uri, so it was", method)
-			require.Empty(t, resp.Header.Get("Location"),
-				"%s: nothing may be redirected from inside extractAuthorizeParams", method)
+				resp := sendAuthorizeRequest(ctx, t, client, method, query)
+				defer resp.Body.Close()
+
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode,
+					"extractAuthorizeParams failures answer on Coder whether or not the callback was trustworthy, and this request omits redirect_uri, so it was")
+				require.Empty(t, resp.Header.Get("Location"),
+					"nothing may be redirected from inside extractAuthorizeParams")
+			})
 		}
 	})
 
@@ -605,7 +610,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 	t.Run("InvalidPKCEMethodRedirected", func(t *testing.T) {
 		t.Parallel()
 
-		app := seedApp(t)
+		app := seedAppInCatalog(t)
 		for _, tc := range []struct {
 			name        string
 			method      string
@@ -639,7 +644,7 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		app := seedApp(t)
+		app := seedAppInCatalog(t)
 		resp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeInCatalog)
 		defer resp.Body.Close()
 
@@ -661,14 +666,12 @@ func TestOAuth2AuthorizeErrorsReachTheClient(t *testing.T) {
 func cancelLinkFromConsentPage(t *testing.T, body string) *url.URL {
 	t.Helper()
 
-	const marker = `id="cancel-link" href="`
-	start := strings.Index(body, marker)
-	require.GreaterOrEqual(t, start, 0, "consent page has no cancel link")
-	rest := body[start+len(marker):]
-	end := strings.Index(rest, `"`)
-	require.GreaterOrEqual(t, end, 0, "cancel link href is unterminated")
+	_, rest, ok := strings.Cut(body, `id="cancel-link" href="`)
+	require.True(t, ok, "consent page has no cancel link")
+	href, _, ok := strings.Cut(rest, `"`)
+	require.True(t, ok, "cancel link href is unterminated")
 
-	cancel, err := url.Parse(html.UnescapeString(rest[:end]))
+	cancel, err := url.Parse(html.UnescapeString(href))
 	require.NoError(t, err)
 	return cancel
 }
