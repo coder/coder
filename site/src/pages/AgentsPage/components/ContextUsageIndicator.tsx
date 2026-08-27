@@ -180,7 +180,7 @@ const RING_STROKE = 1.5;
 // so it shares the ring's coordinate system and cannot drift off center: the
 // path (a 1.79427x14 design export) is scaled to GLYPH_HEIGHT and translated
 // to the exact canvas center.
-const GLYPH_HEIGHT = 11;
+const GLYPH_HEIGHT = 9;
 const GLYPH_PATH_WIDTH = 1.79427;
 const GLYPH_PATH_HEIGHT = 14;
 const GLYPH_SCALE = GLYPH_HEIGHT / GLYPH_PATH_HEIGHT;
