@@ -32,6 +32,8 @@ func TestChatInstructionLockIDsDistinct(t *testing.T) {
 		"LockIDBoundaryUsageStats":           LockIDBoundaryUsageStats,
 		"LockIDAIProvidersEnvSeed":           LockIDAIProvidersEnvSeed,
 		"LockIDChatModelConfigWrites":        LockIDChatModelConfigWrites,
+		"LockIDChatCapacityAdmission":        LockIDChatCapacityAdmission,
+		"LockIDNotifyUnpricedAIModels":       LockIDNotifyUnpricedAIModels,
 	}
 
 	// The two generated IDs are pairwise distinct.

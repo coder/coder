@@ -3410,6 +3410,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	return items, nil
 }
 
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides
