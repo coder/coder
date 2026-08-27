@@ -69,6 +69,7 @@
 				}
 			},
 			"suspicious": {
+				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",
 				"noThenProperty": "off",
 				"noTemplateCurlyInString": "off",

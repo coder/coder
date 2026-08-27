@@ -19315,6 +19315,80 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 	})
 }
 
+func TestGetUnpricedAIModelsSince(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	initiator := dbgen.User(t, db, database.User{})
+	anthropic := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "anthropic",
+		Type: database.AIProviderTypeAnthropic,
+	})
+	openai := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "openai",
+		Type: database.AIProviderTypeOpenai,
+	})
+
+	seedUsage := func(provider database.AIProvider, model string, startedAt time.Time, inputTokens, outputTokens int64, cost sql.NullInt64) {
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  initiator.ID,
+			Provider:     string(provider.Type),
+			ProviderName: provider.Name,
+			Model:        model,
+			StartedAt:    startedAt,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: interception.ID,
+			InputTokens:    inputTokens,
+			OutputTokens:   outputTokens,
+			CostMicros:     cost,
+			CreatedAt:      startedAt,
+		})
+	}
+
+	// Included and aggregated into one result with 500 total tokens.
+	seedUsage(anthropic, "model-a", now, 200, 100, sql.NullInt64{})
+	seedUsage(anthropic, "model-a", now, 100, 100, sql.NullInt64{})
+	// Included after model-a because it has only 200 total tokens.
+	seedUsage(anthropic, "model-b", now, 100, 100, sql.NullInt64{})
+	// Excluded because its recorded cost is not NULL.
+	seedUsage(anthropic, "costed-model", now, 100, 100, sql.NullInt64{Int64: 1, Valid: true})
+	// Excluded because its interception started before the requested window.
+	seedUsage(anthropic, "old-model", now.Add(-2*time.Hour), 100, 100, sql.NullInt64{})
+	// Excluded because OpenAI is not in the supplied priceable provider list.
+	seedUsage(openai, "excluded-provider-model", now, 100, 100, sql.NullInt64{})
+
+	// Excluded because an interception without token usage does not represent
+	// model usage.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  initiator.ID,
+		Provider:     string(anthropic.Type),
+		ProviderName: anthropic.Name,
+		Model:        "model-without-usage",
+		StartedAt:    now,
+	}, nil)
+
+	// Excluded because a current price exists for this provider and model.
+	const pricedSeed = `[{"provider":"anthropic","model":"priced-model","input_price":1,"output_price":2,"cache_read_price":null,"cache_write_price":null}]`
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   []byte(pricedSeed),
+		Source: database.AIModelPriceSourceCustom,
+	}))
+	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
+
+	got, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
+		Since:              now.Add(-time.Hour),
+		PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.GetUnpricedAIModelsSinceRow{
+		{ProviderType: "anthropic", Model: "model-a", TokenCount: 500},
+		{ProviderType: "anthropic", Model: "model-b", TokenCount: 200},
+	}, got)
+}
+
 func TestGetAIModelPriceByProviderModel(t *testing.T) {
 	t.Parallel()
 

@@ -76,4 +76,5 @@ var (
 	TemplateAIBudgetLimitReachedUser  = uuid.MustParse("cdcf2ecd-f003-4169-9800-abb2661ea522")
 	TemplateAIBudgetWarningAdmin      = uuid.MustParse("2a7b0ac1-00e1-4625-9cd5-1e5933972c77")
 	TemplateAIBudgetLimitReachedAdmin = uuid.MustParse("0bafe0ea-a78b-4217-ad05-1ef12e92e025")
+	TemplateAIModelsUnpricedReport    = uuid.MustParse("1b7d9fa7-f5a8-4e46-8078-5cf53abfed94")
 )

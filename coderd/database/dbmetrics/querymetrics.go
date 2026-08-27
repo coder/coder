@@ -3232,6 +3232,14 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUnpricedAIModelsSince(ctx context.Context, since database.GetUnpricedAIModelsSinceParams) ([]database.GetUnpricedAIModelsSinceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUnpricedAIModelsSince(ctx, since)
+	m.queryLatencies.WithLabelValues("GetUnpricedAIModelsSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUnpricedAIModelsSince").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIBudgetOverride(ctx, userID)
