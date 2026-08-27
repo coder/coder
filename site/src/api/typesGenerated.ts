@@ -3817,8 +3817,7 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	/**
-	 * Password confirms password-authenticated accounts before conversion.
-	 * It is required only when the current login type is password.
+	 * Password is required for password-authenticated accounts.
 	 */
 	readonly password?: string;
 }

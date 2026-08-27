@@ -413,8 +413,7 @@ type UserRoles struct {
 type ConvertLoginRequest struct {
 	// ToType is the login type to convert to.
 	ToType LoginType `json:"to_type" validate:"required"`
-	// Password confirms password-authenticated accounts before conversion.
-	// It is required only when the current login type is password.
+	// Password is required for password-authenticated accounts.
 	Password string `json:"password,omitempty" validate:""`
 }
 
@@ -948,15 +947,13 @@ func (c *Client) ChangePasswordWithOneTimePasscode(ctx context.Context, req Chan
 }
 
 // ConvertLoginType starts converting the current user from password or GitHub
-// authentication to OAuth authentication. The response has the OAuth state
-// code to use in the OAuth flow.
+// to OAuth authentication.
 func (c *Client) ConvertLoginType(ctx context.Context, req ConvertLoginRequest) (OAuthConversionResponse, error) {
 	return c.ConvertUserLoginType(ctx, Me, req)
 }
 
-// ConvertUserLoginType starts converting a user from password or GitHub
-// authentication to OAuth authentication. The response has the OAuth state
-// code to use in the OAuth flow.
+// ConvertUserLoginType starts converting a user from password or GitHub to
+// OAuth authentication.
 func (c *Client) ConvertUserLoginType(ctx context.Context, user string, req ConvertLoginRequest) (OAuthConversionResponse, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/convert-login", user), req)
 	if err != nil {

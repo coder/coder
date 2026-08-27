@@ -5705,10 +5705,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name       | Type                                     | Required | Restrictions | Description                                                                                                                       |
-|------------|------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| `password` | string                                   | false    |              | Password confirms password-authenticated accounts before conversion. It is required only when the current login type is password. |
-| `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to.                                                                                          |
+| Name       | Type                                     | Required | Restrictions | Description                                               |
+|------------|------------------------------------------|----------|--------------|-----------------------------------------------------------|
+| `password` | string                                   | false    |              | Password is required for password-authenticated accounts. |
+| `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to.                  |
 
 ## codersdk.CreateAIGatewayKeyRequest
 

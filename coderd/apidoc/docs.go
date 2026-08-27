@@ -21436,7 +21436,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "password": {
-                    "description": "Password confirms password-authenticated accounts before conversion.\nIt is required only when the current login type is password.",
+                    "description": "Password is required for password-authenticated accounts.",
                     "type": "string"
                 },
                 "to_type": {

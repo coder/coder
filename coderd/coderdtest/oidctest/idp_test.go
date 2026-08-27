@@ -68,8 +68,6 @@ func TestFakeIDPBasicFlow(t *testing.T) {
 	require.NotEmpty(t, refreshed.AccessToken, "access token is empty on refresh")
 }
 
-// TestFakeIDPRemoteKeySet verifies that the fake IDP publishes signing-key
-// metadata accepted by an OIDC provider discovered over HTTP.
 func TestFakeIDPRemoteKeySet(t *testing.T) {
 	t.Parallel()
 

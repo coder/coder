@@ -1531,9 +1531,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If a new user is authenticating for the first time, the audit action is
-	// 'register', not 'login'. A conversion can intentionally start with an
-	// OIDC email that has no matching Coder user.
+	// An unmatched OIDC conversion is not a registration.
 	if user.ID == uuid.Nil && !isMergeStateString(state.StateString) {
 		aReq.Action = database.AuditActionRegister
 	}
@@ -1771,8 +1769,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		user = params.User
 		link = params.Link
 
-		// Conversion state selects the existing user after both source and target
-		// identities have been authenticated.
 		if isMergeStateString(params.State.StateString) {
 			// Always clear this cookie. If it succeeds, we no longer need it.
 			// If it fails, we no longer care about it.
@@ -2105,8 +2101,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 	return cookies, user, key, nil
 }
 
-// convertUserToOauth converts a user to an oauth login type. If it fails, it
-// returns an HTTP error.
 func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db database.Store, params *oauthLoginParams) (database.User, error) {
 	user := params.User
 
@@ -2135,8 +2129,6 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 
-	// At this point, this request could be an attempt to convert an account to
-	// OAuth authentication. Always log these attempts.
 	var (
 		auditor           = *api.Auditor.Load()
 		oauthConvertAudit = params.initAuditRequest(&audit.RequestParams{
@@ -2165,11 +2157,8 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	}
 
 	if claims.FromLoginType == codersdk.LoginTypeGithub && claims.ToLoginType == codersdk.LoginTypeOIDC {
-		// A GitHub session and the signed conversion state prove ownership of the
-		// source account. The verified OIDC identity proves ownership of the target
-		// account, so this route does not depend on their email addresses matching.
-		// Do not use this exception for other conversion types.
-		// nolint:gocritic // Conversion state authorizes a system lookup of its source user.
+		// Only a GitHub-authenticated conversion with signed state can bypass email matching.
+		// nolint:gocritic // Signed state authorizes this system lookup.
 		sourceUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), claims.UserID)
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
@@ -2195,8 +2184,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		oauthConvertAudit.Old = user
 	}
 
-	// Do not create an account when a non-GitHub conversion cannot resolve the
-	// user by the existing identity or verified email address.
+	// Other conversion paths require a matched user.
 	if user.ID == uuid.Nil {
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,
@@ -2219,8 +2207,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	// Convert the user and default to the normal login flow.
 	// If the login succeeds, this transaction will commit and the user
 	// will be converted.
-	// nolint:gocritic // System query to update the login type after source
-	// account authentication and signed conversion state validation.
+	// nolint:gocritic // Signed conversion state authorizes this system update.
 	user, err = db.UpdateUserLoginType(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLoginTypeParams{
 		NewLoginType: params.LoginType,
 		UserID:       user.ID,
