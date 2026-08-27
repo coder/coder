@@ -118,7 +118,7 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
 // @Param state query string true "A random unguessable string"
-// @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
+// @Param response_type query string true "Response type" Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
@@ -134,7 +134,7 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Tags Enterprise
 // @Param client_id query string true "Client ID"
 // @Param state query string true "A random unguessable string"
-// @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
+// @Param response_type query string true "Response type" Enums(code)
 // @Param redirect_uri query string false "Redirect here after authorization"
 // @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 302 "Redirects to the app's registered callback carrying either an authorization code or an OAuth2 error (RFC 6749 4.1.2.1)"

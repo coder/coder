@@ -4887,9 +4887,9 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 
@@ -4924,9 +4924,9 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 #### Enumerated Values
 
-| Parameter       | Value(s)        |
-|-----------------|-----------------|
-| `response_type` | `code`, `token` |
+| Parameter       | Value(s) |
+|-----------------|----------|
+| `response_type` | `code`   |
 
 ### Responses
 

@@ -13257,7 +13257,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code", "token"],
+						"enum": ["code"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
@@ -13311,7 +13311,7 @@
 						"required": true
 					},
 					{
-						"enum": ["code", "token"],
+						"enum": ["code"],
 						"type": "string",
 						"description": "Response type",
 						"name": "response_type",
