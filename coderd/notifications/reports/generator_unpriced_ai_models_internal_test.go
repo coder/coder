@@ -2,6 +2,7 @@ package reports
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -144,6 +145,25 @@ func TestReportUnpricedAIModels(t *testing.T) {
 		initiator := dbgen.User(t, db, database.User{})
 		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
 		seedInterception(t, db, initiator, provider, "mistyped-model", clk.Now())
+
+		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
+		require.Empty(t, notifEnq.Sent())
+	})
+
+	t.Run("HistoricallyCostedUsage_IsNotReported", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, logger, db, _, notifEnq, clk := setup(t)
+		seedOwner(t, db)
+		initiator := dbgen.User(t, db, database.User{})
+		provider := seedProvider(t, db, "anthropic", database.AIProviderTypeAnthropic)
+		interception := seedInterception(t, db, initiator, provider, "previously-priced-model", clk.Now())
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: interception.ID,
+			InputTokens:    100,
+			CostMicros:     sql.NullInt64{Int64: 10, Valid: true},
+			CreatedAt:      clk.Now(),
+		})
 
 		require.NoError(t, reportUnpricedAIModels(ctx, logger, db, notifEnq, clk))
 		require.Empty(t, notifEnq.Sent())

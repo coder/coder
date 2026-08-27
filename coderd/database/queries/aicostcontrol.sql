@@ -502,6 +502,7 @@ JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
 	AND providers.deleted = false
 WHERE interceptions.started_at >= @since::timestamptz
+	AND token_usages.cost_micros IS NULL
 	AND providers.type::text = ANY(@priceable_providers::text[])
 	AND NOT EXISTS (
 		SELECT 1
