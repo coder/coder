@@ -1169,7 +1169,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Must run after newAPI so options.Database is dbcrypt-wrapped.
 			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
-			// Run periodic reports after prices and providers are initialized.
+			// Run report generator to distribute periodic reports.
+			// Must run after newAPI so prices and providers are initialized.
 			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 			defer notificationReportGenerator.Close()
 
