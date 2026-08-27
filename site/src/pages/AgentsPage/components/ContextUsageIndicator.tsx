@@ -601,11 +601,11 @@ export const ContextUsageIndicator: FC<{
 					{onRefreshContext && (
 						<div className="flex flex-wrap gap-2">
 							<Button
-								size="sm"
+								size="xs"
 								disabled={isRefreshingContext}
 								onClick={() => onRefreshContext()}
 							>
-								<Spinner loading={isRefreshingContext} />
+								<Spinner size="sm" loading={isRefreshingContext} />
 								Refresh context
 							</Button>
 						</div>
