@@ -1,4 +1,4 @@
-import { PlusIcon, RefreshCwIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type {
 	CreateUserSecretRequest,
@@ -8,13 +8,12 @@ import type {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
+	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { docs } from "#/utils/docs";
 import { SecretDialog } from "./SecretDialog";
 import { SecretsTable } from "./SecretsTable";
@@ -23,12 +22,10 @@ type SecretsPageViewProps = {
 	secrets?: readonly UserSecret[];
 	isLoading: boolean;
 	hasLoaded: boolean;
-	isRefreshing: boolean;
 	isCreating: boolean;
 	isUpdating: boolean;
 	isDeleting: boolean;
 	getSecretsError?: unknown;
-	onRefresh: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
@@ -52,12 +49,10 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	secrets = [],
 	isLoading,
 	hasLoaded,
-	isRefreshing,
 	isCreating,
 	isUpdating,
 	isDeleting,
 	getSecretsError,
-	onRefresh,
 	onCreateSecret,
 	onUpdateSecret,
 	onImportSecrets,
@@ -92,18 +87,10 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 		<div className="flex flex-col gap-6">
 			<SettingsHeader
 				actions={
-					<div className="flex flex-wrap gap-2">
-						<Button
-							variant="outline"
-							onClick={onRefresh}
-							disabled={isLoading || isRefreshing}
-						>
-							<Spinner loading={isLoading || isRefreshing}>
-								<RefreshCwIcon />
-							</Spinner>
-							Refresh
-						</Button>
-					</div>
+					<Button onClick={(event) => openAddSecret(event.currentTarget)}>
+						<PlusIcon />
+						Add secret
+					</Button>
 				}
 			>
 				<SettingsHeaderTitle>Secrets</SettingsHeaderTitle>
@@ -111,14 +98,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					Secrets with an environment variable or file path are injected into
 					workspaces you own when they start. Each environment variable and file
 					path must be unique.{" "}
-					<Link
-						href={docs("/user-guides/user-secrets")}
-						target="_blank"
-						rel="noreferrer"
-						showExternalIcon={false}
-					>
-						View docs
-					</Link>
+					<SettingsHeaderDocsLink href={docs("/user-guides/user-secrets")} />
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
@@ -136,14 +116,6 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			{getSecretsError ? <ErrorAlert error={getSecretsError} /> : undefined}
 
 			<section className="flex flex-col gap-4">
-				<div className="flex items-center justify-between gap-4">
-					<h2 className="m-0 text-xl font-semibold">Your secrets</h2>
-					<Button onClick={(event) => openAddSecret(event.currentTarget)}>
-						<PlusIcon />
-						Add secret
-					</Button>
-				</div>
-
 				<SecretsTable
 					secrets={secrets}
 					isLoading={isLoading}

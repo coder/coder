@@ -151,17 +151,18 @@ message Stats {
 	int64 tx_bytes = 7;
 
 	// SessionCountVSCode is the number of connections received by an agent
-	// that are from our VS Code extension.
-	int64 session_count_vscode = 8;
+	// that are from our VS Code extension. Superseded by session_counts.
+	int64 session_count_vscode = 8 [deprecated = true];
 	// SessionCountJetBrains is the number of connections received by an agent
-	// that are from our JetBrains extension.
-	int64 session_count_jetbrains = 9;
+	// that are from our JetBrains extension. Superseded by session_counts.
+	int64 session_count_jetbrains = 9 [deprecated = true];
 	// SessionCountReconnectingPTY is the number of connections received by an agent
-	// that are from the reconnecting web terminal.
-	int64 session_count_reconnecting_pty = 10;
+	// that are from the reconnecting web terminal. Superseded by
+	// session_counts.
+	int64 session_count_reconnecting_pty = 10 [deprecated = true];
 	// SessionCountSSH is the number of connections received by an agent
-	// that are normal, non-tagged SSH sessions.
-	int64 session_count_ssh = 11;
+	// that are normal, non-tagged SSH sessions. Superseded by session_counts.
+	int64 session_count_ssh = 11 [deprecated = true];
 
 	message Metric {
 		string name = 1;
@@ -182,6 +183,10 @@ message Stats {
 		repeated Label labels = 4;
 	}
 	repeated Metric metrics = 12;
+
+	// SessionCounts is the number of active sessions per app name, such as
+	// "vscode" or "ssh". Coderd normalizes the names on ingest.
+	map<string, int64> session_counts = 13;
 }
 
 message UpdateStatsRequest{

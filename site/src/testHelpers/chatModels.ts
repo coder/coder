@@ -1,11 +1,13 @@
 import type {
-	ChatModelConfig,
-	ChatModelProvider,
+	AIModelPrice,
+	ChatModel,
+	ChatModelProviderDescriptor,
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 
-export const MockChatModelConfig: ChatModelConfig = {
+export const MockChatModel: ChatModel = {
+	organization_id: "00000000-0000-0000-0000-000000000000",
 	id: "model-1",
 	ai_provider_id: "provider-1",
 	model: "gpt-5",
@@ -34,8 +36,37 @@ export const MockChatProviderConfig: ChatProviderConfig = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
-export const MockChatModelProvider: ChatModelProvider = {
-	provider: "openai",
+export const MockChatModelProviderDescriptor: ChatModelProviderDescriptor = {
+	id: "provider-1",
+	type: "openai",
+	display_name: "OpenAI",
+	icon: "",
+	enabled: true,
+	has_api_key: true,
+	has_user_api_key: false,
+	has_effective_api_key: true,
+	allow_user_api_key: false,
 	available: true,
-	models: [],
+};
+
+// Prices are micro-units per million tokens.
+export const MockGPT5ModelPrice: AIModelPrice = {
+	provider: "openai",
+	model: "gpt-5",
+	input_price: 1250000,
+	output_price: 10000000,
+	cache_read_price: 125000,
+	cache_write_price: null,
+	source: "default",
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+};
+
+// An input price below $0.0001 per million tokens renders as a threshold
+// rather than an exact value.
+export const MockGPT5BelowThresholdModelPrice: AIModelPrice = {
+	...MockGPT5ModelPrice,
+	input_price: 50,
+	output_price: null,
+	cache_read_price: null,
 };

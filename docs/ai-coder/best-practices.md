@@ -20,7 +20,7 @@ Below are common scenarios where AI coding agents provide the most impact, along
 
 While LLMs are trained on general knowledge, it's important to provide additional context to help agents understand your codebase and organization.
 
-For [Coder Agents](./agents/index.md), context comes from a few complementary places. Platform admins configure a [system prompt](./agents/platform-controls/index.md) that applies to every chat and register [MCP servers](./agents/platform-controls/mcp-servers.md) once for the whole deployment. Repos and workspace templates can ship reusable [skills](./agents/extending-agents.md) under `.agents/skills/`, which the agent discovers automatically when it attaches to the workspace. Developers don't need to manage memory files or wire up tools themselves.
+For [Coder Agents](./agents/index.md), context comes from a few complementary places. Platform admins configure a [system prompt](./agents/platform-controls/index.md) that applies to every chat and register [MCP servers](./agents/platform-controls/mcp-servers.md) per organization. Repos and workspace templates can ship reusable [skills](./agents/extending-agents.md) under `.agents/skills/`, which the agent discovers automatically when it attaches to the workspace. Developers don't need to manage memory files or wire up tools themselves.
 
 The rest of this section covers patterns for agents you run yourself inside a workspace, such as Claude Code or Codex.
 
@@ -50,7 +50,7 @@ In internal testing, we have seen significant improvements in agent performance 
 
 LLMs and agents can be dangerous if not run with proper boundaries. Be sure not to give agents full permissions on behalf of a user, and instead use separate identities with limited scope whenever interacting autonomously.
 
-[Learn more about securing AI agents](./security.md)
+[Learn more about the Agent Firewall](./agent-firewall/index.md)
 
 ## Keep it Simple
 

@@ -35,8 +35,12 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatModelConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"MCPServerConfig":               {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"ChatInstructionSettings":       {codersdk.AuditActionWrite},
+	"ChatOperationalSettings":       {codersdk.AuditActionWrite},
 }
 
 type Action string
@@ -132,6 +136,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"disable_module_cache":              ActionTrack,
 		"time_til_autostop_notify":          ActionTrack,
 		"agents_allowed":                    ActionTrack,
+		"allow_workspace_renames":           ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -283,6 +288,14 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.OAuth2ProviderSettings{}: {
 		"id":                                  ActionIgnore,
 		"dynamic_client_registration_enabled": ActionTrack,
+	},
+	&database.ChatInstructionSettings{}: {
+		"id":                                ActionIgnore,
+		"name":                              ActionIgnore,
+		"system_prompt":                     ActionTrack,
+		"include_default_system_prompt_set": ActionTrack,
+		"include_default_system_prompt":     ActionTrack,
+		"plan_mode_instructions":            ActionTrack,
 	},
 	// TODO: track an ID here when the below ticket is completed:
 	// https://github.com/coder/coder/pull/6012
@@ -492,6 +505,62 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"requires_action_deadline_at": ActionIgnore, // Internal pending-action deadline.
 		"compaction_requested_at":     ActionIgnore, // Internal one-shot manual compaction signal.
 	},
+	&database.ChatModelConfig{}: {
+		"id":                    ActionIgnore, // Conveyed by resource_id.
+		"model":                 ActionTrack,
+		"display_name":          ActionTrack,
+		"created_by":            ActionTrack,
+		"updated_by":            ActionTrack,
+		"enabled":               ActionTrack,
+		"is_default":            ActionTrack,
+		"deleted":               ActionTrack,
+		"deleted_at":            ActionIgnore,
+		"created_at":            ActionIgnore,
+		"updated_at":            ActionIgnore,
+		"context_limit":         ActionTrack,
+		"compression_threshold": ActionTrack,
+		"options":               ActionTrack,
+		"ai_provider_id":        ActionTrack,
+		"organization_id":       ActionIgnore,
+		"group_acl":             ActionTrack,
+		"user_acl":              ActionTrack,
+	},
+	&database.MCPServerConfig{}: {
+		"id":                          ActionIgnore, // Conveyed by resource_id, not useful in a diff.
+		"display_name":                ActionTrack,
+		"slug":                        ActionTrack,
+		"description":                 ActionTrack,
+		"icon_url":                    ActionTrack,
+		"transport":                   ActionTrack,
+		"url":                         ActionTrack,
+		"auth_type":                   ActionTrack,
+		"oauth2_client_id":            ActionTrack,
+		"oauth2_client_secret":        ActionSecret,
+		"oauth2_client_secret_key_id": ActionIgnore, // dbcrypt bookkeeping.
+		"oauth2_auth_url":             ActionTrack,
+		"oauth2_token_url":            ActionTrack,
+		"oauth2_scopes":               ActionTrack,
+		"api_key_header":              ActionTrack,
+		"api_key_value":               ActionSecret,
+		"api_key_value_key_id":        ActionIgnore, // dbcrypt bookkeeping.
+		"custom_headers":              ActionSecret, // May contain credentials
+		"custom_headers_key_id":       ActionIgnore, // dbcrypt bookkeeping.
+		"tool_allow_list":             ActionTrack,
+		"tool_deny_list":              ActionTrack,
+		"availability":                ActionTrack,
+		"enabled":                     ActionTrack,
+		"created_by":                  ActionTrack,
+		"updated_by":                  ActionTrack,
+		"created_at":                  ActionIgnore,
+		"updated_at":                  ActionIgnore,
+		"model_intent":                ActionTrack,
+		"allow_in_plan_mode":          ActionTrack,
+		"forward_coder_headers":       ActionTrack,
+		"group_acl":                   ActionTrack,
+		"user_acl":                    ActionTrack,
+		"oauth2_revocation_url":       ActionTrack,
+		"organization_id":             ActionIgnore,
+	},
 	&database.UserSkill{}: {
 		"id":          ActionTrack,
 		"user_id":     ActionTrack,
@@ -500,6 +569,16 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"content":     ActionTrack,
 		"created_at":  ActionIgnore,
 		"updated_at":  ActionIgnore,
+	},
+	&database.ChatOperationalSettings{}: {
+		"id":                               ActionIgnore,
+		"chat_retention_days":              ActionTrack,
+		"chat_debug_retention_days":        ActionTrack,
+		"chat_auto_archive_days":           ActionTrack,
+		"workspace_ttl":                    ActionTrack,
+		"computer_use_provider":            ActionTrack,
+		"debug_logging_allow_users":        ActionTrack,
+		"personal_model_overrides_enabled": ActionTrack,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

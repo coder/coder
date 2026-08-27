@@ -1,3 +1,7 @@
+---
+markdown_url: /docs.md
+---
+
 # About
 
 <!-- Warning for docs contributors: The first route in manifest.json must be titled "About" for the static landing page to work correctly. -->

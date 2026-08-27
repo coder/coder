@@ -42,33 +42,33 @@ or without Coder's AI Governance features.
 Organizations adopting AI coding tools at scale often encounter operational and
 security challenges that traditional developer tooling doesn't address.
 
-### Auditing AI activity across teams
+### Audit AI activity across teams
 
 Without centralized monitoring, teams have no way to understand how AI tools are
 being used across the organization. AI Gateway provides audit trails of prompts,
 token usage, and tool invocations, giving administrators insight into AI
 adoption patterns and potential issues.
 
-### Restricting agent network access
+### Restrict agent network access
 
 AI agents can make arbitrary network requests, potentially accessing unauthorized services or exfiltrating data.
 Agent Firewall enforces process-level policies that restrict which domains agents can reach and what actions they can perform,
-preventing unintended data exposure and destructive operations like `rm -rf`.
+preventing unintended data exposure.
 
-### Centralizing API key management
+### Centralize API key management
 
 Managing individual API keys for AI providers across hundreds of developers
 creates security risks and administrative overhead. AI Gateway centralizes
 authentication so users authenticate through Coder, eliminating the need to
 distribute and rotate provider API keys.
 
-### Standardizing MCP tools and servers
+### Standardize MCP tools and servers
 
 Different teams may use different MCP servers and tools with varying security
 postures. AI Gateway enables centralized MCP administration, allowing
 organizations to define approved tools and servers that all users can access.
 
-### Measuring AI adoption and spend
+### Measure AI adoption and spend
 
 Without usage data, it's hard to justify AI tooling investments or identify
 high-leverage use cases. AI Gateway captures metrics on token spend, adoption
@@ -81,65 +81,3 @@ generally available as part of AI Governance.
 
 To learn more about AI Governance, pricing, or trial options, reach out to your
 [Coder account team](https://coder.com/contact/sales).
-
-## How Coder Tasks usage is measured
-
-> [!NOTE]
-> There is a known issue with how Agent Workspace Builds are tallied in v2.28
-> and v2.29. We recommend updating to v2.28.9, v2.29.4, or v2.30 to resolve
-> this issue.
-
-The usage metric used to measure Coder Tasks consumption is called **Agent
-Workspace Builds** (prev. "managed agents").
-
-An Agent Workspace Build is counted each time a workspace is started
-specifically for a coding agent to independently work on a Coder Task. Most of
-the work in this workspace is performed by the agent, not a human developer.
-Each Coder Task starts its own workspace, and the usage meter counts one Agent
-Workspace Build.
-
-Traditional Coder Workspaces started manually by developers or scheduled to
-auto-start do not count as an Agent Workspace Build. These are considered
-daily-driver development environments where developers co-exist with their IDEs
-and coding assistants.
-
-### Scenarios
-
-| Scenario                                                                                          | Consumes Agent Workspace Build |
-|---------------------------------------------------------------------------------------------------|--------------------------------|
-| Developer creates a Coder Task to write end-to-end tests                                          | Yes                            |
-| Automated pipeline creates a task via Coder Tasks CLI (with Claude Code) to review a pull request | Yes                            |
-| Developer resumes an old Coder Task order to continue prototyping                                 | Yes                            |
-| Developer starts a workspace for use with VS Code and Jupyter                                     | No                             |
-| Developer creates a workspace for use with Cursor and Claude Code CLI                             | No                             |
-| Developer creates a workspace for use with Coder AI Gateway and Agent Firewall                    | No                             |
-
-In the future, additional capabilities for managing agents (beyond Coder Tasks)
-may also consume agent workspace builds.
-
-### Agent Workspace Build Limits
-
-Without proper controls and sandboxing, it is not recommended to open up Coder
-Tasks to a large audience in the enterprise. Both Community and Premium
-deployments include 1,000 Agent Workspace Builds, primarily for proof-of-concept
-use and basic workflows. Community deployments do not have access to
-[AI Gateway](./ai-gateway/index.md) or [Agent Firewall](./agent-firewall/index.md).
-
-Premium deployments include a shared usage pool of Agent Workspace Builds for
-automated workflows, along with limits that scale proportionately with user
-count. Usage counts are measured and sent to Coder via
-[usage data reporting](./usage-data-reporting.md). Coder Tasks and other AI
-features continue to function normally even if the limit is breached. Admins
-will receive a warning to [contact their account team](https://coder.com/contact)
-to remediate.
-
-### Tracking Agent Workspace Builds
-
-Admins can monitor Agent Workspace Build usage from the Coder dashboard.
-Navigate to **Deployment** > **Licenses** to view current usage against your
-entitlement limits.
-
-![Agent Workspace Build usage](../images/admin/ai-governance-awb-usage.png)
-
-<small>Agent Workspace Build usage showing current consumption against
-entitlement limits in the Licenses page.</small>

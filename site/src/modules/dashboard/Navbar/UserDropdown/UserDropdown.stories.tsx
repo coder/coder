@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { meAISpendKey } from "#/api/queries/users";
 import type { FeatureName, UserAISpendStatus } from "#/api/typesGenerated";
 import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
@@ -50,6 +57,21 @@ const openDropdown = async (canvasElement: HTMLElement) => {
 	return within(
 		await within(canvasElement.ownerDocument.body).findByRole("menu"),
 	);
+};
+
+// Overrides platform detection so the Coder Desktop gating can be exercised in
+// a story. Returns a cleanup that restores the spied getters.
+const mockPlatform = (platform: string, maxTouchPoints = 0) => {
+	const platformSpy = spyOn(navigator, "platform", "get").mockReturnValue(
+		platform,
+	);
+	const touchSpy = spyOn(navigator, "maxTouchPoints", "get").mockReturnValue(
+		maxTouchPoints,
+	);
+	return () => {
+		platformSpy.mockRestore();
+		touchSpy.mockRestore();
+	};
 };
 
 const Example: Story = {
@@ -336,6 +358,79 @@ export const NoEmailSubtitle: Story = {
 			// The guarded subtitle span must be absent, not merely empty, so a
 			// mutation that renders it unconditionally is caught.
 			expect(menu.queryByTestId("user-subtitle")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const InstallCoderDesktopMacOS: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("MacIntel"),
+	play: async ({ canvasElement, step }) => {
+		await step(
+			"links Install Coder Desktop to the docs alongside Install CLI",
+			async () => {
+				const menu = await openDropdown(canvasElement);
+				expect(
+					menu.getByRole("menuitem", { name: "Install Coder Desktop" }),
+				).toHaveAttribute("href", "https://coder.com/docs/user-guides/desktop");
+				expect(
+					menu.getByRole("menuitem", { name: "Install CLI" }),
+				).toBeInTheDocument();
+			},
+		);
+	},
+};
+
+export const InstallCoderDesktopWindows: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("Win32"),
+	play: async ({ canvasElement, step }) => {
+		await step("shows Install Coder Desktop on Windows", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				menu.getByRole("menuitem", { name: "Install Coder Desktop" }),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const InstallCoderDesktopHiddenOnLinux: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	beforeEach: () => mockPlatform("Linux x86_64"),
+	play: async ({ canvasElement, step }) => {
+		await step(
+			"hides Install Coder Desktop but keeps Install CLI",
+			async () => {
+				const menu = await openDropdown(canvasElement);
+				expect(
+					menu.queryByRole("menuitem", { name: "Install Coder Desktop" }),
+				).not.toBeInTheDocument();
+				expect(
+					menu.getByRole("menuitem", { name: "Install CLI" }),
+				).toBeInTheDocument();
+			},
+		);
+	},
+};
+
+export const InstallCoderDesktopHiddenOniPadOS: Story = {
+	parameters: {
+		queries: [{ key: meAISpendKey, data: mockAISpend }],
+	},
+	// iPadOS 13+ reports "MacIntel" but exposes a touchscreen.
+	beforeEach: () => mockPlatform("MacIntel", 5),
+	play: async ({ canvasElement, step }) => {
+		await step("hides Install Coder Desktop on iPadOS", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(
+				menu.queryByRole("menuitem", { name: "Install Coder Desktop" }),
+			).not.toBeInTheDocument();
 		});
 	},
 };

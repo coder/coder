@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -106,7 +105,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 		// Add optional fields.
 		pd.KeyName = &dbDaemon.KeyName
-		pd.Status = ptr.Ref(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
+		pd.Status = new(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
 		pd.CurrentJob = currentJob
 		pd.PreviousJob = previousJob
 

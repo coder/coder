@@ -1,12 +1,12 @@
 import type { FC } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
-import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
 import { deploymentGroupHasParent } from "#/utils/deployOptions";
 import { docs } from "#/utils/docs";
 import OptionsTable from "../OptionsTable";
@@ -23,9 +23,7 @@ export const ObservabilitySettingsPageView: FC<
 	return (
 		<div className="flex flex-col gap-12">
 			<div>
-				<SettingsHeader
-					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
@@ -34,7 +32,11 @@ export const ObservabilitySettingsPageView: FC<
 						Audit Logging
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Allow auditors to monitor user operations in your deployment.
+						Allow auditors to monitor user operations in your deployment.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security/audit-logs")}
+							context="about audit logging"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -43,9 +45,16 @@ export const ObservabilitySettingsPageView: FC<
 						options={options.filter((o) => o.name === "Audit Logs Retention")}
 					/>
 				) : (
-					<PaywallPremium
+					<PremiumPaywall
+						source="observability"
 						message="Audit Logging"
-						description="Audit logging lets auditors monitor user operations across your deployment. You need a Premium license to use this feature."
+						description="Monitor user operations across your deployment."
+						features={[
+							"Track user actions across deployment",
+							"Observe developer and agent activity",
+							"Configurable audit log retention period",
+							"Support compliance and security reviews",
+						]}
 						canViewPremium={canViewPremium}
 					/>
 				)}
@@ -57,7 +66,11 @@ export const ObservabilitySettingsPageView: FC<
 						Monitoring
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Monitoring your Coder application with logs and metrics.
+						Monitoring your Coder application with logs and metrics.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/monitoring")}
+							context="about monitoring"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

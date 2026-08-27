@@ -25,10 +25,8 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { AISeatCell } from "#/modules/users/AISeatCell";
 import { UserGroupsCell } from "#/modules/users/UserGroupsCell";
 import {
-	AiAddonHelpPopover,
 	GroupsHelpPopover,
 	RolesHelpPopover,
 } from "#/modules/users/UserHelpPopovers";
@@ -38,7 +36,6 @@ export type OrganizationMembersTableProps = {
 	// State
 	organizationName: string;
 	members: Array<OrganizationMemberTableEntry> | undefined;
-	showAISeatColumn?: boolean;
 
 	// Actions
 	onEditMemberRoles: (member: OrganizationMemberWithUserData) => void;
@@ -62,8 +59,6 @@ type OrganizationMemberTableEntry = OrganizationMemberWithUserData & {
 export const OrganizationMembersTable: React.FC<
 	OrganizationMembersTableProps
 > = (props) => {
-	const { showAISeatColumn } = props;
-
 	return (
 		<Table>
 			<TableHeader>
@@ -81,14 +76,6 @@ export const OrganizationMembersTable: React.FC<
 							<GroupsHelpPopover />
 						</div>
 					</TableHead>
-					{showAISeatColumn && (
-						<TableHead className="w-1/6">
-							<div className="flex flex-row items-center gap-2">
-								<span>AI add-on</span>
-								<AiAddonHelpPopover />
-							</div>
-						</TableHead>
-					)}
 				</TableRow>
 			</TableHeader>
 			<TableBody>
@@ -101,7 +88,6 @@ export const OrganizationMembersTable: React.FC<
 const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 	organizationName,
 	members,
-	showAISeatColumn,
 
 	isUpdatingMemberRoles,
 	removeMember,
@@ -131,7 +117,6 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 						roles={member.roles}
 					/>
 					<UserGroupsCell userGroups={member.groups} />
-					{showAISeatColumn && <AISeatCell hasAISeat={member.has_ai_seat} />}
 					<TableCell className="w-px whitespace-nowrap text-right">
 						<div className="flex justify-end">
 							{member.user_id !== me && canEditMembers && (

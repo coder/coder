@@ -25,11 +25,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -228,13 +223,6 @@ export const TemplatePermissionsPageView: FC<
 }) => {
 	return (
 		<div className="flex flex-col gap-12">
-			<SettingsHeader>
-				<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Manage which members and groups can use this template.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
-
 			<div className="flex flex-col gap-2.5">
 				{canUpdatePermissions && (
 					<AddTemplateUserOrGroup

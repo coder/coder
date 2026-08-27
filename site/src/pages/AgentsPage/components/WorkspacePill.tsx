@@ -35,7 +35,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
-import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -47,6 +47,7 @@ import {
 	usePortsData,
 } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
+import { belowMdViewportMediaQuery } from "#/utils/mobile";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -98,7 +99,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	// Flyout sub-menus clip on mobile.
 	const [view, setView] = useState<"main" | "ports">("main");
 	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
-	const isBelowMd = useIsBelowMdViewport();
+	const isBelowMd = useMediaQuery(belowMdViewportMediaQuery);
 	const showPortsView = view === "ports" && isBelowMd;
 
 	const portsData = usePortsData(
@@ -125,7 +126,10 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+			{/* Floor of ~8ch of name + 3.125rem chrome (padding, status icon,
+			 * gaps, chevron). Below the floor the overflow system moves the
+			 * pill into the +N popover instead of shrinking it further. */}
+			<span className="inline-flex min-w-[calc(8ch_+_3.125rem)] items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
 					open={tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -136,29 +140,22 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
+									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"h-7 w-full max-w-[200px] px-2 py-0.5",
 								)}
 							>
-								<StatusIcon
-									type={effectiveType}
-									className="size-icon-sm shrink-0 md:size-3"
-								/>
-								<span className="hidden min-w-0 truncate md:inline">
-									{workspace.name}
-								</span>
+								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
+								<span className="min-w-0 truncate">{workspace.name}</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										"size-3.5 shrink-0 transition-transform",
 										open && "rotate-180",
 									)}
 								/>
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
-					<TooltipContent className="hidden md:block">
-						{statusLabel}
-					</TooltipContent>
+					<TooltipContent>{statusLabel}</TooltipContent>
 				</Tooltip>
 			</span>
 

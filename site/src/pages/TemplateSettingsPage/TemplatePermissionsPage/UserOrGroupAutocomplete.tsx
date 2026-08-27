@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { templaceACLAvailable } from "#/api/queries/templates";
 import type { Group, ReducedUser } from "#/api/typesGenerated";
@@ -68,20 +68,24 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			isOptionEqualToValue={(option, optionValue) =>
 				option.id === optionValue.id
 			}
-			renderOption={(option, isSelected) => (
-				<div className="flex items-center justify-between w-full">
-					{isGroup(option) ? (
-						<AvatarData
-							title={option.display_name || option.name}
-							subtitle={getGroupSubtitle(option)}
-							src={option.avatar_url}
-						/>
-					) : (
-						<AvatarData {...userIdentity(option)} />
-					)}
-					{isSelected && <CheckIcon className="size-4 shrink-0" />}
-				</div>
-			)}
+			renderOption={(option, isSelected) => {
+				const avatarDataProps: ComponentProps<typeof AvatarData> = isGroup(
+					option,
+				)
+					? {
+							title: option.display_name || option.name,
+							subtitle: getGroupSubtitle(option),
+							src: option.avatar_url,
+						}
+					: userIdentity(option);
+
+				return (
+					<div className="flex items-center justify-between w-full">
+						<AvatarData {...avatarDataProps} />
+						{isSelected && <CheckIcon className="size-4 shrink-0" />}
+					</div>
+				);
+			}}
 			open={open}
 			onOpenChange={handleOpenChange}
 			inputValue={inputValue}

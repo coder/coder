@@ -21,7 +21,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -56,12 +55,12 @@ func TestScanForCorrelatingToolCallID(t *testing.T) {
 		{
 			name:        "single tool result block",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"result"}]}]}`,
-			expected:    utils.PtrTo("toolu_abc"),
+			expected:    new("toolu_abc"),
 		},
 		{
 			name:        "multiple tool result blocks returns last",
 			requestBody: `{"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_first","content":"first"},{"type":"text","text":"ignored"},{"type":"tool_result","tool_use_id":"toolu_second","content":"second"}]}]}`,
-			expected:    utils.PtrTo("toolu_second"),
+			expected:    new("toolu_second"),
 		},
 		{
 			name:        "last message is not a tool result",

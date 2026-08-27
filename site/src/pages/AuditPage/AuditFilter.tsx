@@ -155,6 +155,14 @@ export const useResourceTypeFilterMenu = ({
 			label = "Workspace Build";
 		}
 
+		if (type === "chat_instruction_settings") {
+			label = "Chat Instruction Settings";
+		}
+
+		if (type === "chat_operational_settings") {
+			label = "Chat Operational Settings";
+		}
+
 		return {
 			value: type,
 			label,

@@ -95,7 +95,6 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/updatecheck"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -446,7 +445,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if vals.AccessURL.String() != "" &&
-				!(vals.AccessURL.Scheme == "http" || vals.AccessURL.Scheme == "https") {
+				(vals.AccessURL.Scheme != "http" && vals.AccessURL.Scheme != "https") {
 				return xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 			}
 
@@ -979,6 +978,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				oauthInstrument,
 				mergedExternalAuthProviders,
 				vals.AccessURL.Value(),
+				httpClient,
 			)
 			if err != nil {
 				return xerrors.Errorf("convert external auth config: %w", err)
@@ -1001,7 +1001,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage push notifications.
-			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
+			webpusher, err := webpush.New(ctx, new(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
 			if err != nil {
 				options.Logger.Error(ctx, "failed to create web push dispatcher", slog.Error(err))
 				webpusher = &webpush.NoopWebpusher{
@@ -1211,7 +1211,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
-				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
+				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.AgentInactiveDisconnectTimeout, 0)
 				if err != nil {
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
@@ -2924,7 +2924,7 @@ func ConfigureHTTPServers(logger slog.Logger, inv *serpent.Invocation, cfg *code
 	}
 
 	if cfg.AccessURL.String() != "" &&
-		!(cfg.AccessURL.Scheme == "http" || cfg.AccessURL.Scheme == "https") {
+		(cfg.AccessURL.Scheme != "http" && cfg.AccessURL.Scheme != "https") {
 		return nil, xerrors.Errorf("access-url must include a scheme (e.g. 'http://' or 'https://)")
 	}
 
