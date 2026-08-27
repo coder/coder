@@ -162,7 +162,7 @@
 		// is stricter, so it is disabled to keep oxlint to "nothing
 		// more" than Biome. Biome still enforces these on JS/TS, so
 		// nothing is lost. To chip away: fix the code (or migrate the
-		// biome-ignore suppression), flip the rule to "error", confirm
+		// Biome suppression comment), flip the rule to "error", confirm
 		// oxlint stays green, then drop it from Biome. When this list
 		// is empty, oxlint can become the sole JS/TS linter.
 		// Format: "oxlint-rule": "off" // biomeRule (effort)
@@ -173,7 +173,7 @@
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
-		"no-explicit-any": "off", // suspicious/noExplicitAny (medium: biome-ignore comments to migrate)
+		"no-explicit-any": "off", // suspicious/noExplicitAny (medium: Biome suppressions to migrate)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
 		"new-for-builtins": "off", // correctness/noInvalidBuiltinInstantiation (medium)
 		"no-empty-object-type": "off", // complexity/noBannedTypes (medium)
@@ -192,7 +192,7 @@
 		"prefer-function-type": "off", // style/useShorthandFunctionType (small)
 		"no-extraneous-class": "off", // complexity/noStaticOnlyClass (small)
 		"no-empty-interface": "off", // suspicious/noEmptyInterface (small)
-		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: biome-ignore to migrate)
+		"no-danger": "off", // security/noDangerouslySetInnerHtml (small: Biome suppression to migrate)
 		"jsx-no-target-blank": "off", // security/noBlankTarget (small)
 		"no-noninteractive-tabindex": "off", // a11y/noNoninteractiveTabindex (small)
 		"media-has-caption": "off", // a11y/useMediaCaption (small)
@@ -201,9 +201,9 @@
 		"prefer-template": "off", // style/useTemplate (small)
 		"no-script-url": "off", // security/noScriptUrl (small)
 		"no-restricted-imports": "off", // style/noRestrictedImports (small, coder error rule: namespace-import edge)
-		"no-console": "off", // suspicious/noConsole (small, coder error rule: biome-ignore to migrate)
+		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
 		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
-		"exhaustive-deps": "off" // correctness/useExhaustiveDependencies (large: reimplementation; biome-ignore comments to migrate)
+		"exhaustive-deps": "off" // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
 	// tracking per-rule exceptions for it.
