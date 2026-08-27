@@ -29359,9 +29359,7 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 
 const getUsageEventsStats = `-- name: GetUsageEventsStats :one
 SELECT
-    -- Parentheses prevent sqlc from generating duplicate parameters.
     (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
-    -- The zero value keeps the generated field non-nullable.
     COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
     (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
 FROM
