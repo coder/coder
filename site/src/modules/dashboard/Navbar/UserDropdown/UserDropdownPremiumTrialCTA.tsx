@@ -75,27 +75,20 @@ interface UserDropdownPremiumTrialCTAProps {
 }
 
 /**
- * Offers a premium trial, or counts down an active one. Renders in the navbar
- * on every page, so it reads the dashboard defensively and degrades if missing data
+ * Offers a premium trial, or counts down an active one. Renders under
+ * DashboardProvider, and stays hidden unless the viewer can read licenses.
  */
 export const UserDropdownPremiumTrialCTA: FC<
 	UserDropdownPremiumTrialCTAProps
 > = ({ canViewLicenses }) => {
-	const dashboard = useDashboard();
+	const { entitlements } = useDashboard();
 	const { mutate: reportClick } = useMutation(reportPremiumFunnelEvent());
-	const entitlements = dashboard?.entitlements;
 
 	const licensesQuery = useQuery({
 		...licenses(),
-		enabled:
-			canViewLicenses &&
-			Boolean(entitlements?.has_license && entitlements?.trial),
+		enabled: canViewLicenses && entitlements.has_license && entitlements.trial,
 		staleTime: TRIAL_LICENSE_STALE_TIME_MS,
 	});
-
-	if (!entitlements) {
-		return null;
-	}
 
 	const cta = selectTrialCta({
 		canViewLicenses,
@@ -103,7 +96,7 @@ export const UserDropdownPremiumTrialCTA: FC<
 		isTrial: entitlements.trial,
 		trialExpiresAt: licensesQuery.data?.find((license) => license.claims.trial)
 			?.claims.license_expires,
-		now: Date.now() / 1000,
+		now: Math.floor(Date.now() / 1000),
 	});
 	if (!cta) {
 		return null;

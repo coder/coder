@@ -22,7 +22,6 @@ import {
 import { useClipboard } from "#/hooks/useClipboard";
 import { supportsCoderDesktop } from "#/utils/platform";
 import { SupportIcon } from "../SupportIcon";
-import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 const CODER_DESKTOP_DOCS_URL = "https://coder.com/docs/user-guides/desktop";
 
@@ -54,7 +53,8 @@ interface UserDropdownContentProps {
 	profileExtra?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
-	canViewLicenses?: boolean;
+	/** Premium trial entry, rendered above the build info. */
+	trialCta?: ReactNode;
 }
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
@@ -63,7 +63,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	profileExtra,
 	supportLinks,
 	onSignOut,
-	canViewLicenses,
+	trialCta,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
@@ -121,8 +121,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<CodernautsSVG />
 					<span>Codernauts</span>
 				</Link>
-			</DropdownMenuItem>{" "}
-			<UserDropdownPremiumTrialCTA canViewLicenses={canViewLicenses ?? false} />
+			</DropdownMenuItem>
+			{trialCta}
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>
 				<TooltipTrigger asChild>

@@ -15,6 +15,7 @@ import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 // Elevated states show a corner badge with a distinct icon per state.
 const severityIndicators: Partial<
@@ -111,7 +112,9 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
-					canViewLicenses={canViewLicenses}
+					trialCta={
+						<UserDropdownPremiumTrialCTA canViewLicenses={canViewLicenses} />
+					}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>
