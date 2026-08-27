@@ -1290,6 +1290,38 @@
 				]
 			}
 		},
+		"/api/v2/ai-audit/agents": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Audit"],
+				"summary": "List AI agent identities for a sponsor",
+				"operationId": "list-ai-agent-identities-for-a-sponsor",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Sponsor user ID, username, or 'me' (default)",
+						"name": "sponsor",
+						"in": "query"
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIAuditAgent"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/ai-gateway/clients": {
 			"get": {
 				"description": "Alias: also available at /api/v2/aibridge/clients for backward compatibility.",
@@ -14503,6 +14535,37 @@
 			"type": "string",
 			"enum": ["chat", "workspace"],
 			"x-enum-varnames": ["AIAgentOriginChat", "AIAgentOriginWorkspace"]
+		},
+		"codersdk.AIAuditAgent": {
+			"type": "object",
+			"properties": {
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"deleted": {
+					"type": "boolean"
+				},
+				"origin_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"origin_type": {
+					"type": "string"
+				},
+				"owner_user_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"user_id": {
+					"description": "UserID identifies the AI agent's user record. Audit records reference\nit as ai_agent_id.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"username": {
+					"type": "string"
+				}
+			}
 		},
 		"codersdk.AIBridgeAgenticAction": {
 			"type": "object",

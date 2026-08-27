@@ -37,6 +37,60 @@ SELECT * FROM ai_sandbox_sessions
 WHERE workspace_id = @workspace_id
 ORDER BY started_at DESC;
 
+-- name: ListAISandboxSessionsBySponsor :many
+-- Lists confinement sessions attributed to a sponsoring user whose start or
+-- end falls inside the (@after_time, @before_time) window, newest activity
+-- first. Zero time bounds disable that bound.
+SELECT * FROM ai_sandbox_sessions
+WHERE sponsor_user_id = @sponsor_user_id
+	AND CASE
+		WHEN @ai_agent_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai_agent_id = @ai_agent_id::uuid
+		ELSE true
+	END
+	AND (
+		(
+			(@after_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at > @after_time::timestamptz)
+			AND (@before_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at < @before_time::timestamptz)
+		)
+		OR (
+			ended_at IS NOT NULL
+			AND (@after_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at > @after_time::timestamptz)
+			AND (@before_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at < @before_time::timestamptz)
+		)
+	)
+ORDER BY GREATEST(started_at, COALESCE(ended_at, started_at)) DESC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100);
+
+-- name: ListAISandboxNetworkEventAggregatesBySponsor :many
+-- Aggregates egress decisions per (session, host, action) bucket for the
+-- sponsor timeline. Raw events stay behind the per-session drill-down.
+-- occurred_at aggregates to the newest occurrence in the bucket; protocol
+-- and port snapshot that newest event. The session join recovers the
+-- workspace for drill-down links and is LEFT so events survive session
+-- purges.
+SELECT
+	e.session_id,
+	e.host,
+	e.action,
+	e.ai_agent_id,
+	s.workspace_id AS workspace_id,
+	MAX(e.occurred_at)::timestamptz AS last_occurred_at,
+	COUNT(*)::bigint AS event_count,
+	(array_agg(e.protocol ORDER BY e.occurred_at DESC, e.id DESC))[1]::text AS protocol,
+	(array_agg(e.port ORDER BY e.occurred_at DESC, e.id DESC))[1]::integer AS port
+FROM ai_sandbox_network_events e
+LEFT JOIN ai_sandbox_sessions s ON s.id = e.session_id
+WHERE e.sponsor_user_id = @sponsor_user_id
+	AND CASE
+		WHEN @ai_agent_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN e.ai_agent_id = @ai_agent_id::uuid
+		ELSE true
+	END
+	AND (@after_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at > @after_time::timestamptz)
+	AND (@before_time::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at < @before_time::timestamptz)
+GROUP BY e.session_id, e.host, e.action, e.ai_agent_id, s.workspace_id
+ORDER BY last_occurred_at DESC
+LIMIT COALESCE(NULLIF(@limit_::integer, 0), 100);
+
 -- name: InsertAISandboxNetworkEvents :execrows
 -- Batch-inserts egress policy decisions. Attribution snapshots are copied
 -- server-side from the owning session row onto every event.

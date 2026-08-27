@@ -4906,6 +4906,22 @@ func (m queryMetricsStore) ListAIGatewayKeys(ctx context.Context) ([]database.Li
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg database.ListAISandboxNetworkEventAggregatesBySponsorParams) ([]database.ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxNetworkEventAggregatesBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxNetworkEventAggregatesBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxNetworkEventAggregatesBySponsor").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAISandboxSessionsBySponsor(ctx context.Context, arg database.ListAISandboxSessionsBySponsorParams) ([]database.AISandboxSession, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAISandboxSessionsBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAISandboxSessionsBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAISandboxSessionsBySponsor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)

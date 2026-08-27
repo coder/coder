@@ -1295,6 +1295,17 @@ type sqlcQuerier interface {
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
+	// Aggregates egress decisions per (session, host, action) bucket for the
+	// sponsor timeline. Raw events stay behind the per-session drill-down.
+	// occurred_at aggregates to the newest occurrence in the bucket; protocol
+	// and port snapshot that newest event. The session join recovers the
+	// workspace for drill-down links and is LEFT so events survive session
+	// purges.
+	ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg ListAISandboxNetworkEventAggregatesBySponsorParams) ([]ListAISandboxNetworkEventAggregatesBySponsorRow, error)
+	// Lists confinement sessions attributed to a sponsoring user whose start or
+	// end falls inside the (@after_time, @before_time) window, newest activity
+	// first. Zero time bounds disable that bound.
+	ListAISandboxSessionsBySponsor(ctx context.Context, arg ListAISandboxSessionsBySponsorParams) ([]AISandboxSession, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
 	// (seq_before) for fetching events between two known interceptions.
@@ -1302,6 +1313,9 @@ type sqlcQuerier interface {
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
 	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	// Lists escalations for a sponsor, optionally windowed on creation or
+	// resolution time for the sponsor timeline. Zero bounds disable the window;
+	// a zero limit returns all rows (management API behavior).
 	ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg ListMCPGatewayEscalationsBySponsorParams) ([]MCPGatewayEscalation, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)

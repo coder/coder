@@ -4126,6 +4126,169 @@ func (q *sqlQuerier) InsertAISandboxNetworkEvents(ctx context.Context, arg Inser
 	return result.RowsAffected()
 }
 
+const listAISandboxNetworkEventAggregatesBySponsor = `-- name: ListAISandboxNetworkEventAggregatesBySponsor :many
+SELECT
+	e.session_id,
+	e.host,
+	e.action,
+	e.ai_agent_id,
+	s.workspace_id AS workspace_id,
+	MAX(e.occurred_at)::timestamptz AS last_occurred_at,
+	COUNT(*)::bigint AS event_count,
+	(array_agg(e.protocol ORDER BY e.occurred_at DESC, e.id DESC))[1]::text AS protocol,
+	(array_agg(e.port ORDER BY e.occurred_at DESC, e.id DESC))[1]::integer AS port
+FROM ai_sandbox_network_events e
+LEFT JOIN ai_sandbox_sessions s ON s.id = e.session_id
+WHERE e.sponsor_user_id = $1
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN e.ai_agent_id = $2::uuid
+		ELSE true
+	END
+	AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR e.occurred_at < $4::timestamptz)
+GROUP BY e.session_id, e.host, e.action, e.ai_agent_id, s.workspace_id
+ORDER BY last_occurred_at DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAISandboxNetworkEventAggregatesBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAISandboxNetworkEventAggregatesBySponsorRow struct {
+	SessionID      uuid.UUID     `db:"session_id" json:"session_id"`
+	Host           string        `db:"host" json:"host"`
+	Action         string        `db:"action" json:"action"`
+	AIAgentID      uuid.UUID     `db:"ai_agent_id" json:"ai_agent_id"`
+	WorkspaceID    uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+	LastOccurredAt time.Time     `db:"last_occurred_at" json:"last_occurred_at"`
+	EventCount     int64         `db:"event_count" json:"event_count"`
+	Protocol       string        `db:"protocol" json:"protocol"`
+	Port           int32         `db:"port" json:"port"`
+}
+
+// Aggregates egress decisions per (session, host, action) bucket for the
+// sponsor timeline. Raw events stay behind the per-session drill-down.
+// occurred_at aggregates to the newest occurrence in the bucket; protocol
+// and port snapshot that newest event. The session join recovers the
+// workspace for drill-down links and is LEFT so events survive session
+// purges.
+func (q *sqlQuerier) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg ListAISandboxNetworkEventAggregatesBySponsorParams) ([]ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAISandboxNetworkEventAggregatesBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAISandboxNetworkEventAggregatesBySponsorRow
+	for rows.Next() {
+		var i ListAISandboxNetworkEventAggregatesBySponsorRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.Host,
+			&i.Action,
+			&i.AIAgentID,
+			&i.WorkspaceID,
+			&i.LastOccurredAt,
+			&i.EventCount,
+			&i.Protocol,
+			&i.Port,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAISandboxSessionsBySponsor = `-- name: ListAISandboxSessionsBySponsor :many
+SELECT id, workspace_id, reporter_agent_id, confined_agent_id, ai_agent_id, sponsor_user_id, egress_enforcement, started_at, ended_at, created_at FROM ai_sandbox_sessions
+WHERE sponsor_user_id = $1
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai_agent_id = $2::uuid
+		ELSE true
+	END
+	AND (
+		(
+			($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at > $3::timestamptz)
+			AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR started_at < $4::timestamptz)
+		)
+		OR (
+			ended_at IS NOT NULL
+			AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at > $3::timestamptz)
+			AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR ended_at < $4::timestamptz)
+		)
+	)
+ORDER BY GREATEST(started_at, COALESCE(ended_at, started_at)) DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAISandboxSessionsBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+// Lists confinement sessions attributed to a sponsoring user whose start or
+// end falls inside the (@after_time, @before_time) window, newest activity
+// first. Zero time bounds disable that bound.
+func (q *sqlQuerier) ListAISandboxSessionsBySponsor(ctx context.Context, arg ListAISandboxSessionsBySponsorParams) ([]AISandboxSession, error) {
+	rows, err := q.db.QueryContext(ctx, listAISandboxSessionsBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AISandboxSession
+	for rows.Next() {
+		var i AISandboxSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ReporterAgentID,
+			&i.ConfinedAgentID,
+			&i.AIAgentID,
+			&i.SponsorUserID,
+			&i.EgressEnforcement,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertAISandboxSession = `-- name: UpsertAISandboxSession :one
 INSERT INTO ai_sandbox_sessions (
 	id,
@@ -17955,16 +18118,46 @@ const listMCPGatewayEscalationsBySponsor = `-- name: ListMCPGatewayEscalationsBy
 SELECT id, mcp_server_config_id, server_slug, server_url, tool, input, ai_agent_id, sponsor_user_id, workspace_name, status, created_at, expires_at, resolved_at, resolved_by FROM mcp_gateway_escalations
 WHERE sponsor_user_id = $1
   AND ($2::text = '' OR status = $2::text)
-ORDER BY created_at DESC
+  AND CASE
+    WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai_agent_id = $3::uuid
+    ELSE true
+  END
+  AND (
+    (
+      ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR created_at > $4::timestamptz)
+      AND ($5::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR created_at < $5::timestamptz)
+    )
+    OR (
+      resolved_at IS NOT NULL
+      AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR resolved_at > $4::timestamptz)
+      AND ($5::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR resolved_at < $5::timestamptz)
+    )
+  )
+ORDER BY GREATEST(created_at, COALESCE(resolved_at, created_at)) DESC
+LIMIT NULLIF($6::integer, 0)
 `
 
 type ListMCPGatewayEscalationsBySponsorParams struct {
 	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Status        string    `db:"status" json:"status"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
 }
 
+// Lists escalations for a sponsor, optionally windowed on creation or
+// resolution time for the sponsor timeline. Zero bounds disable the window;
+// a zero limit returns all rows (management API behavior).
 func (q *sqlQuerier) ListMCPGatewayEscalationsBySponsor(ctx context.Context, arg ListMCPGatewayEscalationsBySponsorParams) ([]MCPGatewayEscalation, error) {
-	rows, err := q.db.QueryContext(ctx, listMCPGatewayEscalationsBySponsor, arg.SponsorUserID, arg.Status)
+	rows, err := q.db.QueryContext(ctx, listMCPGatewayEscalationsBySponsor,
+		arg.SponsorUserID,
+		arg.Status,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

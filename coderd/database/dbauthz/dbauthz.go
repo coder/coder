@@ -7005,6 +7005,24 @@ func (q *querier) ListAIGatewayKeys(ctx context.Context) ([]database.ListAIGatew
 	return q.db.ListAIGatewayKeys(ctx)
 }
 
+func (q *querier) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg database.ListAISandboxNetworkEventAggregatesBySponsorParams) ([]database.ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	// System-guarded: the AI audit handlers scope results to the
+	// authenticated sponsor or an authorized auditor before querying.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListAISandboxNetworkEventAggregatesBySponsor(ctx, arg)
+}
+
+func (q *querier) ListAISandboxSessionsBySponsor(ctx context.Context, arg database.ListAISandboxSessionsBySponsorParams) ([]database.AISandboxSession, error) {
+	// System-guarded: the AI audit handlers scope results to the
+	// authenticated sponsor or an authorized auditor before querying.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListAISandboxSessionsBySponsor(ctx, arg)
+}
+
 func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.ListBoundaryLogsBySessionIDParams) ([]database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err

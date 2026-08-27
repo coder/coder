@@ -9179,6 +9179,36 @@ func (mr *MockStoreMockRecorder) ListAIGatewayKeys(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIGatewayKeys", reflect.TypeOf((*MockStore)(nil).ListAIGatewayKeys), ctx)
 }
 
+// ListAISandboxNetworkEventAggregatesBySponsor mocks base method.
+func (m *MockStore) ListAISandboxNetworkEventAggregatesBySponsor(ctx context.Context, arg database.ListAISandboxNetworkEventAggregatesBySponsorParams) ([]database.ListAISandboxNetworkEventAggregatesBySponsorRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAISandboxNetworkEventAggregatesBySponsor", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAISandboxNetworkEventAggregatesBySponsorRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAISandboxNetworkEventAggregatesBySponsor indicates an expected call of ListAISandboxNetworkEventAggregatesBySponsor.
+func (mr *MockStoreMockRecorder) ListAISandboxNetworkEventAggregatesBySponsor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAISandboxNetworkEventAggregatesBySponsor", reflect.TypeOf((*MockStore)(nil).ListAISandboxNetworkEventAggregatesBySponsor), ctx, arg)
+}
+
+// ListAISandboxSessionsBySponsor mocks base method.
+func (m *MockStore) ListAISandboxSessionsBySponsor(ctx context.Context, arg database.ListAISandboxSessionsBySponsorParams) ([]database.AISandboxSession, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAISandboxSessionsBySponsor", ctx, arg)
+	ret0, _ := ret[0].([]database.AISandboxSession)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAISandboxSessionsBySponsor indicates an expected call of ListAISandboxSessionsBySponsor.
+func (mr *MockStoreMockRecorder) ListAISandboxSessionsBySponsor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAISandboxSessionsBySponsor", reflect.TypeOf((*MockStore)(nil).ListAISandboxSessionsBySponsor), ctx, arg)
+}
+
 // ListAuthorizedAIBridgeClients mocks base method.
 func (m *MockStore) ListAuthorizedAIBridgeClients(ctx context.Context, arg database.ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
 	m.ctrl.T.Helper()

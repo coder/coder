@@ -641,6 +641,16 @@ func (s *MethodTestSuite) TestMCPGatewayEscalations() {
 		dbm.EXPECT().ListMCPGatewayEscalationsBySponsor(gomock.Any(), arg).Return([]database.MCPGatewayEscalation{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("ListAISandboxSessionsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxSessionsBySponsorParams{}
+		dbm.EXPECT().ListAISandboxSessionsBySponsor(gomock.Any(), arg).Return([]database.AISandboxSession{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListAISandboxNetworkEventAggregatesBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAISandboxNetworkEventAggregatesBySponsorParams{}
+		dbm.EXPECT().ListAISandboxNetworkEventAggregatesBySponsor(gomock.Any(), arg).Return([]database.ListAISandboxNetworkEventAggregatesBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("ResolveMCPGatewayEscalation", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.ResolveMCPGatewayEscalationParams{}
 		dbm.EXPECT().ResolveMCPGatewayEscalation(gomock.Any(), arg).Return(database.MCPGatewayEscalation{}, nil).AnyTimes()

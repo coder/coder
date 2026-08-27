@@ -28,6 +28,25 @@ export type AIAgentOrigin = "chat" | "workspace";
 
 export const AIAgentOrigins: AIAgentOrigin[] = ["chat", "workspace"];
 
+// From codersdk/aiaudit.go
+/**
+ * AIAuditAgent is an agentic identity from the AI agent registry, attributed
+ * to the sponsoring user accountable for its activity.
+ */
+export interface AIAuditAgent {
+	/**
+	 * UserID identifies the AI agent's user record. Audit records reference
+	 * it as ai_agent_id.
+	 */
+	readonly user_id: string;
+	readonly username: string;
+	readonly owner_user_id: string;
+	readonly origin_type: string;
+	readonly origin_id: string;
+	readonly created_at: string;
+	readonly deleted: boolean;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents a tool call with associated

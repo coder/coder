@@ -502,6 +502,32 @@
 |---------------------|
 | `chat`, `workspace` |
 
+## codersdk.AIAuditAgent
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "deleted": true,
+  "origin_id": "fa284d86-c703-4b55-825c-a163977fd80a",
+  "origin_type": "string",
+  "owner_user_id": "65139110-7c3c-4777-b692-80c218be3b9d",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name            | Type    | Required | Restrictions | Description                                                                               |
+|-----------------|---------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `created_at`    | string  | false    |              |                                                                                           |
+| `deleted`       | boolean | false    |              |                                                                                           |
+| `origin_id`     | string  | false    |              |                                                                                           |
+| `origin_type`   | string  | false    |              |                                                                                           |
+| `owner_user_id` | string  | false    |              |                                                                                           |
+| `user_id`       | string  | false    |              | User ID identifies the AI agent's user record. Audit records reference it as ai_agent_id. |
+| `username`      | string  | false    |              |                                                                                           |
+
 ## codersdk.AIBridgeAgenticAction
 
 ```json

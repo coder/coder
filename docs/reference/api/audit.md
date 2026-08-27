@@ -1,5 +1,65 @@
 # Audit
 
+## List AI agent identities for a sponsor
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-audit/agents \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-audit/agents`
+
+### Parameters
+
+| Name      | In    | Type   | Required | Description                                  |
+|-----------|-------|--------|----------|----------------------------------------------|
+| `sponsor` | query | string | false    | Sponsor user ID, username, or 'me' (default) |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "deleted": true,
+    "origin_id": "fa284d86-c703-4b55-825c-a163977fd80a",
+    "origin_type": "string",
+    "owner_user_id": "65139110-7c3c-4777-b692-80c218be3b9d",
+    "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+    "username": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIAuditAgent](schemas.md#codersdkaiauditagent) |
+
+<h3 id="list-ai-agent-identities-for-a-sponsor-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name              | Type              | Required | Restrictions | Description                                                                               |
+|-------------------|-------------------|----------|--------------|-------------------------------------------------------------------------------------------|
+| `[array item]`    | array             | false    |              |                                                                                           |
+| `» created_at`    | string(date-time) | false    |              |                                                                                           |
+| `» deleted`       | boolean           | false    |              |                                                                                           |
+| `» origin_id`     | string(uuid)      | false    |              |                                                                                           |
+| `» origin_type`   | string            | false    |              |                                                                                           |
+| `» owner_user_id` | string(uuid)      | false    |              |                                                                                           |
+| `» user_id`       | string(uuid)      | false    |              | User ID identifies the AI agent's user record. Audit records reference it as ai_agent_id. |
+| `» username`      | string            | false    |              |                                                                                           |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get audit logs
 
 ### Code samples
