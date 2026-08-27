@@ -1660,14 +1660,14 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 		expectAPIKey        *string
 	}{
 		{
-			name:                "Copilot request without provider credential",
+			name:                "NoProviderCredential",
 			host:                aibridgeproxyd.HostCopilot,
 			expectCoderToken:    stringPtr(coderToken),
 			expectAuthorization: nil,
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Copilot strips Coder bearer token",
+			name:                "StripCoderBearer",
 			host:                aibridgeproxyd.HostCopilot,
 			authorization:       "Bearer " + coderToken,
 			expectCoderToken:    stringPtr(coderToken),
@@ -1675,7 +1675,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Copilot strips Coder API key",
+			name:                "StripCoderAPIKey",
 			host:                aibridgeproxyd.HostCopilot,
 			apiKey:              coderToken,
 			expectCoderToken:    stringPtr(coderToken),
@@ -1683,7 +1683,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Copilot preserves provider bearer token",
+			name:                "PreserveProviderBearer",
 			host:                aibridgeproxyd.HostCopilot,
 			authorization:       "Bearer copilot-token",
 			expectCoderToken:    stringPtr(coderToken),
@@ -1691,7 +1691,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Copilot replaces client Coder token",
+			name:                "ReplaceClientCoderToken",
 			host:                aibridgeproxyd.HostCopilot,
 			coderToken:          "other-coder-token",
 			expectCoderToken:    stringPtr(coderToken),
@@ -1699,7 +1699,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Custom Copilot provider",
+			name:                "CustomCopilotProvider",
 			host:                "copilot.example.com",
 			providerType:        aibridge.ProviderCopilot,
 			expectCoderToken:    stringPtr(coderToken),
@@ -1707,7 +1707,7 @@ func TestProxy_MITM_CopilotAuth(t *testing.T) {
 			expectAPIKey:        nil,
 		},
 		{
-			name:                "Non-Copilot provider on Copilot host",
+			name:                "NonCopilotProvider",
 			host:                aibridgeproxyd.HostCopilot,
 			providerType:        aibridge.ProviderOpenAI,
 			expectCoderToken:    nil,
