@@ -677,7 +677,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 																<Tooltip>
 																	<TooltipTrigger asChild>
 																		<span className="flex items-center pointer-events-auto">
-																			<InfoIcon className="w-3.5! h-3.5! text-content-secondary" />
+																			<InfoIcon className="size-3.5! text-content-secondary" />
 																		</span>
 																	</TooltipTrigger>
 																	<TooltipContent side="right" sideOffset={10}>
