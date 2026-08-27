@@ -143,9 +143,11 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 		onRemove(provider.provider_id);
 	};
 
-	const deleteDescription = provider.has_central_api_key_fallback
-		? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
-		: "This will remove your personal API key. You will need to add a new key before you can use this provider again.";
+	const deleteDescription = !supportsUserKeys(provider)
+		? "This will remove your saved API key. Requests are unaffected; they continue to authenticate with AWS credentials configured by your deployment administrator."
+		: provider.has_central_api_key_fallback
+			? "This will remove your personal API key. Requests will fall back to the shared deployment key for this provider."
+			: "This will remove your personal API key. You will need to add a new key before you can use this provider again.";
 
 	return (
 		<article className="rounded-lg border border-solid border-border p-6">

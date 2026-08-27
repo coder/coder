@@ -167,6 +167,13 @@ export const BedrockProviderWithSavedKey: Story = {
 		await userEvent.click(canvas.getByRole("button", { name: "Remove" }));
 		const body = within(canvasElement.ownerDocument.body);
 		const dialog = await body.findByRole("dialog");
+		await waitFor(() =>
+			expect(
+				within(dialog).getByText(
+					/Requests are unaffected; they continue to authenticate with AWS credentials/,
+				),
+			).toBeVisible(),
+		);
 		await userEvent.click(
 			within(dialog).getByRole("button", { name: "Remove" }),
 		);
