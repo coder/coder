@@ -1543,7 +1543,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										speech.isRecording ? "Cancel voice input" : "Voice input"
 									}
 								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
+									{speech.isRecording ? (
+										<XIcon />
+									) : (
+										<MicIcon strokeWidth={1.75} />
+									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
 									<span
@@ -1558,11 +1562,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator
-								usage={contextUsage}
-								onRefreshContext={onRefreshContext}
-								isRefreshingContext={isRefreshingContext}
-							/>
+							// The mic glyph is inset ~9px inside its size-7 button while
+							// the ring is inset 5px, so the flex gap alone reads wider on
+							// the mic side. Pull the indicator left to equalize the
+							// visual gaps when the mic is shown.
+							<div
+								className={cn(speech.isSupported && !isStreaming && "-ml-2")}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>
