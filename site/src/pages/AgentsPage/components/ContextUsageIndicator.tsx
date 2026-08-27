@@ -174,21 +174,29 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 const RING_SIZE = 18;
 const RING_STROKE = 1.25;
 
-// Exclamation glyph centered in the ring when the pinned context drifted or
-// failed to load. Inherits the indicator tone via currentColor. The viewBox
-// is trimmed to the drawn content (the design export was 2 units wide with
-// ~0.73 units of trailing whitespace) so the glyph centers optically, and it
-// renders larger than the native 10px design height to stay legible.
+// Exclamation glyph shown when the pinned context drifted or failed to load.
+// Inherits the indicator tone via currentColor. Drawn on a ring-sized canvas
+// so it shares the ring's coordinate system and cannot drift off center: the
+// path (a 1.79427x14 design export) is scaled to GLYPH_HEIGHT and translated
+// to the exact canvas center.
+const GLYPH_HEIGHT = 11;
+const GLYPH_PATH_WIDTH = 1.79427;
+const GLYPH_PATH_HEIGHT = 14;
+const GLYPH_SCALE = GLYPH_HEIGHT / GLYPH_PATH_HEIGHT;
+const GLYPH_TX = (RING_SIZE - GLYPH_PATH_WIDTH * GLYPH_SCALE) / 2;
+const GLYPH_TY = (RING_SIZE - GLYPH_HEIGHT) / 2;
+
 const ExclamationGlyph: FC = () => (
 	<svg
-		width="1.41"
-		height="11"
-		viewBox="0 0 1.28 10"
+		width={RING_SIZE}
+		height={RING_SIZE}
+		viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
 		fill="none"
 		aria-hidden="true"
 	>
 		<path
-			d="M0.643145 8.67322C0.991187 8.67339 1.27302 8.95542 1.27335 9.30343C1.27335 9.65172 0.991393 9.93531 0.643145 9.93548H0.630208C0.281814 9.93548 0 9.65182 0 9.30343C0.000333666 8.95532 0.28202 8.67322 0.630208 8.67322H0.643145ZM0 5.67742V0.630208C0 0.281814 0.281814 0 0.630208 0C0.978603 0 1.26042 0.281814 1.26042 0.630208V5.67742C1.26008 6.02553 0.978398 6.30763 0.630208 6.30763C0.282019 6.30763 0.000332691 6.02553 0 5.67742Z"
+			transform={`translate(${GLYPH_TX} ${GLYPH_TY}) scale(${GLYPH_SCALE})`}
+			d="M0.90625 12.2214C1.39667 12.2216 1.7938 12.619 1.79427 13.1094C1.79427 13.6001 1.39696 13.9998 0.90625 14H0.888021C0.397101 14 0 13.6003 0 13.1094C0.000470166 12.6189 0.397391 12.2214 0.888021 12.2214H0.90625ZM0 9.40909V0.888021C0 0.397101 0.397101 0 0.888021 0C1.37894 0 1.77604 0.397101 1.77604 0.888021V9.40909C1.77557 9.89961 1.37865 10.2971 0.888021 10.2971C0.39739 10.2971 0.000468792 9.89961 0 9.40909Z"
 			fill="currentColor"
 		/>
 	</svg>
