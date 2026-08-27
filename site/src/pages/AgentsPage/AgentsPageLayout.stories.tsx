@@ -1178,6 +1178,7 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		mockChats([watchedChat()]);
+		spyOn(API.experimental, "getChat").mockResolvedValue(watchedChat());
 		const cleanup = mockAgentChatPageAPIs();
 		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
 		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
@@ -1212,14 +1213,20 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 			expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
 		});
 		getChatCostMock.mockClear();
+		const getChatMock = mocked(API.experimental.getChat);
+		getChatMock.mockResolvedValue(
+			watchedChat({ summary: "Summary completed without a terminal event." }),
+		);
+		getChatMock.mockClear();
 		expect(
 			await summary.findByText(
-				"Not enough details to summarize.",
+				"Summary completed without a terminal event.",
 				{},
 				{ timeout: 3_000 },
 			),
 		).toBeVisible();
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+		expect(getChatMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
 		await waitFor(() => {
 			expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
 		});

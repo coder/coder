@@ -642,6 +642,7 @@ const AgentsPageLayout: FC = () => {
 			if (boundedTimeoutMs === 0) {
 				summaryGeneratingTimeouts.delete(chatId);
 				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatEntity(queryClient, chatId);
 					void invalidateChatCostTree(queryClient, chatId);
 				}
 				return;
@@ -655,6 +656,7 @@ const AgentsPageLayout: FC = () => {
 			const timeout = setTimeout(() => {
 				summaryGeneratingTimeouts.delete(chatId);
 				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatEntity(queryClient, chatId);
 					void invalidateChatCostTree(queryClient, chatId);
 				}
 			}, boundedTimeoutMs);
