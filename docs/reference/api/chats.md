@@ -3873,6 +3873,606 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/tool-results \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List AI models and provider descriptors in an organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/models \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/organizations/{organization}/chats/models`
+
+### Parameters
+
+| Name           | In   | Type   | Required | Description             |
+|----------------|------|--------|----------|-------------------------|
+| `organization` | path | string | true     | Organization name or ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "models": [
+    {
+      "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+      "compression_threshold": 0,
+      "context_limit": 0,
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "enabled": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_default": true,
+      "model": "string",
+      "model_config": {
+        "frequency_penalty": 0,
+        "max_output_tokens": 0,
+        "openai_config": {
+          "use_responses_api": true
+        },
+        "presence_penalty": 0,
+        "provider_options": {
+          "anthropic": {
+            "allowed_domains": [
+              "string"
+            ],
+            "blocked_domains": [
+              "string"
+            ],
+            "context_1m_enabled": true,
+            "disable_parallel_tool_use": true,
+            "send_reasoning": true,
+            "thinking": {
+              "budget_tokens": 0
+            },
+            "thinking_display": "string",
+            "web_search_enabled": true
+          },
+          "google": {
+            "cached_content": "string",
+            "safety_settings": [
+              {
+                "category": "string",
+                "threshold": "string"
+              }
+            ],
+            "thinking_config": {
+              "include_thoughts": true,
+              "thinking_budget": 0,
+              "thinking_level": "string"
+            },
+            "threshold": "string",
+            "web_search_enabled": true
+          },
+          "openai": {
+            "allowed_domains": [
+              "string"
+            ],
+            "include": [
+              "string"
+            ],
+            "instructions": "string",
+            "log_probs": true,
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "max_completion_tokens": 0,
+            "max_tool_calls": 0,
+            "metadata": {
+              "property1": null,
+              "property2": null
+            },
+            "parallel_tool_calls": true,
+            "prediction": {
+              "property1": null,
+              "property2": null
+            },
+            "prompt_cache_key": "string",
+            "reasoning_summary": "string",
+            "safety_identifier": "string",
+            "search_context_size": "string",
+            "service_tier": "string",
+            "store": true,
+            "strict_json_schema": true,
+            "structured_outputs": true,
+            "text_verbosity": "string",
+            "top_log_probs": 0,
+            "user": "string",
+            "web_search_enabled": true
+          },
+          "openaicompat": {
+            "user": "string"
+          },
+          "openrouter": {
+            "extra_body": {
+              "property1": null,
+              "property2": null
+            },
+            "include_usage": true,
+            "log_probs": true,
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "parallel_tool_calls": true,
+            "provider": {
+              "allow_fallbacks": true,
+              "data_collection": "string",
+              "ignore": [
+                "string"
+              ],
+              "only": [
+                "string"
+              ],
+              "order": [
+                "string"
+              ],
+              "quantizations": [
+                "string"
+              ],
+              "require_parameters": true,
+              "sort": "string"
+            },
+            "reasoning": {
+              "enabled": true,
+              "exclude": true,
+              "max_tokens": 0
+            },
+            "user": "string"
+          },
+          "vercel": {
+            "extra_body": {
+              "property1": null,
+              "property2": null
+            },
+            "logit_bias": {
+              "property1": 0,
+              "property2": 0
+            },
+            "logprobs": true,
+            "parallel_tool_calls": true,
+            "providerOptions": {
+              "models": [
+                "string"
+              ],
+              "order": [
+                "string"
+              ]
+            },
+            "reasoning": {
+              "enabled": true,
+              "exclude": true,
+              "max_tokens": 0
+            },
+            "top_logprobs": 0,
+            "user": "string"
+          }
+        },
+        "reasoning_effort": {
+          "default": "string",
+          "max": "string"
+        },
+        "temperature": 0,
+        "top_k": 0,
+        "top_p": 0
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "reasoning_efforts": [
+        "string"
+      ],
+      "updated_at": "2019-08-24T14:15:22Z"
+    }
+  ],
+  "providers": [
+    {
+      "allow_user_api_key": true,
+      "available": true,
+      "display_name": "string",
+      "enabled": true,
+      "has_api_key": true,
+      "has_effective_api_key": true,
+      "has_user_api_key": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "type": "string",
+      "unavailable_reason": "missing_api_key"
+    }
+  ],
+  "unsupported_providers": [
+    {
+      "display_name": "string",
+      "provider": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                       |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationChatModelsResponse](schemas.md#codersdkorganizationchatmodelsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create an AI model in an organization
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/models \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/organizations/{organization}/chats/models`
+
+> Body parameter
+
+```json
+{
+  "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "display_name": "string",
+  "enabled": true,
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "openai_config": {
+      "use_responses_api": true
+    },
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "context_1m_enabled": true,
+        "disable_parallel_tool_use": true,
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "thinking_display": "string",
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0,
+          "thinking_level": "string"
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "reasoning_effort": {
+      "default": "string",
+      "max": "string"
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  }
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                         | Required | Description             |
+|----------------|------|------------------------------------------------------------------------------|----------|-------------------------|
+| `organization` | path | string                                                                       | true     | Organization name or ID |
+| `body`         | body | [codersdk.CreateChatModelRequest](schemas.md#codersdkcreatechatmodelrequest) | true     | Model                   |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
+  "compression_threshold": 0,
+  "context_limit": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "model": "string",
+  "model_config": {
+    "frequency_penalty": 0,
+    "max_output_tokens": 0,
+    "openai_config": {
+      "use_responses_api": true
+    },
+    "presence_penalty": 0,
+    "provider_options": {
+      "anthropic": {
+        "allowed_domains": [
+          "string"
+        ],
+        "blocked_domains": [
+          "string"
+        ],
+        "context_1m_enabled": true,
+        "disable_parallel_tool_use": true,
+        "send_reasoning": true,
+        "thinking": {
+          "budget_tokens": 0
+        },
+        "thinking_display": "string",
+        "web_search_enabled": true
+      },
+      "google": {
+        "cached_content": "string",
+        "safety_settings": [
+          {
+            "category": "string",
+            "threshold": "string"
+          }
+        ],
+        "thinking_config": {
+          "include_thoughts": true,
+          "thinking_budget": 0,
+          "thinking_level": "string"
+        },
+        "threshold": "string",
+        "web_search_enabled": true
+      },
+      "openai": {
+        "allowed_domains": [
+          "string"
+        ],
+        "include": [
+          "string"
+        ],
+        "instructions": "string",
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "max_completion_tokens": 0,
+        "max_tool_calls": 0,
+        "metadata": {
+          "property1": null,
+          "property2": null
+        },
+        "parallel_tool_calls": true,
+        "prediction": {
+          "property1": null,
+          "property2": null
+        },
+        "prompt_cache_key": "string",
+        "reasoning_summary": "string",
+        "safety_identifier": "string",
+        "search_context_size": "string",
+        "service_tier": "string",
+        "store": true,
+        "strict_json_schema": true,
+        "structured_outputs": true,
+        "text_verbosity": "string",
+        "top_log_probs": 0,
+        "user": "string",
+        "web_search_enabled": true
+      },
+      "openaicompat": {
+        "user": "string"
+      },
+      "openrouter": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "include_usage": true,
+        "log_probs": true,
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "parallel_tool_calls": true,
+        "provider": {
+          "allow_fallbacks": true,
+          "data_collection": "string",
+          "ignore": [
+            "string"
+          ],
+          "only": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ],
+          "quantizations": [
+            "string"
+          ],
+          "require_parameters": true,
+          "sort": "string"
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "user": "string"
+      },
+      "vercel": {
+        "extra_body": {
+          "property1": null,
+          "property2": null
+        },
+        "logit_bias": {
+          "property1": 0,
+          "property2": 0
+        },
+        "logprobs": true,
+        "parallel_tool_calls": true,
+        "providerOptions": {
+          "models": [
+            "string"
+          ],
+          "order": [
+            "string"
+          ]
+        },
+        "reasoning": {
+          "enabled": true,
+          "exclude": true,
+          "max_tokens": 0
+        },
+        "top_logprobs": 0,
+        "user": "string"
+      }
+    },
+    "reasoning_effort": {
+      "default": "string",
+      "max": "string"
+    },
+    "temperature": 0,
+    "top_k": 0,
+    "top_p": 0
+  },
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "reasoning_efforts": [
+    "string"
+  ],
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                             |
+|--------|--------------------------------------------------------------|-------------|----------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.ChatModel](schemas.md#codersdkchatmodel) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List user AI provider key configurations
 
 ### Code samples
