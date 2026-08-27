@@ -1989,10 +1989,6 @@ const renderWithSingletonSupport = () => (
 	/>
 );
 
-/**
- * A new chat shows no singleton panel. The dropdown offers every supported
- * panel as an unchecked toggle.
- */
 export const SingletonPanelsHiddenByDefault: Story = {
 	beforeEach: clearVisibleSingletonTabs,
 	render: renderWithSingletonSupport,
@@ -2012,10 +2008,6 @@ export const SingletonPanelsHiddenByDefault: Story = {
 	},
 };
 
-/**
- * Toggling a dropdown entry shows the panel, activates it, and gives it a
- * close control. Toggling the same entry again hides the panel.
- */
 export const TogglesSingletonPanelFromDropdown: Story = {
 	beforeEach: clearVisibleSingletonTabs,
 	render: renderWithSingletonSupport,
@@ -2067,10 +2059,6 @@ export const TogglesSingletonPanelFromDropdown: Story = {
 	},
 };
 
-/**
- * The X control on a visible singleton tab removes the panel, unchecks the
- * dropdown entry, and selects the neighboring tab.
- */
 export const ClosesActiveSingletonPanel: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["browser", "debug"]),
 	render: renderWithSingletonSupport,
@@ -2100,7 +2088,6 @@ export const ClosesActiveSingletonPanel: Story = {
 		await waitFor(() => {
 			expect(canvas.queryByRole("tab", { name: "Debug" })).toBeNull();
 		});
-		// Closing the active tab selects the tab that took its position.
 		expect(canvas.getByRole("tab", { name: "Browser" })).toHaveAttribute(
 			"aria-selected",
 			"true",
@@ -2114,7 +2101,6 @@ export const ClosesActiveSingletonPanel: Story = {
 	},
 };
 
-/** A singleton panel never appears twice, however often the user shows it. */
 export const ReopenedSingletonPanelStaysSingle: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["debug"]),
 	render: renderWithSingletonSupport,
@@ -2172,8 +2158,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 			await body.findByRole("menuitemcheckbox", { name: "Debug" }),
 		);
 
-		// The panel still opens for the current view, so the read-only chat
-		// stays usable.
 		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
 		await waitFor(() => {
 			expect(debugTab).toHaveAttribute("aria-selected", "true");
@@ -2183,10 +2167,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 	},
 };
 
-/**
- * A saved panel returns on the next mount. This proves the per-chat entry
- * drives visibility instead of component state alone.
- */
 export const RestoresPersistedSingletonPanel: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["desktop"]),
 	render: renderWithSingletonSupport,
@@ -2199,10 +2179,6 @@ export const RestoresPersistedSingletonPanel: Story = {
 	},
 };
 
-/**
- * An unsupported panel appears in neither the dropdown nor the tab list,
- * even when storage still holds the saved choice from an earlier session.
- */
 export const HidesUnsupportedSingletonPanels: Story = {
 	beforeEach: () => seedVisibleSingletonTabs(["browser", "desktop", "debug"]),
 	render: () => (
@@ -2227,7 +2203,6 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			expect(body.queryByRole("menuitemcheckbox", { name: label })).toBeNull();
 		}
 
-		// The saved choice survives the loss of support.
 		expect(localStorage.getItem(singletonTabsStorageKey)).toBe(
 			'["browser","desktop","debug"]',
 		);

@@ -83,9 +83,7 @@ export const RightPanelAddTabControl: FC<{
 	agent?: WorkspaceAgent;
 	host?: string;
 	isRunning?: boolean;
-	/** Singleton panels the deployment and workspace currently support. */
 	supportedSingletonTabs: readonly SingletonRightPanelTabId[];
-	/** Singleton panels currently shown in the tab list. */
 	visibleSingletonTabs: readonly SingletonRightPanelTabId[];
 	onToggleSingletonTab: (tabId: SingletonRightPanelTabId) => void;
 	onNewTerminal: () => void;
