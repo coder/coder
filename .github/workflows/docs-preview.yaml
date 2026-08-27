@@ -1,54 +1,18 @@
-# This workflow posts a docs preview comment listing every navigable
-# page a pull request touches. The preview is served by coder.com's
-# branch-preview feature at /docs/@<branch>.
+# Posts a docs-preview comment on docs PRs. For every changed page with a
+# docs/manifest.json route it lists a preview link (coder.com/docs/@<branch>,
+# branch URL-encoded) and a Markdown checkbox. Checkbox state round-trips
+# across pushes but resets when a page's content changes, so a checked box
+# means "reviewed the current revision." Pages with no manifest route
+# (docs/.style/** tooling, or not-yet-navigable pages) are dropped, since
+# they 404 on the docs site. The comment is updated in place on later
+# pushes and deleted when nothing previewable remains.
 #
-# Each page in the list gets its own preview link plus a Markdown
-# task-list checkbox, so a reviewer can tick off pages as they review
-# them. State is round-tripped across pushes: a checkbox a reviewer
-# already ticked stays ticked as long as that page hasn't changed
-# since, but flips back to unchecked the moment new content lands on
-# that page, since a checked box should mean "I've reviewed the
-# current revision," not "I reviewed some earlier revision of this
-# page."
-#
-# The checkbox contract (reset-on-change) matches GitHub's native
-# per-file "Viewed" control, but Viewed tracks the raw diff and can't
-# deep-link to the rendered coder.com preview. This checklist tracks
-# review of the preview page itself, which the platform doesn't
-# provide, so the state is reimplemented here rather than reused.
-#
-# Only pages that resolve to a route in docs/manifest.json get a
-# link. Anything else (docs/.style/** contributor tooling, or a page
-# that hasn't been wired into navigation yet) is dropped from the list
-# entirely, since those pages 404 on the docs site and would confuse
-# reviewers.
-#
-# Branch names are URL-encoded so that names containing slashes or
-# other special characters produce working links.
-#
-# On subsequent pushes (synchronize) the existing comment is updated
-# rather than creating a duplicate. If a previous push had eligible
-# content but the current push has none, the stale comment is deleted
-# so readers don't follow a dead deep-link. If the PR only deletes
-# Markdown files (or only changes non-previewable files such as
-# manifest.json), no comment is posted.
-#
-# Changed images get their own section. When a PR touches an image
-# under docs/ (even with no Markdown change at all, as a screenshot
-# refresh does), the comment lists each changed image with a nested
-# list of the navigable pages that embed it, each linking to that
-# page's preview, so a reviewer can see the new image in the context
-# of every page that renders it. Image-to-page mapping reads the
-# referencing Markdown from disk, so this job checks the repo out at
-# the PR head (change detection itself still uses the PR files API).
-# Referencing pages are held to the same manifest.json allowlist as
-# the checklist: a page with no docs-site route is dropped, since its
-# preview would 404. An image that no navigable page embeds (an icon
-# wired only into docs/manifest.json, say) is still listed on its own,
-# so a screenshot- or icon-only PR always gets a comment. The image
-# list is informational only, with no review checkboxes: the image
-# changed but the pages embedding it did not, so the checklist's
-# reset-on-change contract doesn't apply.
+# Changed images get an informational section (no checkboxes: the image
+# changed, the embedding pages did not). Each image lists the manifest-
+# routed pages that embed it; mapping needs the referencing Markdown on
+# disk, so the job checks out the PR head. An image no navigable page
+# embeds (e.g. an icon referenced only from manifest.json) is still listed
+# on its own, so an image-only PR always gets a comment.
 
 name: docs-preview
 
@@ -60,10 +24,9 @@ on:
       - reopened
     paths:
       - "docs/**"
-      # docs/.style/** is contributor tooling and never deploys to coder.com.
-      # Skipping the workflow on .style-only PRs avoids posting a preview
-      # comment with an empty page list. Mixed PRs still trigger; the
-      # selection logic below filters .style files out of the preview list.
+      # docs/.style/** is contributor tooling that never deploys; skipping
+      # .style-only PRs avoids an empty preview list. Mixed PRs still run,
+      # and the selection logic below filters .style out.
       - "!docs/.style/**"
 
 concurrency:
@@ -77,20 +40,15 @@ jobs:
   docs-preview:
     runs-on: ubuntu-latest
     permissions:
-      # Job-level permissions replace (not merge with) the workflow-level
-      # defaults above, so contents: read has to be repeated here for the
-      # actions/checkout below (used to resolve image-to-page references).
+      # Job-level permissions replace the workflow defaults, so contents:
+      # read is repeated here for the checkout below.
       contents: read
       pull-requests: write # needed for commenting on PRs
     steps:
-      # Checked out only to resolve which pages embed a changed image:
-      # references are relative Markdown/HTML links, so mapping an image
-      # back to its pages needs the referencing files on disk. Pinned to
-      # the PR head sha so the references and docs/manifest.json match the
-      # commit the file list and preview links point at. Sparse-checked out
-      # to docs/ only, the sole tree this job reads (pages_for_image greps
-      # docs/**/*.md and the manifest read is docs/manifest.json), so the
-      # step doesn't pull the rest of the monorepo it never opens.
+      # Checked out only to resolve image references (relative Markdown/HTML
+      # links) to their pages. Pinned to the PR head so refs and
+      # docs/manifest.json match the file list; sparse to docs/, the only
+      # tree this job reads.
       - name: Check out docs sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -106,21 +64,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          # DOCS_PREVIEW_MARKER locates this workflow's own comments.
-          # STATE_PREFIX carries the last-seen `path -> blob sha` map for
-          # change detection. Keep this script's map_doc_path, manifest
-          # filter, and carryover logic in sync with
-          # test-docs-preview-mapper.sh.
+          # DOCS_PREVIEW_MARKER locates this workflow's own comments;
+          # STATE_PREFIX carries the last-seen `path -> blob sha` map. Keep
+          # map_doc_path, the manifest filter, and the carryover logic in
+          # sync with test-docs-preview-mapper.sh.
           DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
           STATE_PREFIX='docs-preview-state:'
 
-          # The image section is rendered whole rather than binary-searched
-          # like the checklist, so these caps bound its size: at most
-          # IMAGE_SECTION_BUDGET bytes, and at most IMAGE_PAGES_MAX pages
-          # listed per image, with "and N more" notes when it truncates.
-          # Realistic docs PRs never reach either; they only keep the
-          # comment under GitHub's 65536-char cap in pathological cases.
-          # Keep in sync with test-docs-preview-mapper.sh.
+          # Bound the always-rendered image section: at most
+          # IMAGE_SECTION_BUDGET bytes and IMAGE_PAGES_MAX pages per image,
+          # with "and N more" notes on overflow. Only matters in pathological
+          # cases. Keep in sync with test-docs-preview-mapper.sh.
           IMAGE_SECTION_BUDGET=20000
           IMAGE_PAGES_MAX=25
 
@@ -132,12 +86,10 @@ jobs:
               --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${DOCS_PREVIEW_MARKER}\")) | .id"
           }
 
-          # Deletes the existing docs-preview comment (found earlier as
-          # existing_id) and exits 0, so a stale comment doesn't point
-          # readers at a dead deep-link. A failed delete is only cosmetic,
-          # so it logs and exits clean; the next push retries. The upsert
-          # path uses strict propagation instead, since silent failure
-          # there would duplicate comments.
+          # Deletes the existing comment (existing_id) and exits 0 so no
+          # stale dead-link remains. A failed delete is cosmetic: log and
+          # exit clean, next push retries. (The upsert path propagates
+          # failures instead, to avoid duplicate comments.)
           cleanup_stale_and_exit() {
             if [ -n "$existing_id" ]; then
               if gh api --method DELETE \
@@ -190,10 +142,8 @@ jobs:
             printf '%s' "$page_path"
           }
 
-          # Builds a page's preview URL from its repo path: the branch
-          # preview prefix plus the page's manifest route. Shared by the
-          # checklist and the image section so both link identically.
-          # Reads $url_prefix, set before either caller runs.
+          # Page preview URL: branch prefix ($url_prefix) plus the page's
+          # manifest route. Shared by the checklist and image section.
           page_url() {
             local filename="$1" page_path url
             page_path=$(map_doc_path "$filename")
@@ -204,16 +154,13 @@ jobs:
             printf '%s' "$url"
           }
 
-          # Extracts raw image-reference path tokens from one Markdown file,
-          # one per line: the target of every ![alt](path ...) Markdown
-          # image and every <img ... src="path"> HTML tag. Tokens are
-          # returned as written (still relative, possibly external); the
-          # resolve step decides which are repo-relative image paths. `|| true`
-          # keeps a no-match grep (exit 1) from tripping set -e.
+          # Emits the raw path token of every ![alt](path ...) and
+          # <img ... src="path"> in a Markdown file, one per line, as written
+          # (resolve_ref decides which are repo images). `|| true` keeps a
+          # no-match grep from tripping set -e.
           extract_ref_tokens() {
             local file="$1"
-            # Markdown: capture up to the first space or ) so an optional
-            # "title" after the path is dropped.
+            # Markdown: capture to the first space or ) to drop a title.
             grep -oE '!\[[^]]*\]\([^)[:space:]]+' "$file" 2>/dev/null \
               | sed -E 's/^!\[[^]]*\]\(//' || true
             # HTML: single- or double-quoted src, case-insensitive tag/attr.
@@ -221,17 +168,15 @@ jobs:
               | sed -E 's/.*src=//I; s/^["'\'']//; s/["'\'']$//' || true
           }
 
-          # Normalizes a reference found in Markdown file $1 into a repo-root-
-          # relative path, or prints nothing when the reference is external
-          # (has a scheme, or is protocol-relative) or otherwise can't be a
-          # repo path. realpath -m resolves ../ and ./ without requiring the
-          # target to exist; --relative-to makes the result comparable to the
-          # docs/... paths from the PR files API.
+          # Normalizes a ref from Markdown file $1 to a repo-root-relative
+          # path (stripping a #fragment, ?query, or <...> wrapper), or
+          # nothing when external or protocol-relative. realpath -m resolves
+          # ../ without requiring the target to exist.
           resolve_ref() {
             local file="$1" ref="$2" dir
-            ref="${ref%%#*}"   # drop #fragment
-            ref="${ref%%\?*}"  # drop ?query
-            ref="${ref#<}"     # drop an optional <...> wrapper
+            ref="${ref%%#*}"
+            ref="${ref%%\?*}"
+            ref="${ref#<}"
             ref="${ref%>}"
             [ -z "$ref" ] && return 0
             case "$ref" in
@@ -241,20 +186,15 @@ jobs:
             realpath -m --relative-to="$PWD" "${PWD}/${dir}/${ref}" 2>/dev/null || true
           }
 
-          # Prints every docs page that embeds the given repo-relative image
-          # path, one per line. A page qualifies only when one of its image
-          # references resolves to exactly this image, so a file that merely
-          # mentions the basename in prose is not matched, and two images
-          # that share a basename in different directories don't cross-match.
-          # The grep -rlF is a coarse basename pre-filter; correctness comes
-          # from the exact basename and resolved-path checks.
+          # Pages that embed the given image, one per line. A page matches
+          # only when one of its refs resolves to exactly this image, so a
+          # prose basename mention or a same-basename image in another dir
+          # won't. grep -rlF is a coarse basename pre-filter.
           pages_for_image() {
             local image="$1" base candidates file token
             base=$(basename "$image")
             # -e so a basename beginning with '-' is treated as a pattern,
-            # not as grep options: -F changes pattern interpretation, not
-            # option parsing, so grep -rlF "-foo.png" would still parse the
-            # leading dash as flags and silently match nothing.
+            # not as grep options.
             candidates=$(grep -rlF -e "$base" docs --include='*.md' 2>/dev/null \
               | grep -v '^docs/\.style/' || true)
             [ -z "$candidates" ] && return 0
@@ -271,52 +211,30 @@ jobs:
             done <<< "$candidates"
           }
 
-          # Look up the existing docs-preview comment id up front so both
-          # the cleanup path and the upsert path can reuse it without
-          # listing twice. The body is fetched later, just before state
-          # recovery, to keep the read-modify-write window small.
-          #
-          # Keep the strict list separate from the tolerant head. A real
-          # list failure (network, auth, rate-limit) must propagate under
-          # set -e; otherwise the upsert treats it as "no comment" and
-          # posts a duplicate. The `|| true` only absorbs head's SIGPIPE
-          # on the printf feeding head.
+          # Find the existing comment id once, for both the cleanup and
+          # upsert paths. The list must propagate a real failure under set -e
+          # (else the upsert sees "no comment" and posts a duplicate); the
+          # `|| true` only absorbs head's SIGPIPE.
           all_comment_ids=$(list_docs_preview_comments)
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
-          # Fetch the PR's changed files once, then derive both the Markdown
-          # and the image sets from the same payload. A single read halves
-          # this endpoint's rate-limit cost on a workflow that fires on every
-          # push, and closes a consistency gap: two separate --paginate reads
-          # of the same PR could straddle a synchronize event and describe
-          # different heads.
-          #
-          # Captured (not piped straight into jq) so that a gh-api failure
-          # (network, auth, rate-limit) propagates immediately under set -e
-          # instead of being swallowed by a downstream `|| true`. gh emits
-          # one JSON array per page; jq's `.[]` streams across the
-          # concatenated arrays, so no --slurp is needed.
-          #
-          # `pulls/files` truncates at GitHub's 3000-file ceiling, which
-          # --paginate does not lift. A PR that changes 3000+ files would
-          # list only the first 3000; docs PRs never approach that.
+          # Fetch the PR's changed files once, then derive the Markdown and
+          # image sets from the same payload: one read halves the rate-limit
+          # cost and avoids two paginated reads straddling a synchronize.
+          # Captured (not piped) so a gh failure propagates under set -e; jq
+          # `.[]` streams the per-page arrays, so no --slurp. pulls/files
+          # caps at 3000 files, which docs PRs never approach.
           files_json=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files")
 
-          # The non-removed Markdown files under docs/ (excluding
-          # docs/.style/**), one <filename>\t<sha> pair per line. `.sha` is
-          # the blob sha of the file's content at this push, which is what
-          # lets later runs detect "this page changed since it was last
-          # listed" without a full checkout.
+          # Non-removed docs/*.md (outside docs/.style/) as <filename>\t<sha>.
+          # The blob sha lets a later run detect a page changed since it was
+          # last listed.
           changed_tsv=$(printf '%s' "$files_json" \
             | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
 
-          # The changed images under docs/ (outside docs/.style/), one
-          # filename per line. Same status and .style filtering as the
-          # Markdown query; the extension set is matched case-insensitively
-          # so .PNG etc. still count. No blob sha is tracked because the
-          # image section is stateless (no review checkboxes to carry over),
-          # unlike the checklist. Keep the extension set in sync with
-          # test-docs-preview-mapper.sh.
+          # Changed docs/ images (outside docs/.style/), extensions matched
+          # case-insensitively. No sha: the image section is stateless. Keep
+          # the extension set in sync with test-docs-preview-mapper.sh.
           changed_images=$(printf '%s' "$files_json" \
             | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$"; "i")) | select((.filename | test("^docs/\\.style/")) | not) | .filename')
 
@@ -327,27 +245,16 @@ jobs:
             cleanup_stale_and_exit
           fi
 
-          # Read docs/manifest.json from the checked-out PR head and collect
-          # every object with a "path" key, which in the manifest is always
-          # a navigable page entry. Manifest paths are written "./foo/bar.md"
-          # or "foo/bar.md" relative to docs/; normalize both to
-          # "docs/foo/bar.md" so they compare directly against the PR-files
-          # filenames above and the resolved image references below.
-          #
-          # This makes the manifest an implicit hard dependency of comment
-          # persistence: if the manifest schema ever drops or renames the
-          # "path" key, the read still succeeds but allowed_paths comes back
-          # empty, no page is eligible, and the run takes
-          # cleanup_stale_and_exit, deleting the comment and its checkbox
-          # state. "Parsed fine, zero matches" is indistinguishable from
-          # "format changed," so a future manifest refactor must keep this
-          # extraction in step.
+          # Navigable pages from the PR-head manifest: every object with a
+          # "path" key, normalized to docs/... to compare against the PR-file
+          # and resolved-image paths. This makes the manifest a hard
+          # dependency: rename the "path" key and allowed_paths comes back
+          # empty, nothing is eligible, and the comment is deleted, so a
+          # future manifest refactor must keep this extraction in step.
           allowed_paths=$(jq -r '[.. | objects | select(has("path")) | .path] | .[]' docs/manifest.json \
             | sed -E 's#^\./##; s#^#docs/#')
 
-          # Intersect the changed-files set with the manifest allowlist.
-          # A file with no manifest route 404s on the docs site, so drop
-          # it from the list rather than link to a broken preview.
+          # Keep only changed pages with a manifest route; the rest 404.
           eligible_tsv=$(printf '%s\n' "$changed_tsv" | while IFS=$'\t' read -r filename sha; do
             [ -z "$filename" ] && continue
             if printf '%s\n' "$allowed_paths" | grep -qxF "$filename"; then
@@ -356,11 +263,8 @@ jobs:
           done)
 
           # Map each changed image to the manifest-routed pages that embed
-          # it, one "<image>\t<page>" pair per line. Pages that resolve but
-          # aren't in the manifest are dropped for the same reason as the
-          # checklist: their preview would 404. An image that ends up with
-          # no eligible page yields no pair here, but is still listed on its
-          # own (without page links) by the image_section_json step below.
+          # it, one "<image>\t<page>" per line. An image with no such page
+          # yields no pair but is still listed (link-less) below.
           image_pairs_tsv=$(printf '%s\n' "$changed_images" | while IFS= read -r image; do
             [ -z "$image" ] && continue
             pages_for_image "$image" | while IFS= read -r page; do
@@ -371,11 +275,9 @@ jobs:
             done
           done)
 
-          # Nothing to preview: no changed page on a manifest route and no
-          # changed image at all. A changed image that no navigable page
-          # embeds is still listed on its own, so any changed image keeps the
-          # comment alive; only a Markdown-only PR with nothing manifest-
-          # routed falls through here. Drop any stale comment and stop.
+          # Nothing to preview: no manifest-routed changed page and no
+          # changed image (a changed image always renders, so only a
+          # Markdown-only PR with nothing routed lands here). Drop and stop.
           if [ -z "$eligible_tsv" ] && [ -z "$changed_images" ]; then
             echo "No changed Markdown pages resolve to a docs/manifest.json route, and no images changed under docs/ (outside docs/.style/)."
             echo "(If pages you expect are missing, check docs/manifest.json's schema: an empty allowlist looks identical to no eligible pages.)"
@@ -388,14 +290,11 @@ jobs:
           eligible_json=$(printf '%s\n' "$eligible_tsv" \
             | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {filename: .[0], sha: .[1]}]')
 
-          # Combine every changed image with the manifest-routed pages that
-          # embed it, as [{image, pages:[...]}] sorted by image, each image's
-          # pages de-duplicated and sorted (jq unique sorts). An image with
-          # no embedding page keeps an empty pages list so it still renders
-          # (on its own line, no sub-links): icons live only in the
-          # manifest's icon_path and match no Markdown, and some images are
-          # embedded only by non-navigable pages. No changed image yields [],
-          # and then no image section is rendered. Keep in sync with
+          # [{image, pages:[...]}] sorted by image, pages per image deduped
+          # and sorted. An image with no embedding page keeps pages:[] so it
+          # still renders link-less (icons live only in manifest icon_path;
+          # some images are embedded only by non-navigable pages). No changed
+          # image yields [], so no image section. Keep in sync with
           # test-docs-preview-mapper.sh.
           image_section_json=$(jq -n \
             --argjson images "$(printf '%s\n' "$changed_images" | jq -R -s '[splits("\n") | select(length > 0)]')" \
@@ -404,48 +303,40 @@ jobs:
              | [$images[] | {image: ., pages: ($by[.] // [])}]
              | sort_by(.image)')
 
-          # Fetch the existing comment body now, right before reading its
-          # checkbox state, so a reviewer's toggle isn't overwritten by a
-          # stale read taken several API calls earlier. `|| true` keeps a
-          # transient API error from failing the run; state recovery then
-          # just treats every page as new.
-          #
-          # A reviewer toggle that lands in the small window between this
-          # read and the PATCH below is lost, but reappears correctly on
-          # the next push. Accepted limitation, not a bug.
+          # Fetch the body right before reading its checkbox state, so a
+          # reviewer's toggle isn't overwritten by a stale read from several
+          # API calls earlier. `|| true`: a transient error degrades to
+          # treating every page as new. A toggle landing between this read
+          # and the PATCH below is lost but reappears on the next push.
           existing_body=""
           if [ -n "$existing_id" ]; then
             existing_body=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' || true)
             if [ -z "$existing_body" ]; then
-              # A docs-preview comment always contains its body, so an
-              # empty read against a known id is a transient fetch
-              # failure, not a legitimately empty comment. State recovery
-              # will reset every checkbox this push; log a breadcrumb so
-              # the reset isn't silent (it self-heals on the next push).
+              # A docs-preview comment always has a body, so an empty read
+              # against a known id is a transient fetch failure. Log the
+              # resulting checkbox reset so it isn't silent; self-heals next
+              # push.
               echo "Could not read existing comment ${existing_id}; checkbox state resets this push (transient, self-heals)." >&2
             fi
           fi
 
           # Recover state from the existing comment, if any:
-          #   - old_state: the path -> sha map this workflow wrote the
-          #     last time it updated the comment (hidden marker).
-          #   - old_checked: the path -> checked map read from the
-          #     *live* checkbox glyphs in the comment body, which is
-          #     where a reviewer's manual clicks land (GitHub persists a
-          #     checkbox toggle as an edit to the comment body).
+          #   - old_state: path -> sha map this workflow wrote last time
+          #     (hidden marker).
+          #   - old_checked: path -> checked map from the live checkbox
+          #     glyphs, where a reviewer's clicks land (GitHub persists a
+          #     toggle as a comment-body edit).
           old_state_json="{}"
           old_checked_json="{}"
           if [ -n "$existing_body" ]; then
             old_state_b64=$(printf '%s\n' "$existing_body" | grep -oE "${STATE_PREFIX}[A-Za-z0-9+/=]+" | sed "s/^${STATE_PREFIX}//") || true
             if [ -n "$old_state_b64" ]; then
-              # Guard the decode: a truncated or corrupted marker must
-              # degrade to "treat every page as new", not kill the run
-              # (base64 -d and jq both run under set -e). Reject an empty
-              # decode before the type check: on jq < 1.7 `jq -e` exits 0
-              # on empty input, so the type check alone would accept an
-              # empty string and `--argjson old_state ""` would abort the
-              # run. Require a non-empty result that parses as a JSON
-              # object, else keep {}.
+              # Guard the decode: a truncated/corrupt marker must degrade to
+              # "treat every page as new", not kill the run (base64 -d and jq
+              # run under set -e). The non-empty check matters because on
+              # jq < 1.7 `jq -e` exits 0 on empty input, so the type check
+              # alone would accept "" and `--argjson old_state ""` would
+              # abort. Else keep {}.
               decoded=$(printf '%s' "$old_state_b64" | base64 -d 2>/dev/null || true)
               if [ -n "$decoded" ] && printf '%s' "$decoded" | jq -e 'type == "object"' >/dev/null 2>&1; then
                 old_state_json="$decoded"
@@ -459,10 +350,9 @@ jobs:
               | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {(.[1]): (.[0] | test("x"; "i"))}] | add // {}') || true
           fi
 
-          # Decide each page's checked state: carry the live checkbox
-          # value forward only if the page's blob sha hasn't changed
-          # since the last time this workflow wrote the state marker.
-          # New pages, and pages whose sha moved, start unchecked.
+          # Each page's checked state: carry the live checkbox forward only
+          # if its blob sha is unchanged since the last state marker. New
+          # pages, and pages whose sha moved, start unchecked.
           final_rows=$(jq -n \
             --argjson eligible "$eligible_json" \
             --argjson old_state "$old_state_json" \
@@ -477,26 +367,22 @@ jobs:
               {filename: $f.filename, sha: $f.sha, checked: $checked}
             ] | sort_by(.filename)')
 
-          # URL-encode the branch name so slashes and special
-          # characters don't break the preview URL. The page path is
-          # left as-is because its components are simple ASCII path
-          # segments and the slashes between them must be preserved.
+          # URL-encode the branch so slashes and special characters don't
+          # break the preview URL. The page path is left as-is: its slashes
+          # are real path separators that must be preserved.
           encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
           url_prefix="https://coder.com/docs/@${encoded_branch}"
 
           total_pages=$(printf '%s' "$final_rows" | jq 'length')
 
-          # Render the "Changed images" section from image_section_json:
-          # each changed image as a bullet with, nested under it, the
-          # preview link for every page that embeds it. An image with no
-          # embedding page renders as a bare line with no sub-links. Unlike
-          # the checklist this isn't binary-searched, so it self-limits to a
-          # byte budget at image granularity (always emitting at least the
-          # first image) and to IMAGE_PAGES_MAX pages per image, appending
-          # "and N more" notes when it truncates. Prints nothing only when no
-          # image changed. Reads $image_section_json, $url_prefix (via
-          # page_url), REPO, PR_NUMBER, and the IMAGE_* caps. Keep in sync
-          # with test-docs-preview-mapper.sh.
+          # Render the "Changed images" section from image_section_json: each
+          # image as a bullet with a nested preview link per embedding page
+          # (an image with no page renders link-less). Self-limits to a byte
+          # budget at image granularity (always emits the first image) and to
+          # IMAGE_PAGES_MAX pages per image, with "and N more" notes on
+          # overflow. Reads $image_section_json, $url_prefix (via page_url),
+          # REPO, PR_NUMBER, IMAGE_* caps. Keep in sync with
+          # test-docs-preview-mapper.sh.
           render_image_section() {
             local budget="$1" count intro header out="" shown=0 i=0
             local image page_count entry j page url dropped candidate
@@ -521,10 +407,9 @@ jobs:
               if [ "$page_count" -gt "$IMAGE_PAGES_MAX" ]; then
                 entry="${entry}  - _and $((page_count - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
               fi
-              # Keep the first image unconditionally (an empty section under
-              # a header would be self-contradicting); for every later image
-              # measure the would-be section first so the rendered block
-              # stays under budget.
+              # Keep the first image unconditionally (an empty section under a
+              # header is self-contradicting); measure each later image's
+              # would-be section and stop before it exceeds budget.
               if [ "$shown" -gt 0 ]; then
                 candidate="${header}${out}${entry}"
                 if [ "$(printf '%s' "$candidate" | LC_ALL=C wc -c)" -gt "$budget" ]; then
@@ -542,18 +427,15 @@ jobs:
             printf '%s%s' "$header" "$out"
           }
 
-          # Rendered once (it doesn't depend on the page count) so the
-          # checklist binary search below sizes the page list against a body
-          # that already includes it.
+          # Rendered once (independent of page count) so the checklist binary
+          # search below sizes pages against a body that already includes it.
           image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 
-          # Assemble the comment body for the first N pages: the optional
-          # checklist, the optional image section, and the hidden base64
-          # state marker. The checklist and the marker derive from the same
-          # N rows, so this prints exactly the bytes that get posted, which
-          # is what lets the caller size the comment by measuring rather
-          # than estimating. An image-only PR has zero pages, so the
-          # checklist and its intro are omitted and only images render.
+          # Assemble the body for the first N pages: optional checklist,
+          # optional image section, hidden base64 state marker. Checklist and
+          # marker derive from the same N rows, so this prints exactly the
+          # posted bytes, letting the caller size by measuring not estimating.
+          # An image-only PR has zero pages: only images render.
           build_comment_body() {
             local n="$1" rows state_json state_b64 checklist="" intro page_block=""
             local filename checked url box omitted
@@ -583,9 +465,8 @@ jobs:
               page_block="${intro}"$'\n\n'"${checklist}"
             fi
 
-            # Emit only the sections that have content. The identity marker
-            # and the state marker are always present so the comment stays
-            # discoverable and round-trippable, even on an image-only PR
+            # The identity and state markers are always present so the comment
+            # stays discoverable and round-trippable, even on an image-only PR
             # whose state map is {}.
             {
               printf '## Docs preview\n\n'
@@ -600,14 +481,11 @@ jobs:
             }
           }
 
-          # GitHub caps a comment body at 65536 characters. Estimating the
-          # per-page cost drifts from the real size (each page adds a
-          # checklist line and a base64 state entry whose combined length
-          # depends on the path), so assemble the real body and measure it
-          # instead. Keep every page if they all fit; otherwise binary
-          # search for the largest leading prefix that stays under budget.
-          # Body size grows monotonically with the page count, so the
-          # search is well defined. 65000 leaves headroom under the limit.
+          # GitHub caps a comment body at 65536 chars. Per-page cost varies
+          # with path length, so measure the real body instead of estimating:
+          # keep every page if all fit, else binary search the largest leading
+          # prefix under budget (body size grows monotonically with page
+          # count, so the search is well defined). 65000 leaves headroom.
           comment_budget=65000
           body_bytes() { LC_ALL=C wc -c; }
 
@@ -628,12 +506,11 @@ jobs:
             done
           fi
 
-          # Always list at least one page when the PR changed any page. The
-          # binary search can floor at 0 only if a single line exceeds the
-          # budget (impossible at real path lengths), and an empty list
-          # under an "and N more" summary would be self-contradicting; a
-          # floor of 1 makes that unreachable. An image-only PR legitimately
-          # has zero pages, so the floor is gated on total_pages.
+          # List at least one page when any page changed: the search floors at
+          # 0 only if a single line exceeds budget (impossible at real path
+          # lengths), and an empty list under an "and N more" summary is
+          # self-contradicting. Gated on total_pages so an image-only PR keeps
+          # its legitimate zero.
           if [ "$total_pages" -ge 1 ] && [ "$keep_pages" -lt 1 ]; then
             keep_pages=1
           fi
@@ -642,16 +519,12 @@ jobs:
           echo "Listing ${keep_pages} of ${total_pages} changed page(s); ${omitted_pages} omitted for comment size."
           comment_body=$(build_comment_body "$keep_pages")
 
-          # Upsert: PATCH the existing comment if we found one, else
-          # create it. existing_id is re-derived from a live list on
-          # every run (never persisted), so a genuinely deleted comment
-          # isn't found and lands in the create branch below.
-          #
-          # Therefore a PATCH failure against a known existing_id almost
-          # always means the comment still exists and the error is
-          # transient: never create in that case, or we post a permanent
-          # duplicate (the write-path sibling of the guarded list
-          # failure). Fail instead; the next push retries.
+          # Upsert: PATCH the existing comment if found, else create.
+          # existing_id is re-derived from a live list each run (never
+          # persisted), so a deleted comment lands in the create branch. A
+          # PATCH failure against a known id therefore almost always means the
+          # comment still exists and the error is transient: fail instead of
+          # creating a duplicate; the next push retries.
           if [ -n "$existing_id" ]; then
             if gh api --method PATCH \
               "repos/${REPO}/issues/comments/${existing_id}" \

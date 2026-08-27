@@ -1,16 +1,10 @@
 #!/bin/bash
-# Regression tests for the path-mapping logic in docs-preview.yaml.
-# The mapper converts a repo-relative docs path into the URL path
-# used by the docs site preview. Five distinct branches exist in the
-# case block; every branch must be covered here.
-#
-# Also covers the other logic-dense pieces of docs-preview.yaml:
-# extracting page paths from docs/manifest.json, filtering the PR's
-# changed files, intersecting the two into the eligible set, parsing
-# checkbox state out of the rendered checklist, and the checked-state
-# carryover. Where the workflow runs jq, these tests run the same jq
-# against fixtures rather than a shell mirror. Keep them in sync with
-# docs-preview.yaml.
+# Regression tests for the logic-dense pieces of docs-preview.yaml: the
+# path mapper (five case branches, all covered here), manifest path
+# extraction, changed-file/image filtering, the eligible-set intersection,
+# checkbox-state parsing, and the checked-state carryover. Where the
+# workflow runs jq, these run the same jq against fixtures rather than a
+# shell mirror. Keep in sync with docs-preview.yaml.
 
 set -euo pipefail
 
@@ -87,12 +81,10 @@ assert_maps_to "docs/about/contributing/CONTRIBUTING.md" "about/contributing/CON
 assert_maps_to "docs/admin/groups.md" "admin/groups"
 assert_maps_to "docs/tutorials/best-practices/index.md" "tutorials/best-practices"
 
-# normalize_manifest_path replicates the sed pipeline docs-preview.yaml
-# runs over `jq -r '[.. | objects | select(has("path")) | .path]'`
-# output. manifest.json paths are written either "./foo/bar.md" or
-# "foo/bar.md" relative to docs/; both forms must normalize to the
-# same "docs/foo/bar.md" so they compare directly against the
-# filenames returned by the PR-files API.
+# normalize_manifest_path replicates the sed pipeline docs-preview.yaml runs
+# over the manifest paths. Entries are written "./foo/bar.md" or "foo/bar.md"
+# relative to docs/; both must normalize to "docs/foo/bar.md" to compare
+# against the PR-files API filenames.
 normalize_manifest_path() {
 	printf '%s' "$1" | sed -E 's#^\./##; s#^#docs/#'
 }
@@ -120,11 +112,10 @@ assert_normalizes_to "reference/cli/whoami.md" "docs/reference/cli/whoami.md"
 # Branch C: top-level README, no subdirectory.
 assert_normalizes_to "./README.md" "docs/README.md"
 
-# parse_checkbox_line replicates the sed extraction docs-preview.yaml
-# runs over the existing comment body to recover the *live* checked
-# state a reviewer's clicks land in (GitHub persists a checkbox toggle
-# as a comment-body edit). Emits "<x-or-space>\t<path>", matching the
-# workflow's intermediate TSV format.
+# parse_checkbox_line replicates the sed extraction docs-preview.yaml runs
+# over the comment body to recover the live checked state a reviewer's clicks
+# land in (GitHub persists a toggle as a comment-body edit). Emits
+# "<x-or-space>\t<path>", the workflow's intermediate TSV.
 parse_checkbox_line() {
 	# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters, not command substitution.
 	printf '%s\n' "$1" | grep -oE '^[[:space:]]*- \[[ xX]\] \[`[^`]+`\]' | sed -E 's/^[[:space:]]*- \[([ xX])\] \[`([^`]+)`\]/\1\t\2/' || true
@@ -159,24 +150,15 @@ assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://coder.com/docs/@b/f
 # must not match at all.
 assert_checkbox_parses_to '## Docs preview' ""
 
-# decide_checked removed: round_trip_state below covers the carryover
-# rule through the workflow's real jq, so the hand-written shell mirror
-# only added a green check that guarded nothing.
-
-# round_trip_state exercises the *actual* jq/grep/sed/base64 expressions
-# from docs-preview.yaml end to end, which a hand-written shell mirror of
-# the carryover rule could not: it drives the jq null-coalescing
-# (// false, // null) and the base64 state marker directly. A path->sha
-# map is encoded into the hidden marker, read back, the live checkbox
-# glyphs are parsed, and the carryover jq decides each page's final
-# checked state.
+# round_trip_state exercises the actual jq/grep/sed/base64 from
+# docs-preview.yaml end to end: a path->sha map is encoded into the hidden
+# marker, read back, the live checkbox glyphs parsed, and the carryover jq
+# decides each page's final checked state.
 STATE_PREFIX='docs-preview-state:'
 
-# Recovers the {path: sha} state map from the hidden marker, a faithful
-# copy of the guarded block in docs-preview.yaml: decode under
-# `2>/dev/null || true` and adopt the result only if it is non-empty and
-# parses as a JSON object, else degrade to {} so a corrupt marker can't
-# kill the run. The non-empty check keeps the guard's outcome the same on
+# Recovers the {path: sha} map from the hidden marker, mirroring the guarded
+# block in docs-preview.yaml: adopt the decode only if non-empty and a JSON
+# object, else {}. The non-empty check keeps the outcome the same on
 # jq < 1.7, where `jq -e` exits 0 on empty input.
 recover_old_state() {
 	local body="$1" b64 decoded
@@ -260,9 +242,8 @@ assert_round_trip_state() {
 
 assert_round_trip_state
 
-# The malformed-marker path the decode guard added must recover to {} with
-# the run surviving. Feed markers that clear the charset grep but fail the
-# decode or the object-type gate.
+# A malformed marker must recover to {} with the run surviving. Feed markers
+# that clear the charset grep but fail the decode or the object-type gate.
 assert_marker_recovers() {
 	local marker="$1" expected="$2" desc="$3" body actual
 	body=$(printf '## Docs preview\n<!-- docs-preview -->\n<!-- %s%s -->' "$STATE_PREFIX" "$marker")
@@ -285,10 +266,8 @@ assert_marker_recovers "$(printf '"hello"' | base64 -w0)" "{}" "valid base64 non
 assert_marker_recovers "$(printf '\xff\xfe\xfd' | base64 -w0)" "{}" "valid base64 non-JSON bytes"
 
 # extract_manifest_paths runs the real jq + sed pipeline from
-# docs-preview.yaml against manifest JSON on stdin, emitting one
-# normalized repo-relative path per line. Guards the recursive
-# `[.. | objects | select(has("path")) | .path]` extraction that
-# normalize_manifest_path above does not reach.
+# docs-preview.yaml against manifest JSON on stdin, guarding the recursive
+# path extraction that normalize_manifest_path above does not reach.
 extract_manifest_paths() {
 	jq -r '[.. | objects | select(has("path")) | .path] | .[]' |
 		sed -E 's#^\./##; s#^#docs/#'
@@ -339,9 +318,8 @@ else
 fi
 
 # intersect_eligible replicates the grep -qxF intersection from
-# docs-preview.yaml: keep only changed files whose path is in the
-# manifest allowlist. This is the single decision the feature exists to
-# make, so cover it directly.
+# docs-preview.yaml: keep only changed files whose path is in the manifest
+# allowlist.
 intersect_eligible() {
 	local changed="$1" allowed="$2"
 	printf '%s\n' "$changed" | while IFS=$'\t' read -r filename sha; do
@@ -363,11 +341,9 @@ else
 	failures=$((failures + 1))
 fi
 
-# filter_changed_images runs the real image filter jq from
-# docs-preview.yaml over the pulls/files payload: keep non-removed docs/
-# image files outside docs/.style/, matching the extension set case-
-# insensitively, emitting one filename per line (no sha; the image
-# section is stateless). Mirror of the changed_images query.
+# filter_changed_images runs the real image filter jq from docs-preview.yaml:
+# keep non-removed docs/ images outside docs/.style/, extensions matched
+# case-insensitively (no sha; the image section is stateless).
 filter_changed_images() {
 	jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$"; "i")) | select((.filename | test("^docs/\\.style/")) | not) | .filename'
 }
@@ -400,12 +376,11 @@ else
 	failures=$((failures + 1))
 fi
 
-# extract_ref_tokens, resolve_ref, and pages_for_image are spliced in here
+# extract_ref_tokens, resolve_ref, and pages_for_image are spliced in
 # verbatim from docs-preview.yaml so the mirror can't drift; the assertions
-# below drive them against a throwaway docs tree (not the real repo) so the
-# expectations stay stable. A page embeds an image only when one of its
-# Markdown/HTML references resolves to exactly that repo path, so prose
-# mentions and same-basename collisions in other directories don't match.
+# below drive them against a throwaway docs tree. A page embeds an image only
+# when a Markdown/HTML reference resolves to exactly that repo path, so prose
+# mentions and same-basename collisions elsewhere don't match.
 extract_ref_tokens() {
 	local file="$1"
 	# Markdown: capture up to the first space or ) so an optional
@@ -419,9 +394,9 @@ extract_ref_tokens() {
 
 resolve_ref() {
 	local file="$1" ref="$2" dir
-	ref="${ref%%#*}"  # drop #fragment
-	ref="${ref%%\?*}" # drop ?query
-	ref="${ref#<}"    # drop an optional <...> wrapper
+	ref="${ref%%#*}"
+	ref="${ref%%\?*}"
+	ref="${ref#<}"
 	ref="${ref%>}"
 	[ -z "$ref" ] && return 0
 	case "$ref" in
@@ -514,12 +489,10 @@ fi
 cd "$img_orig_pwd"
 rm -rf "$img_fixture_root"
 
-# resolve_ref branch coverage: the ref-normalization steps (strip a
-# #fragment, a ?query, and a <...> wrapper; reject external and
-# protocol-relative refs) each have a case, so deleting any one changes a
-# result and fails the suite. resolve_ref is spliced from docs-preview.yaml
-# above; path math is relative to $PWD, so these are independent of the
-# real tree.
+# resolve_ref branch coverage: each normalization step (strip #fragment,
+# ?query, <...> wrapper; reject external and protocol-relative refs) has a
+# case, so deleting any one fails the suite. Path math is relative to $PWD,
+# so these are independent of the real tree.
 assert_resolves_ref() {
 	local ref="$1" expected="$2" desc="$3" actual
 	actual=$(resolve_ref "docs/user-guides/page.md" "$ref")
@@ -539,10 +512,9 @@ assert_resolves_ref "//cdn.example.com/shared.png" "" "protocol-relative ignored
 assert_resolves_ref "mailto:docs@coder.com" "" "mailto ignored"
 assert_resolves_ref "" "" "empty ref"
 
-# extract_ref_tokens branch coverage: a titled Markdown ref (the space
-# before the title stops the path capture), an uppercase <IMG SRC="...">
-# (the HTML grep is case-insensitive), and a single-quoted src. Each drives
-# a distinct part of the extractor spliced from docs-preview.yaml above.
+# extract_ref_tokens branch coverage: a titled Markdown ref (the space stops
+# the path capture), an uppercase <IMG SRC="..."> (case-insensitive grep),
+# and a single-quoted src.
 ert_root=$(mktemp -d)
 cat >"$ert_root/titled.md" <<'MD'
 ![shot](../images/shared.png "Optional title")
@@ -569,11 +541,10 @@ assert_extracts "$ert_root/single.md" "../images/shared.png|" "single-quoted src
 rm -rf "$ert_root"
 
 # build_image_section runs the real image_section_json jq from
-# docs-preview.yaml: combine every changed image (a newline list) with the
-# "<image>\t<page>" pairs into [{image, pages:[...]}], images sorted, each
-# image's pages de-duplicated and sorted (jq unique sorts). An image with
-# no pair keeps an empty pages list, so an icon- or screenshot-only PR
-# whose images embed no navigable page still renders (and posts a comment).
+# docs-preview.yaml: combine the changed-image list and "<image>\t<page>"
+# pairs into [{image, pages:[...]}], images sorted, pages per image deduped
+# and sorted. An image with no pair keeps pages:[], so an icon- or
+# screenshot-only PR still renders.
 build_image_section() {
 	local images_list="$1" pairs_tsv="$2"
 	jq -n \
@@ -596,13 +567,12 @@ else
 	failures=$((failures + 1))
 fi
 
-# build_comment_body and render_image_section mirror the body assembler
-# in docs-preview.yaml: they render $final_rows and $image_section_json
-# into the exact comment body the workflow posts, so the comment can be
-# sized by measuring the real bytes instead of estimating a per-page
-# cost. Read the $final_rows, $total_pages, $url_prefix, $image_section,
-# $image_section_json, $DOCS_PREVIEW_MARKER, $STATE_PREFIX, and IMAGE_*
-# globals set before each case below. Keep in sync with docs-preview.yaml.
+# build_comment_body and render_image_section mirror the body assembler in
+# docs-preview.yaml, rendering the exact comment body the workflow posts so
+# it can be sized by measuring real bytes not estimating. Read the
+# $final_rows, $total_pages, $url_prefix, $image_section, $image_section_json,
+# $DOCS_PREVIEW_MARKER, $STATE_PREFIX, and IMAGE_* globals set before each
+# case below. Keep in sync with docs-preview.yaml.
 DOCS_PREVIEW_MARKER='<!-- docs-preview -->'
 STATE_PREFIX='docs-preview-state:'
 # Representative values for the Files-tab link in the omitted-pages
@@ -650,10 +620,9 @@ render_image_section() {
 		if [ "$page_count" -gt "$IMAGE_PAGES_MAX" ]; then
 			entry="${entry}  - _and $((page_count - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
 		fi
-		# Keep the first image unconditionally (an empty section under
-		# a header would be self-contradicting); for every later image
-		# measure the would-be section first so the rendered block
-		# stays under budget.
+		# Keep the first image unconditionally (an empty section under a
+		# header is self-contradicting); measure each later image's
+		# would-be section and stop before it exceeds budget.
 		if [ "$shown" -gt 0 ]; then
 			candidate="${header}${out}${entry}"
 			if [ "$(printf '%s' "$candidate" | LC_ALL=C wc -c)" -gt "$budget" ]; then
@@ -700,9 +669,8 @@ build_comment_body() {
 		page_block="${intro}"$'\n\n'"${checklist}"
 	fi
 
-	# Emit only the sections that have content. The identity marker
-	# and the state marker are always present so the comment stays
-	# discoverable and round-trippable, even on an image-only PR
+	# The identity and state markers are always present so the comment
+	# stays discoverable and round-trippable, even on an image-only PR
 	# whose state map is {}.
 	{
 		printf '## Docs preview\n\n'
@@ -745,10 +713,9 @@ budget=65000
 # GitHub's hard comment-body limit; the budget above leaves headroom under it.
 github_comment_limit=65536
 
-# Repo-scale worst case: a docs migration touching 400 pages on a long
-# ticket-prefixed branch, ~60-char paths, the shape reviewers measured
-# overflowing the old per-page estimate. The cap must keep the real body
-# under GitHub's 65536-char limit while still listing as many pages as fit.
+# Repo-scale worst case: a 400-page docs migration on a long branch with
+# ~60-char paths. The cap must keep the real body under GitHub's 65536-char
+# limit while still listing as many pages as fit.
 url_prefix="https://coder.com/docs/@feature-team-very-long-branch-name-docs-migration-2024"
 final_rows=$(jq -nc '[range(400) | {
 	filename: ("docs/reference/generated/section-\(. + 1000)/really-long-page-name-\(. + 1000).md"),
@@ -875,9 +842,8 @@ else
 fi
 
 # Icon-only PR: the only changed image embeds no navigable page, so
-# image_section_json carries it with pages: []. The comment must still
-# render, listing the image on its own line with no sub-links, so an icon
-# refresh no longer falls through to no comment.
+# image_section_json carries it with pages:[]. The comment must still render,
+# listing the image on its own line with no sub-links.
 final_rows='[]'
 total_pages=0
 url_prefix="https://coder.com/docs/@branch"
@@ -896,10 +862,9 @@ else
 	failures=$((failures + 1))
 fi
 
-# build_comment_body with both changed pages and changed images: the
-# checklist and the image section both render. A page that is both changed
-# (checklist) and an image referrer (image section) appears in both, and
-# the image sub-link (no checkbox glyph) never pollutes carried-over
+# build_comment_body with both changed pages and images: both sections
+# render. A page that is both changed and an image referrer appears in both,
+# and the image sub-link (no checkbox glyph) never pollutes carried-over
 # checkbox state.
 final_rows='[{"filename":"docs/a.md","sha":"s1","checked":true},{"filename":"docs/b.md","sha":"s2","checked":false}]'
 total_pages=2
