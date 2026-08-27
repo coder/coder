@@ -126,10 +126,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			{/* Sizing (floor, growth, and natural-width cap) is owned by the
-			 * wrapper in AgentChatInput; this span just fills it. Below the
-			 * floor the overflow system moves the pill into the +N popover
-			 * instead of shrinking it further. */}
+			{/* Sizing (floor, growth, natural-width cap) is owned by the
+			 * wrapper in AgentChatInput; this span just fills it. */}
 			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
 					open={tooltipOpen}
@@ -142,8 +140,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
 									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									// md:h-auto matches the model selector trigger so
-									// both pills share a height at every breakpoint.
+									// Heights match the model selector trigger.
 									"h-7 w-full px-2 py-0.5 md:h-auto",
 								)}
 							>
@@ -158,9 +155,8 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
-					{/* Hidden below md: touch taps focus the trigger and Radix
-					 * opens tooltips on focus, leaving them stuck over the
-					 * dropdown. */}
+					{/* Hidden below md: touch taps focus the trigger and the
+					 * focus-opened tooltip sticks over the dropdown. */}
 					<TooltipContent className="hidden md:block">
 						{statusLabel}
 					</TooltipContent>

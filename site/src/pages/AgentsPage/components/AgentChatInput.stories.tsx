@@ -1622,7 +1622,7 @@ export const LongWorkspaceNameMobile: Story = {
 		);
 		expect(badgeName).toBeInTheDocument();
 		// Focusing the badge (as a touch tap does) must not surface the
-		// status tooltip over the popover on mobile.
+		// status tooltip on mobile.
 		badgeName.closest("a")?.focus();
 		for (const el of within(document.body).queryAllByText(
 			"Workspace running",
@@ -1641,9 +1641,8 @@ export const LongWorkspaceNameMobile: Story = {
 	},
 };
 
-// Width of the pill floor (8ch of pill-sized text plus the fixed
-// chrome) resolved against the same font the pills use, so width
-// assertions do not hardcode font metrics.
+// Pill floor (8ch + fixed chrome) resolved against the pills' font so
+// width assertions do not hardcode metrics.
 const measurePillFloor = (canvasElement: HTMLElement): number => {
 	const probe = document.createElement("span");
 	probe.className = "text-xs font-medium";
@@ -1654,6 +1653,12 @@ const measurePillFloor = (canvasElement: HTMLElement): number => {
 	const width = probe.getBoundingClientRect().width;
 	probe.remove();
 	return width;
+};
+
+// +1 tolerance: scrollWidth is ceiled while clientWidth is rounded,
+// so an untruncated fractional-width label can differ by one.
+const expectNotTruncated = (el: HTMLElement) => {
+	expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth + 1);
 };
 
 /**
@@ -1688,16 +1693,12 @@ export const ShortModelNameHasNoDeadSpace: Story = {
 			name: /Fable 5/,
 		});
 		await waitFor(() => {
-			// Sized to content: narrower than the floor, label untruncated.
-			// The floor is re-measured inside the retry so late font loads
+			// Re-measure the floor inside the retry so late font loads
 			// cannot compare widths from different font states.
 			const floor = measurePillFloor(canvasElement);
 			expect(trigger.getBoundingClientRect().width).toBeLessThan(floor);
 		});
-		const label = canvas.getByText("Fable 5");
-		// +1 tolerance: scrollWidth is ceiled while clientWidth is
-		// rounded, so equal fractional widths can differ by one.
-		expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+		expectNotTruncated(canvas.getByText("Fable 5"));
 	},
 };
 
@@ -1735,14 +1736,8 @@ export const LongLabelsExpandWithoutMCPs: Story = {
 			"my-workspace-name-that-should-not-clamp",
 		);
 		await waitFor(() => {
-			// Neither label is truncated when free space is available.
-			// +1 tolerance for scrollWidth/clientWidth integer rounding.
-			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
-				modelLabel.clientWidth + 1,
-			);
-			expect(workspaceLabel.scrollWidth).toBeLessThanOrEqual(
-				workspaceLabel.clientWidth + 1,
-			);
+			expectNotTruncated(modelLabel);
+			expectNotTruncated(workspaceLabel);
 		});
 		// The workspace pill is no longer clamped to 200px.
 		const pillButton = canvas.getByRole("button", {
@@ -1789,13 +1784,10 @@ export const ModelExpandsWhileBadgesOverflow: Story = {
 			expect(overflowPill).toBeVisible();
 		});
 		// The hidden badge released its space, so the model label gets
-		// the freed room and renders untruncated. +1 tolerance for
-		// scrollWidth/clientWidth integer rounding.
+		// the freed room.
 		const modelLabel = canvas.getByText("Claude Sonnet 4.5");
 		await waitFor(() => {
-			expect(modelLabel.scrollWidth).toBeLessThanOrEqual(
-				modelLabel.clientWidth + 1,
-			);
+			expectNotTruncated(modelLabel);
 		});
 		await userEvent.click(overflowPill);
 		const popover = await within(document.body).findByRole("dialog");

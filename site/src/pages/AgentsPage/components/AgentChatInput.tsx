@@ -210,12 +210,10 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
-// Pill sizing scheme shared by the model selector trigger and the
-// workspace pill wrapper: start at a ~8ch floor (basis), never shrink
-// below it (shrink-0), grow into free row space, and cap at the
-// label's natural width (max-w-max) so short labels never pad out
-// with dead space. Below the floor the overflow system moves items
-// into the +N popover instead of shrinking them further.
+// Shared pill sizing: flex-basis is a ~8ch floor, shrink-0 keeps the
+// pill from going below it, grow expands into free row space, and
+// max-w-max caps at the label's natural width (no dead space on short
+// labels). Below the floor the +N overflow absorbs the pressure.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
 
@@ -310,9 +308,8 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				{/* Touch taps focus the badge and Radix opens tooltips on
-				 * focus, leaving them stuck over the +N popover. Status is
-				 * hover-only desktop affordance; hide it below md. */}
+				{/* Hidden below md: touch taps focus the trigger and the
+				 * focus-opened tooltip sticks over the popover. */}
 				<TooltipContent className="hidden md:block">
 					{badge.statusLabel}
 				</TooltipContent>
@@ -1211,9 +1208,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					/>
 				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					{/* flex-1 so free row space reaches the growing pills below,
-					 * letting labels expand to their natural width when there is
-					 * room. */}
+					{/* flex-1 routes free row space to the growing pills. */}
 					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
 						<Popover
@@ -1467,14 +1462,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
-						{/* Badge row; all badges and the pill always
-						 * render so the DOM structure never changes.
-						 * Overflow badges use display:none so they release
-						 * their layout space to the growing pills; the
-						 * overflow hook caches their last visible width.
-						 * The pill is invisible when there's no overflow
-						 * but still occupies layout space, preventing
-						 * measurement flicker. */}
+						{/* Badges and the +N pill stay mounted so the overflow
+						 * hook can measure them: overflowed badges are
+						 * display:none (releasing their space to the pills),
+						 * the +N pill merely invisible so its width stays
+						 * readable. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -1521,9 +1513,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								);
 							})}
-							{/* Pill; always in the DOM so it permanently
-							 * reserves layout space and its width can be
-							 * measured. Invisible when nothing overflows. */}
 							<Popover
 								open={overflowPopoverOpen && overflowCount > 0}
 								onOpenChange={setOverflowPopoverOpen}
@@ -1541,8 +1530,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
-								{/* Above the composer on mobile so the open
-								 * popover does not cover the toolbar row. */}
+								{/* Above the composer on mobile so the popover
+								 * does not cover the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
@@ -1550,10 +1539,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								>
 									{overflowBadges.map((badge, i) => (
 										<ToolBadge
-											// Two badges can share a kind (the linked
-											// workspace pill fallback and the selected
-											// workspace are both "workspace"), so
-											// non-MCP keys are position-qualified.
+											// Non-MCP badges can share a kind, so keys
+											// are position-qualified.
 											key={
 												badge.kind === "mcp"
 													? badge.server.id
