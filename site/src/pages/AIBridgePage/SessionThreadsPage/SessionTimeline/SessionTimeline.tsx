@@ -78,8 +78,7 @@ const ExpandableText: FC<ExpandableTextProps> = ({
 				<div
 					className={cn(
 						"flex justify-end mt-1 absolute bottom-0 right-0 left-0",
-						!isExpanded &&
-							"bg-[linear-gradient(to_top,hsl(var(--surface-primary)),transparent)]",
+						!isExpanded && "bg-linear-to-t from-surface-primary to-transparent",
 					)}
 				>
 					<Button

@@ -159,7 +159,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 				</div>
 
 				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-position-[-2px_-2px] bg-size-[16px_16px] p-4 md:p-8">
-					<div className="absolute top-0 left-0 right-0 h-32 bg-[linear-gradient(to_bottom,hsl(var(--surface-primary)),transparent)]"></div>
+					<div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-surface-primary to-transparent"></div>
 
 					<div className="relative z-10">
 						{selectedResource && (
