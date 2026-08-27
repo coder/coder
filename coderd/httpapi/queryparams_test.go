@@ -586,3 +586,54 @@ func testQueryParams[T any](t *testing.T, testCases []queryParamTestCase[T], par
 		})
 	}
 }
+
+func TestRedirectURL(t *testing.T) {
+	t.Parallel()
+
+	base, err := url.Parse("https://app.example.com/callback")
+	require.NoError(t, err)
+
+	t.Run("Omitted", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		got := parser.RedirectURL(url.Values{}, base, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
+	})
+
+	t.Run("ExactMatch", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{base.String()}}
+		got := parser.RedirectURL(vals, base, "redirect_uri")
+		require.Empty(t, parser.Errors)
+		require.Equal(t, base.String(), got.String())
+	})
+
+	t.Run("Mismatch", func(t *testing.T) {
+		t.Parallel()
+		parser := httpapi.NewQueryParamParser()
+		vals := url.Values{"redirect_uri": []string{"https://evil.example.com/steal"}}
+		parser.RedirectURL(vals, base, "redirect_uri")
+		require.Len(t, parser.Errors, 1)
+		require.Contains(t, parser.Errors[0].Detail, "must exactly match")
+	})
+
+	// url.Parse returns a nil URL alongside its error for these, so a caller
+	// that reads the result must still get something dereferenceable.
+	t.Run("Unparsable", func(t *testing.T) {
+		t.Parallel()
+		for _, raw := range []string{"\x00", "\x7f", "://"} {
+			parser := httpapi.NewQueryParamParser()
+			vals := url.Values{"redirect_uri": []string{raw}}
+			require.NotPanics(t, func() {
+				got := parser.RedirectURL(vals, base, "redirect_uri")
+				require.NotNil(t, got, "a nil URL would panic in the caller")
+				require.Equal(t, base.String(), got.String())
+			}, "redirect_uri=%q must not panic", raw)
+			require.Len(t, parser.Errors, 1, "redirect_uri=%q must report one error", raw)
+			require.Equal(t, "redirect_uri", parser.Errors[0].Field)
+			require.Contains(t, parser.Errors[0].Detail, "must be a valid url")
+		}
+	})
+}
