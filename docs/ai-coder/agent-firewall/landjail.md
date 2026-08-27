@@ -1,5 +1,5 @@
 ---
-title: landjail Jail Type
+title: landjail jail type
 ---
 
 > [!NOTE]

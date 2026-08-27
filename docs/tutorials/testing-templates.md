@@ -1,5 +1,5 @@
 ---
-title: Test and Publish Coder Templates Through CI/CD
+title: Test and publish Coder templates through CI/CD
 ---
 
 <div>

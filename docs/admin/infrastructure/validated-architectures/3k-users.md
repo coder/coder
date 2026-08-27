@@ -1,5 +1,5 @@
 ---
-title: "Reference Architecture: up to 3,000 users"
+title: "Reference architecture: up to 3,000 users"
 ---
 
 The 3,000 users architecture targets large-scale enterprises, possibly with

@@ -1,5 +1,5 @@
 ---
-title: Contributing templates
+title: Contribute templates
 ---
 
 Learn how to create and contribute complete Coder workspace templates to the Coder Registry. Templates provide ready-to-use workspace configurations that users can deploy directly to create development environments.

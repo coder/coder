@@ -1,5 +1,5 @@
 ---
-title: Rules Engine Documentation
+title: Rules engine documentation
 ---
 
 > [!NOTE]

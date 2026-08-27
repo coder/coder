@@ -1,5 +1,5 @@
 ---
-title: "Reference Architecture: up to 10,000 users"
+title: "Reference architecture: up to 10,000 users"
 ---
 
 The 10,000 users architecture targets enterprises with an extremely large global workforce of technical professionals or

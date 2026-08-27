@@ -1,5 +1,5 @@
 ---
-title: Extending templates
+title: Extend templates
 ---
 
 There are a variety of Coder-native features to extend the configuration of your

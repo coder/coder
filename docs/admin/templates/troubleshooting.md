@@ -1,5 +1,5 @@
 ---
-title: Troubleshooting templates
+title: Troubleshoot templates
 ---
 
 Occasionally, you may run into scenarios where a workspace is created, but the

@@ -1,5 +1,5 @@
 ---
-title: Contributing modules
+title: Contribute modules
 ---
 
 Learn how to create and contribute Terraform modules to the Coder Registry. Modules provide reusable components that extend Coder workspaces with IDEs, development tools, login tools, and other features.

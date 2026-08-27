@@ -1,5 +1,5 @@
 ---
-title: Version Requirements
+title: Version requirements
 ---
 
 > [!NOTE]

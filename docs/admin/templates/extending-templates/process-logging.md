@@ -1,5 +1,5 @@
 ---
-title: Workspace Process Logging
+title: Workspace process logging
 ---
 
 The workspace process logging feature allows you to log all system-level

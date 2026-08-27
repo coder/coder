@@ -1,5 +1,5 @@
 ---
-title: Island Browser Integration
+title: Island browser integration
 ---
 
 <div>

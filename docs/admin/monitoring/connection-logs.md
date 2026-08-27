@@ -1,5 +1,5 @@
 ---
-title: Connection Logs (Premium)
+title: Connection logs (Premium)
 ---
 
 > [!NOTE]

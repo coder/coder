@@ -1,5 +1,5 @@
 ---
-title: Conversation Search Syntax
+title: Conversation search syntax
 ---
 
 The chat list endpoint accepts a `q` query parameter for filtering

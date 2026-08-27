@@ -1,5 +1,5 @@
 ---
-title: Migrating from the Tasks API to the Chats API
+title: Migrate from the Tasks API to the Chats API
 ---
 
 > [!WARNING]

@@ -1,5 +1,5 @@
 ---
-title: JFrog Artifactory Integration
+title: JFrog Artifactory integration
 ---
 
 Use Coder and JFrog Artifactory together to secure your development environments

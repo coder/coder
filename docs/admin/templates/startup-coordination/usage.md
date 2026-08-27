@@ -1,5 +1,5 @@
 ---
-title: Workspace Startup Coordination Usage
+title: Workspace startup coordination usage
 ---
 
 > [!NOTE]

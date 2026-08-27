@@ -1,5 +1,5 @@
 ---
-title: Wildcard Access URLs
+title: Wildcard access URLs
 ---
 
 Wildcard access URLs unlock Coder's full potential for modern development workflows. While optional for basic SSH usage, this feature becomes essential when teams need web applications, development previews, or browser-based tools. **Wildcard access URLs are essential for many development workflows in Coder** - Web IDEs (code-server, VS Code Web, JupyterLab) and some development frameworks work significantly better with subdomain-based access rather than path-based URLs.

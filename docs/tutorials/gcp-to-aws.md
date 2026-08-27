@@ -1,5 +1,5 @@
 ---
-title: Federating a Google Cloud service account to AWS
+title: Federate a Google Cloud service account to AWS
 ---
 
 <div>

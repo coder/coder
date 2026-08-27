@@ -1,5 +1,5 @@
 ---
-title: Federating Coder's control plane to Azure
+title: Federate Coder's control plane to Azure
 ---
 
 <div>

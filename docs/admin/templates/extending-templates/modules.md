@@ -1,5 +1,5 @@
 ---
-title: Reusing template code
+title: Reuse template code
 ---
 
 To reuse code across different Coder templates, such as common scripts or

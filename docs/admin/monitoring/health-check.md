@@ -1,5 +1,5 @@
 ---
-title: Deployment Health
+title: Deployment health
 ---
 
 Coder includes an operator-friendly deployment health page that provides a

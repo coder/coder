@@ -1,5 +1,5 @@
 ---
-title: Deployment Metrics
+title: Deployment metrics
 ---
 
 Coder exposes many metrics which give insight into the current state of a live

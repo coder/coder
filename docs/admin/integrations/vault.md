@@ -1,5 +1,5 @@
 ---
-title: Integrating HashiCorp Vault with Coder
+title: Integrate HashiCorp Vault with Coder
 ---
 
 <div>

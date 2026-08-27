@@ -1,5 +1,5 @@
 ---
-title: Workspace Ports
+title: Workspace ports
 ---
 
 ## Port forwarding

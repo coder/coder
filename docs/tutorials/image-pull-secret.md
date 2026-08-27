@@ -1,5 +1,5 @@
 ---
-title: Defining ImagePullSecrets for Coder workspaces
+title: Define ImagePullSecrets for Coder workspaces
 ---
 
 <div>

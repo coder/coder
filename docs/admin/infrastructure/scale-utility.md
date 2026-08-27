@@ -1,5 +1,5 @@
 ---
-title: Scale Tests and Utilities
+title: Scale tests and utilities
 ---
 
 We scale-test Coder with a built-in utility that can

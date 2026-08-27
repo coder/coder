@@ -1,5 +1,5 @@
 ---
-title: Generate and upload a Support Bundle to Coder Support
+title: Generate and upload a support bundle to Coder Support
 ---
 
 When you engage with Coder support to diagnose an issue with your deployment,

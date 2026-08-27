@@ -1,5 +1,5 @@
 ---
-title: OAuth2 Provider (Experimental)
+title: OAuth2 provider (Experimental)
 ---
 
 > [!WARNING]

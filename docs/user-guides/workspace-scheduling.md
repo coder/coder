@@ -1,5 +1,5 @@
 ---
-title: Managing workspace schedules
+title: Manage workspace schedules
 ---
 
 Scheduling helps minimize cloud costs without sacrificing the availability of

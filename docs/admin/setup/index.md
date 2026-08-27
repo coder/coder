@@ -1,5 +1,5 @@
 ---
-title: Configure Control Plane Access
+title: Configure control plane access
 ---
 
 Coder server's primary configuration is done via environment variables. For a

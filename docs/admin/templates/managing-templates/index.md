@@ -1,5 +1,5 @@
 ---
-title: Working with templates
+title: Work with templates
 ---
 
 You create and edit Coder templates as

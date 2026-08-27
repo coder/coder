@@ -1,5 +1,5 @@
 ---
-title: Workspace Proxies (Premium)
+title: Workspace proxies (Premium)
 ---
 
 Workspace proxies provide low-latency experiences for geo-distributed teams.

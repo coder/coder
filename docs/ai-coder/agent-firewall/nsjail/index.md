@@ -1,5 +1,5 @@
 ---
-title: nsjail Jail Type
+title: nsjail jail type
 ---
 
 > [!NOTE]

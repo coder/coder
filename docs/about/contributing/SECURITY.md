@@ -1,5 +1,5 @@
 ---
-title: Security Policy
+title: Security policy
 ---
 
 Coder welcomes feedback from security researchers and the general public to help improve our security.

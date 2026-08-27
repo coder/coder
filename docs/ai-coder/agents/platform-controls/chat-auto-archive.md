@@ -1,5 +1,5 @@
 ---
-title: Conversation Auto-Archive
+title: Conversation auto-archive
 ---
 
 Coder Agents automatically archives long-inactive conversations so they

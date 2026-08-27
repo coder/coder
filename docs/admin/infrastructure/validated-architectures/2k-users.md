@@ -1,5 +1,5 @@
 ---
-title: "Reference Architecture: up to 2,000 users"
+title: "Reference architecture: up to 2,000 users"
 ---
 
 In the 2,000 users architecture, there is a moderate increase in traffic,

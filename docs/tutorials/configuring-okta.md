@@ -1,5 +1,5 @@
 ---
-title: Configuring Custom Claims/Scopes with Okta for group/role
+title: Configure custom claims/scopes with Okta for group/role
 ---
 
 <div style="pad: 0px; margin: 0px;">

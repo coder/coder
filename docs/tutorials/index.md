@@ -1,5 +1,5 @@
 ---
-title: Guides and Tutorials
+title: Guides and tutorials
 ---
 
 Here you can find a list of employee-written guides on Coder. These tutorials
