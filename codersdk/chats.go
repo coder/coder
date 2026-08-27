@@ -3188,6 +3188,23 @@ func (c *Client) CompactChat(ctx context.Context, chatID uuid.UUID) (Chat, error
 	return chat, ReadBodyAsJSON(res, &chat)
 }
 
+// ClearChat resets the model context of an idle or errored chat,
+// clearing any stored error. The reset commits synchronously with no
+// model call: the transcript is preserved and the next prompt starts
+// from a fresh context.
+func (c *Client) ClearChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/chats/%s/clear", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, ReadBodyAsJSON(res, &chat)
+}
+
 // ReconcileInvalidChatState recovers a chat stuck in an invalid
 // execution state, moving it into an error state from which the caller
 // can send a new message or edit history to continue.

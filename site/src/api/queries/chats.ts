@@ -1813,6 +1813,17 @@ export const compactChat = (queryClient: QueryClient, chatId: string) => ({
 	},
 });
 
+export const clearChat = (queryClient: QueryClient, chatId: string) => ({
+	mutationFn: () => API.experimental.clearChat(chatId),
+	onSuccess: () => {
+		void invalidateChatEntity(queryClient, chatId);
+		// The clear commits its boundary rows synchronously with no
+		// worker turn, so the transcript must be refetched here rather
+		// than relying on streamed message events.
+		void invalidateChatMessages(queryClient, chatId);
+	},
+});
+
 /**
  * Re-pins the chat to its agent's latest context snapshot, clearing the
  * dirty marker. On success the returned chat (carrying the freshly pinned

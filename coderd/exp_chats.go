@@ -3340,6 +3340,75 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
+// @Summary Clear chat context
+// @ID clear-chat-context
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Produce json
+// @Success 200 {object} codersdk.Chat
+// @Router /api/v2/chats/{chat}/clear [post]
+// @x-apidocgen {"skip": true}
+// @Description Resets the model context of an idle or errored chat,
+// @Description clearing any stored error. The reset commits
+// @Description synchronously with no model call: the transcript is
+// @Description preserved and the next prompt starts from a fresh
+// @Description context.
+func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+	logger := api.Logger.Named("chat_clear").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may clear the context, matching the
+	// compaction endpoint so the two context operations share
+	// authorization semantics.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may clear the chat context.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.ClearChat(ctx, chat)
+	if err != nil {
+		if writeCommonChatMutationError(ctx, rw, err, "Cannot clear an archived chat.") {
+			return
+		}
+		switch {
+		case errors.Is(err, chatd.ErrNothingToClear):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Nothing to clear.",
+				Detail:  "The chat has no conversation to clear after the latest context boundary.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot clear the chat in its current state.",
+				Detail:  "Clearing is not available while the chat is generating or has queued messages.",
+			})
+		default:
+			logger.Error(ctx, "failed to clear chat context", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to clear chat context.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+}
+
 // @Summary Reconcile invalid chat state
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken

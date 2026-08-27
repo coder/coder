@@ -119,6 +119,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
+- TODO(PR author): document `ClearContext`, the synchronous manual context reset added for the `/clear` command. Key facts: allowed from `W -> W` and `E0 -> W`; inserts the caller-built compressed boundary triplet (hidden model-only sentinel user row, visible synthetic `chat_cleared` tool call, tool result); lands in `waiting` with no worker turn and no model call; clears `last_error` and any pending `compaction_requested_at`; leaves ownership untouched; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
 
 ### Transitions used by the chat worker
 
@@ -139,6 +140,8 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
 A transition between input state `A` and output state `B` is allowed only if it's listed in the diagram below (`A --> B: Transition Name`). If a transition is not allowed, the core state machine implementation must reject it.
+
+TODO(PR author): add the new `ClearContext` transition edges to the diagram: `W --> W: ClearContext` and `E0 --> W: ClearContext`.
 
 ```mermaid
 stateDiagram-v2
@@ -569,6 +572,10 @@ This endpoint uses `RequestCompaction`:
 - `E1 -> RequestCompaction -> R1`
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
+
+### `POST /api/experimental/chats/{chat}/clear`
+
+TODO(PR author): document the manual context clear endpoint added for the `/clear` command. Key facts: uses `ClearContext` (`W -> W`, `E0 -> W`); commits synchronously inside the API transaction with no worker round-trip and no model call; the transcript is preserved and only future prompts stop seeing pre-clear history; the prompt-assembly query needs no change because the clear boundary reuses the compressed model-only anchor shape; boundary detection (`latestContextBoundaryIndex`) recognizes both `chat_summarized` and `chat_cleared`, so clear and compaction never reach across each other's boundary; "nothing to clear" rolls back with a conflict when no active model-visible non-system message follows the latest boundary; owner-only for symmetry with `/compact`.
 
 ## Pubsub
 

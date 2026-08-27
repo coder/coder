@@ -1108,6 +1108,10 @@ var (
 	// no uncompressed conversation after the latest compaction
 	// boundary, so running a compaction would produce nothing.
 	ErrNothingToCompact = xerrors.New("nothing to compact")
+	// ErrNothingToClear indicates a manual context clear found no
+	// model-visible conversation after the latest context boundary,
+	// so a clear would be a no-op.
+	ErrNothingToClear = xerrors.New("nothing to clear")
 )
 
 // CreateOptions controls chat creation in the shared chat mutation path.
@@ -2436,9 +2440,72 @@ func (p *Server) CompactChat(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
-		boundary := latestCompactionBoundaryIndex(messages)
+		boundary := latestContextBoundaryIndex(messages)
 		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
 			return ErrNothingToCompact
+		}
+		refreshed = result.Chat
+		return nil
+	})
+	if err != nil {
+		return chat, err
+	}
+
+	p.publishChatPubsubEvent(refreshed, codersdk.ChatWatchEventKindStatusChange, nil)
+	return refreshed, nil
+}
+
+// ClearChat commits a manual context reset through the
+// chatstate.ClearContext transition. Unlike CompactChat it is fully
+// synchronous: the boundary rows commit in this transaction with no
+// model call, the transcript is preserved, and any stored error is
+// cleared. Archived chats return ErrChatArchived, busy chats return a
+// chatstate.ErrTransitionNotAllowed wrapper, and chats with nothing
+// after the latest context boundary return ErrNothingToClear.
+func (p *Server) ClearChat(
+	ctx context.Context,
+	chat database.Chat,
+) (database.Chat, error) {
+	if chat.ID == uuid.Nil {
+		return chat, xerrors.New("chat_id is required")
+	}
+
+	var refreshed database.Chat
+	machine := p.newChatMachine(chat.ID)
+	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		lockedChat, err := store.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("load chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		// Read the pre-clear history before the transition inserts the
+		// boundary rows; eligibility is evaluated afterwards so busy
+		// chats surface the state conflict first.
+		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+			ChatID:  chat.ID,
+			AfterID: 0,
+		})
+		if err != nil {
+			return xerrors.Errorf("load chat messages: %w", err)
+		}
+		clearMessages, err := buildClearMessages(buildClearMessagesInput{
+			modelConfigID: lockedChat.LastModelConfigID,
+			toolCallID:    "chat_cleared_" + uuid.NewString(),
+		})
+		if err != nil {
+			return xerrors.Errorf("build clear messages: %w", err)
+		}
+		result, err := tx.ClearContext(chatstate.ClearContextInput{Messages: clearMessages})
+		if err != nil {
+			return err
+		}
+		// Reject no-op clears inside the same transaction so an empty
+		// or already-cleared chat never gains a duplicate boundary.
+		boundary := latestContextBoundaryIndex(messages)
+		if !hasClearableMessageAfter(messages, boundary) {
+			return ErrNothingToClear
 		}
 		refreshed = result.Chat
 		return nil

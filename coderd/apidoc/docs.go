@@ -2558,6 +2558,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/chats/{chat}/clear": {
+            "post": {
+                "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Clear chat context",
+                "operationId": "clear-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/chats/{chat}/compact": {
             "post": {
                 "description": "Requests a manual context compaction on an idle or errored\nchat, clearing any stored error. The compaction runs\nasynchronously through the chat worker and bypasses the\nautomatic usage threshold.",
