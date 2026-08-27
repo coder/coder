@@ -5,12 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"charm.land/fantasy"
+	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/toolschema"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+// EditFilesToolName is the canonical name of the edit_files tool.
+const EditFilesToolName = "edit_files"
 
 type EditFilesOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
@@ -22,6 +28,76 @@ type EditFilesOptions struct {
 // fantasy framework from these struct tags.
 type EditFilesArgs struct {
 	Files []editFileEdits `json:"files" description:"Files to edit. Every entry must include path and at least one edit."`
+}
+
+// UnmarshalJSON also accepts a "files" value sent as a JSON-encoded
+// string of the declared array, which some models intermittently do.
+// Chatd admission canonicalizes that form before pre_tool_use
+// consumers see it (NormalizeEditFilesInput); this decoder keeps the
+// same leniency for inputs that bypass admission normalization, such
+// as hook input overrides. Dispatch-time ambiguity validation cannot
+// inspect keys inside a string value, so the encoded content is
+// checked against the same schema before it is decoded.
+func (a *EditFilesArgs) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Files json.RawMessage `json:"files"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	a.Files = nil
+	filesJSON := raw.Files
+	if len(filesJSON) == 0 || string(filesJSON) == "null" {
+		return nil
+	}
+	var encoded string
+	if json.Unmarshal(filesJSON, &encoded) == nil {
+		if err := toolschema.ValidateUnambiguous(editFilesParameters(), []byte(`{"files":`+encoded+`}`)); err != nil {
+			return err
+		}
+		filesJSON = json.RawMessage(encoded)
+	}
+	if err := json.Unmarshal(filesJSON, &a.Files); err != nil {
+		return xerrors.Errorf("files must be a JSON array of {path, edits} entries: %w", err)
+	}
+	return nil
+}
+
+// editFilesParameters caches the advertised edit_files schema so the
+// decoder validates string-encoded content by the same rules a policy
+// reader applies to plain input.
+var editFilesParameters = sync.OnceValue(func() map[string]any {
+	return EditFiles(EditFilesOptions{}).Info().Parameters
+})
+
+// NormalizeEditFilesInput rewrites input whose "files" value is a
+// JSON-encoded string of the declared array into the plain array form
+// the schema advertises, so admission forwards the same structure to
+// pre_tool_use consumers that execution decodes. Input is returned
+// unchanged when files is absent, already an array, or a string that
+// does not itself decode as a JSON array; the decoder reports those.
+// Callers must validate input ambiguity before normalizing, because
+// the object rebuild collapses duplicate keys, and should re-validate
+// the normalized bytes to check the keys the string was hiding.
+func NormalizeEditFilesInput(input []byte) (json.RawMessage, bool) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(input, &raw); err != nil {
+		return input, false
+	}
+	var encoded string
+	if err := json.Unmarshal(raw["files"], &encoded); err != nil {
+		return input, false
+	}
+	var entries []json.RawMessage
+	if err := json.Unmarshal([]byte(encoded), &entries); err != nil {
+		return input, false
+	}
+	raw["files"] = json.RawMessage(encoded)
+	normalized, err := json.Marshal(raw)
+	if err != nil {
+		return input, false
+	}
+	return normalized, true
 }
 
 type editFileEdits struct {
@@ -99,7 +175,7 @@ func (a EditFilesArgs) toSDKFiles() []workspacesdk.FileEdits {
 
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
-		"edit_files",
+		EditFilesToolName,
 		"Perform edits on one or more files by replacing old_text with"+
 			" new_text. Each entry in files must include the absolute path"+
 			" of the file to edit and at least one edit. Matching is fuzzy"+

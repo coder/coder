@@ -608,6 +608,24 @@ describe("parseEditFilesArgs", () => {
 		expect(result[0].path).toBe("test.ts");
 	});
 
+	it("parses files sent as a JSON-encoded string", () => {
+		const args = {
+			files: JSON.stringify([
+				{ path: "test.ts", edits: [{ old_text: "old", new_text: "new" }] },
+			]),
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].path).toBe("test.ts");
+		expect(result[0].edits[0]).toEqual({ search: "old", replace: "new" });
+	});
+
+	it("returns empty array when string files decodes to a non-array", () => {
+		expect(
+			parseEditFilesArgs({ files: JSON.stringify({ path: "x.ts" }) }),
+		).toEqual([]);
+	});
+
 	it("filters out edits with non-string search or replace", () => {
 		const args = {
 			files: [
