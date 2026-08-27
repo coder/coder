@@ -11,6 +11,10 @@ import {
 	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
+	MockDefaultOrganization,
+	MockOrganization2,
+} from "#/testHelpers/entities";
+import {
 	countConfiguredProviderConfigs,
 	filterModelsWithEnabledProvider,
 	formatProviderLabel,
@@ -23,6 +27,7 @@ import {
 	isUnavailableHistoricalModelID,
 	isUnsetModelRef,
 	NIL_UUID,
+	organizationsWithEnabledChatModels,
 	providerInfoByIDFromUserConfigs,
 	providerTypeByIDFromUserConfigs,
 	resolveModelOptionId,
@@ -390,6 +395,54 @@ describe("getUsableDefaultModelIDForOrganization", () => {
 				testOrganizationID,
 			),
 		).toBe("");
+	});
+});
+
+describe("organizationsWithEnabledChatModels", () => {
+	const organizations = [MockDefaultOrganization, MockOrganization2];
+
+	it("keeps only organizations with at least one enabled model", () => {
+		const models: ChatModel[] = [
+			{
+				...MockChatModel,
+				id: "model-disabled",
+				organization_id: MockDefaultOrganization.id,
+				enabled: false,
+			},
+			{
+				...MockChatModel,
+				id: "model-enabled",
+				organization_id: MockOrganization2.id,
+				enabled: true,
+			},
+		];
+
+		expect(organizationsWithEnabledChatModels(organizations, models)).toEqual([
+			MockOrganization2,
+		]);
+	});
+
+	it("preserves organization order", () => {
+		const models: ChatModel[] = [
+			{
+				...MockChatModel,
+				id: "model-2",
+				organization_id: MockOrganization2.id,
+			},
+			{
+				...MockChatModel,
+				id: "model-1",
+				organization_id: MockDefaultOrganization.id,
+			},
+		];
+
+		expect(organizationsWithEnabledChatModels(organizations, models)).toEqual(
+			organizations,
+		);
+	});
+
+	it("returns no organizations when no models exist", () => {
+		expect(organizationsWithEnabledChatModels(organizations, [])).toEqual([]);
 	});
 });
 

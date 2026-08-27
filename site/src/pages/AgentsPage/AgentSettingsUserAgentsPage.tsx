@@ -11,18 +11,38 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import { AgentSettingsUserAgentsPageView } from "./AgentSettingsUserAgentsPageView";
-import { resolveModelSelector } from "./utils/modelOptions";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
+import {
+	organizationsWithEnabledChatModels,
+	resolveModelSelector,
+} from "./utils/modelOptions";
 
 const AgentSettingsUserAgentsPage: FC = () => {
 	const { organizations } = useDashboard();
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
+	// Match the compaction page dropdown: list only organizations with at
+	// least one enabled chat model.
+	const organizationOptions = organizationsWithEnabledChatModels(
+		organizations,
+		organizationModels.models,
+	);
 	const defaultOrganizationId = getDefaultOrganizationId(organizations);
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState(
 		defaultOrganizationId,
 	);
 	const selectedOrganization =
-		organizations.find(
+		organizationOptions.find(
 			(organization) => organization.id === selectedOrganizationId,
 		) ??
+		organizationOptions.find(
+			(organization) => organization.id === defaultOrganizationId,
+		) ??
+		organizationOptions[0] ??
+		// No organization has enabled models (still loading, or none are
+		// configured). Fall back so the model-free default modes can still
+		// replace a stale saved model override.
 		organizations.find(
 			(organization) => organization.id === defaultOrganizationId,
 		) ??
@@ -33,9 +53,10 @@ const AgentSettingsUserAgentsPage: FC = () => {
 	return (
 		<AgentSettingsUserAgentsPageContent
 			key={organizationId}
-			organizations={organizations}
+			organizations={organizationOptions}
 			selectedOrganization={selectedOrganization}
 			organizationId={organizationId}
+			isLoadingOrganizationModels={organizationModels.isLoading}
 			onSelectOrganization={(organization) =>
 				setSelectedOrganizationId(organization.id)
 			}
@@ -47,6 +68,7 @@ interface AgentSettingsUserAgentsPageContentProps {
 	organizations: readonly TypesGen.Organization[];
 	selectedOrganization: TypesGen.Organization | undefined;
 	organizationId: string;
+	isLoadingOrganizationModels: boolean;
 	onSelectOrganization: (organization: TypesGen.Organization) => void;
 }
 
@@ -56,6 +78,7 @@ const AgentSettingsUserAgentsPageContent: FC<
 	organizations,
 	selectedOrganization,
 	organizationId,
+	isLoadingOrganizationModels,
 	onSelectOrganization,
 }) => {
 	const queryClient = useQueryClient();
@@ -79,9 +102,12 @@ const AgentSettingsUserAgentsPageContent: FC<
 		organizationId,
 		modelsQuery,
 	);
+	// Organization filtering needs every organization's models, so stay in
+	// the loading state until they all settle.
+	const isLoadingModels = isModelCatalogLoading || isLoadingOrganizationModels;
 	const hasNoOrganizationModels =
 		organizationId !== "" &&
-		!modelsQuery.isLoading &&
+		!isLoadingModels &&
 		modelsQuery.error === null &&
 		modelsQuery.data !== undefined &&
 		modelOptions.length === 0;
@@ -113,7 +139,7 @@ const AgentSettingsUserAgentsPageContent: FC<
 			onSelectOrganization={onSelectOrganization}
 			models={organizationModelConfigs}
 			modelsError={modelsQuery.error}
-			isLoadingModels={isModelCatalogLoading}
+			isLoadingModels={isLoadingModels}
 			isOrganizationUnresolved={organizationId === ""}
 			hasNoOrganizationModels={hasNoOrganizationModels}
 			onSaveRootModelOverride={saveModelOverride(

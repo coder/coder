@@ -136,6 +136,20 @@ export const getUsableDefaultModelIDForOrganization = (
 	return resolveModelOptionId(defaultConfig?.id, modelOptions);
 };
 
+/**
+ * Organizations with at least one enabled chat model. Personal model
+ * settings pages share this filter so their organization dropdowns match.
+ */
+export const organizationsWithEnabledChatModels = (
+	organizations: readonly TypesGen.Organization[],
+	models: readonly TypesGen.ChatModel[],
+): readonly TypesGen.Organization[] =>
+	organizations.filter((organization) =>
+		models.some(
+			(model) => model.enabled && model.organization_id === organization.id,
+		),
+	);
+
 export type ProviderInfo = {
 	readonly provider: string;
 	readonly displayName: string;

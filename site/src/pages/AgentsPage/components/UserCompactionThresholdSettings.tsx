@@ -30,6 +30,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { formatProviderLabel } from "#/utils/aiProviders";
 import { cn } from "#/utils/cn";
+import { organizationsWithEnabledChatModels } from "../utils/modelOptions";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
 
 interface UserCompactionThresholdSettingsProps {
@@ -103,8 +104,9 @@ export const UserCompactionThresholdSettings: FC<
 			organization.display_name || organization.name,
 		]),
 	);
-	const organizationOptions = organizations.filter((organization) =>
-		enabledModels.some((config) => config.organization_id === organization.id),
+	const organizationOptions = organizationsWithEnabledChatModels(
+		organizations,
+		models,
 	);
 	const activeOrganization =
 		organizationOptions.find(
