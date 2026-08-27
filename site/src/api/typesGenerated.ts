@@ -2855,11 +2855,12 @@ export interface ChatModel {
 // From codersdk/chats.go
 /**
  * ChatModelACL is the access control list for an organization-scoped chat
- * model. Each principal is mapped to its effective model role.
+ * model. Each principal includes the identity details needed to display and
+ * manage the ACL without separate directory lookups.
  */
 export interface ChatModelACL {
-	readonly user_roles: Record<string, ChatRole>;
-	readonly group_roles: Record<string, ChatRole>;
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
 }
 
 // From codersdk/chats.go
@@ -3050,8 +3051,8 @@ export interface ChatModelOverridesResponse {
  * ChatModelProviderDescriptor is the redacted view of an AI provider carried
  * on the org model collection response. It carries only the capability
  * metadata the Models UI needs; key material, base URLs, and headers are
- * never exposed. The fields mirror what /api/experimental/chats/models
- * already discloses to any authenticated caller.
+ * never exposed. The fields mirror the provider descriptors returned by the
+ * organization-scoped chat models collection.
  */
 export interface ChatModelProviderDescriptor {
 	readonly id: string;
@@ -6324,12 +6325,6 @@ export interface NetcheckReport {
 	 * STUN server you're talking to (on IPv4).
 	 */
 	readonly MappingVariesByDestIP: boolean | null;
-	/**
-	 * HairPinning is whether the router supports communicating
-	 * between two local devices through the NATted public IP address
-	 * (on IPv4).
-	 */
-	readonly HairPinning: boolean | null;
 	/**
 	 * UPnP is whether UPnP appears present on the LAN.
 	 * Empty means not checked.

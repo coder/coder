@@ -2558,6 +2558,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/chats/{chat}/clear": {
+            "post": {
+                "description": "Resets the model context of an idle or errored chat,\nclearing any stored error. The reset commits\nsynchronously with no model call: the transcript is\npreserved and the next prompt starts from a fresh\ncontext.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Clear chat context",
+                "operationId": "clear-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/chats/{chat}/compact": {
             "post": {
                 "description": "Requests a manual context compaction on an idle or errored\nchat, clearing any stored error. The compaction runs\nasynchronously through the chat worker and bypasses the\nautomatic usage threshold.",
@@ -6203,10 +6242,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             },
             "post": {
                 "consumes": [
@@ -6250,10 +6286,7 @@ const docTemplate = `{
                     {
                         "CoderSessionToken": []
                     }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
+                ]
             }
         },
         "/api/v2/organizations/{organization}/chats/models/{model}": {
@@ -6475,6 +6508,76 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/organizations/{organization}/chats/models/{model}/acl/available": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get available AI model ACL users and groups",
+                "operationId": "get-available-ai-model-acl-users-and-groups",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization name or ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Model ID",
+                        "name": "model",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "User search query; free-text search also applies to groups",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User after ID",
+                        "name": "after_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit for users and groups, if 0 returns all candidates",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "User page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ACLAvailable"
+                        }
                     }
                 },
                 "security": [
@@ -20247,16 +20350,16 @@ const docTemplate = `{
         "codersdk.ChatModelACL": {
             "type": "object",
             "properties": {
-                "group_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatRole"
+                "groups": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatGroup"
                     }
                 },
-                "user_roles": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/codersdk.ChatRole"
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatUser"
                     }
                 }
             }
@@ -32701,10 +32804,6 @@ const docTemplate = `{
                 },
                 "globalV6": {
                     "description": "[ip]:port of global IPv6",
-                    "type": "string"
-                },
-                "hairPinning": {
-                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
                     "type": "string"
                 },
                 "icmpv4": {

@@ -139,7 +139,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-md text-content-primary flex-shrink-0"
+						className="size-icon-sm text-content-secondary flex-shrink-0"
 					/>
 				</div>
 			</TableCell>
