@@ -545,6 +545,22 @@ type Entitlements struct {
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
 	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
+	UsagePublishing  UsagePublishingStatus   `json:"usage_publishing"`
+}
+
+// UsagePublishingStatus describes publisher health observed by this coderd
+// process since startup. It is always present on Entitlements. Timestamps reset
+// on restart and may differ between replicas.
+type UsagePublishingStatus struct {
+	// PublishingEnabled is true if a currently valid license enables usage
+	// event publishing.
+	PublishingEnabled bool `json:"publishing_enabled"`
+	// LastPublishedAt is the latest time this process successfully persisted at
+	// least one accepted event. It is null until a successful publish occurs.
+	LastPublishedAt *time.Time `json:"last_published_at" format:"date-time"`
+	// FailingSince is the start of this process's current failure streak. It is
+	// null until the streak reaches the sustained failure threshold.
+	FailingSince *time.Time `json:"failing_since" format:"date-time"`
 }
 
 // AddFeature will add the feature to the entitlements iff it expands

@@ -2706,6 +2706,12 @@ export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	},
 };
 
+const MockUsagePublishingStatus: TypesGen.UsagePublishingStatus = {
+	publishing_enabled: false,
+	last_published_at: null,
+	failing_since: null,
+};
+
 export const MockEntitlements: TypesGen.Entitlements = {
 	errors: [],
 	warnings: [],
@@ -2723,6 +2729,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 };
 
 const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
@@ -2732,6 +2739,7 @@ const _MockEntitlementsWithWarnings: TypesGen.Entitlements = {
 	trial: false,
 	require_telemetry: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 	features: withDefaultFeatures({
 		user_limit: {
 			enabled: true,
@@ -2757,6 +2765,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 	features: withDefaultFeatures({
 		audit_log: {
 			enabled: true,
@@ -2772,6 +2781,7 @@ export const MockEntitlementsWithConnectionLog: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 	features: withDefaultFeatures({
 		connection_log: {
 			enabled: true,
@@ -2787,6 +2797,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 	features: withDefaultFeatures({
 		advanced_template_scheduling: {
 			enabled: true,
@@ -2802,6 +2813,7 @@ const _MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
 	require_telemetry: false,
 	trial: false,
 	refreshed_at: "2022-05-20T16:45:57.122Z",
+	usage_publishing: MockUsagePublishingStatus,
 	features: withDefaultFeatures({
 		user_limit: {
 			enabled: true,

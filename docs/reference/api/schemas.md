@@ -9132,6 +9132,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
   "trial": true,
+  "usage_publishing": {
+    "failing_since": "2019-08-24T14:15:22Z",
+    "last_published_at": "2019-08-24T14:15:22Z",
+    "publishing_enabled": true
+  },
   "warnings": [
     "string"
   ]
@@ -9140,16 +9145,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                | Type                                 | Required | Restrictions | Description |
-|---------------------|--------------------------------------|----------|--------------|-------------|
-| `errors`            | array of string                      | false    |              |             |
-| `features`          | object                               | false    |              |             |
-| » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
-| `has_license`       | boolean                              | false    |              |             |
-| `refreshed_at`      | string                               | false    |              |             |
-| `require_telemetry` | boolean                              | false    |              |             |
-| `trial`             | boolean                              | false    |              |             |
-| `warnings`          | array of string                      | false    |              |             |
+| Name                | Type                                                             | Required | Restrictions | Description |
+|---------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `errors`            | array of string                                                  | false    |              |             |
+| `features`          | object                                                           | false    |              |             |
+| » `[any property]`  | [codersdk.Feature](#codersdkfeature)                             | false    |              |             |
+| `has_license`       | boolean                                                          | false    |              |             |
+| `refreshed_at`      | string                                                           | false    |              |             |
+| `require_telemetry` | boolean                                                          | false    |              |             |
+| `trial`             | boolean                                                          | false    |              |             |
+| `usage_publishing`  | [codersdk.UsagePublishingStatus](#codersdkusagepublishingstatus) | false    |              |             |
+| `warnings`          | array of string                                                  | false    |              |             |
 
 ## codersdk.Experiment
 
@@ -16460,6 +16466,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `end`       | string | false    |              |             |
 | `issued_at` | string | false    |              |             |
 | `start`     | string | false    |              |             |
+
+## codersdk.UsagePublishingStatus
+
+```json
+{
+  "failing_since": "2019-08-24T14:15:22Z",
+  "last_published_at": "2019-08-24T14:15:22Z",
+  "publishing_enabled": true
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                         |
+|----------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `failing_since`      | string  | false    |              | Failing since is the start of this process's current failure streak. It is null until the streak reaches the sustained failure threshold.           |
+| `last_published_at`  | string  | false    |              | Last published at is the latest time this process successfully persisted at least one accepted event. It is null until a successful publish occurs. |
+| `publishing_enabled` | boolean | false    |              | Publishing enabled is true if a currently valid license enables usage event publishing.                                                             |
 
 ## codersdk.UsageStatsConfig
 

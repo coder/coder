@@ -5073,6 +5073,7 @@ export interface Entitlements {
 	readonly trial: boolean;
 	readonly require_telemetry: boolean;
 	readonly refreshed_at: string;
+	readonly usage_publishing: UsagePublishingStatus;
 }
 
 // From codersdk/client.go
@@ -5924,6 +5925,14 @@ export const LicenseManagedAgentLimitExceededWarningText =
 // From codersdk/licenses.go
 export const LicenseTelemetryRequiredErrorText =
 	"License requires telemetry but telemetry is disabled";
+
+// From codersdk/licenses.go
+/**
+ * LicenseUsagePublishingFailingWarningText is appended to entitlements
+ * warnings after a sustained usage publishing failure.
+ */
+export const LicenseUsagePublishingFailingWarningText =
+	"Coder has been unable to publish usage data to Coder's servers. Please check the deployment's connectivity and contact support if the issue persists.";
 
 // From codersdk/deployment.go
 export interface LinkConfig {
@@ -10468,6 +10477,30 @@ export interface UsagePeriod {
 	readonly issued_at: string;
 	readonly start: string;
 	readonly end: string;
+}
+
+// From codersdk/deployment.go
+/**
+ * UsagePublishingStatus describes publisher health observed by this coderd
+ * process since startup. It is always present on Entitlements. Timestamps reset
+ * on restart and may differ between replicas.
+ */
+export interface UsagePublishingStatus {
+	/**
+	 * PublishingEnabled is true if a currently valid license enables usage
+	 * event publishing.
+	 */
+	readonly publishing_enabled: boolean;
+	/**
+	 * LastPublishedAt is the latest time this process successfully persisted at
+	 * least one accepted event. It is null until a successful publish occurs.
+	 */
+	readonly last_published_at: string | null;
+	/**
+	 * FailingSince is the start of this process's current failure streak. It is
+	 * null until the streak reaches the sustained failure threshold.
+	 */
+	readonly failing_since: string | null;
 }
 
 // From codersdk/deployment.go
