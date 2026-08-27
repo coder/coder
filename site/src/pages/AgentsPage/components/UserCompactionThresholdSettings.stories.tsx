@@ -358,15 +358,16 @@ export const NoOrganizationCompactionOverride: Story = {
 };
 export const CompactionTriggersLoadError: Story = {
 	args: {
-		compactionTriggersError: new Error(
-			"Failed to load organization compaction settings. Warnings about earlier compaction may be missing.",
-		),
+		// A realistic transport failure: the explanatory copy must render
+		// instead of the raw error message.
+		compactionTriggersError: new Error("Network Error"),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.getByText(/Failed to load organization compaction settings/i),
 		).toBeVisible();
+		expect(canvas.queryByText(/Network Error/i)).not.toBeInTheDocument();
 		expect(
 			canvas.queryByText(/Compaction will trigger earlier/i),
 		).not.toBeInTheDocument();

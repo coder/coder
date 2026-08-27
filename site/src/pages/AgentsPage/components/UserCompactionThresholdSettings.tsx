@@ -332,10 +332,8 @@ export const UserCompactionThresholdSettings: FC<
 					)}
 					{compactionTriggersError != null && (
 						<p className="m-0 text-xs text-content-destructive">
-							{getErrorMessage(
-								compactionTriggersError,
-								"Failed to load organization compaction settings. Warnings about earlier compaction may be missing.",
-							)}
+							Failed to load organization compaction settings. Warnings about
+							earlier compaction may be missing.
 						</p>
 					)}
 					{organizationOptions.length > 1 && activeOrganization && (
