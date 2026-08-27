@@ -46,7 +46,11 @@ const meta = {
 			},
 		],
 		user: MockUserOwner,
-		permissions: { createTemplates: true, createUser: true },
+		permissions: {
+			createTemplates: true,
+			createUser: true,
+			viewWorkspaces: true,
+		},
 	},
 	decorators: [withToaster, withAuthProvider, withDashboardProvider],
 } satisfies Meta<typeof NotificationsPage>;
@@ -96,19 +100,52 @@ export const ToggleNotification: Story = {
 
 export const NonAdmin: Story = {
 	parameters: {
-		permissions: { createTemplates: false, createUser: false },
+		permissions: {
+			createTemplates: false,
+			createUser: false,
+			viewWorkspaces: true,
+		},
 	},
 };
 
 export const TemplateAdmin: Story = {
 	parameters: {
-		permissions: { createTemplates: true, createUser: false },
+		permissions: {
+			createTemplates: true,
+			createUser: false,
+			viewWorkspaces: true,
+		},
 	},
 };
 
 export const UserAdmin: Story = {
 	parameters: {
-		permissions: { createTemplates: false, createUser: true },
+		permissions: {
+			createTemplates: false,
+			createUser: true,
+			viewWorkspaces: true,
+		},
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	parameters: {
+		permissions: {
+			createTemplates: false,
+			createUser: false,
+			viewWorkspaces: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("switch", { name: "Chat Events" });
+
+		expect(
+			canvas.queryByRole("switch", { name: "Workspace Events" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("switch", { name: "Task Events" }),
+		).not.toBeInTheDocument();
 	},
 };
 

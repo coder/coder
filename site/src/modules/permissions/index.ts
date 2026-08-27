@@ -15,6 +15,14 @@ export const permissionChecks =
 	permissionChecksData as typeof permissionChecksData &
 		Record<string, AuthorizationCheck>;
 
+export const canViewWorkspaces = (permissions: Permissions): boolean => {
+	return permissions.viewWorkspaces !== false;
+};
+
+export const canViewTemplates = (permissions: Permissions): boolean => {
+	return permissions.viewTemplates !== false || canViewWorkspaces(permissions);
+};
+
 export const canAccessAnyChatModelConfig = (
 	permissions: Permissions | undefined,
 ): boolean => {

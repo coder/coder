@@ -18,6 +18,8 @@ export const roleDescriptions: Record<string, string> = {
 		"Organization template admin can manage templates and workspaces within this organization.",
 	"organization-auditor":
 		"Organization auditor can access audit logs for this organization.",
+	"organization-workspace-access":
+		"Grants access to create and use workspaces within this organization.",
 	"organization-workspace-creation-ban":
 		"Prevents this user from creating new workspaces in this organization.",
 	member:

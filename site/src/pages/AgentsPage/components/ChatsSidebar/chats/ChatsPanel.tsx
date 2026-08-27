@@ -364,7 +364,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			>
 				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
-						<NavLink to="/workspaces" className="inline-flex">
+						<NavLink to="/" className="inline-flex">
 							<ProductLogo className="size-6" />
 						</NavLink>
 					</div>

@@ -23,6 +23,7 @@ import {
 import { AdminSettingsDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
+import { RestrictedNavItem, restrictedNavMessages } from "./RestrictedNavItem";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
@@ -34,13 +35,16 @@ interface NavbarViewProps {
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
 	canViewModels: boolean;
+	canViewWorkspaces: boolean;
+	canViewTemplates: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
 
 const linkStyles = {
-	default:
-		"text-sm font-medium text-content-secondary no-underline block h-full px-2 flex items-center hover:text-content-primary transition-colors",
+	base: "text-sm font-medium no-underline block h-full px-2 flex items-center transition-colors",
+	default: "text-content-secondary hover:text-content-primary",
 	active: "text-content-primary",
+	disabled: "text-content-secondary",
 };
 
 export const NavbarView: FC<NavbarViewProps> = ({
@@ -51,6 +55,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	adminPermissions,
 	canCreateChat,
 	canViewModels,
+	canViewWorkspaces,
+	canViewTemplates,
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
@@ -75,7 +81,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 							: undefined,
 			}}
 		>
-			<NavLink to="/workspaces">
+			<NavLink to="/">
 				<ProductLogo className="h-7" />
 			</NavLink>
 
@@ -84,6 +90,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				user={user}
 				canViewModels={canViewModels}
 				canCreateChat={canCreateChat}
+				canViewWorkspaces={canViewWorkspaces}
+				canViewTemplates={canViewTemplates}
 			/>
 
 			{prerelease && buildInfo?.version && (
@@ -114,7 +122,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					</div>
 				))}
 
-				{proxyContextValue && (
+				{proxyContextValue && canViewWorkspaces && (
 					<div className="hidden md:block">
 						<ProxyMenu proxyContextValue={proxyContextValue} />
 					</div>
@@ -150,6 +158,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						proxyContextValue={proxyContextValue}
 						canViewModels={canViewModels}
 						adminPermissions={adminPermissions}
+						canViewWorkspaces={canViewWorkspaces}
+						canViewTemplates={canViewTemplates}
 						user={user}
 						supportLinks={supportLinks}
 						onSignOut={onSignOut}
@@ -165,6 +175,8 @@ interface NavItemsProps {
 	user: TypesGen.User;
 	canViewModels: boolean;
 	canCreateChat: boolean;
+	canViewWorkspaces: boolean;
+	canViewTemplates: boolean;
 }
 
 const NavItems: FC<NavItemsProps> = ({
@@ -172,35 +184,61 @@ const NavItems: FC<NavItemsProps> = ({
 	user,
 	canCreateChat,
 	canViewModels,
+	canViewWorkspaces,
+	canViewTemplates,
 }) => {
 	const location = useLocation();
 
 	return (
 		<nav className={cn("flex items-center gap-4 h-full", className)}>
-			<NavLink
-				className={({ isActive }) => {
-					if (location.pathname.startsWith("/@")) {
-						isActive = true;
-					}
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
-				to="/workspaces"
-			>
-				Workspaces
-			</NavLink>
-			<NavLink
-				className={({ isActive }) => {
-					return cn(linkStyles.default, { [linkStyles.active]: isActive });
-				}}
-				to="/templates"
-			>
-				Templates
-			</NavLink>
-			<TasksNavItem user={user} />
+			{canViewWorkspaces ? (
+				<NavLink
+					className={({ isActive }) => {
+						if (location.pathname.startsWith("/@")) {
+							isActive = true;
+						}
+						return cn(linkStyles.base, linkStyles.default, {
+							[linkStyles.active]: isActive,
+						});
+					}}
+					to="/workspaces"
+				>
+					Workspaces
+				</NavLink>
+			) : (
+				<RestrictedNavItem
+					className={cn(linkStyles.base, linkStyles.disabled)}
+					message={restrictedNavMessages.workspaces}
+				>
+					Workspaces
+				</RestrictedNavItem>
+			)}
+			{canViewTemplates ? (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.base, linkStyles.default, {
+							[linkStyles.active]: isActive,
+						});
+					}}
+					to="/templates"
+				>
+					Templates
+				</NavLink>
+			) : (
+				<RestrictedNavItem
+					className={cn(linkStyles.base, linkStyles.disabled)}
+					message={restrictedNavMessages.templates}
+				>
+					Templates
+				</RestrictedNavItem>
+			)}
+			<TasksNavItem user={user} canViewWorkspaces={canViewWorkspaces} />
 			{canViewModels && (
 				<NavLink
 					className={({ isActive }) =>
-						cn(linkStyles.default, { [linkStyles.active]: isActive })
+						cn(linkStyles.base, linkStyles.default, {
+							[linkStyles.active]: isActive,
+						})
 					}
 					to="/ai/settings/models"
 				>
@@ -210,7 +248,9 @@ const NavItems: FC<NavItemsProps> = ({
 			{canCreateChat && (
 				<NavLink
 					className={({ isActive }) => {
-						return cn(linkStyles.default, { [linkStyles.active]: isActive });
+						return cn(linkStyles.base, linkStyles.default, {
+							[linkStyles.active]: isActive,
+						});
 					}}
 					to="/agents"
 				>
@@ -223,9 +263,10 @@ const NavItems: FC<NavItemsProps> = ({
 
 type TasksNavItemProps = {
 	user: TypesGen.User;
+	canViewWorkspaces: boolean;
 };
 
-const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
+const TasksNavItem: FC<TasksNavItemProps> = ({ user, canViewWorkspaces }) => {
 	const canSeeTasks = useAITasksEnabled();
 	const filter: TypesGen.TasksFilter = {
 		owner: user.username,
@@ -234,7 +275,7 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		queryKey: ["tasks", filter],
 		queryFn: () => API.getTasks(filter),
 		refetchInterval: 1_000 * 60,
-		enabled: canSeeTasks,
+		enabled: canSeeTasks && canViewWorkspaces,
 		refetchOnWindowFocus: true,
 		initialData: [],
 		select: (data) =>
@@ -245,11 +286,24 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 		return null;
 	}
 
+	if (!canViewWorkspaces) {
+		return (
+			<RestrictedNavItem
+				className={cn(linkStyles.base, linkStyles.disabled)}
+				message={restrictedNavMessages.tasks}
+			>
+				Tasks
+			</RestrictedNavItem>
+		);
+	}
+
 	return (
 		<NavLink
 			to="/tasks"
 			className={({ isActive }) => {
-				return cn(linkStyles.default, { [linkStyles.active]: isActive });
+				return cn(linkStyles.base, linkStyles.default, {
+					[linkStyles.active]: isActive,
+				});
 			}}
 		>
 			Tasks

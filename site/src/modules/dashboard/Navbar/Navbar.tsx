@@ -8,6 +8,8 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	canAccessAnyChatModelConfig,
 	canViewDeploymentSettings,
+	canViewTemplates,
+	canViewWorkspaces,
 } from "#/modules/permissions";
 import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
@@ -53,6 +55,8 @@ export const Navbar: React.FC = () => {
 	const canViewModels =
 		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
 	const canCreateChat = permissions.createChat;
+	const canViewWorkspacesNav = canViewWorkspaces(permissions);
+	const canViewTemplatesNav = canViewTemplates(permissions);
 
 	const uniqueLinks = new Map<string, LinkConfig>();
 	for (const link of appearance.support_links ?? []) {
@@ -77,6 +81,8 @@ export const Navbar: React.FC = () => {
 			}}
 			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
+			canViewWorkspaces={canViewWorkspacesNav}
+			canViewTemplates={canViewTemplatesNav}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

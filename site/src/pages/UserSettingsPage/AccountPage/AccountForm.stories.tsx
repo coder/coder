@@ -8,6 +8,7 @@ const meta: Meta<typeof AccountForm> = {
 	args: {
 		email: "test-user@org.com",
 		isLoading: false,
+		showTemplateNameHelperText: true,
 		initialValues: {
 			username: "test-user",
 			name: "Test User",
@@ -48,5 +49,11 @@ export const WithError: Story = {
 export const Editable: Story = {
 	args: {
 		editable: true,
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	args: {
+		showTemplateNameHelperText: false,
 	},
 };

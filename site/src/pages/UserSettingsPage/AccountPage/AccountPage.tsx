@@ -9,6 +9,7 @@ import {
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { canViewWorkspaces } from "#/modules/permissions";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
@@ -36,6 +37,7 @@ const AccountPage: FC = () => {
 				<AccountForm
 					editable={permissions?.updateUsers ?? false}
 					email={me.email}
+					showTemplateNameHelperText={canViewWorkspaces(permissions)}
 					updateProfileError={updateProfileError}
 					isLoading={isUpdatingProfile}
 					initialValues={{

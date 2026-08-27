@@ -43,6 +43,8 @@ const meta: Meta<typeof MobileMenu> = {
 		supportLinks: MockSupportLinks,
 		onSignOut: fn(),
 		isDefaultOpen: true,
+		canViewWorkspaces: true,
+		canViewTemplates: true,
 		canViewModels: false,
 		adminPermissions: {
 			canViewDeployment: true,
@@ -95,6 +97,42 @@ export const Member: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
+	},
+};
+
+export const WithoutWorkspaceAccess: Story = {
+	args: {
+		user: MockUserMember,
+		adminPermissions: {},
+		canViewWorkspaces: false,
+		canViewTemplates: false,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		await body.findByText("Workspaces");
+
+		expect(
+			body.queryByRole("link", { name: "Workspaces" }),
+		).not.toBeInTheDocument();
+		expect(
+			body.queryByRole("menuitem", { name: /workspace proxy settings/i }),
+		).not.toBeInTheDocument();
+
+		// The reason is revealed on tap rather than always rendered.
+		expect(
+			body.queryByText(/workspaces are not available/i),
+		).not.toBeInTheDocument();
+		const item = body.getByRole("menuitem", {
+			name: "Workspaces (unavailable)",
+		});
+		// Radix removes items marked with its own `disabled` prop from roving
+		// focus, which puts the message out of keyboard reach.
+		expect(item).not.toHaveAttribute("data-disabled");
+
+		await user.click(item);
+		await body.findByText(/workspaces are not available/i);
+		expect(item).toHaveAttribute("aria-expanded", "true");
 	},
 };
 

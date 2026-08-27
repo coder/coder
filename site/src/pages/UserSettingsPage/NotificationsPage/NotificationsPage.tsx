@@ -38,7 +38,7 @@ import {
 	notificationIsDisabled,
 	selectDisabledPreferences,
 } from "#/modules/notifications/utils";
-import type { Permissions } from "#/modules/permissions";
+import { canViewWorkspaces, type Permissions } from "#/modules/permissions";
 import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { pageTitle } from "#/utils/page";
 
@@ -285,8 +285,9 @@ function canSeeNotificationGroup(
 		case "User Events":
 			return permissions.createUser;
 		case "Task Events":
-			return aiTasksEnabled;
+			return aiTasksEnabled && canViewWorkspaces(permissions);
 		case "Workspace Events":
+			return canViewWorkspaces(permissions);
 		case "Chat Events":
 		case "Custom Events":
 		case "AI Cost Control Events":
