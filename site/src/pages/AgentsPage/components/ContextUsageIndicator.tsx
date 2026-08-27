@@ -169,11 +169,11 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-// The ring is sized to the mic glyph's visual height rather than its box:
-// the lucide mic only fills ~16px of its 18px (size-icon-sm) box, so an
-// 18px ring reads larger than the mic. The stroke sits a step heavier than
-// the mic's (1.5px vs ~1.1px effective) per design.
-const RING_SIZE = 16;
+// Ring diameter per design review: sized against the neighboring mic glyph
+// (which fills ~16px of its 18px size-icon-sm box) plus 2px of presence all
+// around. The stroke sits a step heavier than the mic's thinned stroke
+// (1.5px vs ~1.1px effective).
+const RING_SIZE = 20;
 const RING_STROKE = 1.5;
 
 // Exclamation glyph shown when the pinned context drifted or failed to load.
@@ -181,7 +181,7 @@ const RING_STROKE = 1.5;
 // so it shares the ring's coordinate system and cannot drift off center: the
 // path (a 1.79427x14 design export) is scaled to GLYPH_HEIGHT and translated
 // to the exact canvas center.
-const GLYPH_HEIGHT = 9;
+const GLYPH_HEIGHT = 11;
 const GLYPH_PATH_WIDTH = 1.79427;
 const GLYPH_PATH_HEIGHT = 14;
 const GLYPH_SCALE = GLYPH_HEIGHT / GLYPH_PATH_HEIGHT;
@@ -625,6 +625,7 @@ export const ContextUsageIndicator: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
+				trackClassName="stroke-border"
 				progressClassName="stroke-current"
 				className={toneClassName}
 			/>
@@ -662,7 +663,14 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+				{/* flex keeps this wrapper exactly as tall as the inline-flex
+				    button; as a block it would add baseline descender space and
+				    push the ring above its row's vertical center. */}
+				<div
+					className="flex"
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={scheduleClose}
+				>
 					{triggerButton}
 				</div>
 			</PopoverTrigger>

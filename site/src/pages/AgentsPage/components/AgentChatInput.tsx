@@ -1563,11 +1563,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						)}
 						{contextUsage !== undefined && (
 							// The mic glyph is inset ~9px inside its size-7 button while
-							// the ring is inset 5px, so the flex gap alone reads wider on
+							// the ring is inset 4px, so the flex gap alone reads wider on
 							// the mic side. Pull the indicator left to equalize the
-							// visual gaps when the mic is shown.
+							// visual gaps when the mic is shown. flex keeps the wrapper
+							// exactly as tall as the trigger button.
 							<div
-								className={cn(speech.isSupported && !isStreaming && "-ml-2")}
+								className={cn(
+									"flex",
+									speech.isSupported && !isStreaming && "-ml-2",
+								)}
 							>
 								<ContextUsageIndicator
 									usage={contextUsage}
