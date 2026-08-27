@@ -251,13 +251,28 @@ func (c validatedCallbackURL) String() string {
 	return c.callback.String()
 }
 
+// reservedResponseParams are the RFC 6749 §4.1.2.1 and §4.1.2 parameters a
+// response states for itself. A registered callback may carry any of them,
+// since registration validates the scheme and rejects fragments but says
+// nothing about the query.
+var reservedResponseParams = []string{"code", "error", "error_description", "state"}
+
 // withQuery returns a copy of the callback with set applied to its query, plus
 // the state RFC 6749 §4.1.2.1 requires back unchanged whenever the client sent
-// one. Copied because one request builds several destinations from the same
-// callback, the consent page's cancel link and the error redirect among them.
+// one. The callback is copied rather than mutated because it is also what
+// String reports and what ProcessAuthorize records on the code row.
+//
+// §3.1.2 requires retaining the query a callback registered with, so it is kept
+// except for the reserved parameters, which are cleared before set runs. A
+// registered error= would otherwise ride out on a success response, where a
+// client following §4.1.2.1 reads error first and discards a valid code, and a
+// registered code= would ride out on a failure.
 func (c validatedCallbackURL) withQuery(state string, set func(url.Values)) *url.URL {
 	destination := *c.callback
 	query := destination.Query()
+	for _, param := range reservedResponseParams {
+		query.Del(param)
+	}
 	set(query)
 	if state != "" {
 		query.Set("state", state)
@@ -292,9 +307,6 @@ func sanitizeErrorDescription(description string) string {
 }
 
 // errorURL returns the callback carrying an RFC 6749 §4.1.2.1 error.
-//
-// Set, not Add, here and in codeURL: a registered callback may carry its own
-// state=, and appending would hand the client two values.
 func (c validatedCallbackURL) errorURL(state string, code codersdk.OAuth2ErrorCode, description string) *url.URL {
 	return c.withQuery(state, func(query url.Values) {
 		query.Set("error", string(code))

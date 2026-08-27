@@ -446,6 +446,45 @@ func TestOAuth2AuthorizeScopeNegotiation(t *testing.T) {
 		require.Equal(t, []string{authorizeState}, errLocation.Query()["state"],
 			"the error redirect must carry exactly one state")
 	})
+
+	// Registration validates the scheme and rejects fragments, so a callback
+	// registered with error= or code= in its query is accepted and reaches
+	// every response built from it.
+	t.Run("RegisteredResponseParamsDroppedRestRetained", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
+			Name:        testutil.GetRandomName(t),
+			CallbackURL: appCallbackURL + "?tenant=acme&error=preset&code=preset",
+			Scope:       sql.NullString{String: scopeInCatalog, Valid: true},
+		})
+
+		postResp := authorizeRequest(ctx, t, client, http.MethodPost, app.ID.String(), "")
+		defer postResp.Body.Close()
+		require.Equal(t, http.StatusFound, postResp.StatusCode)
+		location, err := url.Parse(postResp.Header.Get("Location"))
+		require.NoError(t, err)
+		success := location.Query()
+		require.Empty(t, success.Get("error"),
+			"a client reading error first would discard the code this response carries")
+		require.NotEqual(t, "preset", success.Get("code"),
+			"the code must be the one just issued, not the registered value")
+		require.NotEmpty(t, success.Get("code"))
+		require.Equal(t, "acme", success.Get("tenant"),
+			"§3.1.2 requires retaining the rest of the registered query")
+
+		errResp := authorizeRequest(ctx, t, client, http.MethodGet, app.ID.String(), scopeOutOfAllowlist)
+		defer errResp.Body.Close()
+		require.Equal(t, http.StatusFound, errResp.StatusCode)
+		errLocation, err := url.Parse(errResp.Header.Get("Location"))
+		require.NoError(t, err)
+		failure := errLocation.Query()
+		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), failure.Get("error"))
+		require.Empty(t, failure.Get("code"),
+			"a rejected request must not appear to carry a code")
+		require.Equal(t, "acme", failure.Get("tenant"))
+	})
 }
 
 // Registration performs no catalog validation, so an app can register an
