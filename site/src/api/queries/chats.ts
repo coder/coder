@@ -2328,6 +2328,24 @@ export const chatModelACL = (organizationId: string, modelId: string) => ({
 	enabled: organizationId !== "" && modelId !== "",
 });
 
+export const chatModelACLAvailableKey = (
+	organizationId: string,
+	modelId: string,
+	options: TypesGen.UsersRequest,
+) =>
+	[...chatModelACLKey(organizationId, modelId), "available", options] as const;
+
+export const chatModelACLAvailable = (
+	organizationId: string,
+	modelId: string,
+	options: TypesGen.UsersRequest,
+) => ({
+	queryKey: chatModelACLAvailableKey(organizationId, modelId, options),
+	queryFn: (): Promise<TypesGen.ACLAvailable> =>
+		API.experimental.getChatModelACLAvailable(organizationId, modelId, options),
+	enabled: organizationId !== "" && modelId !== "",
+});
+
 type UpdateChatModelACLMutationArgs = {
 	organizationId: string;
 	modelId: string;
