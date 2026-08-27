@@ -529,7 +529,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		? getAgentBrowserApp(workspaceAgent)
 		: undefined;
 
-	// Singleton panels the user can show or hide from the add-tab dropdown.
 	const singletonTabSupport: Record<SingletonRightPanelTabId, boolean> = {
 		browser: availableBrowserApp !== undefined,
 		desktop: availableDesktopChatId !== undefined,
