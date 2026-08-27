@@ -20,7 +20,7 @@
 
 @source "../node_modules/streamdown";
 
-@theme {
+@theme inline {
 	--font-sans: "Geist Variable", system-ui, sans-serif;
 	/* `monospace, monospace` resets the font-size to 16px with the fallback. */
 	--font-mono: "Geist Mono Variable", monospace, monospace;
