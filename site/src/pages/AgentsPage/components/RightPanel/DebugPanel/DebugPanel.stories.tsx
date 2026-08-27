@@ -740,6 +740,9 @@ const mcpConnectSummary = {
 			tool_count: 3,
 		},
 	],
+	// Entries beyond the retention cap; the card renders a
+	// truncation notice for them.
+	mcp_connect_dropped: 4,
 };
 
 export const RunWithMCPConnectSummary: Story = {
@@ -789,6 +792,9 @@ export const RunWithMCPConnectSummary: Story = {
 			expect(mcp.getByText("connect: context deadline exceeded")).toBeVisible();
 			expect(mcp.getByText("45ms")).toBeVisible();
 			expect(mcp.getByText("3 tools")).toBeVisible();
+			expect(
+				mcp.getByText("4 earlier connection samples omitted"),
+			).toBeVisible();
 		});
 	},
 };

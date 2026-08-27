@@ -11522,6 +11522,100 @@ func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnPrepareError(t *testing
 	}
 }
 
+func TestActiveServer_ChatTurnDebugRunRecordsMCPConnectOnFirstPrepareError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mcpSrv := newTestMCPServer("test-mcp")
+	addTestMCPTextTool(mcpSrv, "echo", "Echoes the input", "echo: ")
+	mcpTS := httptest.NewServer(testMCPHTTPHandler(mcpSrv))
+	t.Cleanup(mcpTS.Close)
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("Done!")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	mcpConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+		OrganizationID: org.ID,
+		DisplayName:    "Test MCP",
+		Slug:           "test-mcp",
+		Url:            mcpTS.URL,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+	})
+
+	// Armed from the start: the very first preparation connects to
+	// the MCP server and then fails reading the compaction override,
+	// so no model or compaction action ever creates the debug run
+	// through Ensure.
+	var failOverrideReads atomic.Bool
+	failOverrideReads.Store(true)
+	server := newActiveTestServer(t, &overrideReadFailStore{Store: db, fail: &failOverrideReads}, ps, func(cfg *chatd.Config) {
+		withoutMCPToolSearch(cfg)
+		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+		cfg.AlwaysEnableDebugLogs = true
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "mcp-connect-first-prepare-error-test",
+		ModelConfigID:  model.ID,
+		MCPServerIDs:   []uuid.UUID{mcpConfig.ID},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Say done."),
+		},
+	})
+	require.NoError(t, err)
+
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var chatTurnRuns []database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, runsErr := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if runsErr != nil {
+			return false
+		}
+		chatTurnRuns = chatTurnRuns[:0]
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) {
+				chatTurnRuns = append(chatTurnRuns, run)
+			}
+		}
+		return len(chatTurnRuns) == 1 && chatTurnRuns[0].FinishedAt.Valid
+	}, testutil.IntervalFast)
+
+	require.Len(t, chatTurnRuns, 1)
+	var summary struct {
+		MCPConnect []struct {
+			Slug    string `json:"slug"`
+			Outcome string `json:"outcome"`
+		} `json:"mcp_connect"`
+	}
+	require.NoError(t, json.Unmarshal(chatTurnRuns[0].Summary, &summary))
+	// Every preparation fails after its connect phase, so the run
+	// exists only because recording the outcomes created it; it must
+	// carry at least the first attempt's connect outcome.
+	require.GreaterOrEqual(t, len(summary.MCPConnect), 1)
+	for _, entry := range summary.MCPConnect {
+		require.Equal(t, "test-mcp", entry.Slug)
+		require.Equal(t, "connected", entry.Outcome)
+	}
+}
+
 func TestPlanModeRootChatApprovedExternalMCPToolInvocation(t *testing.T) {
 	t.Parallel()
 

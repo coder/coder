@@ -271,6 +271,13 @@ export const DebugRunCard: FC<DebugRunCardProps> = ({
 											</li>
 										))}
 									</ul>
+									{summaryVm.mcpConnectDropped > 0 ? (
+										<p className="m-0 pt-1.5 text-xs text-content-secondary">
+											{summaryVm.mcpConnectDropped} earlier connection{" "}
+											{summaryVm.mcpConnectDropped === 1 ? "sample" : "samples"}{" "}
+											omitted
+										</p>
+									) : null}
 								</section>
 							) : null}
 							{steps.map((step) => (

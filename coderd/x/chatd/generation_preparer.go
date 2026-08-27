@@ -314,6 +314,29 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	// Build the debug context before the connect phase so its
+	// outcomes can be recorded with run-creation context even when a
+	// later preparation step fails.
+	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
+	debugSvc := server.existingDebugService()
+	var debug *generationDebug
+	if resolved.debugEnabled {
+		if debugSvc == nil {
+			cleanup()
+			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
+		}
+		debug = &generationDebug{
+			Enabled:             true,
+			Service:             debugSvc,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			TriggerLabel:        triggerLabel,
+			ModelConfig:         modelConfig,
+		}
+	}
+
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
@@ -379,8 +402,8 @@ func (server *Server) prepareGeneration(
 	// Record connect outcomes before acting on any preparation error:
 	// ConnectAll has already run, so a failure below (or in g2 itself)
 	// would otherwise discard this attempt's outcomes.
-	if resolved.debugEnabled && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
-		input.RecordMCPConnectSummaries(mcpSummaries)
+	if debug != nil && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
+		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
 	}
 	if g2Err != nil {
 		cleanup()
@@ -649,26 +672,6 @@ func (server *Server) prepareGeneration(
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
 			toolNameToConfigID[t.Info().Name] = mcpTool.MCPServerConfigID()
-		}
-	}
-
-	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
-	debugSvc := server.existingDebugService()
-	var debug *generationDebug
-	if resolved.debugEnabled {
-		if debugSvc == nil {
-			cleanup()
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
-		}
-		debug = &generationDebug{
-			Enabled:             true,
-			Service:             debugSvc,
-			Provider:            resolved.resolvedProvider,
-			Model:               resolved.resolvedModel,
-			TriggerMessageID:    triggerMessageID,
-			HistoryTipMessageID: historyTipMessageID,
-			TriggerLabel:        triggerLabel,
-			ModelConfig:         modelConfig,
 		}
 	}
 

@@ -215,15 +215,16 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 	}}
 
 	// Preparation records each attempt as soon as its connect phase
-	// completes, so the first outcome lands before Ensure creates
-	// the run and must be seeded into it.
-	turn.RecordMCPConnectSummaries(first)
+	// completes; the first record creates the run with the outcome
+	// already seeded, and a later Ensure must not create a second
+	// run.
+	turn.RecordMCPConnectSummaries(ctx, database.Chat{ID: chatID}, &debug, first)
 	turn.Ensure(ctx, database.Chat{ID: chatID}, &debug)
 	// A later generation step reconnects and reports a degraded
 	// outcome for the same server; its action may never reach
 	// Ensure, and the outcome must still survive to the finalized
 	// summary.
-	turn.RecordMCPConnectSummaries(second)
+	turn.RecordMCPConnectSummaries(ctx, database.Chat{ID: chatID}, &debug, second)
 	turn.RecordOutcome(chatdebug.StatusCompleted)
 	turn.Finalize(ctx)
 
@@ -278,8 +279,14 @@ func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
 			return database.ChatDebugRun{ID: runID, ChatID: chatID}, nil
 		}).Times(1)
 
+	debug := generationDebug{
+		Enabled:          true,
+		Service:          svc,
+		TriggerMessageID: 1,
+		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
+	}
 	// 25 preparations against 5 servers produce 125 outcomes,
-	// overflowing the cap before the run exists.
+	// overflowing the cap. The first record creates the run.
 	for prep := 0; prep < 25; prep++ {
 		batch := make([]mcpclient.ConnectSummary, 5)
 		for server := range batch {
@@ -290,32 +297,23 @@ func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
 				DurationMS: int64(prep),
 			}
 		}
-		turn.RecordMCPConnectSummaries(batch)
+		turn.RecordMCPConnectSummaries(ctx, database.Chat{ID: chatID}, &debug, batch)
 	}
-
-	debug := generationDebug{
-		Enabled:          true,
-		Service:          svc,
-		TriggerMessageID: 1,
-		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
-	}
-	turn.Ensure(ctx, database.Chat{ID: chatID}, &debug)
 
 	type boundedSummary struct {
 		MCPConnect        []mcpclient.ConnectSummary `json:"mcp_connect"`
 		MCPConnectDropped int                        `json:"mcp_connect_dropped"`
 	}
+	// The run was created by the first record, so the seed carries
+	// only that preparation's outcomes.
 	var seeded boundedSummary
 	require.NoError(t, json.Unmarshal(seededSummary, &seeded))
-	require.Len(t, seeded.MCPConnect, maxMCPConnectSummaryEntries)
-	require.Equal(t, 25, seeded.MCPConnectDropped)
-	// The newest outcomes win: the five oldest preparations were
-	// dropped, so the retained history starts at preparation 5.
-	require.Equal(t, int64(5), seeded.MCPConnect[0].DurationMS)
+	require.Len(t, seeded.MCPConnect, 5)
+	require.Zero(t, seeded.MCPConnectDropped)
 
-	// A preparation recorded after the run exists still respects
-	// the cap and grows the dropped count.
-	turn.RecordMCPConnectSummaries([]mcpclient.ConnectSummary{{
+	// One more preparation still respects the cap and grows the
+	// dropped count.
+	turn.RecordMCPConnectSummaries(ctx, database.Chat{ID: chatID}, &debug, []mcpclient.ConnectSummary{{
 		ConfigID:   uuid.New(),
 		Slug:       "server-0",
 		Outcome:    mcpclient.ConnectOutcomeTimeout,
@@ -328,5 +326,9 @@ func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
 	require.NoError(t, json.Unmarshal(finalSummary, &final))
 	require.Len(t, final.MCPConnect, maxMCPConnectSummaryEntries)
 	require.Equal(t, 26, final.MCPConnectDropped)
+	// The newest outcomes win: the oldest five preparations were
+	// dropped, so the retained history starts at preparation 5 and
+	// ends with the timeout recorded above.
+	require.Equal(t, int64(5), final.MCPConnect[0].DurationMS)
 	require.Equal(t, mcpclient.ConnectOutcomeTimeout, final.MCPConnect[maxMCPConnectSummaryEntries-1].Outcome)
 }

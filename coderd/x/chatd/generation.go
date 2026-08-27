@@ -36,11 +36,18 @@ type generationPrepareInput struct {
 	Chat     database.Chat
 	Messages []database.ChatMessage
 	// RecordMCPConnectSummaries receives the preparation's per-server
-	// MCP connect outcomes as soon as the connect phase completes.
-	// Preparation invokes it directly (rather than returning the
-	// outcomes) so attempts that fail after connecting still record
-	// before their error discards the prepared state.
-	RecordMCPConnectSummaries func([]mcpclient.ConnectSummary)
+	// MCP connect outcomes as soon as the connect phase completes,
+	// with the debug context needed to create the run when no action
+	// ever reaches Ensure. Preparation invokes it directly (rather
+	// than returning the outcomes) so attempts that fail after
+	// connecting still record before their error discards the
+	// prepared state.
+	RecordMCPConnectSummaries func(
+		ctx context.Context,
+		chat database.Chat,
+		debug *generationDebug,
+		summaries []mcpclient.ConnectSummary,
+	)
 }
 
 // generationPrepared contains the side-effect inputs for a generation task.

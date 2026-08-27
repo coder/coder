@@ -50,7 +50,14 @@ func (d *runnerDebugTurn) Ensure(
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	return d.ensureLocked(ctx, chat, debug)
+}
 
+func (d *runnerDebugTurn) ensureLocked(
+	ctx context.Context,
+	chat database.Chat,
+	debug *generationDebug,
+) context.Context {
 	// Check finalized/disabled before created: once the turn is
 	// finalized, new contexts must not be attributed to the
 	// finalized run, even if it was created earlier.
@@ -134,15 +141,22 @@ func (d *runnerDebugTurn) Context(ctx context.Context) context.Context {
 }
 
 // RecordMCPConnectSummaries merges one preparation's per-server MCP
-// connect outcomes into the mcp_connect summary key. Preparation
-// invokes it as soon as its MCP connect phase completes, so every
-// attempt is recorded: preparations that fail after connecting,
-// decision errors, and actions that never reach Ensure (local tool
-// execution, requires-action, turn finishing). Outcomes recorded
-// before the run exists are stashed and seeded into the run when
-// Ensure creates it.
-func (d *runnerDebugTurn) RecordMCPConnectSummaries(summaries []mcpclient.ConnectSummary) {
-	if d == nil {
+// connect outcomes into the mcp_connect summary key, creating the
+// debug run if it does not exist yet. Preparation invokes it as soon
+// as its MCP connect phase completes, so every attempt is recorded:
+// preparations that fail after connecting, decision errors, and
+// actions that never reach Ensure (local tool execution,
+// requires-action, turn finishing). Creating the run here matters
+// when the first preparation connects and then fails: no model or
+// compaction action ever runs Ensure, and Finalize discards the
+// stash of a never-created run.
+func (d *runnerDebugTurn) RecordMCPConnectSummaries(
+	ctx context.Context,
+	chat database.Chat,
+	debug *generationDebug,
+	summaries []mcpclient.ConnectSummary,
+) {
+	if d == nil || len(summaries) == 0 {
 		return
 	}
 	d.mu.Lock()
@@ -150,7 +164,10 @@ func (d *runnerDebugTurn) RecordMCPConnectSummaries(summaries []mcpclient.Connec
 	if d.disabled || d.finalized {
 		return
 	}
+	// Merge before ensuring so the outcomes ride the seed summary
+	// when this call is the one that creates the run.
 	d.mergeMCPConnectSummariesLocked(summaries)
+	d.ensureLocked(ctx, chat, debug)
 }
 
 // maxMCPConnectSummaryEntries bounds the retained per-preparation MCP

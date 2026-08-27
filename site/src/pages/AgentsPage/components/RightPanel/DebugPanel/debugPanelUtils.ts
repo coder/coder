@@ -453,6 +453,7 @@ interface RunSummaryViewModel {
 	totalInputTokens: number | undefined;
 	totalOutputTokens: number | undefined;
 	mcpConnect: MCPConnectSummaryViewModel[];
+	mcpConnectDropped: number;
 	warnings: string[];
 }
 
@@ -913,6 +914,7 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 		totalInputTokens: undefined,
 		totalOutputTokens: undefined,
 		mcpConnect: [],
+		mcpConnectDropped: 0,
 		warnings: [],
 	};
 	const parsed = deepParse(data);
@@ -927,6 +929,9 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 			"primary_label",
 			"primaryLabel",
 		),
+	);
+	const mcpConnectDropped = toFiniteNumber(
+		pickField(parsed, "mcp_connect_dropped", "mcpConnectDropped"),
 	);
 	return {
 		primaryLabel: firstMessage ?? "",
@@ -963,6 +968,10 @@ export const coerceRunSummary = (data: unknown): RunSummaryViewModel => {
 		mcpConnect: coerceMCPConnectSummaries(
 			pickField(parsed, "mcp_connect", "mcpConnect"),
 		),
+		mcpConnectDropped:
+			mcpConnectDropped !== undefined && mcpConnectDropped > 0
+				? Math.floor(mcpConnectDropped)
+				: 0,
 		warnings: [],
 	};
 };

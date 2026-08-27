@@ -827,6 +827,7 @@ describe("coerceRunSummary", () => {
 			totalInputTokens: 120,
 			totalOutputTokens: 45,
 			mcpConnect: [],
+			mcpConnectDropped: 0,
 			warnings: [],
 		});
 	});
@@ -853,6 +854,7 @@ describe("coerceRunSummary", () => {
 			totalInputTokens: undefined,
 			totalOutputTokens: undefined,
 			mcpConnect: [],
+			mcpConnectDropped: 0,
 			warnings: [],
 		});
 	});
@@ -897,6 +899,22 @@ describe("coerceRunSummary", () => {
 
 	it("returns an empty MCP connect list for non-array values", () => {
 		expect(coerceRunSummary({ mcp_connect: "oops" }).mcpConnect).toEqual([]);
+	});
+
+	it("coerces the dropped MCP connect sample count", () => {
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: 25 }).mcpConnectDropped,
+		).toBe(25);
+		expect(coerceRunSummary({ mcpConnectDropped: "7" }).mcpConnectDropped).toBe(
+			7,
+		);
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: -3 }).mcpConnectDropped,
+		).toBe(0);
+		expect(
+			coerceRunSummary({ mcp_connect_dropped: "oops" }).mcpConnectDropped,
+		).toBe(0);
+		expect(coerceRunSummary({}).mcpConnectDropped).toBe(0);
 	});
 
 	it("unwraps JSON-string payloads before coercing", () => {
