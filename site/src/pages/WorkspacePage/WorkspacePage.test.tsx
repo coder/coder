@@ -56,7 +56,7 @@ const renderWorkspacePage = async (
 		path: "/:username/:workspace",
 	});
 
-	await screen.findByText(workspace.name);
+	await screen.findByRole("heading", { name: workspace.name });
 
 	return result;
 };
