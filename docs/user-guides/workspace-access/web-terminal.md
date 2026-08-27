@@ -15,7 +15,7 @@ and feature-rich terminal experience in your browser.
 
 ### Key Features
 
-- **Instant Access**: Click the terminal icon in your workspace to open a shell
+- **Instant Access**: Select the terminal icon in your workspace to open a shell
   session
 - **Persistent Sessions**: Sessions are maintained using reconnection tokens,
   allowing you to resume your terminal even after page refreshes or network
@@ -32,7 +32,7 @@ and feature-rich terminal experience in your browser.
 ### From the Dashboard
 
 1. Navigate to your workspace in the Coder dashboard
-2. Click the **Terminal** button or icon
+2. Select the **Terminal** button or icon
 3. The terminal will open in a new browser tab or window
 
 The terminal automatically connects to your workspace agent using an optimized
@@ -82,7 +82,7 @@ The terminal uses reconnection tokens to maintain session state:
 
 You can customize the terminal font through your user settings:
 
-1. Click your avatar in the top-right corner
+1. Select your avatar in the top-right corner
 2. Select **Settings** → **Appearance**
 3. Choose from available fonts:
    - **Geist Mono** (default)
@@ -139,8 +139,8 @@ The Web Terminal supports standard terminal keybindings:
 
 ## URL Handling
 
-The terminal automatically detects URLs and makes them clickable. When you click
-a URL:
+The terminal automatically detects URLs and makes them clickable.
+When you select a URL:
 
 - **External URLs** (e.g., `https://example.com`) open in a new tab
 - **Localhost URLs** (e.g., `http://localhost:3000`) are automatically
@@ -160,7 +160,7 @@ https://coder.example.com/@user/workspace/terminal?command=htop
 ```
 
 When a `?command=` parameter is present, a confirmation dialog is shown before
-the command executes. The user must click **Run command** to proceed or
+the command executes. The user must select **Run command** to proceed or
 **Cancel** to close the terminal window. This prevents external links from
 silently executing arbitrary commands in a workspace.
 

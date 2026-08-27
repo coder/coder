@@ -54,7 +54,7 @@ You can set this in two ways:
 ### Zed UI
 
 1. Open the **Assistant Panel** (right sidebar).
-1. Click **Configuration** or the settings icon.
+1. Select **Configuration** or the settings icon.
 1. Select your provider ("Anthropic" or "OpenAI").
 1. Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for the API Key.
 

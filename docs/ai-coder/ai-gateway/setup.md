@@ -42,7 +42,7 @@ without restarting `coderd`.
 
 1. Navigate to **Admin settings** > **AI**
 1. Select **Providers**
-1. Click **Add provider**
+1. Select **Add provider**
 1. Select the provider type
 1. Enter a unique lowercase name, the upstream endpoint, and the credentials
 1. Save the provider

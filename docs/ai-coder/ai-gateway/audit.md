@@ -65,7 +65,7 @@ Select one to view its full details.
 
 ### Session detail
 
-Click into a session to see a chronological causal chain of events.
+Open a session to see a chronological causal chain of events.
 
 Within a thread, each step shows token usage, tool call details (including
 arguments and MCP server URLs), duration, and any errors or warnings.

@@ -84,7 +84,7 @@ winget install Coder.CoderDesktop
 - [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (installed automatically if not present)
 - Windows App Runtime SDK (may require manual installation)
 
-✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to click **^** to show hidden icons)
+✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to select **^** to show hidden icons)
 
 </div>
 

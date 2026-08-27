@@ -160,7 +160,7 @@ user and generate a static access key:
    - This creates an IAM user with strictly-scoped permissions for Bedrock access.
 
 3. **Create an access key** for the IAM user:
-   - After generating the API key, click **"You can directly modify permissions for the IAM user associated"**.
+   - After generating the API key, select **"You can directly modify permissions for the IAM user associated"**.
    - In the IAM user page, navigate to the **Security credentials** tab.
    - Under **Access keys**, select **Create access key**.
    - Select **"Application running outside AWS"** as the use case.

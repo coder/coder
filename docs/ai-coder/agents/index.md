@@ -287,10 +287,9 @@ Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents recei
 
 Plan mode lets you ask the agent to investigate first and present a plan before
 implementation. Open the chat input menu and choose **Plan first** to enable it
-for the current chat. After you enable it, later turns in that chat stay in
-plan mode until you turn it off or click **Implement plan** after a proposed
-plan. Because the mode is stored on the chat, reloading the page preserves the
-current setting.
+for the current chat.
+After you enable it, later turns in that chat stay in plan mode until you turn it off or select **Implement plan** after a proposed plan.
+Because the mode is stored on the chat, reloading the page preserves the current setting.
 
 While plan mode is active:
 
@@ -303,6 +302,5 @@ While plan mode is active:
 - Dynamic tools, provider-native tools, and computer-use tools are not available.
 - Root plan-mode chats can also use external MCP tools that an administrator approved for plan mode.
 
-This keeps planning turns focused on analysis and plan authoring rather than
-implementation. Once you click **Implement plan**, the next turn runs in normal
-mode again.
+This keeps planning turns focused on analysis and plan authoring rather than implementation.
+Once you select **Implement plan**, the next turn runs in normal mode again.
