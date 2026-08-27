@@ -19,6 +19,7 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import AddModelPage from "./AddModelPage/AddModelPage";
+import ModelsPage from "./ModelsPage";
 import OrganizationModelsLayout from "./OrganizationModelsLayout";
 
 const LocationProbe = () => {
@@ -43,7 +44,16 @@ const meta: Meta<typeof OrganizationModelsLayout> = {
 				path: "/ai/settings/models",
 				searchParams: { org: MockDefaultOrganization.name },
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [
+						{ index: true, element: <ModelsPage /> },
+						{ path: "add", element: <AddModelPage /> },
+					],
+				},
+			],
 		}),
 		queries: [
 			{
@@ -92,7 +102,13 @@ export const SwitchOrganizationPreservesAuxiliaryParameters: Story = {
 					duplicate: "model-id",
 				},
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [{ path: "add", element: <AddModelPage /> }],
+				},
+			],
 		}),
 	},
 	render: () => (
@@ -128,7 +144,13 @@ export const InvalidRequestedOrganizationFallsBackToDefault: Story = {
 				path: "/ai/settings/models",
 				searchParams: { org: "missing" },
 			},
-			routing: [{ path: "*", useStoryElement: true }],
+			routing: [
+				{
+					path: "/ai/settings/models",
+					useStoryElement: true,
+					children: [{ index: true, element: <ModelsPage /> }],
+				},
+			],
 		}),
 	},
 	play: async ({ canvasElement }) => {
