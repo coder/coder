@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/watchdog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
@@ -802,65 +803,16 @@ type guardedAttempt struct {
 	finish  func(error) error
 }
 
-// streamSilenceGuard arbitrates whether an attempt times out while
-// waiting for the next stream part. Exactly one outcome wins: the
-// timer cancels the attempt, or release disarms the timer.
-type streamSilenceGuard struct {
-	mu      sync.Mutex
-	timer   *quartz.Timer
-	cancel  context.CancelCauseFunc
-	timeout time.Duration
-	settled bool
-}
-
+// newStreamSilenceGuard arms the watchdog that arbitrates whether an
+// attempt times out while waiting for the next stream part. Exactly
+// one outcome wins: the timer cancels the attempt, or Disarm stops
+// the timer.
 func newStreamSilenceGuard(
 	clock quartz.Clock,
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
-) *streamSilenceGuard {
-	guard := &streamSilenceGuard{
-		cancel:  cancel,
-		timeout: timeout,
-	}
-	guard.timer = clock.AfterFunc(
-		timeout,
-		guard.onTimeout,
-		streamSilenceGuardTimerTag,
-	)
-	return guard
-}
-
-func (g *streamSilenceGuard) settle() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.settled {
-		return false
-	}
-	g.settled = true
-	return true
-}
-
-func (g *streamSilenceGuard) onTimeout() {
-	if !g.settle() {
-		return
-	}
-	g.cancel(errStreamSilenceTimeout)
-}
-
-func (g *streamSilenceGuard) Reset() {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.settled {
-		return
-	}
-	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
-}
-
-func (g *streamSilenceGuard) Disarm() {
-	if !g.settle() {
-		return
-	}
-	g.timer.Stop()
+) *watchdog.Timer {
+	return watchdog.New(clock, timeout, cancel, errStreamSilenceTimeout, streamSilenceGuardTimerTag)
 }
 
 func classifyStreamSilenceTimeout(
