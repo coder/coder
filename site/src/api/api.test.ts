@@ -3,6 +3,7 @@ import {
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
+	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
@@ -661,6 +662,48 @@ describe("api.ts", () => {
 			expect(axiosInstance.patch).toHaveBeenCalledWith(
 				`/api/experimental/chats/${chatId}/acl`,
 				request,
+			);
+		});
+	});
+
+	describe("getOAuth2ProviderApps", () => {
+		const response: TypesGen.OAuth2ProviderAppsResponse = {
+			apps: [],
+			count: 0,
+		};
+
+		it("serializes every filter field", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: response });
+
+			await API.getOAuth2ProviderApps({
+				q: "foo",
+				limit: 10,
+				offset: 20,
+				after_id: "6e1b5d1c-2b02-4d3b-9f0a-2a8b1f0c1d2e",
+			});
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/apps?q=foo&limit=10&offset=20&after_id=6e1b5d1c-2b02-4d3b-9f0a-2a8b1f0c1d2e",
+			);
+		});
+
+		it("omits the query string when there is no filter", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: response });
+
+			await API.getOAuth2ProviderApps();
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				"/api/v2/oauth2-provider/apps",
+			);
+		});
+
+		it("omits unset fields when scoping to a user", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({ data: response });
+
+			await API.getOAuth2ProviderApps({ user_id: MockUserOwner.id });
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				`/api/v2/oauth2-provider/apps?user_id=${MockUserOwner.id}`,
 			);
 		});
 	});

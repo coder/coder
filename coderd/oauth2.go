@@ -20,7 +20,7 @@ import (
 // @Produce json
 // @Tags Enterprise
 // @Param user_id query string false "Filter by applications authorized for a user"
-// @Param q query string false "Search query filter. Bare terms match name or callback URL. Supports a search: qualifier."
+// @Param q query string false "Search query filter. Bare terms match name or callback URL, bare HTTP(S) URLs match the callback URL. Supports search: and url: qualifiers."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param after_id query string false "After ID for cursor pagination" format(uuid)

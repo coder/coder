@@ -382,6 +382,49 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, 5, page.Count)
 		require.Equal(t, expectedOrder[:2], page.Apps)
 
+		// Walking the cursor must report the same total on every page. The count
+		// describes the whole matching set, so it must not shrink as the cursor
+		// advances past rows.
+		cursor := page.Apps[len(page.Apps)-1].ID
+		secondPage, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			Pagination: codersdk.Pagination{Limit: 2, AfterID: cursor},
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedOrder[2:4], secondPage.Apps)
+		require.Equal(t, 5, secondPage.Count)
+
+		cursor = secondPage.Apps[len(secondPage.Apps)-1].ID
+		thirdPage, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			Pagination: codersdk.Pagination{Limit: 2, AfterID: cursor},
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedOrder[4:], thirdPage.Apps)
+		require.Equal(t, 5, thirdPage.Count)
+
+		cursor = thirdPage.Apps[len(thirdPage.Apps)-1].ID
+		emptyPage, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			Pagination: codersdk.Pagination{Limit: 2, AfterID: cursor},
+		})
+		require.NoError(t, err)
+		require.Empty(t, emptyPage.Apps)
+		require.Equal(t, 5, emptyPage.Count)
+
+		pastEnd, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			Pagination: codersdk.Pagination{Limit: 2, Offset: 10},
+		})
+		require.NoError(t, err)
+		require.Empty(t, pastEnd.Apps)
+		require.Equal(t, 5, pastEnd.Count)
+
+		// The count also ignores the cursor when a search narrows the set.
+		searched, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			SearchQuery: "app-",
+			Pagination:  codersdk.Pagination{Limit: 2, AfterID: expectedOrder[0].ID},
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedOrder[1:3], searched.Apps)
+		require.Equal(t, 5, searched.Count)
+
 		// Should be able to keep the same name when updating.
 		req := codersdk.PutOAuth2ProviderAppRequest{
 			Name:        expectedApps.Default.Name,
@@ -427,6 +470,50 @@ func TestOAuth2ProviderAppOperations(t *testing.T) {
 		require.Equal(t, 4, newApps.Count)
 
 		require.Equal(t, expectedOrder[1:], newApps.Apps)
+	})
+
+	t.Run("SearchByURL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		another, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		apps := generateApps(ctx, t, client, "search-url")
+
+		// A pasted callback URL matches on the callback URL instead of failing to
+		// parse because of the ':' in its scheme and port.
+		found, err := another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			SearchQuery: apps.Default.CallbackURL,
+		})
+		require.NoError(t, err)
+		require.Len(t, found.Apps, 1)
+		require.Equal(t, 1, found.Count)
+		require.Equal(t, apps.Default.ID, found.Apps[0].ID)
+
+		// The url filter matches the callback URL explicitly.
+		found, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			SearchQuery: fmt.Sprintf("url:%s", apps.Subdomain.CallbackURL),
+		})
+		require.NoError(t, err)
+		require.Len(t, found.Apps, 1)
+		require.Equal(t, apps.Subdomain.ID, found.Apps[0].ID)
+
+		// A URL is matched no matter where it appears in the query, and is
+		// combined with the other terms.
+		found, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			SearchQuery: fmt.Sprintf("%s %s", apps.Subdomain.Name, apps.Subdomain.CallbackURL),
+		})
+		require.NoError(t, err)
+		require.Len(t, found.Apps, 1)
+		require.Equal(t, apps.Subdomain.ID, found.Apps[0].ID)
+
+		// A name and URL belonging to different apps match nothing.
+		found, err = another.OAuth2ProviderApps(ctx, codersdk.OAuth2ProviderAppFilter{
+			SearchQuery: fmt.Sprintf("%s %s", apps.Default.Name, apps.Subdomain.CallbackURL),
+		})
+		require.NoError(t, err)
+		require.Empty(t, found.Apps)
+		require.Equal(t, 0, found.Count)
 	})
 
 	t.Run("ByUser", func(t *testing.T) {

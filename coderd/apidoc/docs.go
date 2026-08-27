@@ -5602,7 +5602,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search query filter. Bare terms match name or callback URL. Supports a search: qualifier.",
+                        "description": "Search query filter. Bare terms match name or callback URL, bare HTTP(S) URLs match the callback URL. Supports search: and url: qualifiers.",
                         "name": "q",
                         "in": "query"
                     },

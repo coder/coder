@@ -49,7 +49,7 @@ type OAuth2ProviderAppsResponse struct {
 // Coder as an OAuth2 provider.
 func (c *Client) OAuth2ProviderApps(ctx context.Context, filter OAuth2ProviderAppFilter) (OAuth2ProviderAppsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/oauth2-provider/apps", nil,
-		filter.Pagination.asRequestOption(),
+		filter.asRequestOption(),
 		func(r *http.Request) {
 			q := r.URL.Query()
 			if filter.UserID != uuid.Nil {

@@ -75,23 +75,12 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		}
 
 		// Global listing supports free-text search and pagination.
-		parser := httpapi.NewQueryParamParser()
-		// PositiveInt32 rejects values outside [0, math.MaxInt32] with a validation
-		// error, so these cannot silently truncate. Keeping them as int32 avoids a
-		// lossy int round-trip. A limit of 0 is interpreted by the SQL query as
-		// "no limit"; do not change this default.
-		afterID := parser.UUID(queryParams, uuid.Nil, "after_id")
-		limit := parser.PositiveInt32(queryParams, 0, "limit")
-		offset := parser.PositiveInt32(queryParams, 0, "offset")
-		if len(parser.Errors) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message:     "Query parameters have invalid values.",
-				Validations: parser.Errors,
-			})
+		page, ok := httpapi.ParsePagination(rw, r)
+		if !ok {
 			return
 		}
 
-		filter, errs := searchquery.OAuth2ProviderApps(queryParams.Get("q"))
+		filter, errs := searchquery.OAuth2ProviderApps(queryParams.Get("q"), page)
 		if len(errs) > 0 {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message:     "Invalid OAuth2 application search query.",
@@ -99,9 +88,6 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 			})
 			return
 		}
-		filter.AfterID = afterID
-		filter.LimitOpt = limit
-		filter.OffsetOpt = offset
 
 		dbApps, err := db.GetOAuth2ProviderApps(ctx, filter)
 		if err != nil {
@@ -111,6 +97,22 @@ func ListApps(db database.Store, accessURL *url.URL) http.HandlerFunc {
 		count := 0
 		if len(dbApps) > 0 {
 			count = int(dbApps[0].Count)
+		} else if filter.AfterID != uuid.Nil || filter.OffsetOpt > 0 {
+			// An empty page has no row to carry the window count. Fetch one row
+			// without pagination so the response still reports the total matching
+			// count when the cursor or offset is past the end.
+			countRows, err := db.GetOAuth2ProviderApps(ctx, database.GetOAuth2ProviderAppsParams{
+				Search:   filter.Search,
+				Url:      filter.Url,
+				LimitOpt: 1,
+			})
+			if err != nil {
+				httpapi.InternalServerError(rw, err)
+				return
+			}
+			if len(countRows) > 0 {
+				count = int(countRows[0].Count)
+			}
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, codersdk.OAuth2ProviderAppsResponse{
 			Apps:  db2sdk.OAuth2ProviderAppsFromRows(accessURL, dbApps),

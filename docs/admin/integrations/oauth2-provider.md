@@ -76,6 +76,17 @@ curl -X GET \
   "$CODER_URL/api/v2/oauth2-provider/apps?q=github&limit=25&offset=0"
 ```
 
+The `q` parameter also accepts `key:value` filters:
+
+| Filter    | Matches                                  |
+|-----------|------------------------------------------|
+| `search:` | The application name or its callback URL |
+| `url:`    | The callback URL only                    |
+
+A term that starts with `http://` or `https://` filters on the callback URL, so
+you can paste a callback URL directly and combine it with other terms, for
+example `q=github https://example.com/callback`. Filters are combined with AND.
+
 The response wraps the applications in an object with a total `count`:
 
 ```json
