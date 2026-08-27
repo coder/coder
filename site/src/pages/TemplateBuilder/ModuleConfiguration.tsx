@@ -1,4 +1,5 @@
-import { CheckIcon, TrashIcon } from "lucide-react";
+import { CheckIcon, InfoIcon, TrashIcon } from "lucide-react";
+import type { TemplateBuilderModuleVariable } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { TemplateBuilderAvatarData } from "#/pages/TemplateBuilder/TemplateBuilderAvatarData";
@@ -16,6 +17,13 @@ type ModuleConfigurationProps = {
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
 	optionalFields?: ConfigurationFieldDefinition[];
+	/**
+	 * Sensitive variables belonging to this module. Rendered as an info note
+	 * at the bottom of the module's grey card because their values are
+	 * collected from the developer at workspace creation, not during template
+	 * composition.
+	 */
+	sensitiveVariables?: TemplateBuilderModuleVariable[];
 };
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
@@ -26,6 +34,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	onRemove,
 	fields,
 	optionalFields,
+	sensitiveVariables,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -70,6 +79,26 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 				<div className="text-xs text-content-secondary flex items-center gap-2 mt-4">
 					<CheckIcon className="size-4" />
 					No configuration required.
+				</div>
+			)}
+
+			{sensitiveVariables && sensitiveVariables.length > 0 && (
+				<div
+					className="flex items-start gap-2 mt-4 text-xs text-content-secondary"
+					data-testid="module-sensitive-variables"
+				>
+					<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />
+					<p className="m-0">
+						{sensitiveVariables.map((v) => (
+							<code
+								key={v.name}
+								className="mr-1 px-1.5 py-1 bg-surface-tertiary rounded-sm"
+							>
+								{v.name}
+							</code>
+						))}
+						will be collected from developers at workspace creation.
+					</p>
 				</div>
 			)}
 		</section>
