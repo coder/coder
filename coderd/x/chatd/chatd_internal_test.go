@@ -86,6 +86,34 @@ func (t *testMCPAgentTool) MCPServerConfigID() uuid.UUID {
 	return t.configID
 }
 
+func TestFailChatSummaryGeneration(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ps := newRecordingPubsub(dbpubsub.NewInMemory())
+	server := &Server{db: db, pubsub: ps}
+	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+	generationStartedAt := time.Now()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	db.EXPECT().ClearChatSummaryGeneration(gomock.Any(), database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	}).Return(nil)
+
+	server.failChatSummaryGeneration(
+		context.Background(),
+		logger,
+		chat,
+		generationStartedAt,
+	)
+
+	events := ps.watchEvents(t)
+	require.Len(t, events, 1)
+	require.Equal(t, codersdk.ChatWatchEventKindChatSummaryFailed, events[0].Kind)
+}
+
 func TestUpdateChatSummary(t *testing.T) {
 	t.Parallel()
 

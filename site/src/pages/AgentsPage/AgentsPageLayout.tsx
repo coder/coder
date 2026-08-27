@@ -138,6 +138,7 @@ export const shouldInvalidateFilteredChatList = (
 // status, so invalidate the root-keyed cost query when those events arrive.
 const POST_TURN_BILLED_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 	"chat_summary_change",
+	"chat_summary_failed",
 	"summary_change",
 	"title_change",
 ]);
@@ -577,6 +578,15 @@ const AgentsPageLayout: FC = () => {
 				return next;
 			});
 		};
+		const clearAllSummaryGenerating = () => {
+			for (const timeout of summaryGeneratingTimeouts.values()) {
+				clearTimeout(timeout);
+			}
+			summaryGeneratingTimeouts.clear();
+			setSummaryGeneratingChatIds((current) =>
+				current.size === 0 ? current : new Set(),
+			);
+		};
 		const markSummaryGenerating = (chatId: string) => {
 			const previousTimeout = summaryGeneratingTimeouts.get(chatId);
 			if (previousTimeout !== undefined) {
@@ -610,6 +620,7 @@ const AgentsPageLayout: FC = () => {
 						markSummaryGenerating(updatedChat.id);
 					} else if (
 						chatEvent.kind === "chat_summary_change" ||
+						chatEvent.kind === "chat_summary_failed" ||
 						chatEvent.kind === "deleted"
 					) {
 						const timeout = summaryGeneratingTimeouts.get(updatedChat.id);
@@ -725,6 +736,19 @@ const AgentsPageLayout: FC = () => {
 				return ws;
 			},
 			onOpen() {
+				clearAllSummaryGenerating();
+				const activeChatId = activeChatIDRef.current;
+				if (activeChatId) {
+					const activeChat = queryClient.getQueryData<TypesGen.Chat>(
+						chatEntityKey(activeChatId),
+					);
+					if (activeChat) {
+						const costChatId = getChatCostTreeID(activeChat);
+						if (costChatId) {
+							void invalidateChatCostTree(queryClient, costChatId);
+						}
+					}
+				}
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);

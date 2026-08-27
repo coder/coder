@@ -3629,6 +3629,7 @@ export interface ChatWatchEvent {
 export type ChatWatchEventKind =
 	| "action_required"
 	| "chat_summary_change"
+	| "chat_summary_failed"
 	| "chat_summary_generating"
 	| "context_dirty"
 	| "created"
@@ -3641,6 +3642,7 @@ export type ChatWatchEventKind =
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
 	"chat_summary_change",
+	"chat_summary_failed",
 	"chat_summary_generating",
 	"context_dirty",
 	"created",

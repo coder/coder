@@ -1069,7 +1069,10 @@ const chatWatchEvent = (
 
 const watchedChatPageParameters = (
 	chat: Chat,
-	watchEvents: readonly ReturnType<typeof chatWatchEvent>[],
+	watchEvents: readonly (
+		| ReturnType<typeof chatWatchEvent>
+		| { event: "open"; delayMs?: number }
+	)[],
 ) => ({
 	queries: watchedChatQueries(chat),
 	webSocket: {
@@ -1132,6 +1135,84 @@ export const SummaryWatchEventsUpdateOpenPanel: Story = {
 		expect(
 			await summary.findByText(
 				"Generated summary from the watch event.",
+				{},
+				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const SummaryReconnectClearsStaleGeneratingState: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
+		{ event: "open", delayMs: 3_000 },
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(
+			await summary.findByText("Not enough details to summarize."),
+		).toBeVisible();
+		expect(
+			await summary.findByRole("status", undefined, { timeout: 3_000 }),
+		).toHaveTextContent("Generating summary");
+		expect(
+			await summary.findByText(
+				"Not enough details to summarize.",
+				{},
+				{ timeout: 5_000 },
+			),
+		).toBeVisible();
+		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+	},
+};
+
+export const SummaryFailureClearsGeneratingState: Story = {
+	decorators: [withProxyProvider()],
+	beforeEach: () => {
+		mockChats([watchedChat()]);
+		const cleanup = mockAgentChatPageAPIs();
+		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
+		return () => {
+			clearPersistedSidebarTabId(WATCHED_CHAT_ID);
+			cleanup();
+		};
+	},
+	parameters: watchedChatPageParameters(watchedChat(), [
+		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
+		chatWatchEvent("chat_summary_failed", watchedChat(), 3_000),
+	]),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryPanel = await canvas.findByRole("tabpanel", {
+			name: "Summary",
+		});
+		const summary = within(summaryPanel);
+		expect(
+			await summary.findByText("Not enough details to summarize."),
+		).toBeVisible();
+		expect(
+			await summary.findByRole("status", undefined, { timeout: 3_000 }),
+		).toHaveTextContent("Generating summary");
+		expect(
+			await summary.findByText(
+				"Not enough details to summarize.",
 				{},
 				{ timeout: 5_000 },
 			),

@@ -4895,7 +4895,12 @@ func (p *Server) generateAndStoreChatSummary(
 			slog.F("chat_id", chat.ID), slog.Error(err))
 		return
 	}
-	defer p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt)
+	summaryStored := false
+	defer func() {
+		if !summaryStored {
+			p.failChatSummaryGeneration(ctx, logger, chat, generationStartedAt)
+		}
+	}()
 
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryGenerating, nil)
 
@@ -4909,7 +4914,7 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{
+	summaryStored = p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{
 		Time:  generationStartedAt,
 		Valid: true,
 	}, summary)
@@ -4984,6 +4989,16 @@ func (p *Server) clearChatSummaryGeneration(
 	}
 }
 
+func (p *Server) failChatSummaryGeneration(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+	generationStartedAt time.Time,
+) {
+	p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryFailed, nil)
+}
+
 // updateChatSummary persists the whole-chat summary. Best-effort background
 // write (pass a detached context); a blank summary is a no-op, never clearing
 // an existing one.
@@ -4994,10 +5009,10 @@ func (p *Server) updateChatSummary(
 	expectedHistoryVersion int64,
 	expectedGenerationStartedAt sql.NullTime,
 	summary string,
-) {
+) bool {
 	summary = strings.TrimSpace(summary)
 	if summary == "" {
-		return
+		return false
 	}
 	sqlSummary := sql.NullString{String: summary, Valid: true}
 
@@ -5013,7 +5028,7 @@ func (p *Server) updateChatSummary(
 	if err != nil {
 		logger.Warn(ctx, "failed to update chat summary",
 			slog.F("chat_id", chat.ID), slog.Error(err))
-		return
+		return false
 	}
 	if affected == 0 {
 		logger.Info(ctx, "skipped stale chat summary update",
@@ -5021,7 +5036,7 @@ func (p *Server) updateChatSummary(
 			slog.F("summary_length", len(summary)),
 			slog.F("expected_history_version", expectedHistoryVersion),
 		)
-		return
+		return false
 	}
 
 	if expectedGenerationStartedAt.Valid {
@@ -5031,6 +5046,7 @@ func (p *Server) updateChatSummary(
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
+	return true
 }
 
 func (p *Server) storeSubagentReportSummaryAsync(
@@ -5070,7 +5086,7 @@ func (p *Server) storeSubagentReportSummary(
 	if summary == "" {
 		return
 	}
-	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{}, summary)
+	_ = p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{}, summary)
 }
 
 func (p *Server) webpushConfigured() bool {

@@ -1872,6 +1872,7 @@ const (
 	// the frontend updates one field without disturbing the other.
 	ChatWatchEventKindChatSummaryChange     ChatWatchEventKind = "chat_summary_change"
 	ChatWatchEventKindChatSummaryGenerating ChatWatchEventKind = "chat_summary_generating"
+	ChatWatchEventKindChatSummaryFailed     ChatWatchEventKind = "chat_summary_failed"
 	ChatWatchEventKindTitleChange           ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated               ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted               ChatWatchEventKind = "deleted"
