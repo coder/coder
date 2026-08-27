@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -5137,9 +5138,9 @@ var templateBuilderRegistrySchemePattern = regexp.MustCompile(`(?i)^https?://`)
 // CODER_TEMPLATE_BUILDER_REGISTRY_URL into the bare host a Terraform module
 // source expects, defaulting to DefaultTemplateBuilderRegistryURL when empty.
 // It strips an http(s):// scheme and trailing slashes, then delegates host
-// validation to svchost.ForComparison, the same parser `terraform init` uses,
-// so this stays in lockstep with what Terraform accepts. The error never echoes
-// the input, so a credential in a misconfigured value is not disclosed.
+// validation to svchost, the same parser `terraform init` uses, and returns the
+// display (Unicode) form a module source resolves through. The error names the
+// broken rule but never echoes a credential in a misconfigured value.
 func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -5147,7 +5148,7 @@ func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 	}
 	host := strings.TrimRight(templateBuilderRegistrySchemePattern.ReplaceAllString(trimmed, ""), "/")
 
-	// Name the specific broken rule where we can, without echoing the input.
+	// Reject these before svchost runs so the error cannot echo a credential.
 	switch {
 	case strings.ContainsRune(host, '@'):
 		return "", newTemplateBuilderRegistryURLError("it must not contain credentials")
@@ -5161,13 +5162,30 @@ func NormalizeTemplateBuilderRegistryURL(raw string) (string, error) {
 		return "", newTemplateBuilderRegistryURLError("IPv6 address literals are not supported")
 	}
 
-	// svchost.ForComparison can echo the input in its error, so map any failure
-	// to the generic non-echoing rejection rather than surfacing it.
+	// Credentials are already rejected, so svchost's diagnosis names the broken
+	// rule without disclosing a secret.
 	normalized, err := svchost.ForComparison(host)
 	if err != nil {
-		return "", newTemplateBuilderRegistryURLError("")
+		return "", newTemplateBuilderRegistryURLError(err.Error())
 	}
-	return string(normalized), nil
+	// A Terraform module source expects an IDN host in Unicode, not the punycode
+	// comparison form.
+	display := normalized.ForDisplay()
+
+	// svchost accepts shapes a module source cannot resolve: an out-of-range port
+	// and an empty label (for example from an ignorable Unicode rune). Reject them
+	// so the result is a host Terraform will actually resolve.
+	name := display
+	if h, port, splitErr := net.SplitHostPort(display); splitErr == nil {
+		name = h
+		if p, convErr := strconv.Atoi(port); convErr != nil || p < 1 || p > 65535 {
+			return "", newTemplateBuilderRegistryURLError("the port must be between 1 and 65535")
+		}
+	}
+	if strings.HasPrefix(name, ".") || strings.Contains(name, "..") {
+		return "", newTemplateBuilderRegistryURLError("it must not contain an empty label")
+	}
+	return display, nil
 }
 
 // newTemplateBuilderRegistryURLError builds the operator-facing rejection for a

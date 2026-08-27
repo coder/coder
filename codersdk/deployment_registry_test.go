@@ -31,11 +31,12 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 			{"UppercaseSchemeStripped", "HTTPS://mirror.example.com", "mirror.example.com"},
 			{"TrailingSlashStripped", "https://mirror.example.com/", "mirror.example.com"},
 			{"TrailingSlashesStripped", "mirror.example.com///", "mirror.example.com"},
-			// svchost.ForComparison (the parser Terraform uses) defines these
-			// normalizations; the old hand-rolled regex diverged from `terraform
-			// init` by rejecting the Unicode/FQDN cases and preserving :443.
+			// svchost (the parser Terraform uses) defines these normalizations. An IDN
+			// host is returned in its Unicode display form, since that is what a
+			// Terraform module source resolves; a trailing-dot FQDN and the :443 default
+			// port match `terraform init`.
 			{"HostLowercased", "Registry.Coder.Com", "registry.coder.com"},
-			{"UnicodeHostPunycoded", "m\u00fcnchen.example", "xn--mnchen-3ya.example"},
+			{"UnicodeHostDisplayed", "m\u00fcnchen.example", "m\u00fcnchen.example"},
 			{"TrailingDotFQDN", "registry.coder.com.", "registry.coder.com."},
 			{"DefaultPortDropped", "mirror.example.com:443", "mirror.example.com"},
 		}
@@ -45,6 +46,11 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 				got, err := codersdk.NormalizeTemplateBuilderRegistryURL(tc.in)
 				require.NoError(t, err)
 				require.Equal(t, tc.want, got)
+				// Normalization is idempotent: an already-canonical value normalizes
+				// to itself, so a rendered source cannot drift on a second pass.
+				roundTrip, err := codersdk.NormalizeTemplateBuilderRegistryURL(tc.want)
+				require.NoError(t, err)
+				require.Equal(t, tc.want, roundTrip)
 			})
 		}
 	})
@@ -67,12 +73,17 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 			{"VerticalTab", "mirror\v.example.com"},
 			{"SchemeOnly", "https://"},
 			{"LeadingDot", ".mirror.example.com"},
-			// Over/under-rejection class: validating by svchost makes these agree
-			// with Terraform (raw punycode, underscores, port >65535, and IPv6
-			// literals are all rejected).
+			// Over/under-rejection class: validating by svchost makes these agree with
+			// Terraform (raw punycode, underscores, port >65535, and IPv6 literals are
+			// all rejected). An out-of-range low port and an empty label (for example
+			// from an ignorable Unicode rune) render an unresolvable source, so they are
+			// rejected too.
 			{"RawPunycode", "xn--mnchen-3ya.example"},
 			{"Underscore", "under_score.example"},
 			{"PortTooHigh", "mirror.example.com:99999"},
+			{"PortZero", "mirror.example.com:0"},
+			{"PortNegative", "mirror.example.com:-1"},
+			{"EmptyLabelFromIgnorableRune", "\u200b.example.com"},
 			{"IPv6", "[::1]:8443"},
 		}
 		for _, tc := range cases {
@@ -88,14 +99,19 @@ func TestNormalizeTemplateBuilderRegistryURL(t *testing.T) {
 	t.Run("ErrorNamesBrokenRuleWithoutEchoingInput", func(t *testing.T) {
 		t.Parallel()
 		// The rejection names the specific broken rule so an operator can fix it,
-		// but never echoes the input, so a credential is not disclosed. It also no
-		// longer claims "no scheme", since a scheme is stripped before validation.
+		// forwarding svchost's diagnosis for the cases it owns, and never claims "no
+		// scheme", since a scheme is stripped before validation. Credentials are
+		// rejected before svchost runs, so no forwarded reason echoes a secret.
 		cases := []struct {
 			name, in, reason string
 		}{
 			{"Credentials", "https://user:s3cr3t-token@mirror.example.com", "credentials"},
 			{"Path", "mirror.example.com/coder", "path"},
 			{"IPv6", "[::1]:8443", "IPv6"},
+			{"Underscore", "under_score.example", "disallowed"},
+			{"RawPunycode", "xn--mnchen-3ya.example", "unicode"},
+			{"PortTooLow", "mirror.example.com:0", "port"},
+			{"EmptyLabel", "\u200b.example.com", "empty label"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -174,12 +190,12 @@ func TestDeploymentValues_Validate_TemplateBuilderRegistryURL(t *testing.T) {
 		dv.Sessions.RefreshDefaultDuration = serpent.Duration(48 * time.Hour)
 		opts := dv.Options()
 
-		const credURL = "https://user:s3cr3t-token@mirror.example.com"
-		doc := map[string]any{"templateBuilder": map[string]any{"registryURL": credURL}}
+		const userinfoURL = "https://user:s3cr3t-token@mirror.example.com"
+		doc := map[string]any{"templateBuilder": map[string]any{"registryURL": userinfoURL}}
 		var node yaml.Node
 		require.NoError(t, node.Encode(doc))
 		require.NoError(t, opts.UnmarshalYAML(&node))
-		require.Equal(t, credURL, dv.TemplateBuilder.RegistryURL.Value(),
+		require.Equal(t, userinfoURL, dv.TemplateBuilder.RegistryURL.Value(),
 			"YAML unmarshal stores the value verbatim; validation happens in Validate()")
 
 		err := dv.Validate()

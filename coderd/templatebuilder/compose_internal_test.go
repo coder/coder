@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -156,20 +157,38 @@ func TestMergeModuleVariables(t *testing.T) {
 	})
 }
 
-func TestValidateRenderedBaseHCL(t *testing.T) {
+func TestValidateRenderedHCL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ValidHCL", func(t *testing.T) {
 		t.Parallel()
-		require.NoError(t, validateRenderedBaseHCL([]byte(`resource "coder_agent" "main" {}`)))
+		require.NoError(t, validateRenderedHCL([]byte(`resource "coder_agent" "main" {}`)))
 	})
 
 	t.Run("InvalidHCL", func(t *testing.T) {
 		t.Parallel()
-		// Compose relies on this backstop to reject invalid rendered HCL on the
-		// zero-module path rather than shipping a broken main.tf.
-		err := validateRenderedBaseHCL([]byte("resource {"))
+		// Compose relies on this backstop to reject invalid rendered HCL rather than
+		// shipping a broken template.
+		err := validateRenderedHCL([]byte("resource {"))
 		require.Error(t, err)
 		require.ErrorContains(t, err, "not valid HCL")
+		// It is identifiable as a server-side fault and exposes every diagnostic.
+		require.ErrorIs(t, err, ErrRenderedHCLInvalid)
+		var diag *hcl.Diagnostic
+		require.ErrorAs(t, err, &diag)
 	})
+}
+
+func TestComposeRendersValidHCL(t *testing.T) {
+	t.Parallel()
+	// Exercise the Compose call sites that validate rendered HCL: both the base
+	// main.tf and the rendered modules.tf must parse.
+	res, err := Compose(ComposeRequest{
+		BaseTemplateID: "docker",
+		Modules:        []ComposeModule{{ID: "code-server"}},
+	})
+	require.NoError(t, err)
+	require.NoError(t, validateRenderedHCL(res.MainTF))
+	require.NotEmpty(t, res.ModulesTF)
+	require.NoError(t, validateRenderedHCL(res.ModulesTF))
 }

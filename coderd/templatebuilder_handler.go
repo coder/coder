@@ -226,6 +226,15 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 
 	result, err := templatebuilder.Compose(composeReq)
 	if err != nil {
+		// A curated base or module rendering to invalid HCL is a server-side fault,
+		// not bad client input, so surface it as a 500.
+		if xerrors.Is(err, templatebuilder.ErrRenderedHCLInvalid) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error composing template.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to compose template.",
 			Detail:  err.Error(),
@@ -336,6 +345,15 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	result, err := templatebuilder.Compose(composeReq)
 	if err != nil {
+		// A curated base or module rendering to invalid HCL is a server-side fault,
+		// not bad client input, so surface it as a 500.
+		if xerrors.Is(err, templatebuilder.ErrRenderedHCLInvalid) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error composing template.",
+				Detail:  err.Error(),
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Failed to compose template.",
 			Detail:  err.Error(),

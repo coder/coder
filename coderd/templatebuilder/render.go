@@ -2,6 +2,7 @@ package templatebuilder
 
 import (
 	"bytes"
+	"errors"
 	"io/fs"
 	"regexp"
 	"text/template"
@@ -163,13 +164,21 @@ func ExtractModuleNames(hcl []byte) []string {
 	return names
 }
 
-// validateRenderedBaseHCL returns a diagnostic when rendered base HCL is
-// malformed, so Compose can fail a broken main.tf instead of shipping it.
-func validateRenderedBaseHCL(hclSrc []byte) error {
-	if _, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos); diags.HasErrors() {
-		return xerrors.Errorf("rendered base template is not valid HCL: %w", diags)
+// ErrRenderedHCLInvalid identifies a Compose failure caused by a curated base or
+// module rendering to invalid HCL. That is a server-side fault, not bad client
+// input, so handlers map it to a 500.
+var ErrRenderedHCLInvalid = xerrors.New("rendered template is not valid HCL")
+
+// validateRenderedHCL returns an error when rendered HCL is malformed, so Compose
+// fails a broken template instead of shipping it. The result joins
+// ErrRenderedHCLInvalid with every parse diagnostic, so a caller can both
+// errors.Is it and errors.As out an *hcl.Diagnostic.
+func validateRenderedHCL(hclSrc []byte) error {
+	_, diags := hclsyntax.ParseConfig(hclSrc, "rendered.tf", hcl.InitialPos)
+	if !diags.HasErrors() {
+		return nil
 	}
-	return nil
+	return errors.Join(append([]error{ErrRenderedHCLInvalid}, diags.Errs()...)...)
 }
 
 // parseHCLBody parses rendered base HCL and returns its top-level body, or nil

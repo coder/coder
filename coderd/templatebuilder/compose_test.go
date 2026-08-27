@@ -641,7 +641,13 @@ func TestRenderBaseHonorsRegistryMirror(t *testing.T) {
 			rc.RegistryBase = mirror
 			rendered, err := templatebuilder.RenderBaseTemplate(id, "main.tf.tmpl", rc)
 			require.NoError(t, err)
-			for _, source := range templatebuilder.ExtractModuleSources(rendered) {
+			// Guard against a vacuous sweep: a parse failure or a non-static source
+			// makes ExtractModuleSources drop entries, so require one extracted
+			// source per module block before asserting on them.
+			sources := templatebuilder.ExtractModuleSources(rendered)
+			require.Len(t, sources, len(templatebuilder.ExtractModuleNames(rendered)),
+				"base %q: every module block must have a static, extractable source", id)
+			for _, source := range sources {
 				require.True(t, resolvesThroughMirror(source),
 					"base %q module source %q must resolve through the configured registry %q, not a hardcoded host or namespace",
 					id, source, mirror)

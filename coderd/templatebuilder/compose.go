@@ -72,7 +72,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	// HCL fails here with the parser diagnostic. Otherwise the zero-module path
 	// ships a broken main.tf unvalidated, and the module path fails with a
 	// misleading "no coder_agent resource" error instead of the real syntax error.
-	if err := validateRenderedBaseHCL(mainTF); err != nil {
+	if err := validateRenderedHCL(mainTF); err != nil {
 		return nil, err
 	}
 
@@ -104,6 +104,11 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 
 	modulesTF, err := renderModules(req.Modules, catalog, registryBase, agentName)
 	if err != nil {
+		return nil, err
+	}
+	// modulesTF is rendered from the same {{ .RegistryBase }} interpolation, so
+	// validate it too before it is bundled.
+	if err := validateRenderedHCL(modulesTF); err != nil {
 		return nil, err
 	}
 
