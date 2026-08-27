@@ -43,9 +43,12 @@
 # the PR head (change detection itself still uses the PR files API).
 # Referencing pages are held to the same manifest.json allowlist as
 # the checklist: a page with no docs-site route is dropped, since its
-# preview would 404. The image list is informational only, with no
-# review checkboxes: the image changed but the pages embedding it did
-# not, so the checklist's reset-on-change contract doesn't apply.
+# preview would 404. An image that no navigable page embeds (an icon
+# wired only into docs/manifest.json, say) is still listed on its own,
+# so a screenshot- or icon-only PR always gets a comment. The image
+# list is informational only, with no review checkboxes: the image
+# changed but the pages embedding it did not, so the checklist's
+# reset-on-change contract doesn't apply.
 
 name: docs-preview
 
@@ -84,12 +87,16 @@ jobs:
       # references are relative Markdown/HTML links, so mapping an image
       # back to its pages needs the referencing files on disk. Pinned to
       # the PR head sha so the references and docs/manifest.json match the
-      # commit the file list and preview links point at.
+      # commit the file list and preview links point at. Sparse-checked out
+      # to docs/ only, the sole tree this job reads (pages_for_image greps
+      # docs/**/*.md and the manifest read is docs/manifest.json), so the
+      # step doesn't pull the rest of the monorepo it never opens.
       - name: Check out docs sources
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
+          sparse-checkout: docs
       - name: Post docs preview comment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -244,7 +251,11 @@ jobs:
           pages_for_image() {
             local image="$1" base candidates file token
             base=$(basename "$image")
-            candidates=$(grep -rlF "$base" docs --include='*.md' 2>/dev/null \
+            # -e so a basename beginning with '-' is treated as a pattern,
+            # not as grep options: -F changes pattern interpretation, not
+            # option parsing, so grep -rlF "-foo.png" would still parse the
+            # leading dash as flags and silently match nothing.
+            candidates=$(grep -rlF -e "$base" docs --include='*.md' 2>/dev/null \
               | grep -v '^docs/\.style/' || true)
             [ -z "$candidates" ] && return 0
             while IFS= read -r file; do
@@ -273,22 +284,31 @@ jobs:
           all_comment_ids=$(list_docs_preview_comments)
           existing_id=$(printf '%s\n' "$all_comment_ids" | head -n 1) || true
 
-          # Fetch the non-removed Markdown files under docs/ (excluding
-          # docs/.style/**) this PR currently touches, one <filename>\t<sha>
-          # pair per line. `.sha` is the blob sha of the file's content at
-          # this push, which is what lets later runs detect "this page
-          # changed since it was last listed" without a full checkout.
+          # Fetch the PR's changed files once, then derive both the Markdown
+          # and the image sets from the same payload. A single read halves
+          # this endpoint's rate-limit cost on a workflow that fires on every
+          # push, and closes a consistency gap: two separate --paginate reads
+          # of the same PR could straddle a synchronize event and describe
+          # different heads.
           #
-          # This is intentionally not piped into grep so that a gh-api
-          # failure (network, auth, rate-limit) propagates immediately
-          # instead of being swallowed by `|| true`.
+          # Captured (not piped straight into jq) so that a gh-api failure
+          # (network, auth, rate-limit) propagates immediately under set -e
+          # instead of being swallowed by a downstream `|| true`. gh emits
+          # one JSON array per page; jq's `.[]` streams across the
+          # concatenated arrays, so no --slurp is needed.
           #
           # `pulls/files` truncates at GitHub's 3000-file ceiling, which
           # --paginate does not lift. A PR that changes 3000+ files would
           # list only the first 3000; docs PRs never approach that.
-          changed_tsv=$(gh api --paginate \
-            "repos/${REPO}/pulls/${PR_NUMBER}/files" \
-            --jq '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
+          files_json=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files")
+
+          # The non-removed Markdown files under docs/ (excluding
+          # docs/.style/**), one <filename>\t<sha> pair per line. `.sha` is
+          # the blob sha of the file's content at this push, which is what
+          # lets later runs detect "this page changed since it was last
+          # listed" without a full checkout.
+          changed_tsv=$(printf '%s' "$files_json" \
+            | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.md$")) | select((.filename | test("^docs/\\.style/")) | not) | [.filename, .sha] | @tsv')
 
           # The changed images under docs/ (outside docs/.style/), one
           # filename per line. Same status and .style filtering as the
@@ -297,9 +317,8 @@ jobs:
           # image section is stateless (no review checkboxes to carry over),
           # unlike the checklist. Keep the extension set in sync with
           # test-docs-preview-mapper.sh.
-          changed_images=$(gh api --paginate \
-            "repos/${REPO}/pulls/${PR_NUMBER}/files" \
-            --jq '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$"; "i")) | select((.filename | test("^docs/\\.style/")) | not) | .filename')
+          changed_images=$(printf '%s' "$files_json" \
+            | jq -r '.[] | select(.status != "removed") | select(.filename | test("^docs/.*\\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$"; "i")) | select((.filename | test("^docs/\\.style/")) | not) | .filename')
 
           # Nothing previewable changed at all: drop any stale comment and
           # stop before the manifest read and reference resolution below.
@@ -340,7 +359,8 @@ jobs:
           # it, one "<image>\t<page>" pair per line. Pages that resolve but
           # aren't in the manifest are dropped for the same reason as the
           # checklist: their preview would 404. An image that ends up with
-          # no eligible page contributes nothing and is not listed.
+          # no eligible page yields no pair here, but is still listed on its
+          # own (without page links) by the image_section_json step below.
           image_pairs_tsv=$(printf '%s\n' "$changed_images" | while IFS= read -r image; do
             [ -z "$image" ] && continue
             pages_for_image "$image" | while IFS= read -r page; do
@@ -351,11 +371,13 @@ jobs:
             done
           done)
 
-          # Nothing resolves to a preview: neither a changed page on a
-          # manifest route nor a changed image embedded by one. Drop any
-          # stale comment and stop.
-          if [ -z "$eligible_tsv" ] && [ -z "$image_pairs_tsv" ]; then
-            echo "No changed Markdown pages or referenced images resolve to a docs/manifest.json route."
+          # Nothing to preview: no changed page on a manifest route and no
+          # changed image at all. A changed image that no navigable page
+          # embeds is still listed on its own, so any changed image keeps the
+          # comment alive; only a Markdown-only PR with nothing manifest-
+          # routed falls through here. Drop any stale comment and stop.
+          if [ -z "$eligible_tsv" ] && [ -z "$changed_images" ]; then
+            echo "No changed Markdown pages resolve to a docs/manifest.json route, and no images changed under docs/ (outside docs/.style/)."
             echo "(If pages you expect are missing, check docs/manifest.json's schema: an empty allowlist looks identical to no eligible pages.)"
             cleanup_stale_and_exit
           fi
@@ -366,11 +388,21 @@ jobs:
           eligible_json=$(printf '%s\n' "$eligible_tsv" \
             | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {filename: .[0], sha: .[1]}]')
 
-          # Group the image/page pairs into [{image, pages:[...]}], pages
-          # de-duplicated and sorted (jq unique sorts), images sorted. Empty
-          # input yields [], and then no image section is rendered.
-          image_section_json=$(printf '%s\n' "$image_pairs_tsv" \
-            | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {image: .[0], page: .[1]}] | group_by(.image) | map({image: .[0].image, pages: (map(.page) | unique)}) | sort_by(.image)')
+          # Combine every changed image with the manifest-routed pages that
+          # embed it, as [{image, pages:[...]}] sorted by image, each image's
+          # pages de-duplicated and sorted (jq unique sorts). An image with
+          # no embedding page keeps an empty pages list so it still renders
+          # (on its own line, no sub-links): icons live only in the
+          # manifest's icon_path and match no Markdown, and some images are
+          # embedded only by non-navigable pages. No changed image yields [],
+          # and then no image section is rendered. Keep in sync with
+          # test-docs-preview-mapper.sh.
+          image_section_json=$(jq -n \
+            --argjson images "$(printf '%s\n' "$changed_images" | jq -R -s '[splits("\n") | select(length > 0)]')" \
+            --argjson pairs "$(printf '%s\n' "$image_pairs_tsv" | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {image: .[0], page: .[1]}]')" \
+            '($pairs | group_by(.image) | map({key: .[0].image, value: (map(.page) | unique)}) | from_entries) as $by
+             | [$images[] | {image: ., pages: ($by[.] // [])}]
+             | sort_by(.image)')
 
           # Fetch the existing comment body now, right before reading its
           # checkbox state, so a reviewer's toggle isn't overwritten by a
@@ -456,37 +488,38 @@ jobs:
 
           # Render the "Changed images" section from image_section_json:
           # each changed image as a bullet with, nested under it, the
-          # preview link for every page that embeds it. Unlike the checklist
-          # this isn't binary-searched, so it self-limits to a byte budget
-          # at image granularity (always emitting at least the first image)
-          # and to IMAGE_PAGES_MAX pages per image, appending "and N more"
-          # notes when it truncates. Prints nothing when no image maps to an
-          # eligible page. Reads $image_section_json, $url_prefix (via
-          # page_url), and the IMAGE_* caps. Keep in sync with
-          # test-docs-preview-mapper.sh.
+          # preview link for every page that embeds it. An image with no
+          # embedding page renders as a bare line with no sub-links. Unlike
+          # the checklist this isn't binary-searched, so it self-limits to a
+          # byte budget at image granularity (always emitting at least the
+          # first image) and to IMAGE_PAGES_MAX pages per image, appending
+          # "and N more" notes when it truncates. Prints nothing only when no
+          # image changed. Reads $image_section_json, $url_prefix (via
+          # page_url), REPO, PR_NUMBER, and the IMAGE_* caps. Keep in sync
+          # with test-docs-preview-mapper.sh.
           render_image_section() {
             local budget="$1" count intro header out="" shown=0 i=0
-            local image np entry j pg url dropped candidate
+            local image page_count entry j page url dropped candidate
             count=$(printf '%s' "$image_section_json" | jq 'length')
             if [ "$count" -eq 0 ]; then
               return 0
             fi
-            intro="These images changed. Each is listed with the page(s) that embed it so you can open the preview and see the new image in context. These links are informational and separate from the checklist above."
+            intro="These images changed. Each is listed with the navigable page(s) that embed it, so you can open the preview and see the new image in context. An image with no page listed isn't embedded by any navigable docs page. These links are informational and have no review checkboxes."
             header="#### Changed images"$'\n\n'"${intro}"$'\n\n'
             while [ "$i" -lt "$count" ]; do
               image=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" '.[$i].image')
-              np=$(printf '%s' "$image_section_json" | jq --argjson i "$i" '.[$i].pages | length')
+              page_count=$(printf '%s' "$image_section_json" | jq --argjson i "$i" '.[$i].pages | length')
               # The backticks are literal Markdown code-span delimiters.
               entry="- \`${image}\`"$'\n'
               j=0
-              while [ "$j" -lt "$np" ] && [ "$j" -lt "$IMAGE_PAGES_MAX" ]; do
-                pg=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" --argjson j "$j" '.[$i].pages[$j]')
-                url=$(page_url "$pg")
-                entry="${entry}  - [\`${pg}\`](${url})"$'\n'
+              while [ "$j" -lt "$page_count" ] && [ "$j" -lt "$IMAGE_PAGES_MAX" ]; do
+                page=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" --argjson j "$j" '.[$i].pages[$j]')
+                url=$(page_url "$page")
+                entry="${entry}  - [\`${page}\`](${url})"$'\n'
                 j=$((j + 1))
               done
-              if [ "$np" -gt "$IMAGE_PAGES_MAX" ]; then
-                entry="${entry}  - _and $((np - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
+              if [ "$page_count" -gt "$IMAGE_PAGES_MAX" ]; then
+                entry="${entry}  - _and $((page_count - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
               fi
               # Keep the first image unconditionally (an empty section under
               # a header would be self-contradicting); for every later image
@@ -504,7 +537,7 @@ jobs:
             done
             dropped=$((count - shown))
             if [ "$dropped" -gt 0 ]; then
-              out="${out}"$'\n'"_and ${dropped} more changed image(s) not listed to stay under GitHub's comment size limit._"$'\n'
+              out="${out}"$'\n'"_and ${dropped} more changed image(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
             fi
             printf '%s%s' "$header" "$out"
           }

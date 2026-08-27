@@ -375,6 +375,13 @@ filter_changed_images() {
 images_fixture='[
   {"filename":"docs/images/a.png","sha":"a1","status":"modified"},
   {"filename":"docs/images/user-guides/b.SVG","sha":"b1","status":"added"},
+  {"filename":"docs/images/c.jpg","sha":"c1","status":"added"},
+  {"filename":"docs/images/d.jpeg","sha":"d1","status":"added"},
+  {"filename":"docs/images/e.gif","sha":"e1","status":"added"},
+  {"filename":"docs/images/f.webp","sha":"f1","status":"added"},
+  {"filename":"docs/images/g.avif","sha":"g2","status":"added"},
+  {"filename":"docs/images/h.bmp","sha":"h1","status":"added"},
+  {"filename":"docs/images/i.ico","sha":"i1","status":"added"},
   {"filename":"docs/images/old.gif","sha":"g1","status":"removed"},
   {"filename":"docs/.style/logo.png","sha":"s1","status":"modified"},
   {"filename":"docs/admin/notes.md","sha":"m1","status":"modified"},
@@ -382,9 +389,12 @@ images_fixture='[
   {"filename":"site/logo.png","sha":"x1","status":"modified"}
 ]'
 actual_images=$(printf '%s' "$images_fixture" | filter_changed_images | LC_ALL=C sort | tr '\n' '|')
-expected_images="docs/images/a.png|docs/images/user-guides/b.SVG|"
+# Every extension in the workflow regex (png, jpg, jpeg, gif, svg, webp,
+# avif, bmp, ico) has a matching entry, so trimming any one from the regex
+# fails this assertion. b.SVG also proves the match is case-insensitive.
+expected_images="docs/images/a.png|docs/images/c.jpg|docs/images/d.jpeg|docs/images/e.gif|docs/images/f.webp|docs/images/g.avif|docs/images/h.bmp|docs/images/i.ico|docs/images/user-guides/b.SVG|"
 if [ "$actual_images" = "$expected_images" ]; then
-	echo "PASS: filter_changed_images (removed/.style/md/non-docs/video excluded, case-insensitive)"
+	echo "PASS: filter_changed_images (every extension matches; removed/.style/md/non-docs/video excluded, case-insensitive)"
 else
 	echo "FAIL: filter_changed_images -> $actual_images (expected $expected_images)"
 	failures=$((failures + 1))
@@ -504,19 +514,85 @@ fi
 cd "$img_orig_pwd"
 rm -rf "$img_fixture_root"
 
-# group_image_pairs runs the real grouping jq from docs-preview.yaml over
-# "<image>\t<page>" pairs: [{image, pages:[...]}] with images sorted and
-# each image's pages de-duplicated and sorted (jq unique sorts).
-group_image_pairs() {
-	jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {image: .[0], page: .[1]}] | group_by(.image) | map({image: .[0].image, pages: (map(.page) | unique)}) | sort_by(.image)'
+# resolve_ref branch coverage: the ref-normalization steps (strip a
+# #fragment, a ?query, and a <...> wrapper; reject external and
+# protocol-relative refs) each have a case, so deleting any one changes a
+# result and fails the suite. resolve_ref is spliced from docs-preview.yaml
+# above; path math is relative to $PWD, so these are independent of the
+# real tree.
+assert_resolves_ref() {
+	local ref="$1" expected="$2" desc="$3" actual
+	actual=$(resolve_ref "docs/user-guides/page.md" "$ref")
+	if [ "$actual" = "$expected" ]; then
+		echo "PASS: resolve_ref ($desc)"
+	else
+		echo "FAIL: resolve_ref ($desc) -> \"$actual\" (expected \"$expected\")"
+		failures=$((failures + 1))
+	fi
 }
+assert_resolves_ref "../images/shared.png" "docs/images/shared.png" "relative path"
+assert_resolves_ref "../images/shared.png#top" "docs/images/shared.png" "strips #fragment"
+assert_resolves_ref "../images/shared.png?v=1" "docs/images/shared.png" "strips ?query"
+assert_resolves_ref "<../images/shared.png>" "docs/images/shared.png" "strips <...> wrapper"
+assert_resolves_ref "https://example.com/shared.png" "" "external URL ignored"
+assert_resolves_ref "//cdn.example.com/shared.png" "" "protocol-relative ignored"
+assert_resolves_ref "mailto:docs@coder.com" "" "mailto ignored"
+assert_resolves_ref "" "" "empty ref"
+
+# extract_ref_tokens branch coverage: a titled Markdown ref (the space
+# before the title stops the path capture), an uppercase <IMG SRC="...">
+# (the HTML grep is case-insensitive), and a single-quoted src. Each drives
+# a distinct part of the extractor spliced from docs-preview.yaml above.
+ert_root=$(mktemp -d)
+cat >"$ert_root/titled.md" <<'MD'
+![shot](../images/shared.png "Optional title")
+MD
+cat >"$ert_root/upper.md" <<'MD'
+<IMG SRC="../images/shared.png" alt="x">
+MD
+cat >"$ert_root/single.md" <<'MD'
+<img src='../images/shared.png'>
+MD
+assert_extracts() {
+	local file="$1" expected="$2" desc="$3" actual
+	actual=$(extract_ref_tokens "$file" | tr '\n' '|')
+	if [ "$actual" = "$expected" ]; then
+		echo "PASS: extract_ref_tokens ($desc)"
+	else
+		echo "FAIL: extract_ref_tokens ($desc) -> \"$actual\" (expected \"$expected\")"
+		failures=$((failures + 1))
+	fi
+}
+assert_extracts "$ert_root/titled.md" "../images/shared.png|" "titled Markdown ref drops the title"
+assert_extracts "$ert_root/upper.md" "../images/shared.png|" "uppercase <IMG SRC> matches case-insensitively"
+assert_extracts "$ert_root/single.md" "../images/shared.png|" "single-quoted src"
+rm -rf "$ert_root"
+
+# build_image_section runs the real image_section_json jq from
+# docs-preview.yaml: combine every changed image (a newline list) with the
+# "<image>\t<page>" pairs into [{image, pages:[...]}], images sorted, each
+# image's pages de-duplicated and sorted (jq unique sorts). An image with
+# no pair keeps an empty pages list, so an icon- or screenshot-only PR
+# whose images embed no navigable page still renders (and posts a comment).
+build_image_section() {
+	local images_list="$1" pairs_tsv="$2"
+	jq -n \
+		--argjson images "$(printf '%s\n' "$images_list" | jq -R -s '[splits("\n") | select(length > 0)]')" \
+		--argjson pairs "$(printf '%s\n' "$pairs_tsv" | jq -R -s '[splits("\n") | select(length > 0) | split("\t") | {image: .[0], page: .[1]}]')" \
+		'($pairs | group_by(.image) | map({key: .[0].image, value: (map(.page) | unique)}) | from_entries) as $by
+		 | [$images[] | {image: ., pages: ($by[.] // [])}]
+		 | sort_by(.image)'
+}
+# c.png is a changed image with no pair (the icon-only case); it must still
+# appear, with pages: [].
+images_list_fixture=$(printf 'docs/images/b.png\ndocs/images/a.png\ndocs/images/c.png')
 pairs_fixture=$(printf 'docs/images/b.png\tdocs/z.md\ndocs/images/a.png\tdocs/p2.md\ndocs/images/a.png\tdocs/p1.md\ndocs/images/a.png\tdocs/p1.md')
-actual_group=$(printf '%s\n' "$pairs_fixture" | group_image_pairs | jq -c .)
-expected_group='[{"image":"docs/images/a.png","pages":["docs/p1.md","docs/p2.md"]},{"image":"docs/images/b.png","pages":["docs/z.md"]}]'
+actual_group=$(build_image_section "$images_list_fixture" "$pairs_fixture" | jq -c .)
+expected_group='[{"image":"docs/images/a.png","pages":["docs/p1.md","docs/p2.md"]},{"image":"docs/images/b.png","pages":["docs/z.md"]},{"image":"docs/images/c.png","pages":[]}]'
 if [ "$actual_group" = "$expected_group" ]; then
-	echo "PASS: group_image_pairs (sorted images, de-duped sorted pages)"
+	echo "PASS: build_image_section (sorted images, de-duped sorted pages, unmapped image kept with empty pages)"
 else
-	echo "FAIL: group_image_pairs -> $actual_group (expected $expected_group)"
+	echo "FAIL: build_image_section -> $actual_group (expected $expected_group)"
 	failures=$((failures + 1))
 fi
 
@@ -552,27 +628,27 @@ page_url() {
 
 render_image_section() {
 	local budget="$1" count intro header out="" shown=0 i=0
-	local image np entry j pg url dropped candidate
+	local image page_count entry j page url dropped candidate
 	count=$(printf '%s' "$image_section_json" | jq 'length')
 	if [ "$count" -eq 0 ]; then
 		return 0
 	fi
-	intro="These images changed. Each is listed with the page(s) that embed it so you can open the preview and see the new image in context. These links are informational and separate from the checklist above."
+	intro="These images changed. Each is listed with the navigable page(s) that embed it, so you can open the preview and see the new image in context. An image with no page listed isn't embedded by any navigable docs page. These links are informational and have no review checkboxes."
 	header="#### Changed images"$'\n\n'"${intro}"$'\n\n'
 	while [ "$i" -lt "$count" ]; do
 		image=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" '.[$i].image')
-		np=$(printf '%s' "$image_section_json" | jq --argjson i "$i" '.[$i].pages | length')
+		page_count=$(printf '%s' "$image_section_json" | jq --argjson i "$i" '.[$i].pages | length')
 		# The backticks are literal Markdown code-span delimiters.
 		entry="- \`${image}\`"$'\n'
 		j=0
-		while [ "$j" -lt "$np" ] && [ "$j" -lt "$IMAGE_PAGES_MAX" ]; do
-			pg=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" --argjson j "$j" '.[$i].pages[$j]')
-			url=$(page_url "$pg")
-			entry="${entry}  - [\`${pg}\`](${url})"$'\n'
+		while [ "$j" -lt "$page_count" ] && [ "$j" -lt "$IMAGE_PAGES_MAX" ]; do
+			page=$(printf '%s' "$image_section_json" | jq -r --argjson i "$i" --argjson j "$j" '.[$i].pages[$j]')
+			url=$(page_url "$page")
+			entry="${entry}  - [\`${page}\`](${url})"$'\n'
 			j=$((j + 1))
 		done
-		if [ "$np" -gt "$IMAGE_PAGES_MAX" ]; then
-			entry="${entry}  - _and $((np - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
+		if [ "$page_count" -gt "$IMAGE_PAGES_MAX" ]; then
+			entry="${entry}  - _and $((page_count - IMAGE_PAGES_MAX)) more page(s) embedding this image_"$'\n'
 		fi
 		# Keep the first image unconditionally (an empty section under
 		# a header would be self-contradicting); for every later image
@@ -590,7 +666,7 @@ render_image_section() {
 	done
 	dropped=$((count - shown))
 	if [ "$dropped" -gt 0 ]; then
-		out="${out}"$'\n'"_and ${dropped} more changed image(s) not listed to stay under GitHub's comment size limit._"$'\n'
+		out="${out}"$'\n'"_and ${dropped} more changed image(s) not listed to stay under GitHub's comment size limit. See the [Files tab](https://github.com/${REPO}/pull/${PR_NUMBER}/files) for the full list._"$'\n'
 	fi
 	printf '%s%s' "$header" "$out"
 }
@@ -752,7 +828,7 @@ many_pages=$(jq -nc '[range(5) | "docs/p\(.).md"]')
 image_section_json=$(jq -nc --argjson p "$many_pages" '[{image: "docs/images/big.png", pages: $p}]')
 section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 shown_links=$(printf '%s\n' "$section" | grep -cE '^  - \[')
-if [ "$shown_links" -eq 2 ] && printf '%s' "$section" | grep -qF 'more page(s) embedding this image'; then
+if [ "$shown_links" -eq 2 ] && printf '%s' "$section" | grep -qF 'and 3 more page(s) embedding this image'; then
 	echo "PASS: render_image_section (per-image page cap keeps 2 with an overflow note)"
 else
 	echo "FAIL: render_image_section page cap -> shown_links=$shown_links"
@@ -768,7 +844,7 @@ image_section_json='[{"image":"docs/images/aaaaaaaaaa.png","pages":["docs/one.md
 section=$(render_image_section 1)
 # shellcheck disable=SC2016 # backtick is a literal Markdown delimiter.
 imgs_shown=$(printf '%s\n' "$section" | grep -cE '^- `docs/images/')
-if [ "$imgs_shown" -eq 1 ] && printf '%s' "$section" | grep -qF 'more changed image(s) not listed'; then
+if [ "$imgs_shown" -eq 1 ] && printf '%s' "$section" | grep -qF 'and 2 more changed image(s) not listed'; then
 	echo "PASS: render_image_section (byte-budget truncation keeps first image + note)"
 else
 	echo "FAIL: render_image_section truncation -> imgs_shown=$imgs_shown"
@@ -787,12 +863,36 @@ image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 image_only_body=$(build_comment_body 0)
 if printf '%s' "$image_only_body" | grep -qF '#### Changed images' &&
 	! printf '%s' "$image_only_body" | grep -qF 'Check off each page' &&
+	printf '%s' "$image_only_body" | grep -qF 'These links are informational and have no review checkboxes.' &&
+	! printf '%s' "$image_only_body" | grep -qF 'separate from the checklist above' &&
 	printf '%s' "$image_only_body" | grep -qF '<!-- docs-preview -->' &&
 	[ "$(recover_old_state "$image_only_body")" = '{}' ]; then
 	echo "PASS: build_comment_body (image-only PR: image section, no checklist, empty state)"
 else
 	echo "FAIL: build_comment_body image-only ->"
 	printf '%s\n' "$image_only_body"
+	failures=$((failures + 1))
+fi
+
+# Icon-only PR: the only changed image embeds no navigable page, so
+# image_section_json carries it with pages: []. The comment must still
+# render, listing the image on its own line with no sub-links, so an icon
+# refresh no longer falls through to no comment.
+final_rows='[]'
+total_pages=0
+url_prefix="https://coder.com/docs/@branch"
+image_section_json='[{"image":"docs/images/icons/system.svg","pages":[]}]'
+image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
+icon_only_body=$(build_comment_body 0)
+# shellcheck disable=SC2016 # backtick-quoted path is literal Markdown.
+if printf '%s' "$icon_only_body" | grep -qF '#### Changed images' &&
+	printf '%s' "$icon_only_body" | grep -qF -- '- `docs/images/icons/system.svg`' &&
+	! printf '%s' "$icon_only_body" | grep -qF 'Check off each page' &&
+	[ "$(printf '%s\n' "$icon_only_body" | grep -cE '^  - \[')" -eq 0 ]; then
+	echo "PASS: build_comment_body (icon-only PR: unmapped image still produces a comment)"
+else
+	echo "FAIL: build_comment_body icon-only ->"
+	printf '%s\n' "$icon_only_body"
 	failures=$((failures + 1))
 fi
 
