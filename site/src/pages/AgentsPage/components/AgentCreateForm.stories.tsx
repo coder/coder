@@ -1350,8 +1350,10 @@ export const RestoresSanitizedAttachments: Story = {
 		});
 		await waitFor(() => {
 			const stored = localStorage.getItem("agents.persisted-attachments");
-			expect(stored).not.toBeNull();
-			const parsed = JSON.parse(stored!);
+			if (stored === null) {
+				throw new Error("persisted attachments were removed entirely");
+			}
+			const parsed = JSON.parse(stored);
 			expect(parsed).toHaveLength(1);
 			expect(parsed[0].fileId).toBe("persisted-file-1");
 		});
