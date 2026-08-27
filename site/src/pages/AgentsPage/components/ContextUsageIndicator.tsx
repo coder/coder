@@ -347,10 +347,7 @@ export const ContextUsageIndicator: FC<{
 		hasMcp ||
 		issueItems.length > 0;
 
-	// Resource-level failures (invalid skill, unreadable file) share the
-	// warning treatment with a drifted pin so they are visible without
-	// opening the popover. A snapshot error or drift takes precedence over
-	// the usage-based tone.
+	// Ring tone: error wins, then drift or resource issues, then usage.
 	const hasResourceIssues = issueItems.length > 0;
 	const needsAttention = isDirty || hasContextError || hasResourceIssues;
 	const toneClassName = hasContextError
@@ -654,9 +651,7 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				{/* flex keeps this wrapper exactly as tall as the inline-flex
-				    button; as a block it would add baseline descender space and
-				    push the ring above its row's vertical center. */}
+				{/* flex avoids baseline descender space that shifts the ring up. */}
 				<div
 					className="flex"
 					onMouseEnter={handleMouseEnter}
