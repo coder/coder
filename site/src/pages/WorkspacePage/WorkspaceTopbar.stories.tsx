@@ -63,15 +63,6 @@ export const Example: Story = {
 	},
 };
 
-export const Outdated: Story = {
-	args: {
-		workspace: {
-			...baseWorkspace,
-			outdated: true,
-		},
-	},
-};
-
 export const ReadyWithDeadline: Story = {
 	args: {
 		workspace: {
@@ -182,10 +173,6 @@ export const Dormant: Story = {
 		workspace: {
 			...baseWorkspace,
 			deleting_at: new Date("2024/01/01").toISOString(),
-			latest_build: {
-				...baseWorkspace.latest_build,
-				status: "failed",
-			},
 		},
 	},
 };
