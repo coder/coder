@@ -115,6 +115,13 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
+		updateTemplates: {
+			object: {
+				resource_type: "template",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
 		viewMCPServerConfigs: {
 			object: {
 				resource_type: "mcp_server_config",

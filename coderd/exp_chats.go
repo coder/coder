@@ -3340,6 +3340,75 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
+// @Summary Clear chat context
+// @ID clear-chat-context
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Produce json
+// @Success 200 {object} codersdk.Chat
+// @Router /api/v2/chats/{chat}/clear [post]
+// @x-apidocgen {"skip": true}
+// @Description Resets the model context of an idle or errored chat,
+// @Description clearing any stored error. The reset commits
+// @Description synchronously with no model call: the transcript is
+// @Description preserved and the next prompt starts from a fresh
+// @Description context.
+func (api *API) clearChat(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+	logger := api.Logger.Named("chat_clear").With(slog.F("chat_id", chatID))
+
+	if !api.requireChatDaemon(ctx, rw) {
+		return
+	}
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Only the chat owner may clear the context, matching the
+	// compaction endpoint so the two context operations share
+	// authorization semantics.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may clear the chat context.",
+		})
+		return
+	}
+
+	updated, err := api.chatDaemon.ClearChat(ctx, chat)
+	if err != nil {
+		if writeCommonChatMutationError(ctx, rw, err, "Cannot clear an archived chat.") {
+			return
+		}
+		switch {
+		case errors.Is(err, chatd.ErrNothingToClear):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Nothing to clear.",
+				Detail:  "The chat has no conversation to clear after the latest context boundary.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot clear the chat in its current state.",
+				Detail:  "Clearing is not available while the chat is generating or has queued messages.",
+			})
+		default:
+			logger.Error(ctx, "failed to clear chat context", slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to clear chat context.",
+				Detail:  err.Error(),
+			})
+		}
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+}
+
 // @Summary Reconcile invalid chat state
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken
@@ -6898,32 +6967,6 @@ func (*API) deleteUserChatProviderKey(rw http.ResponseWriter, r *http.Request) {
 	writeLegacyChatProviderGone(rw, r)
 }
 
-func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	organization := httpmw.OrganizationParam(r)
-	apiKey := httpmw.APIKey(r)
-
-	if !chatModelConfigReadScope(apiKey.Scopes) {
-		httpapi.Forbidden(rw)
-		return
-	}
-
-	configs, err := api.Database.GetChatModelConfigs(ctx, organization.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	resp := make([]codersdk.ChatModel, 0, len(configs))
-	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config))
-	}
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
 // @Summary List AI models and provider descriptors in an organization
 // @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
@@ -6932,7 +6975,6 @@ func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, 
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
 // @Router /api/v2/organizations/{organization}/chats/models [get]
-// @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -7017,8 +7059,7 @@ func chatModelConfigReadScope(scopes database.APIKeyScopes) bool {
 // read gate; providers are deployment-scoped and an org admin cannot read
 // them directly, so the fetch runs under a narrow AsChatd context scoped to
 // exactly these two reads and the result is projected to the fixed redacted
-// fields (no key material, base URLs, or headers). Disclosure matches what
-// /api/experimental/chats/models already shows any authenticated caller.
+// fields, which exclude key material, base URLs, and headers.
 func (api *API) chatModelProviderDescriptors(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -7196,7 +7237,6 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
 // @Router /api/v2/organizations/{organization}/chats/models [post]
-// @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)

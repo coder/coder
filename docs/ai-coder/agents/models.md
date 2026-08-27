@@ -167,6 +167,20 @@ An unavailable provider can remain visible while its models are omitted from the
 Model APIs identify each configured model with a UUID.
 The provider's model identifier, such as `gpt-5.3-codex`, doesn't replace this model UUID.
 
+### Migrate model API clients
+
+Model collection APIs require an organization name or ID in the path.
+Update clients that use the removed default-organization routes as follows:
+
+| Removed route                                | Replacement                                              | Response change                                                                                                             |
+|----------------------------------------------|----------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `GET /api/experimental/chats/models`         | `GET /api/v2/organizations/{organization}/chats/models`  | The response remains an `OrganizationChatModelsResponse`.                                                                   |
+| `GET /api/experimental/chats/model-configs`  | `GET /api/v2/organizations/{organization}/chats/models`  | The response changes from a `ChatModel` array to an `OrganizationChatModelsResponse`. Read configured models from `models`. |
+| `POST /api/experimental/chats/model-configs` | `POST /api/v2/organizations/{organization}/chats/models` | The request and `ChatModel` response shapes remain the same.                                                                |
+
+Replace `{organization}` with the organization name or ID that owns the models.
+The collection response also includes provider descriptors and unsupported provider details.
+
 ### Add a model
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
