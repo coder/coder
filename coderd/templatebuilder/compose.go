@@ -6,10 +6,13 @@ import (
 	"maps"
 	"path"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // ComposeRequest describes which base template and modules to render.
@@ -53,11 +56,14 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	// Normalize the registry (default empty, strip a pasted scheme, reject a
-	// path/credentials) so the base and module render paths interpolate the
-	// same valid host into module sources.
-	registryBase, err := NormalizeRegistryBase(req.RegistryURL)
-	if err != nil {
+	// The deployment value is validated at server start
+	// (codersdk.DeploymentValues.Validate), so trust it here: default an unset
+	// value and defensively reject a malformed one (a direct caller or test
+	// bypasses the boot check). The value is used as a bare host, unchanged.
+	registryBase := strings.TrimSpace(req.RegistryURL)
+	if registryBase == "" {
+		registryBase = DefaultRegistryBase
+	} else if err := codersdk.ValidateTemplateBuilderRegistryURL(registryBase); err != nil {
 		return nil, err
 	}
 

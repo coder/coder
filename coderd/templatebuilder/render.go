@@ -3,9 +3,7 @@ package templatebuilder
 import (
 	"bytes"
 	"io/fs"
-	"net/url"
 	"regexp"
-	"strings"
 	"text/template"
 
 	"golang.org/x/xerrors"
@@ -22,38 +20,6 @@ type ImageOption struct {
 // registry (CODER_TEMPLATE_BUILDER_REGISTRY_URL). It mirrors the default of the
 // codersdk template-builder registry option.
 const DefaultRegistryBase = "registry.coder.com"
-
-// NormalizeRegistryBase trims a registry value an operator may have pasted as a
-// full URL down to the bare host used in a Terraform module source, and rejects
-// a value that would render a broken or unsafe source. It defaults an empty
-// value to DefaultRegistryBase, strips an http(s):// scheme and trailing
-// slashes, and rejects a path, query, fragment, or embedded credentials. It
-// does not canonicalize the host (no IDN/punycode or port normalization); a
-// wrong-but-well-formed host fails later at terraform init with a clear error.
-func NormalizeRegistryBase(raw string) (string, error) {
-	host := strings.TrimSpace(raw)
-	if host == "" {
-		return DefaultRegistryBase, nil
-	}
-
-	// Strip a pasted scheme (case-insensitive) before trimming slashes, so a
-	// value like "https://mirror.internal/" becomes "mirror.internal".
-	if lower := strings.ToLower(host); strings.HasPrefix(lower, "https://") {
-		host = host[len("https://"):]
-	} else if strings.HasPrefix(lower, "http://") {
-		host = host[len("http://"):]
-	}
-	host = strings.TrimRight(host, "/")
-
-	// net/url only extracts a bare host:port when it is in authority form, so
-	// parse with a leading "//". This also surfaces a path, query, fragment, or
-	// userinfo the operator must not include in a module-source host.
-	u, err := url.Parse("//" + host)
-	if err != nil || u.Host == "" || u.Path != "" || u.RawQuery != "" || u.Fragment != "" || u.User != nil {
-		return "", xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port`)
-	}
-	return u.Host, nil
-}
 
 // BaseRenderContext is the data passed to base template .tf.tmpl files.
 type BaseRenderContext struct {

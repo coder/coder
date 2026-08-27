@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -5127,6 +5128,29 @@ type TemplateBuilderConfig struct {
 	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
+// ValidateTemplateBuilderRegistryURL reports whether a configured template
+// builder registry value is a bare host (optionally with a port) suitable for
+// verbatim use in a Terraform module source. An empty value is valid and
+// defaults at render time. A scheme, path, query, fragment, trailing slash, or
+// embedded credentials is rejected so a misconfiguration fails at server start
+// instead of rendering broken or unsafe module sources. It does not
+// canonicalize the host; a well-formed but wrong host fails later at
+// terraform init.
+func ValidateTemplateBuilderRegistryURL(raw string) error {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return nil
+	}
+	// net/url only isolates a bare host:port in authority form. Requiring the
+	// parsed host to equal the whole input rejects a scheme, path, query,
+	// fragment, or trailing slash in a single check, and does not echo the input.
+	u, err := url.Parse("//" + v)
+	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
+		return xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port, with no scheme, path, or credentials; set it with the --template-builder-registry-url flag, the CODER_TEMPLATE_BUILDER_REGISTRY_URL environment variable, or the templateBuilder.registryURL YAML key`)
+	}
+	return nil
+}
+
 type SupportConfig struct {
 	Links serpent.Struct[[]LinkConfig] `json:"links" typescript:",notnull"`
 }
@@ -5196,6 +5220,18 @@ func (c *DeploymentValues) Validate() error {
 			if hookTimeout <= 0 || hookTimeout > 5*time.Second {
 				return xerrors.Errorf("chat hook timeout (%s) must be greater than zero and no more than 5s; set --chat-hook-timeout to a valid duration", hookTimeout)
 			}
+		}
+	}
+
+	// Validate here, gated on the builder being enabled, rather than with a
+	// per-option serpent validator: this runs after flag, env, and YAML merge
+	// (the serpent validator only fires in Set, which the YAML path bypasses),
+	// so a bad value fails at server start naming the option instead of as a
+	// per-request error on every compose. Skipped when disabled so an inert
+	// value cannot block boot.
+	if !c.TemplateBuilder.Disabled.Value() {
+		if err := ValidateTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
+			return err
 		}
 	}
 
