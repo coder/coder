@@ -1,4 +1,4 @@
-import type { FC, FormEvent, ReactNode } from "react";
+import type { FC, FormEvent } from "react";
 import { useId, useState } from "react";
 import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -7,49 +7,20 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
-import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import { SectionHeader } from "./components/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 
-const BEDROCK_API_KEYS_DOCS_URL =
-	"https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-api-keys.html";
+const BEDROCK_UNSUPPORTED_NOTE =
+	"AWS Bedrock providers do not support personal API keys yet. Requests authenticate with AWS credentials configured by your deployment administrator.";
 
-type ProviderKeyFieldCopy = {
-	label: string;
-	placeholder: string;
-	description?: ReactNode;
-};
-
-// Bedrock accepts only bearer-token Amazon Bedrock API keys here. IAM access
-// key and secret key pairs require SigV4 signing, which BYOK does not support
-// yet, so the copy steers users toward the supported credential type.
-const getProviderKeyFieldCopy = (
-	provider: UserChatProviderConfig,
-): ProviderKeyFieldCopy => {
-	if (provider.provider === "bedrock") {
-		return {
-			label: "Amazon Bedrock API key",
-			placeholder: "ABSK...",
-			description: (
-				<>
-					Use an Amazon Bedrock API key (a bearer token). IAM access key and
-					secret key pairs are not supported.{" "}
-					<Link
-						href={BEDROCK_API_KEYS_DOCS_URL}
-						target="_blank"
-						rel="noreferrer"
-						size="sm"
-					>
-						Generate a Bedrock API key
-					</Link>
-				</>
-			),
-		};
-	}
-	return { label: "API Key", placeholder: "sk-..." };
-};
+// The AI gateway re-signs Bedrock requests with the deployment's AWS
+// credentials (SigV4), so a personal key saved for a Bedrock provider is
+// never used. Hide the key form for Bedrock instead of collecting a secret
+// that has no effect.
+const supportsUserKeys = (provider: UserChatProviderConfig): boolean =>
+	provider.provider !== "bedrock";
 
 type ProviderStatus = {
 	label: string;
@@ -60,6 +31,21 @@ type ProviderStatus = {
 const getProviderStatus = (
 	provider: UserChatProviderConfig,
 ): ProviderStatus => {
+	if (!supportsUserKeys(provider)) {
+		if (provider.has_user_api_key) {
+			return {
+				label: "Key not used",
+				variant: "warning",
+				note: `${BEDROCK_UNSUPPORTED_NOTE} Your saved key is not used and can be removed.`,
+			};
+		}
+		return {
+			label: "Not supported",
+			variant: "default",
+			note: BEDROCK_UNSUPPORTED_NOTE,
+		};
+	}
+
 	if (!provider.byok_enabled) {
 		return {
 			label: "User keys disabled",
@@ -119,7 +105,6 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
 	const status = getProviderStatus(provider);
-	const fieldCopy = getProviderKeyFieldCopy(provider);
 	const enabledModels = models.filter(
 		(model) => model.enabled && model.ai_provider_id === provider.provider_id,
 	);
@@ -178,65 +163,74 @@ const ProviderKeyPanel: FC<ProviderKeyPanelProps> = ({
 				</Badge>
 			</div>
 
-			<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
-				<div className="flex flex-col gap-1">
+			{supportsUserKeys(provider) ? (
+				<form className="mt-6 flex flex-col gap-3" onSubmit={handleSave}>
 					<label
 						htmlFor={apiKeyInputId}
 						className="text-sm font-medium text-content-primary"
 					>
-						{fieldCopy.label}
+						API Key
 					</label>
-					{fieldCopy.description && (
-						<p className="m-0 text-sm text-content-secondary">
-							{fieldCopy.description}
-						</p>
-					)}
-				</div>
-				<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
-					<div className="flex flex-col gap-1.5 lg:flex-1">
-						<Input
-							id={apiKeyInputId}
-							name={`provider-api-key-${provider.provider_id}`}
-							type="password"
-							autoComplete="off"
-							data-1p-ignore
-							data-lpignore="true"
-							data-form-type="other"
-							data-bwignore
-							className="h-9 font-mono text-[13px]"
-							placeholder={fieldCopy.placeholder}
-							value={apiKey}
-							onFocus={handleApiKeyFocus}
-							onChange={(event) => {
-								setApiKey(event.target.value);
-								setApiKeyTouched(true);
-							}}
-							disabled={inputDisabled}
-						/>
-						{hasAPIKeyWhitespace && (
-							<p className="m-0 text-xs text-content-destructive">
-								API key must not contain leading or trailing whitespace.
-							</p>
-						)}
-					</div>
-					<div className="flex items-center gap-2">
-						<Button type="submit" size="sm" disabled={saveDisabled}>
-							Save
-						</Button>
-						{provider.has_user_api_key && (
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() => setIsDeleteDialogOpen(true)}
-								disabled={removeDisabled}
-							>
-								Remove
+					<div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+						<div className="flex flex-col gap-1.5 lg:flex-1">
+							<Input
+								id={apiKeyInputId}
+								name={`provider-api-key-${provider.provider_id}`}
+								type="password"
+								autoComplete="off"
+								data-1p-ignore
+								data-lpignore="true"
+								data-form-type="other"
+								data-bwignore
+								className="h-9 font-mono text-[13px]"
+								placeholder="sk-..."
+								value={apiKey}
+								onFocus={handleApiKeyFocus}
+								onChange={(event) => {
+									setApiKey(event.target.value);
+									setApiKeyTouched(true);
+								}}
+								disabled={inputDisabled}
+							/>
+							{hasAPIKeyWhitespace && (
+								<p className="m-0 text-xs text-content-destructive">
+									API key must not contain leading or trailing whitespace.
+								</p>
+							)}
+						</div>
+						<div className="flex items-center gap-2">
+							<Button type="submit" size="sm" disabled={saveDisabled}>
+								Save
 							</Button>
-						)}
+							{provider.has_user_api_key && (
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setIsDeleteDialogOpen(true)}
+									disabled={removeDisabled}
+								>
+									Remove
+								</Button>
+							)}
+						</div>
 					</div>
-				</div>
-			</form>
+				</form>
+			) : (
+				provider.has_user_api_key && (
+					<div className="mt-6">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => setIsDeleteDialogOpen(true)}
+							disabled={removeDisabled}
+						>
+							Remove
+						</Button>
+					</div>
+				)
+			)}
 
 			<div className="mt-6 flex flex-col gap-2">
 				<p className="m-0 text-sm font-medium text-content-primary">

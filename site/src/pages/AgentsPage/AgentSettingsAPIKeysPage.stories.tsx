@@ -130,30 +130,48 @@ export const BedrockProvider: Story = {
 				model: "anthropic.claude-sonnet-4-20250514-v1:0",
 			}),
 		],
-		onSave: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Not supported")).toBeVisible();
+		await expect(
+			canvas.getByText(
+				/AWS Bedrock providers do not support personal API keys/,
+			),
+		).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const BedrockProviderWithSavedKey: Story = {
+	args: {
+		providerItems: createProviderItems([
+			createProvider({
+				provider_id: "prov-bedrock",
+				provider: "bedrock",
+				display_name: "AWS Bedrock",
+				has_user_api_key: true,
+			}),
+		]),
+		models: [],
+		onRemove: fn(),
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const apiKeyInput = await canvas.findByLabelText("Amazon Bedrock API key");
-		await expect(apiKeyInput).toHaveAttribute("placeholder", "ABSK...");
-		await expect(
-			canvas.getByText(/IAM access key and secret key pairs are not supported/),
-		).toBeVisible();
-		const docsLink = canvas.getByRole("link", {
-			name: /Generate a Bedrock API key/,
-		});
-		await expect(docsLink).toHaveAttribute(
-			"href",
-			"https://docs.aws.amazon.com/bedrock/latest/userguide/getting-started-api-keys.html",
-		);
+		await expect(await canvas.findByText("Key not used")).toBeVisible();
+		expect(canvas.queryByLabelText(/API Key/i)).not.toBeInTheDocument();
 
-		await userEvent.type(apiKeyInput, "ABSKQmVkcm9ja0FQSUtleS-test");
-		await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Remove" }));
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog");
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Remove" }),
+		);
 		await waitFor(() => {
-			expect(args.onSave).toHaveBeenCalledWith(
-				"prov-bedrock",
-				"ABSKQmVkcm9ja0FQSUtleS-test",
-			);
+			expect(args.onRemove).toHaveBeenCalledWith("prov-bedrock");
 		});
 	},
 };
