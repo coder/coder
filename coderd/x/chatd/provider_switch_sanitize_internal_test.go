@@ -245,3 +245,48 @@ func TestModelConfigProviderIdentity(t *testing.T) {
 		)
 	})
 }
+
+// Regression for PR #28645 review: the pending-user segment must be
+// derived before provider-switch sanitization. Sanitization can drop an
+// assistant row emptied of foreign provider-executed parts, which would
+// otherwise merge the already-answered user row before it into the
+// pending tail and replay it as unanswered.
+func TestPendingUserSegmentDerivedBeforeProviderSwitchSanitization(t *testing.T) {
+	t.Parallel()
+
+	foreignCfg := uuid.New()
+	peCall := codersdk.ChatMessageToolCall("ws", "web_search", json.RawMessage(`{"query":"x"}`))
+	peCall.ProviderExecuted = true
+	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{peCall})
+	require.NoError(t, err)
+	userContent := func(s string) pqtype.NullRawMessage {
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(s)})
+		require.NoError(t, err)
+		return content
+	}
+	rows := []database.ChatMessage{
+		{Role: database.ChatMessageRoleUser, Content: userContent("answered question"), ContentVersion: chatprompt.ContentVersionV1},
+		{Role: database.ChatMessageRoleAssistant, ModelConfigID: uuid.NullUUID{UUID: foreignCfg, Valid: true}, Content: assistantContent, ContentVersion: chatprompt.ContentVersionV1},
+		{Role: database.ChatMessageRoleUser, Content: userContent("pending"), ContentVersion: chatprompt.ContentVersionV1},
+	}
+
+	origin := func(id uuid.NullUUID) (string, bool) {
+		return "openai", id.Valid
+	}
+
+	// Segment first: only the truly unanswered tail is pending.
+	start := pendingUserSegmentStart(rows)
+	require.Equal(t, 2, start)
+
+	// The sanitizer drops the emptied foreign assistant row from the
+	// head; the answered user row stays in the head regardless.
+	head, stats := stripForeignProviderExecutedToolRows(rows[:start], "anthropic", origin)
+	require.Equal(t, 1, stats.DroppedMessages)
+	require.Len(t, head, 1)
+	require.Equal(t, database.ChatMessageRoleUser, head[0].Role)
+
+	// Deriving the segment after sanitization would misclassify the
+	// answered user row as pending.
+	sanitizedAll, _ := stripForeignProviderExecutedToolRows(rows, "anthropic", origin)
+	require.Equal(t, 0, pendingUserSegmentStart(sanitizedAll))
+}

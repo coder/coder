@@ -286,7 +286,17 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, chat.OwnerID, modelConfig.ID)
+	//
+	// The pending-user segment is derived from the persisted rows first:
+	// sanitization can drop an assistant row emptied of foreign
+	// provider-executed parts, which would merge the already-answered
+	// user row before it into the pending tail. Sanitizing the head
+	// alone is equivalent to sanitizing everything because the tail is
+	// user-only and the sanitizer only rewrites assistant rows.
+	pendingRowsStart := pendingUserSegmentStart(promptRows)
+	sanitizedHead := server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows[:pendingRowsStart], chat.OwnerID, modelConfig.ID)
+	promptRows = append(sanitizedHead[:len(sanitizedHead):len(sanitizedHead)], promptRows[pendingRowsStart:]...)
+	pendingRowsStart = len(sanitizedHead)
 
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
@@ -337,7 +347,6 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
-	pendingRowsStart := pendingUserSegmentStart(promptRows)
 	var pendingPrompt []fantasy.Message
 	var g2 errgroup.Group
 	g2.Go(func() error {
