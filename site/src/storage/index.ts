@@ -57,8 +57,12 @@ type EntityStorageKey<T> = {
 	forId: (...idParts: string[]) => StorageKeyHandle<T>;
 	/** Key suffixes (the part after `prefix`) currently stored in localStorage. */
 	listStoredSuffixes: () => string[];
-	/** Remove every stored key in this family owned by the given entity ID. */
-	clear: (id: string) => void;
+	/**
+	 * Remove every stored key in this family owned by the given entity
+	 * ID, reporting the first failure when some keys could not be
+	 * removed.
+	 */
+	clear: (id: string) => PersistResult;
 };
 
 // -- Codecs -----------------------------------------------------------------
@@ -156,11 +160,19 @@ const writeRaw = (
 	}
 };
 
-const removeRaw = (area: StorageArea, key: string): void => {
+const removeRaw = (area: StorageArea, key: string): PersistResult => {
 	try {
-		getAreaStorage(area)?.removeItem(key);
-	} catch {
-		// The value simply stays; readers still work from their defaults.
+		const storage = getAreaStorage(area);
+		if (!storage) {
+			return { ok: false, reason: "unavailable" };
+		}
+		storage.removeItem(key);
+		return { ok: true };
+	} catch (error) {
+		return {
+			ok: false,
+			reason: isQuotaError(error) ? "quota" : "unavailable",
+		};
 	}
 };
 
@@ -363,6 +375,11 @@ export function defineEntityStorageKey<T>(options: {
 	// for the same entity ID across renders.
 	const handleCache = new Map<string, StorageKeyHandle<T>>();
 
+	// An empty or missing ID part would alias the bare family prefix,
+	// which clear() cannot remove because it ignores empty IDs. The
+	// inert handle keeps loading states readable without persisting.
+	let inertHandle: StorageKeyHandle<T> | undefined;
+
 	const listStoredSuffixes = (): string[] =>
 		listLocalKeys()
 			.filter((key) => key.startsWith(prefix))
@@ -371,6 +388,17 @@ export function defineEntityStorageKey<T>(options: {
 	return {
 		prefix,
 		forId: (...idParts) => {
+			if (idParts.length === 0 || idParts.some((part) => part === "")) {
+				inertHandle ??= {
+					key: prefix,
+					get: () => defaultValue,
+					getSnapshot: () => defaultValue,
+					set: () => ({ ok: false, reason: "invalid" }),
+					remove: () => ({ ok: true }),
+					subscribe: () => () => {},
+				};
+				return inertHandle;
+			}
 			const key = prefix + idParts.join(".");
 			let handle = handleCache.get(key);
 			if (!handle) {
@@ -382,7 +410,7 @@ export function defineEntityStorageKey<T>(options: {
 		listStoredSuffixes,
 		clear: (id) => {
 			if (!id) {
-				return;
+				return { ok: true };
 			}
 			// Collect first: removing keys while enumerating by index
 			// skips entries.
@@ -391,10 +419,16 @@ export function defineEntityStorageKey<T>(options: {
 					key.startsWith(prefix) &&
 					entityIdFromSuffix(key.slice(prefix.length)) === id,
 			);
+			let failure: PersistResult | undefined;
 			for (const key of ownedKeys) {
-				removeRaw("local", key);
-				notifyKeyChanged("local", key);
+				const result = removeRaw("local", key);
+				if (result.ok) {
+					notifyKeyChanged("local", key);
+				} else {
+					failure ??= result;
+				}
 			}
+			return failure ?? { ok: true };
 		},
 	};
 }

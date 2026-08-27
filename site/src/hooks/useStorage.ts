@@ -8,7 +8,13 @@ import type { PersistResult, StorageKeyHandle } from "#/storage";
  * handlers; it must not run during render.
  */
 export function useStorage<T>(
-	handle: StorageKeyHandle<T>,
+	// Storage holds serialized plain data, so callable types are not
+	// valid storage values; rejecting them keeps the setter's updater
+	// detection sound.
+	handle: StorageKeyHandle<T> &
+		(Extract<T, (...args: never[]) => unknown> extends never
+			? unknown
+			: { storageValuesMustNotBeCallable: never }),
 ): [T, (value: T | ((prev: T) => T)) => PersistResult, () => PersistResult] {
 	const value = useSyncExternalStore(handle.subscribe, handle.getSnapshot);
 	const set = useCallback(

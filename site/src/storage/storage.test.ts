@@ -155,11 +155,17 @@ describe("storage core", () => {
 	});
 
 	it("reports unserializable values as invalid instead of throwing", () => {
-		const cyclic: string[] = [];
-		// biome-ignore lint/suspicious/noExplicitAny: building a cyclic value on purpose
-		(cyclic as any).push(cyclic);
-		expect(listKey.set(cyclic)).toEqual({ ok: false, reason: "invalid" });
-		expect(localStorage.getItem("test.list")).toBeNull();
+		type Cyclic = Cyclic[];
+		// Decode never runs here; encoding the cycle fails first.
+		const cyclicKey = defineStorageKey<Cyclic | null>({
+			key: "test.cycle",
+			codec: jsonCodec<Cyclic>(() => undefined),
+			defaultValue: null,
+		});
+		const cyclic: Cyclic = [];
+		cyclic.push(cyclic);
+		expect(cyclicKey.set(cyclic)).toEqual({ ok: false, reason: "invalid" });
+		expect(localStorage.getItem("test.cycle")).toBeNull();
 	});
 
 	it("reports removal failures from remove and set(null)", () => {
@@ -373,8 +379,39 @@ describe("entity-scoped keys", () => {
 
 	it("ignores empty entity IDs", () => {
 		chatNote.forId("chat-1").set("draft");
-		chatNote.clear("");
+		expect(chatNote.clear("")).toEqual({ ok: true });
 		expect(localStorage.getItem("test.chat-note.chat-1")).not.toBeNull();
+	});
+
+	it("reports cleanup failures and keeps unremoved keys unnotified", () => {
+		chatNote.forId("chat-1").set("note");
+		const listener = vi.fn();
+		const unsubscribe = chatNote.forId("chat-1").subscribe(listener);
+		vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+			throw new Error("denied");
+		});
+
+		expect(chatNote.clear("chat-1")).toEqual({
+			ok: false,
+			reason: "unavailable",
+		});
+		expect(listener).not.toHaveBeenCalled();
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBe("note");
+		unsubscribe();
+
+		vi.restoreAllMocks();
+		expect(chatNote.clear("chat-1")).toEqual({ ok: true });
+		expect(localStorage.getItem("test.chat-note.chat-1")).toBeNull();
+	});
+
+	it("serves an inert handle for empty entity ID parts", () => {
+		for (const handle of [chatNote.forId(""), chatNote.forId()]) {
+			expect(handle.get()).toBeNull();
+			expect(handle.set("value")).toEqual({ ok: false, reason: "invalid" });
+			expect(handle.remove()).toEqual({ ok: true });
+		}
+		expect(localStorage.getItem("test.chat-note.")).toBeNull();
+		expect(chatNote.listStoredSuffixes()).toEqual([]);
 	});
 });
 

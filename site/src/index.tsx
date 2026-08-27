@@ -3,7 +3,6 @@ import "./index.css";
 import { App } from "./App";
 import { defineStorageKey, integerCodec } from "./storage";
 
-/** Timestamp of the last chunk-preload-failure reload (see below). */
 const preloadReloadStorage = defineStorageKey<number | null>({
 	key: "preload-reload",
 	codec: integerCodec,
