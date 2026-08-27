@@ -13,6 +13,34 @@ import (
 	"github.com/coder/websocket"
 )
 
+func TestClientSessionIDBaggage(t *testing.T) {
+	t.Parallel()
+
+	const sessionID = "0123456789abcdef0123456789abcdef"
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+
+		value, ok := clientSessionIDBaggage(sessionID)
+		require.True(t, ok)
+
+		// The value must be readable the same way coderd and the agent tracing
+		// middleware read it, so correlation lines up end to end.
+		h := http.Header{}
+		h.Set("baggage", value)
+		ctx := propagation.Baggage{}.Extract(context.Background(), propagation.HeaderCarrier(h))
+		require.Equal(t, sessionID, baggage.FromContext(ctx).Member(tracing.SessionIDBaggageKey).Value())
+	})
+
+	t.Run("EmptyIsNotOK", func(t *testing.T) {
+		t.Parallel()
+
+		value, ok := clientSessionIDBaggage("")
+		require.False(t, ok)
+		require.Empty(t, value)
+	})
+}
+
 func TestSetClientSessionIDBaggage(t *testing.T) {
 	t.Parallel()
 

@@ -207,26 +207,38 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 	tailnet.RewriteDERPMapDefaultRelay(context.Background(), c.client.Logger(), derpMap, c.client.URL)
 }
 
+// clientSessionIDBaggage returns the W3C baggage header value carrying sessionID
+// under the client_session_id key, so coderd and the agent's tracing middleware
+// can log requests against the client's session. The bool is false when
+// sessionID is empty or not a valid baggage value.
+func clientSessionIDBaggage(sessionID string) (string, bool) {
+	if sessionID == "" {
+		return "", false
+	}
+	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
+	if err != nil {
+		return "", false
+	}
+	bag, err := baggage.New(member)
+	if err != nil {
+		return "", false
+	}
+	return bag.String(), true
+}
+
 // setClientSessionIDBaggage attaches sessionID as a W3C baggage member under the
 // client_session_id key on the websocket handshake headers, so coderd's tracing
 // middleware can log it against the coordinate request. It is a no-op when
 // sessionID is empty or not a valid baggage value.
 func setClientSessionIDBaggage(wsOptions *websocket.DialOptions, sessionID string) {
-	if sessionID == "" {
-		return
-	}
-	member, err := baggage.NewMemberRaw(tracing.SessionIDBaggageKey, sessionID)
-	if err != nil {
-		return
-	}
-	bag, err := baggage.New(member)
-	if err != nil {
+	value, ok := clientSessionIDBaggage(sessionID)
+	if !ok {
 		return
 	}
 	if wsOptions.HTTPHeader == nil {
 		wsOptions.HTTPHeader = http.Header{}
 	}
-	wsOptions.HTTPHeader.Set("baggage", bag.String())
+	wsOptions.HTTPHeader.Set("baggage", value)
 }
 
 func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *DialAgentOptions) (agentConn AgentConn, err error) {
@@ -337,6 +349,15 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		},
 		Logger: options.Logger,
 	})
+
+	// Agent HTTP API requests use a separate per-request HTTP client that does
+	// not go through the CLI's baggage transport, so attach the session ID to the
+	// conn's extra headers to propagate it to the agent's tracing middleware.
+	if value, ok := clientSessionIDBaggage(options.ClientSessionID); ok {
+		header := http.Header{}
+		header.Set("baggage", value)
+		agentConn.SetExtraHeaders(header)
+	}
 
 	if !agentConn.AwaitReachable(dialCtx) {
 		_ = agentConn.Close()
