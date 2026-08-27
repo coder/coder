@@ -294,6 +294,47 @@ resource "coder_agent" "second" {}
 	})
 }
 
+// TestExtractModuleNames covers the regex-based module block extractor on the
+// shapes it must handle for our curated templates: real blocks in declaration
+// order, and commented-out blocks (whose line starts with `#`) ignored because
+// matching is anchored to the start of a line.
+func TestExtractModuleNames(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleInOrder", func(t *testing.T) {
+		t.Parallel()
+		src := []byte(`module "git-clone" {
+  source = "registry.coder.com/coder/git-clone/coder"
+}
+
+module "code-server" {
+  source = "registry.coder.com/coder/code-server/coder"
+}
+`)
+		require.Equal(t, []string{"git-clone", "code-server"},
+			templatebuilder.ExtractModuleNames(src))
+	})
+
+	t.Run("IgnoresCommentedBlock", func(t *testing.T) {
+		t.Parallel()
+		src := []byte(`module "git-clone" {
+  source = "registry.coder.com/coder/git-clone/coder"
+}
+
+# module "commented" {
+#   source = "registry.coder.com/coder/commented/coder"
+# }
+`)
+		require.Equal(t, []string{"git-clone"}, templatebuilder.ExtractModuleNames(src))
+	})
+
+	t.Run("NoModules", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.ExtractModuleNames(
+			[]byte(`resource "coder_agent" "main" {}`)))
+	})
+}
+
 func TestModuleTemplateFS(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +385,7 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		{exampleID: "digitalocean-linux"},
 		{exampleID: "gcp-linux"},
 		{exampleID: "gcp-windows"},
+		{exampleID: "quickstart"},
 		{exampleID: "scratch"},
 	}
 
