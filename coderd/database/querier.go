@@ -707,8 +707,8 @@ type sqlcQuerier interface {
 	// belong to @organization_id, on or after period_start until NOW.
 	// spend_limit_micros is the per-member limit, null when the group has no budget.
 	// total_spend_limit_micros is the combined budget of the members attributed to
-	// the group, with each member's override replacing their share. It is null when
-	// the group has no budget.
+	// the group, with each member's override replacing their share. System users
+	// are excluded. It is null when the group has no budget.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOrganizationGroupsAISpend(ctx context.Context, arg GetOrganizationGroupsAISpendParams) ([]GetOrganizationGroupsAISpendRow, error)
@@ -720,8 +720,8 @@ type sqlcQuerier interface {
 	// membership status for the prebuilds system user (org membership, group existence, group membership).
 	GetOrganizationsWithPrebuildStatus(ctx context.Context, arg GetOrganizationsWithPrebuildStatusParams) ([]GetOrganizationsWithPrebuildStatusRow, error)
 	// Returns, per effective group, the number of users at or over their spend
-	// limit since period_start. Only users with an enforceable limit (override or
-	// budgeted group) count, and the unlimited Everyone fallback does not.
+	// limit since period_start. Only non-system users with an enforceable limit
+	// (override or budgeted group) count, and the unlimited Everyone fallback does not.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
