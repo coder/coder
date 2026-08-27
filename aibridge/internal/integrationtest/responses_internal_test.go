@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 type keyVal struct {
@@ -519,59 +518,59 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 			name:              "with injected and builtin tools: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected and builtin tools: parallel_tool_calls unset",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With injected tools but without builtin tools: parallel_tool_calls should be forced false.
 		{
 			name:              "with injected tools only: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(true),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with injected tools only: parallel_tool_calls unset",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: true,
 			initialSetting:    nil,
-			expectedSetting:   utils.PtrTo(false),
+			expectedSetting:   new(false),
 		},
 		// With builtin tools but without injected tools: parallel_tool_calls should be preserved.
 		{
 			name:              "with builtin tools only: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSingleBuiltinTool, fixtures.OaiResponsesStreamingBuiltinTool},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "with builtin tools only: parallel_tool_calls unset",
@@ -585,15 +584,15 @@ func TestResponsesParallelToolsOverwritten(t *testing.T) {
 			name:              "no tools: parallel_tool_calls true",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(true),
-			expectedSetting:   utils.PtrTo(true),
+			initialSetting:    new(true),
+			expectedSetting:   new(true),
 		},
 		{
 			name:              "no tools: parallel_tool_calls false",
 			fixture:           [2][]byte{fixtures.OaiResponsesBlockingSimple, fixtures.OaiResponsesStreamingSimple},
 			withInjectedTools: false,
-			initialSetting:    utils.PtrTo(false),
-			expectedSetting:   utils.PtrTo(false),
+			initialSetting:    new(false),
+			expectedSetting:   new(false),
 		},
 		{
 			name:              "no tools: parallel_tool_calls unset",

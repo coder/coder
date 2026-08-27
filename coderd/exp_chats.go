@@ -47,7 +47,6 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
@@ -146,6 +145,43 @@ func maybeWriteChatUsageLimitError(ctx context.Context, rw http.ResponseWriter, 
 	return true
 }
 
+// statusClientClosedRequest is nginx's non-standard 499 status code,
+// used here to distinguish a client-initiated cancel from a server-
+// side failure when the manual title generation context is canceled.
+const statusClientClosedRequest = 499
+
+// maybeWriteManualTitleTimeoutErr translates context-cancel or
+// title-timeout errors from the manual title pipeline into friendly
+// 499/504 responses instead of a raw 500 that leaks the wrapped error
+// chain. The errors bubble up wrapped, so match with errors.Is. Returns
+// true when a response was written.
+//
+// The 499 branch additionally requires the request context itself to be
+// canceled. A provider error can wrap context.Canceled (for example an
+// upstream 401) while the caller context is still active; without the
+// ctx.Err() guard such a provider failure would be misreported as a
+// client-closed request instead of surfacing through the 500 path.
+//
+// The 504 branch keys off chatd.ErrManualTitleTimedOut, which chatd
+// attaches only when the title-generation deadline actually expired. A
+// provider failure whose chain merely contains an unrelated transport
+// deadline is not tagged and keeps its provider-failure surface.
+func maybeWriteManualTitleTimeoutErr(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	switch {
+	case errors.Is(err, context.Canceled) && errors.Is(ctx.Err(), context.Canceled):
+		httpapi.Write(ctx, rw, statusClientClosedRequest, codersdk.Response{
+			Message: "Title generation was canceled.",
+		})
+		return true
+	case errors.Is(err, chatd.ErrManualTitleTimedOut):
+		httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
+			Message: "Title generation timed out. Try again or rename manually.",
+		})
+		return true
+	}
+	return false
+}
+
 // requireChatDaemon reports whether the chat daemon exists, writing a 503
 // Service Unavailable with a remediation message when it does not. The
 // daemon is nil when the in-memory AI Gateway is disabled by deployment
@@ -184,16 +220,13 @@ func publishChatConfigEvent(logger slog.Logger, ps dbpubsub.Pubsub, kind pubsub.
 	}
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Watch chat events for a user via WebSockets
 // @ID watch-chat-events-for-a-user-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Success 200 {object} codersdk.ChatWatchEvent
-// @Router /api/experimental/chats/watch [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/watch [get]
 func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -274,33 +307,30 @@ func (api *API) watchChats(rw http.ResponseWriter, r *http.Request) {
 	<-ctx.Done()
 }
 
-// EXPERIMENTAL: chatsByWorkspace returns a mapping of workspace ID to
 // the latest non-archived chat ID for each requested workspace.
 // The query returns all matching chats and RBAC post-filters them;
 // the handler then picks the latest per workspace in Go. This avoids
 // the DISTINCT ON + post-filter bug where the sole candidate is
 // silently dropped when the caller can't read it.
 //
-// TODO:
-//  1. move aggregation to a SQL view with proper in-query authz so we
-//     can return a single row per workspace without this two-pass approach.
-//  2. Restore the below router annotation and un-skip docs gen
-//     <at>Router /api/experimental/chats/by-workspace [post]
-//
-// @Summary Get latest chats by workspace IDs
-// @ID get-latest-chats-by-workspace-ids
+// TODO: move aggregation to a SQL view with proper in-query authz so the
+// handler can return a single row per workspace without this two-pass approach.
+type chatsByWorkspaceResponse map[uuid.UUID]uuid.UUID
+
+// @Summary List chats by workspace
+// @ID list-chats-by-workspace
 // @Security CoderSessionToken
 // @Tags Chats
-// @Accept json
+// @Param workspace_ids query string false "Comma-separated workspace IDs"
 // @Produce json
-// @Success 200
-// @x-apidocgen {"skip": true}
+// @Success 200 {object} chatsByWorkspaceResponse
+// @Router /api/v2/chats/by-workspace [get]
 func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	idsParam := r.URL.Query().Get("workspace_ids")
 	if idsParam == "" {
-		httpapi.Write(ctx, rw, http.StatusOK, map[uuid.UUID]uuid.UUID{})
+		httpapi.Write(ctx, rw, http.StatusOK, chatsByWorkspaceResponse{})
 		return
 	}
 
@@ -344,7 +374,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	// The SQL orders by (workspace_id, updated_at DESC), so the first
 	// chat seen per workspace after RBAC filtering is the latest
 	// readable one.
-	result := make(map[uuid.UUID]uuid.UUID, len(chats))
+	result := make(chatsByWorkspaceResponse, len(chats))
 	for _, chat := range chats {
 		if chat.WorkspaceID.Valid {
 			if _, exists := result[chat.WorkspaceID.UUID]; !exists {
@@ -356,18 +386,18 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, result)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary List chats
 // @ID list-chats
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
-// @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
+// @Param q query string false "Search query. Supports `title:<substring>` (case-insensitive, quote multi-word values), `archived:bool`, `has_unread:bool`, `pr_status:<draft\|open\|merged\|closed>` as repeated or comma-separated values, `source:<created_by_me\|shared_with_me>`, `diff_url:<url>` (quote values containing colons), `pr:<number>` (exact PR number match), `repo:<owner/repo>` (case-insensitive substring match against git remote origin or URL), `pr_title:<text>` (case-insensitive PR title substring), `search:<text>` (full-text search across chat titles, PR titles, PR numbers, and message bodies; message bodies match English word stems, e.g. `refactor` matches `refactoring`, and ignore English stopwords; titles and PR titles match whole words case-insensitively without stemming; quote multi-word values; cannot be combined with title, pr_title, or pr; a value that tokenizes to no searchable words, e.g. punctuation only, returns an empty list). Bare terms are not supported; use `title:<value>` or `search:<value>`."
+// @Param label query []string false "Filter by label as key:value. Repeat for multiple (AND logic)." collectionFormat(multi)
+// @Param after_id query string false "After ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param offset query int false "Page offset"
 // @Success 200 {array} codersdk.Chat
-// @Router /api/experimental/chats [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1149,8 +1179,6 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 	}
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Create chat
 // @ID create-chat
 // @Security CoderSessionToken
@@ -1160,8 +1188,7 @@ func invalidChatMCPServerIDsResponse(ids []uuid.UUID) codersdk.Response {
 // @Param request body codersdk.CreateChatRequest true "Create chat request"
 // @Success 201 {object} codersdk.Chat
 // @Failure 413 {object} codersdk.Response "Request body exceeds 256 KiB"
-// @Router /api/experimental/chats [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats [post]
 func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -1423,8 +1450,6 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, response)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get chat by ID
 // @ID get-chat-by-id
 // @Security CoderSessionToken
@@ -1432,8 +1457,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat} [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat} [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
@@ -1530,8 +1554,6 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary List chat messages
 // @ID list-chat-messages
 // @Security CoderSessionToken
@@ -1542,8 +1564,7 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 // @Param after_id query int false "Return messages with id > after_id"
 // @Param limit query int false "Page size, 1 to 200. Defaults to 50."
 // @Success 200 {object} codersdk.ChatMessagesResponse
-// @Router /api/experimental/chats/{chat}/messages [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/messages [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
@@ -1635,8 +1656,6 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get chat cost
 // @ID get-chat-cost
 // @Security CoderSessionToken
@@ -1644,8 +1663,7 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatCost
-// @Router /api/experimental/chats/{chat}/cost [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/cost [get]
 // @Description
 // @Description Cost covers the whole chat tree: the root chat plus every
 // @Description subagent chat beneath it. Requesting cost for a subagent chat
@@ -1706,8 +1724,7 @@ func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param limit query int false "Page size, 0 to 2000. 0 (the default) means the server-side default of 500."
 // @Success 200 {object} codersdk.ChatPromptsResponse
-// @Router /api/experimental/chats/{chat}/prompts [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/prompts [get]
 // @Description
 // @Description Returns the user-authored prompts in a chat, newest first,
 // @Description with each prompt's text parts concatenated in the order they
@@ -1821,8 +1838,6 @@ func (api *API) authorizeChatWorkspaceExec(
 	return workspace, true
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Watch chat workspace git state via WebSockets
 // @ID watch-chat-workspace-git-state-via-websockets
 // @Security CoderSessionToken
@@ -1830,8 +1845,7 @@ func (api *API) authorizeChatWorkspaceExec(
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceAgentGitServerMessage
-// @Router /api/experimental/chats/{chat}/stream/git [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/stream/git [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
@@ -2074,7 +2088,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// No read limit — RFB framebuffer updates can be large.
+	// No read limit because RFB framebuffer updates can be large.
 	conn.SetReadLimit(-1)
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -2141,8 +2155,7 @@ func (api *API) applyChatTitleUpdate(
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/context [put]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/context [put]
 func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2198,8 +2211,7 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatRequest true "Update chat request"
 // @Success 204
-// @Router /api/experimental/chats/{chat} [patch]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat} [patch]
 func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2527,8 +2539,6 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 	return true
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Send chat message
 // @ID send-chat-message
 // @Security CoderSessionToken
@@ -2538,8 +2548,7 @@ func writeCommonChatMutationError(ctx context.Context, rw http.ResponseWriter, e
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.CreateChatMessageRequest true "Create chat message request"
 // @Success 200 {object} codersdk.CreateChatMessageResponse
-// @Router /api/experimental/chats/{chat}/messages [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/messages [post]
 func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2732,8 +2741,6 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Edit chat message
 // @ID edit-chat-message
 // @Security CoderSessionToken
@@ -2744,8 +2751,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 // @Param message path int true "Message ID"
 // @Param request body codersdk.EditChatMessageRequest true "Edit chat message request"
 // @Success 200 {object} codersdk.EditChatMessageResponse
-// @Router /api/experimental/chats/{chat}/messages/{message} [patch]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/messages/{message} [patch]
 func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -2891,7 +2897,14 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Delete chat queued message
+// @ID delete-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path int true "Queued message ID"
+// @Success 204
+// @Router /api/v2/chats/{chat}/queue/{queuedMessage} [delete]
 func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -2944,7 +2957,15 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Promote chat queued message
+// @ID promote-chat-queued-message
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param queuedMessage path int true "Queued message ID"
+// @Produce json
+// @Success 202 {object} codersdk.Response
+// @Router /api/v2/chats/{chat}/queue/{queuedMessage}/promote [post]
 func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -3062,17 +3083,15 @@ func (api *API) markChatAsRead(ctx context.Context, chatID uuid.UUID) {
 	}
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Stream chat events via WebSockets
 // @ID stream-chat-events-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatStreamEvent
-// @Router /api/experimental/chats/{chat}/stream [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Param after_id query int false "Skip snapshot messages with id at or before this cursor"
+// @Success 200 {array} codersdk.ChatStreamEvent
+// @Router /api/v2/chats/{chat}/stream [get]
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3203,8 +3222,6 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Interrupt chat
 // @ID interrupt-chat
 // @Security CoderSessionToken
@@ -3212,8 +3229,7 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/interrupt [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/interrupt [post]
 func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -3254,8 +3270,6 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Compact chat
 // @ID compact-chat
 // @Security CoderSessionToken
@@ -3263,9 +3277,8 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 // @Param chat path string true "Chat ID" format(uuid)
 // @Produce json
 // @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/compact [post]
+// @Router /api/v2/chats/{chat}/compact [post]
 // @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
 // @Description Requests a manual context compaction on an idle or errored
 // @Description chat, clearing any stored error. The compaction runs
 // @Description asynchronously through the chat worker and bypasses the
@@ -3327,8 +3340,6 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Reconcile invalid chat state
 // @ID reconcile-invalid-chat-state
 // @Security CoderSessionToken
@@ -3336,8 +3347,7 @@ func (api *API) compactChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/reconcile-invalid [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/reconcile-invalid [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Request) {
@@ -3379,65 +3389,15 @@ func (api *API) reconcileInvalidChatState(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
-// @Summary Regenerate chat title
-// @ID regenerate-chat-title
+// @Summary Propose chat title
+// @ID propose-chat-title
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.Chat
-// @Router /api/experimental/chats/{chat}/title/regenerate [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Success 200 {object} codersdk.ProposeChatTitleResponse
+// @Router /api/v2/chats/{chat}/title/propose [post]
 //
-//nolint:revive // HTTP handler writes to ResponseWriter.
-func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-	chat := httpmw.ChatParam(r)
-
-	if !api.requireChatDaemon(ctx, rw) {
-		return
-	}
-
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Only the chat owner may regenerate titles. See
-	// postChatMessages for the security rationale.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the chat owner may regenerate the title.",
-		})
-		return
-	}
-
-	updatedChat, err := api.chatDaemon.RegenerateChatTitle(ctx, chat)
-	if err != nil {
-		if errors.Is(err, chatd.ErrNoDefaultChatModelConfig) {
-			writeNoLocalChatModelResponse(ctx, rw)
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		if maybeWriteChatUsageLimitError(ctx, rw, err) {
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to regenerate chat title.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
-}
-
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -3475,6 +3435,9 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		if maybeWriteChatUsageLimitError(ctx, rw, err) {
 			return
 		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to generate chat title.",
 			Detail:  err.Error(),
@@ -3485,8 +3448,6 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProposeChatTitleResponse{Title: title})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get chat diff contents
 // @ID get-chat-diff-contents
 // @Security CoderSessionToken
@@ -3494,8 +3455,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.ChatDiffContents
-// @Router /api/experimental/chats/{chat}/diff [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/{chat}/diff [get]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) getChatDiffContents(rw http.ResponseWriter, r *http.Request) {
@@ -4056,7 +4016,7 @@ func (api *API) resolveChatGitAccessToken(
 			}
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
-				return ptr.Ref(token), nil
+				return new(token), nil
 			}
 		}
 	}
@@ -4103,7 +4063,7 @@ func (api *API) resolveChatGitAccessToken(
 					slog.F("user_id", userID),
 					slog.Error(refreshErr),
 				)
-				// Fall through — the existing token may still work
+				// Fall through because the existing token may still work.
 				// (e.g. GitHub tokens with no expiry).
 			} else {
 				link = refreshed
@@ -4112,7 +4072,7 @@ func (api *API) resolveChatGitAccessToken(
 
 		token := strings.TrimSpace(link.OAuthAccessToken)
 		if token != "" {
-			return ptr.Ref(token), nil
+			return new(token), nil
 		}
 	}
 
@@ -4336,6 +4296,14 @@ func parseCompactionThresholdKey(key string) (uuid.UUID, error) {
 	return id, nil
 }
 
+// @Summary Get chat system prompt
+// @ID get-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatSystemPromptResponse
+// @Router /api/v2/chats/config/system-prompt [get]
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -4363,6 +4331,14 @@ func (api *API) getChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 // holding it for a single upsert.
 const chatInstructionSettingsLockTimeout = 5 * time.Second
 
+// @Summary Update chat system prompt
+// @ID update-chat-system-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatSystemPromptRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/system-prompt [put]
 func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -4481,7 +4457,13 @@ func (api *API) putChatSystemPrompt(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat plan mode instructions
+// @ID get-chat-plan-mode-instructions
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatPlanModeInstructionsResponse
+// @Router /api/v2/chats/config/plan-mode-instructions [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
@@ -4505,7 +4487,14 @@ func (api *API) getChatPlanModeInstructions(rw http.ResponseWriter, r *http.Requ
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat plan mode instructions
+// @ID update-chat-plan-mode-instructions
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatPlanModeInstructionsRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/plan-mode-instructions [put]
 func (api *API) putChatPlanModeInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -4620,10 +4609,8 @@ func readChatModelOverrideContext(
 // @Produce json
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.ChatModelOverridesResponse
-// @Router /api/experimental/organizations/{organization}/chats/model-overrides [get]
+// @Router /api/v2/organizations/{organization}/chats/model-overrides [get]
 // @x-apidocgen {"skip": true}
-//
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *http.Request) {
@@ -4660,10 +4647,8 @@ func (api *API) getOrganizationChatModelOverrides(rw http.ResponseWriter, r *htt
 // @Param context path string true "Override context" Enums(general,explore,title_generation,compaction,advisor)
 // @Param request body codersdk.UpdateChatModelOverrideRequest true "Model override"
 // @Success 200 {object} codersdk.ChatModelOverrideResponse
-// @Router /api/experimental/organizations/{organization}/chats/model-overrides/{context} [put]
+// @Router /api/v2/organizations/{organization}/chats/model-overrides/{context} [put]
 // @x-apidocgen {"skip": true}
-//
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putOrganizationChatModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
@@ -4783,7 +4768,13 @@ func readChatPersonalModelOverrideContext(
 	return "", false
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat personal model override settings
+// @ID get-chat-personal-model-override-settings
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatPersonalModelOverridesAdminSettings
+// @Router /api/v2/chats/config/personal-model-overrides [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
@@ -4923,7 +4914,14 @@ func (api *API) auditedChatOperationalSettingWrite(
 	return nil
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat personal model override settings
+// @ID update-chat-personal-model-override-settings
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatPersonalModelOverridesAdminSettingsRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/personal-model-overrides [put]
 func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -4961,10 +4959,8 @@ func (api *API) putChatPersonalModelOverridesAdminSettings(rw http.ResponseWrite
 // @Param organization path string true "Organization name or ID"
 // @Param user path string true "User name, ID, or me"
 // @Success 200 {object} codersdk.UserChatPersonalModelOverridesResponse
-// @Router /api/experimental/organizations/{organization}/members/{user}/chats/model-overrides [get]
+// @Router /api/v2/organizations/{organization}/members/{user}/chats/model-overrides [get]
 // @x-apidocgen {"skip": true}
-//
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *http.Request) {
@@ -5042,10 +5038,8 @@ func (api *API) getUserChatPersonalModelOverrides(rw http.ResponseWriter, r *htt
 // @Param context path string true "Override context" Enums(root,general,explore)
 // @Param request body codersdk.UpdateUserChatPersonalModelOverrideRequest true "Personal model override"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/members/{user}/chats/model-overrides/{context} [put]
+// @Router /api/v2/organizations/{organization}/members/{user}/chats/model-overrides/{context} [put]
 // @x-apidocgen {"skip": true}
-//
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putUserChatPersonalModelOverride(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -5242,7 +5236,13 @@ func (api *API) deploymentChatDebugLoggingEnabled() bool {
 	return api.DeploymentValues != nil && api.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value()
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat debug logging setting
+// @ID get-chat-debug-logging-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatDebugLoggingAdminSettings
+// @Router /api/v2/chats/config/debug-logging [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
@@ -5266,7 +5266,14 @@ func (api *API) getChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat debug logging setting
+// @ID update-chat-debug-logging-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatDebugLoggingAllowUsersRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/debug-logging [put]
 func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -5296,7 +5303,13 @@ func (api *API) putChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get user chat debug logging setting
+// @ID get-user-chat-debug-logging-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatDebugLoggingSettings
+// @Router /api/v2/chats/config/user-debug-logging [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
@@ -5337,7 +5350,14 @@ func (api *API) getUserChatDebugLogging(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update user chat debug logging setting
+// @ID update-user-chat-debug-logging-setting
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateUserChatDebugLoggingRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/user-debug-logging [put]
 func (api *API) putUserChatDebugLogging(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -5466,7 +5486,13 @@ func (api *API) putChatAdvisorConfig(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get chat workspace time to live
+// @ID get-chat-workspace-time-to-live
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatWorkspaceTTLResponse
+// @Router /api/v2/chats/config/workspace-ttl [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
@@ -5498,7 +5524,14 @@ func (api *API) getChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update chat workspace time to live
+// @ID update-chat-workspace-time-to-live
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatWorkspaceTTLRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/workspace-ttl [put]
 func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -5564,7 +5597,7 @@ func (api *API) putChatWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Tags Chats
 // @Produce json
 // @Success 200 {object} codersdk.ChatRetentionDaysResponse
-// @Router /api/experimental/chats/config/retention-days [get]
+// @Router /api/v2/chats/config/retention-days [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -5594,7 +5627,7 @@ const retentionDaysMaximum = 3650 // ~10 years
 // @Accept json
 // @Param request body codersdk.UpdateChatRetentionDaysRequest true "Request body"
 // @Success 204
-// @Router /api/experimental/chats/config/retention-days [put]
+// @Router /api/v2/chats/config/retention-days [put]
 // @x-apidocgen {"skip": true}
 func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5634,6 +5667,14 @@ func (api *API) putChatRetentionDays(rw http.ResponseWriter, r *http.Request) {
 // getChatDebugRetentionDays returns the deployment-wide chat debug run
 // retention window. Any authenticated user can read it; writes require admin.
 //
+// @Summary Get chat debug retention days
+// @ID get-chat-debug-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatDebugRetentionDaysResponse
+// @Router /api/v2/chats/config/debug-retention-days [get]
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5656,6 +5697,15 @@ const chatDebugRetentionDaysMaximum = 3650 // ~10 years
 
 // putChatDebugRetentionDays updates the deployment-wide chat debug run
 // retention window. Admin-only.
+//
+// @Summary Update chat debug retention days
+// @ID update-chat-debug-retention-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatDebugRetentionDaysRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/debug-retention-days [put]
 func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -5695,6 +5745,14 @@ func (api *API) putChatDebugRetentionDays(rw http.ResponseWriter, r *http.Reques
 // window. Any authenticated user can read it (same as retention
 // days); writes require admin.
 //
+// @Summary Get chat auto archive days
+// @ID get-chat-auto-archive-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.ChatAutoArchiveDaysResponse
+// @Router /api/v2/chats/config/auto-archive-days [get]
+//
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -5717,6 +5775,15 @@ const autoArchiveDaysMaximum = 3650 // ~10 years
 
 // putChatAutoArchiveDays updates the deployment-wide auto-archive
 // window. Admin-only; documented in docs/ai-coder/agents/chats-api.md.
+//
+// @Summary Update chat auto archive days
+// @ID update-chat-auto-archive-days
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UpdateChatAutoArchiveDaysRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/config/auto-archive-days [put]
 func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	aReq, commitAudit := api.initChatOperationalSettingsAudit(rw, r)
@@ -5752,7 +5819,13 @@ func (api *API) putChatAutoArchiveDays(rw http.ResponseWriter, r *http.Request) 
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Get user chat custom prompt
+// @ID get-user-chat-custom-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCustomPrompt
+// @Router /api/v2/chats/config/user-prompt [get]
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
@@ -5779,7 +5852,15 @@ func (api *API) getUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Update user chat custom prompt
+// @ID update-user-chat-custom-prompt
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Param request body codersdk.UserChatCustomPrompt true "Request body"
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCustomPrompt
+// @Router /api/v2/chats/config/user-prompt [put]
 func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -5822,8 +5903,13 @@ func (api *API) putUserChatCustomPrompt(rw http.ResponseWriter, r *http.Request)
 }
 
 // @Summary Get user chat compaction thresholds
+// @ID get-user-chat-compaction-thresholds
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCompactionThresholds
+// @Router /api/v2/chats/config/user-compaction-thresholds [get]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.Request) {
@@ -5882,9 +5968,17 @@ func (api *API) getUserChatCompactionThresholds(rw http.ResponseWriter, r *http.
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// @Summary Set user chat compaction threshold for a model config
+// @Summary Update user chat compaction threshold
+// @ID update-user-chat-compaction-threshold
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Accept json
+// @Param request body codersdk.UpdateUserChatCompactionThresholdRequest true "Request body"
+// @Produce json
+// @Success 200 {object} codersdk.UserChatCompactionThreshold
+// @Router /api/v2/chats/config/user-compaction-thresholds/{modelConfig} [put]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -5955,9 +6049,14 @@ func (api *API) putUserChatCompactionThreshold(rw http.ResponseWriter, r *http.R
 	})
 }
 
-// @Summary Delete user chat compaction threshold for a model config
+// @Summary Delete user chat compaction threshold
+// @ID delete-user-chat-compaction-threshold
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param modelConfig path string true "Model config ID" format(uuid)
+// @Success 204
+// @Router /api/v2/chats/config/user-compaction-thresholds/{modelConfig} [delete]
 // @x-apidocgen {"skip": true}
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
 func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()
@@ -5983,8 +6082,6 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Upload chat file
 // @ID upload-chat-file
 // @Security CoderSessionToken
@@ -5992,10 +6089,12 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
+// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param request body string true "Raw file binary data"
+// @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
 // @Failure 413 {object} codersdk.Response "Request body exceeds 10 MiB"
-// @Router /api/experimental/chats/files [post]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/files [post]
 func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -6145,8 +6244,6 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 	return c.RegisteredClaims.Validate(expected)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Create chat file download URL
 // @ID create-chat-file-download-url
 // @Security CoderSessionToken
@@ -6154,9 +6251,8 @@ func (c ChatFileDownloadClaims) Validate(expected jwt.Expected) error {
 // @Produce json
 // @Param file path string true "File ID" format(uuid)
 // @Success 200 {object} codersdk.ChatFileDownloadURLResponse
-// @Router /api/experimental/chats/files/{file}/download-url [post]
+// @Router /api/v2/chats/files/{file}/download-url [post]
 // @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
@@ -6201,6 +6297,7 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// TODO(CODAGT-922): flip to /api/v2 when experimental mounts are removed.
 	downloadURL := api.AccessURL.JoinPath("api", "experimental", "chats", "files", fileID.String(), "download")
 	downloadURL.RawQuery = url.Values{"token": {token}}.Encode()
 	digest := sha256.Sum256(chatFile.Data)
@@ -6214,18 +6311,15 @@ func (api *API) postChatFileDownloadURL(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Download chat file with signed token
-// @ID download-chat-file
+// @ID download-chat-file-with-signed-token
 // @Tags Chats
 // @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Param token query string true "Signed download token"
 // @Success 200
-// @Router /api/experimental/chats/files/{file}/download [get]
+// @Router /api/v2/chats/files/{file}/download [get]
 // @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
 func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	fileID, err := uuid.Parse(chi.URLParam(r, "file"))
@@ -6266,8 +6360,6 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 	api.serveChatFile(ctx, rw, chatFile)
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get chat file
 // @ID get-chat-file
 // @Security CoderSessionToken
@@ -6275,8 +6367,7 @@ func (api *API) downloadChatFile(rw http.ResponseWriter, r *http.Request) {
 // @Produce image/png,image/jpeg,image/gif,image/webp,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Param file path string true "File ID" format(uuid)
 // @Success 200
-// @Router /api/experimental/chats/files/{file} [get]
-// @Description Experimental: this endpoint is subject to change.
+// @Router /api/v2/chats/files/{file} [get]
 func (api *API) chatFileByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -6533,6 +6624,14 @@ func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderS
 	}
 }
 
+// @Summary List user AI provider key configurations
+// @ID list-user-ai-provider-key-configurations
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param user path string true "User ID, username, or me"
+// @Produce json
+// @Success 200 {array} codersdk.UserAIProviderKeyConfig
+// @Router /api/v2/users/{user}/ai-provider-keys [get]
 func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	targetUser := httpmw.UserParam(r)
@@ -6595,6 +6694,17 @@ func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Req
 	httpapi.Write(ctx, rw, http.StatusOK, configs)
 }
 
+// @Summary Update user AI provider key
+// @ID update-user-ai-provider-key
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param user path string true "User ID, username, or me"
+// @Param aiProvider path string true "AI provider ID" format(uuid)
+// @Accept json
+// @Param request body codersdk.CreateUserAIProviderKeyRequest true "Request body"
+// @Produce json
+// @Success 200 {object} codersdk.UserAIProviderKeyConfig
+// @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider} [put]
 func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
@@ -6671,6 +6781,14 @@ func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request)
 	})
 }
 
+// @Summary Delete user AI provider key
+// @ID delete-user-ai-provider-key
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param user path string true "User ID, username, or me"
+// @Param aiProvider path string true "AI provider ID" format(uuid)
+// @Success 204
+// @Router /api/v2/users/{user}/ai-provider-keys/{aiProvider} [delete]
 func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	targetUser := httpmw.UserParam(r)
@@ -6807,13 +6925,13 @@ func (api *API) listDefaultOrganizationChatModelConfigs(rw http.ResponseWriter, 
 }
 
 // @Summary List AI models and provider descriptors in an organization
-// @ID list-ai-models-by-organization
+// @ID list-ai-models-and-provider-descriptors-in-an-organization
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param organization path string true "Organization name or ID"
 // @Success 200 {object} codersdk.OrganizationChatModelsResponse
-// @Router /api/experimental/organizations/{organization}/chats/models [get]
+// @Router /api/v2/organizations/{organization}/chats/models [get]
 // @x-apidocgen {"skip": true}
 func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -6964,15 +7082,16 @@ func chatModelConfigRBACObject(config database.ChatModelConfig) rbac.Object {
 
 // getChatModelConfig returns one chat model config after the organization and
 // model identities have been resolved by route middleware.
+//
 // @Summary Get an AI model
-// @ID get-ai-model
+// @ID get-an-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param model path string true "Model ID"
+// @Param model path string true "Model ID" format(uuid)
 // @Success 200 {object} codersdk.ChatModel
-// @Router /api/experimental/organizations/{organization}/chats/models/{model} [get]
+// @Router /api/v2/organizations/{organization}/chats/models/{model} [get]
 // @x-apidocgen {"skip": true}
 //
 //nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
@@ -7068,7 +7187,7 @@ func (api *API) auditChatModelConfigTransitions(
 }
 
 // @Summary Create an AI model in an organization
-// @ID create-ai-model
+// @ID create-an-ai-model-in-an-organization
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
@@ -7076,7 +7195,7 @@ func (api *API) auditChatModelConfigTransitions(
 // @Param organization path string true "Organization name or ID"
 // @Param request body codersdk.CreateChatModelRequest true "Model"
 // @Success 201 {object} codersdk.ChatModel
-// @Router /api/experimental/organizations/{organization}/chats/models [post]
+// @Router /api/v2/organizations/{organization}/chats/models [post]
 // @x-apidocgen {"skip": true}
 func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7285,16 +7404,16 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Update an AI model
-// @ID update-ai-model
+// @ID update-an-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
 // @Produce json
 // @Param organization path string true "Organization name or ID"
-// @Param model path string true "Model ID"
+// @Param model path string true "Model ID" format(uuid)
 // @Param request body codersdk.UpdateChatModelRequest true "Model updates"
 // @Success 200 {object} codersdk.ChatModel
-// @Router /api/experimental/organizations/{organization}/chats/models/{model} [patch]
+// @Router /api/v2/organizations/{organization}/chats/models/{model} [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7541,13 +7660,13 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Delete an AI model
-// @ID delete-ai-model
+// @ID delete-an-ai-model
 // @Security CoderSessionToken
 // @Tags Chats
 // @Param organization path string true "Organization name or ID"
-// @Param model path string true "Model ID"
+// @Param model path string true "Model ID" format(uuid)
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/chats/models/{model} [delete]
+// @Router /api/v2/organizations/{organization}/chats/models/{model} [delete]
 // @x-apidocgen {"skip": true}
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -7929,7 +8048,15 @@ func ChatProviderAPIKeysFromDeploymentValues(
 	return chatprovider.ProviderAPIKeys{}
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+// @Summary Submit chat tool results
+// @ID submit-chat-tool-results
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Accept json
+// @Param request body codersdk.SubmitToolResultsRequest true "Request body"
+// @Success 204
+// @Router /api/v2/chats/{chat}/tool-results [post]
 //
 //nolint:revive // HTTP handler writes to ResponseWriter.
 func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
@@ -8135,18 +8262,15 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatDebugRunDetail(run, steps))
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Stream chat parts via WebSockets
 // @ID stream-chat-parts-via-websockets
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
-// @Success 200 {object} codersdk.ChatStreamEvent
-// @Router /api/experimental/chats/{chat}/stream/parts [get]
+// @Success 200 {array} codersdk.ChatStreamEvent
+// @Router /api/v2/chats/{chat}/stream/parts [get]
 // @x-apidocgen {"skip": true}
-// @Description Experimental: this endpoint is subject to change.
 func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)

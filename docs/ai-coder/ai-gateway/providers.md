@@ -279,8 +279,8 @@ an API key.
 
 ## Provider lifecycle
 
-Every provider carries an explicit status, surfaced through the
-[`provider_info`](./monitoring.md#prometheus-metrics) metric and the API:
+Every provider carries an explicit status, reported by the [`provider_info`](./monitoring.md#prometheus-metrics) metrics.
+`coder_ai_gateway_provider_info` reports `enabled`, `disabled`, and `error`, and `coder_ai_gateway_proxy_provider_info` also reports `proxy_excluded`:
 
 | Status           | Meaning                                                                                                                                                             | Effect on requests                                                                                                             |
 |------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|

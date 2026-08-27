@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { mockClaude, mockGPT5 } from "../testFixtures";
 import { ModelRow } from "./ModelRow";
@@ -32,49 +32,48 @@ const meta: Meta<typeof ModelRow> = {
 export default meta;
 type Story = StoryObj<typeof ModelRow>;
 
-// Control case for the effective-status logic: when both `hasProvider` and
-// `providerEnabled` are true, the status badge must reflect the persisted
-// enabled flag as-is. Any regression that inverts this collapses every model
-// to "Disabled" in the list.
+// Control case: a healthy, enabled model renders no status badge at all.
 export const WithProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("OpenAI")).toBeInTheDocument();
-		await expect(canvas.getByText("Enabled")).toBeInTheDocument();
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Unavailable")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();
 	},
 };
 
-// When the provider is missing (soft-deleted or otherwise unavailable) the
-// Provider column shows "Unset" and the status collapses to "Disabled" even
-// though the persisted model.enabled flag is true. An info icon next to the
-// label reveals a tooltip explaining that the connected provider has been
-// deleted.
+// A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
+// notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true },
 		providerLabel: "",
 		hasProvider: false,
 		providerEnabled: false,
+		onClick: fn(),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Unset")).toBeInTheDocument();
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
-		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 
-		const info = canvas.getByLabelText("Provider status");
-		await userEvent.hover(info);
+		// The badge is keyboard-focusable and must open its tooltip without
+		// activating the clickable row.
+		const notice = canvas.getByRole("button", { name: "Unavailable" });
+		notice.focus();
 		const tooltip = await within(document.body).findByRole("tooltip");
 		await expect(tooltip).toHaveTextContent(
 			"The provider connected to this model has been deleted.",
 		);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onClick).not.toHaveBeenCalled();
 	},
 };
 
-// When the provider exists but is disabled, the label still renders (the
-// provider is set) but the status collapses to "Disabled" because the model
-// is not usable.
+// A disabled provider keeps its label but the model shows the "Unavailable"
+// notice because it is not usable.
 export const DisabledProviderForcesDisabled: Story = {
 	args: {
 		model: { ...mockClaude, enabled: true, is_default: false },
@@ -85,15 +84,21 @@ export const DisabledProviderForcesDisabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Anthropic")).toBeInTheDocument();
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
-		await expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
+		const notice = canvas.getByRole("button", { name: "Unavailable" });
+		await expect(notice).toBeInTheDocument();
+		expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();
+
+		await userEvent.hover(notice);
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent(
+			"The provider connected to this model is disabled.",
+		);
 	},
 };
 
-// A disabled model with an enabled provider keeps its provider label but
-// stays "Disabled". This exercises the enabled=false path so the "Unset"
-// wording is only tied to the missing provider case.
+// enabled=false with a healthy provider: "Disabled" badge beside the name,
+// no "Unavailable" notice, and no "Unset" wording.
 export const DisabledModelWithProvider: Story = {
 	args: {
 		model: { ...mockClaude, enabled: false, is_default: false },
@@ -104,7 +109,9 @@ export const DisabledModelWithProvider: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Anthropic")).toBeInTheDocument();
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		const nameCell = canvas.getByRole("cell", { name: /Claude Sonnet 4.5/ });
+		await expect(within(nameCell).getByText("Disabled")).toBeInTheDocument();
+		expect(canvas.queryByText("Unavailable")).not.toBeInTheDocument();
 		await expect(canvas.queryByText("Unset")).not.toBeInTheDocument();
 	},
 };

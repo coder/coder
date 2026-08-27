@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -149,7 +148,7 @@ func TestDeriveTaskCurrentState_Unit(t *testing.T) {
 				ID:     uuid.New(),
 				Status: database.TaskStatusInitializing,
 			},
-			agentLifecycle:  ptr.Ref(codersdk.WorkspaceAgentLifecycleCreated),
+			agentLifecycle:  new(codersdk.WorkspaceAgentLifecycleCreated),
 			appHealth:       nil,
 			latestAppStatus: nil,
 			latestBuild: codersdk.WorkspaceBuild{
@@ -167,7 +166,7 @@ func TestDeriveTaskCurrentState_Unit(t *testing.T) {
 				ID:     uuid.New(),
 				Status: database.TaskStatusInitializing,
 			},
-			agentLifecycle:  ptr.Ref(codersdk.WorkspaceAgentLifecycleStarting),
+			agentLifecycle:  new(codersdk.WorkspaceAgentLifecycleStarting),
 			appHealth:       nil,
 			latestAppStatus: nil,
 			latestBuild: codersdk.WorkspaceBuild{
@@ -185,8 +184,8 @@ func TestDeriveTaskCurrentState_Unit(t *testing.T) {
 				ID:     uuid.New(),
 				Status: database.TaskStatusInitializing,
 			},
-			agentLifecycle:  ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
-			appHealth:       ptr.Ref(codersdk.WorkspaceAppHealthInitializing),
+			agentLifecycle:  new(codersdk.WorkspaceAgentLifecycleReady),
+			appHealth:       new(codersdk.WorkspaceAppHealthInitializing),
 			latestAppStatus: nil,
 			latestBuild: codersdk.WorkspaceBuild{
 				Status:    codersdk.WorkspaceStatusRunning,

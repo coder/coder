@@ -29,7 +29,7 @@ const meta: Meta<typeof ProviderRow> = {
 						<TableHead className="w-[42%]">Name</TableHead>
 						<TableHead className="w-[38%]">Base URL</TableHead>
 						<TableHead className="w-20 text-center">
-							<span className="sr-only">Enabled</span>
+							<span className="sr-only">Status</span>
 						</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open provider</span>
@@ -82,11 +82,36 @@ export const NotSupportedInAgents: Story = {
 	args: {
 		provider: MockAIProviderCopilot,
 	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const badge = canvas.getByRole("button", {
+			name: "Not supported in Agents",
+		});
+		await expect(badge).toBeInTheDocument();
+
+		await userEvent.hover(badge);
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent(
+			"This provider works with the AI Gateway Proxy but Coder Agents can't use it.",
+		);
+
+		// Activation must not navigate the row.
+		badge.focus();
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard(" ");
+		await userEvent.click(badge);
+		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
+
+export const Disabled: Story = {
+	args: {
+		provider: { ...MockAIProviderOpenAI, enabled: false },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.getByText("Not supported in Agents"),
-		).toBeInTheDocument();
+		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		await expect(canvas.getByText("OpenAI")).toBeInTheDocument();
 	},
 };
 
@@ -100,6 +125,7 @@ export const SupportedHasNoAgentsLabel: Story = {
 		await expect(
 			canvas.queryByText("Not supported in Agents"),
 		).not.toBeInTheDocument();
+		await expect(canvas.queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 
@@ -110,26 +136,23 @@ export const WithHostnameCollisionWarning: Story = {
 			enabled: true,
 			status: {
 				warnings: [
-					'hostname "api.openai.com" is claimed by provider "first"; not reachable via the AI Gateway Proxy, use direct routing (/api/v2/ai-gateway/openai/...) instead',
+					'Hostname "api.openai.com" is claimed by provider "first". AI Gateway Proxy excludes this provider from proxy routing. The hostname collision does not affect direct routing (/api/v2/ai-gateway/openai/... endpoint).',
 				],
 			},
 		},
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const badge = canvas.getByText(/warning/i);
+		const badge = canvas.getByRole("button", { name: /^Warning:/ });
 		await expect(badge).toBeInTheDocument();
-		await expect(badge).toHaveAttribute(
-			"aria-label",
+		await expect(badge).toHaveAccessibleName(
 			expect.stringContaining("api.openai.com"),
 		);
-		await expect(badge).toHaveAttribute("tabIndex", "0");
 
 		// Hover shows the tooltip with the warning text.
 		await userEvent.hover(badge);
-		await expect(
-			await canvas.findByText(/api\.openai\.com/, {}, { timeout: 2000 }),
-		).toBeInTheDocument();
+		const tooltip = await within(document.body).findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent("api.openai.com");
 
 		// Keyboard and mouse activation must not navigate the row.
 		badge.focus();
