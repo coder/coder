@@ -193,26 +193,21 @@ func withProviders(providers ...aibridgeproxyd.ReloadedProvider) testProxyOption
 }
 
 // withProviderHosts is a convenience that builds enabled
-// ReloadedProvider entries from each host, looking up the well-known
-// provider name via testProviderFromHost and falling back to
-// "test-provider" for hosts without a well-known mapping. Equivalent
-// to passing each entry individually to withProviders.
+// ReloadedProvider entries from each host, looking up well-known providers
+// via testProviderFromHost. Unknown hosts use a generic name and OpenAI type.
 func withProviderHosts(hosts ...string) testProxyOption {
 	return func(cfg *testProxyConfig) {
 		providers := make([]aibridgeproxyd.ReloadedProvider, 0, len(hosts))
 		for _, h := range hosts {
-			name := testProviderFromHost(h)
-			if name == "" {
-				name = "test-provider"
-			}
+			provider := testProviderFromHost(h)
 			host, _, splitErr := net.SplitHostPort(h)
 			if splitErr != nil {
 				host = h
 			}
 			providers = append(providers, aibridgeproxyd.ReloadedProvider{
 				ProviderOutcome: aibridged.ProviderOutcome{
-					Name:   name,
-					Type:   "openai",
+					Name:   provider.name,
+					Type:   provider.providerType,
 					Status: aibridged.ProviderStatusEnabled,
 				},
 				Host: strings.ToLower(host),
@@ -222,24 +217,29 @@ func withProviderHosts(hosts ...string) testProxyOption {
 	}
 }
 
-// testProviderFromHost maps well-known AI provider hostnames to
-// provider names for test use. Unknown hosts return "".
-func testProviderFromHost(host string) string {
+type testProvider struct {
+	name         string
+	providerType string
+}
+
+// testProviderFromHost maps well-known AI provider hostnames to providers for
+// test use. Unknown hosts use a generic name and OpenAI type.
+func testProviderFromHost(host string) testProvider {
 	switch strings.ToLower(host) {
 	case aibridgeproxyd.HostAnthropic:
-		return aibridge.ProviderAnthropic
+		return testProvider{name: aibridge.ProviderAnthropic, providerType: aibridge.ProviderAnthropic}
 	case aibridgeproxyd.HostOpenAI:
-		return aibridge.ProviderOpenAI
+		return testProvider{name: aibridge.ProviderOpenAI, providerType: aibridge.ProviderOpenAI}
 	case aibridgeproxyd.HostCopilot:
-		return aibridge.ProviderCopilot
+		return testProvider{name: aibridge.ProviderCopilot, providerType: aibridge.ProviderCopilot}
 	case agplaibridge.HostCopilotBusiness:
-		return agplaibridge.ProviderCopilotBusiness
+		return testProvider{name: agplaibridge.ProviderCopilotBusiness, providerType: aibridge.ProviderCopilot}
 	case agplaibridge.HostCopilotEnterprise:
-		return agplaibridge.ProviderCopilotEnterprise
+		return testProvider{name: agplaibridge.ProviderCopilotEnterprise, providerType: aibridge.ProviderCopilot}
 	case agplaibridge.HostChatGPT:
-		return agplaibridge.ProviderChatGPT
+		return testProvider{name: agplaibridge.ProviderChatGPT, providerType: aibridge.ProviderOpenAI}
 	default:
-		return ""
+		return testProvider{name: "test-provider", providerType: aibridge.ProviderOpenAI}
 	}
 }
 
@@ -1547,13 +1547,13 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 
 			srv := newTestProxy(t,
 				withCoderAccessURL(aibridgedServer.URL),
-				withProviderHosts(aibridgeproxyd.HostCopilot),
+				withProviderHosts(aibridgeproxyd.HostOpenAI),
 			)
 
 			certPool := getProxyCertPool(t)
 			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool, false)
 
-			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+aibridgeproxyd.HostCopilot+"/chat/completions", strings.NewReader(`{}`))
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://"+aibridgeproxyd.HostOpenAI+"/chat/completions", strings.NewReader(`{}`))
 			require.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
 			req.Header.Set("Authorization", tt.authzHeader)
@@ -1572,6 +1572,146 @@ func TestProxy_MITM_BYOKInjection(t *testing.T) {
 				require.Equal(t, tt.expectBYOKVal, receivedBYOKHeader, "BYOK header must be set when Authorization differs from Coder token")
 			} else {
 				require.Empty(t, receivedBYOKHeader, "BYOK header must not be set")
+			}
+		})
+	}
+}
+
+func TestProxy_MITM_CopilotAuth(t *testing.T) {
+	t.Parallel()
+
+	const coderToken = "coder-token"
+	stringPtr := func(value string) *string { return &value }
+	tests := []struct {
+		name                string
+		host                string
+		providerType        string
+		authorization       string
+		apiKey              string
+		coderToken          string
+		expectCoderToken    *string
+		expectAuthorization *string
+		expectAPIKey        *string
+	}{
+		{
+			name:                "NoProviderCredential",
+			host:                aibridgeproxyd.HostCopilot,
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "StripCoderBearer",
+			host:                aibridgeproxyd.HostCopilot,
+			authorization:       "Bearer " + coderToken,
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "StripCoderAPIKey",
+			host:                aibridgeproxyd.HostCopilot,
+			apiKey:              coderToken,
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "PreserveProviderBearer",
+			host:                aibridgeproxyd.HostCopilot,
+			authorization:       "Bearer copilot-token",
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: stringPtr("Bearer copilot-token"),
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "ReplaceClientCoderToken",
+			host:                aibridgeproxyd.HostCopilot,
+			coderToken:          "other-coder-token",
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "CustomCopilotProvider",
+			host:                "copilot.example.com",
+			providerType:        aibridge.ProviderCopilot,
+			expectCoderToken:    stringPtr(coderToken),
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+		{
+			name:                "NonCopilotProvider",
+			host:                aibridgeproxyd.HostCopilot,
+			providerType:        aibridge.ProviderOpenAI,
+			expectCoderToken:    nil,
+			expectAuthorization: nil,
+			expectAPIKey:        nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var receivedCoderToken, receivedAuthorization, receivedAPIKey string
+			aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedCoderToken = r.Header.Get(agplaibridge.HeaderCoderToken)
+				receivedAuthorization = r.Header.Get("Authorization")
+				receivedAPIKey = r.Header.Get("X-Api-Key")
+				w.WriteHeader(http.StatusOK)
+			}))
+			t.Cleanup(aibridgedServer.Close)
+
+			provider := testProviderFromHost(tt.host)
+			if tt.providerType != "" {
+				provider.providerType = tt.providerType
+			}
+			srv := newTestProxy(t,
+				withCoderAccessURL(aibridgedServer.URL),
+				withProviders(aibridgeproxyd.ReloadedProvider{
+					ProviderOutcome: aibridged.ProviderOutcome{
+						Name:   provider.name,
+						Type:   provider.providerType,
+						Status: aibridged.ProviderStatusEnabled,
+					},
+					Host: tt.host,
+				}),
+			)
+
+			certPool := getProxyCertPool(t)
+			client := newProxyClient(t, srv, makeProxyAuthHeader(coderToken), certPool, false)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+tt.host, nil)
+			require.NoError(t, err)
+			if tt.authorization != "" {
+				req.Header.Set("Authorization", tt.authorization)
+			}
+			if tt.apiKey != "" {
+				req.Header.Set("X-Api-Key", tt.apiKey)
+			}
+			if tt.coderToken != "" {
+				req.Header.Set(agplaibridge.HeaderCoderToken, tt.coderToken)
+			}
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			if tt.expectAuthorization == nil {
+				require.Empty(t, receivedAuthorization)
+			} else {
+				require.Equal(t, *tt.expectAuthorization, receivedAuthorization)
+			}
+			if tt.expectAPIKey == nil {
+				require.Empty(t, receivedAPIKey)
+			} else {
+				require.Equal(t, *tt.expectAPIKey, receivedAPIKey)
+			}
+			if tt.expectCoderToken == nil {
+				require.Empty(t, receivedCoderToken)
+			} else {
+				require.Equal(t, *tt.expectCoderToken, receivedCoderToken)
 			}
 		})
 	}
