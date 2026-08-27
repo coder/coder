@@ -9839,6 +9839,44 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------------------------------------------------|
 | `client_secret_basic`, `client_secret_post`, `none` |
 
+## codersdk.OAuth2TokenResponse
+
+```json
+{
+  "access_token": "string",
+  "expires_in": 0,
+  "expiry": "2019-08-24T14:15:22Z",
+  "refresh_token": "string",
+  "scope": "string",
+  "token_type": "Bearer"
+}
+```
+
+### Properties
+
+| Name            | Type                                                 | Required | Restrictions | Description                                                                                                                          |
+|-----------------|------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `access_token`  | string                                               | false    |              |                                                                                                                                      |
+| `expires_in`    | integer                                              | false    |              |                                                                                                                                      |
+| `expiry`        | string                                               | false    |              | Expiry is not part of RFC 6749 but is included for compatibility with golang.org/x/oauth2.Token and clients that expect a timestamp. |
+| `refresh_token` | string                                               | false    |              |                                                                                                                                      |
+| `scope`         | string                                               | false    |              |                                                                                                                                      |
+| `token_type`    | [codersdk.OAuth2TokenType](#codersdkoauth2tokentype) | false    |              |                                                                                                                                      |
+
+## codersdk.OAuth2TokenType
+
+```json
+"Bearer"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)         |
+|------------------|
+| `Bearer`, `DPoP` |
+
 ## codersdk.OAuthConversionResponse
 
 ```json
@@ -18905,29 +18943,6 @@ None
 | » `[any property]`      | integer | false    |              |                                                                                                                                    |
 | `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
 | `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
-
-## oauth2.Token
-
-```json
-{
-  "access_token": "string",
-  "expires_in": 0,
-  "expiry": "string",
-  "refresh_token": "string",
-  "token_type": "string"
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                 |
-|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `access_token` | string  | false    |              | Access token is the token that authorizes and authenticates the requests.                                                                                                                                                                                                   |
-| `expires_in`   | integer | false    |              | Expires in is the OAuth2 wire format "expires_in" field, which specifies how many seconds later the token expires, relative to an unknown time base approximately around "now". It is the application's responsibility to populate `Expiry` from `ExpiresIn` when required. |
-|`expiry`|string|false||Expiry is the optional expiration time of the access token.
-If zero, [TokenSource] implementations will reuse the same token forever and RefreshToken or equivalent mechanisms for that TokenSource will not be used.|
-|`refresh_token`|string|false||Refresh token is a token that's used by the application (as opposed to the user) to refresh the access token if it expires.|
-|`token_type`|string|false||Token type is the type of token. The Type method returns either this or "Bearer", the default.|
 
 ## regexp.Regexp
 

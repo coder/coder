@@ -5292,17 +5292,18 @@ grant_type: authorization_code
 {
   "access_token": "string",
   "expires_in": 0,
-  "expiry": "string",
+  "expiry": "2019-08-24T14:15:22Z",
   "refresh_token": "string",
-  "token_type": "string"
+  "scope": "string",
+  "token_type": "Bearer"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                 |
-|--------|---------------------------------------------------------|-------------|----------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [oauth2.Token](schemas.md#oauth2token) |
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2TokenResponse](schemas.md#codersdkoauth2tokenresponse) |
 
 ## Delete OAuth2 application tokens
 

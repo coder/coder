@@ -151,7 +151,7 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param code formData string false "Authorization code, required if grant_type=authorization_code"
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
-// @Success 200 {object} oauth2.Token
+// @Success 200 {object} codersdk.OAuth2TokenResponse
 // @Router /oauth2/tokens [post]
 func (api *API) postOAuth2ProviderAppToken() http.HandlerFunc {
 	return oauth2provider.Tokens(api.Database, api.DeploymentValues.Sessions)
