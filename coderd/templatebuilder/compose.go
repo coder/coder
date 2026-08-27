@@ -56,10 +56,9 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	// The deployment value is validated at server start
-	// (codersdk.DeploymentValues.Validate), so trust it here: default an unset
-	// value and defensively reject a malformed one (a direct caller or test
-	// bypasses the boot check). The value is used as a bare host, unchanged.
+	// Validated at server start (codersdk.DeploymentValues.Validate); default an
+	// unset value and defensively reject a malformed one from a direct caller
+	// that bypasses the boot check.
 	registryBase := strings.TrimSpace(req.RegistryURL)
 	if registryBase == "" {
 		registryBase = DefaultRegistryBase
@@ -123,7 +122,6 @@ func formatHCL(src []byte) []byte {
 
 // renderBase renders the base template for the given example ID,
 // merging any user-supplied variable values into the render context.
-// registryBase is the already-defaulted module registry host.
 func renderBase(baseTemplateID string, baseVars map[string]string, registryBase string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
 	if renderCtx.Variables == nil {

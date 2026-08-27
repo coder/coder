@@ -5133,9 +5133,8 @@ type TemplateBuilderConfig struct {
 // verbatim use in a Terraform module source. An empty value is valid and
 // defaults at render time. A scheme, path, query, fragment, trailing slash, or
 // embedded credentials is rejected so a misconfiguration fails at server start
-// instead of rendering broken or unsafe module sources. It does not
-// canonicalize the host; a well-formed but wrong host fails later at
-// terraform init.
+// rather than rendering broken or unsafe module sources. It does not
+// canonicalize the host.
 func ValidateTemplateBuilderRegistryURL(raw string) error {
 	v := strings.TrimSpace(raw)
 	if v == "" {
@@ -5143,7 +5142,7 @@ func ValidateTemplateBuilderRegistryURL(raw string) error {
 	}
 	// net/url only isolates a bare host:port in authority form. Requiring the
 	// parsed host to equal the whole input rejects a scheme, path, query,
-	// fragment, or trailing slash in a single check, and does not echo the input.
+	// fragment, or trailing slash in one check, and never echoes the input.
 	u, err := url.Parse("//" + v)
 	if err != nil || u.Host != v || u.Hostname() == "" || u.User != nil {
 		return xerrors.New(`template builder registry URL must be a bare host such as "registry.coder.com", optionally with a port, with no scheme, path, or credentials; set it with the --template-builder-registry-url flag, the CODER_TEMPLATE_BUILDER_REGISTRY_URL environment variable, or the templateBuilder.registryURL YAML key`)
@@ -5223,12 +5222,8 @@ func (c *DeploymentValues) Validate() error {
 		}
 	}
 
-	// Validate here, gated on the builder being enabled, rather than with a
-	// per-option serpent validator: this runs after flag, env, and YAML merge
-	// (the serpent validator only fires in Set, which the YAML path bypasses),
-	// so a bad value fails at server start naming the option instead of as a
-	// per-request error on every compose. Skipped when disabled so an inert
-	// value cannot block boot.
+	// Gated on the builder being enabled and run here rather than as a per-option
+	// serpent validator, which only fires in Set and so misses the YAML path.
 	if !c.TemplateBuilder.Disabled.Value() {
 		if err := ValidateTemplateBuilderRegistryURL(c.TemplateBuilder.RegistryURL.Value()); err != nil {
 			return err
