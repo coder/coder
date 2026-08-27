@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/recorder"
 )
 
 func TestStreamProcessorUsage(t *testing.T) {
@@ -91,34 +92,60 @@ func TestStreamProcessorUsage(t *testing.T) {
 	}
 }
 
-func TestStreamProcessorZeroCompletionUsage(t *testing.T) {
+func TestStreamingInterceptionRecordsLatestUsageWithZeroCompletionTokens(t *testing.T) {
 	t.Parallel()
 
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-zero-completion\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"one\"}}],\"usage\":{\"prompt_tokens\":40,\"completion_tokens\":0,\"total_tokens\":40,\"prompt_tokens_details\":{\"cached_tokens\":5,\"cache_write_tokens\":3}}}\n\n"))
+		_, _ = w.Write([]byte("data: {\"id\":\"chatcmpl-zero-completion\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":50,\"completion_tokens\":0,\"total_tokens\":50,\"prompt_tokens_details\":{\"cached_tokens\":10,\"cache_write_tokens\":5}}}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	req := &ChatCompletionNewParamsWrapper{
+		ChatCompletionNewParams: openai.ChatCompletionNewParams{
+			Model: "gpt-4",
+			Messages: []openai.ChatCompletionMessageParamUnion{
+				openai.UserMessage("hello"),
+			},
+		},
+		Stream: true,
+	}
+	httpReq := httptest.NewRequest(http.MethodPost, "/chat/completions", nil)
+	interceptor := NewStreamingInterceptor(
+		uuid.New(),
+		req,
+		intercept.Config{BaseURL: upstream.URL},
+		intercept.BYOK{Secret: "test-key", Header: intercept.AuthHeaderAuthorization},
+		httpReq.Header,
+		otel.Tracer("test"),
+	)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
-	interceptor := NewStreamingInterceptor(uuid.New(), nil, intercept.Config{}, nil, nil, otel.Tracer("test"))
-	processor := newStreamProcessor(t.Context(), logger, nil)
+	rec := &testutil.MockRecorder{}
+	interceptor.Setup(logger, rec, nil)
 
-	var chunk openai.ChatCompletionChunk
-	require.NoError(t, json.Unmarshal([]byte(`{"id":"chatcmpl-zero-completion","choices":[],"usage":{"prompt_tokens":50,"completion_tokens":0,"total_tokens":50}}`), &chunk))
-	require.True(t, processor.process(chunk))
-	require.True(t, processor.hasUsage)
+	w := httptest.NewRecorder()
+	require.NoError(t, interceptor.ProcessRequest(w, httpReq))
 
-	previousUsage := openai.CompletionUsage{
-		PromptTokens:     100,
-		CompletionTokens: 10,
-		TotalTokens:      110,
-	}
-	payload, err := interceptor.marshalChunk(&chunk, interceptor.ID(), processor, previousUsage)
-	require.NoError(t, err)
-
-	var relayed struct {
-		Usage openai.CompletionUsage `json:"usage"`
-	}
-	payload = bytes.TrimSuffix(bytes.TrimPrefix(payload, []byte("data: ")), []byte("\n\n"))
-	require.NoError(t, json.Unmarshal(payload, &relayed))
-	require.EqualValues(t, 150, relayed.Usage.PromptTokens)
-	require.EqualValues(t, 10, relayed.Usage.CompletionTokens)
-	require.EqualValues(t, 160, relayed.Usage.TotalTokens)
+	usages := rec.RecordedTokenUsages()
+	require.Len(t, usages, 1)
+	require.Equal(t, &recorder.TokenUsageRecord{
+		InterceptionID:        interceptor.ID().String(),
+		MsgID:                 "chatcmpl-zero-completion",
+		Input:                 35,
+		Output:                0,
+		CacheReadInputTokens:  10,
+		CacheWriteInputTokens: 5,
+		CreatedAt:             usages[0].CreatedAt,
+		ExtraTokenTypes: map[string]int64{
+			"prompt_audio":                   0,
+			"completion_accepted_prediction": 0,
+			"completion_rejected_prediction": 0,
+			"completion_audio":               0,
+			"completion_reasoning":           0,
+		},
+	}, usages[0])
 }
 
 // Test that when the upstream provider returns an error before streaming starts,

@@ -276,11 +276,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		if processor.hasUsage {
 			lastUsage := processor.lastUsage
-			// Preserve the existing recording gate, but accumulate every valid
-			// snapshot so later client-visible usage cannot move backwards.
-			if lastUsage.CompletionTokens > 0 {
-				i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
-			}
+			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
 			cumulativeUsage = sumUsage(cumulativeUsage, lastUsage)
 		}
 
