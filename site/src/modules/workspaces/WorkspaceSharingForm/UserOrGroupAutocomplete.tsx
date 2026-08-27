@@ -1,5 +1,5 @@
 import { CheckIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type ComponentProps, type FC, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { groupsByOrganization } from "#/api/queries/groups";
 import { organizationMembers } from "#/api/queries/organizations";
@@ -9,6 +9,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { getGroupSubtitle, isGroup } from "#/modules/groups";
 
 type OrganizationMember = OrganizationMemberWithUserData & { id: string };
@@ -113,20 +114,24 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			isOptionEqualToValue={(option, optionValue) =>
 				option.id === optionValue.id
 			}
-			renderOption={(option, isSelected) => (
-				<div className="flex items-center justify-between w-full">
-					<AvatarData
-						title={
-							isGroup(option)
-								? option.display_name || option.name
-								: option.username
+			renderOption={(option, isSelected) => {
+				const avatarDataProps: ComponentProps<typeof AvatarData> = isGroup(
+					option,
+				)
+					? {
+							title: option.display_name || option.name,
+							subtitle: getGroupSubtitle(option),
+							src: option.avatar_url,
 						}
-						subtitle={isGroup(option) ? getGroupSubtitle(option) : option.email}
-						src={option.avatar_url}
-					/>
-					{isSelected && <CheckIcon className="size-4 shrink-0" />}
-				</div>
-			)}
+					: userIdentity(option);
+
+				return (
+					<div className="flex items-center justify-between w-full">
+						<AvatarData {...avatarDataProps} />
+						{isSelected && <CheckIcon className="size-4 shrink-0" />}
+					</div>
+				);
+			}}
 			open={open}
 			onOpenChange={handleOpenChange}
 			inputValue={inputValue}

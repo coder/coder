@@ -4,6 +4,7 @@ import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Autocomplete } from "./Autocomplete";
 
 const meta: Meta<typeof Autocomplete> = {
@@ -414,11 +415,7 @@ export const WithCustomRenderOption: Story = {
 					placeholder="Search for a user"
 					renderOption={(user, isSelected) => (
 						<div className="flex items-center justify-between w-full">
-							<AvatarData
-								title={user.username}
-								subtitle={user.email}
-								src={user.avatar_url}
-							/>
+							<AvatarData {...userIdentity(user)} />
 							{isSelected && <CheckIcon className="size-4 shrink-0" />}
 						</div>
 					)}
@@ -458,11 +455,7 @@ export const WithStartAdornment: Story = {
 					}
 					renderOption={(user, isSelected) => (
 						<div className="flex items-center justify-between w-full">
-							<AvatarData
-								title={user.username}
-								subtitle={user.email}
-								src={user.avatar_url}
-							/>
+							<AvatarData {...userIdentity(user)} />
 							{isSelected && <CheckIcon className="size-4 shrink-0" />}
 						</div>
 					)}

@@ -347,6 +347,21 @@ export const AISpendHiddenOnNegativeLimit: Story = {
 	},
 };
 
+export const NoEmailSubtitle: Story = {
+	args: {
+		user: { ...MockUserOwner, email: "" },
+	},
+	play: async ({ canvasElement, step }) => {
+		await step("omits the subtitle when the email is empty", async () => {
+			const menu = await openDropdown(canvasElement);
+			expect(menu.getByText(MockUserOwner.username)).toBeInTheDocument();
+			// The guarded subtitle span must be absent, not merely empty, so a
+			// mutation that renders it unconditionally is caught.
+			expect(menu.queryByTestId("user-subtitle")).not.toBeInTheDocument();
+		});
+	},
+};
+
 export const InstallCoderDesktopMacOS: Story = {
 	parameters: {
 		queries: [{ key: meAISpendKey, data: mockAISpend }],

@@ -57,7 +57,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 							className="flex-shrink-0"
 						/>
 						<div className="font-normal truncate min-w-0 flex-1 overflow-hidden">
-							{session.initiator.name ?? session.initiator.username}
+							{session.initiator.username}
 						</div>
 					</div>
 				</div>

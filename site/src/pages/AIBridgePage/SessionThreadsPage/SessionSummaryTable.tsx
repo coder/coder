@@ -121,10 +121,10 @@ export const SessionSummaryTable = ({
 					<Avatar
 						size="sm"
 						src={initiator.avatar_url}
-						fallback={initiator.name}
+						fallback={initiator.username}
 					/>
-					<span className="truncate min-w-0" title={initiator.name}>
-						{initiator.name}
+					<span className="truncate min-w-0" title={initiator.username}>
+						{initiator.username}
 					</span>
 				</dd>
 			</div>

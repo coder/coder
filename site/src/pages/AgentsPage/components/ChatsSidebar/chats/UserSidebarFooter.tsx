@@ -22,7 +22,7 @@ export const UserSidebarFooter: FC = () => {
 					<DropdownMenuTrigger asChild>
 						<button
 							type="button"
-							aria-label={`Account menu for ${user.name || user.username}`}
+							aria-label={`Account menu for ${user.username}`}
 							className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
 						>
 							<Avatar
@@ -31,7 +31,7 @@ export const UserSidebarFooter: FC = () => {
 								size="sm"
 							/>
 							<span className="min-w-0 flex-1 truncate text-sm text-content-secondary">
-								{user.name || user.username}
+								{user.username}
 							</span>
 						</button>
 					</DropdownMenuTrigger>

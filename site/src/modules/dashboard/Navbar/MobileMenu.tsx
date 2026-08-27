@@ -276,10 +276,7 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 						setOpen((prev) => !prev);
 					}}
 				>
-					<Avatar
-						src={user?.avatar_url}
-						fallback={user?.name || user?.username}
-					/>
+					<Avatar src={user?.avatar_url} fallback={user?.username} />
 					User settings
 					<ChevronRightIcon
 						className={cn("ml-auto", open ? "rotate-90" : "")}

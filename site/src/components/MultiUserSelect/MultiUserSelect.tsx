@@ -10,6 +10,7 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
+import { userIdentity } from "#/components/Avatar/userIdentity";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { SearchField } from "#/components/SearchField/SearchField";
@@ -204,11 +205,7 @@ const UsersTable = <T extends SelectedUser>({
 								}}
 								aria-label={`Select user ${user.username}`}
 							/>
-							<AvatarData
-								title={user.username}
-								subtitle={user.email}
-								src={user.avatar_url}
-							/>
+							<AvatarData {...userIdentity(user)} />
 						</div>
 					</UserRow>
 				);
