@@ -125,6 +125,52 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
+export const ForTemplateUpdateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					element: <AISettingsIndexRedirectWithProviders />,
+				},
+				{
+					path: "/ai/settings/templates",
+					element: <h1>Templates</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiSettingsLink = body.getByRole("menuitem", { name: "AI" });
+		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
+		await userEvent.click(aiSettingsLink);
+		await expect(
+			await canvas.findByRole("heading", { name: "Templates" }),
+		).toBeInTheDocument();
+	},
+};
+
 export const ForMCPUpdateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
