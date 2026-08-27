@@ -4368,7 +4368,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			OSHasIPv6: true,
 			ICMPv4: false,
 			MappingVariesByDestIP: false,
-			HairPinning: null,
 			UPnP: false,
 			PMP: false,
 			PCP: false,

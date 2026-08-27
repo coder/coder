@@ -32806,10 +32806,6 @@ const docTemplate = `{
                     "description": "[ip]:port of global IPv6",
                     "type": "string"
                 },
-                "hairPinning": {
-                    "description": "HairPinning is whether the router supports communicating\nbetween two local devices through the NATted public IP address\n(on IPv4).",
-                    "type": "string"
-                },
                 "icmpv4": {
                     "description": "an ICMPv4 round trip completed",
                     "type": "boolean"

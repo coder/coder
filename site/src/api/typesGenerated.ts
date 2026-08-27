@@ -6326,12 +6326,6 @@ export interface NetcheckReport {
 	 */
 	readonly MappingVariesByDestIP: boolean | null;
 	/**
-	 * HairPinning is whether the router supports communicating
-	 * between two local devices through the NATted public IP address
-	 * (on IPv4).
-	 */
-	readonly HairPinning: boolean | null;
-	/**
 	 * UPnP is whether UPnP appears present on the LAN.
 	 * Empty means not checked.
 	 */

@@ -19848,7 +19848,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "captivePortal": "string",
     "globalV4": "string",
     "globalV6": "string",
-    "hairPinning": "string",
     "icmpv4": true,
     "ipv4": true,
     "ipv4CanSend": true,
@@ -20385,7 +20384,6 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       "captivePortal": "string",
       "globalV4": "string",
       "globalV6": "string",
-      "hairPinning": "string",
       "icmpv4": true,
       "ipv4": true,
       "ipv4CanSend": true,
@@ -21067,7 +21065,6 @@ None
   "captivePortal": "string",
   "globalV4": "string",
   "globalV6": "string",
-  "hairPinning": "string",
   "icmpv4": true,
   "ipv4": true,
   "ipv4CanSend": true,
@@ -21097,30 +21094,29 @@ None
 
 ### Properties
 
-| Name                    | Type    | Required | Restrictions | Description                                                                                                                        |
-|-------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------|
-| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.                                     |
-| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                                                             |
-| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                                                           |
-| `hairPinning`           | string  | false    |              | Hairpinning is whether the router supports communicating between two local devices through the NATted public IP address (on IPv4). |
-| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                                                     |
-| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                                                  |
-| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                                                 |
-| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                                                  |
-| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                                                 |
-| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4).                                |
-| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                                                         |
-| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                                                            |
-| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                                                        |
-| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                                                   |
-| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                                                            |
-| » `[any property]`      | integer | false    |              |                                                                                                                                    |
-| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                                                    |
-| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                                                          |
+| Name                    | Type    | Required | Restrictions | Description                                                                                         |
+|-------------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------|
+| `captivePortal`         | string  | false    |              | Captiveportal is set when we think there's a captive portal that is intercepting HTTP traffic.      |
+| `globalV4`              | string  | false    |              | ip:port of global IPv4                                                                              |
+| `globalV6`              | string  | false    |              | [ip]:port of global IPv6                                                                            |
+| `icmpv4`                | boolean | false    |              | an ICMPv4 round trip completed                                                                      |
+| `ipv4`                  | boolean | false    |              | an IPv4 STUN round trip completed                                                                   |
+| `ipv4CanSend`           | boolean | false    |              | an IPv4 packet was able to be sent                                                                  |
+| `ipv6`                  | boolean | false    |              | an IPv6 STUN round trip completed                                                                   |
+| `ipv6CanSend`           | boolean | false    |              | an IPv6 packet was able to be sent                                                                  |
+| `mappingVariesByDestIP` | string  | false    |              | Mappingvariesbydestip is whether STUN results depend which STUN server you're talking to (on IPv4). |
+| `oshasIPv6`             | boolean | false    |              | could bind a socket to ::1                                                                          |
+| `pcp`                   | string  | false    |              | Pcp is whether PCP appears present on the LAN. Empty means not checked.                             |
+| `pmp`                   | string  | false    |              | Pmp is whether NAT-PMP appears present on the LAN. Empty means not checked.                         |
+| `preferredDERP`         | integer | false    |              | or 0 for unknown                                                                                    |
+| `regionLatency`         | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV4Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `regionV6Latency`       | object  | false    |              | keyed by DERP Region ID                                                                             |
+| » `[any property]`      | integer | false    |              |                                                                                                     |
+| `udp`                   | boolean | false    |              | a UDP STUN round trip completed                                                                     |
+| `upnP`                  | string  | false    |              | Upnp is whether UPnP appears present on the LAN. Empty means not checked.                           |
 
 ## oauth2.Token
 
