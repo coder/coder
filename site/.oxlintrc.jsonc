@@ -200,10 +200,27 @@
 		"iframe-has-title": "off", // a11y/useIframeTitle (small)
 		"prefer-template": "off", // style/useTemplate (small)
 		"no-script-url": "off", // security/noScriptUrl (small)
-		"no-restricted-imports": "off", // style/noRestrictedImports (small, coder error rule: namespace-import edge)
 		"no-console": "off", // suspicious/noConsole (small, coder error rule: Biome suppression to migrate)
 		"rules-of-hooks": "off", // correctness/useHookAtTopLevel (large: flags Storybook render callbacks Biome allows)
-		"exhaustive-deps": "off" // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
+		"exhaustive-deps": "off", // correctness/useExhaustiveDependencies (large: reimplementation; Biome suppressions to migrate)
+		"no-restricted-imports": [
+			"error",
+			{
+				"paths": [
+					{
+						"name": "#/contexts/auth/AuthProvider",
+						"importNames": ["AuthContext"],
+						"message": "Use the useAuthContext() or useAuthenticated() hooks instead of the raw AuthContext."
+					}
+				],
+				"patterns": [
+					{
+						"group": ["**/e2e", "**/e2e/**"],
+						"message": "Application code must never import from the Playwright e2e suite."
+					}
+				]
+			}
+		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
 	// tracking per-rule exceptions for it.
@@ -219,6 +236,26 @@
 				"**/DiffViewer/parseDiff.test.ts"
 			],
 			"rules": { "no-restricted-imports": "off" }
+		},
+		{
+			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["**/pages", "**/pages/**"],
+								"message": "components/ must not import from pages/. Move shared code down into components/."
+							},
+							{
+								"group": ["**/modules", "**/modules/**"],
+								"message": "components/ must not import from modules/. Maintain imports from other components/."
+							}
+						]
+					}
+				]
+			}
 		}
 	]
 }
