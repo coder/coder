@@ -1636,11 +1636,14 @@ export const LongWorkspaceNameMobile: Story = {
 			expect(el).not.toBeVisible();
 		}
 		await userEvent.click(pillTrigger);
-		expect(
-			await within(document.body).findByRole("menuitem", {
-				name: /View Workspace/,
-			}),
-		).toBeVisible();
+		// The menu fades in from opacity 0; retry instead of racing the
+		// entrance animation.
+		const menuItem = await within(document.body).findByRole("menuitem", {
+			name: /View Workspace/,
+		});
+		await waitFor(() => {
+			expect(menuItem).toBeVisible();
+		});
 		await userEvent.keyboard("{Escape}");
 		// The toolbar row should not cause horizontal overflow.
 		const toolbar = overflowPill.closest(

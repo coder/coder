@@ -1535,6 +1535,23 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									side="top"
 									align="start"
 									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									onInteractOutside={(event) => {
+										// The workspace pill portals its menu (and Radix
+										// focus guards) outside this popover. Dismissing
+										// would unmount the pill with its open menu, so
+										// ignore focus shifts entirely and pointer
+										// presses that land inside the menu.
+										if (event.detail.originalEvent.type !== "pointerdown") {
+											event.preventDefault();
+											return;
+										}
+										if (
+											event.target instanceof Element &&
+											event.target.closest('[role="menu"]')
+										) {
+											event.preventDefault();
+										}
+									}}
 								>
 									{overflowBadges.map((badge, i) => {
 										if (
