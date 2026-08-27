@@ -2936,6 +2936,33 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		require.EqualValues(t, 0, override.SpendLimitMicros)
 	})
 
+	t.Run("Upsert/RejectsSystemUser", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "override-system-user-group"})
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Make the otherwise-valid target a member of the referenced group so the
+		// system-user validation is the only reason the request is rejected.
+		_, err := adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{database.PrebuildsSystemUserID.String()},
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, database.PrebuildsSystemUserID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Equal(t, "Cannot set an AI budget override for a system user.", sdkErr.Detail)
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, database.PrebuildsSystemUserID)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
 	t.Run("Upsert/RejectsNegativeSpend", func(t *testing.T) {
 		t.Parallel()
 
