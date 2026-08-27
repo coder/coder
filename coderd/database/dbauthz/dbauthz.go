@@ -6958,6 +6958,15 @@ func (q *querier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg datab
 	return q.db.ListAIBridgeSessionNetworkCalls(ctx, arg)
 }
 
+func (q *querier) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg database.ListAIBridgeSessionStartsBySponsorParams) ([]database.ListAIBridgeSessionStartsBySponsorRow, error) {
+	// System-guarded: the AI audit handlers scope results to the
+	// authenticated sponsor or an authorized auditor before querying.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeSessionStartsBySponsor(ctx, arg)
+}
+
 func (q *querier) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -6988,6 +6997,15 @@ func (q *querier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, i
 	}
 
 	return q.db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIDs)
+}
+
+func (q *querier) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg database.ListAIBridgeToolUsagesBySponsorParams) ([]database.ListAIBridgeToolUsagesBySponsorRow, error) {
+	// System-guarded: the AI audit handlers scope results to the
+	// authenticated sponsor or an authorized auditor before querying.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeToolUsagesBySponsor(ctx, arg)
 }
 
 func (q *querier) ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIDs []uuid.UUID) ([]database.AIBridgeUserPrompt, error) {

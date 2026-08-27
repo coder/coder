@@ -9089,6 +9089,21 @@ func (mr *MockStoreMockRecorder) ListAIBridgeSessionNetworkCalls(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSessionNetworkCalls", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSessionNetworkCalls), ctx, arg)
 }
 
+// ListAIBridgeSessionStartsBySponsor mocks base method.
+func (m *MockStore) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg database.ListAIBridgeSessionStartsBySponsorParams) ([]database.ListAIBridgeSessionStartsBySponsorRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeSessionStartsBySponsor", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeSessionStartsBySponsorRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeSessionStartsBySponsor indicates an expected call of ListAIBridgeSessionStartsBySponsor.
+func (mr *MockStoreMockRecorder) ListAIBridgeSessionStartsBySponsor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeSessionStartsBySponsor", reflect.TypeOf((*MockStore)(nil).ListAIBridgeSessionStartsBySponsor), ctx, arg)
+}
+
 // ListAIBridgeSessionThreads mocks base method.
 func (m *MockStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	m.ctrl.T.Helper()
@@ -9147,6 +9162,21 @@ func (m *MockStore) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context,
 func (mr *MockStoreMockRecorder) ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeToolUsagesByInterceptionIDs", reflect.TypeOf((*MockStore)(nil).ListAIBridgeToolUsagesByInterceptionIDs), ctx, interceptionIds)
+}
+
+// ListAIBridgeToolUsagesBySponsor mocks base method.
+func (m *MockStore) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg database.ListAIBridgeToolUsagesBySponsorParams) ([]database.ListAIBridgeToolUsagesBySponsorRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeToolUsagesBySponsor", ctx, arg)
+	ret0, _ := ret[0].([]database.ListAIBridgeToolUsagesBySponsorRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeToolUsagesBySponsor indicates an expected call of ListAIBridgeToolUsagesBySponsor.
+func (mr *MockStoreMockRecorder) ListAIBridgeToolUsagesBySponsor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeToolUsagesBySponsor", reflect.TypeOf((*MockStore)(nil).ListAIBridgeToolUsagesBySponsor), ctx, arg)
 }
 
 // ListAIBridgeUserPromptsByInterceptionIDs mocks base method.

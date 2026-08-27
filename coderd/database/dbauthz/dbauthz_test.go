@@ -641,6 +641,16 @@ func (s *MethodTestSuite) TestMCPGatewayEscalations() {
 		dbm.EXPECT().ListMCPGatewayEscalationsBySponsor(gomock.Any(), arg).Return([]database.MCPGatewayEscalation{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("ListAIBridgeSessionStartsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAIBridgeSessionStartsBySponsorParams{}
+		dbm.EXPECT().ListAIBridgeSessionStartsBySponsor(gomock.Any(), arg).Return([]database.ListAIBridgeSessionStartsBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("ListAIBridgeToolUsagesBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ListAIBridgeToolUsagesBySponsorParams{}
+		dbm.EXPECT().ListAIBridgeToolUsagesBySponsor(gomock.Any(), arg).Return([]database.ListAIBridgeToolUsagesBySponsorRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("ListAISandboxSessionsBySponsor", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.ListAISandboxSessionsBySponsorParams{}
 		dbm.EXPECT().ListAISandboxSessionsBySponsor(gomock.Any(), arg).Return([]database.AISandboxSession{}, nil).AnyTimes()

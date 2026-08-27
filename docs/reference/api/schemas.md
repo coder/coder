@@ -528,6 +528,95 @@
 | `user_id`       | string  | false    |              | User ID identifies the AI agent's user record. Audit records reference it as ai_agent_id. |
 | `username`      | string  | false    |              |                                                                                           |
 
+## codersdk.AIAuditEvent
+
+```json
+{
+  "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+  "detail": {
+    "property1": null,
+    "property2": null
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "occurred_at": "2019-08-24T14:15:22Z",
+  "sponsor": {
+    "avatar_url": "http://example.com",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "username": "string"
+  },
+  "summary": "string",
+  "type": "sandbox_session_started",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                          |
+|--------------------|--------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| `ai_agent_id`      | string                                                 | false    |              |                                                                                                                      |
+| `detail`           | object                                                 | false    |              |                                                                                                                      |
+| » `[any property]` | any                                                    | false    |              |                                                                                                                      |
+| `id`               | string                                                 | false    |              |                                                                                                                      |
+| `occurred_at`      | string                                                 | false    |              |                                                                                                                      |
+| `sponsor`          | [codersdk.MinimalUser](#codersdkminimaluser)           | false    |              |                                                                                                                      |
+| `summary`          | string                                                 | false    |              |                                                                                                                      |
+| `type`             | [codersdk.AIAuditEventType](#codersdkaiauditeventtype) | false    |              |                                                                                                                      |
+| `workspace_id`     | string                                                 | false    |              | Workspace ID is zero when the source record does not reference a workspace or the reference did not survive cleanup. |
+| `workspace_name`   | string                                                 | false    |              | Workspace name is only set for sources that snapshot it (escalations).                                               |
+
+## codersdk.AIAuditEventType
+
+```json
+"sandbox_session_started"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                         |
+|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `bridge_session_started`, `egress`, `escalation_created`, `escalation_resolved`, `sandbox_session_ended`, `sandbox_session_started`, `tool_call` |
+
+## codersdk.AIAuditTimelineResponse
+
+```json
+{
+  "count": 0,
+  "events": [
+    {
+      "ai_agent_id": "cbaf6aba-437a-4fd2-9d34-7875f81689e6",
+      "detail": {
+        "property1": null,
+        "property2": null
+      },
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "occurred_at": "2019-08-24T14:15:22Z",
+      "sponsor": {
+        "avatar_url": "http://example.com",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "username": "string"
+      },
+      "summary": "string",
+      "type": "sandbox_session_started",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                                    | Required | Restrictions | Description                                                                                                     |
+|----------|---------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------|
+| `count`  | integer                                                 | false    |              | Count is the number of events returned. Heterogeneous sources make a grand total impractical, so there is none. |
+| `events` | array of [codersdk.AIAuditEvent](#codersdkaiauditevent) | false    |              |                                                                                                                 |
+
 ## codersdk.AIBridgeAgenticAction
 
 ```json

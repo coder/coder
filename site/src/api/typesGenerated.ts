@@ -47,6 +47,94 @@ export interface AIAuditAgent {
 	readonly deleted: boolean;
 }
 
+// From codersdk/aiaudit.go
+/**
+ * AIAuditEvent is one entry in the sponsor activity timeline. Detail carries
+ * content-free, type-specific fields; conversation content stays behind the
+ * drill-down surfaces (bridge session threads, escalation viewer, and the
+ * per-session egress table).
+ */
+export interface AIAuditEvent {
+	readonly id: string;
+	readonly type: AIAuditEventType;
+	readonly occurred_at: string;
+	readonly ai_agent_id: string;
+	readonly sponsor: MinimalUser;
+	/**
+	 * WorkspaceID is zero when the source record does not reference a
+	 * workspace or the reference did not survive cleanup.
+	 */
+	readonly workspace_id?: string;
+	/**
+	 * WorkspaceName is only set for sources that snapshot it (escalations).
+	 */
+	readonly workspace_name?: string;
+	readonly summary: string;
+	// empty interface{} type, falling back to unknown
+	readonly detail: Record<string, unknown>;
+}
+
+// From codersdk/aiaudit.go
+export type AIAuditEventType =
+	| "bridge_session_started"
+	| "egress"
+	| "escalation_created"
+	| "escalation_resolved"
+	| "sandbox_session_ended"
+	| "sandbox_session_started"
+	| "tool_call";
+
+export const AIAuditEventTypes: AIAuditEventType[] = [
+	"bridge_session_started",
+	"egress",
+	"escalation_created",
+	"escalation_resolved",
+	"sandbox_session_ended",
+	"sandbox_session_started",
+	"tool_call",
+];
+
+// From codersdk/aiaudit.go
+/**
+ * AIAuditTimelineFilter filters the sponsor activity timeline.
+ */
+export interface AIAuditTimelineFilter {
+	/**
+	 * Sponsor is a user ID, username, or "me" (default). Naming another
+	 * user requires audit log read permission.
+	 */
+	readonly Sponsor: string;
+	/**
+	 * AIAgentID restricts events to a single agentic identity.
+	 */
+	readonly AIAgentID: string;
+	/**
+	 * AfterTime and BeforeTime exclusively bound occurred_at. Pass the
+	 * occurred_at of the last received event as BeforeTime to fetch the
+	 * next page.
+	 */
+	readonly AfterTime: string;
+	readonly BeforeTime: string;
+	/**
+	 * Types restricts the event types returned; empty means all.
+	 */
+	readonly Types: readonly AIAuditEventType[];
+	/**
+	 * Limit caps returned events. The server defaults to 100, max 1000.
+	 */
+	readonly Limit: number;
+}
+
+// From codersdk/aiaudit.go
+export interface AIAuditTimelineResponse {
+	readonly events: readonly AIAuditEvent[];
+	/**
+	 * Count is the number of events returned. Heterogeneous sources make a
+	 * grand total impractical, so there is none.
+	 */
+	readonly count: number;
+}
+
 // From codersdk/aibridge.go
 /**
  * AIBridgeAgenticAction represents a tool call with associated

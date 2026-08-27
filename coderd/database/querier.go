@@ -1274,6 +1274,12 @@ type sqlcQuerier interface {
 	// sequence numbers are independent streams. id breaks remaining ties so the row
 	// that lands on the limit boundary is stable across identical requests.
 	ListAIBridgeSessionNetworkCalls(ctx context.Context, arg ListAIBridgeSessionNetworkCallsParams) ([]BoundaryLog, error)
+	// Returns one row per bridge session attributed to a sponsoring user for
+	// the AI audit timeline. The window applies to the session start (the
+	// earliest interception), computed over all of the session's interceptions
+	// so sessions spanning the window boundary are not misreported as starting
+	// inside it. Zero bounds disable the window.
+	ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg ListAIBridgeSessionStartsBySponsorParams) ([]ListAIBridgeSessionStartsBySponsorRow, error)
 	// Returns all interceptions belonging to paginated threads within a session.
 	// Threads are paginated by (started_at, thread_id) cursor.
 	ListAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams) ([]ListAIBridgeSessionThreadsRow, error)
@@ -1293,6 +1299,9 @@ type sqlcQuerier interface {
 	ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams) ([]ListAIBridgeSessionsRow, error)
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
+	// Returns tool calls attributed to a sponsoring user for the AI audit
+	// timeline, newest first. Zero bounds disable the window.
+	ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg ListAIBridgeToolUsagesBySponsorParams) ([]ListAIBridgeToolUsagesBySponsorRow, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
 	// Aggregates egress decisions per (session, host, action) bucket for the

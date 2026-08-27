@@ -2410,6 +2410,86 @@ func (q *sqlQuerier) ListAIBridgeSessionNetworkCalls(ctx context.Context, arg Li
 	return items, nil
 }
 
+const listAIBridgeSessionStartsBySponsor = `-- name: ListAIBridgeSessionStartsBySponsor :many
+SELECT
+	ai.session_id,
+	ai.initiator_id,
+	MIN(ai.started_at)::timestamptz AS started_at,
+	COALESCE(MIN(ai.client), 'Unknown')::text AS client,
+	array_agg(DISTINCT ai.provider)::text[] AS providers,
+	array_agg(DISTINCT ai.model)::text[] AS models
+FROM aibridge_interceptions ai
+WHERE ai.sponsor_user_id = $1::uuid
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $2::uuid
+		ELSE true
+	END
+GROUP BY ai.session_id, ai.initiator_id
+HAVING
+	($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR MIN(ai.started_at) < $4::timestamptz)
+ORDER BY MIN(ai.started_at) DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAIBridgeSessionStartsBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeSessionStartsBySponsorRow struct {
+	SessionID   string    `db:"session_id" json:"session_id"`
+	InitiatorID uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	StartedAt   time.Time `db:"started_at" json:"started_at"`
+	Client      string    `db:"client" json:"client"`
+	Providers   []string  `db:"providers" json:"providers"`
+	Models      []string  `db:"models" json:"models"`
+}
+
+// Returns one row per bridge session attributed to a sponsoring user for
+// the AI audit timeline. The window applies to the session start (the
+// earliest interception), computed over all of the session's interceptions
+// so sessions spanning the window boundary are not misreported as starting
+// inside it. Zero bounds disable the window.
+func (q *sqlQuerier) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg ListAIBridgeSessionStartsBySponsorParams) ([]ListAIBridgeSessionStartsBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeSessionStartsBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeSessionStartsBySponsorRow
+	for rows.Next() {
+		var i ListAIBridgeSessionStartsBySponsorRow
+		if err := rows.Scan(
+			&i.SessionID,
+			&i.InitiatorID,
+			&i.StartedAt,
+			&i.Client,
+			pq.Array(&i.Providers),
+			pq.Array(&i.Models),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAIBridgeSessionThreads = `-- name: ListAIBridgeSessionThreads :many
 WITH paginated_threads AS (
 	SELECT
@@ -2925,6 +3005,88 @@ func (q *sqlQuerier) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context
 			&i.ProviderItemID,
 			&i.Disposition,
 			&i.EscalationID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAIBridgeToolUsagesBySponsor = `-- name: ListAIBridgeToolUsagesBySponsor :many
+SELECT
+	tu.id,
+	tu.created_at,
+	tu.interception_id,
+	COALESCE(tu.server_url, '')::text AS server_url,
+	tu.tool,
+	tu.disposition,
+	tu.escalation_id,
+	ai.initiator_id AS ai_agent_id
+FROM aibridge_tool_usages tu
+JOIN aibridge_interceptions ai ON ai.id = tu.interception_id
+WHERE ai.sponsor_user_id = $1::uuid
+	AND CASE
+		WHEN $2::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $2::uuid
+		ELSE true
+	END
+	AND ($3::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at > $3::timestamptz)
+	AND ($4::timestamptz = '0001-01-01 00:00:00+00'::timestamptz OR tu.created_at < $4::timestamptz)
+ORDER BY tu.created_at DESC
+LIMIT COALESCE(NULLIF($5::integer, 0), 100)
+`
+
+type ListAIBridgeToolUsagesBySponsorParams struct {
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
+	AIAgentID     uuid.UUID `db:"ai_agent_id" json:"ai_agent_id"`
+	AfterTime     time.Time `db:"after_time" json:"after_time"`
+	BeforeTime    time.Time `db:"before_time" json:"before_time"`
+	Limit         int32     `db:"limit_" json:"limit_"`
+}
+
+type ListAIBridgeToolUsagesBySponsorRow struct {
+	ID             uuid.UUID     `db:"id" json:"id"`
+	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
+	InterceptionID uuid.UUID     `db:"interception_id" json:"interception_id"`
+	ServerUrl      string        `db:"server_url" json:"server_url"`
+	Tool           string        `db:"tool" json:"tool"`
+	Disposition    string        `db:"disposition" json:"disposition"`
+	EscalationID   uuid.NullUUID `db:"escalation_id" json:"escalation_id"`
+	AIAgentID      uuid.UUID     `db:"ai_agent_id" json:"ai_agent_id"`
+}
+
+// Returns tool calls attributed to a sponsoring user for the AI audit
+// timeline, newest first. Zero bounds disable the window.
+func (q *sqlQuerier) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg ListAIBridgeToolUsagesBySponsorParams) ([]ListAIBridgeToolUsagesBySponsorRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIBridgeToolUsagesBySponsor,
+		arg.SponsorUserID,
+		arg.AIAgentID,
+		arg.AfterTime,
+		arg.BeforeTime,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIBridgeToolUsagesBySponsorRow
+	for rows.Next() {
+		var i ListAIBridgeToolUsagesBySponsorRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.InterceptionID,
+			&i.ServerUrl,
+			&i.Tool,
+			&i.Disposition,
+			&i.EscalationID,
+			&i.AIAgentID,
 		); err != nil {
 			return nil, err
 		}

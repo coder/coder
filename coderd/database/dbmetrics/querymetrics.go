@@ -4858,6 +4858,14 @@ func (m queryMetricsStore) ListAIBridgeSessionNetworkCalls(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListAIBridgeSessionStartsBySponsor(ctx context.Context, arg database.ListAIBridgeSessionStartsBySponsorParams) ([]database.ListAIBridgeSessionStartsBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeSessionStartsBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeSessionStartsBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeSessionStartsBySponsor").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListAIBridgeSessionThreads(ctx context.Context, arg database.ListAIBridgeSessionThreadsParams) ([]database.ListAIBridgeSessionThreadsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListAIBridgeSessionThreads(ctx, arg)
@@ -4887,6 +4895,14 @@ func (m queryMetricsStore) ListAIBridgeToolUsagesByInterceptionIDs(ctx context.C
 	r0, r1 := m.s.ListAIBridgeToolUsagesByInterceptionIDs(ctx, interceptionIds)
 	m.queryLatencies.WithLabelValues("ListAIBridgeToolUsagesByInterceptionIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeToolUsagesByInterceptionIDs").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeToolUsagesBySponsor(ctx context.Context, arg database.ListAIBridgeToolUsagesBySponsorParams) ([]database.ListAIBridgeToolUsagesBySponsorRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeToolUsagesBySponsor(ctx, arg)
+	m.queryLatencies.WithLabelValues("ListAIBridgeToolUsagesBySponsor").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeToolUsagesBySponsor").Inc()
 	return r0, r1
 }
 
