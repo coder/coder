@@ -142,7 +142,9 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
 									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"h-7 w-full px-2 py-0.5",
+									// md:h-auto matches the model selector trigger so
+									// both pills share a height at every breakpoint.
+									"h-7 w-full px-2 py-0.5 md:h-auto",
 								)}
 							>
 								<StatusIcon type={effectiveType} className="size-3 shrink-0" />

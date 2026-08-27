@@ -1541,10 +1541,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
+								{/* Above the composer on mobile so the open
+								 * popover does not cover the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
-									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer flex w-auto max-w-64 flex-wrap gap-1 p-2"
 								>
 									{overflowBadges.map((badge, i) => (
 										<ToolBadge
