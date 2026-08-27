@@ -1988,6 +1988,17 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
 }
 
+func (q *querier) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.ClearChatSummaryGeneration(ctx, arg)
+}
+
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -3022,6 +3033,10 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
+}
+
+func (q *querier) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetActiveChatSummaryGenerationsByOwnerID)(ctx, arg)
 }
 
 func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
@@ -7313,6 +7328,17 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 		return err
 	}
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return time.Time{}, err
+	}
+	return q.db.StartChatSummaryGeneration(ctx, id)
 }
 
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

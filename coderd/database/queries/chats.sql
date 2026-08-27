@@ -1474,16 +1474,51 @@ WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
 
+-- name: StartChatSummaryGeneration :one
+INSERT INTO chat_summary_generations (chat_id)
+VALUES (@id::uuid)
+ON CONFLICT (chat_id) DO UPDATE
+SET started_at = NOW()
+RETURNING started_at;
+
+-- name: ClearChatSummaryGeneration :exec
+DELETE FROM chat_summary_generations
+WHERE
+    chat_id = @id::uuid
+    AND started_at = sqlc.arg('generation_started_at')::timestamptz;
+
+-- name: GetActiveChatSummaryGenerationsByOwnerID :many
+SELECT c.*
+FROM chat_summary_generations g
+JOIN chats_expanded c ON c.id = g.chat_id
+WHERE
+    c.owner_id = @owner_id::uuid
+    AND c.parent_chat_id IS NULL
+    AND g.started_at > NOW() - (INTERVAL '1 second' * @max_age_seconds::int)
+ORDER BY g.started_at;
+
 -- name: UpdateChatSummary :execrows
 -- The history_version fence lets background summary writes ignore worker-only
--- updates while losing to newer message history.
+-- updates while losing to newer message history. Root summary workers also pass
+-- their generation marker so an older overlapping worker cannot overwrite a
+-- newer attempt.
 UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,
     summary_generated_at = NOW()
 WHERE
     id = @id::uuid
-    AND history_version = @expected_history_version::bigint;
+    AND history_version = @expected_history_version::bigint
+    AND (
+        sqlc.narg('expected_generation_started_at')::timestamptz IS NULL
+        OR EXISTS (
+            SELECT 1
+            FROM chat_summary_generations g
+            WHERE
+                g.chat_id = chats.id
+                AND g.started_at = sqlc.narg('expected_generation_started_at')::timestamptz
+        )
+    );
 
 -- name: UpdateChatMCPServerIDs :one
 WITH updated_chat AS (

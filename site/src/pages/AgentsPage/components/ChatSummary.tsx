@@ -71,6 +71,12 @@ export const ChatSummary: FC<ChatSummaryProps> = ({
 				/>
 			)}
 
+			{isGenerating && trimmedSummary && (
+				<span className="sr-only" role="status">
+					Generating summary
+				</span>
+			)}
+
 			<dl className="m-0 flex shrink-0 flex-col gap-1.5">
 				<ChatSummaryRow label="Created:">
 					{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}

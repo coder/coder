@@ -2133,6 +2133,11 @@ CREATE SEQUENCE chat_queued_messages_id_seq
 
 ALTER SEQUENCE chat_queued_messages_id_seq OWNED BY chat_queued_messages.id;
 
+CREATE TABLE chat_summary_generations (
+    chat_id uuid NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE chat_usage_limit_config (
     id bigint NOT NULL,
     singleton boolean DEFAULT true NOT NULL,
@@ -4438,6 +4443,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_summary_generations
+    ADD CONSTRAINT chat_summary_generations_pkey PRIMARY KEY (chat_id);
+
 ALTER TABLE ONLY chat_usage_limit_config
     ADD CONSTRAINT chat_usage_limit_config_pkey PRIMARY KEY (id);
 
@@ -5322,6 +5330,9 @@ ALTER TABLE ONLY chat_organization_model_overrides
 
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_summary_generations
+    ADD CONSTRAINT chat_summary_generations_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_user_model_overrides
     ADD CONSTRAINT chat_user_model_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

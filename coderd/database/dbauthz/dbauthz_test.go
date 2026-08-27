@@ -992,6 +992,15 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetActiveChatsByAgentID(gomock.Any(), agentID).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(agentID).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
+	s.Run("GetActiveChatSummaryGenerationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+			OwnerID:       chat.OwnerID,
+			MaxAgeSeconds: 120,
+		}
+		dbm.EXPECT().GetActiveChatSummaryGenerationsByOwnerID(gomock.Any(), arg).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
+	}))
 	s.Run("SoftDeleteContextFileMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
@@ -1949,6 +1958,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().UpdateChatLastTurnSummary(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("StartChatSummaryGeneration", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		startedAt := time.Now()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().StartChatSummaryGeneration(gomock.Any(), chat.ID).Return(startedAt, nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns(startedAt)
+	}))
+	s.Run("ClearChatSummaryGeneration", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.ClearChatSummaryGenerationParams{
+			ID:                  chat.ID,
+			GenerationStartedAt: time.Now(),
+		}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ClearChatSummaryGeneration(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateChatSummary", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})

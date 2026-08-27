@@ -93,6 +93,7 @@ type sqlcQuerier interface {
 	CleanTailnetLostPeers(ctx context.Context) error
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
+	ClearChatSummaryGeneration(ctx context.Context, arg ClearChatSummaryGenerationParams) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
@@ -366,6 +367,7 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
+	GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg GetActiveChatSummaryGenerationsByOwnerIDParams) ([]Chat, error)
 	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
@@ -1396,6 +1398,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1506,7 +1509,9 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
-	// updates while losing to newer message history.
+	// updates while losing to newer message history. Root summary workers also pass
+	// their generation marker so an older overlapping worker cannot overwrite a
+	// newer attempt.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)

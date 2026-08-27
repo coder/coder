@@ -1857,6 +1857,10 @@ func NewDynamicTool[T any](
 	}
 }
 
+// ChatSummaryGenerationTimeout bounds how long an interrupted generation can
+// be replayed to newly connected chat watchers.
+const ChatSummaryGenerationTimeout = 2 * time.Minute
+
 // ChatWatchEventKind represents the kind of event in the chat watch stream.
 type ChatWatchEventKind string
 

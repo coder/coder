@@ -5287,6 +5287,11 @@ type ChatQueuedMessage struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 }
 
+type ChatSummaryGeneration struct {
+	ChatID    uuid.UUID `db:"chat_id" json:"chat_id"`
+	StartedAt time.Time `db:"started_at" json:"started_at"`
+}
+
 type ChatTable struct {
 	ID                uuid.UUID             `db:"id" json:"id"`
 	OwnerID           uuid.UUID             `db:"owner_id" json:"owner_id"`

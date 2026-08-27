@@ -201,6 +201,15 @@ export const GeneratingSummary: Story = {
 	},
 };
 
+export const RegeneratingSummary: Story = {
+	args: { summary: "Existing summary remains visible.", isGenerating: true },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByRole("status")).toHaveTextContent("Generating summary");
+		expect(canvas.getByText("Existing summary remains visible.")).toBeVisible();
+	},
+};
+
 // A subagent's summary is its final report, persisted when it
 // completes, so an empty summary means the agent is still working.
 export const SubagentSummaryPending: Story = {

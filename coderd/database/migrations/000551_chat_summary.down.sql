@@ -2,6 +2,8 @@
 -- the summary columns, matching the 000549 chats_expanded definition.
 DROP VIEW IF EXISTS chats_expanded;
 
+DROP TABLE chat_summary_generations;
+
 ALTER TABLE chats
     DROP COLUMN summary,
     DROP COLUMN summary_generated_at;

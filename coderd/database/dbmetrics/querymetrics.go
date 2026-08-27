@@ -312,6 +312,14 @@ func (m queryMetricsStore) CleanupDeletedMCPServerIDsFromChats(ctx context.Conte
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+	start := time.Now()
+	r0 := m.s.ClearChatSummaryGeneration(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearChatSummaryGeneration").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatSummaryGeneration").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountAIBridgeSessions(ctx, arg)
@@ -1285,6 +1293,14 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	r0, r1 := m.s.GetActiveAISeatCount(ctx)
 	m.queryLatencies.WithLabelValues("GetActiveAISeatCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveAISeatCount").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetActiveChatSummaryGenerationsByOwnerID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetActiveChatSummaryGenerationsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveChatSummaryGenerationsByOwnerID").Inc()
 	return r0, r1
 }
 
@@ -5126,6 +5142,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	start := time.Now()
+	r0, r1 := m.s.StartChatSummaryGeneration(ctx, id)
+	m.queryLatencies.WithLabelValues("StartChatSummaryGeneration").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StartChatSummaryGeneration").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {

@@ -16175,10 +16175,38 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.False(t, chat.Summary.Valid)
 	require.False(t, chat.SummaryGeneratedAt.Valid)
 
+	generationStartedAt, err := db.StartChatSummaryGeneration(ctx, chat.ID)
+	require.NoError(t, err)
+
+	activeGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Len(t, activeGenerations, 1)
+	require.Equal(t, chat.ID, activeGenerations[0].ID)
+
+	expiredGenerations, err := db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 0,
+	})
+	require.NoError(t, err)
+	require.Empty(t, expiredGenerations)
+
 	affected, err := db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
-		ID:                     chat.ID,
-		ExpectedHistoryVersion: chat.HistoryVersion,
-		Summary:                sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true},
+		ID:                          chat.ID,
+		ExpectedHistoryVersion:      chat.HistoryVersion,
+		ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt.Add(-time.Second), Valid: true},
+		Summary:                     sql.NullString{String: "stale generation", Valid: true},
+	})
+	require.NoError(t, err)
+	require.Zero(t, affected)
+
+	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
+		ID:                          chat.ID,
+		ExpectedHistoryVersion:      chat.HistoryVersion,
+		ExpectedGenerationStartedAt: sql.NullTime{Time: generationStartedAt, Valid: true},
+		Summary:                     sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -16188,6 +16216,19 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.Equal(t, sql.NullString{String: "Implemented the whole-chat summary feature.", Valid: true}, fetched.Summary)
 	require.True(t, fetched.SummaryGeneratedAt.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
+
+	err = db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	})
+	require.NoError(t, err)
+
+	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
+		OwnerID:       owner.ID,
+		MaxAgeSeconds: 60,
+	})
+	require.NoError(t, err)
+	require.Empty(t, activeGenerations)
 
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,

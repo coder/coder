@@ -422,6 +422,20 @@ func (mr *MockStoreMockRecorder) CleanupDeletedMCPServerIDsFromChats(ctx any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CleanupDeletedMCPServerIDsFromChats", reflect.TypeOf((*MockStore)(nil).CleanupDeletedMCPServerIDsFromChats), ctx)
 }
 
+// ClearChatSummaryGeneration mocks base method.
+func (m *MockStore) ClearChatSummaryGeneration(ctx context.Context, arg database.ClearChatSummaryGenerationParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatSummaryGeneration", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ClearChatSummaryGeneration indicates an expected call of ClearChatSummaryGeneration.
+func (mr *MockStoreMockRecorder) ClearChatSummaryGeneration(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatSummaryGeneration", reflect.TypeOf((*MockStore)(nil).ClearChatSummaryGeneration), ctx, arg)
+}
+
 // CountAIBridgeSessions mocks base method.
 func (m *MockStore) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -2262,6 +2276,21 @@ func (m *MockStore) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
+}
+
+// GetActiveChatSummaryGenerationsByOwnerID mocks base method.
+func (m *MockStore) GetActiveChatSummaryGenerationsByOwnerID(ctx context.Context, arg database.GetActiveChatSummaryGenerationsByOwnerIDParams) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveChatSummaryGenerationsByOwnerID", ctx, arg)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveChatSummaryGenerationsByOwnerID indicates an expected call of GetActiveChatSummaryGenerationsByOwnerID.
+func (mr *MockStoreMockRecorder) GetActiveChatSummaryGenerationsByOwnerID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveChatSummaryGenerationsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetActiveChatSummaryGenerationsByOwnerID), ctx, arg)
 }
 
 // GetActiveChatsByAgentID mocks base method.
@@ -9734,6 +9763,21 @@ func (m *MockStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
+}
+
+// StartChatSummaryGeneration mocks base method.
+func (m *MockStore) StartChatSummaryGeneration(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartChatSummaryGeneration", ctx, id)
+	ret0, _ := ret[0].(time.Time)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartChatSummaryGeneration indicates an expected call of StartChatSummaryGeneration.
+func (mr *MockStoreMockRecorder) StartChatSummaryGeneration(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartChatSummaryGeneration", reflect.TypeOf((*MockStore)(nil).StartChatSummaryGeneration), ctx, id)
 }
 
 // TouchChatDebugRunUpdatedAt mocks base method.

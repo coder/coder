@@ -117,7 +117,7 @@ func TestUpdateChatSummary(t *testing.T) {
 			return 1, nil
 		})
 
-		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, " \n trimmed summary\t ")
+		server.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{}, " \n trimmed summary\t ")
 
 		events := ps.watchEvents(t)
 		require.Len(t, events, 1)
@@ -135,7 +135,7 @@ func TestUpdateChatSummary(t *testing.T) {
 		chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New(), HistoryVersion: 7}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, " \n\t ")
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, sql.NullTime{}, " \n\t ")
 	})
 
 	t.Run("SkipsEventOnStaleWrite", func(t *testing.T) {
@@ -154,7 +154,7 @@ func TestUpdateChatSummary(t *testing.T) {
 			Summary:                sql.NullString{String: "stale summary", Valid: true},
 		}).Return(int64(0), nil)
 
-		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, "stale summary")
+		server.updateChatSummary(context.Background(), logger, chat, chat.HistoryVersion, sql.NullTime{}, "stale summary")
 
 		require.Empty(t, ps.watchEvents(t))
 	})

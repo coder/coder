@@ -1104,11 +1104,11 @@ export const SummaryWatchEventsUpdateOpenPanel: Story = {
 		};
 	},
 	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent("chat_summary_generating", watchedChat(), 500),
+		chatWatchEvent("chat_summary_generating", watchedChat(), 750),
 		chatWatchEvent(
 			"chat_summary_change",
 			watchedChat({ summary: "Generated summary from the watch event." }),
-			750,
+			3_000,
 		),
 	]),
 	play: async ({ canvasElement }) => {
@@ -1121,14 +1121,20 @@ export const SummaryWatchEventsUpdateOpenPanel: Story = {
 			await summary.findByText("Not enough details to summarize."),
 		).toBeVisible();
 
-		const status = await summary.findByRole("status");
+		const status = await summary.findByRole("status", undefined, {
+			timeout: 3_000,
+		});
 		expect(status).toHaveTextContent("Generating summary");
 		expect(
 			summary.queryByText("Not enough details to summarize."),
 		).not.toBeInTheDocument();
 
 		expect(
-			await summary.findByText("Generated summary from the watch event."),
+			await summary.findByText(
+				"Generated summary from the watch event.",
+				{},
+				{ timeout: 5_000 },
+			),
 		).toBeVisible();
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();
 	},

@@ -4796,7 +4796,7 @@ const (
 	// New completed user turns before the summary is regenerated (since the last summary).
 	summaryStaleTurnThreshold  = 3
 	summaryMinTranscriptRunes  = 200
-	chatSummaryWorkTimeout     = 120 * time.Second
+	chatSummaryWorkTimeout     = codersdk.ChatSummaryGenerationTimeout
 	chatSummaryGenerateTimeout = 60 * time.Second
 	chatSummaryWriteTimeout    = 5 * time.Second
 
@@ -4889,6 +4889,14 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
+	generationStartedAt, err := p.db.StartChatSummaryGeneration(ctx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to mark chat summary generation",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	defer p.clearChatSummaryGeneration(ctx, logger, chat.ID, generationStartedAt)
+
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindChatSummaryGenerating, nil)
 
 	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
@@ -4901,7 +4909,10 @@ func (p *Server) generateAndStoreChatSummary(
 		return
 	}
 
-	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{
+		Time:  generationStartedAt,
+		Valid: true,
+	}, summary)
 }
 
 func (p *Server) resolveChatSummaryModel(
@@ -4955,6 +4966,24 @@ func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) 
 	return count
 }
 
+func (p *Server) clearChatSummaryGeneration(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	generationStartedAt time.Time,
+) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), chatSummaryWriteTimeout)
+	defer cancel()
+
+	if err := p.db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
+		ID:                  chatID,
+		GenerationStartedAt: generationStartedAt,
+	}); err != nil {
+		logger.Warn(ctx, "failed to clear chat summary generation",
+			slog.F("chat_id", chatID), slog.Error(err))
+	}
+}
+
 // updateChatSummary persists the whole-chat summary. Best-effort background
 // write (pass a detached context); a blank summary is a no-op, never clearing
 // an existing one.
@@ -4963,6 +4992,7 @@ func (p *Server) updateChatSummary(
 	logger slog.Logger,
 	chat database.Chat,
 	expectedHistoryVersion int64,
+	expectedGenerationStartedAt sql.NullTime,
 	summary string,
 ) {
 	summary = strings.TrimSpace(summary)
@@ -4975,9 +5005,10 @@ func (p *Server) updateChatSummary(
 	defer cancel()
 
 	affected, err := p.db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
-		ID:                     chat.ID,
-		ExpectedHistoryVersion: expectedHistoryVersion,
-		Summary:                sqlSummary,
+		ID:                          chat.ID,
+		ExpectedHistoryVersion:      expectedHistoryVersion,
+		ExpectedGenerationStartedAt: expectedGenerationStartedAt,
+		Summary:                     sqlSummary,
 	})
 	if err != nil {
 		logger.Warn(ctx, "failed to update chat summary",
@@ -4991,6 +5022,10 @@ func (p *Server) updateChatSummary(
 			slog.F("expected_history_version", expectedHistoryVersion),
 		)
 		return
+	}
+
+	if expectedGenerationStartedAt.Valid {
+		p.clearChatSummaryGeneration(ctx, logger, chat.ID, expectedGenerationStartedAt.Time)
 	}
 
 	updatedChat := chat
@@ -5035,7 +5070,7 @@ func (p *Server) storeSubagentReportSummary(
 	if summary == "" {
 		return
 	}
-	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, summary)
+	p.updateChatSummary(ctx, logger, chat, chat.HistoryVersion, sql.NullTime{}, summary)
 }
 
 func (p *Server) webpushConfigured() bool {
