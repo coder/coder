@@ -1337,29 +1337,34 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
+	-- Filter sponsor_user_id
+	AND CASE
+		WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.sponsor_user_id = $4::uuid
+		ELSE true
+	END
 	-- Filter provider
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $5::text != '' THEN aibridge_interceptions.provider = $5::text
 		ELSE true
 	END
 	-- Filter provider_name
 	AND CASE
-		WHEN $5::text != '' THEN aibridge_interceptions.provider_name = $5::text
+		WHEN $6::text != '' THEN aibridge_interceptions.provider_name = $6::text
 		ELSE true
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $7::text != '' THEN aibridge_interceptions.model = $7::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $8::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $8::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
+		WHEN $9::text != '' THEN aibridge_interceptions.session_id = $9::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -1370,6 +1375,7 @@ type CountAIBridgeSessionsParams struct {
 	StartedAfter  time.Time `db:"started_after" json:"started_after"`
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	SponsorUserID uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Provider      string    `db:"provider" json:"provider"`
 	ProviderName  string    `db:"provider_name" json:"provider_name"`
 	Model         string    `db:"model" json:"model"`
@@ -1382,6 +1388,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
+		arg.SponsorUserID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,
@@ -2576,29 +2583,34 @@ session_page AS (
 			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
+		-- Filter sponsor_user_id
+		AND CASE
+			WHEN $5::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.sponsor_user_id = $5::uuid
+			ELSE true
+		END
 		-- Filter provider
 		AND CASE
-			WHEN $5::text != '' THEN ai.provider = $5::text
+			WHEN $6::text != '' THEN ai.provider = $6::text
 			ELSE true
 		END
 		-- Filter provider_name
 		AND CASE
-			WHEN $6::text != '' THEN ai.provider_name = $6::text
+			WHEN $7::text != '' THEN ai.provider_name = $7::text
 			ELSE true
 		END
 		-- Filter model
 		AND CASE
-			WHEN $7::text != '' THEN ai.model = $7::text
+			WHEN $8::text != '' THEN ai.model = $8::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $9::text != '' THEN COALESCE(ai.client, 'Unknown') = $9::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $9::text != '' THEN ai.session_id = $9::text
+			WHEN $10::text != '' THEN ai.session_id = $10::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -2622,8 +2634,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
-	OFFSET $10
+	LIMIT COALESCE(NULLIF($12::integer, 0), 100)
+	OFFSET $11
 )
 SELECT
 	sp.session_id,
@@ -2721,6 +2733,7 @@ type ListAIBridgeSessionsParams struct {
 	StartedAfter   time.Time `db:"started_after" json:"started_after"`
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	SponsorUserID  uuid.UUID `db:"sponsor_user_id" json:"sponsor_user_id"`
 	Provider       string    `db:"provider" json:"provider"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
 	Model          string    `db:"model" json:"model"`
@@ -2773,6 +2786,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
+		arg.SponsorUserID,
 		arg.Provider,
 		arg.ProviderName,
 		arg.Model,

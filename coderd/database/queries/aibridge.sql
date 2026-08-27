@@ -320,6 +320,11 @@ WHERE
 		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
 		ELSE true
 	END
+	-- Filter sponsor_user_id
+	AND CASE
+		WHEN @sponsor_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.sponsor_user_id = @sponsor_user_id::uuid
+		ELSE true
+	END
 	-- Filter provider
 	AND CASE
 		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
@@ -410,6 +415,11 @@ session_page AS (
 		-- Filter initiator_id
 		AND CASE
 			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @initiator_id::uuid
+			ELSE true
+		END
+		-- Filter sponsor_user_id
+		AND CASE
+			WHEN @sponsor_user_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.sponsor_user_id = @sponsor_user_id::uuid
 			ELSE true
 		END
 		-- Filter provider

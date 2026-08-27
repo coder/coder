@@ -126,7 +126,10 @@ func AIBridgeInterceptionConverter() *sqltypes.VariableConverter {
 		resourceIDMatcher(),
 		// AI Bridge interceptions are not tied to any organization.
 		sqltypes.StringVarMatcher("''", []string{"input", "object", "org_owner"}),
-		sqltypes.StringVarMatcher("initiator_id :: text", []string{"input", "object", "owner"}),
+		// The sponsoring human user owns AI-initiated interceptions;
+		// human-initiated interceptions are owned by their initiator. Keep in
+		// sync with AIBridgeInterception.RBACObject.
+		sqltypes.StringVarMatcher("COALESCE(sponsor_user_id, initiator_id) :: text", []string{"input", "object", "owner"}),
 	)
 	matcher.RegisterMatcher(
 		// No ACLs on the aibridge interception type

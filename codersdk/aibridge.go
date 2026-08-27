@@ -286,7 +286,10 @@ type AIBridgeListSessionsFilter struct {
 	Pagination Pagination `json:"pagination,omitempty"`
 
 	// Initiator is a user ID, username, or "me".
-	Initiator     string    `json:"initiator,omitempty"`
+	Initiator string `json:"initiator,omitempty"`
+	// Sponsor is a user ID, username, or "me". It matches the sponsoring
+	// human user of AI-initiated sessions.
+	Sponsor       string    `json:"sponsor,omitempty"`
 	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
 	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
 	// Provider matches the runtime provider type column (openai,
@@ -314,6 +317,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		var params []string
 		if f.Initiator != "" {
 			params = append(params, fmt.Sprintf("initiator:%q", f.Initiator))
+		}
+		if f.Sponsor != "" {
+			params = append(params, fmt.Sprintf("sponsor:%q", f.Sponsor))
 		}
 		if !f.StartedBefore.IsZero() {
 			params = append(params, fmt.Sprintf("started_before:%q", f.StartedBefore.Format(time.RFC3339Nano)))

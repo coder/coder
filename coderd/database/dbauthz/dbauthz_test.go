@@ -6766,6 +6766,9 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 		intID := uuid.UUID{2}
 		intc := testutil.Fake(s.T(), faker, database.AIBridgeInterception{ID: intID, InitiatorID: initID})
+		// The sponsor, when set, becomes the RBAC owner; pin it so the
+		// asserted object matches the params-derived owner.
+		intc.SponsorUserID = uuid.NullUUID{}
 
 		params := database.InsertAIBridgeInterceptionParams{ID: intc.ID, InitiatorID: intc.InitiatorID, Provider: intc.Provider, Model: intc.Model}
 		db.EXPECT().GetUserByID(gomock.Any(), initID).Return(user, nil).AnyTimes() // Validation.

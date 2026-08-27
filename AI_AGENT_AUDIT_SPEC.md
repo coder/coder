@@ -122,8 +122,12 @@ else `initiator_id`. The rego-to-SQL converter
 (`regosql.AIBridgeInterceptionConverter`) matches owner against
 `COALESCE(sponsor_user_id, initiator_id)::text`. Effects:
 
-- Sponsors see their agents' sessions in the existing AI Bridge UI and can use
-  `sponsor:me` / `initiator:<agent>` filters there.
+- Ownership follows accountability. Note the member role deliberately grants
+  only create/update on interceptions ("cannot read them back"), so plain
+  member sponsors still cannot list their agents' sessions in the AI Bridge
+  UI; auditors can, including with the new `sponsor:` filter. The
+  sponsor-facing surface is the timeline, whose system-guarded queries are
+  sponsor-scoped in the handler (like the escalations API).
 - AI identities lose implicit read on their own interception rows (they are
   no longer the owner). Their tokens carry no aibridge read scope, so nothing
   observable changes for them; this is fail-closed in the right direction.

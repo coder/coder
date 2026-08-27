@@ -964,6 +964,12 @@ func (s UserSecret) RBACObject() rbac.Object {
 }
 
 func (s AIBridgeInterception) RBACObject() rbac.Object {
+	// AI-initiated interceptions are owned by the sponsoring human user, who
+	// is the accountable principal for the agent's activity. Human-initiated
+	// interceptions have no sponsor and are owned by their initiator.
+	if s.SponsorUserID.Valid {
+		return rbac.ResourceAibridgeInterception.WithOwner(s.SponsorUserID.UUID.String())
+	}
 	return rbac.ResourceAibridgeInterception.WithOwner(s.InitiatorID.String())
 }
 

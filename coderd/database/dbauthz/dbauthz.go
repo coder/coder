@@ -212,7 +212,8 @@ func workspaceTransitionAction(transition database.WorkspaceTransition) (policy.
 	}
 }
 
-// authorizeAIBridgeInterceptionAction validates that the context's actor matches the initiator of the AIBridgeInterception.
+// authorizeAIBridgeInterceptionAction validates that the context's actor may act on the
+// AIBridgeInterception, whose RBAC owner is the sponsor when set, else the initiator.
 // This is used by all of the sub-resources which fall under the [ResourceAibridgeInterception] umbrella.
 func (q *querier) authorizeAIBridgeInterceptionAction(ctx context.Context, action policy.Action, interceptionID uuid.UUID) error {
 	inter, err := q.db.GetAIBridgeInterceptionByID(ctx, interceptionID)
@@ -6043,7 +6044,13 @@ func (q *querier) InsertAIAgentUser(ctx context.Context, arg database.InsertAIAg
 }
 
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
-	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
+	// The sponsoring human user, when set, owns the interception. Keep in
+	// sync with AIBridgeInterception.RBACObject.
+	owner := arg.InitiatorID
+	if arg.SponsorUserID.Valid {
+		owner = arg.SponsorUserID.UUID
+	}
+	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(owner.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
 
 func (q *querier) InsertAIBridgeModelThought(ctx context.Context, arg database.InsertAIBridgeModelThoughtParams) (database.AIBridgeModelThought, error) {
