@@ -376,6 +376,26 @@ The negotiated scope is recorded on the authorization and shown on the consent
 page. It does not yet restrict what the issued token can do (see
 [Limitations](#limitations)).
 
+### "unsupported_response_type" returned to your callback
+
+Coder supports the authorization code flow only, so `response_type=code` is the single accepted value.
+`GET /.well-known/oauth-authorization-server` reports it in `response_types_supported`.
+
+Any other value, including the `token` of the implicit grant, redirects to your registered callback with `error=unsupported_response_type`, an `error_description` of `Only response_type=code is supported`, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
+Earlier releases answered on Coder instead: `GET` rendered an "Unsupported Response Type" page and `POST` returned a 400 with a JSON body.
+An integration that watched for either now has to read the error from its own callback.
+
+### "invalid_request" for `code_challenge_method`
+
+Coder supports the `S256` challenge method only.
+`plain` sends the verifier itself as the challenge, so anything that can observe the authorization request can complete the exchange, which is what PKCE exists to prevent.
+Omitting the parameter is allowed and means `S256`.
+
+An unsupported method redirects to your registered callback with `error=invalid_request`, an `error_description` that names the method, and the `state` you sent.
+This holds for both `GET /oauth2/authorize` and `POST /oauth2/authorize`.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
@@ -418,9 +438,7 @@ As an experimental feature, the current implementation has limitations:
 
 - No scope system - all tokens have full API access
 - No client credentials grant support
-- Implicit grant (`response_type=token`) is not supported; OAuth 2.1
-  deprecated this flow due to token leakage risks, and requests return
-  `unsupported_response_type`
+- Implicit grant (`response_type=token`) is not supported; OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no JWT support)
 
 ## Standards Compliance
