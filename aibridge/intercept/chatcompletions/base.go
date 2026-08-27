@@ -228,7 +228,12 @@ func (i *interceptionBase) hasInjectableTools() bool {
 
 // recordTokenUsage records the token usage for a single completion, accounting
 // for cache read and write tokens included in the prompt token count.
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage) {
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage, serviceTier string) {
+	var metadata recorder.Metadata
+	if serviceTier != "" {
+		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
+	}
+
 	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
@@ -236,6 +241,7 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 		Output:                usage.CompletionTokens,
 		CacheReadInputTokens:  usage.PromptTokensDetails.CachedTokens,
 		CacheWriteInputTokens: usage.PromptTokensDetails.CacheWriteTokens,
+		Metadata:              metadata,
 		ExtraTokenTypes: map[string]int64{
 			"prompt_audio":                   usage.PromptTokensDetails.AudioTokens,
 			"completion_accepted_prediction": usage.CompletionTokensDetails.AcceptedPredictionTokens,

@@ -1,4 +1,6 @@
-# Models
+---
+title: Models
+---
 
 Administrators configure LLM providers from **Admin settings** > **AI** and Coder Agents models from **Admin settings** > **AI** > **Models**.
 Providers and centrally managed credentials are deployment-wide settings managed by platform teams.
@@ -48,12 +50,12 @@ A provider is deployment-wide, whilst the models that reference it are organizat
 
 1. Navigate to **Admin settings** > **AI**.
 1. Select **Providers**.
-1. Click **Add provider**.
+1. Select **Add provider**.
 1. Select the provider type.
 1. Enter a unique lowercase provider name, the credentials, and the upstream
    provider or proxy
    [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
-1. Click **Save**.
+1. Select **Save**.
 
 After saving a provider, add an Agents model for it from **Admin settings** > **AI** > **Models**.
 Select the organization that should own the new model before you add it.
@@ -215,9 +217,9 @@ To change the default model:
 
 1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Select the organization that owns the model.
-1. Open the model, or click **Add model** to create a new one.
+1. Open the model, or select **Add model** to create a new one.
 1. Select **Set as Coder Agents default model**.
-1. Click **Save**.
+1. Select **Save**.
 
 ### Models with a missing or disabled provider
 
@@ -230,10 +232,8 @@ The Models list reflects whether each model can actually be used:
   provider was deleted or disabled. Such a model cannot serve chat requests.
 - When a model is disabled, a **Disabled** badge appears beside the model name.
 
-To reconnect a model to a working provider, open the model from the list,
-pick a new provider from the **Provider** dropdown, and click **Save**. The
-Save button is enabled as soon as the selected provider differs from the
-model's current provider, even if no other field is edited.
+To reconnect a model to a working provider, open the model from the list, pick a new provider from the **Provider** dropdown, and select **Save**.
+The Save button is enabled as soon as the selected provider differs from the model's current provider, even if no other field is edited.
 
 ## Model options
 
@@ -398,7 +398,7 @@ from the Agents settings page.
      deployment-managed credentials for that provider.
    - **No key**, no personal key or deployment-managed credential is available.
      Add a personal key before you use models from this provider.
-1. Enter your API key and click **Save**.
+1. Enter your API key and select **Save**.
 
 Personal API keys are encrypted at rest using the same database encryption
 used for deployment-managed provider secrets. The dashboard never displays a
@@ -406,10 +406,9 @@ saved key, only whether one is set.
 
 ### Removing a personal key
 
-Click **Remove** on the provider card in the API Keys settings tab. Subsequent
-requests use deployment-managed credentials when they are configured for that
-provider. If no deployment-managed credential is available, add a new personal
-key before you use models from that provider.
+Select **Remove** on the provider card in the API Keys settings tab.
+Subsequent requests use deployment-managed credentials when they are configured for that provider.
+If no deployment-managed credential is available, add a new personal key before you use models from that provider.
 
 ## Using an LLM proxy
 

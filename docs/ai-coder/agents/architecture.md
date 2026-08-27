@@ -1,4 +1,6 @@
-# Architecture
+---
+title: Architecture
+---
 
 Coder's AI agent interacts with workspaces over the same
 connection path as a developer's IDE, web terminal, and SSH session already

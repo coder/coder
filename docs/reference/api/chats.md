@@ -2295,10 +2295,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -2310,18 +2307,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -2378,10 +2369,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -2393,18 +2381,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -2512,10 +2494,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -2527,18 +2506,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -2594,10 +2567,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -2609,18 +2579,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -2677,10 +2641,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -2692,18 +2653,12 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -2815,10 +2770,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -2830,18 +2782,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -2897,10 +2843,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -2912,18 +2855,12 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -3394,10 +3331,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "args_delta": "string",
           "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
           "context_file_content": "string",
           "context_file_directory": "string",
           "context_file_os": "string",
@@ -3409,18 +3343,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             0
           ],
           "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
           "is_error": true,
           "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
           "media_type": "string",
           "name": "string",
           "parsed_commands": [
@@ -3475,10 +3403,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "args_delta": "string",
         "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
         "context_file_content": "string",
         "context_file_directory": "string",
         "context_file_os": "string",
@@ -3490,18 +3415,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           0
         ],
         "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
         "is_error": true,
         "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
         "media_type": "string",
         "name": "string",
         "parsed_commands": [
@@ -3544,10 +3463,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "args_delta": "string",
             "completed_at": "2019-08-24T14:15:22Z",
             "content": "string",
-            "context_file_agent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "context_file_agent_id": "2e577c68-2ec9-4c84-a77a-5b3e1d7eae09",
             "context_file_content": "string",
             "context_file_directory": "string",
             "context_file_os": "string",
@@ -3559,18 +3475,12 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               0
             ],
             "end_line": 0,
-            "file_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
             "hook_rewritten": true,
             "is_error": true,
             "is_media": true,
-            "mcp_server_config_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
             "media_type": "string",
             "name": "string",
             "parsed_commands": [
@@ -3655,9 +3565,7 @@ Status Code **200**
 | `»»» args_delta`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» completed_at`                 | string(date-time)                                                                | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
 | `»»» content`                      | string                                                                           | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
-| `»»» context_file_agent_id`        | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
-| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» context_file_agent_id`        | string(uuid)                                                                     | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
 | `»»» context_file_content`         | string                                                                           | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
 | `»»» context_file_directory`       | string                                                                           | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
 | `»»» context_file_os`              | string                                                                           | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
@@ -3667,16 +3575,12 @@ Status Code **200**
 | `»»» created_at`                   | string(date-time)                                                                | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
 | `»»» data`                         | array                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» end_line`                     | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» file_id`                      | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» hook_rewritten`               | boolean                                                                          | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
 | `»»» is_error`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» is_media`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» mcp_server_config_id`         | [uuid.NullUUID](schemas.md#uuidnulluuid)                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» uuid`                        | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» valid`                       | boolean                                                                          | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                                                                                          |
+| `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» media_type`                   | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» name`                         | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
