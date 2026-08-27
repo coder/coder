@@ -310,7 +310,12 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent>{badge.statusLabel}</TooltipContent>
+				{/* Touch taps focus the badge and Radix opens tooltips on
+				 * focus, leaving them stuck over the +N popover. Status is
+				 * hover-only desktop affordance; hide it below md. */}
+				<TooltipContent className="hidden md:block">
+					{badge.statusLabel}
+				</TooltipContent>
 			</Tooltip>
 		);
 	}

@@ -156,7 +156,12 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
-					<TooltipContent>{statusLabel}</TooltipContent>
+					{/* Hidden below md: touch taps focus the trigger and Radix
+					 * opens tooltips on focus, leaving them stuck over the
+					 * dropdown. */}
+					<TooltipContent className="hidden md:block">
+						{statusLabel}
+					</TooltipContent>
 				</Tooltip>
 			</span>
 

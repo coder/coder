@@ -1617,11 +1617,18 @@ export const LongWorkspaceNameMobile: Story = {
 		});
 		await userEvent.click(overflowPill);
 		const popover = await within(document.body).findByRole("dialog");
-		expect(
-			within(popover).getByText(
-				"my-super-extremely-long-workspace-name-that-overflows",
-			),
-		).toBeInTheDocument();
+		const badgeName = within(popover).getByText(
+			"my-super-extremely-long-workspace-name-that-overflows",
+		);
+		expect(badgeName).toBeInTheDocument();
+		// Focusing the badge (as a touch tap does) must not surface the
+		// status tooltip over the popover on mobile.
+		badgeName.closest("a")?.focus();
+		for (const el of within(document.body).queryAllByText(
+			"Workspace running",
+		)) {
+			expect(el).not.toBeVisible();
+		}
 		// The toolbar row should not cause horizontal overflow.
 		const toolbar = overflowPill.closest(
 			".flex.items-center.justify-between",
