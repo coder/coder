@@ -633,7 +633,9 @@ const AgentsPageLayout: FC = () => {
 			});
 			const timeout = setTimeout(() => {
 				summaryGeneratingTimeouts.delete(chatId);
-				clearSummaryGenerating(chatId, generationStartedAt);
+				if (clearSummaryGenerating(chatId, generationStartedAt)) {
+					void invalidateChatCostTree(queryClient, chatId);
+				}
 			}, boundedTimeoutMs);
 			summaryGeneratingTimeouts.set(chatId, timeout);
 		};

@@ -1020,6 +1020,12 @@ const agentsWithAgentChatPageRouting = {
 const WATCHED_CHAT_ID = "chat-watched";
 const WATCHED_SUMMARY_GENERATION_STARTED_AT = "2026-08-27T18:00:00.000Z";
 const NEXT_WATCHED_SUMMARY_GENERATION_STARTED_AT = "2026-08-27T18:00:01.000Z";
+const watchedChatCost: TypesGen.ChatCost = {
+	chat_id: WATCHED_CHAT_ID,
+	total_cost_micros: 1_250_000,
+	request_count: 8,
+	unpriced_request_count: 0,
+};
 
 // MockChat is owned by MockUserOwner, so the page renders the owner view
 // (composer enabled unless archived) instead of the other-user banner.
@@ -1100,6 +1106,7 @@ const watchedChatPageParameters = (
 const mockAgentChatPageAPIs = () => {
 	localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 	spyOn(API, "getApiKey").mockRejectedValue(new Error("missing API key"));
+	spyOn(API.experimental, "getChatCost").mockResolvedValue(watchedChatCost);
 	spyOn(API.experimental, "updateChat").mockResolvedValue();
 	return () => localStorage.removeItem(RIGHT_PANEL_OPEN_KEY);
 };
@@ -1194,6 +1201,11 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 		expect(
 			await summary.findByRole("status", undefined, { timeout: 3_000 }),
 		).toHaveTextContent("Generating summary");
+		const getChatCostMock = mocked(API.experimental.getChatCost);
+		await waitFor(() => {
+			expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
+		});
+		getChatCostMock.mockClear();
 		expect(
 			await summary.findByText(
 				"Not enough details to summarize.",
@@ -1202,6 +1214,9 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 			),
 		).toBeVisible();
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();
+		await waitFor(() => {
+			expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
+		});
 	},
 };
 
