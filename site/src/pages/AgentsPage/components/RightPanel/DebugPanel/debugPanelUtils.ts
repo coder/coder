@@ -436,7 +436,7 @@ export const compactDuration = (ms: number): string => {
 // View-model types for coerced debug payloads.
 // ---------------------------------------------------------------------------
 
-export interface MCPConnectSummaryViewModel {
+interface MCPConnectSummaryViewModel {
 	slug: string;
 	outcome: string;
 	durationMs: number | undefined;
