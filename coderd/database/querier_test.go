@@ -16219,19 +16219,19 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.True(t, fetched.SummaryGeneratedAt.Valid)
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
-	cleared, err := db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
-		ID:                  chat.ID,
-		GenerationStartedAt: generationStartedAt,
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, cleared)
-
 	activeGenerations, err = db.GetActiveChatSummaryGenerationsByOwnerID(ctx, database.GetActiveChatSummaryGenerationsByOwnerIDParams{
 		OwnerID:       owner.ID,
 		MaxAgeSeconds: 60,
 	})
 	require.NoError(t, err)
 	require.Empty(t, activeGenerations)
+
+	cleared, err := db.ClearChatSummaryGeneration(ctx, database.ClearChatSummaryGenerationParams{
+		ID:                  chat.ID,
+		GenerationStartedAt: generationStartedAt,
+	})
+	require.NoError(t, err)
+	require.Zero(t, cleared)
 
 	affected, err = db.UpdateChatSummary(ctx, database.UpdateChatSummaryParams{
 		ID:                     chat.ID,

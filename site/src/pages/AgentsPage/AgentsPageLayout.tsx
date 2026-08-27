@@ -645,12 +645,14 @@ const AgentsPageLayout: FC = () => {
 						}
 						clearSummaryGenerating(updatedChat.id);
 					}
-					// The old membership is only available before the cache write below.
-					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(chat) => chat.id === updatedChat.id,
-					)?.status;
-					// Only play the chime for top-level chats, not sub-agents.
-					if (!updatedChat.parent_chat_id) {
+					if (
+						chatEvent.kind === "status_change" &&
+						!updatedChat.parent_chat_id
+					) {
+						// The old membership is only available before the cache write below.
+						const prevStatus = readInfiniteChatsCache(queryClient)?.find(
+							(chat) => chat.id === updatedChat.id,
+						)?.status;
 						maybePlayChime(
 							prevStatus,
 							updatedChat.status,

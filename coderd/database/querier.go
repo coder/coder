@@ -1509,9 +1509,8 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	// The history_version fence lets background summary writes ignore worker-only
-	// updates while losing to newer message history. Root summary workers also pass
-	// their generation marker so an older overlapping worker cannot overwrite a
-	// newer attempt.
+	// updates while losing to newer message history. Root summary workers atomically
+	// delete their generation marker so storage and replay state cannot diverge.
 	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)

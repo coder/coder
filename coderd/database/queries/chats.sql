@@ -1510,9 +1510,18 @@ ORDER BY g.started_at;
 
 -- name: UpdateChatSummary :execrows
 -- The history_version fence lets background summary writes ignore worker-only
--- updates while losing to newer message history. Root summary workers also pass
--- their generation marker so an older overlapping worker cannot overwrite a
--- newer attempt.
+-- updates while losing to newer message history. Root summary workers atomically
+-- delete their generation marker so storage and replay state cannot diverge.
+WITH cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING chats current_chat
+    WHERE
+        g.chat_id = @id::uuid
+        AND current_chat.id = g.chat_id
+        AND current_chat.history_version = @expected_history_version::bigint
+        AND g.started_at = sqlc.narg('expected_generation_started_at')::timestamptz
+    RETURNING g.chat_id
+)
 UPDATE chats
 SET
     summary = sqlc.narg('summary')::text,
@@ -1522,13 +1531,7 @@ WHERE
     AND history_version = @expected_history_version::bigint
     AND (
         sqlc.narg('expected_generation_started_at')::timestamptz IS NULL
-        OR EXISTS (
-            SELECT 1
-            FROM chat_summary_generations g
-            WHERE
-                g.chat_id = chats.id
-                AND g.started_at = sqlc.narg('expected_generation_started_at')::timestamptz
-        )
+        OR EXISTS (SELECT 1 FROM cleared_generation)
     );
 
 -- name: UpdateChatMCPServerIDs :one

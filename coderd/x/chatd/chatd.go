@@ -5043,10 +5043,6 @@ func (p *Server) updateChatSummary(
 		return false
 	}
 
-	if expectedGenerationStartedAt.Valid {
-		_ = p.clearChatSummaryGeneration(ctx, logger, chat.ID, expectedGenerationStartedAt.Time)
-	}
-
 	updatedChat := chat
 	updatedChat.Summary = sqlSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)

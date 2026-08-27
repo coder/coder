@@ -13208,6 +13208,16 @@ func (q *sqlQuerier) UpdateChatStatus(ctx context.Context, arg UpdateChatStatusP
 }
 
 const updateChatSummary = `-- name: UpdateChatSummary :execrows
+WITH cleared_generation AS (
+    DELETE FROM chat_summary_generations g
+    USING chats current_chat
+    WHERE
+        g.chat_id = $2::uuid
+        AND current_chat.id = g.chat_id
+        AND current_chat.history_version = $3::bigint
+        AND g.started_at = $4::timestamptz
+    RETURNING g.chat_id
+)
 UPDATE chats
 SET
     summary = $1::text,
@@ -13217,13 +13227,7 @@ WHERE
     AND history_version = $3::bigint
     AND (
         $4::timestamptz IS NULL
-        OR EXISTS (
-            SELECT 1
-            FROM chat_summary_generations g
-            WHERE
-                g.chat_id = chats.id
-                AND g.started_at = $4::timestamptz
-        )
+        OR EXISTS (SELECT 1 FROM cleared_generation)
     )
 `
 
@@ -13235,9 +13239,8 @@ type UpdateChatSummaryParams struct {
 }
 
 // The history_version fence lets background summary writes ignore worker-only
-// updates while losing to newer message history. Root summary workers also pass
-// their generation marker so an older overlapping worker cannot overwrite a
-// newer attempt.
+// updates while losing to newer message history. Root summary workers atomically
+// delete their generation marker so storage and replay state cannot diverge.
 func (q *sqlQuerier) UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateChatSummary,
 		arg.Summary,
