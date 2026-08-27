@@ -535,10 +535,10 @@ coderd_usage_events_pending 0
 # HELP coderd_usage_events_pending_oldest_age_seconds Age in seconds of the oldest unpublished usage event within the 30-day publishing window. Zero when no events are pending.
 # TYPE coderd_usage_events_pending_oldest_age_seconds gauge
 coderd_usage_events_pending_oldest_age_seconds 0
-# HELP coderd_usage_events_publish_results_total Total outcomes assigned to usage events after valid Tallyman responses, by result and event type.
+# HELP coderd_usage_events_publish_results_total Total usage events accepted or rejected after a valid Tallyman response, by result and event type.
 # TYPE coderd_usage_events_publish_results_total counter
 coderd_usage_events_publish_results_total{result="",event_type=""} 0
-# HELP coderd_usage_events_publish_send_errors_total Total usage event publish attempts that failed before receiving a valid Tallyman response.
+# HELP coderd_usage_events_publish_send_errors_total Total usage event publish attempts that did not receive a valid Tallyman response. Does not reset after a valid response.
 # TYPE coderd_usage_events_publish_send_errors_total counter
 coderd_usage_events_publish_send_errors_total 0
 # HELP coderd_workspace_builds_enqueued_total Total number of workspace build enqueue attempts.

@@ -68,13 +68,13 @@ func newPublisherMetrics(reg prometheus.Registerer) publisherMetrics {
 			Namespace: publisherMetricsNamespace,
 			Subsystem: publisherMetricsSubsystem,
 			Name:      "publish_results_total",
-			Help:      "Total outcomes assigned to usage events after valid Tallyman responses, by result and event type.",
+			Help:      "Total usage events accepted or rejected after a valid Tallyman response, by result and event type.",
 		}, []string{publishResultLabelResult, publishResultLabelEventType}),
 		sendErrors: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: publisherMetricsNamespace,
 			Subsystem: publisherMetricsSubsystem,
 			Name:      "publish_send_errors_total",
-			Help:      "Total usage event publish attempts that failed before receiving a valid Tallyman response.",
+			Help:      "Total usage event publish attempts that did not receive a valid Tallyman response. Does not reset after a valid response.",
 		}),
 		pendingEvents: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: publisherMetricsNamespace,
