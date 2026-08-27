@@ -7135,7 +7135,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("GetUnpricedAIModelsSince", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetUnpricedAIModelsSince(gomock.Any(), gomock.Any()).Return([]database.GetUnpricedAIModelsSinceRow{}, nil).AnyTimes()
-		check.Args(time.Time{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+		check.Args(database.GetUnpricedAIModelsSinceParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
 	s.Run("GetOrganizationGroupsAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

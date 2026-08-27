@@ -912,7 +912,7 @@ type sqlcQuerier interface {
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// Returns the models used since the given time that hold no price, most used
 	// first. openai-compat providers cannot be priced, so their models are excluded.
-	GetUnpricedAIModelsSince(ctx context.Context, since time.Time) ([]GetUnpricedAIModelsSinceRow, error)
+	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use

@@ -502,7 +502,7 @@ JOIN ai_providers AS providers
 	ON providers.name = interceptions.provider_name
 	AND providers.deleted = false
 WHERE interceptions.started_at >= @since::timestamptz
-	AND providers.type != 'openai-compat'
+	AND providers.type::text = ANY(@priceable_providers::text[])
 	AND NOT EXISTS (
 		SELECT 1
 		FROM ai_model_prices AS prices
