@@ -5,6 +5,7 @@ import {
 	expect,
 	fireEvent,
 	fn,
+	mocked,
 	screen,
 	spyOn,
 	userEvent,
@@ -1190,6 +1191,7 @@ export const SummaryReconnectClearsStaleGeneratingState: Story = {
 	decorators: [withProxyProvider()],
 	beforeEach: () => {
 		mockChats([watchedChat()]);
+		spyOn(API.experimental, "getChat").mockResolvedValue(watchedChat());
 		const cleanup = mockAgentChatPageAPIs();
 		clearPersistedSidebarTabId(WATCHED_CHAT_ID);
 		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, "true");
@@ -1214,13 +1216,19 @@ export const SummaryReconnectClearsStaleGeneratingState: Story = {
 		expect(
 			await summary.findByRole("status", undefined, { timeout: 3_000 }),
 		).toHaveTextContent("Generating summary");
+		const getChatMock = mocked(API.experimental.getChat);
+		getChatMock.mockResolvedValue(
+			watchedChat({ summary: "Summary completed while disconnected." }),
+		);
+		const callsBeforeReconnect = getChatMock.mock.calls.length;
 		expect(
 			await summary.findByText(
-				"Not enough details to summarize.",
+				"Summary completed while disconnected.",
 				{},
 				{ timeout: 5_000 },
 			),
 		).toBeVisible();
+		expect(getChatMock.mock.calls.length).toBeGreaterThan(callsBeforeReconnect);
 		expect(summary.queryByRole("status")).not.toBeInTheDocument();
 	},
 };

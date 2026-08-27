@@ -756,6 +756,7 @@ const AgentsPageLayout: FC = () => {
 				clearAllSummaryGenerating();
 				const activeChatId = activeChatIDRef.current;
 				if (activeChatId) {
+					void invalidateChatEntity(queryClient, activeChatId);
 					const activeChat = queryClient.getQueryData<TypesGen.Chat>(
 						chatEntityKey(activeChatId),
 					);
