@@ -50,6 +50,8 @@ type AIAuditTimelineResponse struct {
 }
 
 // AIAuditTimelineFilter filters the sponsor activity timeline.
+//
+// @typescript-ignore AIAuditTimelineFilter
 type AIAuditTimelineFilter struct {
 	// Sponsor is a user ID, username, or "me" (default). Naming another
 	// user requires audit log read permission.

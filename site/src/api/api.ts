@@ -1291,6 +1291,39 @@ class ApiMethods {
 		);
 	};
 
+	// The timeline is paginated by time: pass the oldest received event's
+	// occurred_at as beforeTime to fetch the next page.
+	getAIAuditTimeline = async (
+		options: {
+			sponsor?: string;
+			aiAgentId?: string;
+			types?: readonly TypesGen.AIAuditEventType[];
+			afterTime?: string;
+			beforeTime?: string;
+			limit?: number;
+		} = {},
+	): Promise<TypesGen.AIAuditTimelineResponse> => {
+		const url = getURLWithSearchParams("/api/v2/ai-audit/timeline", {
+			sponsor: options.sponsor,
+			ai_agent_id: options.aiAgentId,
+			types: options.types?.length ? options.types.join(",") : undefined,
+			after_time: options.afterTime,
+			before_time: options.beforeTime,
+			limit: options.limit,
+		});
+		const response =
+			await this.axios.get<TypesGen.AIAuditTimelineResponse>(url);
+		return response.data;
+	};
+
+	getAIAuditAgents = async (
+		sponsor?: string,
+	): Promise<TypesGen.AIAuditAgent[]> => {
+		const url = getURLWithSearchParams("/api/v2/ai-audit/agents", { sponsor });
+		const response = await this.axios.get<TypesGen.AIAuditAgent[]>(url);
+		return response.data;
+	};
+
 	// Network events are keyset paginated by their numeric id: pass the last
 	// received id as afterId to fetch the next page.
 	getAISandboxSessionNetworkEvents = async (

@@ -35,6 +35,9 @@ const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
 const MCPEscalationsPage = lazy(
 	() => import("./pages/MCPEscalationsPage/MCPEscalationsPage"),
 );
+const AIActivityPage = lazy(
+	() => import("./pages/AIActivityPage/AIActivityPage"),
+);
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -613,6 +616,8 @@ export const router = createBrowserRouter(
 					<Route path="/connectionlog" element={<ConnectionLogPage />} />
 
 					<Route path="/mcp-escalations" element={<MCPEscalationsPage />} />
+
+					<Route path="/ai-activity" element={<AIActivityPage />} />
 
 					<Route path="/tasks" element={<TasksPage />} />
 

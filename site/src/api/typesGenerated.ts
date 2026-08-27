@@ -95,37 +95,6 @@ export const AIAuditEventTypes: AIAuditEventType[] = [
 ];
 
 // From codersdk/aiaudit.go
-/**
- * AIAuditTimelineFilter filters the sponsor activity timeline.
- */
-export interface AIAuditTimelineFilter {
-	/**
-	 * Sponsor is a user ID, username, or "me" (default). Naming another
-	 * user requires audit log read permission.
-	 */
-	readonly Sponsor: string;
-	/**
-	 * AIAgentID restricts events to a single agentic identity.
-	 */
-	readonly AIAgentID: string;
-	/**
-	 * AfterTime and BeforeTime exclusively bound occurred_at. Pass the
-	 * occurred_at of the last received event as BeforeTime to fetch the
-	 * next page.
-	 */
-	readonly AfterTime: string;
-	readonly BeforeTime: string;
-	/**
-	 * Types restricts the event types returned; empty means all.
-	 */
-	readonly Types: readonly AIAuditEventType[];
-	/**
-	 * Limit caps returned events. The server defaults to 100, max 1000.
-	 */
-	readonly Limit: number;
-}
-
-// From codersdk/aiaudit.go
 export interface AIAuditTimelineResponse {
 	readonly events: readonly AIAuditEvent[];
 	/**
