@@ -1149,7 +1149,7 @@ func New(options *Options) *API {
 		httpmw.WithProfilingLabels,
 		tracing.StatusWriterMiddleware,
 		options.DeploymentValues.HTTPCookies.Middleware,
-		tracing.Middleware(api.TracerProvider),
+		tracing.Middleware(api.TracerProvider, tracing.DefaultRoutePatterns, "coderd"),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		loggermw.Logger(api.Logger, func(r *http.Request) string {
@@ -1369,221 +1369,33 @@ func New(options *Options) *API {
 				r.Delete("/", api.deleteUserSkill)
 			})
 		})
+		// Chat routes are promoted to /api/v2. CODAGT-921 decided a compatibility
+		// window, so these experimental duplicates must remain for one release.
+		// TODO(CODAGT-921): remove after the transition window (tracked in CODAGT-922).
 		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
 			)
-			r.Get("/", api.listUserAIProviderKeyConfigs)
-			r.Route("/{aiProvider}", func(r chi.Router) {
-				r.Put("/", api.upsertUserAIProviderKey)
-				r.Delete("/", api.deleteUserAIProviderKey)
-			})
-		})
-		r.Group(func(r chi.Router) {
-			r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
-			r.Get("/chats/files/{file}/download", api.downloadChatFile)
+			api.registerUserAIProviderKeyRoutes(r)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Route("/{organization}", func(r chi.Router) {
 				r.Use(httpmw.ExtractOrganizationParam(options.Database))
-				r.Route("/mcp-servers", func(r chi.Router) {
-					r.Get("/", api.listMCPServerConfigs)
-					r.Post("/", api.createMCPServerConfig)
-					r.Route("/{mcpserverconfig}", func(r chi.Router) {
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionRead, policy.ActionUpdate, policy.ActionDelete)).Get("/", api.getMCPServerConfig)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionUpdate)).Patch("/", api.updateMCPServerConfig)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionDelete)).Delete("/", api.deleteMCPServerConfig)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionShare)).Get("/acl", api.mcpServerConfigACL)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionShare)).Patch("/acl", api.patchMCPServerConfigACL)
-						r.With(httpmw.ExtractMCPServerConfigParam(options.Database, api.HTTPAuth.Authorize,
-							policy.ActionRead)).Get("/oauth2/connect", api.mcpServerOAuth2Connect)
-					})
+				api.registerOrganizationChatRoutes(r, chatAPIPrefixExperimental)
+				r.Route("/members/{user}", func(r chi.Router) {
+					r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
+					api.registerOrganizationMemberChatRoutes(r)
 				})
 			})
 		})
-		// Organization-scoped ChatModel management and runtime discovery.
-		// Keep the previous default-organization collection routes until the
-		// frontend uses the organization-scoped routes.
-		r.Route("/chats/model-configs", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				func(next http.Handler) http.Handler {
-					return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-						chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
-						next.ServeHTTP(rw, req)
-					})
-				},
-				httpmw.ExtractOrganizationParam(options.Database),
-			)
-			r.Get("/", api.listDefaultOrganizationChatModelConfigs)
-			r.Post("/", api.createChatModelConfig)
-		})
-		r.With(
-			apiKeyMiddleware,
-			func(next http.Handler) http.Handler {
-				return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-					chi.RouteContext(req.Context()).URLParams.Add("organization", codersdk.DefaultOrganization)
-					next.ServeHTTP(rw, req)
-				})
-			},
-			httpmw.ExtractOrganizationParam(options.Database),
-		).Get("/chats/models", api.listChatModelConfigsByOrganization)
-
-		r.Route("/organizations/{organization}/chats/model-overrides", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
-			)
-			r.Get("/", api.getOrganizationChatModelOverrides)
-			r.Put("/{context}", api.putOrganizationChatModelOverride)
-		})
-		r.Route("/organizations/{organization}/members/{user}/chats/model-overrides", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.ExtractOrganizationParam(options.Database),
-				httpmw.ExtractOrganizationMemberParam(options.Database),
-			)
-			r.Get("/", api.getUserChatPersonalModelOverrides)
-			r.Put("/{context}", api.putUserChatPersonalModelOverride)
-		})
-		r.Route("/organizations/{organization}/chats/models", func(r chi.Router) {
-			r.Use(apiKeyMiddleware)
-			r.With(httpmw.ExtractOrganizationParam(options.Database)).Get("/", api.listChatModelConfigsByOrganization)
-			r.With(httpmw.ExtractOrganizationParam(options.Database)).Post("/", api.createChatModelConfig)
-			r.Route("/{model}", func(r chi.Router) {
-				r.Use(
-					httpmw.ExtractOrganizationParam(options.Database),
-					httpmw.ExtractChatModelConfigParam(options.Database),
-				)
-				r.Get("/", api.getChatModelConfig)
-				r.Patch("/", api.updateChatModelConfig)
-				r.Delete("/", api.deleteChatModelConfig)
-				r.Route("/acl", func(r chi.Router) {
-					r.Get("/", api.chatModelConfigACLHandler)
-					r.Patch("/", api.updateChatModelConfigACL)
-				})
-			})
-		})
-		r.Route("/chats", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			r.Get("/by-workspace", api.chatsByWorkspace)
-			r.Get("/", api.listChats)
-			r.Post("/", api.postChats)
-			r.Get("/watch", api.watchChats)
-			r.Route("/files", func(r chi.Router) {
-				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
-				r.Post("/", api.postChatFile)
-				r.Post("/{file}/download-url", api.postChatFileDownloadURL)
-				r.Get("/{file}", api.chatFileByID)
-			})
-			r.Route("/config", func(r chi.Router) {
-				r.Get("/system-prompt", api.getChatSystemPrompt)
-				r.Put("/system-prompt", api.putChatSystemPrompt)
-				r.Get("/plan-mode-instructions", api.getChatPlanModeInstructions)
-				r.Put("/plan-mode-instructions", api.putChatPlanModeInstructions)
-				r.Get("/personal-model-overrides", api.getChatPersonalModelOverridesAdminSettings)
-				r.Put("/personal-model-overrides", api.putChatPersonalModelOverridesAdminSettings)
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatVirtualDesktop))
-					r.Get("/computer-use-provider", api.getChatComputerUseProvider)
-					r.Put("/computer-use-provider", api.putChatComputerUseProvider)
-				})
-				r.Get("/debug-logging", api.getChatDebugLogging)
-				r.Put("/debug-logging", api.putChatDebugLogging)
-				r.Get("/user-debug-logging", api.getUserChatDebugLogging)
-				r.Put("/user-debug-logging", api.putUserChatDebugLogging)
-				r.Group(func(r chi.Router) {
-					r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatAdvisor))
-					r.Get("/advisor", api.getChatAdvisorConfig)
-					r.Put("/advisor", api.putChatAdvisorConfig)
-				})
-				r.Get("/user-prompt", api.getUserChatCustomPrompt)
-				r.Put("/user-prompt", api.putUserChatCustomPrompt)
-				r.Get("/user-compaction-thresholds", api.getUserChatCompactionThresholds)
-				r.Put("/user-compaction-thresholds/{modelConfig}", api.putUserChatCompactionThreshold)
-				r.Delete("/user-compaction-thresholds/{modelConfig}", api.deleteUserChatCompactionThreshold)
-				r.Get("/workspace-ttl", api.getChatWorkspaceTTL)
-				r.Put("/workspace-ttl", api.putChatWorkspaceTTL)
-				r.Get("/retention-days", api.getChatRetentionDays)
-				r.Put("/retention-days", api.putChatRetentionDays)
-				r.Get("/debug-retention-days", api.getChatDebugRetentionDays)
-				r.Put("/debug-retention-days", api.putChatDebugRetentionDays)
-				r.Get("/auto-archive-days", api.getChatAutoArchiveDays)
-				r.Put("/auto-archive-days", api.putChatAutoArchiveDays)
-			})
-			// TODO(cian): place under /api/experimental/chats/config
-			r.Route("/providers", func(r chi.Router) {
-				r.Get("/", api.listChatProviders)
-				r.Post("/", api.createChatProvider)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Patch("/", api.updateChatProvider)
-					r.Delete("/", api.deleteChatProvider)
-				})
-			})
-			r.Route("/user-provider-configs", func(r chi.Router) {
-				r.Get("/", api.listUserChatProviderConfigs)
-				r.Route("/{providerConfig}", func(r chi.Router) {
-					r.Put("/", api.upsertUserChatProviderKey)
-					r.Delete("/", api.deleteUserChatProviderKey)
-				})
-			})
-			r.Route("/{chat}", func(r chi.Router) {
-				r.Use(httpmw.ExtractChatParam(options.Database))
-				r.Route("/acl", func(r chi.Router) {
-					r.Get("/", api.getChatACL)
-					r.Patch("/", api.patchChatACL)
-				})
-				r.Get("/", api.getChat)
-				r.Patch("/", api.patchChat)
-				r.Get("/cost", api.getChatCost)
-				r.Get("/messages", api.getChatMessages)
-				r.Post("/messages", api.postChatMessages)
-				r.Patch("/messages/{message}", api.patchChatMessage)
-				r.Get("/prompts", api.getChatUserPrompts)
-				r.Route("/stream", func(r chi.Router) {
-					r.Get("/", api.streamChat)
-					r.Get("/parts", api.streamChatParts)
-					r.Get("/desktop", api.watchChatDesktop)
-					r.Get("/git", api.watchChatGit)
-				})
-				r.Post("/interrupt", api.interruptChat)
-				r.Post("/compact", api.compactChat)
-				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
-				r.Post("/tool-results", api.postChatToolResults)
-				r.Post("/title/regenerate", api.regenerateChatTitle)
-				r.Post("/title/propose", api.proposeChatTitle)
-				r.Get("/diff", api.getChatDiffContents)
-				r.Put("/context", api.refreshChatContext)
-				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
-					r.Delete("/", api.deleteChatQueuedMessage)
-					r.Post("/promote", api.promoteChatQueuedMessage)
-				})
-				r.Route("/debug", func(r chi.Router) {
-					r.Get("/runs", api.getChatDebugRuns)
-					r.Get("/runs/{debugRun}", api.getChatDebugRun)
-				})
-			})
-		})
+		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixExperimental)
 
 		r.Route("/mcp", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-			)
-			// This callback path is frozen because it is registered with OAuth2 providers.
-			r.Get("/servers/{mcpServer}/oauth2/callback", api.mcpServerOAuth2Callback)
-			// Disconnect stays outside organization routes so former organization
-			// members can delete their stored token after losing config read access.
-			r.Delete("/servers/{mcpServer}/oauth2/disconnect", api.mcpServerOAuth2Disconnect)
-			// MCP HTTP transport endpoint with mandatory authentication
+			r.Use(apiKeyMiddleware)
+			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixExperimental)
+			// MCP HTTP transport endpoint with mandatory authentication.
 			r.Route("/http", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentOAuth2, codersdk.ExperimentMCPServerHTTP))
 				r.Mount("/", api.mcpHTTPHandler())
@@ -1634,6 +1446,12 @@ func New(options *Options) *API {
 			r.Get("/available", handleExperimentsAvailable)
 			r.Get("/", api.handleExperimentsGet)
 		})
+		api.registerChatAPIRoutes(r, apiKeyMiddleware, chatAPIPrefixV2)
+		r.Route("/mcp", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			api.registerMCPServerOAuth2Routes(r, chatAPIPrefixV2)
+		})
+
 		r.Get("/updatecheck", api.updateCheck)
 		r.Route("/audit", func(r chi.Router) {
 			r.Use(
@@ -1696,6 +1514,7 @@ func New(options *Options) *API {
 				r.Use(
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
+				api.registerOrganizationChatRoutes(r, chatAPIPrefixV2)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1733,6 +1552,7 @@ func New(options *Options) *API {
 							r.Use(
 								httpmw.ExtractOrganizationMemberParam(options.Database),
 							)
+							api.registerOrganizationMemberChatRoutes(r)
 							r.Get("/", api.organizationMember)
 							r.Delete("/", api.deleteOrganizationMember)
 							r.Put("/roles", api.putMemberRoles)
@@ -1885,6 +1705,7 @@ func New(options *Options) *API {
 					r.Group(func(r chi.Router) {
 						r.Use(httpmw.ExtractUserParam(options.Database))
 
+						r.Route("/ai-provider-keys", api.registerUserAIProviderKeyRoutes)
 						r.Post("/convert-login", api.postConvertLoginType)
 						r.Delete("/", api.deleteUser)
 						r.Get("/", api.userByName)
@@ -2396,6 +2217,12 @@ type API struct {
 	// interruptible tasks.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// chatFilesRateLimit is shared by the /api/experimental and /api/v2
+	// chat file mounts so the compatibility window does not double the
+	// FilesRateLimit budget.
+	chatFilesRateLimitOnce sync.Once
+	chatFilesRateLimit     func(http.Handler) http.Handler
 
 	// DeploymentID is loaded from the database on startup.
 	DeploymentID string

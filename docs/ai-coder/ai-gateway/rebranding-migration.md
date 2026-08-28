@@ -1,4 +1,6 @@
-# Rebranding Migration
+---
+title: Rebranding Migration
+---
 
 AI Bridge has been renamed to **AI Gateway**. This is a cosmetic rebrand to make
 the feature easier to understand. It changes user-visible names, configuration

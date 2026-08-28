@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -58,6 +59,46 @@ const connectTimeout = 10 * time.Second
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
 
+// slowConnectThreshold is the successful-connect duration above
+// which a warning is logged. Connects happen on every generation
+// step, so a consistently slow server taxes the whole chat even
+// when it stays inside the connect budget.
+const slowConnectThreshold = 5 * time.Second
+
+// ConnectOutcome classifies the result of one MCP server connect
+// attempt for logs and chat debug runs.
+type ConnectOutcome string
+
+const (
+	// ConnectOutcomeConnected means tools were discovered and the
+	// session is live.
+	ConnectOutcomeConnected ConnectOutcome = "connected"
+	// ConnectOutcomeTimeout means the connect budget elapsed before
+	// the server completed the handshake and tool listing.
+	ConnectOutcomeTimeout ConnectOutcome = "timeout"
+	// ConnectOutcomeError means the handshake or tool listing
+	// failed.
+	ConnectOutcomeError ConnectOutcome = "error"
+	// ConnectOutcomeNoTools means the server connected but no tools
+	// survived allow/deny filtering, so the session was closed.
+	ConnectOutcomeNoTools ConnectOutcome = "no_tools"
+)
+
+// ConnectSummary describes one MCP server connect attempt. It is
+// logged and recorded into chat debug runs so slow or failing
+// servers are visible instead of appearing as silent gaps in the
+// turn timeline.
+type ConnectSummary struct {
+	ConfigID   uuid.UUID      `json:"config_id"`
+	Slug       string         `json:"slug"`
+	Outcome    ConnectOutcome `json:"outcome"`
+	DurationMS int64          `json:"duration_ms"`
+	ToolCount  int            `json:"tool_count,omitempty"`
+	// Error is the redacted, size-bounded connect error, present
+	// unless the outcome is connected or no_tools.
+	Error string `json:"error,omitempty"`
+}
+
 // UserOIDCTokenSource resolves the OIDC access token for the calling
 // user. Implementations attempt to refresh tokens that are expired
 // or close to expiring and MUST return ("", nil) when the user has
@@ -74,8 +115,9 @@ type UserOIDCTokenSource interface {
 // their tools, and returns them as fantasy.AgentTool values.
 // Tools are sorted by their prefixed name so callers
 // receive a deterministic order. It skips servers that fail to
-// connect and logs warnings. The returned cleanup function
-// must be called to close all connections.
+// connect and logs warnings; per-server outcomes are returned as
+// ConnectSummary values sorted by slug. The returned cleanup
+// function must be called to close all connections.
 func ConnectAll(
 	ctx context.Context,
 	logger slog.Logger,
@@ -84,7 +126,33 @@ func ConnectAll(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
-) ([]fantasy.AgentTool, func()) {
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	return connectAllWithHooks(
+		ctx, logger, configs, tokens, userID, oidcSrc, coderHeaders,
+		connectTimeout, connectHooks{},
+	)
+}
+
+// connectHooks carries test-only instrumentation for connect
+// internals. The zero value is used in production.
+type connectHooks struct {
+	// reaperDone, when non-nil, is called after an abandoned
+	// connect goroutine's late result has been drained and any
+	// late session closed.
+	reaperDone func()
+}
+
+func connectAllWithHooks(
+	ctx context.Context,
+	logger slog.Logger,
+	configs []database.MCPServerConfig,
+	tokens []database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
+	timeout time.Duration,
+	hooks connectHooks,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
 	tokensByConfigID := make(
@@ -95,20 +163,27 @@ func ConnectAll(
 	}
 
 	var (
-		mu       sync.Mutex
-		sessions []*mcp.ClientSession
-		tools    []fantasy.AgentTool
+		mu        sync.Mutex
+		sessions  []*mcp.ClientSession
+		tools     []fantasy.AgentTool
+		summaries []ConnectSummary
 	)
 
 	// Build cleanup eagerly so it always closes any sessions
-	// that connected, even if a later connection fails.
+	// that connected, even if a later connection fails. Each
+	// close runs in a detached goroutine: the sessions are
+	// discarded either way, and Close on a server that stopped
+	// responding mid-turn can block until the transport abandons
+	// the connection (the SDK detaches the request context), which
+	// must not stall the generation loop at step boundaries.
 	cleanup := func() {
 		mu.Lock()
-		defer mu.Unlock()
-		for _, s := range sessions {
-			_ = s.Close()
-		}
+		toClose := sessions
 		sessions = nil
+		mu.Unlock()
+		for _, s := range toClose {
+			go func() { _ = s.Close() }()
+		}
 	}
 
 	var eg errgroup.Group
@@ -118,27 +193,59 @@ func ConnectAll(
 		}
 
 		eg.Go(func() error {
+			start := time.Now()
 			serverTools, session, connectErr := connectOne(
 				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
+				timeout, hooks,
 			)
+			duration := time.Since(start)
+			summary := ConnectSummary{
+				ConfigID:   cfg.ID,
+				Slug:       cfg.Slug,
+				DurationMS: duration.Milliseconds(),
+				ToolCount:  len(serverTools),
+			}
+			switch {
+			case connectErr != nil && errors.Is(connectErr, context.DeadlineExceeded):
+				summary.Outcome = ConnectOutcomeTimeout
+				summary.Error = summaryError(connectErr)
+			case connectErr != nil:
+				summary.Outcome = ConnectOutcomeError
+				summary.Error = summaryError(connectErr)
+			case len(serverTools) == 0:
+				summary.Outcome = ConnectOutcomeNoTools
+			default:
+				summary.Outcome = ConnectOutcomeConnected
+			}
+
 			if connectErr != nil {
 				logger.Warn(ctx,
 					"skipping MCP server due to connection failure",
 					slog.F("server_slug", cfg.Slug),
 					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
 					slog.F("error", redactErrorURL(connectErr)),
 				)
-				// Connection failures are not propagated — the
-				// LLM simply won't have this server's tools.
-				return nil
+			} else if duration >= slowConnectThreshold {
+				logger.Warn(ctx,
+					"slow MCP server connect",
+					slog.F("server_slug", cfg.Slug),
+					slog.F("server_url", RedactURL(cfg.Url)),
+					slog.F("duration", duration),
+				)
 			}
 
 			mu.Lock()
-			if session != nil {
-				sessions = append(sessions, session)
+			summaries = append(summaries, summary)
+			if connectErr == nil {
+				if session != nil {
+					sessions = append(sessions, session)
+				}
+				tools = append(tools, serverTools...)
 			}
-			tools = append(tools, serverTools...)
 			mu.Unlock()
+			// Connection failures are not propagated; the
+			// LLM simply won't have this server's tools.
 			return nil
 		})
 	}
@@ -146,6 +253,15 @@ func ConnectAll(
 	// All goroutines return nil; error is intentionally
 	// discarded.
 	_ = eg.Wait()
+
+	// Sort summaries for deterministic ordering regardless of
+	// goroutine completion order.
+	slices.SortFunc(summaries, func(a, b ConnectSummary) int {
+		return cmp.Or(
+			cmp.Compare(a.Slug, b.Slug),
+			cmp.Compare(a.ConfigID.String(), b.ConfigID.String()),
+		)
+	})
 
 	// Sort tools by prefixed name for deterministic ordering
 	// regardless of goroutine completion order. Ties, possible
@@ -197,7 +313,7 @@ func ConnectAll(
 		}
 	}
 
-	return tools, cleanup
+	return tools, summaries, cleanup
 }
 
 // connectOne establishes a connection to a single MCP server,
@@ -211,6 +327,8 @@ func connectOne(
 	userID uuid.UUID,
 	oidcSrc UserOIDCTokenSource,
 	coderHeaders map[string]string,
+	timeout time.Duration,
+	hooks connectHooks,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
 	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
 
@@ -250,21 +368,64 @@ func connectOne(
 	// The timeout covers the entire connect+list sequence, not
 	// each phase individually. The SDK negotiates the protocol
 	// version during Connect; the session outlives connectCtx.
-	connectCtx, cancel := context.WithTimeout(
-		ctx, connectTimeout,
-	)
+	connectCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	session, err := mcpClient.Connect(connectCtx, tr, nil)
-	if err != nil {
-		return nil, nil, xerrors.Errorf("connect: %w", err)
+	// Run the connect+list sequence in a goroutine and enforce the
+	// budget externally. The SDK's streamable transport detaches
+	// the context after starting HTTP requests, and its error-path
+	// session.Close blocks on those detached requests, so a
+	// black-holed server can block Connect far past connectCtx's
+	// deadline. The select below guarantees the caller gets an
+	// answer within the budget regardless.
+	type connectResult struct {
+		session *mcp.ClientSession
+		tools   *mcp.ListToolsResult
+		err     error
 	}
+	resCh := make(chan connectResult, 1)
+	go func() {
+		session, err := mcpClient.Connect(connectCtx, tr, nil)
+		if err != nil {
+			resCh <- connectResult{err: xerrors.Errorf("connect: %w", err)}
+			return
+		}
+		toolsResult, err := session.ListTools(connectCtx, nil)
+		if err != nil {
+			// Deliver the result before closing: Close sends a
+			// DELETE on the SDK's detached context and can wedge,
+			// which would otherwise convert a fast ListTools
+			// failure into a budget timeout for the caller.
+			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
+			_ = session.Close()
+			return
+		}
+		resCh <- connectResult{session: session, tools: toolsResult}
+	}()
 
-	toolsResult, err := session.ListTools(connectCtx, nil)
-	if err != nil {
-		_ = session.Close()
-		return nil, nil, xerrors.Errorf("list tools: %w", err)
+	var res connectResult
+	select {
+	case res = <-resCh:
+	case <-connectCtx.Done():
+		// Abandon the wedged goroutine; it exits once the
+		// transport's dial or response-header timeout fires. The
+		// reaper drains its late result and closes any session
+		// that still materialized so nothing leaks. It must not
+		// hold locks or block the caller.
+		go func() {
+			if late := <-resCh; late.session != nil {
+				_ = late.session.Close()
+			}
+			if hooks.reaperDone != nil {
+				hooks.reaperDone()
+			}
+		}()
+		return nil, nil, xerrors.Errorf("connect: %w", connectCtx.Err())
 	}
+	if res.err != nil {
+		return nil, nil, res.err
+	}
+	session, toolsResult := res.session, res.tools
 
 	var tools []fantasy.AgentTool
 	for _, mcpTool := range toolsResult.Tools {
@@ -286,7 +447,11 @@ func connectOne(
 	}
 
 	if len(tools) == 0 {
-		_ = session.Close()
+		// Close the discarded session asynchronously: Close sends
+		// a DELETE on the SDK's detached context, so a server that
+		// wedges after a successful connect would otherwise hold
+		// the caller far past the connect budget.
+		go func() { _ = session.Close() }()
 		return nil, nil, nil
 	}
 
@@ -495,6 +660,28 @@ func redactErrorURL(err error) string {
 		return urlErr.Error()
 	}
 	return err.Error()
+}
+
+// maxSummaryErrorLen bounds the persisted connect error in bytes.
+// Protocol errors can embed arbitrarily large remote-controlled
+// response bodies, so without this cap a single retained summary
+// could inflate the JSONB row and every debug-runs payload
+// regardless of the entry-count cap.
+const maxSummaryErrorLen = 512
+
+// summaryError renders a connect error for the persisted summary:
+// credential-bearing URLs are redacted and the result is truncated
+// to maxSummaryErrorLen bytes on a rune boundary.
+func summaryError(err error) string {
+	msg := redactErrorURL(err)
+	if len(msg) <= maxSummaryErrorLen {
+		return msg
+	}
+	cut := maxSummaryErrorLen
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + "... (truncated)"
 }
 
 // MCPToolIdentifier is implemented by tools that originate from

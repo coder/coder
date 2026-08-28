@@ -80,6 +80,33 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "FunctionCallFilterMentionKeepsOwnClassification",
+			err:  xerrors.New(`status 401: function_call_filter is not supported for this endpoint`),
+			want: chaterror.ClassifiedError{
+				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+				Kind:       codersdk.ChatErrorKindAuth,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 401,
+			},
+		},
+		{
+			name: "GeminiFunctionCallFilter",
+			err: xerrors.New(
+				`stream response: received error while streaming: ` +
+					`{"message":"gemini dropped the model's generated function call ` +
+					`(finish_reason \"function_call_filter: MALFORMED_FUNCTION_CALL\")",` +
+					`"type":"invalid_response_error","code":"malformed_function_call"}`,
+			),
+			want: chaterror.ClassifiedError{
+				Message:    "Gemini rejected the model's generated function call as malformed.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "google",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
 			name: "AuthBeatsConfig",
 			err:  xerrors.New("authentication failed: invalid model"),
 			want: chaterror.ClassifiedError{

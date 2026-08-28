@@ -46,17 +46,14 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 }) => {
 	return (
 		<div>
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink
-						href={docs("/admin/networking/workspace-proxies")}
-					/>
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Workspace proxies improve terminal and web app connections to
-					workspaces.
+					workspaces.{" "}
+					<SettingsHeaderDocsLink
+						href={docs("/admin/networking/workspace-proxies")}
+					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

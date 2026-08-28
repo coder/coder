@@ -4,7 +4,6 @@ import (
 	"context"
 	"mime"
 	"net/http"
-	neturl "net/url"
 	"slices"
 	"strings"
 
@@ -244,30 +243,6 @@ func (k ProviderAPIKeys) Region(provider string) string {
 		return ""
 	}
 	return strings.TrimSpace(k.RegionByProvider[normalized])
-}
-
-// ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
-func ProviderBaseURLHostname(baseURL string) string {
-	parsed, ok := parseProviderBaseURL(baseURL)
-	if !ok {
-		return ""
-	}
-	return strings.ToLower(parsed.Hostname())
-}
-
-func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
-	baseURL = strings.TrimSpace(baseURL)
-	if baseURL == "" {
-		return nil, false
-	}
-	parsed, err := neturl.Parse(baseURL)
-	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
-		parsed, err = neturl.Parse("https://" + baseURL)
-	}
-	if err != nil {
-		return nil, false
-	}
-	return parsed, true
 }
 
 // setRegion records a normalized, non-empty region for a provider. The

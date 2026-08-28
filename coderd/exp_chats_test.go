@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -639,34 +638,6 @@ type failNextGetChatSiteConfigValueStore struct {
 	failNextGetChatSiteConfigValue *atomic.Bool
 }
 
-type failNextChatOperationalSettingTransactionStore struct {
-	database.Store
-
-	failNextTransaction *atomic.Bool
-}
-
-func newFailNextChatOperationalSettingTransactionStore(store database.Store) *failNextChatOperationalSettingTransactionStore {
-	return &failNextChatOperationalSettingTransactionStore{
-		Store:               store,
-		failNextTransaction: &atomic.Bool{},
-	}
-}
-
-func (s *failNextChatOperationalSettingTransactionStore) InTx(
-	function func(database.Store) error,
-	txOpts *database.TxOptions,
-) error {
-	return s.Store.InTx(func(tx database.Store) error {
-		if err := function(tx); err != nil {
-			return err
-		}
-		if s.failNextTransaction.CompareAndSwap(true, false) {
-			return stderrors.New("forced chat operational setting transaction failure")
-		}
-		return nil
-	}, txOpts)
-}
-
 type failNextUpsertChatRetentionDaysStore struct {
 	database.Store
 
@@ -761,7 +732,7 @@ func TestPostChats(t *testing.T) {
 			Name:           database.EveryoneGroup,
 			OrganizationID: org.ID,
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		contextLimit := int64(4096)
@@ -792,7 +763,7 @@ func TestPostChats(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 		org := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -823,7 +794,7 @@ func TestPostChats(t *testing.T) {
 		}, func(params *database.InsertChatModelConfigParams) {
 			params.Enabled = false
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID, rbac.ScopedRoleAgentsAccess(org.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, org.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -846,7 +817,7 @@ func TestPostChats(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModel(t, client)
 		otherOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID, rbac.ScopedRoleAgentsAccess(otherOrg.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, otherOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -870,7 +841,7 @@ func TestPostChats(t *testing.T) {
 		defaultConfig := createChatModel(t, client)
 		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
 		thirdOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		thirdConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			AIProviderID:   uuid.NullUUID{UUID: defaultConfig.AIProviderID, Valid: true},
@@ -903,9 +874,7 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		// Use a member with agents-access instead of the owner to
-		// verify least-privilege access.
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -976,7 +945,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: secondOrg.ID,
 			IsDefault:      true,
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1012,7 +981,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: secondOrg.ID,
 			Enabled:        true,
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1061,7 +1030,7 @@ func TestPostChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err = memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1116,7 +1085,7 @@ func TestPostChats(t *testing.T) {
 			Enabled:        true,
 		})
 
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1197,7 +1166,7 @@ func TestPostChats(t *testing.T) {
 			OrganizationID: secondOrg.ID,
 			IsDefault:      true,
 		})
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID, rbac.ScopedRoleAgentsAccess(secondOrg.ID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, secondOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1215,7 +1184,7 @@ func TestPostChats(t *testing.T) {
 		require.Equal(t, "Invalid IDs: "+thirdOrgConfig.ID.String(), sdkErr.Detail)
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("MemberCanCreateChat", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1223,20 +1192,20 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
-		// Member without agents-access should be denied.
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
-					Text: "this should fail",
+					Text: "hello from an organization member",
 				},
 			},
 		})
-		requireSDKError(t, err, http.StatusForbidden)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, chat.OwnerID)
 	})
 
 	t.Run("WithReasoningEffort", func(t *testing.T) {
@@ -1421,7 +1390,6 @@ func TestPostChats(t *testing.T) {
 			t,
 			client.Client,
 			firstUser.OrganizationID,
-			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 		)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -1454,7 +1422,6 @@ func TestPostChats(t *testing.T) {
 			t,
 			client.Client,
 			firstUser.OrganizationID,
-			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 		)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -1562,7 +1529,7 @@ func TestPostChats(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1599,7 +1566,6 @@ func TestPostChats(t *testing.T) {
 			adminClient.Client,
 			firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
-			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 		)
 		orgAdminClient := codersdk.NewExperimentalClient(orgAdminClientRaw)
 
@@ -1768,7 +1734,7 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		_, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1790,7 +1756,7 @@ func TestPostChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModel(t, client)
 
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		// Create a second organization via the database since the
@@ -1871,7 +1837,7 @@ func TestChats_ForceOnMCPServerEnforced(t *testing.T) {
 
 	// A regular member tampers with the request by clearing
 	// mcp_server_ids (Cure53 CDM-02-010 reproduction).
-	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 	chat, err := memberClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -1910,7 +1876,7 @@ func TestPostChats_ClientType(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
-	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 	newChat := func(t *testing.T, clientType codersdk.ChatClientType) codersdk.Chat {
@@ -2015,7 +1981,7 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		memberDBChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
@@ -2089,7 +2055,7 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModel(t, client)
 		ownerClientRaw, owner := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.RoleOwner())
 		ownerClient := codersdk.NewExperimentalClient(ownerClientRaw)
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		ownedChat := dbgen.Chat(t, db, database.Chat{
@@ -2165,18 +2131,13 @@ func TestListChats(t *testing.T) {
 		require.NotContains(t, memberChatIDs, unsharedReadableChat.ID)
 	})
 
-	t.Run("OrgMemberWithoutAgentsAccessCannotAccessOwnChats", func(t *testing.T) {
+	t.Run("OrgMemberCanAccessOwnChats", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		// Create a member without agents-access and insert a chat
-		// owned by them via system context. Without agents-access,
-		// the member has no ResourceChat permissions at all, so
-		// listing returns 0 chats (SQL auth filter) and getting
-		// a specific chat returns 404 (dbauthz wraps as not found).
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -2186,18 +2147,15 @@ func TestListChats(t *testing.T) {
 			Title:             "member chat",
 		})
 
-		// Listing chats returns empty because the SQL auth
-		// filter excludes chats the member cannot read.
 		chats, err := memberClient.ListChats(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, chats, 0)
+		require.Len(t, chats, 1)
+		require.Equal(t, chat.ID, chats[0].ID)
 
-		// Getting a specific chat returns 404 because dbauthz
-		// wraps authorization failures as not-found.
 		err = memberClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 			Title: ptr.Ref("new title"),
 		})
-		requireSDKError(t, err, http.StatusNotFound)
+		require.NoError(t, err)
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
@@ -2757,7 +2715,7 @@ func TestListChatModels(t *testing.T) {
 			AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true}, OrganizationID: firstUser.OrganizationID,
 			Model: "private-" + uuid.NewString(), Enabled: true, GroupACL: database.ChatACL{},
 		})
-		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		response, err := codersdk.NewExperimentalClient(memberRaw).ChatModels(ctx, firstUser.OrganizationID)
 		require.NoError(t, err)
 		require.False(t, containsModel(response, privateConfig.ID))
@@ -2777,7 +2735,7 @@ func TestListChatModels(t *testing.T) {
 		require.NoError(t, err)
 		third, err := client.CreateChatModel(ctx, thirdOrg.ID, codersdk.CreateChatModelRequest{AIProviderID: &provider.ID, Model: "third-" + uuid.NewString(), ContextLimit: &contextLimit})
 		require.NoError(t, err)
-		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		response, err := codersdk.NewExperimentalClient(memberRaw).ChatModels(ctx, chatOrg.ID)
 		require.NoError(t, err)
 		require.True(t, containsModel(response, local.ID))
@@ -2883,7 +2841,7 @@ func TestListChatModels(t *testing.T) {
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		provider := createAIProviderForTest(t, client, "anthropic", "")
-		otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		other := codersdk.NewExperimentalClient(otherRaw)
 		_, err := client.UpsertUserAIProviderKey(ctx, "me", provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "owner-key"})
 		require.NoError(t, err)
@@ -3015,23 +2973,41 @@ func TestListChats_Search(t *testing.T) {
 		require.Contains(t, ids, titleMatch.ID)
 		require.Contains(t, ids, bodyMatch.ID)
 		require.NotContains(t, ids, noMatch.ID)
+
+		// The 'english' config stems both sides, so an inflected query
+		// form matches the stored words.
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"restarting"`,
+		})
+		require.NoError(t, err)
+		require.Contains(t, chatIDs(chats), bodyMatch.ID)
 	})
 
 	t.Run("NoSearchableWordsReturnsEmpty", func(t *testing.T) {
 		t.Parallel()
 		ctx, client, db, firstUser, modelConfig := setup(t)
 
-		// "or" is a real lexeme (an operator only between operands), so
-		// search:"or" matches the control chat; search:"!!!" has no lexemes and
-		// matches nothing.
-		control := createChat(t, db, firstUser, modelConfig.ID, "fix this or that")
+		// Message search uses the 'english' config, which drops
+		// stopwords: search:"or" tokenizes to no lexemes and matches
+		// nothing, just like search:"!!!". The title must not contain the
+		// searched words because title search keeps the 'simple' config,
+		// which retains stopwords. The control query proves the empty
+		// results come from tokenization, not missing data.
+		control := createChat(t, db, firstUser, modelConfig.ID, "plain title")
+		insertMessage(t, db, firstUser, modelConfig.ID, control.ID, "fix this or that")
 		backfillSearchTsv(ctx, t, db)
 
 		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query: `search:"or"`,
+			Query: `search:"fix"`,
 		})
 		require.NoError(t, err)
 		require.Contains(t, chatIDs(chats), control.ID)
+
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query: `search:"or"`,
+		})
+		require.NoError(t, err)
+		require.Empty(t, chats)
 
 		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{
 			Query: `search:"!!!"`,
@@ -4743,49 +4719,6 @@ func TestListChatModelConfigs(t *testing.T) {
 		require.True(t, found)
 	})
 
-	t.Run("CompatibilityCollectionRoutesUseDefaultOrganization", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		_ = coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModel(t, client)
-
-		res, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/model-configs", nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var configs []codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(res, &configs))
-		require.Contains(t, configs, modelConfig)
-
-		collectionRes, err := client.Request(ctx, http.MethodGet, "/api/experimental/chats/models", nil)
-		require.NoError(t, err)
-		defer collectionRes.Body.Close()
-		require.Equal(t, http.StatusOK, collectionRes.StatusCode)
-		var collection codersdk.OrganizationChatModelsResponse
-		require.NoError(t, codersdk.ReadBodyAsJSON(collectionRes, &collection))
-		require.Contains(t, collection.Models, modelConfig)
-
-		contextLimit := int64(8192)
-		createdRes, err := client.Request(ctx, http.MethodPost, "/api/experimental/chats/model-configs", codersdk.CreateChatModelRequest{
-			AIProviderID: &modelConfig.AIProviderID,
-			Model:        "compatibility-model",
-			ContextLimit: &contextLimit,
-		})
-		require.NoError(t, err)
-		defer createdRes.Body.Close()
-		require.Equal(t, http.StatusCreated, createdRes.StatusCode)
-		var created codersdk.ChatModel
-		require.NoError(t, codersdk.ReadBodyAsJSON(createdRes, &created))
-
-		got, err := client.ChatModel(ctx, created.OrganizationID, created.ID)
-		require.NoError(t, err)
-		require.Equal(t, created.ID, got.ID)
-
-		require.NoError(t, client.DeleteChatModel(ctx, created.OrganizationID, created.ID))
-	})
-
 	t.Run("CollectionIncludesDisabledModelConfigs", func(t *testing.T) {
 		t.Parallel()
 
@@ -5818,7 +5751,7 @@ func TestUpdateChatModel(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		adminClient := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
-		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		modelConfig := createChatModel(t, adminClient)
 
@@ -6508,7 +6441,7 @@ func TestGetChat(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -8504,7 +8437,7 @@ func TestPostChatMessages(t *testing.T) {
 			IsDefault:      true,
 			OrganizationID: chatOrg.ID,
 		})
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    chatOrg.ID,
@@ -8534,7 +8467,7 @@ func TestPostChatMessages(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		foreignConfig := createChatModel(t, client)
 		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    chatOrg.ID,
@@ -8589,7 +8522,7 @@ func TestPostChatMessages(t *testing.T) {
 		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("MemberCanCreateChatMessage", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -8597,11 +8530,6 @@ func TestPostChatMessages(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		// Create a member without agents-access and insert a
-		// chat owned by them via system context. Without
-		// agents-access the member has no ResourceChat
-		// permissions, so the ChatParam middleware returns 404
-		// before the handler can check agents-access.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -8615,11 +8543,11 @@ func TestPostChatMessages(t *testing.T) {
 			Content: []codersdk.ChatInputPart{
 				{
 					Type: codersdk.ChatInputPartTypeText,
-					Text: "this should fail",
+					Text: "hello from member",
 				},
 			},
 		})
-		requireSDKError(t, err, http.StatusNotFound)
+		require.NoError(t, err)
 	})
 
 	t.Run("EmptyText", func(t *testing.T) {
@@ -10084,6 +10012,98 @@ func TestPatchChatMessage(t *testing.T) {
 		require.False(t, foundOriginalInChat)
 	})
 
+	t.Run("MCPServerIDsApplied", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		orgConfig := dbgen.MCPServerConfig(t, db, database.MCPServerConfig{
+			OrganizationID: firstUser.OrganizationID,
+			Enabled:        true,
+		})
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "before mcp edit",
+			}},
+		})
+		require.NoError(t, err)
+		require.Empty(t, chat.MCPServerIDs)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		userMessageID := messagesResult.Messages[0].ID
+
+		edited, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit enabling the mcp server",
+			}},
+			MCPServerIDs: &[]uuid.UUID{orgConfig.ID},
+		})
+		require.NoError(t, err)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, storedChat.MCPServerIDs)
+
+		// Omitting the field preserves the persisted selection.
+		_, err = client.EditChatMessage(ctx, chat.ID, edited.Message.ID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit without an mcp selection",
+			}},
+		})
+		require.NoError(t, err)
+
+		storedChat, err = db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{orgConfig.ID}, storedChat.MCPServerIDs)
+	})
+
+	t.Run("MCPServerIDsInvalidRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModel(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "before invalid mcp edit",
+			}},
+		})
+		require.NoError(t, err)
+
+		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		userMessageID := messagesResult.Messages[0].ID
+
+		unknownID := uuid.New()
+		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "edit selecting an unknown mcp server",
+			}},
+			MCPServerIDs: &[]uuid.UUID{unknownID},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "One or more MCP server IDs are invalid or disabled.", sdkErr.Message)
+		require.Equal(t, "Invalid IDs: "+unknownID.String(), sdkErr.Detail)
+
+		storedChat, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, storedChat.MCPServerIDs)
+	})
+
 	t.Run("CrossOrgModelConfigRejected", func(t *testing.T) {
 		t.Parallel()
 
@@ -10141,7 +10161,7 @@ func TestPatchChatMessage(t *testing.T) {
 			IsDefault:      true,
 			OrganizationID: chatOrg.ID,
 		})
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    chatOrg.ID,
@@ -10179,7 +10199,7 @@ func TestPatchChatMessage(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		foreignConfig := createChatModel(t, client)
 		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    chatOrg.ID,
@@ -11183,8 +11203,222 @@ func TestCompactChat(t *testing.T) {
 	})
 }
 
-func TestRegenerateChatTitle(t *testing.T) {
+func TestClearChat(t *testing.T) {
 	t.Parallel()
+
+	messageText := func(t *testing.T, msg database.ChatMessage) string {
+		t.Helper()
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		var builder strings.Builder
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeText {
+				_, _ = builder.WriteString(part.Text)
+			}
+		}
+		return builder.String()
+	}
+
+	// seedClearableChat inserts an idle chat with one user and one
+	// assistant message so a manual clear has conversation to cut off.
+	seedClearableChat := func(t *testing.T, db database.Store, orgID, ownerID, modelConfigID uuid.UUID) database.Chat {
+		t.Helper()
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    orgID,
+			OwnerID:           ownerID,
+			LastModelConfigID: modelConfigID,
+			Title:             "clear route test",
+		})
+		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("question"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: ownerID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       userContent,
+		})
+		assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("answer"),
+		})
+		require.NoError(t, err)
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfigID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			Content:       assistantContent,
+		})
+		return chat
+	}
+
+	t.Run("ClearsContext", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		// The clear commits synchronously, so the chat stays idle and
+		// persisted state can be asserted without racing a worker.
+		cleared, err := client.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cleared.ID)
+		require.Equal(t, codersdk.ChatStatusWaiting, cleared.Status)
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
+
+		prompt, err := db.GetChatMessagesForPromptByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		for _, msg := range prompt {
+			text := messageText(t, msg)
+			require.NotContains(t, text, "question",
+				"pre-clear conversation must not survive in the prompt")
+			require.NotContains(t, text, "answer",
+				"pre-clear conversation must not survive in the prompt")
+		}
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to clear")
+
+		_, err = client.CompactChat(ctx, chat.ID)
+		sdkErr = requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to compact")
+	})
+
+	t.Run("NothingToClear", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "clear empty test",
+		})
+
+		_, err := client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Nothing to clear")
+
+		persisted, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.ChatStatusWaiting, persisted.Status)
+	})
+
+	t.Run("FromErrorState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"context overflow"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+
+		cleared, err := client.ClearChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, cleared.ID)
+		require.Equal(t, codersdk.ChatStatusWaiting, cleared.Status)
+		require.Nil(t, cleared.LastError,
+			"clearing from the error state clears last_error")
+	})
+
+	t.Run("Busy", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:          chat.ID,
+			Status:      database.ChatStatusRunning,
+			WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+			HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Cannot clear the chat in its current state")
+	})
+
+	t.Run("ErrorWithQueue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
+			ID:     chat.ID,
+			Status: database.ChatStatusError,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"boom"}`),
+				Valid:      true,
+			},
+		})
+		require.NoError(t, err)
+		queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued follow-up"),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatQueuedMessageWithCreator(dbauthz.AsSystemRestricted(ctx), database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:    chat.ID,
+			Content:   queuedContent.RawMessage,
+			CreatedBy: user.UserID,
+		})
+		require.NoError(t, err)
+
+		// No waiting-with-queue state exists, so a synchronous clear
+		// from E1 is rejected; the user deletes or promotes the queue
+		// first.
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Contains(t, sdkErr.Message, "Cannot clear the chat in its current state")
+	})
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
+
+		_, err := db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+
+		_, err = client.ClearChat(ctx, chat.ID)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
+	})
 
 	t.Run("ChatNotFound", func(t *testing.T) {
 		t.Parallel()
@@ -11193,17 +11427,23 @@ func TestRegenerateChatTitle(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		_, err := client.RegenerateChatTitle(ctx, uuid.New())
+		_, err := client.ClearChat(ctx, uuid.New())
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	// Even the owner needs RBAC update permission on the chat.
 	t.Run("UpdateDenied", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			Authorizer: &coderdtest.FakeAuthorizer{
-				ConditionalReturn: func(_ context.Context, _ rbac.Subject, action policy.Action, object rbac.Object) error {
+				ConditionalReturn: func(_ context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
+					// dbgen seeds rows with a synthetic "owner" subject;
+					// message inserts need chat update, so let them pass.
+					if subject.ID == "owner" {
+						return nil
+					}
 					if action == policy.ActionUpdate && object.Type == rbac.ResourceChat.Type {
 						return xerrors.New("denied")
 					}
@@ -11217,252 +11457,10 @@ func TestRegenerateChatTitle(t *testing.T) {
 		client := codersdk.NewExperimentalClient(clientRaw)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
+		chat := seedClearableChat(t, db, user.OrganizationID, user.UserID, modelConfig.ID)
 
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "chat with update denied",
-		})
-
-		_, err := client.RegenerateChatTitle(ctx, chat.ID)
+		_, err := client.ClearChat(ctx, chat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		createdChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "private chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
-		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
-		_, err = otherClient.RegenerateChatTitle(ctx, createdChat.ID)
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
-	t.Run("Unauthenticated", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModel(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "chat for unauthenticated regeneration",
-			}},
-		})
-		require.NoError(t, err)
-
-		unauthenticatedClient := codersdk.NewExperimentalClient(codersdk.New(client.URL))
-		_, err = unauthenticatedClient.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusUnauthorized)
-	})
-
-	t.Run("PasteOnlyChat", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "New Chat",
-			Status:            database.ChatStatusWaiting,
-		})
-		// The chat's only user message is a synthetic pasted-text
-		// attachment with no text parts.
-		seedPasteOnlyTitleSourceMessage(ctx, t, db, chat, modelConfig.ID, "pasted stack trace for title")
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-	})
-
-	t.Run("NoPubsubDelivery", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-
-		// Wire the daemon's reload subscription to a pubsub coderd never
-		// publishes to: gateway routes can then only come from the
-		// synchronous initial load. This guards the invariant the
-		// create-config-before-daemon pattern above relies on; if the
-		// initial load is removed or made asynchronous, this fails
-		// deterministically instead of reintroducing the startup race.
-		isolated := dbpubsub.NewInMemory()
-		t.Cleanup(func() { _ = isolated.Close() })
-		aibridgedtest.StartTestAIBridgeDaemonWithPubsub(t.Context(), t, api, nil, isolated)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "New Chat",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-	})
-
-	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createTitleGenerationChatModel(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    user.OrganizationID,
-			OwnerID:           user.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "history fence chat",
-		})
-		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
-
-		// Leave history_version lagging snapshot_version, as when a
-		// generation task is in flight. A chat_messages write here would
-		// sync it and break that task's commit fence.
-		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-
-		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.NotEqual(t, before.SnapshotVersion, before.HistoryVersion,
-			"setup must leave history_version lagging snapshot_version")
-
-		updated, err := client.RegenerateChatTitle(ctx, chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, "Test Chat", updated.Title)
-
-		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.Equal(t, before.HistoryVersion, after.HistoryVersion,
-			"manual title regeneration must not touch chat_messages")
-	})
-
-	t.Run("NoDefaultModelConfig", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		user := coderdtest.CreateFirstUser(t, client.Client)
-		chat := seedChatWithDeletedModelConfig(ctx, t, db, user)
-
-		_, err := client.RegenerateChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-		require.Equal(t, "No chat model is available in this organization.", sdkErr.Message)
-		require.Equal(t, "Ask an organization administrator to configure and enable a chat model.", sdkErr.Detail)
-	})
-
-	t.Run("RegenerationFailure", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithoutAIBridge(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelWithTitleFailure(t, client)
-		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "test chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusWaiting,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   pqtype.NullRawMessage{},
-		})
-		require.NoError(t, err)
-
-		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-
-		_, err = client.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusInternalServerError)
-
-		after, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		require.True(t, after.UpdatedAt.Equal(before.UpdatedAt))
-	})
-
-	t.Run("UsageLimitExhausted", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, api := newChatClientWithAPIAndDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelWithTitleQuotaExhausted(t, client)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{
-				{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: "test chat",
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
-
-		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
-			ID:          chat.ID,
-			Status:      database.ChatStatusWaiting,
-			WorkerID:    uuid.NullUUID{},
-			StartedAt:   sql.NullTime{},
-			HeartbeatAt: sql.NullTime{},
-			LastError:   pqtype.NullRawMessage{},
-		})
-		require.NoError(t, err)
-
-		_, err = client.RegenerateChatTitle(ctx, chat.ID)
-		sdkErr := requireSDKError(t, err, http.StatusConflict)
-		require.Equal(t,
-			"The AI usage limit has been exceeded. Contact an administrator or check the applicable budget and quota settings.",
-			sdkErr.Message)
 	})
 }
 
@@ -11535,6 +11533,31 @@ func TestProposeChatTitle(t *testing.T) {
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
+	t.Run("PasteOnlyChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db, api := newChatClientWithoutAIBridge(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createTitleGenerationChatModel(t, client)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "New Chat",
+			Status:            database.ChatStatusWaiting,
+		})
+		// The chat's only user message is a synthetic pasted-text
+		// attachment with no text parts.
+		seedPasteOnlyTitleSourceMessage(ctx, t, db, chat, modelConfig.ID, "pasted stack trace for title")
+
+		proposed, err := client.ProposeChatTitle(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, "Test Chat", proposed.Title)
+	})
+
 	t.Run("DoesNotBumpHistoryVersion", func(t *testing.T) {
 		t.Parallel()
 
@@ -11552,7 +11575,8 @@ func TestProposeChatTitle(t *testing.T) {
 		})
 		seedManualTitleSourceMessage(t, db, chat, modelConfig.ID)
 
-		// See the matching TestRegenerateChatTitle subtest.
+		// Bump the snapshot version up front so the assertion below
+		// detects any further bump caused by the propose call.
 		_, err := db.LockChatAndBumpSnapshotVersion(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
 
@@ -11687,13 +11711,6 @@ func TestManualTitleEndpointsPassOwnerSyntheticAPIKeyToAIGateway(t *testing.T) {
 		name string
 		call func(context.Context, *codersdk.ExperimentalClient, uuid.UUID) error
 	}{
-		{
-			name: "RegenerateChatTitle",
-			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
-				_, err := client.RegenerateChatTitle(ctx, chatID)
-				return err
-			},
-		},
 		{
 			name: "ProposeChatTitle",
 			call: func(ctx context.Context, client *codersdk.ExperimentalClient, chatID uuid.UUID) error {
@@ -11995,7 +12012,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChat(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -12104,7 +12121,7 @@ func TestGetChatDiffContents(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, err = otherClient.GetChatDiffContents(ctx, createdChat.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -12265,7 +12282,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		foreignConfig := createChatModel(t, client)
 		chatOrg := dbgen.Organization(t, db, database.Organization{IsDefault: false})
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID, rbac.ScopedRoleAgentsAccess(chatOrg.ID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, chatOrg.ID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    chatOrg.ID,
@@ -12333,7 +12350,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "invalid syntax")
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("MemberCanPromoteOwnQueuedMessage", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -12341,21 +12358,18 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		// Create a member without agents-access. Without
-		// agents-access the member has no ResourceChat
-		// permissions, so the ChatParam middleware returns 404
-		// before the handler can check agents-access.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           member.ID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "promote queued no agents access",
+			Title:             "promote queued as member",
+			Status:            database.ChatStatusError,
 		})
 
 		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("queued message no agents access"),
+			codersdk.ChatMessageText("queued message promoted by member"),
 		})
 		require.NoError(t, err)
 		queuedMessage := insertTestChatQueuedMessage(ctx, t, db, chat.ID, queuedContent, chat.LastModelConfigID)
@@ -12368,7 +12382,7 @@ func TestPromoteChatQueuedMessage(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer promoteRes.Body.Close()
-		require.Equal(t, http.StatusNotFound, promoteRes.StatusCode)
+		require.Equal(t, http.StatusAccepted, promoteRes.StatusCode)
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -12863,20 +12877,20 @@ This arrived as octet-stream.
 		requireSDKError(t, err, http.StatusUnauthorized)
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("MemberCanUploadChatFile", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 
-		// Member without agents-access should be denied.
 		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		data := append([]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, make([]byte, 64)...)
-		_, err := memberClient.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
-		requireSDKError(t, err, http.StatusForbidden)
+		uploaded, err := memberClient.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, uploaded.ID)
 	})
 }
 
@@ -13060,7 +13074,7 @@ func TestGetChatFile(t *testing.T) {
 		uploaded, err := client.UploadChatFile(ctx, firstUser.OrganizationID, "image/png", "test.png", bytes.NewReader(data))
 		require.NoError(t, err)
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 		_, _, err = otherClient.GetChatFile(ctx, uploaded.ID)
 		requireSDKError(t, err, http.StatusNotFound)
@@ -13206,7 +13220,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		client, _ := newClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		uploaded, _ := uploadPNG(t, ctx, client, firstUser.OrganizationID, "owner.png")
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
 		_, err := otherClient.ChatFileDownloadURL(ctx, uploaded.ID)
@@ -13229,7 +13243,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberRaw)
 		err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 			UserRoles: map[string]codersdk.ChatRole{member.ID.String(): codersdk.ChatRoleRead},
@@ -13257,7 +13271,7 @@ func TestChatFileDownloadURL(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client, _ := newClient(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberRaw)
 		uploaded, _ := uploadPNG(t, ctx, memberClient, firstUser.OrganizationID, "suspended.png")
 
@@ -13632,9 +13646,7 @@ func TestGetChatCost(t *testing.T) {
 
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		// agents-access is what grants ResourceChat; plain members cannot
-		// create or read chats at all, so they never reach this endpoint.
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 		modelConfig := createChatModel(t, client)
 		everyoneGroup := uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true}
@@ -13800,18 +13812,10 @@ func TestWatchChatGitAuthz(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Demote adminClient via the second owner. template-admin grants
-	// workspace:read (site) but not workspace:ssh or
-	// workspace:application_connect; agents-access preserves
-	// chat:create|read|update on chats the user owns, so the
-	// demoted user still passes ExtractChatParam for their own chat.
+	// Demote adminClient to template-admin. Membership still allows reading this
+	// chat, so ExtractChatParam passes before workspace authorization fails.
 	_, err = secondAdminClient.UpdateUserRoles(ctx, firstUser.UserID.String(), codersdk.UpdateRoles{
 		Roles: []string{rbac.RoleTemplateAdmin().String()},
-	})
-	require.NoError(t, err)
-
-	_, err = secondAdminClient.UpdateOrganizationMemberRoles(ctx, firstUser.OrganizationID, firstUser.UserID.String(), codersdk.UpdateRoles{
-		Roles: []string{rbac.RoleAgentsAccess()},
 	})
 	require.NoError(t, err)
 
@@ -15881,7 +15885,6 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 		t,
 		adminClient.Client,
 		firstUser.OrganizationID,
-		rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 	)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
@@ -16008,7 +16011,6 @@ func TestCreateChatPersonalModelOverrideRoot(t *testing.T) {
 			t,
 			adminClient.Client,
 			org.ID,
-			rbac.ScopedRoleAgentsAccess(org.ID),
 		)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
@@ -16408,7 +16410,7 @@ func TestChatDebugRuns(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -16520,7 +16522,7 @@ func TestChatDebugRuns(t *testing.T) {
 
 		seedChatDebugRun(ctx, t, db, chat.ID, time.Now().UTC())
 
-		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID, rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID))
+		otherClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
 		_, err := otherClient.GetChatDebugRuns(ctx, chat.ID)
@@ -17011,14 +17013,6 @@ func TestChatRetentionDays_AuditInfrastructureFailureRejectsWrite(t *testing.T) 
 			store: func(db database.Store) (database.Store, func()) {
 				store := newFailNextAcquireLockStore(db, database.GenLockID("agents_chat_retention_days"))
 				return store, func() { store.failNextAcquireLock.Store(true) }
-			},
-		},
-		{
-			name:          "TransactionAfterNoChange",
-			retentionDays: 30,
-			store: func(db database.Store) (database.Store, func()) {
-				store := newFailNextChatOperationalSettingTransactionStore(db)
-				return store, func() { store.failNextTransaction.Store(true) }
 			},
 		},
 	}
@@ -17826,7 +17820,6 @@ func TestSubmitToolResults(t *testing.T) {
 		// to user A's chat.
 		otherClientRaw, _ := coderdtest.CreateAnotherUser(
 			t, client.Client, user.OrganizationID,
-			rbac.ScopedRoleAgentsAccess(user.OrganizationID),
 		)
 		otherClient := codersdk.NewExperimentalClient(otherClientRaw)
 
@@ -17838,7 +17831,7 @@ func TestSubmitToolResults(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("MemberWithoutAgentsAccess", func(t *testing.T) {
+	t.Run("MemberCanSubmitToolResults", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -17846,24 +17839,20 @@ func TestSubmitToolResults(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModel(t, client)
 
-		// Create a member without agents-access. Without
-		// agents-access the member has no ResourceChat
-		// permissions, so the ChatParam middleware returns 404
-		// before the handler can check agents-access.
 		memberClientRaw, member := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
 		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
 		const toolName = "my_dynamic_tool"
-		toolCallIDs := []string{"call_noaccess"}
+		toolCallIDs := []string{"call_member"}
 
 		chat := setupRequiresAction(ctx, t, db, member.ID, firstUser.OrganizationID, modelConfig.ID, toolName, toolCallIDs)
 
 		err := memberClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
 			Results: []codersdk.ToolResult{
-				{ToolCallID: "call_noaccess", Output: json.RawMessage(`"should fail"`)},
+				{ToolCallID: "call_member", Output: json.RawMessage(`"result"`)},
 			},
 		})
-		requireSDKError(t, err, http.StatusNotFound)
+		require.NoError(t, err)
 	})
 
 	t.Run("ArchivedChat", func(t *testing.T) {
@@ -18455,7 +18444,6 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			t,
 			ownerClient.Client,
 			owner.OrganizationID,
-			rbac.ScopedRoleAgentsAccess(owner.OrganizationID),
 		)
 		sharedClient = codersdk.NewExperimentalClient(sharedRaw)
 
@@ -18636,15 +18624,6 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
-	t.Run("RegenerateChatTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, _, sharedClient, chat, _ := setup(t)
-		_, err := sharedClient.RegenerateChatTitle(ctx, chat.ID)
-
-		requireSDKError(t, err, http.StatusNotFound)
-	})
-
 	t.Run("ProposeChatTitle", func(t *testing.T) {
 		t.Parallel()
 
@@ -18696,7 +18675,6 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 			ownerClient.Client,
 			firstUser.OrganizationID,
 			rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
-			rbac.ScopedRoleAgentsAccess(firstUser.OrganizationID),
 		)
 		adminClient = codersdk.NewExperimentalClient(orgAdminRaw)
 		return ownerClient, adminClient, chat, db
@@ -18794,17 +18772,6 @@ func TestChatOwnerOnlyWriteHandlers(t *testing.T) {
 				Output:     json.RawMessage(`"forbidden"`),
 			}},
 		})
-		sdkErr := requireSDKError(t, err, http.StatusForbidden)
-		require.Contains(t, sdkErr.Message, "Only the chat owner")
-	})
-
-	t.Run("RegenerateChatTitle", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, adminClient, chat, _ := setupOrgAdminAndOwnerChat(t)
-
-		_, err := adminClient.RegenerateChatTitle(ctx, chat.ID)
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Contains(t, sdkErr.Message, "Only the chat owner")
 	})

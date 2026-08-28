@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { FC } from "react";
 import { hashKey } from "react-query";
 import { Outlet, useNavigate } from "react-router";
+import { toast } from "sonner";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
@@ -1607,16 +1608,11 @@ const capacityPollingChat: TypesGen.Chat = {
 
 export const QueuedForCapacityAfterPolling: Story = {
 	parameters: {
-		queries: [
-			{ key: chatEntityKey(CHAT_ID), data: capacityPollingChat },
-			{
-				key: chatMessagesKey(CHAT_ID),
-				data: {
-					pages: [{ messages: [], queued_messages: [], has_more: false }],
-					pageParams: [undefined],
-				},
-			},
-		],
+		queries: buildQueries(
+			capacityPollingChat,
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue({
@@ -1939,6 +1935,13 @@ export const NarrowingSuppressesExpandedPanel: Story = {
 		expect(
 			canvas.queryByRole("tab", { name: "Summary" }),
 		).not.toBeInTheDocument();
+
+		// Widening again restores the persisted panel, still expanded.
+		narrowingMedia?.setMatches(belowLgViewportMediaQuery, false);
+		await waitFor(() => {
+			expect(canvas.getByRole("tab", { name: "Summary" })).toBeVisible();
+		});
+		expect(messagesRegion.checkVisibility()).toBe(false);
 	},
 };
 
@@ -3251,11 +3254,7 @@ export const WithWaitAgentComputerUseVNC: Story = {
 	},
 };
 
-// ---------------------------------------------------------------------------
-// /compact slash command
-// ---------------------------------------------------------------------------
-
-const compactCommandMessages: TypesGen.ChatMessagesResponse = {
+const slashCommandMessages: TypesGen.ChatMessagesResponse = {
 	messages: [
 		{
 			id: 1,
@@ -3291,7 +3290,7 @@ export const SlashCompactCommandSubmits: Story = {
 				title: "Compact command",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -3315,7 +3314,10 @@ export const SlashCompactCommandSubmits: Story = {
 		await userEvent.keyboard("/compact");
 		// First Enter accepts the highlighted menu entry; second Enter
 		// submits the composer.
-		expect(await within(document.body).findByText("Commands")).toBeVisible();
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByRole("option", { name: /\/compact/i })).toBeVisible();
+		});
 		await userEvent.keyboard("{Enter}");
 		await userEvent.keyboard("{Enter}");
 
@@ -3324,6 +3326,106 @@ export const SlashCompactCommandSubmits: Story = {
 		});
 		expect(compactSpy).toHaveBeenCalledWith(CHAT_ID);
 		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashClearCommandSubmits: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockResolvedValue({
+			id: CHAT_ID,
+			...baseChatFields,
+			title: "Clear command",
+			status: "waiting",
+		});
+		const sendSpy = spyOn(API.experimental, "createChatMessage");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		// The menu popover fades in from opacity 0, so retry the visibility
+		// check instead of racing the entrance animation (flaked under pixel).
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(clearSpy).toHaveBeenCalledWith(CHAT_ID);
+		expect(sendSpy).not.toHaveBeenCalled();
+	},
+};
+
+export const SlashClearCommandConflictShowsError: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Clear command conflict",
+				status: "waiting",
+			},
+			slashCommandMessages,
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const clearSpy = spyOn(API.experimental, "clearChat").mockRejectedValue(
+			mockApiError({
+				message: "Nothing to clear.",
+				detail:
+					"The chat has no conversation to clear after the latest context boundary.",
+			}),
+		);
+		// Stories render no Toaster portal, so assert the toast call
+		// rather than its DOM.
+		const toastErrorSpy = spyOn(toast, "error");
+
+		const editor = await canvas.findByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/clear");
+		await waitFor(() => {
+			expect(
+				within(document.body).getByText(
+					"Clear the conversation context; the next message starts fresh",
+				),
+			).toBeVisible();
+		});
+		await userEvent.keyboard("{Enter}");
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(clearSpy).toHaveBeenCalledTimes(1);
+		});
+		await waitFor(() => {
+			expect(toastErrorSpy).toHaveBeenCalledWith("Nothing to clear.");
+		});
 	},
 };
 
@@ -3340,7 +3442,7 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 				title: "Compact skill precedence",
 				status: "waiting",
 			},
-			compactCommandMessages,
+			slashCommandMessages,
 			{ diffUrl: undefined },
 		),
 	},
@@ -3381,7 +3483,9 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 		// visibility rather than asserting it once.
 		await waitFor(() => {
 			expect(
-				within(document.body).getByText("Personal compact skill"),
+				within(document.body).getByRole("option", {
+					name: /personal compact skill/i,
+				}),
 			).toBeVisible();
 		});
 		await userEvent.keyboard("{Enter}");
@@ -3402,7 +3506,7 @@ const promotedQueueHeadChat: TypesGen.Chat = {
 };
 
 const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
-	messages: compactCommandMessages.messages,
+	messages: slashCommandMessages.messages,
 	queued_messages: [
 		{
 			...MockChatQueuedMessage,
@@ -3730,6 +3834,79 @@ export const RemoveLastMCPServer: Story = {
 			CHAT_ID,
 			expect.objectContaining({
 				mcp_server_ids: [],
+			}),
+		);
+	},
+};
+
+const mcpEditableUserMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	chat_id: CHAT_ID,
+	content: [{ type: "text", text: "Edit this request" }],
+};
+
+/**
+ * An MCP server toggled on while editing a message must ride along in
+ * the edit request.
+ */
+export const EditAppliesMCPServerSelection: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Edit applies MCP selection",
+				status: "waiting",
+				mcp_server_ids: [],
+			},
+			{
+				messages: [mcpEditableUserMessage],
+				queued_messages: [],
+				has_more: false,
+			},
+			{
+				diffUrl: undefined,
+				mcpServers: [MockMCPServerConfig],
+			},
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const editSpy = spyOn(
+			API.experimental,
+			"editChatMessage",
+		).mockResolvedValue({
+			message: { ...mcpEditableUserMessage, id: 6 },
+		});
+
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Edit message" }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await body.findByRole("switch", {
+				name: `Enable ${MockMCPServerConfig.display_name}`,
+			}),
+		);
+		// Close the plus menu via its trigger; Escape would exit edit mode.
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Save Edit" }),
+		);
+
+		await waitFor(() => {
+			expect(editSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(editSpy).toHaveBeenCalledWith(
+			CHAT_ID,
+			5,
+			expect.objectContaining({
+				mcp_server_ids: [MockMCPServerConfig.id],
 			}),
 		);
 	},

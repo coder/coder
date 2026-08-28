@@ -194,10 +194,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           ],
           "name": "string",
           "operating_system": "string",
-          "parent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -454,10 +451,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           ],
           "name": "string",
           "operating_system": "string",
-          "parent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -832,10 +826,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         ],
         "name": "string",
         "operating_system": "string",
-        "parent_id": {
-          "uuid": "string",
-          "valid": true
-        },
+        "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
         "ready_at": "2019-08-24T14:15:22Z",
         "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
         "scripts": [
@@ -974,9 +965,7 @@ Status Code **200**
 | `»»»» value`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
-| `»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                                        |
-| `»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
-| `»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                      |
+| `»» parent_id`                  | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1215,10 +1204,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           ],
           "name": "string",
           "operating_system": "string",
-          "parent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [
@@ -1586,10 +1572,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             ],
             "name": "string",
             "operating_system": "string",
-            "parent_id": {
-              "uuid": "string",
-              "valid": true
-            },
+            "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
             "scripts": [
@@ -1791,9 +1774,7 @@ Status Code **200**
 | `»»»»» value`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» name`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» operating_system`           | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
-| `»»» parent_id`                  | [uuid.NullUUID](schemas.md#uuidnulluuid)                                                               | false    |              |                                                                                                                                                                                                                                                                        |
-| `»»»» uuid`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                                        |
-| `»»»» valid`                     | boolean                                                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                      |
+| `»»» parent_id`                  | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» ready_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» resource_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                                        |
 | `»»» scripts`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                                        |
@@ -2084,10 +2065,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           ],
           "name": "string",
           "operating_system": "string",
-          "parent_id": {
-            "uuid": "string",
-            "valid": true
-          },
+          "parent_id": "1c6ca187-e61f-4301-8dcb-0e9749e89eef",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
           "scripts": [

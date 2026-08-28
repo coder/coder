@@ -125,6 +125,7 @@ export const IconField: FC<IconFieldProps> = ({
 										onPickEmoji(picked);
 										setOpen(false);
 									}}
+									autoFocus
 								/>
 							</Suspense>
 						</PopoverContent>

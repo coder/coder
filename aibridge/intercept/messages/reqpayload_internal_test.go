@@ -7,8 +7,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-
-	"github.com/coder/coder/v2/aibridge/utils"
 )
 
 func TestNewRequestPayload(t *testing.T) {
@@ -282,7 +280,7 @@ func TestRequestPayloadCorrelatingToolCallID(t *testing.T) {
 		{
 			name:              "returns last tool result from final message",
 			requestBody:       `{"model":"claude-opus-4-5","max_tokens":1024,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_first","content":"first"},{"type":"tool_result","tool_use_id":"toolu_second","content":"second"}]}]}`,
-			expectedToolUseID: utils.PtrTo("toolu_second"),
+			expectedToolUseID: new("toolu_second"),
 		},
 		{
 			name:              "ignores earlier message tool result",
@@ -480,25 +478,25 @@ func TestRequestPayloadDisableParallelToolCalls(t *testing.T) {
 			name:                    "defaults to auto when missing",
 			requestBody:             `{"model":"claude-opus-4-5","max_tokens":1024}`,
 			expectedType:            string(constant.ValueOf[constant.Auto]()),
-			expectedDisableParallel: utils.PtrTo(true),
+			expectedDisableParallel: new(true),
 		},
 		{
 			name:                    "auto gets disabled",
 			requestBody:             `{"tool_choice":{"type":"auto"}}`,
 			expectedType:            string(constant.ValueOf[constant.Auto]()),
-			expectedDisableParallel: utils.PtrTo(true),
+			expectedDisableParallel: new(true),
 		},
 		{
 			name:                    "any gets disabled",
 			requestBody:             `{"tool_choice":{"type":"any"}}`,
 			expectedType:            string(constant.ValueOf[constant.Any]()),
-			expectedDisableParallel: utils.PtrTo(true),
+			expectedDisableParallel: new(true),
 		},
 		{
 			name:                    "tool gets disabled",
 			requestBody:             `{"tool_choice":{"type":"tool","name":"abc"}}`,
 			expectedType:            string(constant.ValueOf[constant.Tool]()),
-			expectedDisableParallel: utils.PtrTo(true),
+			expectedDisableParallel: new(true),
 		},
 		{
 			name:                    "none remains unchanged",
@@ -510,7 +508,7 @@ func TestRequestPayloadDisableParallelToolCalls(t *testing.T) {
 			name:                    "empty type defaults to auto",
 			requestBody:             `{"tool_choice":{}}`,
 			expectedType:            string(constant.ValueOf[constant.Auto]()),
-			expectedDisableParallel: utils.PtrTo(true),
+			expectedDisableParallel: new(true),
 		},
 		{
 			name:        "non-object tool_choice returns error",
