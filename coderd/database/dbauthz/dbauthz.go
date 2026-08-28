@@ -3862,6 +3862,13 @@ func (q *querier) GetDefaultProxyConfig(ctx context.Context) (database.GetDefaul
 	return q.db.GetDefaultProxyConfig(ctx)
 }
 
+func (q *querier) GetDeploymentAgentTimeMsInRange(ctx context.Context, arg database.GetDeploymentAgentTimeMsInRangeParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return 0, err
+	}
+	return q.db.GetDeploymentAgentTimeMsInRange(ctx, arg)
+}
+
 func (q *querier) GetDeploymentID(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetDeploymentID(ctx)

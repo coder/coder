@@ -10193,6 +10193,27 @@ func (q *sqlQuerier) GetDatabaseNow(ctx context.Context) (time.Time, error) {
 	return now, err
 }
 
+const getDeploymentAgentTimeMsInRange = `-- name: GetDeploymentAgentTimeMsInRange :one
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= $1::timestamptz
+  AND cm.created_at < $2::timestamptz
+`
+
+type GetDeploymentAgentTimeMsInRangeParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+// Reports retained Agent Time to deployment administrators. Deliberately
+// includes soft-deleted messages and messages from archived chats.
+func (q *sqlQuerier) GetDeploymentAgentTimeMsInRange(ctx context.Context, arg GetDeploymentAgentTimeMsInRangeParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getDeploymentAgentTimeMsInRange, arg.StartTime, arg.EndTime)
+	var total_runtime_ms int64
+	err := row.Scan(&total_runtime_ms)
+	return total_runtime_ms, err
+}
+
 const getLastChatMessageByRole = `-- name: GetLastChatMessageByRole :one
 SELECT
     id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config

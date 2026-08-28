@@ -3336,6 +3336,27 @@
 				}
 			}
 		},
+		"/api/v2/deployment/agent-time": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["General"],
+				"summary": "Get deployment Agent Time",
+				"operationId": "get-deployment-agent-time",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.DeploymentAgentTime"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/deployment/config": {
 			"get": {
 				"produces": ["application/json"],
@@ -20726,6 +20747,14 @@
 					"type": "string"
 				},
 				"port": {
+					"type": "integer"
+				}
+			}
+		},
+		"codersdk.DeploymentAgentTime": {
+			"type": "object",
+			"properties": {
+				"total_runtime_ms": {
 					"type": "integer"
 				}
 			}

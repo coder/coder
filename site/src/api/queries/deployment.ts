@@ -18,6 +18,17 @@ export const deploymentDAUs = () => {
 	};
 };
 
+const deploymentAgentTimeQueryKey = ["deployment", "agentTime"] as const;
+
+export const deploymentAgentTime = () => {
+	return {
+		queryKey: deploymentAgentTimeQueryKey,
+		queryFn: API.getDeploymentAgentTime,
+		staleTime: 5 * 60 * 1_000,
+		refetchOnWindowFocus: false,
+	};
+};
+
 export const deploymentStatsQueryKey = ["deployment", "stats"];
 
 export const deploymentStats = () => {

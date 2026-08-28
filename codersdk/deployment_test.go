@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"strings"
 	"testing"
@@ -149,6 +150,50 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	for opt := range excludes {
 		t.Errorf("Excluded option %q is not in the deployment config. Remove it?", opt)
 	}
+}
+
+func TestDeploymentAgentTime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Equal(t, "/api/v2/deployment/agent-time", r.URL.Path)
+			rw.Header().Set("Content-Type", "application/json")
+			assert.NoError(t, json.NewEncoder(rw).Encode(codersdk.DeploymentAgentTime{
+				TotalRuntimeMs: 1234,
+			}))
+		}))
+		defer server.Close()
+
+		serverURL, err := url.Parse(server.URL)
+		require.NoError(t, err)
+		got, err := codersdk.New(serverURL).DeploymentAgentTime(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, int64(1234), got.TotalRuntimeMs)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			rw.WriteHeader(http.StatusInternalServerError)
+			assert.NoError(t, json.NewEncoder(rw).Encode(codersdk.Response{
+				Message: "failed to load Agent Time",
+			}))
+		}))
+		defer server.Close()
+
+		serverURL, err := url.Parse(server.URL)
+		require.NoError(t, err)
+		_, err = codersdk.New(serverURL).DeploymentAgentTime(t.Context())
+		var sdkError *codersdk.Error
+		require.ErrorAs(t, err, &sdkError)
+		require.Equal(t, http.StatusInternalServerError, sdkError.StatusCode())
+	})
 }
 
 func TestAIBudgetPeriodAdjective(t *testing.T) {

@@ -7431,6 +7431,20 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `agent_name` | string  | false    |              |             |
 | `port`       | integer | false    |              |             |
 
+## codersdk.DeploymentAgentTime
+
+```json
+{
+  "total_runtime_ms": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+|--------------------|---------|----------|--------------|-------------|
+| `total_runtime_ms` | integer | false    |              |             |
+
 ## codersdk.DeploymentConfig
 
 ```json

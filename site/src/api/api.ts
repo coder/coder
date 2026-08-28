@@ -2468,6 +2468,11 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getDeploymentAgentTime = async (): Promise<TypesGen.DeploymentAgentTime> => {
+		const response = await this.axios.get("/api/v2/deployment/agent-time");
+		return response.data;
+	};
+
 	getDeploymentStats = async (): Promise<TypesGen.DeploymentStats> => {
 		const response = await this.axios.get("/api/v2/deployment/stats");
 		return response.data;

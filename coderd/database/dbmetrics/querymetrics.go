@@ -1992,6 +1992,14 @@ func (m queryMetricsStore) GetDefaultProxyConfig(ctx context.Context) (database.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetDeploymentAgentTimeMsInRange(ctx context.Context, arg database.GetDeploymentAgentTimeMsInRangeParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDeploymentAgentTimeMsInRange(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetDeploymentAgentTimeMsInRange").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetDeploymentAgentTimeMsInRange").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetDeploymentID(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetDeploymentID(ctx)

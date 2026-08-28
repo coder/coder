@@ -3734,6 +3734,21 @@ func (mr *MockStoreMockRecorder) GetDefaultProxyConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDefaultProxyConfig", reflect.TypeOf((*MockStore)(nil).GetDefaultProxyConfig), ctx)
 }
 
+// GetDeploymentAgentTimeMsInRange mocks base method.
+func (m *MockStore) GetDeploymentAgentTimeMsInRange(ctx context.Context, arg database.GetDeploymentAgentTimeMsInRangeParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDeploymentAgentTimeMsInRange", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDeploymentAgentTimeMsInRange indicates an expected call of GetDeploymentAgentTimeMsInRange.
+func (mr *MockStoreMockRecorder) GetDeploymentAgentTimeMsInRange(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentAgentTimeMsInRange", reflect.TypeOf((*MockStore)(nil).GetDeploymentAgentTimeMsInRange), ctx, arg)
+}
+
 // GetDeploymentID mocks base method.
 func (m *MockStore) GetDeploymentID(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()

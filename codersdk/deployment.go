@@ -1514,6 +1514,11 @@ type DeploymentConfig struct {
 	Options serpent.OptionSet `json:"options,omitempty"`
 }
 
+// DeploymentAgentTime reports the Agent Time retained by the deployment.
+type DeploymentAgentTime struct {
+	TotalRuntimeMs int64 `json:"total_runtime_ms"`
+}
+
 func (c *DeploymentValues) Options() serpent.OptionSet {
 	// The deploymentGroup variables are used to organize the myriad server options.
 	var (
@@ -5267,6 +5272,22 @@ func (c *Client) DeploymentConfig(ctx context.Context) (*DeploymentConfig, error
 		Options: conf.Options(),
 	}
 	return resp, ReadBodyAsJSON(res, resp)
+}
+
+// DeploymentAgentTime returns the Agent Time retained by the deployment.
+func (c *Client) DeploymentAgentTime(ctx context.Context) (DeploymentAgentTime, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/deployment/agent-time", nil)
+	if err != nil {
+		return DeploymentAgentTime{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return DeploymentAgentTime{}, ReadBodyAsError(res)
+	}
+
+	var agentTime DeploymentAgentTime
+	return agentTime, ReadBodyAsJSON(res, &agentTime)
 }
 
 func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {

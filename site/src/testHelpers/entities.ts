@@ -3840,6 +3840,10 @@ export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExter
 		display_name: "Azure",
 	};
 
+export const MockDeploymentAgentTime: TypesGen.DeploymentAgentTime = {
+	total_runtime_ms: (10 * 60 + 18) * 60_000,
+};
+
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
 	aggregated_from: "2023-03-06T19:08:55.211625Z",
 	collected_at: "2023-03-06T19:12:55.211625Z",

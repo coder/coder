@@ -11219,6 +11219,92 @@ func TestGetTotalChatMessageRuntimeMsInRange(t *testing.T) {
 	require.EqualValues(t, 79, total)
 }
 
+func TestGetDeploymentAgentTimeMsInRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	rangeStart := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	rangeEnd := rangeStart.Add(time.Hour)
+	params := database.GetDeploymentAgentTimeMsInRangeParams{
+		StartTime: rangeStart,
+		EndTime:   rangeEnd,
+	}
+
+	total, err := db.GetDeploymentAgentTimeMsInRange(ctx, params)
+	require.NoError(t, err)
+	require.EqualValues(t, 0, total)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID: user.ID, OrganizationID: org.ID,
+	})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+	})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 8192,
+	})
+	newChat := func(archived bool) database.Chat {
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		_, err := sqlDB.ExecContext(ctx, "UPDATE chats SET archived = $1 WHERE id = $2", archived, chat.ID)
+		require.NoError(t, err)
+		return chat
+	}
+	activeChat := newChat(false)
+	otherChat := newChat(false)
+	archivedChat := newChat(true)
+	deletedChat := newChat(false)
+
+	insertMessage := func(chatID uuid.UUID, runtimeMs sql.NullInt64, createdAt time.Time, deleted bool) {
+		t.Helper()
+		message := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chatID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			RuntimeMs:     runtimeMs,
+		})
+		_, err := sqlDB.ExecContext(ctx,
+			"UPDATE chat_messages SET created_at = $1, deleted = $2 WHERE id = $3",
+			createdAt, deleted, message.ID)
+		require.NoError(t, err)
+	}
+	runtimeMs := func(value int64) sql.NullInt64 {
+		return sql.NullInt64{Int64: value, Valid: true}
+	}
+
+	insertMessage(activeChat.ID, runtimeMs(1), rangeStart, false)
+	insertMessage(otherChat.ID, runtimeMs(2), rangeStart.Add(15*time.Minute), false)
+	insertMessage(activeChat.ID, runtimeMs(4), rangeStart.Add(20*time.Minute), true)
+	insertMessage(archivedChat.ID, runtimeMs(8), rangeStart.Add(25*time.Minute), false)
+	insertMessage(activeChat.ID, runtimeMs(16), rangeEnd.Add(-time.Second), false)
+	insertMessage(activeChat.ID, sql.NullInt64{}, rangeStart.Add(30*time.Minute), false)
+	insertMessage(activeChat.ID, runtimeMs(0), rangeStart.Add(31*time.Minute), false)
+	insertMessage(activeChat.ID, runtimeMs(32), rangeStart.Add(-time.Second), false)
+	insertMessage(activeChat.ID, runtimeMs(64), rangeEnd, false)
+	insertMessage(deletedChat.ID, runtimeMs(128), rangeStart.Add(35*time.Minute), false)
+
+	total, err = db.GetDeploymentAgentTimeMsInRange(ctx, params)
+	require.NoError(t, err)
+	require.EqualValues(t, 159, total)
+
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", deletedChat.ID)
+	require.NoError(t, err)
+
+	total, err = db.GetDeploymentAgentTimeMsInRange(ctx, params)
+	require.NoError(t, err)
+	require.EqualValues(t, 31, total)
+}
+
 func TestListUsageEventCreatedAtsByTypeSince(t *testing.T) {
 	t.Parallel()
 

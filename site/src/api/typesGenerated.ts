@@ -4747,6 +4747,14 @@ export interface DeleteWorkspaceAgentPortShareRequest {
 
 // From codersdk/deployment.go
 /**
+ * DeploymentAgentTime reports the Agent Time retained by the deployment.
+ */
+export interface DeploymentAgentTime {
+	readonly total_runtime_ms: number;
+}
+
+// From codersdk/deployment.go
+/**
  * DeploymentConfig contains both the deployment values and how they're set.
  */
 export interface DeploymentConfig {

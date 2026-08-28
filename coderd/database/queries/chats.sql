@@ -2231,6 +2231,14 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
+-- name: GetDeploymentAgentTimeMsInRange :one
+-- Reports retained Agent Time to deployment administrators. Deliberately
+-- includes soft-deleted messages and messages from archived chats.
+SELECT COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM chat_messages cm
+WHERE cm.created_at >= @start_time::timestamptz
+  AND cm.created_at < @end_time::timestamptz;
+
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded

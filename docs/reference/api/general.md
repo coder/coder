@@ -118,6 +118,37 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get deployment Agent Time
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/deployment/agent-time \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/deployment/agent-time`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "total_runtime_ms": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.DeploymentAgentTime](schemas.md#codersdkdeploymentagenttime) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get deployment config
 
 ### Code samples

@@ -6755,6 +6755,15 @@ func (s *MethodTestSuite) TestUserSkills() {
 }
 
 func (s *MethodTestSuite) TestUsageEvents() {
+	s.Run("GetDeploymentAgentTimeMsInRange", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		params := database.GetDeploymentAgentTimeMsInRangeParams{
+			StartTime: time.Time{},
+			EndTime:   time.Time{},
+		}
+		db.EXPECT().GetDeploymentAgentTimeMsInRange(gomock.Any(), params).Return(int64(0), nil)
+		check.Args(params).Asserts(rbac.ResourceDeploymentConfig, policy.ActionUpdate)
+	}))
+
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{
 			ID:        "1",
