@@ -5,6 +5,7 @@ import {
 	type ReactNode,
 	type RefObject,
 	useEffect,
+	useRef,
 	useState,
 } from "react";
 import { useQueryClient } from "react-query";
@@ -424,6 +425,21 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	};
 
 	const [isRightPanelExpanded, setIsRightPanelExpanded] = useState(false);
+	const previousPanelsRef = useRef({
+		isSidebarCollapsed,
+		showSidebarPanel,
+	});
+	useEffect(() => {
+		const previous = previousPanelsRef.current;
+		const didCollapseLeftSidebar =
+			!previous.isSidebarCollapsed && isSidebarCollapsed;
+		const didCloseRightPanel = previous.showSidebarPanel && !showSidebarPanel;
+		previousPanelsRef.current = { isSidebarCollapsed, showSidebarPanel };
+
+		if ((didCollapseLeftSidebar || didCloseRightPanel) && !showSidebarPanel) {
+			editing.chatInputRef.current?.focus();
+		}
+	}, [editing.chatInputRef, isSidebarCollapsed, showSidebarPanel]);
 	// The turn already running when the page loaded must not anchor the
 	// scroller, even if its prompt is older than the newest messages page and
 	// only renders after the user pages up. Message ids are allocated from one

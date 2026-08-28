@@ -39,6 +39,7 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
+import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import type { ChatDetailError } from "./components/ChatConversation/chatError";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import { buildLongConversation } from "./components/ChatConversation/storyFixtures";
@@ -666,6 +667,43 @@ index abc1234..def5678 100644
 					.calls.length,
 			).toBeGreaterThan(callsBefore);
 		});
+	},
+};
+
+const collapsePanelsSend = fn();
+
+const CollapsingPanelsFocusStory: FC = () => {
+	const [showSidebarPanel, setShowSidebarPanel] = useState(true);
+	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
+
+	return (
+		<StoryAgentChatPageView
+			isSidebarCollapsed
+			showSidebarPanel={showSidebarPanel}
+			onSetShowSidebarPanel={setShowSidebarPanel}
+			editing={{
+				chatInputRef,
+				handleSendFromInput: collapsePanelsSend,
+			}}
+		/>
+	);
+};
+
+/** Closing the right panel while the left sidebar is collapsed returns focus to chat. */
+export const CollapsingAllSidePanelsFocusesChat: Story = {
+	render: () => <CollapsingPanelsFocusStory />,
+	beforeEach: () => {
+		collapsePanelsSend.mockClear();
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Toggle panel" }));
+
+		const composer = canvas.getByRole("textbox", { name: "Chat message" });
+		await expect(composer).toHaveFocus();
+
+		await userEvent.type(composer, "Send after collapsing{Enter}");
+		await expect(collapsePanelsSend).toHaveBeenCalled();
 	},
 };
 
