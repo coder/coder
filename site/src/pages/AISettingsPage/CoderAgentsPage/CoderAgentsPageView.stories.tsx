@@ -104,13 +104,35 @@ export const Default: Story = {
 	args: { onSaveAdvisorConfig: fn() },
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole("heading", { name: "Usage" })).toBeVisible();
+		const usage = canvas.getByRole("region", { name: "Coder Agents usage" });
+		await expect(
+			usage.compareDocumentPosition(
+				canvas.getByRole("heading", { name: "Organization settings" }),
+			) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		await expect(
+			within(usage).getByRole("heading", { name: "Usage" }),
+		).toBeVisible();
 		await expect(canvas.getByText("10.3 hours")).toBeVisible();
 		await expect(
 			canvas.getByRole("link", {
-				name: "Upgrade for unlimited concurrent chats",
+				name: "Upgrade for unlimited concurrent agents",
 			}),
 		).toHaveAttribute("href", "/deployment/premium");
+		await userEvent.hover(
+			canvas.getByRole("button", {
+				name: "Agent hours used information",
+			}),
+		);
+		await waitFor(async () => {
+			await expect(screen.getByRole("tooltip")).toHaveTextContent(
+				"Total agent time used across all chats. Time from archived chats is excluded once deleted based on the conversation retention period.",
+			);
+		});
+		await userEvent.keyboard("{Escape}");
+		await waitFor(async () => {
+			await expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+		});
 		await userEvent.hover(
 			canvas.getByRole("button", {
 				name: "Max concurrent agents information",
@@ -228,8 +250,8 @@ export const LicensedFiniteAllocation: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("10.3 / 100 hours")).toBeVisible();
 		await expect(
-			canvas.getByRole("link", { name: "View license" }),
-		).toHaveAttribute("href", "/deployment/licenses");
+			canvas.queryByRole("link", { name: "View license" }),
+		).not.toBeInTheDocument();
 	},
 };
 

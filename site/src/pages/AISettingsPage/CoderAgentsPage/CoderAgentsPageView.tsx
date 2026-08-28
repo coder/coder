@@ -147,19 +147,13 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div>
 					<h2 className="m-0 text-base font-medium">Usage</h2>
-					<Link asChild showExternalIcon={false} size="lg" className="mt-1">
-						<RouterLink
-							to={
-								hasAgentRuntimeLicense === false
-									? "/deployment/premium"
-									: "/deployment/licenses"
-							}
-						>
-							{hasAgentRuntimeLicense === false
-								? "Upgrade for unlimited concurrent chats"
-								: "View license"}
-						</RouterLink>
-					</Link>
+					{hasAgentRuntimeLicense === false && (
+						<Link asChild showExternalIcon={false} size="lg" className="mt-1">
+							<RouterLink to="/deployment/premium">
+								Upgrade for unlimited concurrent agents
+							</RouterLink>
+						</Link>
+					)}
 				</div>
 			</div>
 
@@ -191,8 +185,24 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 				<>
 					<dl className="m-0 mt-5 grid gap-4 sm:grid-cols-2">
 						<div>
-							<dt className="text-xs font-medium text-content-secondary">
-								Agent hours used
+							<dt className="flex items-center gap-1 text-xs font-medium text-content-secondary">
+								<span>Agent hours used</span>
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<button
+											type="button"
+											aria-label="Agent hours used information"
+											className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+										>
+											<InfoIcon className="size-3" />
+										</button>
+									</TooltipTrigger>
+									<TooltipContent side="top" className="max-w-xs">
+										Total agent time used across all chats. Time from archived
+										chats is excluded once deleted based on the conversation
+										retention period.
+									</TooltipContent>
+								</Tooltip>
 							</dt>
 							<dd className="m-0 mt-1 text-sm font-medium text-content-primary">
 								{hasAgentRuntimeLicense
@@ -279,13 +289,28 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 }) => {
 	return (
 		<div className="flex max-w-4xl flex-col gap-10">
-			<SettingsHeader>
-				<SettingsHeaderTitle>Coder Agents</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Configure organization model choices and deployment-wide Coder Agents
-					capabilities.
-				</SettingsHeaderDescription>
-			</SettingsHeader>
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Coder Agents</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Configure organization model choices and deployment-wide Coder
+						Agents capabilities.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
+
+				{canEditDeploymentConfig && (
+					<CoderAgentsUsage
+						hasAgentRuntimeLicense={hasAgentRuntimeLicense}
+						feature={agentRuntimeHoursFeature}
+						totalRuntimeMs={agentRuntimeTotalMs}
+						isLoading={isAgentRuntimeUsageLoading}
+						isUnavailable={isAgentRuntimeUsageUnavailable}
+						error={agentRuntimeUsageError}
+						onRetry={onRetryAgentRuntimeUsage}
+						isRetrying={isRetryingAgentRuntimeUsage}
+					/>
+				)}
+			</div>
 
 			{isOrganizationAccessLoading ? (
 				<Loader label="Loading organization settings" />
@@ -360,16 +385,6 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 							organization.
 						</p>
 					</div>
-					<CoderAgentsUsage
-						hasAgentRuntimeLicense={hasAgentRuntimeLicense}
-						feature={agentRuntimeHoursFeature}
-						totalRuntimeMs={agentRuntimeTotalMs}
-						isLoading={isAgentRuntimeUsageLoading}
-						isUnavailable={isAgentRuntimeUsageUnavailable}
-						error={agentRuntimeUsageError}
-						onRetry={onRetryAgentRuntimeUsage}
-						isRetrying={isRetryingAgentRuntimeUsage}
-					/>
 					<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
 						<AdminPersonalModelOverridesSettings
 							adminSettings={adminOverridesData}
