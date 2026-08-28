@@ -58,6 +58,53 @@ func TestPrompt(t *testing.T) {
 		require.Equal(t, "yes", resp)
 	})
 
+	t.Run("ConfirmNormalizesInput", func(t *testing.T) {
+		t.Parallel()
+
+		for _, input := range []string{"Yes", "YES", " yes ", "Y", " y "} {
+			input := input
+			t.Run(input, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitShort)
+				ptty := ptytest.New(t)
+				doneChan := make(chan string)
+				go func() {
+					resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+						Text:      "Example",
+						IsConfirm: true,
+					}, nil)
+					assert.NoError(t, err)
+					doneChan <- resp
+				}()
+				ptty.ExpectMatch(ctx, "Example")
+				ptty.WriteLine(input)
+				resp := testutil.TryReceive(ctx, t, doneChan)
+				require.Equal(t, "yes", resp)
+			})
+		}
+	})
+
+	t.Run("ConfirmDefaultNoReturnsCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan error)
+		go func() {
+			_, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text:      "Example",
+				IsConfirm: true,
+				Default:   cliui.ConfirmNo,
+			}, nil)
+			doneChan <- err
+		}()
+		ptty.ExpectMatch(ctx, "Example")
+		ptty.WriteLine("")
+		err := testutil.TryReceive(ctx, t, doneChan)
+		require.ErrorIs(t, err, cliui.ErrCanceled)
+	})
+
 	t.Run("Skip", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

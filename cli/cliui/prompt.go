@@ -125,8 +125,12 @@ func Prompt(inv *serpent.Invocation, opts PromptOptions) (string, error) {
 	case err := <-errCh:
 		return "", err
 	case line := <-lineCh:
-		if opts.IsConfirm && line != "yes" && line != "y" {
-			return line, xerrors.Errorf("got %q: %w", line, ErrCanceled)
+		if opts.IsConfirm {
+			answer := strings.ToLower(strings.TrimSpace(line))
+			if answer != ConfirmYes && answer != "y" {
+				return line, xerrors.Errorf("got %q: %w", line, ErrCanceled)
+			}
+			line = ConfirmYes
 		}
 		if opts.Validate != nil {
 			err := opts.Validate(line)
