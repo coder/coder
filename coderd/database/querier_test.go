@@ -11065,6 +11065,50 @@ func TestUsageEventsTrigger(t *testing.T) {
 	})
 }
 
+func TestGetUsageEventsStats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	insert := func(id string, createdAt time.Time) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+
+	pendingNew := now.Add(-time.Hour)
+	pendingOld := now.Add(-29 * 24 * time.Hour)
+	insert("pending-new", pendingNew)
+	insert("pending-old", pendingOld)
+	// Exactly 30 days is no longer eligible to publish.
+	insert("at-30d", now.Add(-30*24*time.Hour))
+	insert("expired-old", now.Add(-59*24*time.Hour))
+	// Exactly 60 days and older are outside the stats window.
+	insert("at-60d", now.Add(-60*24*time.Hour))
+	insert("too-old", now.Add(-61*24*time.Hour))
+	insert("published", now.Add(-2*24*time.Hour))
+	err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+		Now:             now,
+		IDs:             []string{"published"},
+		FailureMessages: []string{""},
+		SetPublishedAts: []bool{true},
+	})
+	require.NoError(t, err)
+
+	stats, err := db.GetUsageEventsStats(ctx, now)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, stats.PendingCount)
+	require.EqualValues(t, 2, stats.ExpiredCount)
+	require.WithinDuration(t, pendingOld, stats.OldestPendingCreatedAt, time.Second)
+}
+
 func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	t.Parallel()
 
