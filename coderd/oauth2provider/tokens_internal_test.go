@@ -1,13 +1,17 @@
 package oauth2provider
 
 import (
+	"database/sql"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -73,6 +77,115 @@ func TestScopeStringToAPIKeyScopes(t *testing.T) {
 		}
 	})
 }
+
+func TestScopeStillCoveredByAllowlist(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inCatalog     = "coder:workspaces.access"
+		alsoInCatalog = "coder:templates.build"
+	)
+
+	tests := []struct {
+		name     string
+		granted  string
+		appScope sql.NullString
+		wantErr  error
+	}{
+		{
+			name:     "NoAllowlistConstrainsNothing",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{},
+		},
+		{
+			name:     "EmptyAllowlistConstrainsNothing",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "", Valid: true},
+		},
+		{
+			name:     "UnchangedAllowlistStillCovers",
+			granted:  inCatalog,
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			name:     "CompositeStillCoversItsParts",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+		},
+		{
+			// The control for the case below: an edit that leaves the grant
+			// covered must not reject it.
+			name:     "WidenedAllowlistStillCovers",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
+		},
+		{
+			name:     "AllowlistNarrowedAwayRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: alsoInCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "PartiallyCoveredRejectedWhole",
+			granted:  "workspace:ssh file:create",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			// An app with no allowlist grants coder:all. Adding one narrows it,
+			// which is the same narrowing seen from the other side.
+			name:     "UnrestrictedGrantNarrowedRejected",
+			granted:  string(database.ApiKeyScopeCoderAll),
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errStaleScope,
+		},
+		{
+			name:     "AllowlistFilteredToEmptyRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "openid profile", Valid: true},
+			wantErr:  errNoGrantableScope,
+		},
+		{
+			name:     "WhitespaceOnlyAllowlistRejected",
+			granted:  "workspace:ssh",
+			appScope: sql.NullString{String: "   ", Valid: true},
+			wantErr:  errNoGrantableScope,
+		},
+		{
+			name:     "LegacyAliasAllowlistCoversCanonicalGrant",
+			granted:  "coder:all",
+			appScope: sql.NullString{String: "all", Valid: true},
+		},
+		{
+			// Refused rather than granted: RBAC cannot expand the stored name,
+			// so coverage has no answer.
+			name:     "GrantOutsideTheCatalogUndecidable",
+			granted:  "some_removed_scope",
+			appScope: sql.NullString{String: inCatalog, Valid: true},
+			wantErr:  errCoverageUndecidable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New(), Scope: test.appScope}
+			err := scopeStillCoveredByAllowlist(t.Context(), slogtest.Make(t, nil), app, test.granted)
+			if test.wantErr == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, test.wantErr)
+			assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+				"the rejection reason must appear once, not doubled by the wrap")
+		})
+	}
+}
+
+// Rejection reason for the package's black-box tests, which cannot reach the
+// sentinel.
+var ReasonStaleScope = errStaleScope.Error()
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited

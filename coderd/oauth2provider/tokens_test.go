@@ -159,15 +159,67 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 
 		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
 
-		require.Equal(t, http.StatusBadRequest, status, body)
-		var oauthErr struct {
-			Error            string `json:"error"`
-			ErrorDescription string `json:"error_description"`
-		}
-		require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
-		require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), oauthErr.Error)
-		require.Contains(t, oauthErr.ErrorDescription, scopeOutOfCatalog,
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, scopeOutOfCatalog,
 			"an operator cannot act on this without knowing which stored name is the problem")
+	})
+
+	// A code lives for ten minutes, and its scope was last checked against the
+	// allowlist when it was issued.
+	t.Run("AllowlistNarrowedAfterAuthorizationRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
+
+		status, body := postTokenRequest(ctx, t, client, tokenExchangeForm(app, code, verifier))
+
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonStaleScope)
+		require.Contains(t, description, "workspace:ssh",
+			"the client cannot tell which of its scopes was withdrawn without the name")
+	})
+
+	// The control for the case above. An allowlist edit that still covers the
+	// grant must leave the code redeemable, and must not widen what it mints.
+	t.Run("AllowlistWidenedAfterAuthorizationStillRedeems", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeInCatalog + " " + scopeAlsoInCatalog, Valid: true})
+
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken))
+	})
+
+	// RFC 6749 §6 bounds a refresh by the scope originally granted, not by the
+	// live allowlist. An admin narrowing it takes effect at the next
+	// authorization rather than dropping capability from a session mid-use.
+	t.Run("RefreshIgnoresAllowlistNarrowing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
+
+		form := url.Values{}
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", token.RefreshToken)
+		form.Set("client_id", app.ID.String())
+		form.Set("client_secret", app.ClientSecret)
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 	})
 }
 
@@ -201,6 +253,38 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 		ClientSecret:      secret.Formatted,
 		SecretID:          dbSecret.ID,
 	}
+}
+
+// setAppAllowlist rewrites an app's registered scopes the way an admin edit
+// would, leaving every other column as seeded.
+func setAppAllowlist(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, allowlist sql.NullString) {
+	t.Helper()
+
+	_, err := db.UpdateOAuth2ProviderAppByID(dbauthz.AsSystemRestricted(ctx), database.UpdateOAuth2ProviderAppByIDParams{
+		ID:                      app.ID,
+		UpdatedAt:               dbtime.Now(),
+		Name:                    app.Name,
+		Icon:                    app.Icon,
+		CallbackURL:             app.CallbackURL,
+		RedirectUris:            app.RedirectUris,
+		ClientType:              app.ClientType,
+		DynamicallyRegistered:   app.DynamicallyRegistered,
+		ClientSecretExpiresAt:   app.ClientSecretExpiresAt,
+		GrantTypes:              app.GrantTypes,
+		ResponseTypes:           app.ResponseTypes,
+		TokenEndpointAuthMethod: app.TokenEndpointAuthMethod,
+		Scope:                   allowlist,
+		Contacts:                app.Contacts,
+		ClientUri:               app.ClientUri,
+		LogoUri:                 app.LogoUri,
+		TosUri:                  app.TosUri,
+		PolicyUri:               app.PolicyUri,
+		JwksUri:                 app.JwksUri,
+		Jwks:                    app.Jwks,
+		SoftwareID:              app.SoftwareID,
+		SoftwareVersion:         app.SoftwareVersion,
+	})
+	require.NoError(t, err)
 }
 
 // Returns the secret that redeems the row. dbgen is unusable here: it derives
@@ -316,6 +400,22 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 	require.NotEmpty(t, token.AccessToken)
 	require.NotEmpty(t, token.RefreshToken)
 	return token
+}
+
+// requireTokenScopeError asserts an RFC 6749 §5.2 invalid_scope response and
+// returns its description, which is what tells a client or operator which
+// scope was at fault.
+func requireTokenScopeError(t *testing.T, status int, body string) string {
+	t.Helper()
+
+	require.Equal(t, http.StatusBadRequest, status, body)
+	var oauthErr struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(body), &oauthErr))
+	require.Equal(t, string(codersdk.OAuth2ErrorCodeInvalidScope), oauthErr.Error)
+	return oauthErr.ErrorDescription
 }
 
 func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {

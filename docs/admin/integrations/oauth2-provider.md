@@ -407,6 +407,18 @@ scope names something this deployment cannot mint, the exchange answers HTTP
 The usual cause is a grant made against a scope the deployment has since
 dropped. Authorize again to negotiate a scope it still supports.
 
+The exchange also re-checks the code's scope against the application's
+registered `scope`, which an administrator can narrow during the ten minutes a
+code stays valid. A code whose scope the narrowed registration no longer
+covers is refused the same way, with `scope is no longer allowed by this app's
+registered scopes`. Authorize again to negotiate a scope within the new
+registration.
+
+A refresh is not re-checked against the registration. RFC 6749 section 6 bounds
+it by the scope originally granted, so narrowing an application's registered
+scopes takes effect at the next authorization rather than cutting short a
+session already in progress.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.

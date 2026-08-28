@@ -43,7 +43,46 @@ var (
 	// errUnmintableScope means the scope persisted against a grant names
 	// something no API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
+	// errStaleScope means the app's registered scopes no longer cover the scope
+	// its authorization code was issued with.
+	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes")
 )
+
+// scopeStillCoveredByAllowlist re-checks the scope a grant was issued with
+// against the app's registered scopes as they stand now. An admin can narrow
+// them inside an authorization code's ten minute life, and the code's scope was
+// last checked when it was issued.
+//
+// An app with no registered scopes constrains nothing, so nothing is re-checked.
+// An app that has since gained them is checked against them, since that
+// narrowing is the case this exists for.
+//
+// Refresh deliberately does not call this: RFC 6749 §6 bounds a refresh by the
+// scope originally granted, so an allowlist narrowing takes effect at the next
+// authorization rather than silently dropping capability from a live session.
+func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
+	if noScopeAllowlist(app.Scope) {
+		return nil
+	}
+
+	allowlist := grantableScopes(app.Scope.String)
+	if len(allowlist) == 0 {
+		// An allowlist that grants nothing covers nothing. Named verbatim for
+		// the same reason as in negotiateScope.
+		return xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
+	}
+
+	// Canonicalized rather than assumed: negotiateScope writes canonical names,
+	// but the row may have been written by another version of this server.
+	outside, err := firstScopeOutsideAllowlist(ctx, logger, app, allowlist, canonicalScopes(strings.Fields(granted)))
+	if err != nil {
+		return err
+	}
+	if outside != "" {
+		return xerrors.Errorf("%q: %w", outside, errStaleScope)
+	}
+	return nil
+}
 
 // scopeStringToAPIKeyScopes converts the scope persisted on an authorization
 // code or refresh token into the scope list an API key is minted with. Names
@@ -158,7 +197,7 @@ func extractTokenRequest(r *http.Request, callbackURL *url.URL) (codersdk.OAuth2
 // Tokens
 // Uses Sessions.DefaultDuration for access token (API key) TTL and
 // Sessions.RefreshDefaultDuration for refresh token TTL.
-func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerFunc {
+func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.Logger) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		app := httpmw.OAuth2ProviderApp(r)
@@ -220,7 +259,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 		case codersdk.OAuth2ProviderGrantTypeRefreshToken:
 			token, err = refreshTokenGrant(ctx, db, app, lifetimes, req)
 		case codersdk.OAuth2ProviderGrantTypeAuthorizationCode:
-			token, err = authorizationCodeGrant(ctx, db, app, lifetimes, req)
+			token, err = authorizationCodeGrant(ctx, db, logger, app, lifetimes, req)
 		default:
 			// This should handle truly invalid grant types
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeUnsupportedGrantType, fmt.Sprintf("The grant type %q is not supported", req.GrantType))
@@ -247,9 +286,11 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		if errors.Is(err, errUnmintableScope) {
-			// The grant is well-formed and its stored scope is not mintable, so
-			// a defined OAuth2 failure beats a 500.
+		// The grant is well-formed and its stored scope cannot be honored: it is
+		// not mintable, or the app's registered scopes have narrowed under it. A
+		// defined OAuth2 failure beats a 500.
+		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
+			errors.Is(err, errNoGrantableScope) || errors.Is(err, errCoverageUndecidable) {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidScope, err.Error())
 			return
 		}
@@ -296,7 +337,7 @@ func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeI
 	}
 }
 
-func authorizationCodeGrant(ctx context.Context, db database.Store, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
+func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.Logger, app database.OAuth2ProviderApp, lifetimes codersdk.SessionLifetime, req codersdk.OAuth2TokenRequest) (codersdk.OAuth2TokenResponse, error) {
 	// Validate the client secret.
 	secret, err := ParseFormattedSecret(req.ClientSecret)
 	if err != nil {
@@ -396,6 +437,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 	} else if req.Resource != "" {
 		// Resource was not specified during authorization but is now provided
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
+	}
+
+	// The scope was checked against the allowlist when the code was issued, and
+	// an admin can have narrowed it since.
+	if err := scopeStillCoveredByAllowlist(ctx, logger, app, dbCode.Scope); err != nil {
+		return codersdk.OAuth2TokenResponse{}, err
 	}
 
 	// Generate a refresh token.
