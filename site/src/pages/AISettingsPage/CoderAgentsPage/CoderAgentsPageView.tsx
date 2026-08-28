@@ -12,6 +12,7 @@ import {
 	getOrganizationLabel,
 	OrganizationAutocomplete,
 } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -23,6 +24,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { AdvisorSettings } from "#/pages/AgentsPage/components/AdvisorSettings";
 import { VirtualDesktopSettings } from "#/pages/AgentsPage/components/VirtualDesktopSettings";
 import { docs } from "#/utils/docs";
@@ -42,6 +44,7 @@ export interface CoderAgentsPageViewProps {
 	isOrganizationAccessLoading: boolean;
 	organizationSettings?: ReactNode;
 	canEditDeploymentConfig: boolean;
+	hasDeploymentLicense: boolean;
 	hasAgentRuntimeLicense?: boolean;
 	agentRuntimeHoursFeature?: TypesGen.Feature;
 	agentRuntimeTotalMs?: number;
@@ -99,6 +102,7 @@ const formatAgentHours = (actualMs: number | undefined): string => {
 };
 
 type CoderAgentsUsageProps = {
+	hasDeploymentLicense: boolean;
 	hasAgentRuntimeLicense?: boolean;
 	feature?: TypesGen.Feature;
 	totalRuntimeMs?: number;
@@ -110,6 +114,7 @@ type CoderAgentsUsageProps = {
 };
 
 const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
+	hasDeploymentLicense,
 	hasAgentRuntimeLicense,
 	feature,
 	totalRuntimeMs,
@@ -147,13 +152,25 @@ const CoderAgentsUsage: FC<CoderAgentsUsageProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div>
 					<h2 className="m-0 text-base font-medium">Usage</h2>
-					{hasAgentRuntimeLicense === false && (
-						<Link asChild showExternalIcon={false} size="lg" className="mt-1">
-							<RouterLink to="/deployment/premium">
-								Upgrade for unlimited concurrent agents
-							</RouterLink>
-						</Link>
-					)}
+					{hasAgentRuntimeLicense === false &&
+						(hasDeploymentLicense ? (
+							<Link
+								href={CONTACT_SALES_LINK}
+								target="_blank"
+								rel="noreferrer"
+								showExternalIcon={false}
+								size="lg"
+								className="mt-1"
+							>
+								Contact sales to add Agent Runtime
+							</Link>
+						) : (
+							<Link asChild showExternalIcon={false} size="lg" className="mt-1">
+								<RouterLink to={PREMIUM_PAGE_PATH}>
+									Upgrade for unlimited concurrent agents
+								</RouterLink>
+							</Link>
+						))}
 				</div>
 			</div>
 
@@ -256,6 +273,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	isOrganizationAccessLoading,
 	organizationSettings,
 	canEditDeploymentConfig,
+	hasDeploymentLicense,
 	hasAgentRuntimeLicense,
 	agentRuntimeHoursFeature,
 	agentRuntimeTotalMs,
@@ -300,6 +318,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 
 				{canEditDeploymentConfig && (
 					<CoderAgentsUsage
+						hasDeploymentLicense={hasDeploymentLicense}
 						hasAgentRuntimeLicense={hasAgentRuntimeLicense}
 						feature={agentRuntimeHoursFeature}
 						totalRuntimeMs={agentRuntimeTotalMs}

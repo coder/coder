@@ -50,8 +50,9 @@ const CoderAgentsPage: FC = () => {
 	const showVirtualDesktopSettings = experiments.includes(
 		"chat-virtual-desktop",
 	);
+	const agentRuntimeHoursFeature = entitlements.features.agent_runtime_hours;
 	const agentTimeQuery = useQuery({
-		...deploymentAgentTime(),
+		...deploymentAgentTime(agentRuntimeHoursFeature?.usage_period),
 		enabled: canEditDeploymentConfig,
 	});
 	const personalOverridesQuery = useQuery({
@@ -75,7 +76,6 @@ const CoderAgentsPage: FC = () => {
 	const saveComputerUseProviderMutation = useMutation(
 		updateChatComputerUseProvider(queryClient),
 	);
-	const agentRuntimeHoursFeature = entitlements.features.agent_runtime_hours;
 	const hasAgentRuntimeLicense = agentRuntimeHoursFeature
 		? agentRuntimeHoursFeature.usage_period !== undefined
 		: undefined;
@@ -128,6 +128,7 @@ const CoderAgentsPage: FC = () => {
 				isOrganizationAccessLoading={accessibleOrganizationsQuery.isLoading}
 				organizationSettings={organizationSettings}
 				canEditDeploymentConfig={canEditDeploymentConfig}
+				hasDeploymentLicense={entitlements.has_license}
 				hasAgentRuntimeLicense={hasAgentRuntimeLicense}
 				agentRuntimeHoursFeature={agentRuntimeHoursFeature}
 				agentRuntimeTotalMs={agentTimeQuery.data?.total_runtime_ms}

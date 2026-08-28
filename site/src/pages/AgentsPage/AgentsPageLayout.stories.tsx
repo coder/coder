@@ -112,6 +112,7 @@ const AgentsRouteElement = () => (
 		requestedOrganizationDenied={false}
 		isOrganizationAccessLoading={false}
 		canEditDeploymentConfig
+		hasDeploymentLicense={false}
 		hasAgentRuntimeLicense={false}
 		agentRuntimeTotalMs={0}
 		isAgentRuntimeUsageLoading={false}

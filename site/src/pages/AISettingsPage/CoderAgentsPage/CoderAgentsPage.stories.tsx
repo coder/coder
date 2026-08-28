@@ -5,6 +5,7 @@ import { chatPersonalModelOverridesAdminSettings } from "#/api/queries/chats";
 import { deploymentAgentTime } from "#/api/queries/deployment";
 import type { Entitlements } from "#/api/typesGenerated";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import {
 	MockAgentRuntimeHoursFeature,
 	MockAppearanceConfig,
@@ -91,9 +92,14 @@ export const CommunityUsageWithUnrelatedLicense: Story = {
 		await expect(canvas.getByText("10.3 hours")).toBeVisible();
 		await expect(
 			canvas.getByRole("link", {
-				name: "Upgrade for unlimited concurrent chats",
+				name: "Contact sales to add Agent Runtime",
 			}),
-		).toHaveAttribute("href", "/deployment/premium");
+		).toHaveAttribute("href", CONTACT_SALES_LINK);
+		await expect(
+			canvas.queryByRole("link", {
+				name: "Upgrade for unlimited concurrent agents",
+			}),
+		).not.toBeInTheDocument();
 		await expect(canvas.getByText("5")).toBeVisible();
 	},
 };

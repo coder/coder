@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	MockAgentRuntimeHoursFeature,
 	MockDefaultOrganization,
@@ -53,6 +54,7 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	isOrganizationAccessLoading: false,
 	organizationSettings: <div>Organization override controls</div>,
 	canEditDeploymentConfig: true,
+	hasDeploymentLicense: false,
 	hasAgentRuntimeLicense: false,
 	agentRuntimeHoursFeature: communityRuntimeFeature,
 	agentRuntimeTotalMs: actualMs,
@@ -118,7 +120,7 @@ export const Default: Story = {
 			canvas.getByRole("link", {
 				name: "Upgrade for unlimited concurrent agents",
 			}),
-		).toHaveAttribute("href", "/deployment/premium");
+		).toHaveAttribute("href", PREMIUM_PAGE_PATH);
 		await userEvent.hover(
 			canvas.getByRole("button", {
 				name: "Agent hours used information",
