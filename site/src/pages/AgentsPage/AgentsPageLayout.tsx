@@ -59,6 +59,7 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -177,6 +178,7 @@ const AgentsPageLayout: FC = () => {
 	const personalOverridesOrganizationId =
 		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
+	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
@@ -948,6 +950,7 @@ const AgentsPageLayout: FC = () => {
 							personalModelOverridesQuery.data?.enabled
 						}
 						isAdmin={isAgentsAdmin}
+						canManageAgentSettings={canManageAgentSettings}
 					/>
 				</ResizableChatsSidebarFrame>
 				<div

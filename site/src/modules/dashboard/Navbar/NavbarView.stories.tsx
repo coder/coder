@@ -74,6 +74,7 @@ const meta: Meta<typeof NavbarView> = {
 		},
 		canViewModels: false,
 		canCreateChat: true,
+		canViewLicenses: false,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],
@@ -122,6 +123,52 @@ export const ForOrgAdmin: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Admin settings" }),
 		);
+	},
+};
+
+export const ForTemplateUpdateOnlyAdmin: Story = {
+	decorators: [withAuthProvider],
+	parameters: {
+		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
+		user: MockUserMember,
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+		reactRouter: reactRouterParameters({
+			location: { path: "/" },
+			routing: [
+				{ path: "/", useStoryElement: true },
+				{
+					path: "/ai/settings",
+					element: <AISettingsIndexRedirectWithProviders />,
+				},
+				{
+					path: "/ai/settings/templates",
+					element: <h1>Templates</h1>,
+				},
+			],
+		}),
+	},
+	args: {
+		user: MockUserMember,
+		adminPermissions: {
+			canViewAISettings: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiSettingsLink = body.getByRole("menuitem", { name: "AI" });
+		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
+		await userEvent.click(aiSettingsLink);
+		await expect(
+			await canvas.findByRole("heading", { name: "Templates" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -274,7 +321,7 @@ export const ForSingleOrgOSSAdmin: Story = {
 	},
 };
 
-export const ForMember: Story = {
+export const ForUserWithoutOrganization: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},
@@ -315,7 +362,7 @@ export const ForMemberWithModelAccess: Story = {
 	},
 };
 
-export const ForMemberWithAgentsAccess: Story = {
+export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
 		adminPermissions: {},

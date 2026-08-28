@@ -1187,15 +1187,18 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 			cleanup();
 		};
 	},
-	parameters: watchedChatPageParameters(watchedChat(), [
-		chatWatchEvent(
-			"chat_summary_generating",
-			watchedChat(),
-			750,
-			1_000,
-			WATCHED_SUMMARY_GENERATION_STARTED_AT,
-		),
-	]),
+	parameters: {
+		...watchedChatPageParameters(watchedChat(), [
+			chatWatchEvent(
+				"chat_summary_generating",
+				watchedChat(),
+				750,
+				1_000,
+				WATCHED_SUMMARY_GENERATION_STARTED_AT,
+			),
+		]),
+		features: ["aibridge"],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const summaryPanel = await canvas.findByRole("tabpanel", {
@@ -1209,9 +1212,12 @@ export const SummaryReplayUsesRemainingTimeout: Story = {
 			await summary.findByRole("status", undefined, { timeout: 3_000 }),
 		).toHaveTextContent("Generating summary");
 		const getChatCostMock = mocked(API.experimental.getChatCost);
-		await waitFor(() => {
-			expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
-		});
+		await waitFor(
+			() => {
+				expect(getChatCostMock).toHaveBeenCalledWith(WATCHED_CHAT_ID);
+			},
+			{ timeout: 3_000 },
+		);
 		getChatCostMock.mockClear();
 		const getChatMock = mocked(API.experimental.getChat);
 		getChatMock.mockResolvedValue(
@@ -1565,6 +1571,26 @@ export const OpensSettingsForNonAdmins: Story = {
 	},
 };
 
+export const OpensSettingsForOrgModelAdmins: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			editAnyChatModelConfig: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		await openSettingsView(canvasElement);
+
+		const manageAgentsLink = await screen.findByRole("link", {
+			name: "Manage agents",
+		});
+		expect(manageAgentsLink).toHaveAttribute(
+			"href",
+			"/ai/settings/coder-agents",
+		);
+	},
+};
+
 export const OpensAISettingsFromManageAgentsOnMobile: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
@@ -1612,7 +1638,9 @@ export const SettingsViewCoderAgentsLink: Story = {
 
 		await waitFor(() => {
 			expect(
-				screen.getByText(/Configure deployment-wide Coder Agents capabilities/),
+				screen.getByText(
+					/organization model choices and deployment-wide Coder Agents capabilities/,
+				),
 			).toBeInTheDocument();
 		});
 	},
