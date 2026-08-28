@@ -113,8 +113,6 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 			appScope: sql.NullString{String: inCatalog, Valid: true},
 		},
 		{
-			// The control for the case below: an edit that leaves the grant
-			// covered must not reject it.
 			name:     "WidenedAllowlistStillCovers",
 			granted:  "workspace:ssh",
 			appScope: sql.NullString{String: inCatalog + " " + alsoInCatalog, Valid: true},
@@ -132,8 +130,6 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 			wantErr:  errStaleScope,
 		},
 		{
-			// An app with no allowlist grants coder:all. Adding one narrows it,
-			// which is the same narrowing seen from the other side.
 			name:     "UnrestrictedGrantNarrowedRejected",
 			granted:  string(database.ApiKeyScopeCoderAll),
 			appScope: sql.NullString{String: inCatalog, Valid: true},
@@ -157,8 +153,6 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 			appScope: sql.NullString{String: "all", Valid: true},
 		},
 		{
-			// Refused rather than granted: RBAC cannot expand the stored name,
-			// so coverage has no answer.
 			name:     "GrantOutsideTheCatalogUndecidable",
 			granted:  "some_removed_scope",
 			appScope: sql.NullString{String: inCatalog, Valid: true},
@@ -182,10 +176,6 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 		})
 	}
 }
-
-// Rejection reason for the package's black-box tests, which cannot reach the
-// sentinel.
-var ReasonStaleScope = errStaleScope.Error()
 
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited

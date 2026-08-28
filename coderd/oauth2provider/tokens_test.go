@@ -164,8 +164,6 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 			"an operator cannot act on this without knowing which stored name is the problem")
 	})
 
-	// A code lives for ten minutes, and its scope was last checked against the
-	// allowlist when it was issued.
 	t.Run("AllowlistNarrowedAfterAuthorizationRejected", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -179,11 +177,9 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		description := requireTokenScopeError(t, status, body)
 		require.Contains(t, description, oauth2provider.ReasonStaleScope)
 		require.Contains(t, description, "workspace:ssh",
-			"the client cannot tell which of its scopes was withdrawn without the name")
+			"the client needs the scope name to know what was withdrawn")
 	})
 
-	// The control for the case above. An allowlist edit that still covers the
-	// grant must leave the code redeemable, and must not widen what it mints.
 	t.Run("AllowlistWidenedAfterAuthorizationStillRedeems", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -199,8 +195,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 	})
 
 	// RFC 6749 §6 bounds a refresh by the scope originally granted, not by the
-	// live allowlist. An admin narrowing it takes effect at the next
-	// authorization rather than dropping capability from a session mid-use.
+	// live allowlist.
 	t.Run("RefreshIgnoresAllowlistNarrowing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -255,8 +250,8 @@ func seedAppWithSecret(t *testing.T, db database.Store, allowlist sql.NullString
 	}
 }
 
-// setAppAllowlist rewrites an app's registered scopes the way an admin edit
-// would, leaving every other column as seeded.
+// setAppAllowlist rewrites an app's registered scopes, leaving every other
+// column as seeded.
 func setAppAllowlist(ctx context.Context, t *testing.T, db database.Store, app appWithSecret, allowlist sql.NullString) {
 	t.Helper()
 
@@ -403,8 +398,7 @@ func requireTokenResponse(t *testing.T, status int, body string) codersdk.OAuth2
 }
 
 // requireTokenScopeError asserts an RFC 6749 §5.2 invalid_scope response and
-// returns its description, which is what tells a client or operator which
-// scope was at fault.
+// returns its description.
 func requireTokenScopeError(t *testing.T, status int, body string) string {
 	t.Helper()
 

@@ -70,12 +70,10 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
-// grantableScopes narrows an app's registered allowlist to the names this
-// deployment offers, canonicalized and deduplicated. The stored allowlist may
-// name a scope since removed from the catalog, or never in it; dropping those
-// only ever narrows what can be granted. An empty result means the allowlist
-// grants nothing at all, which negotiation and redemption report differently,
-// so it is returned rather than rejected here.
+// grantableScopes narrows an app's registered allowlist to the catalog names
+// this deployment offers, which only ever narrows what can be granted. An empty
+// result is returned rather than rejected: negotiation and redemption report it
+// differently.
 func grantableScopes(appScope string) []string {
 	allowed := strings.Fields(appScope)
 	filtered := make([]string, 0, len(allowed))
@@ -89,15 +87,11 @@ func grantableScopes(appScope string) []string {
 	return canonicalScopes(filtered)
 }
 
-// firstScopeOutsideAllowlist returns the first scope in granted whose
-// permissions the allowlist does not confer, or "" when it confers all of them.
-// The allowlist is a ceiling on authority, not a menu of spellings, so the check
-// is coverage rather than membership: an app allowed `coder:workspaces.access`
-// covers `workspace:read`. Both arguments must already be canonical.
-//
-// A comparison RBAC cannot answer refuses rather than grants, returning
-// errCoverageUndecidable. The underlying error names RBAC internals, so it goes
-// to the log rather than to the client.
+// firstScopeOutsideAllowlist returns the first scope in granted that the
+// allowlist does not confer, or "" when it confers all of them. The check is
+// coverage rather than membership: an app allowed `coder:workspaces.access`
+// covers `workspace:read`. Both arguments must already be canonical, and an
+// undecidable comparison refuses rather than grants.
 func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, allowlist, granted []string) (string, error) {
 	allowedNames := make([]rbac.ScopeName, 0, len(allowlist))
 	for _, a := range allowlist {

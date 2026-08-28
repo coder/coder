@@ -43,23 +43,18 @@ var (
 	// errUnmintableScope means the scope persisted against a grant names
 	// something no API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
-	// errStaleScope means the app's registered scopes no longer cover the scope
-	// its authorization code was issued with.
+	// errStaleScope means the app's registered scopes narrowed after its
+	// authorization code was issued and no longer cover the code's scope.
 	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes")
 )
 
 // scopeStillCoveredByAllowlist re-checks the scope a grant was issued with
-// against the app's registered scopes as they stand now. An admin can narrow
-// them inside an authorization code's ten minute life, and the code's scope was
-// last checked when it was issued.
-//
-// An app with no registered scopes constrains nothing, so nothing is re-checked.
-// An app that has since gained them is checked against them, since that
-// narrowing is the case this exists for.
+// against the app's registered scopes as they stand now, since an admin can
+// narrow them inside an authorization code's ten minute life.
 //
 // Refresh deliberately does not call this: RFC 6749 §6 bounds a refresh by the
-// scope originally granted, so an allowlist narrowing takes effect at the next
-// authorization rather than silently dropping capability from a live session.
+// scope originally granted, so a narrowing takes effect at the next
+// authorization rather than dropping capability from a live session.
 func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
 	if noScopeAllowlist(app.Scope) {
 		return nil
@@ -67,13 +62,12 @@ func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app d
 
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
-		// An allowlist that grants nothing covers nothing. Named verbatim for
-		// the same reason as in negotiateScope.
+		// Named verbatim for the same reason as in negotiateScope.
 		return xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 
-	// Canonicalized rather than assumed: negotiateScope writes canonical names,
-	// but the row may have been written by another version of this server.
+	// Canonicalized rather than assumed: the row may have been written by
+	// another version of this server.
 	outside, err := firstScopeOutsideAllowlist(ctx, logger, app, allowlist, canonicalScopes(strings.Fields(granted)))
 	if err != nil {
 		return err
@@ -286,8 +280,7 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// The grant is well-formed and its stored scope cannot be honored: it is
-		// not mintable, or the app's registered scopes have narrowed under it. A
+		// The grant is well-formed and its stored scope cannot be honored, so a
 		// defined OAuth2 failure beats a 500.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) || errors.Is(err, errCoverageUndecidable) {
@@ -439,8 +432,6 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 		return codersdk.OAuth2TokenResponse{}, errInvalidResource
 	}
 
-	// The scope was checked against the allowlist when the code was issued, and
-	// an admin can have narrowed it since.
 	if err := scopeStillCoveredByAllowlist(ctx, logger, app, dbCode.Scope); err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
