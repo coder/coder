@@ -58,6 +58,10 @@ interface WorkspacePillProps {
 	sshCommand?: string;
 	folder?: string;
 	onRemoveWorkspace?: () => void;
+	// Rendered inside the +N overflow popover: suppresses the status
+	// tooltip and makes the menu non-modal so one outside click
+	// dismisses both layers.
+	inOverflowPopover?: boolean;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
@@ -67,6 +71,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	sshCommand,
 	folder,
 	onRemoveWorkspace,
+	inOverflowPopover,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -118,6 +123,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	return (
 		<DropdownMenu
 			open={open}
+			modal={!inOverflowPopover}
 			onOpenChange={(next) => {
 				setOpen(next);
 				if (!next) {
@@ -126,9 +132,11 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 				}
 			}}
 		>
-			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+			{/* Sizing (floor, growth, natural-width cap) is owned by the
+			 * wrapper in AgentChatInput; this span just fills it. */}
+			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
 				<Tooltip
-					open={tooltipOpen}
+					open={!inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
 				>
 					<TooltipTrigger asChild>
@@ -137,26 +145,23 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 								type="button"
 								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
+									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									// Heights match the model selector trigger.
+									"h-7 w-full px-2 py-0.5 md:h-auto",
 								)}
 							>
-								<StatusIcon
-									type={effectiveType}
-									className="size-icon-sm shrink-0 md:size-3"
-								/>
-								<span className="hidden min-w-0 truncate md:inline">
-									{workspace.name}
-								</span>
+								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
+								<span className="min-w-0 truncate">{workspace.name}</span>
 								<ChevronDownIcon
 									className={cn(
-										"hidden size-3.5 shrink-0 transition-transform md:block",
+										"size-3.5 shrink-0 transition-transform",
 										open && "rotate-180",
 									)}
 								/>
 							</button>
 						</DropdownMenuTrigger>
 					</TooltipTrigger>
+					{/* Hidden below md: touch focus would stick the tooltip open. */}
 					<TooltipContent className="hidden md:block">
 						{statusLabel}
 					</TooltipContent>
@@ -166,104 +171,115 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				// Above the composer on mobile so the opening press cannot
+				// release onto a menu item.
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{showPortsView ? (
-					<MobilePortsPanel
-						workspace={workspace}
-						agent={agent}
-						host={host}
-						portsData={portsData}
-						onBack={() => {
-							setFocusPortsOnMain(true);
-							setView("main");
-						}}
-					/>
-				) : (
-					<>
-						{hasVSCode && (
-							<VSCodeMenuItem
-								variant="vscode"
-								label="VS Code"
-								workspace={workspace}
-								agent={agent}
-								chatId={chatId}
-								folder={folder}
-								isRunning={isRunning}
-								generateKey={generateKey}
-								isGeneratingKey={isGeneratingKey}
-							/>
-						)}
-						{hasVSCodeInsiders && (
-							<VSCodeMenuItem
-								variant="vscode-insiders"
-								label="VS Code Insiders"
-								workspace={workspace}
-								agent={agent}
-								chatId={chatId}
-								folder={folder}
-								isRunning={isRunning}
-								generateKey={generateKey}
-								isGeneratingKey={isGeneratingKey}
-							/>
-						)}
-						{userApps.map((app) => (
-							<AppMenuItem
-								key={app.id}
-								app={app}
-								workspace={workspace}
-								agent={agent}
-								isRunning={isRunning}
-							/>
-						))}
-						{hasTerminal && (
-							<TerminalMenuItem
-								workspace={workspace}
-								agent={agent}
-								isRunning={isRunning}
-							/>
-						)}
-						{portForwardingEnabled && (
-							<PortsMenuItem
-								workspace={workspace}
-								agent={agent}
-								host={host}
-								portsData={portsData}
-								isRunning={isRunning}
-								isBelowMd={isBelowMd}
-								focusOnMount={focusPortsOnMain}
-								onFocusApplied={() => setFocusPortsOnMain(false)}
-								onSelectInline={() => {
-									setFocusPortsOnMain(false);
-									setView("ports");
-								}}
-							/>
-						)}
-						{hasItemsAboveSeparator && (
-							<DropdownMenuSeparator className="my-1" />
-						)}
-
-						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-						<DropdownMenuItem asChild>
-							<Link to={route} target="_blank" rel="noreferrer">
-								<MonitorIcon className="size-3.5" />
-								View Workspace
-							</Link>
-						</DropdownMenuItem>
-						{onRemoveWorkspace && (
-							<>
+				{/* Scrolls within the capped above-composer height on mobile;
+				 * no-op on desktop. overflow-x-hidden avoids a horizontal
+				 * scrollbar; role=none keeps the wrapper out of the menu's
+				 * ARIA tree. */}
+				<div
+					role="none"
+					className="mobile-full-width-dropdown-scroll-area min-h-0 overflow-x-hidden"
+				>
+					{showPortsView ? (
+						<MobilePortsPanel
+							workspace={workspace}
+							agent={agent}
+							host={host}
+							portsData={portsData}
+							onBack={() => {
+								setFocusPortsOnMain(true);
+								setView("main");
+							}}
+						/>
+					) : (
+						<>
+							{hasVSCode && (
+								<VSCodeMenuItem
+									variant="vscode"
+									label="VS Code"
+									workspace={workspace}
+									agent={agent}
+									chatId={chatId}
+									folder={folder}
+									isRunning={isRunning}
+									generateKey={generateKey}
+									isGeneratingKey={isGeneratingKey}
+								/>
+							)}
+							{hasVSCodeInsiders && (
+								<VSCodeMenuItem
+									variant="vscode-insiders"
+									label="VS Code Insiders"
+									workspace={workspace}
+									agent={agent}
+									chatId={chatId}
+									folder={folder}
+									isRunning={isRunning}
+									generateKey={generateKey}
+									isGeneratingKey={isGeneratingKey}
+								/>
+							)}
+							{userApps.map((app) => (
+								<AppMenuItem
+									key={app.id}
+									app={app}
+									workspace={workspace}
+									agent={agent}
+									isRunning={isRunning}
+								/>
+							))}
+							{hasTerminal && (
+								<TerminalMenuItem
+									workspace={workspace}
+									agent={agent}
+									isRunning={isRunning}
+								/>
+							)}
+							{portForwardingEnabled && (
+								<PortsMenuItem
+									workspace={workspace}
+									agent={agent}
+									host={host}
+									portsData={portsData}
+									isRunning={isRunning}
+									isBelowMd={isBelowMd}
+									focusOnMount={focusPortsOnMain}
+									onFocusApplied={() => setFocusPortsOnMain(false)}
+									onSelectInline={() => {
+										setFocusPortsOnMain(false);
+										setView("ports");
+									}}
+								/>
+							)}
+							{hasItemsAboveSeparator && (
 								<DropdownMenuSeparator className="my-1" />
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onClick={onRemoveWorkspace}
-								>
-									<UnlinkIcon className="size-3.5" />
-									Detach workspace
-								</DropdownMenuItem>
-							</>
-						)}
-					</>
-				)}
+							)}
+
+							{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
+							<DropdownMenuItem asChild>
+								<Link to={route} target="_blank" rel="noreferrer">
+									<MonitorIcon className="size-3.5" />
+									View Workspace
+								</Link>
+							</DropdownMenuItem>
+							{onRemoveWorkspace && (
+								<>
+									<DropdownMenuSeparator className="my-1" />
+									<DropdownMenuItem
+										className="text-content-destructive focus:text-content-destructive"
+										onClick={onRemoveWorkspace}
+									>
+										<UnlinkIcon className="size-3.5" />
+										Detach workspace
+									</DropdownMenuItem>
+								</>
+							)}
+						</>
+					)}
+				</div>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

@@ -52,6 +52,12 @@ type WorkspaceTerminalProps = {
 	onError?: (error: Error) => void;
 	onContentReady?: () => void;
 	reconnectionToken: string;
+	/**
+	 * The session ID correlates all logs, requests, and telemetry for this
+	 * terminal session. Unlike the reconnection token, it is not persisted in
+	 * the URL: a new page load (including a reload) is a new session.
+	 */
+	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
 	renderer?: string;
@@ -83,6 +89,7 @@ export const WorkspaceTerminal = ({
 	onError,
 	onContentReady,
 	reconnectionToken,
+	sessionId,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
 	renderer,
@@ -458,6 +465,7 @@ export const WorkspaceTerminal = ({
 			initialDimensions.width,
 			containerName,
 			containerUser,
+			sessionId,
 		)
 			.then((url) => {
 				if (disposed) {
@@ -504,7 +512,10 @@ export const WorkspaceTerminal = ({
 					if (disposed) {
 						return;
 					}
-					console.error("WebSocket error:", event);
+					console.error("WebSocket error:", {
+						client_session_id: sessionId,
+						event,
+					});
 					terminal.options.disableStdin = true;
 					handleStatusChange("disconnected");
 				});
@@ -550,7 +561,10 @@ export const WorkspaceTerminal = ({
 				if (disposed) {
 					return;
 				}
-				console.error("WebSocket connection failed:", error);
+				console.error("WebSocket connection failed:", {
+					client_session_id: sessionId,
+					error,
+				});
 				reportTerminalError(
 					error instanceof Error ? error : new Error(String(error)),
 				);
@@ -577,6 +591,7 @@ export const WorkspaceTerminal = ({
 		loading,
 		operatingSystem,
 		reconnectionToken,
+		sessionId,
 		refit,
 		terminal,
 	]);

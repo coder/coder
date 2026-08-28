@@ -21,6 +21,7 @@
 				"noStaticElementInteractions": "off"
 			},
 			"correctness": {
+				"noInvalidBuiltinInstantiation": "off", // oxlint owns new-for-builtins
 				"noUnusedImports": "warn",
 				"useUniqueElementIds": "off", // TODO: This is new but we want to fix it
 				"noNestedComponentDefinitions": "off", // TODO: Investigate, since it is used by shadcn components
@@ -68,6 +69,7 @@
 				}
 			},
 			"suspicious": {
+				"noExplicitAny": "off", // oxlint owns no-explicit-any
 				"noArrayIndexKey": "off",
 				"noThenProperty": "off",
 				"noTemplateCurlyInString": "off",
