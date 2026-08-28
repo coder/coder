@@ -4,7 +4,6 @@ import {
 	InfoIcon,
 	PackageIcon,
 	PlayIcon,
-	SquareCheckBigIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import {
@@ -15,7 +14,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { Link as RouterLink } from "react-router";
 import AutoSizer from "react-virtualized-auto-sizer";
 import type { VariableSizeList as List, ListOnScrollProps } from "react-window";
 import type {
@@ -62,7 +60,6 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import {
 	getAgentConnectivityIssues,
 	getAgentScriptIssues,
@@ -156,7 +153,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 	initialMetadata,
 }) => {
 	const { browser_only, workspace_external_agent } = useFeatureVisibility();
-	const aiTasksEnabled = useAITasksEnabled();
 	const appSections = organizeAgentApps(agent.apps);
 	const hasAppsToDisplay =
 		!browser_only || appSections.some((it) => it.apps.length > 0);
@@ -475,17 +471,6 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<h3 className="sr-only">App statuses</h3>
 						<AppStatuses workspace={workspace} agent={agent} />
 					</section>
-				)}
-
-				{aiTasksEnabled && workspace.task_id && (
-					<Button asChild size="sm" variant="outline" className="w-fit">
-						<RouterLink
-							to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
-						>
-							<SquareCheckBigIcon />
-							View task
-						</RouterLink>
-					</Button>
 				)}
 
 				{shouldShowWildcardWarning && <WildcardHostnameWarning />}

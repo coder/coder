@@ -67,7 +67,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	);
 };
 
-export const ScrollBar: React.FC<
+const ScrollBar: React.FC<
 	React.ComponentPropsWithRef<
 		typeof ScrollAreaPrimitive.ScrollAreaScrollbar
 	> & {

@@ -1,5 +1,5 @@
 import { type FC, Fragment, useEffect } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
@@ -12,10 +12,6 @@ import {
 	updateUserNotificationPreferences,
 	userNotificationPreferences,
 } from "#/api/queries/notifications";
-import {
-	preferenceSettings,
-	updatePreferenceSettings,
-} from "#/api/queries/users";
 import type { NotificationTemplate } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
 import {
@@ -32,19 +28,16 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	castNotificationMethod,
-	isTaskNotification,
 	methodIcons,
 	methodLabels,
 	notificationIsDisabled,
 	selectDisabledPreferences,
 } from "#/modules/notifications/utils";
 import type { Permissions } from "#/modules/permissions";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const aiTasksEnabled = useAITasksEnabled();
 	const [
 		disabledPreferences,
 		systemTemplatesByGroup,
@@ -108,11 +101,6 @@ const NotificationsPage: FC = () => {
 		...customTemplatesByGroup.data,
 	};
 
-	const preferencesQuery = useQuery(preferenceSettings());
-	const updatePreferencesMutation = useMutation(
-		updatePreferenceSettings(queryClient),
-	);
-
 	return (
 		<>
 			<title>{pageTitle("Notifications Settings")}</title>
@@ -127,7 +115,7 @@ const NotificationsPage: FC = () => {
 			{ready ? (
 				<div className="flex flex-col gap-8">
 					{Object.entries(allTemplatesByGroup).map(([group, templates]) => {
-						if (!canSeeNotificationGroup(group, permissions, aiTasksEnabled)) {
+						if (!canSeeNotificationGroup(group, permissions)) {
 							return null;
 						}
 
@@ -221,20 +209,6 @@ const NotificationsPage: FC = () => {
 																		},
 																	},
 																);
-
-																// Clear the Tasks page warning dismissal when enabling a task notification
-																// This ensures that if the user disables task notifications again later,
-																// they will see the warning alert again.
-																if (
-																	isTaskNotification(tmpl) &&
-																	checked &&
-																	preferencesQuery.data
-																) {
-																	updatePreferencesMutation.mutate({
-																		...preferencesQuery.data,
-																		task_notification_alert_dismissed: false,
-																	});
-																}
 															}}
 														/>
 														<label
@@ -277,7 +251,6 @@ export default NotificationsPage;
 function canSeeNotificationGroup(
 	group: string,
 	permissions: Permissions,
-	aiTasksEnabled: boolean,
 ): boolean {
 	switch (group) {
 		case "Template Events":
@@ -285,7 +258,7 @@ function canSeeNotificationGroup(
 		case "User Events":
 			return permissions.createUser;
 		case "Task Events":
-			return aiTasksEnabled;
+			return false;
 		case "Workspace Events":
 		case "Chat Events":
 		case "Custom Events":

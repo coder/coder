@@ -70,10 +70,12 @@ const NotificationsPage: FC = () => {
 		customTemplatesByGroup.data != null &&
 		dispatchMethods.data != null;
 	// Combine system and custom notification templates
-	const allTemplatesByGroup = {
-		...systemTemplatesByGroup.data,
-		...customTemplatesByGroup.data,
-	};
+	const allTemplatesByGroup = Object.fromEntries(
+		Object.entries({
+			...systemTemplatesByGroup.data,
+			...customTemplatesByGroup.data,
+		}).filter(([group]) => group !== "Task Events"),
+	);
 	return (
 		<>
 			<title>{pageTitle("Notifications Settings")}</title>

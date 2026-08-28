@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import {
@@ -61,7 +61,6 @@ export const Default: Story = {
 		await Promise.all([
 			// System notification templates
 			canvas.findByRole("switch", { name: "Chat Events" }),
-			canvas.findByRole("switch", { name: "Task Events" }),
 			canvas.findByRole("switch", { name: "Template Events" }),
 			canvas.findByRole("switch", { name: "User Events" }),
 			canvas.findByRole("switch", { name: "Workspace Events" }),
@@ -69,6 +68,8 @@ export const Default: Story = {
 			// Custom notification template
 			canvas.findByRole("switch", { name: "Custom Events" }),
 		]);
+
+		expect(canvas.queryByRole("switch", { name: "Task Events" })).toBeNull();
 	},
 };
 
@@ -184,83 +185,5 @@ export const DisableInvalidTemplate: Story = {
 	],
 	play: async () => {
 		await within(document.body).findByText("Error disabling notification.");
-	},
-};
-
-export const EnablingTaskNotificationClearsAlertDismissal: Story = {
-	parameters: {
-		queries: [
-			{
-				// User notification preferences: empty because user hasn't changed defaults
-				// Task notifications are disabled by default (enabled_by_default: false)
-				key: ["users", MockUserOwner.id, "notifications", "preferences"],
-				data: [],
-			},
-			{
-				// System notification templates: includes task notifications with enabled_by_default: false
-				key: ["notifications", "templates", "system"],
-				data: MockSystemNotificationTemplates,
-			},
-			{
-				key: customNotificationTemplatesKey,
-				data: MockCustomNotificationTemplates,
-			},
-			{
-				key: notificationDispatchMethodsKey,
-				data: MockNotificationMethodsResponse,
-			},
-			{
-				// User preferences: alert was previously dismissed
-				key: ["me", "preferences"],
-				data: {
-					task_notification_alert_dismissed: true,
-					thinking_display_mode: "auto" as const,
-					shell_tool_display_mode: "auto" as const,
-					code_diff_display_mode: "auto" as const,
-					agent_chat_send_shortcut: "enter" as const,
-				},
-			},
-		],
-	},
-	play: async ({ canvasElement, step }) => {
-		const canvas = within(canvasElement);
-
-		// Mock the API call to update notification preferences
-		spyOn(API, "putUserNotificationPreferences").mockResolvedValue([
-			{
-				id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799", // Task Idle
-				disabled: false,
-				updated_at: new Date().toISOString(),
-			},
-		]);
-
-		// Mock the user preferences update to verify the alert dismissal is cleared
-		const updatePreferencesSpy = spyOn(
-			API,
-			"updateUserPreferenceSettings",
-		).mockResolvedValue({
-			task_notification_alert_dismissed: false,
-			thinking_display_mode: "auto",
-			shell_tool_display_mode: "auto",
-			code_diff_display_mode: "auto",
-			agent_chat_send_shortcut: "enter" as const,
-		});
-
-		await step("Enable Task Idle notification", async () => {
-			// Find the Task Idle checkbox by its label text
-			const taskIdleToggle = canvas.getByLabelText("Task Idle");
-
-			// Click to enable it
-			await userEvent.click(taskIdleToggle);
-
-			// Verify the preferences API was called to clear the alert dismissal
-			await waitFor(() => {
-				expect(updatePreferencesSpy).toHaveBeenCalledWith(
-					expect.objectContaining({
-						task_notification_alert_dismissed: false,
-					}),
-				);
-			});
-		});
 	},
 };

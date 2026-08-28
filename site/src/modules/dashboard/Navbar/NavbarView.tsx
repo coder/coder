@@ -1,19 +1,12 @@
 import type { FC } from "react";
-import { useQuery } from "react-query";
 import { NavLink, useLocation } from "react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
-import { useAITasksEnabled } from "#/modules/tasks/useAITasksEnabled";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import {
@@ -83,7 +76,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems
 				className="ml-4 hidden md:flex"
-				user={user}
 				canViewModels={canViewModels}
 				canCreateChat={canCreateChat}
 			/>
@@ -165,14 +157,12 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 interface NavItemsProps {
 	className?: string;
-	user: TypesGen.User;
 	canViewModels: boolean;
 	canCreateChat: boolean;
 }
 
 const NavItems: FC<NavItemsProps> = ({
 	className,
-	user,
 	canCreateChat,
 	canViewModels,
 }) => {
@@ -199,7 +189,6 @@ const NavItems: FC<NavItemsProps> = ({
 			>
 				Templates
 			</NavLink>
-			<TasksNavItem user={user} />
 			{canViewModels && (
 				<NavLink
 					className={({ isActive }) =>
@@ -223,61 +212,6 @@ const NavItems: FC<NavItemsProps> = ({
 		</nav>
 	);
 };
-
-type TasksNavItemProps = {
-	user: TypesGen.User;
-};
-
-const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
-	const canSeeTasks = useAITasksEnabled();
-	const filter: TypesGen.TasksFilter = {
-		owner: user.username,
-	};
-	const { data: idleCount } = useQuery({
-		queryKey: ["tasks", filter],
-		queryFn: () => API.getTasks(filter),
-		refetchInterval: 1_000 * 60,
-		enabled: canSeeTasks,
-		refetchOnWindowFocus: true,
-		initialData: [],
-		select: (data) =>
-			data.filter((task) => task.current_state?.state === "idle").length,
-	});
-
-	if (!canSeeTasks) {
-		return null;
-	}
-
-	return (
-		<NavLink
-			to="/tasks"
-			className={({ isActive }) => {
-				return cn(linkStyles.default, { [linkStyles.active]: isActive });
-			}}
-		>
-			Tasks
-			{idleCount > 0 && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Badge
-							variant="info"
-							size="xs"
-							className="ml-2"
-							aria-label={idleTasksLabel(idleCount)}
-						>
-							{idleCount}
-						</Badge>
-					</TooltipTrigger>
-					<TooltipContent>{idleTasksLabel(idleCount)}</TooltipContent>
-				</Tooltip>
-			)}
-		</NavLink>
-	);
-};
-
-function idleTasksLabel(count: number) {
-	return `You have ${count} ${count === 1 ? "task" : "tasks"} waiting for input`;
-}
 
 function isNavbarLink(link: TypesGen.LinkConfig): boolean {
 	return link.location === "navbar";

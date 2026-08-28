@@ -64,18 +64,11 @@ const estimateFinish = (
 interface WorkspaceBuildProgressProps {
 	workspace: Workspace;
 	transitionStats: TransitionStats;
-	// variant changes how the progress bar is displayed: with the workspace
-	// variant the workspace transition and time remaining are displayed under the
-	// bar aligned to the left and right respectively.  With the task variant the
-	// workspace transition is not displayed and the time remaining is displayed
-	// centered above the bar, and the bar's border radius is removed.
-	variant?: "workspace" | "task";
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	workspace,
 	transitionStats,
-	variant,
 }) => {
 	const job = workspace.latest_build.job;
 	const [progressValue, setProgressValue] = useState<number | undefined>(0);
@@ -123,16 +116,6 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	}
 	return (
 		<div className="px-0.5">
-			{variant === "task" && (
-				<div className="mb-1 text-center">
-					<div
-						className="block text-xs font-semibold text-content-secondary"
-						data-pixel="ignore"
-					>
-						{progressText}
-					</div>
-				</div>
-			)}
 			<LinearProgress
 				data-pixel="ignore"
 				value={progressValue !== undefined ? progressValue : 0}
@@ -146,19 +129,17 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 						: "indeterminate"
 				}
 			/>
-			{variant !== "task" && (
-				<div className="flex mt-2.5 justify-between">
-					<div className="block text-xs font-semibold text-content-secondary">
-						{capitalize(workspace.latest_build.status)} workspace...
-					</div>
-					<div
-						className="block text-xs font-semibold text-content-secondary"
-						data-pixel="ignore"
-					>
-						{progressText}
-					</div>
+			<div className="flex mt-2.5 justify-between">
+				<div className="block text-xs font-semibold text-content-secondary">
+					{capitalize(workspace.latest_build.status)} workspace...
 				</div>
-			)}
+				<div
+					className="block text-xs font-semibold text-content-secondary"
+					data-pixel="ignore"
+				>
+					{progressText}
+				</div>
+			</div>
 		</div>
 	);
 };

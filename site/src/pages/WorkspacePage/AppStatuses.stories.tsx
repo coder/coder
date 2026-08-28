@@ -3,7 +3,6 @@ import { userEvent, within } from "storybook/test";
 import type { WorkspaceAppStatus } from "#/api/typesGenerated";
 import {
 	createTimestamp,
-	MockTaskWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
@@ -19,7 +18,7 @@ const meta: Meta<typeof AppStatuses> = {
 	args: {
 		referenceDate: new Date("2024-03-26T15:15:00Z"),
 		agent: mockAgent(MockWorkspaceAppStatuses),
-		workspace: MockTaskWorkspace,
+		workspace: MockWorkspace,
 	},
 	decorators: [withProxyProvider()],
 };

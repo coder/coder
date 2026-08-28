@@ -84,7 +84,7 @@ export const Events: Story = {
 		await canvas.findByText("Template Events");
 		await canvas.findByText("User Events");
 		await canvas.findByText("Workspace Events");
-		await canvas.findByText("Task Events");
+		await expect(canvas.queryByText("Task Events")).not.toBeInTheDocument();
 
 		// Custom notification template
 		await canvas.findByText("Custom Events");
