@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Share2Icon } from "lucide-react";
+import { type FC, useState } from "react";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -16,7 +20,7 @@ import {
 	withDashboardProvider,
 	withToaster,
 } from "#/testHelpers/storybook";
-import { ChatShareButton } from "./ChatSharingPopover";
+import { ChatSharingPopoverContent } from "./ChatSharingPopover";
 
 const chatId = "chat-1";
 const organizationId = MockDefaultOrganization.id;
@@ -159,9 +163,49 @@ const MobileFrame = (Story: React.FC) => (
 	</div>
 );
 
-const meta: Meta<typeof ChatShareButton> = {
+type ChatSharingHarnessProps = {
+	chatId: string;
+	organizationId: string;
+};
+
+// Mirrors how the chat top bar mounts the popover content: the content is
+// remounted on every open so its queries and local state start fresh.
+const ChatSharingHarness: FC<ChatSharingHarnessProps> = ({
+	chatId,
+	organizationId,
+}) => {
+	const [open, setOpen] = useState(false);
+	const [contentGeneration, setContentGeneration] = useState(0);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			setContentGeneration((generation) => generation + 1);
+		}
+
+		setOpen(nextOpen);
+	};
+
+	return (
+		<Popover open={open} onOpenChange={handleOpenChange}>
+			<PopoverTrigger asChild>
+				<TopbarButton data-testid="chat-share-button">
+					<Share2Icon />
+					Share
+				</TopbarButton>
+			</PopoverTrigger>
+			<ChatSharingPopoverContent
+				key={contentGeneration}
+				chatId={chatId}
+				organizationId={organizationId}
+				open={open}
+			/>
+		</Popover>
+	);
+};
+
+const meta: Meta<typeof ChatSharingHarness> = {
 	title: "pages/AgentsPage/ChatSharingPopover",
-	component: ChatShareButton,
+	component: ChatSharingHarness,
 	decorators: [withAuthProvider, withDashboardProvider],
 	parameters: {
 		user: MockUserOwner,
@@ -173,7 +217,7 @@ const meta: Meta<typeof ChatShareButton> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof ChatShareButton>;
+type Story = StoryObj<typeof ChatSharingHarness>;
 
 export const EmptyACL: Story = {
 	beforeEach: () => mockDialogRequests(),

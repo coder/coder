@@ -163,30 +163,6 @@ export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
 	);
 };
 
-export const PaywallCTA: FC<React.ComponentProps<"a">> = ({
-	children,
-	className,
-	href,
-	target = "_blank",
-	rel = "noreferrer",
-	...props
-}) => {
-	return (
-		<Button asChild>
-			<a
-				href={href}
-				target={target}
-				rel={rel}
-				className={cn("mx-7", className)}
-				{...props}
-			>
-				<ArrowRightIcon aria-hidden="true" />
-				{children}
-			</a>
-		</Button>
-	);
-};
-
 export const PaywallCTALink: FC<LinkProps> = ({
 	children,
 	className,

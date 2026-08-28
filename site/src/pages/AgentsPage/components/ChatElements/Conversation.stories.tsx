@@ -1,15 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Conversation, ConversationItem } from "./Conversation";
+import { ConversationItem } from "./Conversation";
 import { Message, MessageContent } from "./Message";
 import { Shimmer } from "./Shimmer";
 
-const meta: Meta<typeof Conversation> = {
+const meta: Meta<typeof ConversationItem> = {
 	title: "pages/AgentsPage/ChatElements/Conversation",
-	component: Conversation,
+	component: ConversationItem,
 };
 
 export default meta;
-type Story = StoryObj<typeof Conversation>;
+type Story = StoryObj<typeof ConversationItem>;
 
 export const ConversationWithMessages: Story = {
 	render: () => {
@@ -17,7 +17,7 @@ export const ConversationWithMessages: Story = {
 		const assistantItemProps = { role: "assistant" as const };
 
 		return (
-			<Conversation>
+			<div className="flex flex-col gap-5">
 				<ConversationItem {...userItemProps}>
 					<Message className="my-2 w-fit max-w-[min(80vw,80%)]">
 						<MessageContent className="rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm">
@@ -37,7 +37,7 @@ export const ConversationWithMessages: Story = {
 						</MessageContent>
 					</Message>
 				</ConversationItem>
-			</Conversation>
+			</div>
 		);
 	},
 };
@@ -47,7 +47,7 @@ export const LoadingState: Story = {
 		const assistantItemProps = { role: "assistant" as const };
 
 		return (
-			<Conversation>
+			<div className="flex flex-col gap-5">
 				<ConversationItem {...assistantItemProps}>
 					<Message className="w-full">
 						<MessageContent className="whitespace-normal">
@@ -57,7 +57,7 @@ export const LoadingState: Story = {
 						</MessageContent>
 					</Message>
 				</ConversationItem>
-			</Conversation>
+			</div>
 		);
 	},
 };

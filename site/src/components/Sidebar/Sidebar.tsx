@@ -1,5 +1,5 @@
-import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router";
+import type { FC, ReactNode } from "react";
+import { NavLink } from "react-router";
 import { cn } from "#/utils/cn";
 
 interface SidebarProps {
@@ -12,43 +12,6 @@ export const Sidebar: FC<SidebarProps> = ({ className, children }) => {
 		<nav className={cn("w-full lg:w-60 flex-shrink-0", className)}>
 			{children}
 		</nav>
-	);
-};
-
-interface SidebarHeaderProps {
-	avatar: ReactNode;
-	title: ReactNode;
-	subtitle: ReactNode;
-	linkTo?: string;
-}
-
-const titleStyles = {
-	normal:
-		"text-semibold overflow-hidden whitespace-nowrap text-content-primary",
-};
-
-export const SidebarHeader: FC<SidebarHeaderProps> = ({
-	avatar,
-	title,
-	subtitle,
-	linkTo,
-}) => {
-	return (
-		<div className="flex flex-row gap-2 mb-4">
-			{avatar}
-			<div className="overflow-hidden flex flex-col">
-				{linkTo ? (
-					<Link className={cn(titleStyles.normal, "no-underline")} to={linkTo}>
-						{title}
-					</Link>
-				) : (
-					<span className={titleStyles.normal}>{title}</span>
-				)}
-				<span className="text-content-secondary text-sm overflow-hidden overflow-ellipsis">
-					{subtitle}
-				</span>
-			</div>
-		</div>
 	);
 };
 
@@ -75,38 +38,6 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 			}
 		>
 			{children}
-		</NavLink>
-	);
-};
-
-interface SidebarNavItemProps {
-	children?: ReactNode;
-	icon: ElementType;
-	href: string;
-}
-
-export const SidebarNavItem: FC<SidebarNavItemProps> = ({
-	children,
-	href,
-	icon: Icon,
-}) => {
-	return (
-		<NavLink
-			end
-			to={href}
-			className={({ isActive }) =>
-				cn(
-					"block relative text-sm text-inherit mb-px p-3 pl-4 rounded-sm",
-					"transition-colors no-underline hover:bg-surface-secondary",
-					isActive &&
-						"bg-surface-secondary border-0 border-solid border-l-[3px] border-highlight-sky",
-				)
-			}
-		>
-			<div className="flex flex-row gap-3 items-center">
-				<Icon className="size-4" />
-				{children}
-			</div>
 		</NavLink>
 	);
 };
