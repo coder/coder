@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -43,6 +44,32 @@ func setupAIModelPricesCLI(t *testing.T) *codersdk.Client {
 
 func TestAIModelPricesUpdate(t *testing.T) {
 	t.Parallel()
+
+	t.Run("DefaultsConfirmationToYes", func(t *testing.T) {
+		t.Parallel()
+
+		client := setupAIModelPricesCLI(t)
+		path := filepath.Join(t.TempDir(), "prices.json")
+		require.NoError(t, os.WriteFile(path, []byte(aiModelPricesDocument), 0o600))
+
+		inv, conf := newCLI(t, "exp", "ai-model-prices", "update", path)
+		clitest.SetupConfig(t, client, conf) //nolint:gocritic // requires owner
+		pty := ptytest.New(t).Attach(inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		done := make(chan error, 1)
+		go func() {
+			done <- inv.WithContext(ctx).Run()
+		}()
+
+		pty.ExpectMatch(ctx, "Apply?")
+		pty.WriteLine("")
+		require.NoError(t, testutil.RequireReceive(ctx, t, done))
+
+		prices, err := codersdk.NewExperimentalClient(client).ListAIModelPrices(ctx,
+			codersdk.AIModelPricesFilter{Provider: "anthropic", Model: "my-model"})
+		require.NoError(t, err)
+		require.Len(t, prices, 1)
+	})
 
 	t.Run("RejectsInvalidInput", func(t *testing.T) {
 		t.Parallel()
