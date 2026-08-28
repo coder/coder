@@ -2692,6 +2692,11 @@ export const mockApiError = ({
 	},
 });
 
+export const MockCommunityAgentRuntimeHoursFeature: TypesGen.Feature = {
+	enabled: false,
+	entitlement: "not_entitled",
+};
+
 export const MockAgentRuntimeHoursFeature: TypesGen.Feature = {
 	enabled: true,
 	entitlement: "entitled",

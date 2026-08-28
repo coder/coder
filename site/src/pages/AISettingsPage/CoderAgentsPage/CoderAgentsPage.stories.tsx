@@ -10,6 +10,7 @@ import {
 	MockAgentRuntimeHoursFeature,
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockCommunityAgentRuntimeHoursFeature,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockUserOwner,
@@ -18,23 +19,20 @@ import { withAuthProvider } from "#/testHelpers/storybook";
 import CoderAgentsPage from "./CoderAgentsPage";
 
 const actualMs = (10 * 60 + 18) * 60_000;
-const communityRuntimeFeature = {
-	...MockAgentRuntimeHoursFeature,
-	entitlement: "not_entitled",
-	enabled: false,
-	limit: undefined,
-	soft_limit: undefined,
-	hard_limit: undefined,
-	actual: undefined,
-	actual_ms: undefined,
-	usage_period: undefined,
+const zeroHourRuntimeFeature = {
+	...MockCommunityAgentRuntimeHoursFeature,
+	entitlement: "entitled",
+	limit: 0,
+	actual: 0,
+	actual_ms: 0,
+	usage_period: MockAgentRuntimeHoursFeature.usage_period,
 } satisfies Entitlements["features"]["agent_runtime_hours"];
-const entitlementsWithUnrelatedLicense: Entitlements = {
+const entitlementsWithZeroHourAgentRuntime: Entitlements = {
 	...MockEntitlements,
 	has_license: true,
 	features: {
 		...MockEntitlements.features,
-		agent_runtime_hours: communityRuntimeFeature,
+		agent_runtime_hours: zeroHourRuntimeFeature,
 	},
 };
 
@@ -46,7 +44,7 @@ const meta = {
 		(Story) => (
 			<DashboardContext.Provider
 				value={{
-					entitlements: entitlementsWithUnrelatedLicense,
+					entitlements: entitlementsWithZeroHourAgentRuntime,
 					experiments: [],
 					appearance: MockAppearanceConfig,
 					buildInfo: MockBuildInfo,
@@ -73,11 +71,11 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const CommunityUsageWithUnrelatedLicense: Story = {
+export const UsageWithZeroHourLicense: Story = {
 	parameters: {
 		queries: [
 			{
-				key: deploymentAgentTime().queryKey,
+				key: deploymentAgentTime(zeroHourRuntimeFeature.usage_period).queryKey,
 				data: { total_runtime_ms: actualMs },
 			},
 			{
@@ -90,6 +88,7 @@ export const CommunityUsageWithUnrelatedLicense: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Agent hours used")).toBeVisible();
 		await expect(canvas.getByText("10.3 hours")).toBeVisible();
+		await expect(canvas.queryByText("10.3 / 0 hours")).not.toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", {
 				name: "Contact sales to add Agent Runtime",
@@ -108,7 +107,7 @@ export const MalformedUsage: Story = {
 	parameters: {
 		queries: [
 			{
-				key: deploymentAgentTime().queryKey,
+				key: deploymentAgentTime(zeroHourRuntimeFeature.usage_period).queryKey,
 				data: { total_runtime_ms: Number.NaN },
 			},
 			{

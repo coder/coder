@@ -77,7 +77,10 @@ const CoderAgentsPage: FC = () => {
 		updateChatComputerUseProvider(queryClient),
 	);
 	const hasAgentRuntimeLicense = agentRuntimeHoursFeature
-		? agentRuntimeHoursFeature.usage_period !== undefined
+		? agentRuntimeHoursFeature.enabled &&
+			agentRuntimeHoursFeature.usage_period !== undefined &&
+			(agentRuntimeHoursFeature.limit === undefined ||
+				agentRuntimeHoursFeature.limit > 0)
 		: undefined;
 	const isAgentRuntimeUsageUnavailable =
 		agentTimeQuery.data !== undefined &&

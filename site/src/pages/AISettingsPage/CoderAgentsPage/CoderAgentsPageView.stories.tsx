@@ -4,6 +4,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { PREMIUM_PAGE_PATH } from "#/components/Paywall/Paywall";
 import {
 	MockAgentRuntimeHoursFeature,
+	MockCommunityAgentRuntimeHoursFeature,
 	MockDefaultOrganization,
 	MockOrganization2,
 } from "#/testHelpers/entities";
@@ -13,17 +14,6 @@ import {
 } from "./CoderAgentsPageView";
 
 const actualMs = (10 * 60 + 18) * 60_000;
-const communityRuntimeFeature = {
-	...MockAgentRuntimeHoursFeature,
-	entitlement: "not_entitled",
-	enabled: false,
-	limit: undefined,
-	soft_limit: undefined,
-	hard_limit: undefined,
-	actual: undefined,
-	actual_ms: undefined,
-	usage_period: undefined,
-} satisfies CoderAgentsPageViewProps["agentRuntimeHoursFeature"];
 const licensedFiniteRuntimeFeature = {
 	...MockAgentRuntimeHoursFeature,
 	limit: 100,
@@ -56,7 +46,7 @@ const defaultArgs: CoderAgentsPageViewProps = {
 	canEditDeploymentConfig: true,
 	hasDeploymentLicense: false,
 	hasAgentRuntimeLicense: false,
-	agentRuntimeHoursFeature: communityRuntimeFeature,
+	agentRuntimeHoursFeature: MockCommunityAgentRuntimeHoursFeature,
 	agentRuntimeTotalMs: actualMs,
 	isAgentRuntimeUsageLoading: false,
 	isAgentRuntimeUsageUnavailable: false,
