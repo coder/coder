@@ -3408,6 +3408,15 @@ class ExperimentalApiMethods {
 		await this.axios.patch(`/api/v2/chats/${chatId}`, req);
 	};
 
+	reconcileInvalidChatState = async (
+		chatId: string,
+	): Promise<TypesGen.Chat> => {
+		const response = await this.axios.post<TypesGen.Chat>(
+			`/api/v2/chats/${chatId}/reconcile-invalid`,
+		);
+		return response.data;
+	};
+
 	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
 		const response = await this.axios.post<{ title: string }>(
 			`/api/v2/chats/${chatId}/title/propose`,

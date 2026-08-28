@@ -10,6 +10,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
+import { isApiError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
@@ -1227,6 +1228,29 @@ export const chatPromptsQuery = (chatId: string) => ({
 		API.experimental.getChatPrompts(chatId, { limit: PROMPT_HISTORY_LIMIT }),
 	staleTime: PROMPTS_STALE_MS,
 	enabled: chatId !== "",
+});
+
+// Chat mutations reject an unrecoverable execution state with a 409 and this
+// exact message. The response carries no machine-readable code, so the message
+// is the only available discriminator.
+const CHAT_INVALID_STATE_MESSAGE = "Chat is in an invalid state.";
+
+/**
+ * Reports whether a failed chat mutation can be recovered by reconciling the
+ * chat's invalid execution state.
+ */
+export const isChatInvalidStateError = (error: unknown): boolean =>
+	isApiError(error) &&
+	error.response.status === 409 &&
+	error.response.data.message === CHAT_INVALID_STATE_MESSAGE;
+
+export const reconcileInvalidChatState = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) =>
+		API.experimental.reconcileInvalidChatState(chatId),
+	onSuccess: (chat: TypesGen.Chat) => {
+		patchChatEntity(queryClient, chat.id, () => chat);
+		void invalidateChatListQueries(queryClient);
+	},
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({

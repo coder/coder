@@ -79,6 +79,7 @@ import {
 	invalidateChatPrompts,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	isChatInvalidStateError,
 	mcpServerConfigACL,
 	mcpServerConfigACLAvailable,
 	mcpServerConfigACLAvailableKey,
@@ -688,6 +689,38 @@ describe("updateChatTitle cache update", () => {
 			exact: true,
 		});
 		invalidateSpy.mockRestore();
+	});
+});
+
+describe("isChatInvalidStateError", () => {
+	const makeAxiosError = (status: number, message: string) => ({
+		isAxiosError: true,
+		response: { status, data: { message } },
+	});
+
+	it("matches the invalid-state conflict returned by chat mutations", () => {
+		expect(
+			isChatInvalidStateError(
+				makeAxiosError(409, "Chat is in an invalid state."),
+			),
+		).toBe(true);
+	});
+
+	it("ignores other conflicts, other statuses, and non-API errors", () => {
+		expect(
+			isChatInvalidStateError(
+				makeAxiosError(409, "Chat is not in an invalid state."),
+			),
+		).toBe(false);
+		expect(
+			isChatInvalidStateError(
+				makeAxiosError(500, "Chat is in an invalid state."),
+			),
+		).toBe(false);
+		expect(
+			isChatInvalidStateError(new Error("Chat is in an invalid state.")),
+		).toBe(false);
+		expect(isChatInvalidStateError(undefined)).toBe(false);
 	});
 });
 

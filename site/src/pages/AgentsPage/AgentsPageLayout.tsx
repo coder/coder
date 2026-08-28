@@ -31,11 +31,13 @@ import {
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
+	isChatInvalidStateError,
 	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
 	proposeChatTitle,
 	readInfiniteChatsCache,
+	reconcileInvalidChatState,
 	removeChatFromChatsByWorkspace,
 	reorderPinnedChat,
 	shouldInvalidateChatSearches,
@@ -52,6 +54,7 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
@@ -152,6 +155,18 @@ export const chatCostIdToInvalidate = (
 		return undefined;
 	}
 	return getChatCostTreeID(chat);
+};
+
+type InvalidStateRepairAction = "archive" | "unarchive";
+
+const INVALID_STATE_REPAIR_DESCRIPTIONS: Record<
+	InvalidStateRepairAction,
+	string
+> = {
+	archive:
+		"This agent is stuck in an invalid state, so it could not be archived. Repairing moves the agent into an error state and then retries archiving it.",
+	unarchive:
+		"This agent is stuck in an invalid state, so it could not be unarchived. Repairing moves the agent into an error state and then retries unarchiving it.",
 };
 
 const AgentsPageLayout: FC = () => {
@@ -278,6 +293,28 @@ const AgentsPageLayout: FC = () => {
 		});
 	};
 
+	const [pendingInvalidStateRepair, setPendingInvalidStateRepair] = useState<{
+		chatId: string;
+		action: InvalidStateRepairAction;
+	} | null>(null);
+	// A retry that fails with the same invalid state must not reopen the repair
+	// dialog, otherwise the user can loop through repair attempts forever.
+	const repairRetryChatIDRef = useRef<string | undefined>(undefined);
+	const offerInvalidStateRepair = (
+		error: unknown,
+		chatId: string,
+		action: InvalidStateRepairAction,
+	): boolean => {
+		if (
+			!isChatInvalidStateError(error) ||
+			repairRetryChatIDRef.current === chatId
+		) {
+			return false;
+		}
+		setPendingInvalidStateRepair({ chatId, action });
+		return true;
+	};
+
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
@@ -289,6 +326,9 @@ const AgentsPageLayout: FC = () => {
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
+			if (offerInvalidStateRepair(error, chatId, "archive")) {
+				return;
+			}
 			toast.error(getErrorMessage(error, "Failed to archive agent."));
 		},
 	});
@@ -354,9 +394,38 @@ const AgentsPageLayout: FC = () => {
 		...unarchiveChatBase,
 		onError: (error, chatId, context) => {
 			unarchiveChatBase.onError(error, chatId, context);
+			if (offerInvalidStateRepair(error, chatId, "unarchive")) {
+				return;
+			}
 			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
 		},
 	});
+	const repairInvalidStateMutation = useMutation(
+		reconcileInvalidChatState(queryClient),
+	);
+	const handleConfirmInvalidStateRepair = () => {
+		if (!pendingInvalidStateRepair) {
+			return;
+		}
+		const { chatId, action } = pendingInvalidStateRepair;
+		repairInvalidStateMutation.mutate(chatId, {
+			onSuccess: () => {
+				setPendingInvalidStateRepair(null);
+				repairRetryChatIDRef.current = chatId;
+				const retriedMutation =
+					action === "archive" ? archiveAgentMutation : unarchiveAgentMutation;
+				retriedMutation.mutate(chatId, {
+					onSettled: () => {
+						repairRetryChatIDRef.current = undefined;
+					},
+				});
+			},
+			onError: (error) => {
+				setPendingInvalidStateRepair(null);
+				toast.error(getErrorMessage(error, "Failed to repair agent state."));
+			},
+		});
+	};
 	const pinChatBase = pinChat(queryClient);
 	const pinAgentMutation = useMutation({
 		...pinChatBase,
@@ -821,6 +890,20 @@ const AgentsPageLayout: FC = () => {
 				title="Archive agent & delete workspace"
 				verb="Archiving and deleting"
 				info="This will archive the agent and permanently delete the associated workspace and all its resources."
+			/>
+			<ConfirmDialog
+				open={pendingInvalidStateRepair !== null}
+				title="Repair agent state"
+				description={
+					INVALID_STATE_REPAIR_DESCRIPTIONS[
+						pendingInvalidStateRepair?.action ?? "archive"
+					]
+				}
+				confirmText="Repair and retry"
+				confirmLoading={repairInvalidStateMutation.isPending}
+				hideCancel={false}
+				onClose={() => setPendingInvalidStateRepair(null)}
+				onConfirm={handleConfirmInvalidStateRepair}
 			/>
 		</>
 	);

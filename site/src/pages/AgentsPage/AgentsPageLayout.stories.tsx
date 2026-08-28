@@ -973,6 +973,83 @@ export const DeleteConfirmationDialog: Story = {
 	},
 };
 
+const stuckChat = buildChat({
+	id: "chat-invalid-state",
+	title: "Stuck agent",
+	status: "waiting",
+	updated_at: todayTimestamp,
+});
+
+const chatInvalidStateError = {
+	isAxiosError: true,
+	response: {
+		status: 409,
+		data: { message: "Chat is in an invalid state." },
+	},
+};
+
+const mockStuckChatArchive = () => {
+	mockChats([stuckChat]);
+	spyOn(API.experimental, "updateChat")
+		.mockRejectedValueOnce(chatInvalidStateError)
+		.mockResolvedValue(undefined);
+	spyOn(API.experimental, "reconcileInvalidChatState").mockResolvedValue({
+		...stuckChat,
+		status: "error",
+	});
+};
+
+const openRepairDialogFromArchive = async () => {
+	const body = within(document.body);
+	await userEvent.click(
+		await body.findByLabelText("Open actions for Stuck agent"),
+	);
+	await userEvent.click(
+		await body.findByRole("menuitem", { name: "Archive agent" }),
+	);
+	return await body.findByRole("dialog");
+};
+
+export const RepairInvalidStateAndRetryArchive: Story = {
+	beforeEach: mockStuckChatArchive,
+	play: async () => {
+		const dialog = await openRepairDialogFromArchive();
+		await expect(
+			within(dialog).getByText("Repair agent state"),
+		).toBeInTheDocument();
+
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Repair and retry" }),
+		);
+		await waitFor(() => {
+			expect(API.experimental.reconcileInvalidChatState).toHaveBeenCalledWith(
+				stuckChat.id,
+			);
+		});
+		await waitFor(() => {
+			expect(API.experimental.updateChat).toHaveBeenCalledTimes(2);
+		});
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const DismissInvalidStateRepair: Story = {
+	beforeEach: mockStuckChatArchive,
+	play: async () => {
+		const dialog = await openRepairDialogFromArchive();
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Cancel" }),
+		);
+		await waitFor(() => {
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		});
+		expect(API.experimental.reconcileInvalidChatState).not.toHaveBeenCalled();
+		expect(API.experimental.updateChat).toHaveBeenCalledTimes(1);
+	},
+};
+
 export const WithAgentSelected: Story = {
 	beforeEach: () => {
 		mockChats([
