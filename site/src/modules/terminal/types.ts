@@ -1,1 +1,6 @@
-export type ConnectionStatus = "connected" | "disconnected" | "initializing";
+export type ConnectionStatus =
+	| "connected"
+	| "disconnected"
+	| "ended"
+	| "failed"
+	| "initializing";

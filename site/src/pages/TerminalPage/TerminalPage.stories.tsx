@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, fn, waitFor, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -22,12 +22,16 @@ import {
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceAgent,
+	MockWorkspaceApp,
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
 import { isMac } from "#/utils/platform";
 import TerminalPage from "./TerminalPage";
 
-const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
+const createWorkspaceWithAgent = (
+	lifecycle: WorkspaceAgentLifecycle,
+	apps = MockWorkspaceAgent.apps,
+) => {
 	return {
 		key: workspaceByOwnerAndNameKey(
 			MockWorkspace.owner_name,
@@ -40,12 +44,24 @@ const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 				resources: [
 					{
 						...MockWorkspace.latest_build.resources[0],
-						agents: [{ ...MockWorkspaceAgent, lifecycle_state: lifecycle }],
+						agents: [
+							{ ...MockWorkspaceAgent, lifecycle_state: lifecycle, apps },
+						],
 					},
 				],
 			},
 		} satisfies Workspace,
 	};
+};
+
+const commandAppConnections = fn();
+// ExponentialBackoff(1000, 6) schedules its first retry after 2 seconds.
+const firstReconnectDelay = 2_100;
+const commandApp = {
+	...MockWorkspaceApp,
+	slug: "one-shot-command",
+	display_name: "One-shot command",
+	command: "echo done",
 };
 
 const meta = {
@@ -266,6 +282,51 @@ export const BottomMessage: Story = {
 			value: "terminal",
 			isRotated: false,
 		},
+	},
+};
+
+export const CommandAppEnded: Story = {
+	beforeEach: () => {
+		commandAppConnections.mockClear();
+	},
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		reactRouter: reactRouterParameters({
+			location: {
+				pathParams: {
+					username: `@${MockWorkspace.owner_name}`,
+					workspace: MockWorkspace.name,
+				},
+				searchParams: {
+					app: commandApp.slug,
+				},
+			},
+			routing: reactRouterOutlet(
+				{
+					path: "/:username/:workspace/terminal",
+				},
+				<TerminalPage />,
+			),
+		}),
+		webSocketOnConnection: commandAppConnections,
+		webSocket: [
+			{ event: "open" },
+			{ event: "message", data: "done" },
+			{ event: "close" },
+		],
+		queries: [
+			...meta.parameters.queries,
+			createWorkspaceWithAgent("ready", [commandApp]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByRole("alert")).toHaveTextContent(
+			"Terminal session ended. Refresh the session to connect again.",
+		);
+		await new Promise((resolve) => setTimeout(resolve, firstReconnectDelay));
+		await expect(commandAppConnections).toHaveBeenCalledTimes(1);
 	},
 };
 

@@ -76,10 +76,14 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 		if (!isWarm) {
 			return;
 		}
+		// A command may exit while detached, so remounting it could run it again.
+		if (initialCommand) {
+			return;
+		}
 
 		const timer = setTimeout(detachTerminal, TERMINAL_IDLE_DETACH_MS);
 		return () => clearTimeout(timer);
-	}, [isHot, isWarm]);
+	}, [isHot, isWarm, initialCommand]);
 
 	const shouldMountTerminal = Boolean(isHot) || isWarm;
 	const hasSignaledReadyRef = useRef(false);
@@ -92,9 +96,13 @@ export const TerminalPanel: FC<TerminalPanelProps> = ({
 	});
 	const handleStatusChange = (status: ConnectionStatus) => {
 		setConnectionStatus(status);
-		// A dropped connection produces no output, so signal readiness to surface
-		// the terminal alerts instead of waiting on the fallback timer.
-		if (status === "disconnected") {
+		// A dropped or stopped connection may produce no output, so signal readiness
+		// to surface the terminal alert instead of waiting on the fallback timer.
+		if (
+			status === "disconnected" ||
+			status === "ended" ||
+			status === "failed"
+		) {
 			signalReady();
 		}
 	};

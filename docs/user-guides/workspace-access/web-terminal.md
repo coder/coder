@@ -19,9 +19,7 @@ and feature-rich terminal experience in your browser.
 
 - **Instant Access**: Select the terminal icon in your workspace to open a shell
   session
-- **Persistent Sessions**: Sessions are maintained using reconnection tokens,
-  allowing you to resume your terminal even after page refreshes or network
-  interruptions
+- **Persistent Sessions**: Interactive shell sessions reconnect after page refreshes or network interruptions
 - **Full Unicode Support**: Displays international characters and emojis
   correctly
 - **Clickable Links**: Automatically detects and makes URLs clickable
@@ -71,12 +69,21 @@ The connection flow is: Browser ↔ WebSocket ↔ Coder Server ↔ Workspace Age
 
 ### Reconnection & Persistence
 
-The terminal uses reconnection tokens to maintain session state:
+Every terminal session uses a reconnection token to maintain session state.
+The workspace agent keeps the terminal session running and buffers output while the browser is disconnected.
 
-- Each terminal session has a unique UUID
-- If the connection drops, the same token is used to reconnect
-- The workspace agent buffers output during disconnections
-- Your shell session continues running even when the browser is closed
+Interactive shell sessions reconnect automatically.
+If the connection drops, the browser uses the same token to reconnect.
+
+Terminal sessions that start with a command don't reconnect automatically.
+This includes terminal URLs that use `?command=` and template apps that use the `command` attribute in `coder_app`.
+When a command connection closes, the terminal displays the message "Terminal session ended. Refresh the session to connect again."
+If the connection fails, the terminal displays the message "Terminal connection failed. Refresh the session to try again."
+The terminal keeps any received command output visible.
+Select **Refresh session** to reload the page and connect again.
+For `?command=` URLs, select **Run command** in the confirmation dialog again after the page reloads.
+If the command is still running, the terminal reconnects to the existing session.
+If the command has exited, the terminal starts a new session and runs the command again.
 
 ## Customization
 
@@ -166,10 +173,10 @@ the command executes. The user must select **Run command** to proceed or
 **Cancel** to close the terminal window. This prevents external links from
 silently executing arbitrary commands in a workspace.
 
-Template-configured apps that use the `command` attribute in
-[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-are trusted and bypass the confirmation dialog. These apps use the `?app=`
-parameter internally, which resolves the command from the agent's app list.
+Template-configured apps that use the `command` attribute in [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app) are trusted and bypass the confirmation dialog.
+These apps use the `?app=` parameter internally, which resolves the command from the agent's app list.
+
+For the behavior of terminal sessions that start with a command, refer to [Reconnection & Persistence](#reconnection--persistence).
 
 ### Container Selection
 

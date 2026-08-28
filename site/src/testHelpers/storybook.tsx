@@ -111,6 +111,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 
 		constructor(url?: string) {
 			this.#url = url ?? "";
+			parameters.webSocketOnConnection?.(this.#url);
 		}
 
 		send() {}

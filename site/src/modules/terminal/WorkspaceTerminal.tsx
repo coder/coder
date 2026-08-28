@@ -38,6 +38,11 @@ export type WorkspaceTerminalHandle = {
 	refit: () => void;
 };
 
+type StoppedCommandSession = {
+	key: string;
+	status: "ended" | "failed";
+};
+
 type WorkspaceTerminalProps = {
 	ref?: Ref<WorkspaceTerminalHandle>;
 	agentId: string | undefined;
@@ -103,6 +108,9 @@ export const WorkspaceTerminal = ({
 	const terminalWrapperRef = useRef<HTMLDivElement>(null);
 	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	const websocketRef = useRef<Websocket | undefined>(undefined);
+	const stoppedCommandSessionRef = useRef<StoppedCommandSession | undefined>(
+		undefined,
+	);
 	const handleOpenLink = useEffectEvent((uri: string) => {
 		onOpenLink ? onOpenLink(uri) : window.open(uri, "_blank", "noopener");
 	});
@@ -404,8 +412,43 @@ export const WorkspaceTerminal = ({
 			return;
 		}
 
+		const commandSession = initialCommand
+			? JSON.stringify([
+					agentId,
+					reconnectionToken,
+					initialCommand,
+					containerName,
+					containerUser,
+				])
+			: undefined;
+		const stoppedCommandSession = stoppedCommandSessionRef.current;
+		// Reusing a stopped command session can recreate its PTY and rerun the command.
+		if (commandSession && commandSession === stoppedCommandSession?.key) {
+			handleStatusChange(stoppedCommandSession.status);
+			return;
+		}
+
 		terminal.clear();
 		terminal.options.disableStdin = true;
+		const reconnectsAutomatically = !initialCommand;
+		const handleConnectionFailure = () => {
+			if (commandSession) {
+				stoppedCommandSessionRef.current = {
+					key: commandSession,
+					status: "failed",
+				};
+			}
+			handleStatusChange(initialCommand ? "failed" : "disconnected");
+		};
+		const handleConnectionClose = () => {
+			if (commandSession) {
+				stoppedCommandSessionRef.current = {
+					key: commandSession,
+					status: "ended",
+				};
+			}
+			handleStatusChange(initialCommand ? "ended" : "disconnected");
+		};
 
 		if (loading) {
 			return;
@@ -413,7 +456,7 @@ export const WorkspaceTerminal = ({
 
 		if (errorMessage) {
 			terminal.writeln(errorMessage);
-			handleStatusChange("disconnected");
+			handleConnectionFailure();
 			return;
 		}
 
@@ -421,7 +464,7 @@ export const WorkspaceTerminal = ({
 			const error = new Error("Terminal requires agentId to connect");
 			reportTerminalError(error);
 			terminal.writeln(error.message);
-			handleStatusChange("disconnected");
+			handleConnectionFailure();
 			return;
 		}
 
@@ -472,9 +515,11 @@ export const WorkspaceTerminal = ({
 					return;
 				}
 
-				websocket = new WebsocketBuilder(url)
-					.withBackoff(new ExponentialBackoff(1000, 6))
-					.build();
+				const websocketBuilder = new WebsocketBuilder(url);
+				if (reconnectsAutomatically) {
+					websocketBuilder.withBackoff(new ExponentialBackoff(1000, 6));
+				}
+				websocket = websocketBuilder.build();
 				const scheduleTerminalResize = () => {
 					window.setTimeout(() => {
 						if (disposed) {
@@ -496,10 +541,14 @@ export const WorkspaceTerminal = ({
 				};
 				websocket.binaryType = "arraybuffer";
 				websocketRef.current = websocket;
+				let connectionFailed = false;
+				let hasConnected = false;
 				websocket.addEventListener(WebsocketEvent.open, () => {
 					if (disposed) {
 						return;
 					}
+					connectionFailed = false;
+					hasConnected = true;
 					terminal.options = {
 						disableStdin: false,
 						windowsMode: operatingSystem === "windows",
@@ -517,14 +566,19 @@ export const WorkspaceTerminal = ({
 						event,
 					});
 					terminal.options.disableStdin = true;
-					handleStatusChange("disconnected");
+					connectionFailed = true;
+					handleConnectionFailure();
 				});
 				websocket.addEventListener(WebsocketEvent.close, () => {
-					if (disposed) {
+					if (disposed || connectionFailed) {
 						return;
 					}
 					terminal.options.disableStdin = true;
-					handleStatusChange("disconnected");
+					if (initialCommand && !hasConnected) {
+						handleConnectionFailure();
+						return;
+					}
+					handleConnectionClose();
 				});
 				websocket.addEventListener(WebsocketEvent.message, (_, event) => {
 					if (disposed) {
@@ -568,7 +622,7 @@ export const WorkspaceTerminal = ({
 				reportTerminalError(
 					error instanceof Error ? error : new Error(String(error)),
 				);
-				handleStatusChange("disconnected");
+				handleConnectionFailure();
 			});
 
 		return () => {

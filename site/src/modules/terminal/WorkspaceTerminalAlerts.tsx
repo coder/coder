@@ -46,7 +46,11 @@ export const WorkspaceTerminalAlerts = ({
 
 	return (
 		<div ref={wrapperRef}>
-			{status === "disconnected" ? (
+			{status === "ended" ? (
+				<EndedAlert />
+			) : status === "failed" ? (
+				<FailedAlert />
+			) : status === "disconnected" ? (
 				<DisconnectedAlert />
 			) : lifecycleState === "start_error" ? (
 				<ErrorScriptAlert />
@@ -172,8 +176,22 @@ const TerminalAlert: FC<AlertProps> = (props) => {
 	);
 };
 
-// Since the terminal connection is always trying to reconnect, we show this
-// alert to indicate that the terminal is trying to connect.
+const EndedAlert: FC = () => {
+	return (
+		<TerminalAlert severity="info" actions={<RefreshSessionButton />}>
+			Terminal session ended. Refresh the session to connect again.
+		</TerminalAlert>
+	);
+};
+
+const FailedAlert: FC = () => {
+	return (
+		<TerminalAlert severity="warning" actions={<RefreshSessionButton />}>
+			Terminal connection failed. Refresh the session to try again.
+		</TerminalAlert>
+	);
+};
+
 const DisconnectedAlert: FC<AlertProps> = (props) => {
 	return (
 		<TerminalAlert
