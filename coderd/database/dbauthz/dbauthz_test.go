@@ -6101,6 +6101,15 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		})
 		check.Args(code.ID).Asserts(code, policy.ActionDelete)
 	}))
+	s.Run("DeleteOAuth2ProviderAppCodeByIDReturningRow", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		code := dbgen.OAuth2ProviderAppCode(s.T(), db, database.OAuth2ProviderAppCode{
+			AppID:  app.ID,
+			UserID: user.ID,
+		})
+		check.Args(code.ID).Asserts(code, policy.ActionDelete).Returns(code)
+	}))
 	s.Run("DeleteOAuth2ProviderAppCodesByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})

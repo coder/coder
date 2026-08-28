@@ -481,7 +481,12 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, logger slog.
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		err = tx.DeleteOAuth2ProviderAppCodeByID(ctx, dbCode.ID)
+		// The delete decides the race: only the redemption that removes the row
+		// may mint a token, and the loser sees the code as already spent.
+		_, err = tx.DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx, dbCode.ID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return errBadCode
+		}
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app code: %w", err)
 		}

@@ -167,6 +167,9 @@ type sqlcQuerier interface {
 	DeleteOAuth2ProviderAppByClientID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppByID(ctx context.Context, id uuid.UUID) error
 	DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.UUID) error
+	// Returns sql.ErrNoRows when the code is already gone, which lets a caller
+	// enforce single use by racing this delete instead of reading first.
+	DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error)
 	DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error
 	DeleteOAuth2ProviderAppSecretByID(ctx context.Context, id uuid.UUID) error
 	// Filters directly on app_id rather than joining through app_secret_id,

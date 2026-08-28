@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -216,6 +217,57 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 	})
+}
+
+// The redemptions race rather than run in sequence: a sequential pair passes
+// whether or not the delete arbitrates single use.
+func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+	form := tokenExchangeForm(app, code, verifier)
+
+	type exchange struct {
+		status int
+		body   string
+	}
+
+	var barrier sync.WaitGroup
+	barrier.Add(2)
+	redeem := func() exchange {
+		barrier.Done()
+		barrier.Wait()
+		status, body := postTokenRequest(ctx, t, client, form)
+		return exchange{status: status, body: body}
+	}
+
+	other := make(chan exchange, 1)
+	go func() { other <- redeem() }()
+	results := []exchange{redeem(), <-other}
+
+	var minted, rejected int
+	for _, result := range results {
+		switch result.status {
+		case http.StatusOK:
+			minted++
+		case http.StatusBadRequest:
+			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
+			rejected++
+		default:
+			t.Fatalf("unexpected status %d: %s", result.status, result.body)
+		}
+	}
+	require.Equal(t, 1, minted, "a code may mint at most one token")
+	require.Equal(t, 1, rejected)
 }
 
 // appWithSecret is seeded directly because the management API registers no

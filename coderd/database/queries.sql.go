@@ -19224,6 +19224,33 @@ func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uui
 	return err
 }
 
+const deleteOAuth2ProviderAppCodeByIDReturningRow = `-- name: DeleteOAuth2ProviderAppCodeByIDReturningRow :one
+DELETE FROM oauth2_provider_app_codes WHERE id = $1 RETURNING id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, resource_uri, code_challenge, code_challenge_method, state_hash, redirect_uri, scope
+`
+
+// Returns sql.ErrNoRows when the code is already gone, which lets a caller
+// enforce single use by racing this delete instead of reading first.
+func (q *sqlQuerier) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (OAuth2ProviderAppCode, error) {
+	row := q.db.QueryRowContext(ctx, deleteOAuth2ProviderAppCodeByIDReturningRow, id)
+	var i OAuth2ProviderAppCode
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.AppID,
+		&i.ResourceUri,
+		&i.CodeChallenge,
+		&i.CodeChallengeMethod,
+		&i.StateHash,
+		&i.RedirectUri,
+		&i.Scope,
+	)
+	return i, err
+}
+
 const deleteOAuth2ProviderAppCodesByAppAndUserID = `-- name: DeleteOAuth2ProviderAppCodesByAppAndUserID :exec
 DELETE FROM oauth2_provider_app_codes WHERE app_id = $1 AND user_id = $2
 `

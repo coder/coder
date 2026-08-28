@@ -2375,6 +2375,10 @@ func (q *querier) DeleteOAuth2ProviderAppCodeByID(ctx context.Context, id uuid.U
 	return q.db.DeleteOAuth2ProviderAppCodeByID(ctx, id)
 }
 
+func (q *querier) DeleteOAuth2ProviderAppCodeByIDReturningRow(ctx context.Context, id uuid.UUID) (database.OAuth2ProviderAppCode, error) {
+	return fetchAndQuery(q.log, q.auth, policy.ActionDelete, q.db.GetOAuth2ProviderAppCodeByID, q.db.DeleteOAuth2ProviderAppCodeByIDReturningRow)(ctx, id)
+}
+
 func (q *querier) DeleteOAuth2ProviderAppCodesByAppAndUserID(ctx context.Context, arg database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete,
 		rbac.ResourceOauth2AppCodeToken.WithOwner(arg.UserID.String())); err != nil {
