@@ -92,7 +92,7 @@ func newPublisherMetrics(reg prometheus.Registerer) publisherMetrics {
 			Namespace: publisherMetricsNamespace,
 			Subsystem: publisherMetricsSubsystem,
 			Name:      "expired",
-			Help:      "Number of unpublished usage events that expired due to being older than the 30-day publishing window.",
+			Help:      "Number of unpublished usage events aged 30 to 60 days. Events older than 60 days are not counted.",
 		}),
 	}
 }

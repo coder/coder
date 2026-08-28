@@ -29366,6 +29366,7 @@ FROM
     usage_events
 WHERE
     published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
 `
 
 type GetUsageEventsStatsRow struct {
@@ -29374,6 +29375,13 @@ type GetUsageEventsStatsRow struct {
 	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
 }
 
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
 func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
 	var i GetUsageEventsStatsRow

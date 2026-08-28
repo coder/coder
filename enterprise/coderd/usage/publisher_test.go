@@ -68,10 +68,17 @@ func TestIntegration(t *testing.T) {
 	inserter := usage.NewDBInserter(
 		usage.InserterWithClock(clock),
 	)
-	// Insert an old event that should never be published.
+	// Insert an old event that should never be published, but is still
+	// inside the 30-60 day expired stats window.
 	clock.Set(now.Add(-31 * 24 * time.Hour))
 	err := inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
 		Count: 31,
+	})
+	require.NoError(t, err)
+
+	clock.Set(now.Add(-61 * 24 * time.Hour))
+	err = inserter.InsertDiscreteUsageEvent(ctx, db, usagetypes.DCManagedAgentsV1{
+		Count: 61,
 	})
 	require.NoError(t, err)
 
