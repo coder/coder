@@ -913,6 +913,12 @@ type sqlcQuerier interface {
 	// Returns the models used since the given time that hold no price, most used
 	// first. openai-compat providers cannot be priced, so their models are excluded.
 	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
+	// Counts unpublished usage events in the last 60 days:
+	//   pending: created within the last 30 days (still eligible to publish)
+	//   expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+	// Events older than 60 days are ignored so this query stays bounded and the
+	// expired gauge can recover to zero.
+	GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use

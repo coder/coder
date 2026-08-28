@@ -29535,6 +29535,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	return total_runtime_ms, err
 }
 
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
+}
+
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
 INSERT INTO
     usage_events (
