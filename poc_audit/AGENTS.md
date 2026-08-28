@@ -168,3 +168,19 @@ the documents above.
   principal and agent relation. The other two are always written in full, as
   `workspace_agent` and "AI agent". This applies to prose and rendered text,
   and is recommended for source identifiers.
+
+## The corpus-code interpretation
+
+A **corpus-code interpretation** is a written reading of the code as a
+manifestation of the concepts these documents define. It records where code and
+corpus agree as well as where they do not, so that neither has to be rederived
+on each encounter, and code cites it in place of citing the corpus directly.
+"Interpretation" is a licensed short form where context is clear; the word keeps
+its ordinary sense elsewhere in these documents.
+
+**Planning about code is not kept here, and is not kept anywhere in this
+repository.**
+
+**This paragraph stands in for a reference to a draft.** The full definitions
+live outside the repository for the time being, and this is replaced once there
+is a place in this system to hold drafts.
