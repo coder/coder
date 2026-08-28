@@ -228,6 +228,7 @@ func (r *RootCmd) RunWithSubcommands(subcommands []*serpent.Command) {
 			err = exitErr.err
 		}
 		if errors.Is(err, cliui.ErrCanceled) {
+			_, _ = fmt.Fprintln(os.Stderr, "Aborted.")
 			//nolint:revive,gocritic
 			os.Exit(code)
 		}
