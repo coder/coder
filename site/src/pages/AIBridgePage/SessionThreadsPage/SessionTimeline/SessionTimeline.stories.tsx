@@ -1,71 +1,39 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect } from "storybook/test";
+import { expect, fn, userEvent } from "storybook/test";
 import type { AIBridgeThread } from "#/api/typesGenerated";
 import {
 	MockAIBridgeSessionNetworkCalls,
+	MockAIBridgeThread,
 	MockSession,
 } from "#/testHelpers/entities";
 import { SessionTimeline } from "./SessionTimeline";
 
-// A thread with one thinking block and one tool call.
+// The shared single-tool thread, with a prompt that includes the CRF-6
+// negative-assertion string and a token-usage metadata variant.
 const mockThread: AIBridgeThread = {
-	id: "thread-1",
+	...MockAIBridgeThread,
 	prompt:
 		"Can you check what files are in the project and summarize the structure?",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
-	started_at: "2026-03-09T09:28:15.000Z",
-	ended_at: "2026-03-09T09:28:47.000Z",
 	token_usage: {
-		input_tokens: 1240,
-		output_tokens: 320,
-		cache_read_input_tokens: 900,
-		cache_write_input_tokens: 140,
+		...MockAIBridgeThread.token_usage,
 		metadata: { cache_read_input_tokens: 900 },
 	},
-	agentic_actions: [
-		{
-			model: "claude-opus-4-6",
-			token_usage: {
-				input_tokens: 620,
-				output_tokens: 160,
-				cache_read_input_tokens: 450,
-				cache_write_input_tokens: 70,
-				metadata: {},
+	agentic_actions: MockAIBridgeThread.agentic_actions.map((action) => ({
+		...action,
+		thinking: [
+			{
+				text: "The user wants to understand the project structure. I should start by listing the root directory, then drill into interesting sub-directories.",
 			},
-			thinking: [
-				{
-					text: "The user wants to understand the project structure. I should start by listing the root directory, then drill into interesting sub-directories.",
-				},
-			],
-			tool_calls: [
-				{
-					id: "tool-1",
-					interception_id: "interception-1",
-					provider_response_id: "resp-1",
-					server_url: "http://localhost:3000/mcp",
-					tool: "list_directory",
-					injected: false,
-					input: JSON.stringify({ path: "." }),
-					metadata: {},
-					created_at: "2026-03-09T09:28:20.000Z",
-				},
-			],
-		},
-	],
+		],
+	})),
 };
 
 // A second thread with a long prompt and multiple tool calls.
 const mockThreadLong: AIBridgeThread = {
+	...MockAIBridgeThread,
 	id: "thread-2",
 	prompt:
 		"Please refactor the authentication module so that it uses the new token-based flow we discussed. Make sure to update all the related tests and add inline comments explaining the security rationale for each change.",
-	model: "claude-opus-4-6",
-	provider: "anthropic",
-	credential_kind: "centralized",
-	credential_hint: "sk-a...efgh",
 	started_at: "2026-03-09T10:00:00.000Z",
 	ended_at: "2026-03-09T10:05:30.000Z",
 	token_usage: {
@@ -129,6 +97,7 @@ const meta: Meta<typeof SessionTimeline> = {
 		initiator: MockSession.initiator,
 		threads: [mockThread],
 		networkCalls: [],
+		searchQuery: "",
 		hasNextPage: false,
 		isFetchingNextPage: false,
 		onFetchNextPage: noop,
@@ -156,8 +125,192 @@ export const WithNetworkCalls: Story = {
 	},
 };
 
+// A thread whose prompt is long enough to collapse past 200px, with the only
+// match near the end so a search must expand the full prompt to reveal it.
+const longFiller =
+	"Review the deployment pipeline, inspect staging, confirm feature flags, validate the rollout plan, check dashboards, and review escalation paths. ";
+const mockThreadLongPrompt: AIBridgeThread = {
+	...MockAIBridgeThread,
+	id: "thread-3",
+	prompt:
+		longFiller.repeat(16) +
+		"Finally, coordinate the cutover using zebra-relay.",
+	agentic_actions: [],
+};
+
 export const MultipleThreads: Story = {
-	args: { threads: [mockThread, mockThreadLong] },
+	args: { threads: [mockThread, mockThreadLong, mockThreadLongPrompt] },
+	play: async ({ canvas }) => {
+		// With no active query, the long prompt starts collapsed (Show more),
+		// not auto-expanded (Collapse).
+		await expect(
+			await canvas.findByRole("button", { name: "Show more" }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByRole("button", { name: "Collapse" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+// A match past the 200px prompt cutoff expands the full prompt so the bolded
+// match is revealed instead of staying hidden behind the collapse.
+export const SearchExpandsPromptOnMatch: Story = {
+	args: {
+		threads: [mockThreadLongPrompt],
+		searchQuery: "zebra-relay",
+	},
+	play: async ({ canvas }) => {
+		// The bolded match is revealed even though it sits past the cutoff, and
+		// the expanded prompt exposes the Collapse toggle.
+		await expect(canvas.getByText("zebra-relay")).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("button", { name: "Collapse" }),
+		).toBeInTheDocument();
+	},
+};
+
+// Filtering to a tool name keeps only the thread whose agentic loop contains
+// a matching tool call; the loop auto-expands so the tool name is revealed.
+export const SearchFiltersThreads: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		searchQuery: "read_file",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText(
+				"Please refactor the authentication module so that it uses the new token-based flow we discussed. Make sure to update all the related tests and add inline comments explaining the security rationale for each change.",
+			),
+		).toBeInTheDocument();
+		await expect(
+			canvas.queryByText(
+				"Can you check what files are in the project and summarize the structure?",
+			),
+		).not.toBeInTheDocument();
+		expect((await canvas.findAllByText("read_file")).length).toBeGreaterThan(0);
+	},
+};
+
+// A tool-name search hides non-matching tool calls in the multi-tool loop
+// and expands the match.
+export const SearchFiltersToolCalls: Story = {
+	args: {
+		threads: [mockThreadLong],
+		searchQuery: "read_file",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			(await canvas.findAllByText("read_file")).length,
+		).toBeGreaterThan(0);
+		await expect(canvas.queryByText("write_file")).not.toBeInTheDocument();
+		// The loop header counts the matching calls (1), not the thread total (2).
+		await expect(canvas.getByTestId("tool-calls-count")).toHaveTextContent("1");
+	},
+};
+
+// A prompt-only search leaves tool calls alone: the empty match set must not
+// filter them out when the user opens the loop by hand.
+export const SearchPromptMatchKeepsToolCalls: Story = {
+	args: {
+		threads: [mockThreadLong],
+		// "token-based" appears only in the prompt, never in a tool name or
+		// input, so no tool call matches and all of them must still render.
+		searchQuery: "token-based",
+	},
+	play: async ({ canvas }) => {
+		await userEvent.click(
+			canvas.getByRole("button", { name: /agentic loop/i }),
+		);
+		await expect(canvas.getByText("read_file")).toBeInTheDocument();
+		await expect(canvas.getByText("write_file")).toBeInTheDocument();
+	},
+};
+
+// While searching, the network panel header and rows reflect matches only.
+export const SearchFiltersNetworkCalls: Story = {
+	args: {
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "npmjs.org",
+	},
+	play: async ({ canvas }) => {
+		await canvas.findByText("1 match");
+		// Highlighting splits the URL into <strong>/<span> children, so match
+		// the row by its combined text rather than a single text node.
+		const rowByText = (text: string) =>
+			canvas.queryAllByText((_c, el) => el?.textContent === text);
+		await expect(
+			rowByText("https://registry.npmjs.org/lodash").length,
+		).toBeGreaterThan(0);
+		await expect(
+			rowByText("https://api.github.com/repos/coder/coder"),
+		).toHaveLength(0);
+	},
+};
+
+// A query that matches nothing shows a dedicated empty state while keeping the
+// session start/end markers.
+export const SearchNoMatches: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "no-such-event",
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText("No events match your search in the loaded events."),
+		).toBeInTheDocument();
+		await expect(canvas.queryByText("Prompt")).not.toBeInTheDocument();
+	},
+};
+
+// A zero-match query on a session that still has pages to load must not
+// trigger the infinite-scroll cascade, so the empty state is stable.
+export const SearchNoMatchesWithNextPage: Story = {
+	args: {
+		threads: [mockThread, mockThreadLong],
+		networkCallSummary: { total: 4, blocked: 2 },
+		networkCalls: MockAIBridgeSessionNetworkCalls,
+		searchQuery: "no-such-event",
+		hasNextPage: true,
+		isFetchingNextPage: false,
+		onFetchNextPage: fn(),
+	},
+	play: async ({ args, canvas }) => {
+		await expect(
+			canvas.getByText(
+				(_c, el) =>
+					el?.textContent ===
+					"No events match your search in the loaded events. More matches may exist; clear the search to load more.",
+			),
+		).toBeInTheDocument();
+		await expect(args.onFetchNextPage).not.toHaveBeenCalled();
+	},
+};
+
+// When a search has matches but more pages remain, a standalone disclosure
+// reminds the user that the search covers only loaded threads. The text spans
+// multiple JSX lines, so match by normalized combined textContent.
+const normalizeWs = (s: string) => s.replace(/\s+/g, " ").trim();
+
+export const SearchMatchWithNextPageDisclosure: Story = {
+	args: {
+		threads: [mockThread],
+		searchQuery: "list_directory",
+		hasNextPage: true,
+		isFetchingNextPage: false,
+		onFetchNextPage: fn(),
+	},
+	play: async ({ canvas }) => {
+		await expect(
+			canvas.getByText(
+				(_c, el) =>
+					normalizeWs(el?.textContent ?? "") ===
+					"Search covers only the loaded threads. More matches may exist; clear the search to load more.",
+			),
+		).toBeInTheDocument();
+	},
 };
 
 export const FetchingNextPage: Story = {
