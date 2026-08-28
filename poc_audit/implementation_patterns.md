@@ -133,6 +133,69 @@ every entry is line `0`. The primary key is the entry identifier together with
 the line number. A line has no identity of its own, because a line is not a
 thing: it is part of one.
 
+**The lines of one entry have equal status.** The number distinguishes them and
+orders them for implementation convenience; it does not rank them.
+
+### The order comes from a sequence, not from a clock
+
+The total order a journal's entries carry is supplied by a Postgres sequence.
+**A clock cannot supply it, for practical rather than theoretical reasons.**
+Millisecond granularity is inadequate, and **microsecond granularity is not
+enough either in any reasonably high volume system**. Going below the CPU cycle
+time does not rescue it, because two operations on two cores can carry the same
+reading. **Unless collision can be ruled out entirely, time is not a sequence
+number.**
+
+**Advocating a clock as a sequence is a false optimization.** Postgres sequence
+numbers are not expensive and do exactly what is required every single time.
+
+### Every journal has at least one read helper in the entity layer
+
+Helpers encourage modularity, so a journal has one even where its only caller is
+a test, which is the ordinary situation when an entity is new.
+
+**One marker exists; the other conditions are diagnoses.** A helper still being
+built is marked **under development**, the initial case included, so that a
+helper beginning with the status and one acquiring it later look alike. Anything
+unmarked is **in use**, which is the default and is not written down.
+
+Two further conditions are read off the references rather than from a mark. A
+helper referenced only from tests, while other helpers on the same journal are
+called live, is **questionable**. A helper referenced from nothing is a
+**possible orphan**.
+
+### Journal queries take a limit and can be continued
+
+**A query needs a bound on the size of what it returns.** A journal grows
+without limit and a caller cannot receive all of it, which is why limits are
+discussed at all.
+
+**A bound implied by a state machine is not that bound.** Where a machine fixes
+how many entries an entity can accumulate, a query must still not assume the
+figure. To take an example, an entity whose lifecycle is fixed at three stages
+must not be read by a query that expects three entries, and the same holds
+whatever the number is. **A shortfall or an excess is a signal**: at best a
+reconciliation item that can be corrected, at worst the detection of an insider
+threat and an active breach.
+
+So the limit is generic. **Every journal query takes a limit argument**, which
+may default per journal to a number sensible for that journal, and returns
+something like a continuation so that further rows can be fetched when they are
+present.
+
+**Reconciliation and security detection share their mechanisms here.** A
+deviation from the expected path of operation is what both look for; the
+difference is in the cause, which may be a software or hardware fault or may be
+nefarious, and the query cannot presume which.
+
+**Detecting a malformed sequence is a different family of helper from reading
+one.** Neither was written at proof of concept scope. A production system wants
+both, and they belong in the same grouping, which in practice may mean the same
+source file and at minimum the same directory.
+
+**Finding, 2026-08-28.** The proof of concept's own query functions predate this
+position and do not follow it.
+
 ### A journal takes one of two forms, and heterogeneity decides which
 
 `audit_approach.md` defines an entry as a collection of lines under
@@ -894,23 +957,6 @@ ledger row to exist before the entry that records its creation, and the entry
 is the book of original entry. `DEFERRABLE INITIALLY DEFERRED` checks at commit
 rather than at statement time, so the entry can still be written first; the
 option is available whenever the decision is taken.
-
-### Whether every journal gets an entity layer read helper
-
-`coderd/entity/read.go` gives the AI agent journal a read that requests one more
-entry than it will accept and returns an error rather than a truncated set. The
-authorization journal has no equivalent, and its one caller reads the database
-directly.
-
-That is not obviously wrong. The AI agent helper exists because a test needed
-one, and building a parallel for a journal nothing yet reads would be building
-for a caller that does not exist. But it leaves two journals in the same package
-handled two different ways, which is a misalignment between one part of the code
-and another rather than between the code and this corpus.
-
-Whichever way it resolves, it needs a decision and probably a line of
-documentation. `LifecycleEntriesBySubject` also wants renaming: it was named
-when there was one lifecycle, and there are now several.
 
 ### Whether transaction time is relied on for grouping
 

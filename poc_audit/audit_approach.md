@@ -47,9 +47,31 @@ Where purpose or audience matters, the prose says so rather than the name: the
 journal is kept for auditing, or is rendered to an auditor. "Auditable" is
 permissible, being the adjective of the verb.
 
-**Journal.** A book of original entry. The distinction between a journal and a
-log, and why this work needs the former, is the subject of
-`poc_audit/journal_vs_log.md`.
+**Journal.** A book of original entry. Entries are appended to it as operations
+occur and are not altered afterwards, each recording one operation and what it
+was about. The distinction between a journal and a log, and why this work needs
+the former, is the subject of `poc_audit/journal_vs_log.md`.
+
+**Its entries exist in a total order**: one sequence, no ties, in the ordinary
+mathematical sense. The order is carried by entry numbers that are **unique and
+ascending** within the journal, and are not required to be contiguous, which
+relaxes traditional accounting practice. **Each journal has its own sequence,
+independent of every other.** How that property is obtained is an implementation
+matter.
+
+**No ordering relation holds between entries in different journals.** Without
+further elaboration none should be assumed, and an entry number carries nothing
+outside the journal that issued it: **the identity of an entry is the journal
+together with the number.** Numbers drawn from different journals can coincide
+on entries that are unrelated, and can coincide on entries that do belong
+together, so a rule keyed on the number alone is accidentally correct part of
+the time. That is worse than being consistently wrong, because nothing
+distinguishes the cases.
+
+**An entry reference from one journal to another establishes an ordering
+relation between the two entries it connects, and only backwards.** A reference
+is made to an entry that already exists; it does not exist in anticipation of
+one.
 
 **Book of original entry.** The accounting term for a journal's position in the
 sequence of recordkeeping, and the reason the journal is not merely one record
@@ -67,6 +89,22 @@ organized by when its entries were made; a ledger reorganizes the same content
 by the thing each entry concerns, and carries the result of those entries taken
 together. So it holds what is currently true, and every word of it is
 downstream of the journal.
+
+**Fold.** Borrowed from functional programming, where it names the same
+operation. The two traditions emphasise different halves: functional programming
+emphasises the combining function and the order it is applied in, and
+bookkeeping emphasises the accumulated row and whether it can be shown correct.
+**Ours takes both.** The accumulated value is the ledger row, the operation is
+posting, the sequence is the journal in its own order, and the initial value is
+the entity's initial state.
+
+*Further reading.*
+[Fold (higher-order function)](https://en.wikipedia.org/wiki/Fold_(higher-order_function)),
+Wikipedia, retrieved 2026-08-28. Chosen because it treats fold structurally
+rather than in one language. **Read the first two sections and stop before
+evaluation order**; past there it assumes Haskell notation and non-strict
+semantics. It names the combining function and the structure but does not use
+*accumulator* conceptually, only in a table comparing languages.
 
 **A ledger row is the fold of the entries about its subject.** What that fold
 produces depends on what the entries record, which is a property of the entity
