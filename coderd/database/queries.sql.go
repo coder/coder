@@ -6037,6 +6037,13 @@ type GetAuthorizationLifecycleJournalLinesBySubjectRow struct {
 //
 // The self join supplies them. Line zero always exists and always carries them,
 // which the row level checks on those columns enforce.
+//
+// Misalignment line-zero-read-half, 2026-08-28. "Entry level values are written
+// once, on line zero" in poc_audit/implementation_patterns.md says the read half
+// is not expressible, and that nothing can make a query take a later line's
+// values from line 0. This query does exactly that. Recorded rather than
+// resolved: neither side is presumed correct, and the corpus decision may itself
+// have been reached without anticipating the multiline case.
 func (q *sqlQuerier) GetAuthorizationLifecycleJournalLinesBySubject(ctx context.Context, arg GetAuthorizationLifecycleJournalLinesBySubjectParams) ([]GetAuthorizationLifecycleJournalLinesBySubjectRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAuthorizationLifecycleJournalLinesBySubject, arg.Subject, arg.Limit)
 	if err != nil {

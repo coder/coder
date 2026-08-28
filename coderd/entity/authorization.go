@@ -163,6 +163,11 @@ func GrantUniversalAuthorization(ctx context.Context, store database.Store, para
 // express that, which is why there are two. See "Entry level values are written
 // once, on line zero" in poc_audit/implementation_patterns.md.
 //
+// That section is under investigation as of 2026-08-28, as misalignment
+// line-zero-read-half. Its claim that the read half is not expressible is
+// contradicted by GetAuthorizationLifecycleJournalLinesBySubject. The write half
+// described here, two statements for a multiline entry, is not in dispute.
+//
 // store may be a transaction handle, so a lapse can commit with the ending that
 // caused it. Where that ending is not ours to record a sweep has to find it
 // instead, per "Sweeps have three triggers, and never run on the read path" in

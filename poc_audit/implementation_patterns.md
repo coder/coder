@@ -201,6 +201,15 @@ operations do.
 
 ### Entry level values are written once, on line zero
 
+**Under investigation, 2026-08-28, on account of misalignment
+`line-zero-read-half`. Read this section as provisional, despite its placement
+under Established.** One paragraph below is contradicted by shipped
+code, and what is unsettled is wider than which of the two is wrong. The decision
+recorded here was reached without anticipating the multiline case it now has to
+cover, so **the process that produced it is itself part of what is in question**.
+That third side is unusual; most misalignments have only two. The rule stated in
+this section is not withdrawn.
+
 **This is a rule of the denormalized form only.** The normalized form has an
 entry table, which is a place to write such a value once, so nothing below
 applies to it.
@@ -237,6 +246,18 @@ multiline entry.
 
 **The read half is not expressible** and stays documentation: nothing can make
 a query take a later line's values from line `0`.
+
+**Misalignment `line-zero-read-half`, 2026-08-28.**
+`GetAuthorizationLifecycleJournalLinesBySubject`, in
+`coderd/database/queries/authorizationlifecycle.sql`, self joins line `0` onto
+every line it returns, which is what the paragraph above says nothing can do.
+Neither side is presumed correct, and there are three possibilities rather than
+two: the query may be adequate and still violate a deeper principle that
+investigation would surface; the paragraph may simply need replacing; or the
+decision may have been reached badly, the multiline case having arrived after it
+was written. **Both clauses are affected**, the impossibility and the conclusion
+that the rule stays documentation. **The paragraph that follows, on wanting Go
+helpers after the proof of concept, is not in dispute.**
 
 **Post proof of concept this wants helper functions in Go**, so that no call
 site is left to remember which statement to use. The constraints catch a
