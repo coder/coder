@@ -736,7 +736,12 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 
 	err = db.InTx(func(tx database.Store) error {
 		ctx := dbauthz.As(ctx, actor)
-		err = tx.DeleteAPIKeyByID(ctx, prevKey.ID) // This cascades to the token.
+		// The delete decides the race: only the refresh that removes the key may
+		// mint a replacement, and the loser sees the token as already spent.
+		_, err = tx.DeleteAPIKeyByIDReturningRow(ctx, prevKey.ID) // This cascades to the token.
+		if errors.Is(err, sql.ErrNoRows) {
+			return errBadToken
+		}
 		if err != nil {
 			return xerrors.Errorf("delete oauth2 app token: %w", err)
 		}
