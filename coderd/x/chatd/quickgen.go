@@ -288,12 +288,12 @@ func (p *Server) maybeGenerateChatTitle(
 	defer cancel()
 
 	override, overrideErr := p.resolveModelOverride(titleCtx, modelOverrideSpec{
-		context:           titleGenerationOverrideContext,
-		ownerID:           chat.OwnerID,
-		organizationID:    chat.OrganizationID,
-		queryFailure:      modelOverrideFailureModeHard,
-		configFailure:     modelOverrideFailureModeHard,
-		credentialFailure: modelOverrideFailureModeHard,
+		context:         titleGenerationOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeHard,
+		providerFailure: modelOverrideFailureModeHard,
 	})
 	if overrideErr == nil && override.Set {
 		overrideResolved, err := p.resolveModelCall(titleCtx, modelCallSpec{

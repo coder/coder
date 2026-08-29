@@ -24,6 +24,13 @@ const (
 
 var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
 
+// providerLookupError marks linked-provider row lookup failures so they
+// classify under providerFailure rather than configFailure.
+type providerLookupError struct{ err error }
+
+func (e providerLookupError) Error() string { return e.err.Error() }
+func (e providerLookupError) Unwrap() error { return e.err }
+
 type modelOverrideFailureMode int
 
 const (
@@ -32,12 +39,14 @@ const (
 )
 
 type modelOverrideSpec struct {
-	context           string
-	ownerID           uuid.UUID
-	organizationID    uuid.UUID
-	queryFailure      modelOverrideFailureMode
-	configFailure     modelOverrideFailureMode
-	credentialFailure modelOverrideFailureMode
+	context        string
+	ownerID        uuid.UUID
+	organizationID uuid.UUID
+	queryFailure   modelOverrideFailureMode
+	configFailure  modelOverrideFailureMode
+	// providerFailure governs linked-provider failures: provider row lookup
+	// errors and unusable credentials.
+	providerFailure modelOverrideFailureMode
 }
 
 type resolvedModelOverride struct {
@@ -87,7 +96,12 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		override.ModelConfigID,
 	)
 	if err != nil {
-		if spec.configFailure == modelOverrideFailureModeHard {
+		mode := spec.configFailure
+		var lookupErr providerLookupError
+		if errors.As(err, &lookupErr) {
+			mode = spec.providerFailure
+		}
+		if mode == modelOverrideFailureModeHard {
 			label := modelOverrideErrorLabel(spec.context)
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
@@ -143,7 +157,7 @@ func (p *Server) resolveModelOverride(ctx context.Context, spec modelOverrideSpe
 		return resolvedModelOverride{}, xerrors.Errorf("resolve provider API keys: %w", err)
 	}
 	if !userCanUseProviderKeys(providerKeys, providerName) {
-		if spec.credentialFailure == modelOverrideFailureModeHard {
+		if spec.providerFailure == modelOverrideFailureModeHard {
 			return resolved, xerrors.Errorf(
 				"%s model override credentials are unavailable for provider %q",
 				modelOverrideErrorLabel(spec.context),
@@ -215,7 +229,10 @@ func (p *Server) resolveNormalizedProviderForModelConfig(
 		//nolint:gocritic // Provider configuration remains a privileged Chatd read.
 		provider, err := p.db.GetAIProviderByID(dbauthz.AsChatd(ctx), modelConfig.AIProviderID.UUID)
 		if err != nil {
-			return database.ChatModelConfig{}, "", err
+			if errors.Is(err, sql.ErrNoRows) {
+				return database.ChatModelConfig{}, "", err
+			}
+			return database.ChatModelConfig{}, "", providerLookupError{err}
 		}
 		if !provider.Enabled {
 			return database.ChatModelConfig{}, "", sql.ErrNoRows

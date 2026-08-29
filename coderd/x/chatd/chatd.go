@@ -258,12 +258,12 @@ func (p *Server) resolveAdvisorModelOverride(
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
 	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:           advisorOverrideContext,
-		ownerID:           chat.OwnerID,
-		organizationID:    chat.OrganizationID,
-		queryFailure:      modelOverrideFailureModeSoft,
-		configFailure:     modelOverrideFailureModeSoft,
-		credentialFailure: modelOverrideFailureModeHard,
+		context:         advisorOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeSoft,
+		configFailure:   modelOverrideFailureModeSoft,
+		providerFailure: modelOverrideFailureModeHard,
 	})
 	if err != nil {
 		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
@@ -2801,12 +2801,12 @@ func (p *Server) resolveManualTitleModel(
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:           titleGenerationOverrideContext,
-		ownerID:           chat.OwnerID,
-		organizationID:    chat.OrganizationID,
-		queryFailure:      modelOverrideFailureModeHard,
-		configFailure:     modelOverrideFailureModeHard,
-		credentialFailure: modelOverrideFailureModeHard,
+		context:         titleGenerationOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeHard,
+		providerFailure: modelOverrideFailureModeHard,
 	})
 	if overrideErr != nil {
 		if override.Set {
