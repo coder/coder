@@ -4516,25 +4516,21 @@ func TestSubscribeAfterMessageID(t *testing.T) {
 		Content:        thirdContent,
 	})
 
-	// Control: Subscribe with afterMessageID=0 returns ALL messages.
-	allSession := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, 0))
-	require.NotNil(t, allSession)
-	allSnapshot := allSession.InitialSnapshot()
-	allSession.Close()
-
-	allMessages := filterMessageEvents(allSnapshot)
-	require.Len(t, allMessages, 3, "afterMessageID=0 should return all three messages")
-
-	// Subscribe with afterMessageID set to the second message's ID.
-	// Only the third message (inserted after msg2) should appear.
-	partialSession := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, msg2.ID))
-	require.NotNil(t, partialSession)
-	partialSnapshot := partialSession.InitialSnapshot()
-	partialSession.Close()
-
-	partialMessages := filterMessageEvents(partialSnapshot)
-	require.Len(t, partialMessages, 1, "afterMessageID=msg2.ID should return only messages after msg2")
-	require.Equal(t, codersdk.ChatMessageRoleUser, partialMessages[0].Message.Role)
+	for _, tc := range []struct {
+		name    string
+		afterID int64
+		wantLen int
+	}{
+		{name: "all messages", afterID: 0, wantLen: 3},
+		{name: "only messages after msg2", afterID: msg2.ID, wantLen: 1},
+	} {
+		session := chatd.NewSession(replica.StreamSessionConfig(ctx, chat, nil, tc.afterID))
+		require.NotNil(t, session, tc.name)
+		messages := filterMessageEvents(session.InitialSnapshot())
+		session.Close()
+		require.Len(t, messages, tc.wantLen, tc.name)
+		require.Equal(t, codersdk.ChatMessageRoleUser, messages[len(messages)-1].Message.Role, tc.name)
+	}
 }
 
 // filterMessageEvents returns only the Message-type events from a

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -86,11 +87,11 @@ func TestSessionSyncSourcesAndClose(t *testing.T) {
 	}
 	session := NewSession(cfg)
 	require.NotNil(t, session)
-	requireEventTypes(t, session.InitialSnapshot(),
-		codersdk.ChatStreamEventTypeMessage,
-		codersdk.ChatStreamEventTypeStatus,
-		codersdk.ChatStreamEventTypePreviewReset,
-	)
+	snapshot := session.InitialSnapshot()
+	require.Len(t, snapshot, 3)
+	require.Equal(t, codersdk.ChatStreamEventTypeMessage, snapshot[0].Type)
+	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshot[1].Type)
+	require.Equal(t, codersdk.ChatStreamEventTypePreviewReset, snapshot[2].Type)
 
 	state.set(database.Chat{
 		ID:              chatID,
@@ -129,7 +130,10 @@ func TestSessionSyncSourcesAndClose(t *testing.T) {
 	})
 	reconnected := NewSession(cfg)
 	require.NotNil(t, reconnected)
-	require.Equal(t, codersdk.ChatStatusWaiting, receiveSnapshotEvent(t, reconnected.InitialSnapshot(), codersdk.ChatStreamEventTypeStatus).Status.Status)
+	snapshot = reconnected.InitialSnapshot()
+	idx := slices.IndexFunc(snapshot, func(e codersdk.ChatStreamEvent) bool { return e.Type == codersdk.ChatStreamEventTypeStatus })
+	require.GreaterOrEqual(t, idx, 0)
+	require.Equal(t, codersdk.ChatStatusWaiting, snapshot[idx].Status.Status)
 	reconnected.Close()
 }
 
@@ -400,25 +404,6 @@ func receiveSessionEvent(ctx context.Context, t *testing.T, events <-chan coders
 		if event.Type == eventType {
 			return event
 		}
-	}
-}
-
-func receiveSnapshotEvent(t *testing.T, events []codersdk.ChatStreamEvent, eventType codersdk.ChatStreamEventType) codersdk.ChatStreamEvent {
-	t.Helper()
-	for _, event := range events {
-		if event.Type == eventType {
-			return event
-		}
-	}
-	require.FailNow(t, "event not found", "type: %s", eventType)
-	return codersdk.ChatStreamEvent{}
-}
-
-func requireEventTypes(t *testing.T, events []codersdk.ChatStreamEvent, types ...codersdk.ChatStreamEventType) {
-	t.Helper()
-	require.Len(t, events, len(types))
-	for i, typ := range types {
-		require.Equal(t, typ, events[i].Type, "event %d", i)
 	}
 }
 

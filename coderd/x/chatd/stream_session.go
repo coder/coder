@@ -255,14 +255,7 @@ func syncSessionWithRetry(
 }
 
 func waitBeforeSessionSyncRetry(ctx context.Context, clock quartz.Clock, attempt int) bool {
-	delay := streamSyncRetryInitialBackoff
-	for range attempt - 1 {
-		delay *= 2
-		if delay >= streamSyncRetryMaxBackoff {
-			delay = streamSyncRetryMaxBackoff
-			break
-		}
-	}
+	delay := min(streamSyncRetryInitialBackoff<<(attempt-1), streamSyncRetryMaxBackoff)
 	timer := clock.NewTimer(delay, "chatd", "stream-sync-retry")
 	defer timer.Stop()
 	select {
@@ -323,13 +316,11 @@ type streamSyncHint struct {
 type streamDBSnapshot struct {
 	chat database.Chat
 
-	historyChanged  bool
 	changedMessages []database.ChatMessage
 	historyReset    bool
 	fullHistory     []database.ChatMessage
 
-	queueChanged bool
-	queue        []database.ChatQueuedMessage
+	queue []database.ChatQueuedMessage
 
 	actionRequired *codersdk.ChatStreamActionRequired
 }
@@ -383,25 +374,12 @@ func (l *streamLoop) shouldFetch(hint streamSyncHint) bool {
 	if hint.snapshotVersion <= l.state.snapshotVersion {
 		return false
 	}
-	if hint.historyVersion > l.state.historyVersion {
-		return true
-	}
-	if hint.queueVersion > l.state.queueVersion {
-		return true
-	}
-	if hint.retryVersion > l.state.retryVersion {
-		return true
-	}
-	if hint.status != l.state.status {
-		return true
-	}
-	if !nullUUIDEqual(hint.workerID, l.state.workerID) {
-		return true
-	}
-	if hint.generationAttempt != l.state.generationAttempt {
-		return true
-	}
-	return false
+	return hint.historyVersion > l.state.historyVersion ||
+		hint.queueVersion > l.state.queueVersion ||
+		hint.retryVersion > l.state.retryVersion ||
+		hint.status != l.state.status ||
+		!nullUUIDEqual(hint.workerID, l.state.workerID) ||
+		hint.generationAttempt != l.state.generationAttempt
 }
 
 func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, error) {
@@ -415,7 +393,6 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		snapshot.chat = chat
 
 		if chat.HistoryVersion > l.state.historyVersion {
-			snapshot.historyChanged = true
 			snapshot.changedMessages, err = tx.GetChatMessagesByRevisionForStream(ctx, database.GetChatMessagesByRevisionForStreamParams{
 				ChatID:        l.chatID,
 				AfterRevision: l.state.historyVersion,
@@ -441,7 +418,6 @@ func (l *streamLoop) loadDBSnapshot(ctx context.Context) (streamDBSnapshot, erro
 		}
 
 		if chat.QueueVersion > l.state.queueVersion {
-			snapshot.queueChanged = true
 			snapshot.queue, err = tx.GetChatQueuedMessages(ctx, l.chatID)
 			if err != nil {
 				return xerrors.Errorf("get chat queue: %w", err)
@@ -608,11 +584,12 @@ func (l *streamLoop) messageEvents(snapshot streamDBSnapshot) []codersdk.ChatStr
 }
 
 func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
+	fallback := &codersdk.ChatError{
+		Message: "The chat request failed unexpectedly.",
+		Kind:    codersdk.ChatErrorKindGeneric,
+	}
 	if !chat.LastError.Valid || len(chat.LastError.RawMessage) == 0 {
-		return &codersdk.ChatError{
-			Message: "The chat request failed unexpectedly.",
-			Kind:    codersdk.ChatErrorKindGeneric,
-		}
+		return fallback
 	}
 	var payload codersdk.ChatError
 	if err := json.Unmarshal(chat.LastError.RawMessage, &payload); err != nil {
@@ -620,16 +597,13 @@ func (l *streamLoop) chatError(chat database.Chat) *codersdk.ChatError {
 			slog.F("chat_id", l.chatID),
 			slog.Error(err),
 		)
-		return &codersdk.ChatError{
-			Message: "The chat request failed unexpectedly.",
-			Kind:    codersdk.ChatErrorKindGeneric,
-		}
+		return fallback
 	}
 	if payload.Message == "" {
-		payload.Message = "The chat request failed unexpectedly."
+		payload.Message = fallback.Message
 	}
 	if payload.Kind == "" {
-		payload.Kind = codersdk.ChatErrorKindGeneric
+		payload.Kind = fallback.Kind
 	}
 	return &payload
 }
@@ -752,9 +726,6 @@ func (f *streamRelayForwarder) Parts() <-chan StreamPart {
 }
 
 func (f *streamRelayForwarder) Configure(ctx context.Context, target streamRelayTarget) {
-	if f == nil {
-		return
-	}
 	// Drop any pending target so the buffered channel always holds the most
 	// recent configuration.
 	select {
@@ -769,9 +740,6 @@ func (f *streamRelayForwarder) Configure(ctx context.Context, target streamRelay
 }
 
 func (f *streamRelayForwarder) Close() {
-	if f == nil {
-		return
-	}
 	f.closeOnce.Do(func() {
 		f.cancel()
 		<-f.done
@@ -813,12 +781,7 @@ func (f *streamRelayForwarder) loop() {
 		}
 		retryTimer = f.clock.NewTimer(retryBackoff, "chatd", "stream-relay-retry")
 		retryC = retryTimer.C
-		if retryBackoff < streamRelayRetryMaxBackoff {
-			retryBackoff *= 2
-			if retryBackoff > streamRelayRetryMaxBackoff {
-				retryBackoff = streamRelayRetryMaxBackoff
-			}
-		}
+		retryBackoff = min(retryBackoff*2, streamRelayRetryMaxBackoff)
 	}
 	connect := func(ctx context.Context) {
 		stopRetry()
@@ -829,45 +792,31 @@ func (f *streamRelayForwarder) loop() {
 		if f.dialer == nil {
 			return
 		}
-		if session != nil && connected.workerID.Valid && nullUUIDEqual(connected.workerID, target.workerID) {
-			if err := session.SelectEpisode(ctx, target.historyVersion, target.generationAttempt); err != nil {
-				f.logger.Warn(ctx, "failed to select stream parts episode",
+		if session == nil || !connected.workerID.Valid || !nullUUIDEqual(connected.workerID, target.workerID) {
+			closeSession()
+			newSession, err := f.dialer(ctx, StreamPartsDialInput{
+				ChatID:        f.chatID,
+				WorkerID:      target.workerID.UUID,
+				RequestHeader: f.requestHeader.Clone(),
+			})
+			if err != nil {
+				f.logger.Warn(ctx, "failed to dial stream parts relay",
 					slog.F("chat_id", f.chatID),
-					slog.F("history_version", target.historyVersion),
-					slog.F("generation_attempt", target.generationAttempt),
+					slog.F("worker_id", target.workerID.UUID),
 					slog.Error(err),
 				)
-				closeSession()
-				scheduleRetry()
+				// Unrecoverable dial errors (e.g. auth failures) will not
+				// succeed on retry with the same inputs, so wait for the next
+				// configuration instead of scheduling a retry.
+				if !streamPartsDialUnrecoverable(err) {
+					scheduleRetry()
+				}
 				return
 			}
-			connected = target
-			retryBackoff = streamRelayRetryInitialBackoff
-			return
+			session = newSession
+			sessionParts = newSession.Parts()
+			connected = streamRelayTarget{workerID: target.workerID}
 		}
-		closeSession()
-		newSession, err := f.dialer(ctx, StreamPartsDialInput{
-			ChatID:        f.chatID,
-			WorkerID:      target.workerID.UUID,
-			RequestHeader: f.requestHeader.Clone(),
-		})
-		if err != nil {
-			f.logger.Warn(ctx, "failed to dial stream parts relay",
-				slog.F("chat_id", f.chatID),
-				slog.F("worker_id", target.workerID.UUID),
-				slog.Error(err),
-			)
-			// Unrecoverable dial errors (e.g. auth failures) will not
-			// succeed on retry with the same inputs, so wait for the next
-			// configuration instead of scheduling a retry.
-			if !streamPartsDialUnrecoverable(err) {
-				scheduleRetry()
-			}
-			return
-		}
-		session = newSession
-		sessionParts = newSession.Parts()
-		connected = streamRelayTarget{workerID: target.workerID}
 		if err := session.SelectEpisode(ctx, target.historyVersion, target.generationAttempt); err != nil {
 			f.logger.Warn(ctx, "failed to select stream parts episode",
 				slog.F("chat_id", f.chatID),
@@ -974,25 +923,14 @@ func newStreamSyncPoller(
 }
 
 func (p *streamSyncPoller) Start() {
-	if p == nil {
-		return
-	}
 	go p.loop()
 }
 
 func (p *streamSyncPoller) Close() {
-	if p == nil {
-		return
-	}
 	p.cancel()
 }
 
 func (p *streamSyncPoller) Register(chatID uuid.UUID) (<-chan streamSyncHint, func()) {
-	if p == nil {
-		ch := make(chan streamSyncHint)
-		close(ch)
-		return ch, func() {}
-	}
 	subscriber := &streamSyncPollerSubscriber{
 		chatID: chatID,
 		hints:  make(chan streamSyncHint, 1),
