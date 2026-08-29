@@ -2114,18 +2114,7 @@ func (p *Server) DeleteQueued(
 	chatID uuid.UUID,
 	queuedMessageID int64,
 ) error {
-	if chatID == uuid.Nil {
-		return xerrors.New("chat_id is required")
-	}
-
-	machine := p.newChatMachine(chatID)
-	err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		_, err := tx.DeleteQueuedMessage(chatstate.DeleteQueuedMessageInput{
-			QueuedMessageID: queuedMessageID,
-		})
-		return err
-	})
-	return err
+	return (&chatMutator{server: p}).DeleteQueued(ctx, chatID, queuedMessageID)
 }
 
 // PromoteQueued promotes a queued message through the chatstate state
