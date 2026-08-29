@@ -73,15 +73,7 @@ type turnToolset struct {
 	toolNameToConfigID map[string]uuid.UUID
 }
 
-func (t turnToolset) IsExclusive(name string) bool    { return t.exclusiveToolNames[name] }
-func (t turnToolset) IsDynamic(name string) bool      { return t.dynamicToolNames[name] }
-func (t turnToolset) IsBuiltin(name string) bool      { return t.builtinToolNames[name] }
-func (t turnToolset) AllowsInactive(name string) bool { return t.allowInactiveTools[name] }
-func (t turnToolset) StopsAfter(name string) bool     { _, ok := t.stopAfterTools[name]; return ok }
-func (t turnToolset) ConfigID(name string) (uuid.UUID, bool) {
-	id, ok := t.toolNameToConfigID[name]
-	return id, ok
-}
+func (t turnToolset) IsBuiltin(name string) bool { return t.builtinToolNames[name] }
 
 type turnEnvironmentState struct {
 	turn       turnState
@@ -1627,14 +1619,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-func allToolNames(allTools []fantasy.AgentTool) []string {
-	toolNames := make([]string, 0, len(allTools))
-	for _, tool := range allTools {
-		toolNames = append(toolNames, tool.Info().Name)
-	}
-	return toolNames
-}
-
 func isExploreSubagentMode(mode database.NullChatMode) bool {
 	return mode.Valid && mode.ChatMode == database.ChatModeExplore
 }
@@ -1787,19 +1771,6 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	return toolNames
 }
 
-// allowedBehaviorToolNames runs only on non-plan turns because
-// appendDynamicTools returns early for plan mode. Within that boundary,
-// Explore mode wins over the default behavior that allows all tools.
-func allowedBehaviorToolNames(
-	allTools []fantasy.AgentTool,
-	chatMode database.NullChatMode,
-) []string {
-	if isExploreSubagentMode(chatMode) {
-		return allowedExploreToolNames(allTools)
-	}
-	return allToolNames(allTools)
-}
-
 func stopAfterPlanTools(
 	planMode database.NullChatPlanMode,
 	parentChatID uuid.NullUUID,
@@ -1898,34 +1869,6 @@ func buildSystemPrompt(
 		}
 	}
 	return prompt
-}
-
-func removeSkillIndexMessages(prompt []fantasy.Message) []fantasy.Message {
-	out := make([]fantasy.Message, 0, len(prompt))
-	removed := false
-	for _, message := range prompt {
-		if isSkillIndexMessage(message) {
-			removed = true
-			continue
-		}
-		out = append(out, message)
-	}
-	if !removed {
-		return prompt
-	}
-	return out
-}
-
-func isSkillIndexMessage(message fantasy.Message) bool {
-	if message.Role != fantasy.MessageRoleSystem || len(message.Content) != 1 {
-		return false
-	}
-	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
-	if !ok {
-		return false
-	}
-	text := strings.TrimSpace(textPart.Text)
-	return strings.HasPrefix(text, chattool.AvailableSkillsOpenTag+"\n") && strings.HasSuffix(text, chattool.AvailableSkillsCloseTag)
 }
 
 type turnEnvironmentBuilder struct {
@@ -2136,15 +2079,8 @@ func appendDynamicTools(
 		}
 	}
 
-	activeToolNames := make(map[string]struct{}, len(tools))
-	for _, name := range allowedBehaviorToolNames(tools, chatMode) {
-		activeToolNames[name] = struct{}{}
-	}
 	for _, t := range tools {
 		info := t.Info()
-		if _, active := activeToolNames[info.Name]; !active {
-			continue
-		}
 		if dynamicToolNames[info.Name] {
 			logger.Warn(ctx, "dynamic tool name collides with built-in tool, built-in takes precedence",
 				slog.F("tool_name", info.Name))

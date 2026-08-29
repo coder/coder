@@ -810,40 +810,6 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, chattool.FindToolsName)
 }
 
-func TestAllowedBehaviorToolNames(t *testing.T) {
-	t.Parallel()
-
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	allTools := makeTools("read_file", "custom_tool", "spawn_agent")
-	exploreMode := database.NullChatMode{
-		ChatMode: database.ChatModeExplore,
-		Valid:    true,
-	}
-
-	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file", "custom_tool", "spawn_agent"}, allowedBehaviorToolNames(
-			allTools,
-			database.NullChatMode{},
-		))
-	})
-
-	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
-			allTools,
-			exploreMode,
-		))
-	})
-}
-
 func TestStopAfterPlanTools(t *testing.T) {
 	t.Parallel()
 
@@ -1817,53 +1783,6 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	require.ErrorIs(t, err, skillspkg.ErrSkillAmbiguous)
 	require.ErrorContains(t, err, "personal/deploy")
 	require.ErrorContains(t, err, "workspace/deploy")
-}
-
-func TestSkillIndexRefreshReplacesStaleAliases(t *testing.T) {
-	t.Parallel()
-
-	initialResolved := mergeTurnSkills(
-		[]skillspkg.Skill{{
-			Name:        "deploy",
-			Description: "Personal deployment process",
-			Source:      skillspkg.SourcePersonal,
-		}},
-		nil,
-	)
-	prompt := buildSystemPrompt(
-		[]fantasy.Message{{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: "Create a workspace."},
-			},
-		}},
-		"",
-		"",
-		initialResolved,
-		"",
-		systemPromptBehaviorContext{},
-	)
-
-	mergedIndex := chattool.FormatResolvedSkillIndex(mergeTurnSkills(
-		[]skillspkg.Skill{{
-			Name:        "deploy",
-			Description: "Personal deployment process",
-			Source:      skillspkg.SourcePersonal,
-		}},
-		[]chattool.SkillMeta{{
-			Name:        "deploy",
-			Description: "Workspace deployment process",
-			Dir:         "/skills/deploy",
-		}},
-	))
-	prompt = removeSkillIndexMessages(prompt)
-	prompt = chatprompt.InsertSystem(prompt, mergedIndex)
-
-	text := systemPromptText(t, prompt)
-	require.Equal(t, 1, strings.Count(text, "<available-skills>"))
-	require.NotContains(t, text, "\n- deploy: Personal deployment process")
-	require.Contains(t, text, "- personal/deploy: Personal deployment process")
-	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
 }
 
 func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
