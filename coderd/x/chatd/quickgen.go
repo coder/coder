@@ -180,12 +180,12 @@ func (p *Server) resolveQuickgenModel(
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
 	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
-		context:           titleGenerationOverrideContext,
-		ownerID:           chat.OwnerID,
-		organizationID:    chat.OrganizationID,
-		queryFailure:      modelOverrideFailureModeHard,
-		configFailure:     modelOverrideFailureModeHard,
-		credentialFailure: modelOverrideFailureModeHard,
+		context:         titleGenerationOverrideContext,
+		ownerID:         chat.OwnerID,
+		organizationID:  chat.OrganizationID,
+		queryFailure:    modelOverrideFailureModeHard,
+		configFailure:   modelOverrideFailureModeHard,
+		providerFailure: modelOverrideFailureModeHard,
 	})
 	if overrideErr != nil {
 		if override.Set {
