@@ -81,15 +81,15 @@ func (m *chatMutator) SendMessage(
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("load chat for user_prompt_submit: %w", err)
 		}
-		// Repeat these admission checks under the transaction lock.
+		// Hooks run before the transaction, so admission is rechecked.
 		if chat.Archived {
 			return SendMessageResult{}, ErrChatArchived
 		}
 		if _, err := resolveSendMessageModelConfigID(ctx, m.server.db, chat, opts.ModelConfigID); err != nil {
 			return SendMessageResult{}, err
 		}
-		// Check queue capacity before dispatch; the transaction
-		// rechecks it under lock.
+		// Avoid dispatching hooks for a known-full queue; the transaction
+		// rechecks it.
 		queuedCount, err := m.server.db.CountChatQueuedMessages(ctx, opts.ChatID)
 		if err != nil {
 			return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
@@ -160,8 +160,6 @@ func (m *chatMutator) SendMessage(
 			messageCreatedBy = lockedChat.OwnerID
 		}
 
-		// Queue capacity is enforced inside tx.SendMessage; this
-		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      message,
@@ -175,14 +173,10 @@ func (m *chatMutator) SendMessage(
 			result.Queued = true
 			result.QueuedMessage = sendResult.QueuedMessage
 		} else if len(sendResult.InsertedMessages) > 0 {
-			// The state machine prepends synthetic tool-result
-			// cancellation messages; the user message is always
-			// last in the inserted slice.
+			// When the message is not queued, cancellation rows precede it.
 			result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
 		}
-		// A queued send on an errored chat can also promote the
-		// previous queue head into history; report those inserts so
-		// clients can update their caches.
+		// Queued sends may also insert history rows.
 		result.InsertedMessages = sendResult.InsertedMessages
 
 		// File-link errors must roll back the message.
@@ -218,7 +212,7 @@ func (m *chatMutator) EditMessage(
 		if err != nil {
 			return EditMessageResult{}, xerrors.Errorf("load chat for edit hooks: %w", err)
 		}
-		// Repeat these admission checks under the transaction lock.
+		// Hooks run before the transaction, so admission is rechecked.
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
@@ -278,9 +272,7 @@ func (m *chatMutator) EditMessage(
 			return err
 		}
 		if !modelOverride.Valid {
-			// Without an explicit override the transition preserves
-			// the edited message's original model, which may have been
-			// disabled since; resolve it like a normal message send.
+			// The original model may be disabled, so use the normal fallback path.
 			preserved := uuid.Nil
 			if target.ModelConfigID.Valid {
 				preserved = target.ModelConfigID.UUID
@@ -298,10 +290,8 @@ func (m *chatMutator) EditMessage(
 		if modelOverride.Valid {
 			modelConfigID = modelOverride.UUID
 		}
-		// The prompt response already rides in the replacement content;
-		// only the session_start(clear) response needs transcript rows.
-		// They insert after the replacement so a later edit's suffix
-		// truncation cleans them up.
+		// The replacement already contains the prompt response. Append only the
+		// session-start response so later edits discard it with the suffix.
 		suffixMessages, err := chathooks.EventMessages(sessionStartHookResult, modelConfigID)
 		if err != nil {
 			return err
@@ -341,14 +331,9 @@ func (m *chatMutator) EditMessage(
 
 	result.Chat = refreshed
 
-	// Editing can race with an interrupted worker still flushing its
-	// final debug writes. Run a short bounded retry loop so we converge
-	// quickly without relying on the much longer stale-finalization
-	// sweep. Source editCutoff from the DB-stamped updated_at returned
-	// by the post-edit chat row so the filter uses the same clock that
-	// stamps replacement-turn debug rows; subtract
-	// debugCleanupClockSkew so replica clock drift cannot let the retry
-	// delete a replacement turn's debug rows.
+	// An interrupted worker may write stale debug rows after the edit. Use the
+	// database timestamp with a skew allowance so retries do not delete rows
+	// from the replacement turn.
 	editCutoff := refreshed.UpdatedAt.Add(-debugCleanupClockSkew)
 	m.server.scheduleDebugCleanup(
 		ctx,
@@ -514,11 +499,6 @@ func (m *chatMutator) SubmitToolResults(
 	return nil
 }
 
-// translateToolResultValidationError converts a chatstate tool-result
-// validation error into the legacy chatd.ToolResultValidationError
-// shape so HTTP handlers preserve their existing response detail. If
-// err is not a tool-result validation error, it is returned
-// unchanged.
 func translateToolResultValidationError(err error) error {
 	var v *chatstate.ToolResultValidationError
 	if !errors.As(err, &v) {
@@ -577,16 +557,14 @@ func (m *chatMutator) CompactChat(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
-		// Run the transition before content and usage validation so busy
-		// chats surface the state conflict first.
+		// Run the transition first so busy chats report a state conflict before
+		// no-op validation.
 		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 		if err != nil {
 			return err
 		}
-		// Reject requests with nothing to compact inside the same
-		// transaction (rolling back the transition) so no LLM call
-		// is ever started for an empty or already-compacted chat.
-		// This also covers a double-/compact.
+		// Validate compactable history in the transaction so no-op requests roll
+		// back before starting an LLM call.
 		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -624,9 +602,8 @@ func (m *chatMutator) ClearChat(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
-		// Read the pre-clear history before the transition inserts the
-		// boundary rows; eligibility is evaluated afterwards so busy
-		// chats surface the state conflict first.
+		// Read history before adding the boundary, but transition first so busy
+		// chats report a state conflict before no-op validation.
 		messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  chat.ID,
 			AfterID: 0,
@@ -645,8 +622,8 @@ func (m *chatMutator) ClearChat(
 		if err != nil {
 			return err
 		}
-		// Reject no-op clears inside the same transaction so an empty
-		// or already-cleared chat never gains a duplicate boundary.
+		// Validate clearable history in the transaction so no-op requests cannot
+		// add a duplicate boundary.
 		boundary := latestContextBoundaryIndex(messages)
 		if !hasClearableMessageAfter(messages, boundary) {
 			return ErrNothingToClear
