@@ -372,12 +372,8 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
-// childSubagentChatOptions carries per-child overrides for subagent chat
-// creation. modelConfigIDOverride, reasoningEffortOverride, and
-// planModeOverride apply to any subagent. inheritedMCPServerIDs is an
-// Explore-only snapshot of the spawning parent turn's effective external MCP
-// entitlement. resolveExploreToolSnapshot computes and persists it on the
-// child chat. Non-Explore children ignore this field.
+// childSubagentChatOptions includes the filtered MCP snapshot inherited by
+// Explore children; other children ignore inheritedMCPServerIDs.
 type childSubagentChatOptions struct {
 	chatMode                database.NullChatMode
 	systemPrompt            string
@@ -387,16 +383,8 @@ type childSubagentChatOptions struct {
 	inheritedMCPServerIDs   []uuid.UUID
 }
 
-// resolveExploreToolSnapshot computes the child chat's inherited MCP
-// server snapshot from the spawning parent turn.
-//
-// The MCP set is filtered in two stages. First,
-// filterExternalMCPConfigsForTurn applies the parent turn's plan-mode
-// policy to the parent's MCP configs, producing visibleConfigs. Second,
-// if the parent is itself an Explore child, the visible set is narrowed to
-// the parent's persisted MCPServerIDs so an Explore chain cannot
-// re-escalate beyond the original grant. Non-Explore parents pass
-// through the second stage unchanged.
+// resolveExploreToolSnapshot applies the parent's plan-mode filter and, for
+// Explore parents, its persisted snapshot so descendants cannot re-escalate access.
 func (m *SubagentManager) resolveExploreToolSnapshot(
 	ctx context.Context,
 	parent database.Chat,
@@ -413,9 +401,6 @@ func (m *SubagentManager) resolveExploreToolSnapshot(
 			parent.PlanMode,
 			parent.ParentChatID,
 		)
-		// Empty means the parent is not Explore, so all plan-filtered
-		// configs remain eligible. Populated means the parent is
-		// Explore, so only its persisted snapshot can pass.
 		allowedParentIDs := map[uuid.UUID]struct{}{}
 		if isExploreSubagentMode(parent.Mode) {
 			for _, id := range parent.MCPServerIDs {
@@ -599,10 +584,6 @@ func (m *SubagentManager) createChildSubagentChatWithOptions(
 
 	child := result.Chat
 
-	// Pin the child to its agent's latest context snapshot, mirroring the
-	// top-level create path. The child shares the parent's workspace agent,
-	// so this reproduces the parent's workspace context without copying it
-	// through chat history.
 	m.server.hydrateChatContextOnCreate(ctx, child)
 
 	m.server.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
@@ -623,7 +604,6 @@ func (m *SubagentManager) awaitSubagentCompletion(
 		return database.Chat{}, "", ErrSubagentNotDescendant
 	}
 
-	// Check immediately before entering the poll loop.
 	targetChat, report, done, checkErr := m.checkSubagentCompletion(ctx, targetChatID)
 	if checkErr != nil {
 		return database.Chat{}, "", checkErr
@@ -686,10 +666,7 @@ func (m *SubagentManager) awaitSubagentCompletion(
 	}
 }
 
-// handleSubagentDone translates a completed subagent check into the
-// appropriate return value. An error-status chat is returned as a typed
-// subagentStatusError that carries the chat and report so the
-// wait_agent handler can surface a structured, recoverable-aware payload.
+// handleSubagentDone preserves error chat context for structured tool responses.
 func handleSubagentDone(
 	chat database.Chat,
 	report string,
@@ -708,17 +685,10 @@ func handleSubagentDone(
 	return chat, report, nil
 }
 
-// subagentGenericErrorMessage matches the normalized fallback that
-// chaterror and db2sdk emit for unclassifiable failures. It carries no
-// actionable information, so a provider detail replaces it entirely.
+// subagentGenericErrorMessage carries no actionable detail, so provider detail replaces it.
 const subagentGenericErrorMessage = "The chat request failed unexpectedly."
 
-// subagentLastError decodes a chat's last_error payload and builds the
-// message surfaced to the parent model, preferring the actionable
-// provider detail. The content mirrors what the chat UI renders from
-// the same payload. An unrecognized payload yields an empty message so
-// the caller falls back to its own status reason instead of exposing
-// raw stored bytes.
+// subagentLastError mirrors the chat UI's error text and ignores invalid payloads.
 func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) {
 	if !raw.Valid {
 		return nil, ""
@@ -739,8 +709,6 @@ func subagentLastError(raw pqtype.NullRawMessage) (*codersdk.ChatError, string) 
 	}
 }
 
-// waitAgentSuccessResult stops and stores the recording (if active) and
-// builds the normal completion payload for a wait_agent call.
 func (m *SubagentManager) waitAgentSuccessResult(
 	ctx context.Context,
 	recordingID string,
@@ -779,10 +747,7 @@ func (m *SubagentManager) checkSubagentCompletion(
 		return database.Chat{}, "", false, xerrors.Errorf("get chat: %w", err)
 	}
 
-	// interrupting is transient: the worker transitions it to
-	// waiting (no queued messages) or running (queued messages).
-	// Treat it as not-done so the agent settles before
-	// classification, avoiding stale partial output.
+	// Wait for interrupting chats to settle before classifying their result.
 	if chat.Status == database.ChatStatusRunning ||
 		chat.Status == database.ChatStatusInterrupting {
 		return chat, "", false, nil
@@ -830,9 +795,7 @@ func latestSubagentAssistantMessage(
 	return "", nil
 }
 
-// isSubagentDescendant reports whether targetChatID is a descendant
-// of ancestorChatID by walking up the parent chain from the target.
-// This is O(depth) DB queries instead of O(nodes) BFS.
+// isSubagentDescendant walks parent links from target to ancestor in O(depth) queries.
 func isSubagentDescendant(
 	ctx context.Context,
 	store database.Store,
@@ -844,7 +807,7 @@ func isSubagentDescendant(
 	}
 
 	currentID := targetChatID
-	visited := map[uuid.UUID]struct{}{} // cycle protection
+	visited := map[uuid.UUID]struct{}{}
 	for {
 		if _, seen := visited[currentID]; seen {
 			return false, nil
@@ -854,12 +817,12 @@ func isSubagentDescendant(
 		chat, err := store.GetChatByID(ctx, currentID)
 		if err != nil {
 			if xerrors.Is(err, sql.ErrNoRows) {
-				return false, nil // chain broken; not a confirmed descendant
+				return false, nil
 			}
 			return false, xerrors.Errorf("get chat %s: %w", currentID, err)
 		}
 		if !chat.ParentChatID.Valid {
-			return false, nil // reached root without finding ancestor
+			return false, nil
 		}
 		if chat.ParentChatID.UUID == ancestorChatID {
 			return true, nil
@@ -888,18 +851,9 @@ func subagentFallbackChatTitle(message string) string {
 		title += "..."
 	}
 
-	return subagentTruncateRunes(title, maxRunes)
-}
-
-func subagentTruncateRunes(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
+	runes := []rune(title)
+	if len(runes) > maxRunes {
+		return string(runes[:maxRunes])
 	}
-
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-
-	return string(runes[:maxRunes])
+	return title
 }

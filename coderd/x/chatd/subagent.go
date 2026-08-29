@@ -898,8 +898,7 @@ func subagentManagerToolResponse(result any, err error) (fantasy.ToolResponse, e
 	if err == nil {
 		return toolJSONResponse(result), nil
 	}
-	var managerErr *subagentManagerError
-	if errors.As(err, &managerErr) {
+	if managerErr, ok := errors.AsType[*subagentManagerError](err); ok {
 		return subagentErrorResponse(managerErr.err, managerErr.chat), nil
 	}
 	return fantasy.NewTextErrorResponse(err.Error()), nil
