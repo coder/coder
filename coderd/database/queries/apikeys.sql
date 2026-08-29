@@ -92,6 +92,15 @@ DELETE FROM
 WHERE
 	id = $1;
 
+-- name: DeleteAPIKeyByIDReturningRow :one
+-- Returns sql.ErrNoRows when the key is already gone, which lets a caller
+-- enforce single use by racing this delete instead of reading first.
+DELETE FROM
+	api_keys
+WHERE
+	id = $1
+RETURNING *;
+
 -- name: DeleteApplicationConnectAPIKeysByUserID :exec
 DELETE FROM
 	api_keys

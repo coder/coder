@@ -19386,6 +19386,22 @@ func TestSingleUseDelete(t *testing.T) {
 		_, err = db.DeleteOAuth2ProviderAppCodeByID(ctx, code.ID)
 		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
+
+	t.Run("APIKey", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+		deleted, err := db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.NoError(t, err)
+		require.Equal(t, key, deleted)
+
+		_, err = db.DeleteAPIKeyByIDReturningRow(ctx, key.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
 }
 
 func TestGetUnpricedAIModelsSince(t *testing.T) {

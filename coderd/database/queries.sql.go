@@ -3813,6 +3813,37 @@ func (q *sqlQuerier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteAPIKeyByIDReturningRow = `-- name: DeleteAPIKeyByIDReturningRow :one
+DELETE FROM
+	api_keys
+WHERE
+	id = $1
+RETURNING id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, lifetime_seconds, ip_address, token_name, scopes, allow_list
+`
+
+// Returns sql.ErrNoRows when the key is already gone, which lets a caller
+// enforce single use by racing this delete instead of reading first.
+func (q *sqlQuerier) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error) {
+	row := q.db.QueryRowContext(ctx, deleteAPIKeyByIDReturningRow, id)
+	var i APIKey
+	err := row.Scan(
+		&i.ID,
+		&i.HashedSecret,
+		&i.UserID,
+		&i.LastUsed,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.LoginType,
+		&i.LifetimeSeconds,
+		&i.IPAddress,
+		&i.TokenName,
+		&i.Scopes,
+		&i.AllowList,
+	)
+	return i, err
+}
+
 const deleteAPIKeysByUserID = `-- name: DeleteAPIKeysByUserID :exec
 DELETE FROM
 	api_keys

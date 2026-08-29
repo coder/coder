@@ -119,6 +119,9 @@ type sqlcQuerier interface {
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
+	// Returns sql.ErrNoRows when the key is already gone, which lets a caller
+	// enforce single use by racing this delete instead of reading first.
+	DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (APIKey, error)
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	// Deletes all heartbeat rows for the chat. Used during ownership
 	// transitions that abandon a lease.

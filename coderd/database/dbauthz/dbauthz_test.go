@@ -458,6 +458,12 @@ func (s *MethodTestSuite) TestAPIKey() {
 		dbm.EXPECT().DeleteAPIKeyByID(gomock.Any(), key.ID).Return(nil).AnyTimes()
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
 	}))
+	s.Run("DeleteAPIKeyByIDReturningRow", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.APIKey{})
+		dbm.EXPECT().GetAPIKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		dbm.EXPECT().DeleteAPIKeyByIDReturningRow(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns(key)
+	}))
 	s.Run("DeleteExpiredAPIKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		args := database.DeleteExpiredAPIKeysParams{
 			Before:     time.Date(2025, 11, 21, 0, 0, 0, 0, time.UTC),

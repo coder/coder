@@ -525,6 +525,71 @@ func TestOAuth2TokenExchangeSingleUse(t *testing.T) {
 	requireTokenAuthenticates(ctx, t, client, winner.AccessToken)
 }
 
+// A refresh mints a replacement token and deletes the key the presented one
+// hangs off, so the same race as the exchange applies: the deletion has to
+// arbitrate, or both requests mint from one refresh token.
+func TestOAuth2RefreshSingleUse(t *testing.T) {
+	t.Parallel()
+
+	db, pubsub := dbtestutil.NewDB(t)
+	client := coderdtest.New(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
+	coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+	code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+	token := exchangeCode(ctx, t, client, app, code, verifier)
+
+	requireExactlyOneMinted(ctx, t, client, refreshForm(app, token.RefreshToken),
+		"a refresh token may mint at most one replacement")
+}
+
+// requireExactlyOneMinted posts form twice concurrently and requires one 200 and
+// one `invalid_grant`. The two requests are started together rather than held at
+// a read, so unlike the exchange's barrierStore this overlaps them without
+// pinning which of the two arbitrates.
+func requireExactlyOneMinted(ctx context.Context, t *testing.T, client *codersdk.Client, form url.Values, msg string) {
+	t.Helper()
+
+	type attempt struct {
+		status int
+		body   string
+		err    error
+	}
+
+	var barrier sync.WaitGroup
+	barrier.Add(2)
+	redeem := func() attempt {
+		barrier.Done()
+		barrier.Wait()
+		status, body, err := tryTokenRequest(ctx, t, client, form)
+		return attempt{status: status, body: body, err: err}
+	}
+
+	other := make(chan attempt, 1)
+	go func() { other <- redeem() }()
+	results := []attempt{redeem(), <-other}
+
+	var minted, rejected int
+	for _, result := range results {
+		require.NoError(t, result.err)
+		switch result.status {
+		case http.StatusOK:
+			minted++
+		case http.StatusBadRequest:
+			require.Contains(t, result.body, string(codersdk.OAuth2ErrorCodeInvalidGrant), result.body)
+			rejected++
+		default:
+			t.Fatalf("unexpected status %d: %s", result.status, result.body)
+		}
+	}
+	require.Equal(t, 1, minted, msg)
+	require.Equal(t, 1, rejected)
+}
+
 // The ordinary replay: a client retries a redemption whose answer it never saw.
 // Here the first read refuses it. The race test cannot cover this path
 // deterministically, since which read or delete arbitrates there depends on

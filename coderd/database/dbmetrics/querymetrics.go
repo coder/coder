@@ -440,6 +440,14 @@ func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) erro
 	return r0
 }
 
+func (m queryMetricsStore) DeleteAPIKeyByIDReturningRow(ctx context.Context, id string) (database.APIKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAPIKeyByIDReturningRow(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAPIKeyByIDReturningRow").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAPIKeyByIDReturningRow").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAPIKeysByUserID(ctx, userID)
