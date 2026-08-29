@@ -1,6 +1,6 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { delay } from "msw";
-import { useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueryClient } from "react-query";
 import {
 	expect,
@@ -14,6 +14,7 @@ import {
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
 import {
+	mcpServerConfigsKey,
 	organizationChatModelsKey,
 	userChatPersonalModelOverrides,
 	userChatProviderConfigsKey,
@@ -25,6 +26,7 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred, type Deferred } from "#/testHelpers/deferred";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -36,8 +38,15 @@ import {
 	getReasoningEffortForModel,
 	saveReasoningEffortForModel,
 } from "../utils/reasoningEffort";
-import { AgentCreateForm, emptyInputStorageKey } from "./AgentCreateForm";
+import {
+	AgentCreateForm,
+	emptyInputStorageKey,
+	selectedOrganizationIdStorageKey,
+} from "./AgentCreateForm";
 
+let pendingOrganizationAuthorization: Deferred<
+	Awaited<ReturnType<typeof API.checkAuthorization>>
+>;
 let capturedQueryClient: QueryClient | undefined;
 
 const permittedOrgsKey = permittedOrganizationsKey({
@@ -296,6 +305,20 @@ export default meta;
 type Story = StoryObj<typeof AgentCreateForm>;
 
 const defaultArgs = meta.args;
+
+const RemountAgentCreateForm = (
+	props: ComponentProps<typeof AgentCreateForm>,
+) => {
+	const [key, setKey] = useState(0);
+	return (
+		<>
+			<button type="button" onClick={() => setKey((current) => current + 1)}>
+				Remount form
+			</button>
+			<AgentCreateForm key={key} {...props} />
+		</>
+	);
+};
 
 const mockPermittedOrganizations = (
 	permissions: Record<string, boolean>,
@@ -1091,11 +1114,7 @@ export const ProviderRequiresUserApiKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"A provider requires your API key. Add it in provider settings to enable models.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(canvas.getByRole("link", { name: "Settings" })).toHaveAttribute(
 			"href",
 			"/agents/settings/api-keys",
@@ -1114,11 +1133,7 @@ export const ProviderMissingAPIKey: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1133,11 +1148,7 @@ export const ProviderFetchFailed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 	},
 };
 
@@ -1369,7 +1380,7 @@ export const HookDenied: Story = {
 	},
 };
 
-export const ForbiddenErrorWithRole: Story = {
+export const ForbiddenErrorWithPermission: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: true,
@@ -1377,14 +1388,10 @@ export const ForbiddenErrorWithRole: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// The friendly "role required" alert must NOT appear because the
-		// user has the agents-access role.
 		await expect(
 			canvas.queryByText("Permission required"),
 		).not.toBeInTheDocument();
-		// The generic ErrorAlert should surface the real backend message.
 		await expect(canvas.getByText("Forbidden.")).toBeInTheDocument();
-		// The textbox should remain enabled since the user has the role.
 		const textbox = canvas.getByRole("textbox");
 		await waitFor(() =>
 			expect(textbox).not.toHaveAttribute("aria-disabled", "true"),
@@ -1530,7 +1537,6 @@ export const RestrictedMultiOrganizationUser: Story = {
 			MockDefaultOrganization,
 			MockOrganization2,
 		]);
-		// Model agents-access: "me" supplies the owner for member-scoped chat:create.
 		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
 			Object.fromEntries(
 				Object.entries(checks).map(([id, check]) => [
@@ -1643,6 +1649,7 @@ export const OrganizationAuthorizationFailure: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -1654,10 +1661,18 @@ export const OrganizationAuthorizationFailure: Story = {
 		spyOn(API, "checkAuthorization").mockRejectedValue(
 			new Error("authorization check failed"),
 		);
+		spyOn(API.experimental, "getChatModels").mockResolvedValue(
+			defaultModelCatalog,
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findAllByText(/authorization check failed/i);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -1694,15 +1709,23 @@ export const DelayedOrganizationAuthorization: Story = {
 	parameters: {
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
 	},
 	beforeEach: () => {
 		localStorage.setItem(emptyInputStorageKey, "draft message");
-		mockPermittedOrganizations(
-			{
-				[MockDefaultOrganization.id]: true,
-				[MockOrganization2.id]: true,
-			},
-			1_500,
+		pendingOrganizationAuthorization = createDeferred();
+		spyOn(API, "getOrganizations").mockResolvedValue([
+			MockDefaultOrganization,
+			MockOrganization2,
+		]);
+		spyOn(API, "checkAuthorization").mockImplementation(
+			() => pendingOrganizationAuthorization.promise,
+		);
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: { ...defaultModelCatalog, models: [] },
 		);
 	},
 	args: {
@@ -1723,6 +1746,15 @@ export const DelayedOrganizationAuthorization: Story = {
 		await expect(
 			canvas.getByRole("button", { name: "More options" }),
 		).toBeDisabled();
+		expect(API.experimental.getChatModels).not.toHaveBeenCalled();
+		expect(API.experimental.getMCPServerConfigs).not.toHaveBeenCalled();
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).not.toHaveBeenCalled();
+		expect(
+			canvas.queryByText(/AI models aren't available yet/i),
+		).not.toBeInTheDocument();
+		expect(canvas.queryByText("No model is available")).not.toBeInTheDocument();
 		// dispatchEvent returns false when a handler accepted the drop
 		// via preventDefault, giving a race-free accepted/ignored signal.
 		const dropFile = (name: string): boolean => {
@@ -1740,18 +1772,81 @@ export const DelayedOrganizationAuthorization: Story = {
 		// must be ignored.
 		expect(dropFile("drop.txt")).toBe(true);
 		expect(canvas.queryByLabelText("Remove drop.txt")).not.toBeInTheDocument();
-		// The pending option list is unfiltered, so the picker must stay hidden.
 		expect(
 			canvas.queryByRole("button", { name: /organization/i }),
 		).not.toBeInTheDocument();
-		await waitFor(() => expect(sendButton).toBeEnabled(), { timeout: 3_000 });
-		await canvas.findByRole("button", { name: /organization/i });
+
+		pendingOrganizationAuthorization.resolve({
+			[MockDefaultOrganization.id]: false,
+			[MockOrganization2.id]: true,
+		});
+
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		expect(API.experimental.getChatModels).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(API.experimental.getChatModels).not.toHaveBeenCalledWith(
+			MockDefaultOrganization.id,
+		);
+		expect(API.experimental.getMCPServerConfigs).toHaveBeenCalledWith(
+			MockOrganization2.id,
+		);
+		expect(
+			API.experimental.getUserChatPersonalModelOverrides,
+		).toHaveBeenCalledWith(MockOrganization2.id, "me");
 		// Positive control: once settled the same drop is accepted and
 		// attaches, so the pending-state assertions exercised a real path.
 		expect(dropFile("after.txt")).toBe(false);
 		await waitFor(() =>
 			expect(canvas.getByLabelText("Remove after.txt")).toBeInTheDocument(),
 		);
+	},
+};
+
+export const SelectedOrganizationSurvivesRemount: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [],
+	},
+	args: { ...defaultArgs },
+	render: (args) => <RemountAgentCreateForm {...args} />,
+	beforeEach: () => {
+		mockPermittedOrganizations({
+			[MockDefaultOrganization.id]: true,
+			[MockOrganization2.id]: true,
+		});
+		spyOn(API.experimental, "getChatModels").mockImplementation(
+			async (organizationId) =>
+				organizationId === MockOrganization2.id
+					? organization2LocalCatalog
+					: defaultModelCatalog,
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockDefaultOrganization.display_name}`,
+			}),
+		);
+		await userEvent.click(
+			await screen.findByRole("option", {
+				name: MockOrganization2.display_name,
+			}),
+		);
+		await waitFor(() => {
+			expect(localStorage.getItem(selectedOrganizationIdStorageKey)).toBe(
+				MockOrganization2.id,
+			);
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Remount form" }));
+		expect(
+			await canvas.findByRole("button", {
+				name: `Organization: ${MockOrganization2.display_name}`,
+			}),
+		).toBeVisible();
 	},
 };
 
@@ -1914,7 +2009,7 @@ export const EmptyPermittedSetPreservesStoredWorkspace: Story = {
 
 		revocablePermissions[MockOrganization2.id] = false;
 		await revocableQueryClient?.invalidateQueries();
-		await canvas.findByText(/don't have permission/i);
+		await canvas.findByText(/don't have permission to use Coder Agents/i);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2062,14 +2157,7 @@ export const ForeignOnlyModelsDisableGeneration: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("heading", { name: "No model is available" }),
-		).toBeVisible();
-		expect(
-			canvas.getByText(
-				"No chat model is currently available for this organization.",
-			),
-		).toBeVisible();
+		expect(canvas.getByText(/AI models aren't available yet/)).toBeVisible();
 		expect(
 			canvas.getByRole("textbox", { name: "Chat message" }),
 		).toHaveAttribute("aria-disabled", "true");
@@ -2140,7 +2228,7 @@ export const OrgChangeConfirmation: Story = {
 	},
 };
 
-export const ForbiddenNoAgentsRole: Story = {
+export const ForbiddenNoOrganizationAccess: Story = {
 	args: {
 		...defaultArgs,
 		canCreateChat: false,
@@ -2149,6 +2237,9 @@ export const ForbiddenNoAgentsRole: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Permission required")).toBeInTheDocument();
+		await expect(
+			canvas.getByText(/don't have permission to use Coder Agents/),
+		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole("link", { name: /View Docs/ }),
 		).toBeInTheDocument();
@@ -2200,7 +2291,9 @@ export const PermittedOrgsResolvesToEmpty: Story = {
 		const canvas = within(canvasElement);
 		await waitFor(
 			() => {
-				expect(canvas.getByText(/don't have permission/i)).toBeInTheDocument();
+				expect(
+					canvas.getByText(/don't have permission to use Coder Agents/i),
+				).toBeInTheDocument();
 			},
 			{ timeout: 3000 },
 		);
@@ -2274,11 +2367,6 @@ export const PermittedOrgsResolvesToSubset: Story = {
 	},
 };
 
-/**
- * Member-scoped roles like agents-access grant chat:create only on
- * chats the user owns, so the per-org check must carry owner context
- * for the picker to render.
- */
 export const MemberScopedPermissionsShowOrgPicker: Story = {
 	parameters: {
 		showOrganizations: true,
@@ -2343,8 +2431,12 @@ export const MCPServersErrorShowsAlertAndDisablesSend: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const matches = await canvas.findAllByText(/failed to load mcp servers/i);
-		expect(matches.length).toBeGreaterThan(0);
+		const alert = await canvas.findByRole("alert");
+		expect(
+			within(alert).getByRole("heading", {
+				name: /failed to load mcp servers/i,
+			}),
+		).toBeVisible();
 		expect(canvas.getByRole("button", { name: "Send" })).toBeDisabled();
 	},
 };
@@ -2371,10 +2463,13 @@ export const MCPServersRefetchErrorKeepsSendEnabled: Story = {
 		if (!capturedQueryClient) {
 			throw new Error("query client was not captured by the story decorator");
 		}
-		await capturedQueryClient.refetchQueries();
-		expect(
-			canvas.queryByText(/failed to refresh mcp servers/i),
-		).not.toBeInTheDocument();
-		expect(send).toBeEnabled();
+		await capturedQueryClient.refetchQueries({
+			queryKey: mcpServerConfigsKey(MockDefaultOrganization.id),
+			exact: true,
+		});
+		await waitFor(() => {
+			expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
+			expect(send).toBeEnabled();
+		});
 	},
 };

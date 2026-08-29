@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import {
@@ -180,8 +180,8 @@ export const OrganizationOnlyRoleCanAccessModels: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole("link", { name: "Models" })).toBeVisible();
 		await expect(
-			canvas.queryByRole("link", { name: "Coder Agents" }),
-		).not.toBeInTheDocument();
+			canvas.getByRole("link", { name: "Coder Agents" }),
+		).toBeVisible();
 	},
 };
 
@@ -190,6 +190,7 @@ export const NoDeploymentConfig: Story = {
 		permissions: {
 			...MockPermissions,
 			editDeploymentConfig: false,
+			updateAnyTemplate: false,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -199,11 +200,37 @@ export const NoDeploymentConfig: Story = {
 	},
 };
 
+export const TemplatesForOrganizationAdmin: Story = {
+	args: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const templatesLink = canvas.getByRole("link", { name: "Templates" });
+		await expect(templatesLink).toBeVisible();
+		await expect(
+			canvas.queryByRole("link", { name: "Coder Agents" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(templatesLink);
+
+		await waitFor(() =>
+			expect(canvas.getByRole("link", { name: "Templates" })).toHaveAttribute(
+				"aria-current",
+				"page",
+			),
+		);
+	},
+};
+
 export const NoUpdateTemplates: Story = {
 	args: {
 		permissions: {
 			...MockPermissions,
-			updateTemplates: false,
+			updateAnyTemplate: false,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -235,6 +262,19 @@ export const MCPServersForDeleteOnlyAdmin: Story = {
 			...MockNoPermissions,
 			deleteAnyMCPServerConfig: true,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("link", { name: "MCP servers" }),
+		).toHaveAttribute("href", "/ai/settings/mcp-servers");
+	},
+};
+
+export const MCPServersForOrganizationShareOnlyAdmin: Story = {
+	args: {
+		permissions: MockNoPermissions,
+		canShareOrganizationMCPServers: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

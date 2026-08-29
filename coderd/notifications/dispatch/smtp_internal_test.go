@@ -2,6 +2,7 @@ package dispatch
 
 import (
 	"html"
+	"mime"
 	"strings"
 	"testing"
 
@@ -9,7 +10,99 @@ import (
 
 	"github.com/coder/coder/v2/coderd/notifications/render"
 	"github.com/coder/coder/v2/coderd/notifications/types"
+	markdown "github.com/coder/coder/v2/coderd/render"
 )
+
+// Benign values, so a test measures only what its own payload injected.
+func templateHelpers() map[string]any {
+	return map[string]any{
+		"base_url":     func() string { return "https://coder.example.com" },
+		"current_year": func() string { return "2026" },
+		"logo_url":     func() string { return "https://coder.example.com/logo.png" },
+		"app_name":     func() string { return "Coder" },
+	}
+}
+
+func TestSMTPHTMLTemplateEscapesUntrustedValues(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		title    string
+		userName string
+		actions  []types.TemplateAction
+		injected string
+	}{
+		{
+			name:     "EntityEncodedAnchorInSubject",
+			title:    `Template "&lt;a href="https://attacker.example/login"&gt;Re-authenticate now&lt;/a&gt;" deleted`,
+			userName: "Bobby",
+			injected: `<a href="https://attacker.example/login">Re-authenticate now</a>`,
+		},
+		{
+			name:     "EntityEncodedImageInSubject",
+			title:    `Workspace "&lt;img src=x onerror="alert(1)"&gt;" marked dormant`,
+			userName: "Bobby",
+			injected: `<img src=x onerror="alert(1)">`,
+		},
+		{
+			name:     "RawHTMLInUserName",
+			title:    "Account suspended",
+			userName: `Bobby <img src=x onerror="alert(1)">`,
+			injected: `<img src=x onerror="alert(1)">`,
+		},
+		{
+			name:     "RawHTMLInActionLabel",
+			title:    "Account suspended",
+			userName: "Bobby",
+			actions: []types.TemplateAction{
+				{Label: `<img src=x onerror="alert(1)">`, URL: "https://coder.example.com/"},
+			},
+			injected: `<img src=x onerror="alert(1)">`,
+		},
+		{
+			name:     "RawHTMLInActionURL",
+			title:    "Account suspended",
+			userName: "Bobby",
+			actions: []types.TemplateAction{
+				{Label: "Open Coder", URL: `https://coder.example.com/?x=<script>alert(1)</script>`},
+			},
+			injected: `<script>alert(1)</script>`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Decodes the entities, so the title arrives as live markup.
+			subject, err := markdown.PlaintextFromMarkdown(tc.title)
+			require.NoError(t, err)
+
+			// Actions are set as the template sees them. The enqueuer renders
+			// them into JSON first, which rejects a `"` of its own accord.
+			payload := types.MessagePayload{
+				NotificationTemplateID: "00000000-0000-0000-0000-000000000000",
+				UserName:               tc.userName,
+				Actions:                tc.actions,
+				Labels: map[string]string{
+					"_subject": subject,
+					"_body":    "<p>Test body</p>",
+				},
+			}
+
+			got, err := render.GoTemplate(htmlTemplate, payload, templateHelpers())
+			require.NoError(t, err)
+
+			escaped := html.EscapeString(tc.injected)
+			require.NotEqual(t, tc.injected, escaped,
+				"case carries no HTML to escape, so it guards nothing")
+
+			require.NotContains(t, got, tc.injected,
+				"untrusted markup reached the rendered email: %s", got)
+			require.Contains(t, got, escaped,
+				"the value must still be displayed, entity encoded: %s", got)
+		})
+	}
+}
 
 func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 	t.Parallel()
@@ -27,12 +120,9 @@ func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 			"_body":    "<p>Test body</p>",
 		},
 	}
-	helpers := map[string]any{
-		"base_url":     func() string { return "https://coder.example.com" },
-		"current_year": func() string { return "2026" },
-		"logo_url":     func() string { return logoURL },
-		"app_name":     func() string { return appName },
-	}
+	helpers := templateHelpers()
+	helpers["logo_url"] = func() string { return logoURL }
+	helpers["app_name"] = func() string { return appName }
 
 	got, err := render.GoTemplate(htmlTemplate, payload, helpers)
 	require.NoError(t, err)
@@ -41,6 +131,65 @@ func TestSMTPHTMLTemplateEscapesAppearanceHelpers(t *testing.T) {
 	require.True(t, strings.Contains(got, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
 	require.False(t, strings.Contains(got, appName), "raw application name must not be rendered")
 	require.False(t, strings.Contains(got, logoURL), "raw logo URL must not be rendered")
+}
+
+// The template escapes every value it interpolates except _body, which is
+// trusted rendered Markdown. The three values here cannot carry markup in
+// production, so this test is the only thing that fails if their escaping is
+// removed.
+func TestSMTPHTMLTemplateEscapesTrustedValues(t *testing.T) {
+	t.Parallel()
+
+	const injected = `a"onclick=alert(1)`
+
+	for _, tc := range []struct {
+		name  string
+		apply func(*types.MessagePayload, map[string]any)
+	}{
+		{
+			// net/url preserves a quote in the query and --access-url is
+			// validated for its scheme only, so an operator can land this.
+			name: "BaseURL",
+			apply: func(_ *types.MessagePayload, h map[string]any) {
+				h["base_url"] = func() string { return "https://coder.example.com/?q=" + injected }
+			},
+		},
+		{
+			name: "CurrentYear",
+			apply: func(_ *types.MessagePayload, h map[string]any) {
+				h["current_year"] = func() string { return injected }
+			},
+		},
+		{
+			name: "NotificationTemplateID",
+			apply: func(p *types.MessagePayload, _ map[string]any) {
+				p.NotificationTemplateID = injected
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := types.MessagePayload{
+				NotificationTemplateID: "00000000-0000-0000-0000-000000000000",
+				UserName:               "Test User",
+				Labels: map[string]string{
+					"_subject": "Test notification",
+					"_body":    "<p>Test body</p>",
+				},
+			}
+			helpers := templateHelpers()
+			tc.apply(&payload, helpers)
+
+			got, err := render.GoTemplate(htmlTemplate, payload, helpers)
+			require.NoError(t, err)
+
+			require.NotContains(t, got, injected,
+				"raw value reached the rendered email: %s", got)
+			require.Contains(t, got, html.EscapeString(injected),
+				"the value must still be displayed, entity encoded: %s", got)
+		})
+	}
 }
 
 func TestValidateFromAddr(t *testing.T) {
@@ -113,6 +262,105 @@ func TestValidateFromAddr(t *testing.T) {
 				"envelope address should be the bare email")
 			require.Equal(t, tc.expectedHeader, header,
 				"header address should preserve the original input")
+		})
+	}
+}
+
+func TestEncodeHeaderValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{
+			name:  "ascii is unchanged",
+			value: `User account "bobby" suspended`,
+			want:  `User account "bobby" suspended`,
+		},
+		{
+			name:  "crlf is folded",
+			value: "Subject\r\nBcc: attacker@example.com",
+			want:  "Subject  Bcc: attacker@example.com",
+		},
+		{
+			name:  "bare newline is folded",
+			value: "Subject\nBcc: attacker@example.com",
+			want:  "Subject Bcc: attacker@example.com",
+		},
+		{
+			name:  "non-ascii is q-encoded",
+			value: "Konto gelöscht",
+			want:  "=?utf-8?q?Konto_gel=C3=B6scht?=",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(tc.value)
+			require.Equal(t, tc.want, got)
+			// The result must never be able to terminate its own header.
+			require.NotContains(t, got, "\r")
+			require.NotContains(t, got, "\n")
+		})
+	}
+}
+
+// TestEncodeHeaderValueEncodedWord covers a forged RFC 2047 encoded-word, which
+// is printable ASCII and so passes mime.WordEncoder through to the client.
+func TestEncodeHeaderValueEncodedWord(t *testing.T) {
+	t.Parallel()
+
+	// Decodes to "URGENT: verify your account".
+	const forged = "=?utf-8?B?VVJHRU5UOiB2ZXJpZnkgeW91ciBhY2NvdW50?="
+	got := encodeHeaderValue(forged + " shared a chat with you")
+
+	// The forged word must not survive as something a client would decode.
+	require.NotContains(t, got, forged)
+
+	// Decoded rather than compared: chunk boundaries are an implementation detail.
+	decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+	require.NoError(t, err)
+	require.Equal(t, forged+" shared a chat with you", decoded)
+}
+
+// TestEncodeHeaderValueFolds covers RFC 5322's 998-octet line limit, which
+// mime.WordEncoder does not fold for.
+func TestEncodeHeaderValueFolds(t *testing.T) {
+	t.Parallel()
+
+	for name, value := range map[string]string{
+		"non-ascii": strings.Repeat("é", 600),
+		"ascii":     strings.Repeat("a b ", 400),
+		// A rune that does not divide evenly into the per-word budget must not
+		// be split across two encoded-words: each has to decode on its own.
+		"multibyte": strings.Repeat("日本語", 400),
+		// Under the raw byte limit and over it once Q-encoded, so these fail
+		// unless the gate measures the encoded form.
+		"200 accented runes": strings.Repeat("é", 200),
+		"300 cjk runes":      strings.Repeat("日", 300),
+		"200 emoji":          strings.Repeat("🎉", 200),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got := encodeHeaderValue(value)
+			for _, line := range strings.Split(got, "\r\n") {
+				require.LessOrEqual(t, len(line), 998,
+					"a header line exceeds RFC 5322's limit: %d octets", len(line))
+			}
+			// A CRLF must begin a continuation, or this is injection not folding.
+			for _, after := range strings.Split(got, "\r\n")[1:] {
+				require.True(t, strings.HasPrefix(after, " "),
+					"a CRLF was not followed by folding whitespace: %q", got)
+			}
+
+			decoded, err := new(mime.WordDecoder).DecodeHeader(got)
+			require.NoError(t, err)
+			require.Equal(t, value, decoded)
 		})
 	}
 }

@@ -377,16 +377,6 @@ export const MockOrganizationAuditorRole: TypesGen.AssignableRoles = {
 	organization_member_permissions: [],
 };
 
-export const MockAgentsAccessRole: TypesGen.Role = {
-	name: "agents-access",
-	display_name: "Coder Agents User",
-	site_permissions: [],
-	user_permissions: [],
-	organization_id: MockOrganization.id,
-	organization_permissions: [],
-	organization_member_permissions: [],
-};
-
 export const MockRoleWithOrgPermissions: TypesGen.AssignableRoles = {
 	name: "my-role-1",
 	display_name: "My Role 1",
@@ -963,6 +953,7 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	allow_workspace_renames: false,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -3319,6 +3310,32 @@ export const MockEveryoneGroup: TypesGen.Group = {
 	total_member_count: 0,
 };
 
+export const MockChatModelACL: TypesGen.ChatModelACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
+export const MockChatModelACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
+export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
+};
+
 export const MockTemplateACL: TypesGen.TemplateACL = {
 	group: [
 		{ ...MockEveryoneGroup, role: "use" },
@@ -3360,6 +3377,7 @@ export const MockPermissions: Permissions = {
 	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
+	updateAnyTemplate: true,
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
@@ -3406,6 +3424,7 @@ export const MockNoPermissions: Permissions = {
 	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
+	updateAnyTemplate: false,
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
@@ -3462,10 +3481,12 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	updateTemplates: true,
 	viewMCPServerConfigs: true,
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
 	deleteMCPServerConfig: true,
+	shareMCPServerConfig: true,
 	viewChatModelConfigs: true,
 	createChatModelConfigs: true,
 	editChatModelConfigs: true,
@@ -3489,10 +3510,12 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	updateTemplates: false,
 	viewMCPServerConfigs: false,
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
 	deleteMCPServerConfig: false,
+	shareMCPServerConfig: false,
 	viewChatModelConfigs: false,
 	createChatModelConfigs: false,
 	editChatModelConfigs: false,
@@ -4345,7 +4368,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			OSHasIPv6: true,
 			ICMPv4: false,
 			MappingVariesByDestIP: false,
-			HairPinning: null,
 			UPnP: false,
 			PMP: false,
 			PCP: false,
@@ -5611,10 +5633,10 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	},
 	providers: ["anthropic", "openai"],
 	models: ["claude-opus-4-6", "gpt-5.4"],
-	client: "Mux",
+	client: "Xum",
 	metadata: {
 		request_user_agent:
-			"mux/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
+			"xum/0.20.1-next.8.g0f494106 ai-sdk/anthropic/3.0.58 ai-sdk/provider-utils/4.0.19 runtime/node.js/22",
 	},
 	started_at: "2026-03-09T09:28:15.03152Z",
 	ended_at: "2026-03-09T10:28:17.294897Z",

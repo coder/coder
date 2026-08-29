@@ -1,34 +1,20 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import {
-	Outlet,
-	useLocation,
-	useNavigate,
-	useSearchParams,
-} from "react-router";
+import { Outlet, useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	getOrganizationLabel,
-	OrganizationAutocomplete,
-} from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import { LinkTabs, LinkTabsList, TabLink } from "#/components/Tabs/Tabs";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
-	organizationModelDefaultsPath,
-	organizationModelsPath,
 	selectModelOrganization,
 	useAccessibleModelOrganizations,
 } from "./organizationModels";
 
 const OrganizationModelsLayout: FC = () => {
 	const { organizations } = useDashboard();
-	const location = useLocation();
-	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const accessibleOrganizationsQuery =
 		useAccessibleModelOrganizations(organizations);
@@ -76,8 +62,10 @@ const OrganizationModelsLayout: FC = () => {
 		<OrganizationModelsContext.Provider
 			value={{
 				organization: activeOrganization,
-				organizations: accessibleOrganizations,
+				accessibleOrganizations,
 				permissions: activePermissions,
+				permissionsByOrganization:
+					accessibleOrganizationsQuery.permissionsByOrganization,
 				requestedOrganizationDenied:
 					organizationSelection.requestedOrganizationDenied,
 			}}
@@ -91,52 +79,6 @@ const OrganizationModelsLayout: FC = () => {
 								accessibleOrganizationsQuery.partialError ??
 								permissionsQuery.error
 							}
-						/>
-					</div>
-				)}
-				<LinkTabs
-					active={
-						location.pathname.endsWith("/defaults") ? "defaults" : "models"
-					}
-				>
-					<LinkTabsList>
-						<TabLink
-							value="models"
-							to={organizationModelsPath(activeOrganization, searchParams)}
-						>
-							Models
-						</TabLink>
-						<TabLink
-							value="defaults"
-							to={organizationModelDefaultsPath(
-								activeOrganization,
-								searchParams,
-							)}
-						>
-							Defaults & overrides
-						</TabLink>
-					</LinkTabsList>
-				</LinkTabs>
-				{accessibleOrganizations.length > 1 && (
-					<div>
-						<OrganizationAutocomplete
-							value={activeOrganization}
-							ariaLabel={`Organization ${getOrganizationLabel(
-								activeOrganization,
-								accessibleOrganizations,
-							)}`}
-							options={accessibleOrganizations}
-							triggerClassName="w-60"
-							optionsTabbable
-							onChange={(organization) => {
-								if (!organization) {
-									return;
-								}
-								const next = new URLSearchParams(searchParams);
-								next.set(modelOrganizationSearchParam, organization.name);
-								const pathname = location.pathname.split("?", 1)[0];
-								void navigate(`${pathname}?${next.toString()}`);
-							}}
 						/>
 					</div>
 				)}
