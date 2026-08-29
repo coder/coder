@@ -221,6 +221,7 @@ const makeGoal = (
 	root_chat_id: "chat-1",
 	objective: "Fix the flaky tests",
 	status: "active",
+	continuation_count: 0,
 	created_by_user_id: "owner-1",
 	completed_by_agent: false,
 	created_at: "2025-01-01T00:00:00.000Z",

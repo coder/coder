@@ -16,11 +16,19 @@ import (
 )
 
 const (
+	// goalCompletionReminder tags identify hidden mid-turn reminder
+	// messages written by an older revision of the goal loop. The
+	// builder is gone; the parser stays so historical rows keep their
+	// mid-turn (non-boundary) role in step counting and stop-after
+	// scoping.
 	goalCompletionReminderOpenTag  = "<goal-completion-required>"
 	goalCompletionReminderCloseTag = "</goal-completion-required>"
 
 	goalResumeKickOpenTag  = "<goal-resumed>"
 	goalResumeKickCloseTag = "</goal-resumed>"
+
+	goalContinuationOpenTag  = "<goal-continuation>"
+	goalContinuationCloseTag = "</goal-continuation>"
 )
 
 func goalTaggedPayload(goalID uuid.UUID, openTag, closeTag string) (string, error) {
@@ -35,18 +43,6 @@ func goalTaggedPayload(goalID uuid.UUID, openTag, closeTag string) (string, erro
 	return openTag + "\n" + string(payload) + "\n" + closeTag, nil
 }
 
-func goalCompletionReminderText(goalID uuid.UUID) (string, error) {
-	tagged, err := goalTaggedPayload(goalID, goalCompletionReminderOpenTag, goalCompletionReminderCloseTag)
-	if err != nil {
-		return "", err
-	}
-	return tagged + "\n\n" +
-		"Your previous response ended while this chat goal is still active.\n" +
-		"Do not finish the turn with the goal active.\n" +
-		"If the objective is satisfied, call complete_goal now with this goal_id and a concise summary.\n" +
-		"If the objective is not satisfied, continue working toward it. Ask the user only if blocked.", nil
-}
-
 func goalResumeKickText(goalID uuid.UUID) (string, error) {
 	tagged, err := goalTaggedPayload(goalID, goalResumeKickOpenTag, goalResumeKickCloseTag)
 	if err != nil {
@@ -55,7 +51,8 @@ func goalResumeKickText(goalID uuid.UUID) (string, error) {
 	return tagged + "\n\n" +
 		"The user resumed the chat goal.\n" +
 		"Continue working toward the objective.\n" +
-		"Call complete_goal with this goal_id when the objective is verifiably done.", nil
+		"Call complete_goal with this goal_id when the objective is verifiably done.\n" +
+		"If you cannot proceed without the user, call block_goal with this goal_id and the reason.", nil
 }
 
 func hiddenGoalUserMessage(text string, modelConfigID uuid.UUID, createdBy uuid.UUID) (chatstate.Message, error) {
@@ -73,18 +70,24 @@ func hiddenGoalUserMessage(text string, modelConfigID uuid.UUID, createdBy uuid.
 	}, nil
 }
 
-func goalCompletionReminderMessage(goalID uuid.UUID, modelConfigID uuid.UUID) (chatstate.Message, error) {
-	text, err := goalCompletionReminderText(goalID)
+// goalContinuationText steers an auto-continuation turn. It mirrors the
+// resume kick but adds a completion audit so long-running loops do not
+// drift into claiming success without evidence.
+func goalContinuationText(goalID uuid.UUID) (string, error) {
+	tagged, err := goalTaggedPayload(goalID, goalContinuationOpenTag, goalContinuationCloseTag)
 	if err != nil {
-		return chatstate.Message{}, err
+		return "", err
 	}
-	return hiddenGoalUserMessage(text, modelConfigID, uuid.Nil)
+	return tagged + "\n\n" +
+		"The chat goal is still active, so work continues automatically.\n" +
+		"Continue working toward the objective. Completion is unproven until verified against evidence from the workspace or conversation.\n" +
+		"If the objective is verifiably done, call complete_goal with this goal_id and a concise summary.\n" +
+		"If you cannot proceed without the user, or you are stuck on the same obstacle repeatedly, call block_goal with this goal_id and the reason.", nil
 }
 
 // goalResumeKickMessage builds the hidden user message that starts a
-// turn when a paused goal is resumed on an idle chat. Unlike the
-// completion reminder it counts as a real turn boundary: step counting,
-// reminder accounting, and stop-after scoping all reset at the kick.
+// turn when a paused goal is resumed on an idle chat. It is a real turn
+// boundary: step counting and stop-after scoping reset at the kick.
 func goalResumeKickMessage(goalID uuid.UUID, modelConfigID uuid.UUID, createdBy uuid.UUID) (chatstate.Message, error) {
 	text, err := goalResumeKickText(goalID)
 	if err != nil {
@@ -93,17 +96,21 @@ func goalResumeKickMessage(goalID uuid.UUID, modelConfigID uuid.UUID, createdBy 
 	return hiddenGoalUserMessage(text, modelConfigID, createdBy)
 }
 
-// isGoalResumeKickMessageBestEffort reports whether msg is a hidden
-// goal resume kick. Kicks start turns; completion reminders do not.
-func isGoalResumeKickMessageBestEffort(msg database.ChatMessage) bool {
-	_, resume, err := parseGoalResumeKickMessage(msg)
-	return err == nil && resume
+// goalContinuationMessage builds the hidden user message that starts an
+// auto-continuation turn when a goal turn finishes with the goal still
+// active. Like the resume kick it is a real turn boundary.
+func goalContinuationMessage(goalID uuid.UUID, modelConfigID uuid.UUID) (chatstate.Message, error) {
+	text, err := goalContinuationText(goalID)
+	if err != nil {
+		return chatstate.Message{}, err
+	}
+	return hiddenGoalUserMessage(text, modelConfigID, uuid.Nil)
 }
 
-// appendHiddenGoalMessages merges model-only goal messages (completion
-// reminders and resume kicks) from promptRows into messages. Generation
-// decisions need both: reminders for per-turn reminder accounting and
-// resume kicks because they open the turn the decision loop is driving.
+// appendHiddenGoalMessages merges model-only goal messages (legacy
+// completion reminders, resume kicks, and continuation kicks) from
+// promptRows into messages. Generation decisions need them because they
+// open or extend the turn the decision loop is driving.
 func appendHiddenGoalMessages(messages []database.ChatMessage, promptRows []database.ChatMessage) ([]database.ChatMessage, error) {
 	seen := make(map[int64]struct{}, len(messages))
 	for _, msg := range messages {
@@ -113,15 +120,11 @@ func appendHiddenGoalMessages(messages []database.ChatMessage, promptRows []data
 		if _, ok := seen[msg.ID]; ok {
 			continue
 		}
-		_, reminder, err := parseGoalCompletionReminderMessage(msg)
+		hidden, err := isHiddenGoalMessage(msg)
 		if err != nil {
 			return nil, err
 		}
-		_, resumeKick, err := parseGoalResumeKickMessage(msg)
-		if err != nil {
-			return nil, err
-		}
-		if reminder || resumeKick {
+		if hidden {
 			messages = append(messages, msg)
 			seen[msg.ID] = struct{}{}
 		}
@@ -132,36 +135,23 @@ func appendHiddenGoalMessages(messages []database.ChatMessage, promptRows []data
 	return messages, nil
 }
 
-func goalCompletionReminderCountForTurn(messages []database.ChatMessage, goalID uuid.UUID) (int, error) {
-	count := 0
-	for _, msg := range messages {
-		if msg.Deleted || msg.Role != database.ChatMessageRoleUser {
-			continue
-		}
-		reminderGoalID, reminder, err := parseGoalCompletionReminderMessage(msg)
-		if err != nil {
-			return 0, err
-		}
-		if reminder {
-			if goalID == uuid.Nil || reminderGoalID == goalID {
-				count++
-			}
-			continue
-		}
-		// Reset only on real turn boundaries, mirroring lastUserPromptIndex:
-		// hook model-context rows use the user role with model visibility and
-		// must not re-allow a reminder mid-turn.
-		if !msg.Compressed &&
-			(msg.Visibility != database.ChatMessageVisibilityModel || isGoalResumeKickMessageBestEffort(msg)) {
-			count = 0
-		}
+func isHiddenGoalMessage(msg database.ChatMessage) (bool, error) {
+	if _, reminder, err := parseGoalCompletionReminderMessage(msg); err != nil || reminder {
+		return reminder, err
 	}
-	return count, nil
+	if _, kick, err := parseGoalResumeKickMessage(msg); err != nil || kick {
+		return kick, err
+	}
+	_, continuation, err := parseGoalContinuationMessage(msg)
+	return continuation, err
 }
 
-func isGoalCompletionReminderMessageBestEffort(msg database.ChatMessage) bool {
-	_, reminder, err := parseGoalCompletionReminderMessage(msg)
-	return err == nil && reminder
+func isGoalTurnBoundaryMessageBestEffort(msg database.ChatMessage) bool {
+	if _, resume, err := parseGoalResumeKickMessage(msg); err == nil && resume {
+		return true
+	}
+	_, continuation, err := parseGoalContinuationMessage(msg)
+	return err == nil && continuation
 }
 
 func parseGoalCompletionReminderMessage(msg database.ChatMessage) (uuid.UUID, bool, error) {
@@ -170,6 +160,10 @@ func parseGoalCompletionReminderMessage(msg database.ChatMessage) (uuid.UUID, bo
 
 func parseGoalResumeKickMessage(msg database.ChatMessage) (uuid.UUID, bool, error) {
 	return parseGoalTaggedMessage(msg, goalResumeKickOpenTag, goalResumeKickCloseTag)
+}
+
+func parseGoalContinuationMessage(msg database.ChatMessage) (uuid.UUID, bool, error) {
+	return parseGoalTaggedMessage(msg, goalContinuationOpenTag, goalContinuationCloseTag)
 }
 
 func parseGoalTaggedMessage(msg database.ChatMessage, openTag, closeTag string) (uuid.UUID, bool, error) {

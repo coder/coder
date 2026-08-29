@@ -1931,6 +1931,13 @@ func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.Ba
 	return q.db.BatchUpsertConnectionLogs(ctx, arg)
 }
 
+func (q *querier) BlockChatGoalByID(ctx context.Context, arg database.BlockChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.BlockChatGoalByID(ctx, arg)
+}
+
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return 0, err
@@ -6140,6 +6147,13 @@ func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UU
 	}
 	_ = chat
 	return q.db.IncrementChatGenerationAttempt(ctx, id)
+}
+
+func (q *querier) IncrementChatGoalContinuationCount(ctx context.Context, arg database.IncrementChatGoalContinuationCountParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.IncrementChatGoalContinuationCount(ctx, arg)
 }
 
 func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -299,6 +300,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 
 	var committed database.Chat
+	var goalReplayed bool
 	err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		chat, err := loadChatForTask(ctx, store, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
@@ -307,10 +309,11 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
 		// inflate billing.
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
+		committedCancels, replayed, err := committedPendingLocalToolCancellationMessages(ctx, store, chat, interruptedAt, toolCompletions)
 		if err != nil {
 			return xerrors.Errorf("committed pending local tool cancellation messages: %w", err)
 		}
+		goalReplayed = replayed
 		if len(committedCancels) > 0 {
 			messages = append(append([]chatstate.Message{}, partialMessages...), committedCancels...)
 		}
@@ -334,6 +337,12 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	input.DebugTurn.RecordOutcome(chatdebug.StatusInterrupted)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
 		return xerrors.Errorf("publish watch and route: %w", err)
+	}
+	// A replayed goal result means the original turn may have crashed
+	// before announcing the committed transition; re-announce it so
+	// clients do not keep showing a stale goal.
+	if goalReplayed && s.server != nil {
+		s.server.publishChatGoalChange(committed)
 	}
 	return s.runAfterInterruptionOutcome(ctx, interruptionOutcome{
 		Chat:           committed,
@@ -685,45 +694,136 @@ func dynamicToolNamesFromChat(chat database.Chat) map[string]bool {
 	return names
 }
 
+// goalReplayEligible reports whether pending goal-named tool calls may
+// be classified as built-in replays. The current goal's transition must
+// belong to the interrupted turn: a durably transitioned goal stays
+// current across turns, while later turns offer colliding dynamic tools
+// again and can also carry hallucinated goal-named calls, so a matching
+// row alone would fabricate successful goal results for calls that
+// never ran the built-in.
+func goalReplayEligible(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	messages []database.ChatMessage,
+	localCalls []fantasy.ToolCallContent,
+	dynamicCalls []pendingDynamicToolCall,
+) (bool, error) {
+	named := false
+	for _, call := range localCalls {
+		if call.ToolName == chattool.CompleteGoalToolName || call.ToolName == chattool.BlockGoalToolName {
+			named = true
+			break
+		}
+	}
+	if !named {
+		for _, call := range dynamicCalls {
+			if call.ToolName == chattool.CompleteGoalToolName || call.ToolName == chattool.BlockGoalToolName {
+				named = true
+				break
+			}
+		}
+	}
+	if !named {
+		return false, nil
+	}
+	goal, err := currentChatGoal(ctx, store, chatRootID(chat))
+	if err != nil {
+		return false, err
+	}
+	return goal != nil && goalTransitionInCurrentTurn(goal, messages), nil
+}
+
 func committedPendingLocalToolCancellationMessages(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	interruptedAt time.Time,
 	toolCompletions map[int]messagepartbuffer.ToolCompletion,
-) ([]chatstate.Message, error) {
+) ([]chatstate.Message, bool, error) {
 	messages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,
 		AfterID: 0,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("load committed messages for interruption: %w", err)
+		return nil, false, xerrors.Errorf("load committed messages for interruption: %w", err)
 	}
-	localCalls, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+	dynamicToolNames := dynamicToolNamesFromChat(chat)
+	localCalls, dynamicCalls, err := unresolvedToolCallsFromHistory(messages, dynamicToolNames)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	// A durably transitioned goal stays current across turns, so a
+	// matching goal row alone does not prove a pending goal-named call
+	// is the built-in: later turns legitimately offer a colliding
+	// dynamic tool again. Replay classification also requires the
+	// transition to belong to the interrupted turn, where goal turns
+	// drop the colliding dynamic tool and offer only the built-in.
+	replayEligible, err := goalReplayEligible(ctx, store, chat, messages, localCalls, dynamicCalls)
+	if err != nil {
+		return nil, false, err
+	}
+	// A configured dynamic tool may shadow a goal tool's name, but an
+	// eligible committed transition proves the built-in ran. Reclassify
+	// with the name reserved so the committed call replays here instead
+	// of staying unresolved and reprocessing on a later resume. Goal
+	// calls run in exclusive batches, so the reclassified positions
+	// still match the live attempt's billing indexes.
+	reserved := false
+	if replayEligible {
+		for _, call := range dynamicCalls {
+			switch call.ToolName {
+			case chattool.CompleteGoalToolName:
+				if _, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Args); ok {
+					delete(dynamicToolNames, call.ToolName)
+					reserved = true
+				}
+			case chattool.BlockGoalToolName:
+				if _, ok := chattool.AgentBlockedGoalReplayPayload(ctx, store, chatRootID(chat), call.Args); ok {
+					delete(dynamicToolNames, call.ToolName)
+					reserved = true
+				}
+			}
+		}
+	}
+	if reserved {
+		localCalls, _, err = unresolvedToolCallsFromHistory(messages, dynamicToolNames)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	if len(localCalls) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 	var intervals []chatloop.BilledInterval
+	goalReplayed := false
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
 		isError := true
 		var payload json.RawMessage
-		// A built-in complete_goal call whose goal durably completed
-		// before the interrupt replays its successful result so accepted
-		// history matches the committed goal state.
-		if call.ToolName == chattool.CompleteGoalToolName {
-			if replay, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
-				payload = replay
-				isError = false
+		// A built-in complete_goal or block_goal call whose goal durably
+		// transitioned during the interrupted turn replays its successful
+		// result so accepted history matches the committed goal state.
+		if replayEligible {
+			switch call.ToolName {
+			case chattool.CompleteGoalToolName:
+				if replay, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
+					payload = replay
+					isError = false
+					goalReplayed = true
+				}
+			case chattool.BlockGoalToolName:
+				if replay, ok := chattool.AgentBlockedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
+					payload = replay
+					isError = false
+					goalReplayed = true
+				}
 			}
 		}
 		if payload == nil {
 			marshaled, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
 			if err != nil {
-				return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+				return nil, false, xerrors.Errorf("marshal interrupted tool result: %w", err)
 			}
 			payload = marshaled
 		}
@@ -733,7 +833,7 @@ func committedPendingLocalToolCancellationMessages(
 		}
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result part: %w", err)
+			return nil, false, xerrors.Errorf("marshal interrupted tool result part: %w", err)
 		}
 		result = append(result, chatstate.Message{
 			Role:           database.ChatMessageRoleTool,
@@ -770,10 +870,10 @@ func committedPendingLocalToolCancellationMessages(
 		len(intervals),
 	)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if ok {
 		result = append(result, stamp)
 	}
-	return result, nil
+	return result, goalReplayed, nil
 }

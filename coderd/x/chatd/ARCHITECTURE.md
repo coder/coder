@@ -858,6 +858,7 @@ Retriable conditions include, but are not limited to:
 #### Generation goroutine
 
 <!-- TODO(human): document chat goal generation behavior. -->
+<!-- TODO(human): document chat goal auto-continuation with StopNudges and turn finalization. -->
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 

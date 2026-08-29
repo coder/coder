@@ -15,6 +15,7 @@ import {
 	isCurrentChatGoalStatus,
 } from "#/api/queries/chatGoal";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatGoalMaxContinuationTurns } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { relativeTime, shortRelativeTime } from "#/utils/time";
@@ -46,8 +47,17 @@ type GoalStatusUI = {
 const GOAL_STATUS_UI = {
 	active: { label: "Goal active", variant: "info" },
 	paused: { label: "Goal paused", variant: "warning" },
+	blocked: { label: "Goal blocked", variant: "warning" },
 	complete: { label: "Goal complete", variant: "green" },
 } satisfies Record<CurrentChatGoalStatus, GoalStatusUI>;
+
+const PAUSED_REASON_LABELS: Record<TypesGen.ChatGoalPausedReason, string> = {
+	user: "Paused by you",
+	interrupt: "Paused by Stop",
+	turn_limit: "Turn limit reached",
+	usage_limit: "Usage limit reached",
+	error: "Paused after an error",
+};
 
 type GoalActionUI = {
 	label: string;
@@ -60,6 +70,16 @@ const GOAL_ACTION_UI = {
 	complete: { label: "Complete", Icon: CheckIcon },
 	clear: { label: "Clear", Icon: Trash2Icon },
 } satisfies Record<ChatGoalAction, GoalActionUI>;
+
+const goalStatusDetail = (goal: TypesGen.ChatGoal): string | undefined => {
+	if (goal.status === "active" && goal.continuation_count > 0) {
+		return `Auto-continue ${goal.continuation_count}/${ChatGoalMaxContinuationTurns}`;
+	}
+	if (goal.status === "paused" && goal.paused_reason) {
+		return PAUSED_REASON_LABELS[goal.paused_reason];
+	}
+	return undefined;
+};
 
 export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 	goal,
@@ -81,6 +101,7 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 	const actions = canMutateGoal ? chatGoalActionsForStatus(goal.status) : [];
 	const disabled = isActionPending || isActionDisabled;
 	const age = shortRelativeTime(goal.created_at);
+	const statusDetail = goalStatusDetail(goal);
 
 	return (
 		<section
@@ -96,6 +117,11 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 						<Badge size="sm" variant={statusUI.variant}>
 							{statusUI.label}
 						</Badge>
+						{statusDetail ? (
+							<span className="text-xs text-content-secondary">
+								{statusDetail}
+							</span>
+						) : null}
 						<span
 							className="text-xs text-content-secondary"
 							title={`Started ${relativeTime(goal.created_at)}`}
@@ -115,6 +141,14 @@ export const ChatGoalBanner: FC<ChatGoalBannerProps> = ({
 							title={goal.completion_summary}
 						>
 							Summary: {goal.completion_summary}
+						</p>
+					) : null}
+					{goal.status === "blocked" && goal.blocked_reason ? (
+						<p
+							className="line-clamp-2 text-xs leading-5 text-content-warning [overflow-wrap:anywhere]"
+							title={goal.blocked_reason}
+						>
+							Blocked: {goal.blocked_reason}
 						</p>
 					) : null}
 					{actions.length > 0 ? (

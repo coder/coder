@@ -800,12 +800,28 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().PauseChatGoalByID(gomock.Any(), arg).Return(goal, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(goal)
 	}))
+	s.Run("BlockChatGoalByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		goal := testutil.Fake(s.T(), faker, database.ChatGoal{})
+		arg := database.BlockChatGoalByIDParams{RootChatID: chat.ID, ID: goal.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().BlockChatGoalByID(gomock.Any(), arg).Return(goal, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(goal)
+	}))
 	s.Run("ResumeChatGoalByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		goal := testutil.Fake(s.T(), faker, database.ChatGoal{})
 		arg := database.ResumeChatGoalByIDParams{RootChatID: chat.ID, ID: goal.ID}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().ResumeChatGoalByID(gomock.Any(), arg).Return(goal, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(goal)
+	}))
+	s.Run("IncrementChatGoalContinuationCount", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		goal := testutil.Fake(s.T(), faker, database.ChatGoal{})
+		arg := database.IncrementChatGoalContinuationCountParams{RootChatID: chat.ID, ID: goal.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().IncrementChatGoalContinuationCount(gomock.Any(), arg).Return(goal, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(goal)
 	}))
 	s.Run("ClearChatGoalByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

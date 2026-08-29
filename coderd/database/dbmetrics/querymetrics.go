@@ -248,6 +248,14 @@ func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg da
 	return r0
 }
 
+func (m queryMetricsStore) BlockChatGoalByID(ctx context.Context, arg database.BlockChatGoalByIDParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.BlockChatGoalByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("BlockChatGoalByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BlockChatGoalByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -4093,6 +4101,14 @@ func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, i
 	r0, r1 := m.s.IncrementChatGenerationAttempt(ctx, id)
 	m.queryLatencies.WithLabelValues("IncrementChatGenerationAttempt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementChatGenerationAttempt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) IncrementChatGoalContinuationCount(ctx context.Context, arg database.IncrementChatGoalContinuationCountParams) (database.ChatGoal, error) {
+	start := time.Now()
+	r0, r1 := m.s.IncrementChatGoalContinuationCount(ctx, arg)
+	m.queryLatencies.WithLabelValues("IncrementChatGoalContinuationCount").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementChatGoalContinuationCount").Inc()
 	return r0, r1
 }
 

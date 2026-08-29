@@ -73,6 +73,7 @@ const buildGoal = (
 	root_chat_id: "chat-default",
 	objective: "Migrate coder/coder away from MUI",
 	status: "active",
+	continuation_count: 0,
 	created_by_user_id: MockUserOwner.id,
 	completed_by_agent: false,
 	created_at: oneWeekAgo,
