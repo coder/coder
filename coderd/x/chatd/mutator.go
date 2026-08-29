@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -551,6 +552,30 @@ func (m *chatMutator) SubmitToolResults(
 	}
 
 	return nil
+}
+
+// translateToolResultValidationError converts a chatstate tool-result
+// validation error into the legacy chatd.ToolResultValidationError
+// shape so HTTP handlers preserve their existing response detail. If
+// err is not a tool-result validation error, it is returned
+// unchanged.
+func translateToolResultValidationError(err error) error {
+	var v *chatstate.ToolResultValidationError
+	if !errors.As(err, &v) {
+		return err
+	}
+	switch {
+	case xerrors.Is(v, chatstate.ErrToolResultDuplicate):
+		return &ToolResultValidationError{Message: "Duplicate tool_call_id in results.", Detail: fmt.Sprintf("Duplicate tool call ID %q.", v.ToolCallID)}
+	case xerrors.Is(v, chatstate.ErrToolResultMissing):
+		return &ToolResultValidationError{Message: "Missing tool result.", Detail: fmt.Sprintf("Missing result for tool call %q.", v.ToolCallID)}
+	case xerrors.Is(v, chatstate.ErrToolResultUnexpected):
+		return &ToolResultValidationError{Message: "Unexpected tool result.", Detail: fmt.Sprintf("No pending tool call with ID %q.", v.ToolCallID)}
+	case xerrors.Is(v, chatstate.ErrToolResultInvalidJSON):
+		return &ToolResultValidationError{Message: "Tool result output must be valid JSON.", Detail: fmt.Sprintf("Output for tool call %q is not valid JSON.", v.ToolCallID)}
+	default:
+		return err
+	}
 }
 
 func (m *chatMutator) InterruptChat(
