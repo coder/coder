@@ -1609,21 +1609,21 @@ func validateModelConfigOverride(
 	return uuid.NullUUID{UUID: requested, Valid: true}, nil
 }
 
-func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) error {
+func validateEditTarget(ctx context.Context, store database.Store, chatID uuid.UUID, messageID int64) (database.ChatMessage, error) {
 	target, err := store.GetChatMessageByID(ctx, messageID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrEditedMessageNotFound
+			return database.ChatMessage{}, ErrEditedMessageNotFound
 		}
-		return xerrors.Errorf("get edited message: %w", err)
+		return database.ChatMessage{}, xerrors.Errorf("get edited message: %w", err)
 	}
 	if target.ChatID != chatID || target.Deleted {
-		return ErrEditedMessageNotFound
+		return database.ChatMessage{}, ErrEditedMessageNotFound
 	}
 	if target.Role != database.ChatMessageRoleUser {
-		return ErrEditedMessageNotUser
+		return database.ChatMessage{}, ErrEditedMessageNotUser
 	}
-	return nil
+	return target, nil
 }
 
 func loadEffectiveChatModelConfigs(
@@ -1708,13 +1708,6 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 func (p *Server) UnarchiveChat(ctx context.Context, chat database.Chat) error {
 	return (&chatMutator{server: p}).UnarchiveChat(ctx, chat)
 }
-
-// setChatFamilyArchived applies SetArchived(archived) to every chat
-// in chat's family through chatstate. The transaction-captured
-// family rows feed the post-commit debug cleanup and sidebar watch
-// events. Callers must only invoke this for root chats.
-//
-//nolint:revive // Existing API takes the target archive state as a boolean.
 
 // DeleteQueued removes a queued user message through the chatstate
 // state machine. Stream side effects are handled by chat:update
@@ -2597,8 +2590,6 @@ func subscribeWithInitialError(chatID uuid.UUID, message string) (
 	}}, events, func() {}, true
 }
 
-// publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
-
 // chatWatchEventSDKChat builds the chat embedded in ChatWatchEvent
 // notifications. These payloads travel through PostgreSQL NOTIFY, so
 // omit fields that can grow large and that watch consumers already read
@@ -2611,9 +2602,6 @@ func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStat
 	}
 	return sdkChat
 }
-
-// publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
-// pubsub so that all replicas can push updates to watching clients.
 
 // ChatQueuedForCapacity reports whether the chat is waiting for a
 // concurrent-agent capacity slot. Uncapped deployments always return false.

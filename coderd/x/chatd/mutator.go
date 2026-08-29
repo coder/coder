@@ -2,11 +2,9 @@ package chatd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -27,36 +25,32 @@ type chatMutator struct {
 	server *Server
 }
 
-type chatMutation struct {
-	chat database.Chat
-}
-
 func (m *chatMutator) update(
 	ctx context.Context,
 	chatID uuid.UUID,
 	operation string,
-	transition func(*chatstate.Tx, database.Store, *chatMutation) error,
+	transition func(*chatstate.Tx, database.Store, *database.Chat) error,
 ) (database.Chat, error) {
-	mutation := chatMutation{}
+	var updated database.Chat
 	err := m.server.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		if err := transition(tx, store, &mutation); err != nil {
+		if err := transition(tx, store, &updated); err != nil {
 			return err
 		}
-		if mutation.chat.ID != uuid.Nil {
+		if updated.ID != uuid.Nil {
 			return nil
 		}
 		chat, err := store.GetChatByID(ctx, chatID)
 		if err != nil {
 			return xerrors.Errorf("reload chat after %s: %w", operation, err)
 		}
-		mutation.chat = chat
+		updated = chat
 		return nil
 	})
 	if err != nil {
 		return database.Chat{}, err
 	}
-	m.server.publishChatPubsubEvent(mutation.chat, codersdk.ChatWatchEventKindStatusChange, nil)
-	return mutation.chat, nil
+	m.server.publishChatPubsubEvent(updated, codersdk.ChatWatchEventKindStatusChange, nil)
+	return updated, nil
 }
 
 func (m *chatMutator) SendMessage(
@@ -126,7 +120,7 @@ func (m *chatMutator) SendMessage(
 	requestedMCPServerIDs := opts.MCPServerIDs
 
 	var result SendMessageResult
-	refreshed, updateErr := m.update(ctx, opts.ChatID, "send", func(tx *chatstate.Tx, store database.Store, _ *chatMutation) error {
+	refreshed, updateErr := m.update(ctx, opts.ChatID, "send", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -228,7 +222,7 @@ func (m *chatMutator) EditMessage(
 		if chat.Archived {
 			return EditMessageResult{}, ErrChatArchived
 		}
-		if err := validateEditTarget(ctx, m.server.db, opts.ChatID, opts.EditedMessageID); err != nil {
+		if _, err := validateEditTarget(ctx, m.server.db, opts.ChatID, opts.EditedMessageID); err != nil {
 			return EditMessageResult{}, err
 		}
 		if _, err := validateModelConfigOverride(ctx, m.server.db, chat.OrganizationID, opts.ModelConfigID); err != nil {
@@ -257,11 +251,10 @@ func (m *chatMutator) EditMessage(
 		return EditMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 	var (
-		result        EditMessageResult
-		editedMsg     database.ChatMessage
-		editedCutoffT time.Time
+		result    EditMessageResult
+		editedMsg database.ChatMessage
 	)
-	refreshed, err := m.update(ctx, opts.ChatID, "edit", func(tx *chatstate.Tx, store database.Store, _ *chatMutation) error {
+	refreshed, err := m.update(ctx, opts.ChatID, "edit", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -269,24 +262,9 @@ func (m *chatMutator) EditMessage(
 		if lockedChat.Archived {
 			return ErrChatArchived
 		}
-		// Capture the target message for the post-commit debug
-		// cleanup hook below. The transition itself revalidates
-		// chat ownership and user-message constraints.
-		target, err := store.GetChatMessageByID(ctx, opts.EditedMessageID)
+		target, err := validateEditTarget(ctx, store, opts.ChatID, opts.EditedMessageID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrEditedMessageNotFound
-			}
-			return xerrors.Errorf("get edited message: %w", err)
-		}
-		if target.ChatID != opts.ChatID {
-			return ErrEditedMessageNotFound
-		}
-		if target.Deleted {
-			return ErrEditedMessageNotFound
-		}
-		if target.Role != database.ChatMessageRoleUser {
-			return ErrEditedMessageNotUser
+			return err
 		}
 		editedMsg = target
 
@@ -362,7 +340,6 @@ func (m *chatMutator) EditMessage(
 	}
 
 	result.Chat = refreshed
-	editedCutoffT = refreshed.UpdatedAt
 
 	// Editing can race with an interrupted worker still flushing its
 	// final debug writes. Run a short bounded retry loop so we converge
@@ -372,7 +349,7 @@ func (m *chatMutator) EditMessage(
 	// stamps replacement-turn debug rows; subtract
 	// debugCleanupClockSkew so replica clock drift cannot let the retry
 	// delete a replacement turn's debug rows.
-	editCutoff := editedCutoffT.Add(-debugCleanupClockSkew)
+	editCutoff := refreshed.UpdatedAt.Add(-debugCleanupClockSkew)
 	m.server.scheduleDebugCleanup(
 		ctx,
 		"failed to delete chat debug rows after edit",
@@ -389,25 +366,15 @@ func (m *chatMutator) EditMessage(
 	return result, nil
 }
 
-type archiveMutation struct {
-	archived  bool
-	watchKind codersdk.ChatWatchEventKind
-}
-
 func (m *chatMutator) ArchiveChat(ctx context.Context, chat database.Chat) error {
-	return m.setChatFamilyArchived(ctx, chat, archiveMutation{
-		archived:  true,
-		watchKind: codersdk.ChatWatchEventKindDeleted,
-	})
+	return m.setChatFamilyArchived(ctx, chat, chatstate.SetFamilyArchivedInput{Archived: true})
 }
 
 func (m *chatMutator) UnarchiveChat(ctx context.Context, chat database.Chat) error {
-	return m.setChatFamilyArchived(ctx, chat, archiveMutation{
-		watchKind: codersdk.ChatWatchEventKindCreated,
-	})
+	return m.setChatFamilyArchived(ctx, chat, chatstate.SetFamilyArchivedInput{})
 }
 
-func (m *chatMutator) setChatFamilyArchived(ctx context.Context, chat database.Chat, mutation archiveMutation) error {
+func (m *chatMutator) setChatFamilyArchived(ctx context.Context, chat database.Chat, input chatstate.SetFamilyArchivedInput) error {
 	if chat.ID == uuid.Nil {
 		return xerrors.New("chat_id is required")
 	}
@@ -415,17 +382,17 @@ func (m *chatMutator) setChatFamilyArchived(ctx context.Context, chat database.C
 		return ErrArchiveRequiresRootChat
 	}
 
-	familyChats, err := chatstate.SetFamilyArchived(ctx, m.server.db, m.server.pubsub, chatstate.SetFamilyArchivedInput{
-		RootID:   chat.ID,
-		Archived: mutation.archived,
-	})
+	input.RootID = chat.ID
+	familyChats, err := chatstate.SetFamilyArchived(ctx, m.server.db, m.server.pubsub, input)
 	if err != nil {
 		return err
 	}
-	if mutation.archived {
+	watchKind := codersdk.ChatWatchEventKindCreated
+	if input.Archived {
 		m.server.scheduleArchiveDebugCleanup(ctx, familyChats)
+		watchKind = codersdk.ChatWatchEventKindDeleted
 	}
-	m.server.publishChatPubsubEvents(familyChats, mutation.watchKind)
+	m.server.publishChatPubsubEvents(familyChats, watchKind)
 	return nil
 }
 
@@ -452,7 +419,7 @@ func (m *chatMutator) PromoteQueued(
 	}
 
 	var result PromoteQueuedResult
-	_, updateErr := m.update(ctx, opts.ChatID, "promote", func(tx *chatstate.Tx, store database.Store, _ *chatMutation) error {
+	_, updateErr := m.update(ctx, opts.ChatID, "promote", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -504,8 +471,7 @@ func (m *chatMutator) SubmitToolResults(
 		}
 	}
 
-	var statusConflict *ToolResultStatusConflictError
-	_, updateErr := m.update(ctx, opts.ChatID, "tool results", func(tx *chatstate.Tx, store database.Store, _ *chatMutation) error {
+	_, updateErr := m.update(ctx, opts.ChatID, "tool results", func(tx *chatstate.Tx, store database.Store, _ *database.Chat) error {
 		locked, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -535,19 +501,13 @@ func (m *chatMutator) SubmitToolResults(
 			if !errors.Is(err, chatstate.ErrInvalidState) &&
 				locked.Status != database.ChatStatusRequiresAction &&
 				errors.Is(err, chatstate.ErrTransitionNotAllowed) {
-				statusConflict = &ToolResultStatusConflictError{
-					ActualStatus: locked.Status,
-				}
-				return statusConflict
+				return &ToolResultStatusConflictError{ActualStatus: locked.Status}
 			}
 			return xerrors.Errorf("complete requires action: %w", err)
 		}
 		return nil
 	})
 	if updateErr != nil {
-		if statusConflict != nil {
-			return statusConflict
-		}
 		return translateToolResultValidationError(updateErr)
 	}
 
@@ -586,7 +546,7 @@ func (m *chatMutator) InterruptChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := m.update(ctx, chat.ID, "interrupt", func(tx *chatstate.Tx, _ database.Store, _ *chatMutation) error {
+	refreshed, err := m.update(ctx, chat.ID, "interrupt", func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
 		if _, err := tx.Interrupt(chatstate.InterruptInput{
 			Reason: "Tool execution interrupted by user",
 		}); err != nil {
@@ -609,7 +569,7 @@ func (m *chatMutator) CompactChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := m.update(ctx, chat.ID, "compact", func(tx *chatstate.Tx, store database.Store, mutation *chatMutation) error {
+	refreshed, err := m.update(ctx, chat.ID, "compact", func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -638,7 +598,7 @@ func (m *chatMutator) CompactChat(
 		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
 			return ErrNothingToCompact
 		}
-		mutation.chat = result.Chat
+		*updated = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -656,7 +616,7 @@ func (m *chatMutator) ClearChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := m.update(ctx, chat.ID, "clear", func(tx *chatstate.Tx, store database.Store, mutation *chatMutation) error {
+	refreshed, err := m.update(ctx, chat.ID, "clear", func(tx *chatstate.Tx, store database.Store, updated *database.Chat) error {
 		lockedChat, err := store.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -691,7 +651,7 @@ func (m *chatMutator) ClearChat(
 		if !hasClearableMessageAfter(messages, boundary) {
 			return ErrNothingToClear
 		}
-		mutation.chat = result.Chat
+		*updated = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -709,7 +669,7 @@ func (m *chatMutator) ReconcileInvalidStateChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := m.update(ctx, chat.ID, "reconcile", func(tx *chatstate.Tx, _ database.Store, _ *chatMutation) error {
+	refreshed, err := m.update(ctx, chat.ID, "reconcile", func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
 		if _, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{}); err != nil {
 			return err
 		}
