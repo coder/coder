@@ -691,6 +691,12 @@ func refreshTokenGrant(ctx context.Context, db database.Store, logger slog.Logge
 	// Grab the user roles so we can perform the refresh as the user.
 	//nolint:gocritic // OAuth2 system context, need to read the previous API key
 	prevKey, err := db.GetAPIKeyByID(dbauthz.AsSystemOAuth2(ctx), dbToken.APIKeyID)
+	// A revoked token: the key is gone and the refresh cannot mint from it. The
+	// other lookups in this function already answer errBadToken, and without
+	// this one a revocation reads as a server fault.
+	if errors.Is(err, sql.ErrNoRows) {
+		return codersdk.OAuth2TokenResponse{}, errBadToken
+	}
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, err
 	}
