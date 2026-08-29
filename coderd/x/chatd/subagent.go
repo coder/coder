@@ -294,11 +294,7 @@ func (p *Server) resolveSubagentModelConfigID(
 		credentialFailure: modelOverrideFailureModeSoft,
 	})
 	if err != nil {
-		return uuid.Nil, nil, xerrors.Errorf(
-			"get %s model override: %w",
-			subagentModelOverrideLogLabel(overrideContext),
-			err,
-		)
+		return uuid.Nil, nil, err
 	}
 	if !resolved.Set {
 		return uuid.Nil, nil, nil

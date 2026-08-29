@@ -2838,7 +2838,7 @@ func (p *Server) resolveManualTitleModel(
 		})
 		if err != nil {
 			return resolvedModelCall{}, xerrors.Errorf(
-				"resolve manual title generation model override: create title generation model override: %w",
+				"resolve manual title generation model override: %w",
 				err,
 			)
 		}
@@ -4148,6 +4148,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	chatprovider.PruneDisabledProviderKeys(&keys, enabledProviders)
 	return keys, nil
 }
+
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
 
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
