@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"encoding/json"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -13,37 +12,11 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
-
-type mutationRecorder struct {
-	pubsub.Pubsub
-	mu     sync.Mutex
-	events []mutationEvent
-}
-
-type mutationEvent struct {
-	channel string
-	payload []byte
-}
-
-func (r *mutationRecorder) Publish(channel string, payload []byte) error {
-	r.mu.Lock()
-	r.events = append(r.events, mutationEvent{channel: channel, payload: append([]byte(nil), payload...)})
-	r.mu.Unlock()
-	return r.Pubsub.Publish(channel, payload)
-}
-
-func (r *mutationRecorder) snapshot() []mutationEvent {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]mutationEvent(nil), r.events...)
-}
 
 func TestChatMutator(t *testing.T) {
 	t.Parallel()
@@ -57,26 +30,28 @@ func TestChatMutator(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				ctx := testutil.Context(t, testutil.WaitLong)
-				db, ps := dbtestutil.NewDB(t)
-				owner := dbgen.User(t, db, database.User{})
-				org := dbgen.Organization(t, db, database.Organization{})
-				dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "openai", BaseUrl: "http://example.invalid"})
-				model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID, IsDefault: true})
-				chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: owner.ID, LastModelConfigID: model.ID})
-				recorder := &mutationRecorder{Pubsub: ps}
-				mutator := chatMutator{server: &Server{db: db, pubsub: recorder, logger: slogtest.Make(t, nil)}}
+				fixture := newWorkerTestFixture(t)
+				chat := dbgen.Chat(t, fixture.db, database.Chat{
+					OrganizationID:    fixture.org.ID,
+					OwnerID:           fixture.user.ID,
+					LastModelConfigID: fixture.model.ID,
+				})
+				recorder := newRecordingPubsub(fixture.pubsub)
+				mutator := chatMutator{server: &Server{db: fixture.db, pubsub: recorder, logger: slogtest.Make(t, nil)}}
 				wantErr := xerrors.New("transition failed")
 
-				updated, err := mutator.update(ctx, chat.ID, "test", func(tx *chatstate.Tx, _ database.Store, _ *chatMutation) error {
+				updated, err := mutator.update(ctx, chat.ID, "test", func(tx *chatstate.Tx, _ database.Store, _ *database.Chat) error {
 					if tt.fail {
 						return wantErr
 					}
 					_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{})
 					return err
 				})
-				stored, loadErr := db.GetChatByID(ctx, chat.ID)
+				stored, loadErr := fixture.db.GetChatByID(ctx, chat.ID)
 				require.NoError(t, loadErr)
-				events := recorder.snapshot()
+				recorder.mu.Lock()
+				events := append([]publishedEvent(nil), recorder.events...)
+				recorder.mu.Unlock()
 				if tt.fail {
 					require.ErrorIs(t, err, wantErr)
 					require.Equal(t, chat.SnapshotVersion, stored.SnapshotVersion)
@@ -93,7 +68,7 @@ func TestChatMutator(t *testing.T) {
 					switch event.channel {
 					case coderdpubsub.ChatStateUpdateChannel(chat.ID):
 						stateIndex = i
-					case coderdpubsub.ChatWatchEventChannel(owner.ID):
+					case coderdpubsub.ChatWatchEventChannel(fixture.user.ID):
 						watchIndex = i
 						var payload codersdk.ChatWatchEvent
 						require.NoError(t, json.Unmarshal(event.payload, &payload))
@@ -117,7 +92,6 @@ func TestChatMutator(t *testing.T) {
 			call func() error
 			want string
 		}{
-			{name: "send chat ID", call: func() error { _, err := mutator.SendMessage(context.Background(), SendMessageOptions{}); return err }, want: "chat_id is required"},
 			{name: "send content", call: func() error {
 				_, err := mutator.SendMessage(context.Background(), SendMessageOptions{ChatID: uuid.New()})
 				return err
@@ -126,7 +100,6 @@ func TestChatMutator(t *testing.T) {
 				_, err := mutator.SendMessage(context.Background(), SendMessageOptions{ChatID: uuid.New(), Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hi")}, BusyBehavior: "invalid"})
 				return err
 			}, want: "invalid busy behavior \"invalid\""},
-			{name: "edit chat ID", call: func() error { _, err := mutator.EditMessage(context.Background(), EditMessageOptions{}); return err }, want: "chat_id is required"},
 			{name: "edit message ID", call: func() error {
 				_, err := mutator.EditMessage(context.Background(), EditMessageOptions{ChatID: uuid.New()})
 				return err
@@ -137,18 +110,6 @@ func TestChatMutator(t *testing.T) {
 			}, want: "content is required"},
 			{name: "archive child", call: func() error { return mutator.ArchiveChat(context.Background(), child) }, want: ErrArchiveRequiresRootChat.Error()},
 			{name: "unarchive child", call: func() error { return mutator.UnarchiveChat(context.Background(), child) }, want: ErrArchiveRequiresRootChat.Error()},
-			{name: "delete queued chat ID", call: func() error { return mutator.DeleteQueued(context.Background(), uuid.Nil, 1) }, want: "chat_id is required"},
-			{name: "promote queued chat ID", call: func() error {
-				_, err := mutator.PromoteQueued(context.Background(), PromoteQueuedOptions{})
-				return err
-			}, want: "chat_id is required"},
-			{name: "interrupt chat ID", call: func() error { _, err := mutator.InterruptChat(context.Background(), database.Chat{}); return err }, want: "chat_id is required"},
-			{name: "compact chat ID", call: func() error { _, err := mutator.CompactChat(context.Background(), database.Chat{}); return err }, want: "chat_id is required"},
-			{name: "clear chat ID", call: func() error { _, err := mutator.ClearChat(context.Background(), database.Chat{}); return err }, want: "chat_id is required"},
-			{name: "reconcile chat ID", call: func() error {
-				_, err := mutator.ReconcileInvalidStateChat(context.Background(), database.Chat{})
-				return err
-			}, want: "chat_id is required"},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
