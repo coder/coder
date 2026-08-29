@@ -73,7 +73,7 @@ type turnToolset struct {
 	toolNameToConfigID map[string]uuid.UUID
 }
 
-func (t turnToolset) IsBuiltin(name string) bool { return t.builtinToolNames[name] }
+func (t *turnToolset) IsBuiltin(name string) bool { return t.builtinToolNames[name] }
 
 type turnEnvironmentState struct {
 	turn       turnState
@@ -142,7 +142,6 @@ func buildTurnEnvironment(
 	server *Server,
 	input generationPrepareInput,
 ) (turnEnvironment, error) {
-	builder := turnEnvironmentBuilder{server: server}
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -254,7 +253,7 @@ func buildTurnEnvironment(
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
-	planModeInstructions := builder.loadPlanModeInstructions(ctx, currentPlanMode, logger)
+	planModeInstructions := loadPlanModeInstructions(ctx, server.db, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
 	// Force Enabled from the experiment; the stored DB value is ignored.
 	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
@@ -427,7 +426,7 @@ func buildTurnEnvironment(
 		return nil
 	})
 	g2.Go(func() error {
-		personalSkills = builder.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
+		personalSkills = fetchPersonalSkillMetadata(ctx, server.db, chat.OwnerID, logger)
 		return nil
 	})
 	g2.Go(func() error {
@@ -561,7 +560,7 @@ func buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = builder.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools = appendRootChatTools(ctx, server, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -579,7 +578,7 @@ func buildTurnEnvironment(
 		},
 		ResolveAlias: resolveSkillAlias,
 		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-			return builder.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+			return loadPersonalSkillBody(ctx, server.db, server.logger, chat.OwnerID, name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
@@ -1871,10 +1870,6 @@ func buildSystemPrompt(
 	return prompt
 }
 
-type turnEnvironmentBuilder struct {
-	server *Server
-}
-
 type rootChatToolsOptions struct {
 	chat            database.Chat
 	modelConfigID   uuid.UUID
@@ -1885,8 +1880,9 @@ type rootChatToolsOptions struct {
 	isPlanModeTurn  bool
 }
 
-func (builder turnEnvironmentBuilder) loadPlanModeInstructions(
+func loadPlanModeInstructions(
 	ctx context.Context,
+	db database.Store,
 	mode database.NullChatPlanMode,
 	logger slog.Logger,
 ) string {
@@ -1898,7 +1894,7 @@ func (builder turnEnvironmentBuilder) loadPlanModeInstructions(
 	// not carry a deployment-config actor during background execution.
 	//nolint:gocritic // Required to read deployment config during background chat processing.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	fetched, err := builder.server.db.GetChatPlanModeInstructions(systemCtx)
+	fetched, err := db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
 		logger.Warn(ctx,
 			"failed to fetch plan mode instructions",
@@ -1928,12 +1924,13 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 	return dbauthz.As(ctx, actor)
 }
 
-func (builder turnEnvironmentBuilder) fetchPersonalSkillMetadata(
+func fetchPersonalSkillMetadata(
 	ctx context.Context,
+	db database.Store,
 	userID uuid.UUID,
 	logger slog.Logger,
 ) []skillspkg.Skill {
-	rows, err := builder.server.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
+	rows, err := db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
 	// See package coderd/x/skills (doc.go) for why metadata fetch failures
 	// intentionally degrade to an empty personal-skill list instead of
 	// failing the chat turn.
@@ -1956,12 +1953,14 @@ func (builder turnEnvironmentBuilder) fetchPersonalSkillMetadata(
 	return personalSkills
 }
 
-func (builder turnEnvironmentBuilder) loadPersonalSkillBody(
+func loadPersonalSkillBody(
 	ctx context.Context,
+	db database.Store,
+	logger slog.Logger,
 	userID uuid.UUID,
 	name string,
 ) (skillspkg.ParsedSkill, error) {
-	row, err := builder.server.db.GetUserSkillByUserIDAndName(
+	row, err := db.GetUserSkillByUserIDAndName(
 		userSkillContext(ctx, userID),
 		database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -1972,7 +1971,7 @@ func (builder turnEnvironmentBuilder) loadPersonalSkillBody(
 		if errors.Is(err, sql.ErrNoRows) {
 			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 		}
-		builder.server.logger.Error(ctx, "load personal skill body failed",
+		logger.Error(ctx, "load personal skill body failed",
 			slog.F("user_id", userID),
 			slog.F("name", name),
 			slog.Error(err),
@@ -1982,7 +1981,7 @@ func (builder turnEnvironmentBuilder) loadPersonalSkillBody(
 
 	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
 	if err != nil {
-		builder.server.logger.Error(ctx, "parse personal skill body failed",
+		logger.Error(ctx, "parse personal skill body failed",
 			slog.F("user_id", userID),
 			slog.F("name", name),
 			slog.Error(err),
@@ -1992,8 +1991,9 @@ func (builder turnEnvironmentBuilder) loadPersonalSkillBody(
 	return parsed, nil
 }
 
-func (builder turnEnvironmentBuilder) appendRootChatTools(
+func appendRootChatTools(
 	ctx context.Context,
+	server *Server,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
 ) []fantasy.AgentTool {
@@ -2001,41 +2001,41 @@ func (builder turnEnvironmentBuilder) appendRootChatTools(
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
-		builder.server.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		server.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
 	tools = append(tools,
-		chattool.ListTemplates(builder.server.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
+		chattool.ListTemplates(server.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
-			Logger:  builder.server.logger,
-			Clock:   builder.server.clock,
+			Logger:  server.logger,
+			Clock:   server.clock,
 		}),
-		chattool.ReadTemplate(builder.server.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
+		chattool.ReadTemplate(server.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID: opts.chat.OwnerID,
 		}),
-		chattool.CreateWorkspace(builder.server.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
+		chattool.CreateWorkspace(server.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       builder.server.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(builder.server.agentConnFn),
-			AgentInactiveDisconnectTimeout: builder.server.agentInactiveDisconnectTimeout,
+			CreateFn:                       server.createWorkspaceFn,
+			AgentConnFn:                    chattool.AgentConnFunc(server.agentConnFn),
+			AgentInactiveDisconnectTimeout: server.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
-			Logger:                         builder.server.logger,
+			Logger:                         server.logger,
 		}),
-		chattool.StartWorkspace(builder.server.db, opts.chat.ID, chattool.StartWorkspaceOptions{
+		chattool.StartWorkspace(server.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StartFn:       builder.server.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(builder.server.agentConnFn),
+			StartFn:       server.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(server.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
-			Logger:        builder.server.logger,
+			Logger:        server.logger,
 		}),
-		chattool.StopWorkspace(builder.server.db, opts.chat.ID, chattool.StopWorkspaceOptions{
+		chattool.StopWorkspace(server.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StopFn:        builder.server.stopWorkspaceFn,
+			StopFn:        server.stopWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
-			Logger:        builder.server.logger,
+			Logger:        server.logger,
 		}),
 	)
 	if opts.isPlanModeTurn {
@@ -2047,7 +2047,7 @@ func (builder turnEnvironmentBuilder) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, builder.server.subagentTools(ctx, func() database.Chat {
+	return append(tools, server.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
 }

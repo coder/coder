@@ -622,9 +622,9 @@ func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Durati
 }
 
 const (
-	// generationPhaseMaxAttempts bounds how many times prepareGeneration
+	// generationPhaseMaxAttempts bounds how many times buildTurnEnvironment
 	// and decideGenerationAction run before the turn finishes with an
-	// error. Both phases are retried because prepareGeneration performs
+	// error. Both phases are retried because buildTurnEnvironment performs
 	// I/O (DB reads, MCP connects, workspace dials) that can fail
 	// transiently.
 	generationPhaseMaxAttempts = 3
