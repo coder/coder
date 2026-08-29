@@ -250,11 +250,6 @@ func isAdvisorGuidanceMessage(msg fantasy.Message) bool {
 	return strings.TrimSpace(text.Text) == strings.TrimSpace(chatadvisor.ParentGuidanceBlock)
 }
 
-const advisorOverrideContext = "advisor"
-
-// resolveAdvisorModelOverride resolves the advisor model override for the
-// chat's organization. Missing or unusable overrides fall back to the chat
-// model. Linked-provider route and client failures remain hard failures.
 func (p *Server) resolveAdvisorModelOverride(
 	ctx context.Context,
 	chat database.Chat,
@@ -262,78 +257,37 @@ func (p *Server) resolveAdvisorModelOverride(
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (resolvedModelCall, bool, error) {
-	//nolint:gocritic // Chatd reads organization-scoped runtime configuration.
-	override, err := p.db.GetChatOrganizationModelOverride(
-		dbauthz.AsChatd(ctx),
-		database.GetChatOrganizationModelOverrideParams{
-			OrganizationID: chat.OrganizationID,
-			Context:        advisorOverrideContext,
-		},
-	)
+	override, err := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:           advisorOverrideContext,
+		ownerID:           chat.OwnerID,
+		organizationID:    chat.OrganizationID,
+		queryFailure:      modelOverrideFailureModeSoft,
+		configFailure:     modelOverrideFailureModeSoft,
+		credentialFailure: modelOverrideFailureModeHard,
+	})
 	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to load advisor model override, continuing with chat model",
-			slog.F("organization_id", chat.OrganizationID),
-			slog.Error(err),
-		)
-		return resolvedModelCall{}, false, nil
+		return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 	}
-
-	modelCtx, modelCtxErr := p.callerModelConfigContext(ctx, chat.OwnerID)
-	if modelCtxErr != nil {
-		logger.Warn(
-			ctx,
-			"failed to load advisor model authorization, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(modelCtxErr),
-		)
-		return resolvedModelCall{}, false, nil
-	}
-	// Re-read the model row for every runtime so disabled models or providers
-	// stop routing advisor prompts immediately.
-	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(modelCtx, override.ModelConfigID)
-	if err == nil && overrideConfig.OrganizationID != chat.OrganizationID {
-		err = sql.ErrNoRows
-	}
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Warn(
-				ctx,
-				"advisor model config is disabled or unavailable, continuing with chat model",
-				slog.F("model_config_id", override.ModelConfigID),
-			)
-			return resolvedModelCall{}, false, nil
-		}
-		logger.Warn(
-			ctx,
-			"failed to resolve advisor model config, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
-			slog.Error(err),
-		)
+	if !override.Set {
 		return resolvedModelCall{}, false, nil
 	}
 
 	resolved, err := p.resolveModelCall(ctx, modelCallSpec{
 		purpose:         "advisor",
 		chat:            chat,
-		explicitConfig:  &overrideConfig,
-		requestedEffort: ptr.FromNullString(override.ReasoningEffort),
+		explicitConfig:  &override.Config,
+		requestedEffort: override.ReasoningEffort,
 		maxOutputTokens: ptr.Ref(maxOutputTokens),
 		buildOptions:    modelOpts,
 	})
 	if err != nil {
 		var parseErr modelCallConfigParseError
-		if overrideConfig.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
+		if override.Config.AIProviderID.Valid && !xerrors.As(err, &parseErr) {
 			return resolvedModelCall{}, false, xerrors.Errorf("resolve advisor override model: %w", err)
 		}
-		logger.Warn(
-			ctx,
+		logger.Warn(ctx,
 			"failed to resolve advisor override model, continuing with chat model",
-			slog.F("model_config_id", override.ModelConfigID),
+			slog.F("model_config_id", override.Config.ID),
 			slog.Error(err),
 		)
 		return resolvedModelCall{}, false, nil
@@ -2846,13 +2800,16 @@ func (p *Server) resolveManualTitleModel(
 	chat database.Chat,
 	modelOpts modelBuildOptions,
 ) (resolvedModelCall, error) {
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		chat,
-		modelOpts,
-	)
+	override, overrideErr := p.resolveModelOverride(ctx, modelOverrideSpec{
+		context:           titleGenerationOverrideContext,
+		ownerID:           chat.OwnerID,
+		organizationID:    chat.OrganizationID,
+		queryFailure:      modelOverrideFailureModeHard,
+		configFailure:     modelOverrideFailureModeHard,
+		credentialFailure: modelOverrideFailureModeHard,
+	})
 	if overrideErr != nil {
-		if overrideSet {
+		if override.Set {
 			return resolvedModelCall{}, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
@@ -2862,8 +2819,22 @@ func (p *Server) resolveManualTitleModel(
 			slog.F("chat_id", chat.ID),
 			slog.Error(overrideErr),
 		)
-	} else if overrideSet {
-		return overrideResolved, nil
+	} else if override.Set {
+		resolved, err := p.resolveModelCall(ctx, modelCallSpec{
+			purpose:          "title",
+			chat:             chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     modelOpts,
+		})
+		if err != nil {
+			return resolvedModelCall{}, xerrors.Errorf(
+				"resolve manual title generation model override: create title generation model override: %w",
+				err,
+			)
+		}
+		return resolved, nil
 	}
 
 	modelCtx, err := p.callerModelConfigContext(ctx, chat.OwnerID)

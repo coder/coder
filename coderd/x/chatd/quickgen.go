@@ -287,13 +287,31 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideResolved, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		titleCtx,
-		chat,
-		modelOpts,
-	)
+	override, overrideErr := p.resolveModelOverride(titleCtx, modelOverrideSpec{
+		context:           titleGenerationOverrideContext,
+		ownerID:           chat.OwnerID,
+		organizationID:    chat.OrganizationID,
+		queryFailure:      modelOverrideFailureModeHard,
+		configFailure:     modelOverrideFailureModeHard,
+		credentialFailure: modelOverrideFailureModeHard,
+	})
+	if overrideErr == nil && override.Set {
+		overrideResolved, err := p.resolveModelCall(titleCtx, modelCallSpec{
+			purpose:          "title",
+			chat:             chat,
+			explicitConfig:   &override.Config,
+			requestedEffort:  override.ReasoningEffort,
+			chatdScopedRoute: true,
+			buildOptions:     modelOpts,
+		})
+		if err != nil {
+			overrideErr = xerrors.Errorf("create title generation model override: %w", err)
+		} else {
+			fallback = overrideResolved
+		}
+	}
 	if overrideErr != nil {
-		if overrideSet {
+		if override.Set {
 			logger.Warn(ctx, "title generation model override unavailable, skipping title generation",
 				slog.F("chat_id", chat.ID),
 				slog.F("override_context", titleGenerationOverrideContext),
@@ -309,9 +327,6 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 
 	selected := fallback
-	if overrideSet {
-		selected = overrideResolved
-	}
 	candidate := shortTextCandidate{
 		provider: string(selected.route.Provider.Type),
 		model:    selected.dbConfig.Model,
@@ -357,7 +372,7 @@ func (p *Server) maybeGenerateChatTitle(
 	title, err := generateTitle(candidateCtx, candidate.resolved.model.LanguageModel(), titleObjectCall(candidate.resolved), input)
 	finishDebugRun(err)
 	if err != nil {
-		if overrideSet {
+		if override.Set {
 			logger.Warn(ctx, "title model candidate failed",
 				slog.F("chat_id", chat.ID),
 				slog.F("override_context", titleGenerationOverrideContext),

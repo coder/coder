@@ -91,7 +91,7 @@ type generationCompaction struct {
 	// Override, when non-nil, is the compaction model override resolved at
 	// prepare time. Its model client is built in the compact action path,
 	// so construction failures cannot fail turns that never compact.
-	Override *resolvedCompactionOverride
+	Override *resolvedModelOverride
 	// ChatModelConfig is the chat model's config, used to detect provider
 	// changes when sanitizing the compaction prompt.
 	ChatModelConfig database.ChatModelConfig
