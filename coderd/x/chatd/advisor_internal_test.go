@@ -25,24 +25,18 @@ import (
 type advisorOverrideStubStore struct {
 	database.Store
 
-	getChatOrganizationModelOverride func(context.Context, database.GetChatOrganizationModelOverrideParams) (database.ChatOrganizationModelOverride, error)
-	advisorModelConfigID             uuid.UUID
-	advisorReasoningEffort           *string
-	getEnabledChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getChatModelConfigByID           func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
-	getAIProviderByID                func(context.Context, uuid.UUID) (database.AIProvider, error)
-	getAIProviders                   func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error)
-	getAIProviderKeysByProviderID    func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
-	getAIProviderKeysByProviderIDs   func(context.Context, []uuid.UUID) ([]database.AIProviderKey, error)
+	advisorModelConfigID          uuid.UUID
+	advisorReasoningEffort        *string
+	getEnabledChatModelConfigByID func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getChatModelConfigByID        func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
+	getAIProviderByID             func(context.Context, uuid.UUID) (database.AIProvider, error)
+	getAIProviderKeysByProviderID func(context.Context, uuid.UUID) ([]database.AIProviderKey, error)
 }
 
 func (s *advisorOverrideStubStore) GetChatOrganizationModelOverride(
 	ctx context.Context,
 	params database.GetChatOrganizationModelOverrideParams,
 ) (database.ChatOrganizationModelOverride, error) {
-	if s.getChatOrganizationModelOverride != nil {
-		return s.getChatOrganizationModelOverride(ctx, params)
-	}
 	if s.advisorModelConfigID == uuid.Nil {
 		return database.ChatOrganizationModelOverride{}, sql.ErrNoRows
 	}
@@ -74,9 +68,6 @@ func (s *advisorOverrideStubStore) GetChatModelConfigByID(
 	if s.getChatModelConfigByID != nil {
 		return s.getChatModelConfigByID(ctx, id)
 	}
-	if s.getEnabledChatModelConfigByID != nil {
-		return s.getEnabledChatModelConfigByID(ctx, id)
-	}
 	return database.ChatModelConfig{}, xerrors.New("unexpected GetChatModelConfigByID call")
 }
 
@@ -90,16 +81,6 @@ func (s *advisorOverrideStubStore) GetAIProviderByID(
 	return s.getAIProviderByID(ctx, id)
 }
 
-func (s *advisorOverrideStubStore) GetAIProviders(
-	ctx context.Context,
-	params database.GetAIProvidersParams,
-) ([]database.AIProvider, error) {
-	if s.getAIProviders == nil {
-		return nil, xerrors.New("unexpected GetAIProviders call")
-	}
-	return s.getAIProviders(ctx, params)
-}
-
 func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderID(
 	ctx context.Context,
 	providerID uuid.UUID,
@@ -108,16 +89,6 @@ func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderID(
 		return nil, xerrors.New("unexpected GetAIProviderKeysByProviderID call")
 	}
 	return s.getAIProviderKeysByProviderID(ctx, providerID)
-}
-
-func (s *advisorOverrideStubStore) GetAIProviderKeysByProviderIDs(
-	ctx context.Context,
-	providerIDs []uuid.UUID,
-) ([]database.AIProviderKey, error) {
-	if s.getAIProviderKeysByProviderIDs == nil {
-		return nil, xerrors.New("unexpected GetAIProviderKeysByProviderIDs call")
-	}
-	return s.getAIProviderKeysByProviderIDs(ctx, providerIDs)
 }
 
 func newAdvisorTestServer(
@@ -186,8 +157,6 @@ func advisorTestTransportFactory() *aibridgeTestFactory {
 	})}
 }
 
-// TestResolveAdvisorModelOverride covers the early-return, each
-// use-the-chat-model branch, and the success path.
 func TestResolveAdvisorModelOverride(t *testing.T) {
 	t.Parallel()
 
@@ -289,7 +258,7 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 	configID := uuid.New()
 	providerID := uuid.New()
 	store := &advisorOverrideStubStore{
-		getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+		getChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
 			return database.ChatModelConfig{
 				ID:           configID,
 				Model:        "gpt-5.2",

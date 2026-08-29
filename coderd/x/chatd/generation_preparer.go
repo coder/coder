@@ -694,7 +694,7 @@ func (server *Server) prepareGeneration(
 	})
 	if err != nil {
 		cleanup()
-		return generationPrepared{}, xerrors.Errorf("resolve compaction model override: %w", err)
+		return generationPrepared{}, err
 	}
 	var compactionOverride *resolvedModelOverride
 	if resolvedCompactionOverride.Set {

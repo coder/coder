@@ -33,13 +33,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-func titleGenerationOverrideParams(chat database.Chat) database.GetChatOrganizationModelOverrideParams {
-	return database.GetChatOrganizationModelOverrideParams{
-		OrganizationID: chat.OrganizationID,
-		Context:        titleGenerationOverrideContext,
-	}
-}
-
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
@@ -63,7 +56,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 			},
 		}
 
-		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+		db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 		db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 			ID:    chat.ID,
 			Title: wantTitle,
@@ -144,7 +137,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		},
 	}
 
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, "xhigh"), nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, "xhigh"), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -204,7 +197,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 		},
 	}
 
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -251,7 +244,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		Enabled:      true,
 	}
 
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return([]database.GetEnabledChatModelConfigsByOrganizationRow{
 		{ChatModelConfig: database.ChatModelConfig{Model: "gpt-4.1", Enabled: true}, Provider: "openai"},
 		{ChatModelConfig: preferredConfig, Provider: preferredTitleModels[1].provider},
@@ -280,7 +273,7 @@ func TestResolveManualTitleModel_NonDefaultOrgDoesNotUseDefaultOrgConfigs(t *tes
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	chat.OrganizationID = uuid.New()
 
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(database.ChatOrganizationModelOverride{}, sql.ErrNoRows)
 	db.EXPECT().GetEnabledChatModelConfigsByOrganization(gomock.Any(), chat.OrganizationID).Return(nil, nil).AnyTimes()
 
 	server := titleOverrideTestServer(db, logger)
@@ -306,7 +299,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	providerID := uuid.New()
 	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
@@ -384,7 +377,7 @@ func TestGenerateManualTitleCandidate_UsesSyntheticAPIKey(t *testing.T) {
 		UserID:    chat.OwnerID,
 		ExpiresAt: time.Now().Add(48 * time.Hour),
 	}, nil)
-	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), titleGenerationOverrideParams(chat)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
+	db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, titleGenerationOverrideContext)).Return(orgModelOverride(chat, titleGenerationOverrideContext, overrideConfig.ID, ""), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{

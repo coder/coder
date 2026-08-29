@@ -326,11 +326,10 @@ func (p *Server) maybeGenerateChatTitle(
 		)
 	}
 
-	selected := fallback
 	candidate := shortTextCandidate{
-		provider: string(selected.route.Provider.Type),
-		model:    selected.dbConfig.Model,
-		resolved: selected,
+		provider: string(fallback.route.Provider.Type),
+		model:    fallback.dbConfig.Model,
+		resolved: fallback,
 	}
 
 	var historyTipMessageID int64
