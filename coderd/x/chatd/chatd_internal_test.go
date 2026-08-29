@@ -810,40 +810,6 @@ func TestAllowedExploreToolNames(t *testing.T) {
 	require.NotContains(t, got, chattool.FindToolsName)
 }
 
-func TestAllowedBehaviorToolNames(t *testing.T) {
-	t.Parallel()
-
-	makeTools := func(names ...string) []fantasy.AgentTool {
-		tools := make([]fantasy.AgentTool, 0, len(names))
-		for _, name := range names {
-			tools = append(tools, newTestAgentTool(name))
-		}
-		return tools
-	}
-
-	allTools := makeTools("read_file", "custom_tool", "spawn_agent")
-	exploreMode := database.NullChatMode{
-		ChatMode: database.ChatModeExplore,
-		Valid:    true,
-	}
-
-	t.Run("DefaultModeReturnsAllTools", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file", "custom_tool", "spawn_agent"}, allowedBehaviorToolNames(
-			allTools,
-			database.NullChatMode{},
-		))
-	})
-
-	t.Run("ExploreModeUsesExploreAllowlist", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, []string{"read_file"}, allowedBehaviorToolNames(
-			allTools,
-			exploreMode,
-		))
-	})
-}
-
 func TestStopAfterPlanTools(t *testing.T) {
 	t.Parallel()
 
@@ -1819,53 +1785,6 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 	require.ErrorContains(t, err, "workspace/deploy")
 }
 
-func TestSkillIndexRefreshReplacesStaleAliases(t *testing.T) {
-	t.Parallel()
-
-	initialResolved := mergeTurnSkills(
-		[]skillspkg.Skill{{
-			Name:        "deploy",
-			Description: "Personal deployment process",
-			Source:      skillspkg.SourcePersonal,
-		}},
-		nil,
-	)
-	prompt := buildSystemPrompt(
-		[]fantasy.Message{{
-			Role: fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{
-				fantasy.TextPart{Text: "Create a workspace."},
-			},
-		}},
-		"",
-		"",
-		initialResolved,
-		"",
-		systemPromptBehaviorContext{},
-	)
-
-	mergedIndex := chattool.FormatResolvedSkillIndex(mergeTurnSkills(
-		[]skillspkg.Skill{{
-			Name:        "deploy",
-			Description: "Personal deployment process",
-			Source:      skillspkg.SourcePersonal,
-		}},
-		[]chattool.SkillMeta{{
-			Name:        "deploy",
-			Description: "Workspace deployment process",
-			Dir:         "/skills/deploy",
-		}},
-	))
-	prompt = removeSkillIndexMessages(prompt)
-	prompt = chatprompt.InsertSystem(prompt, mergedIndex)
-
-	text := systemPromptText(t, prompt)
-	require.Equal(t, 1, strings.Count(text, "<available-skills>"))
-	require.NotContains(t, text, "\n- deploy: Personal deployment process")
-	require.Contains(t, text, "- personal/deploy: Personal deployment process")
-	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
-}
-
 func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
 	t.Helper()
 	actor, ok := dbauthz.ActorFromContext(ctx)
@@ -1884,7 +1803,6 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		server := &Server{db: db}
 		userID := uuid.New()
 
 		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).DoAndReturn(
@@ -1899,7 +1817,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 			},
 		)
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		got := fetchPersonalSkillMetadata(context.Background(), db, userID, logger)
 		require.Equal(t, []skillspkg.Skill{{
 			Name:        "personal-review",
 			Description: "Personal review process",
@@ -1914,12 +1832,11 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 		db := dbmock.NewMockStore(ctrl)
 		sink := testutil.NewFakeSink(t)
 		logger := sink.Logger().Leveled(slog.LevelDebug)
-		server := &Server{db: db}
 		userID := uuid.New()
 
 		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, xerrors.New("boom"))
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		got := fetchPersonalSkillMetadata(context.Background(), db, userID, logger)
 		require.Empty(t, got)
 		warns := sink.Entries(func(e slog.SinkEntry) bool {
 			return e.Level == slog.LevelWarn && strings.Contains(e.Message, "personal skill metadata")
@@ -1936,7 +1853,6 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
 		userID := uuid.New()
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -1955,7 +1871,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		got, err := loadPersonalSkillBody(context.Background(), db, slogtest.Make(t, nil), userID, "personal-review")
 		require.NoError(t, err)
 		require.Equal(t, "personal-review", got.Name)
 		require.Equal(t, "Personal review process", got.Description)
@@ -1968,7 +1884,6 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		server := &Server{db: db}
 		userID := uuid.New()
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -1983,7 +1898,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		_, err := loadPersonalSkillBody(context.Background(), db, slogtest.Make(t, nil), userID, "missing-skill")
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -1993,7 +1908,6 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		sink := testutil.NewFakeSink(t)
-		server := &Server{db: db, logger: sink.Logger()}
 		userID := uuid.New()
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -2009,7 +1923,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+		_, err := loadPersonalSkillBody(context.Background(), db, sink.Logger(), userID, "error-skill")
 
 		require.ErrorContains(t, err, "load personal skill body")
 		require.ErrorIs(t, err, dbErr)
@@ -2026,7 +1940,6 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		sink := testutil.NewFakeSink(t)
-		server := &Server{db: db, logger: sink.Logger()}
 		userID := uuid.New()
 		params := database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -2045,7 +1958,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+		_, err := loadPersonalSkillBody(context.Background(), db, sink.Logger(), userID, "broken-skill")
 
 		require.ErrorContains(t, err, "parse personal skill body")
 		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)

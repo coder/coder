@@ -173,7 +173,7 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 // workspace skills from the chat's pinned context resources
 // (chat_context_resources), populated at hydrate and refresh time. A chat
 // with no pinned rows yields no context. A read error is returned rather than
-// swallowed, matching the other prompt-input reads in prepareGeneration.
+// swallowed, matching the other prompt-input reads in buildTurnEnvironment.
 //
 // agent only decorates the instruction header with its OS and directory; an
 // unresolved (zero-value) agent does not blank the context, so the pin keeps

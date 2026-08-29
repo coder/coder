@@ -47,49 +47,54 @@ func textMessage(t *testing.T, id int64, role database.ChatMessageRole, parts ..
 func TestLatestAssistantText(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ReturnsMostRecentAssistantMessage", func(t *testing.T) {
-		t.Parallel()
-		messages := []database.ChatMessage{
-			textMessage(t, 1, database.ChatMessageRoleUser, "hi"),
-			textMessage(t, 2, database.ChatMessageRoleAssistant, "first answer"),
-			textMessage(t, 3, database.ChatMessageRoleTool, "tool result"),
-			textMessage(t, 4, database.ChatMessageRoleAssistant, "  final answer  "),
-		}
-		require.Equal(t, "final answer", latestAssistantText(messages))
-	})
-
-	t.Run("ConcatenatesTextParts", func(t *testing.T) {
-		t.Parallel()
-		messages := []database.ChatMessage{
-			textMessage(t, 1, database.ChatMessageRoleAssistant, "foo", "bar"),
-		}
-		require.Equal(t, "foobar", latestAssistantText(messages))
-	})
-
-	t.Run("NoAssistantMessage", func(t *testing.T) {
-		t.Parallel()
-		messages := []database.ChatMessage{
-			textMessage(t, 1, database.ChatMessageRoleUser, "hi"),
-			textMessage(t, 2, database.ChatMessageRoleTool, "tool result"),
-		}
-		require.Empty(t, latestAssistantText(messages))
-	})
-
-	t.Run("EmptyAssistantText", func(t *testing.T) {
-		t.Parallel()
-		messages := []database.ChatMessage{
-			textMessage(t, 1, database.ChatMessageRoleAssistant, "   "),
-		}
-		require.Empty(t, latestAssistantText(messages))
-	})
-
-	t.Run("EmptyHistory", func(t *testing.T) {
-		t.Parallel()
-		require.Empty(t, latestAssistantText(nil))
-	})
+	tests := []struct {
+		name     string
+		messages []database.ChatMessage
+		want     string
+	}{
+		{
+			name: "ReturnsMostRecentAssistantMessage",
+			messages: []database.ChatMessage{
+				textMessage(t, 1, database.ChatMessageRoleUser, "hi"),
+				textMessage(t, 2, database.ChatMessageRoleAssistant, "first answer"),
+				textMessage(t, 3, database.ChatMessageRoleTool, "tool result"),
+				textMessage(t, 4, database.ChatMessageRoleAssistant, "  final answer  "),
+			},
+			want: "final answer",
+		},
+		{
+			name: "ConcatenatesTextParts",
+			messages: []database.ChatMessage{
+				textMessage(t, 1, database.ChatMessageRoleAssistant, "foo", "bar"),
+			},
+			want: "foobar",
+		},
+		{
+			name: "NoAssistantMessage",
+			messages: []database.ChatMessage{
+				textMessage(t, 1, database.ChatMessageRoleUser, "hi"),
+				textMessage(t, 2, database.ChatMessageRoleTool, "tool result"),
+			},
+		},
+		{
+			name: "EmptyAssistantText",
+			messages: []database.ChatMessage{
+				textMessage(t, 1, database.ChatMessageRoleAssistant, "   "),
+			},
+		},
+		{
+			name: "EmptyHistory",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, latestAssistantText(tt.messages))
+		})
+	}
 }
 
-func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
+func TestBuildTurnEnvironmentClampsRequestedReasoningEffortToMax(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -154,26 +159,26 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
-	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	providerOptions, ok := prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
-	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
-	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
+	require.NotNil(t, prepared.ModelConfig().callTemplate.MaxOutputTokens)
+	require.Equal(t, defaultChatMaxOutputTokens, *prepared.ModelConfig().callTemplate.MaxOutputTokens)
 
-	require.NotNil(t, prepared.Compaction)
-	summaryCall := prepared.Compaction.Options.SummaryCall
-	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
+	require.NotNil(t, prepared.CompactionConfig())
+	summaryCall := prepared.CompactionConfig().Options.SummaryCall
+	require.Equal(t, prepared.ModelConfig().callTemplate.ProviderOptions, summaryCall.ProviderOptions)
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	// Non-streaming summaries must not inherit the default output cap the
@@ -181,7 +186,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 	require.Nil(t, summaryCall.MaxOutputTokens)
 }
 
-func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) {
+func TestBuildTurnEnvironmentComputerUseIgnoresChatTransportOverride(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -259,24 +264,24 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	// The computer-use model is Responses-selected by the SDK and its client
 	// ignores the config's forced Chat Completions, so the options must be the
 	// Responses type or the SDK discards them.
-	_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	_, ok := prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name])
 
 	// File classification must also key on the substituted model: the
 	// Responses transport drops native text file parts, so the attachment
 	// must be inlined as text rather than kept as a FilePart.
 	var sawInlinedText bool
-	for _, message := range prepared.Prompt {
+	for _, message := range prepared.Prompt() {
 		for _, part := range message.Content {
 			if filePart, isFile := part.(fantasy.FilePart); isFile {
 				t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
@@ -290,7 +295,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 	require.True(t, sawInlinedText, "attachment was not inlined as text")
 }
 
-func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
+func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -344,24 +349,24 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
 		UserID:    user.ID,
 		TokenName: GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
-	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	require.Equal(t, gatewayKey.ID, prepared.ModelConfig().buildOptions.ActiveAPIKeyID)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces
 // the old in-memory generationSideEffects stash. The server here never ran
-// prepareGeneration, so a passing test proves the finish-turn inputs are
+// buildTurnEnvironment, so a passing test proves the finish-turn inputs are
 // rebuilt purely from persisted state.
 func TestDeriveFinalTurnRunResult(t *testing.T) {
 	t.Parallel()
@@ -596,51 +601,65 @@ func TestShouldCompactPromptUsage(t *testing.T) {
 
 	const contextLimit = int64(262144) // 256K, as in the poolside report
 
-	t.Run("inflated cumulative usage triggers compaction", func(t *testing.T) {
-		t.Parallel()
-		// 417,012 tokens: what the aibridge cross-chunk sum bug
-		// produced for a ~6,000-token conversation.
-		assert.True(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
-			contextLimit, 80))
-	})
-
-	t.Run("correct per-step usage does not trigger", func(t *testing.T) {
-		t.Parallel()
-		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 6000, TotalTokens: 6030},
-			contextLimit, 80))
-	})
-
-	t.Run("threshold 100 disables compaction", func(t *testing.T) {
-		t.Parallel()
-		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 500000}, contextLimit, 100))
-	})
-
-	t.Run("zero context limit disables compaction", func(t *testing.T) {
-		t.Parallel()
-		assert.False(t, shouldCompactPromptUsage(
-			fantasy.Usage{InputTokens: 6000}, 0, 80))
-	})
-
-	t.Run("counts cache read and creation tokens", func(t *testing.T) {
-		t.Parallel()
-		usage := fantasy.Usage{
-			InputTokens:         6000,
-			CacheReadTokens:     200000,
-			CacheCreationTokens: 5000,
-		}
-		// 211,000 / 262,144 = ~80.5%
-		assert.True(t, shouldCompactPromptUsage(usage, contextLimit, 80))
-	})
-
-	t.Run("falls back to TotalTokens when granular fields are missing", func(t *testing.T) {
-		t.Parallel()
-		assert.True(t, shouldCompactPromptUsage(
-			fantasy.Usage{TotalTokens: 211000},
-			contextLimit, 80))
-	})
+	tests := []struct {
+		name      string
+		usage     fantasy.Usage
+		limit     int64
+		threshold int32
+		want      bool
+	}{
+		{
+			// 417,012 tokens: what the aibridge cross-chunk sum bug
+			// produced for a ~6,000-token conversation.
+			name:      "inflated cumulative usage triggers compaction",
+			usage:     fantasy.Usage{InputTokens: 417012, TotalTokens: 418846},
+			limit:     contextLimit,
+			threshold: 80,
+			want:      true,
+		},
+		{
+			name:      "correct per-step usage does not trigger",
+			usage:     fantasy.Usage{InputTokens: 6000, TotalTokens: 6030},
+			limit:     contextLimit,
+			threshold: 80,
+		},
+		{
+			name:      "threshold 100 disables compaction",
+			usage:     fantasy.Usage{InputTokens: 500000},
+			limit:     contextLimit,
+			threshold: 100,
+		},
+		{
+			name:      "zero context limit disables compaction",
+			usage:     fantasy.Usage{InputTokens: 6000},
+			threshold: 80,
+		},
+		{
+			// 211,000 / 262,144 = ~80.5%
+			name: "counts cache read and creation tokens",
+			usage: fantasy.Usage{
+				InputTokens:         6000,
+				CacheReadTokens:     200000,
+				CacheCreationTokens: 5000,
+			},
+			limit:     contextLimit,
+			threshold: 80,
+			want:      true,
+		},
+		{
+			name:      "falls back to TotalTokens when granular fields are missing",
+			usage:     fantasy.Usage{TotalTokens: 211000},
+			limit:     contextLimit,
+			threshold: 80,
+			want:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, shouldCompactPromptUsage(tt.usage, tt.limit, tt.threshold))
+		})
+	}
 }
 
 func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {

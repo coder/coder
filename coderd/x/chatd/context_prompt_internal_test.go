@@ -438,7 +438,7 @@ func TestPinnedWorkspaceContextFromHydratedPin(t *testing.T) {
 	require.Empty(t, emptySkills)
 }
 
-// TestResolveTurnWorkspaceContext covers the dispatch that prepareGeneration
+// TestResolveTurnWorkspaceContext covers the dispatch that buildTurnEnvironment
 // wires up: the pinned copy when the chat has pinned rows, and nothing for a
 // non-workspace chat or a chat without pinned rows.
 func TestResolveTurnWorkspaceContext(t *testing.T) {
