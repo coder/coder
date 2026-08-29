@@ -42,8 +42,10 @@ var (
 	// still granted when a listed composite already confers it.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// A comparison that failed outright. The underlying error names RBAC
-	// internals, so it is logged rather than rendered.
-	errCoverageUndecidable = xerrors.New("scope coverage against this app's allowed scopes could not be determined")
+	// internals, so it is logged rather than rendered. It names no ceiling
+	// because the comparison runs against the app's allowlist at authorization
+	// and against the token's own grant at refresh.
+	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
 )
 
 // canonicalScopes rewrites each name to the spelling the api_key_scope enum
@@ -87,23 +89,24 @@ func grantableScopes(appScope string) []string {
 	return canonicalScopes(filtered)
 }
 
-// firstScopeOutsideAllowlist returns the first scope in granted that the
-// allowlist does not confer, or "" when it confers all of them. The check is
-// coverage rather than membership: an app allowed `coder:workspaces.access`
-// covers `workspace:read`. Both arguments must already be canonical, and an
-// undecidable comparison refuses rather than grants.
-func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, allowlist, granted []string) (string, error) {
-	allowedNames := make([]rbac.ScopeName, 0, len(allowlist))
-	for _, a := range allowlist {
+// firstScopeNotCovered returns the first scope in requested that the ceiling
+// does not confer, or "" when it confers all of them. The check is coverage
+// rather than membership: a ceiling of `coder:workspaces.access` covers
+// `workspace:read`. Both arguments must already be canonical, and an
+// undecidable comparison refuses rather than grants. The ceiling is the app's
+// allowlist at authorization and the token's own grant at refresh.
+func firstScopeNotCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, ceiling, requested []string) (string, error) {
+	allowedNames := make([]rbac.ScopeName, 0, len(ceiling))
+	for _, a := range ceiling {
 		allowedNames = append(allowedNames, rbac.ScopeName(a))
 	}
-	for _, s := range granted {
+	for _, s := range requested {
 		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
 		if err != nil {
 			logger.Warn(ctx, "oauth2 scope coverage could not be determined",
 				slog.Error(err),
 				slog.F("app_id", app.ID.String()),
-				slog.F("app_scope", app.Scope.String),
+				slog.F("ceiling", strings.Join(ceiling, " ")),
 				slog.F("scope", s))
 			return "", xerrors.Errorf("%q: %w", s, errCoverageUndecidable)
 		}
@@ -160,7 +163,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 
-	outside, err := firstScopeOutsideAllowlist(ctx, logger, app, allowlist, granted)
+	outside, err := firstScopeNotCovered(ctx, logger, app, allowlist, granted)
 	if err != nil {
 		return "", err
 	}

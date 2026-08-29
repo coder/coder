@@ -58,16 +58,87 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", token.RefreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
 			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
 		require.Equal(t, "workspace:ssh", refreshed.Scope)
+	})
+
+	// coder:workspaces.access covers workspace:ssh, so the narrowing is a
+	// genuine reduction of the authority the user consented to.
+	t.Run("RefreshNarrowsTheScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		refreshed := requireTokenResponse(t, status, body)
+
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, refreshed.RefreshToken))
+		require.Equal(t, "workspace:ssh", tokenRow(ctx, t, db, refreshed.RefreshToken).Scope,
+			"the next refresh inherits the persisted column, so a widened one would undo the narrowing")
+		require.Equal(t, "workspace:ssh", refreshed.Scope)
+	})
+
+	t.Run("RefreshCannotWidenTheScope", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "workspace:ssh")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", scopeAlsoInCatalog)
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonScopeNotGranted)
+		require.Contains(t, description, scopeAlsoInCatalog)
+		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
+			mintedKeyScopes(ctx, t, db, token.RefreshToken),
+			"a rejected refresh issues nothing and leaves the original token redeemable")
+	})
+
+	t.Run("RefreshUnknownScopeRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "not_a_real_scope")
+		status, body := postTokenRequest(ctx, t, client, form)
+
+		description := requireTokenScopeError(t, status, body)
+		require.Contains(t, description, oauth2provider.ReasonUnknownScope)
+	})
+
+	// RFC 6749 §5.1: a token whose scope differs from what the client asked for
+	// must be told what it got, which covers both a request that named nothing
+	// and one that narrowed.
+	t.Run("ResponseStatesTheScopeGranted", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		app := seedAppWithSecret(t, db, sql.NullString{String: scopeInCatalog, Valid: true})
+		code, verifier := authorizeCode(ctx, t, client, app.ID.String(), "")
+		token := exchangeCode(ctx, t, client, app, code, verifier)
+		require.Equal(t, scopeInCatalog, token.Scope)
+
+		form := refreshForm(app, token.RefreshToken)
+		form.Set("scope", "workspace:ssh")
+		status, body := postTokenRequest(ctx, t, client, form)
+		require.Equal(t, "workspace:ssh", requireTokenResponse(t, status, body).Scope)
 	})
 
 	// apikey.Generate defaults an empty scope list to coder:all, so this passes
@@ -131,12 +202,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		app := seedAppWithSecret(t, db, sql.NullString{})
 		refreshToken := seedRefreshToken(ctx, t, db, app, owner.UserID, string(database.ApiKeyScopeCoderAll))
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", refreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, refreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll},
@@ -206,12 +272,7 @@ func TestOAuth2TokenExchangeScope(t *testing.T) {
 		token := exchangeCode(ctx, t, client, app, code, verifier)
 		setAppAllowlist(ctx, t, db, app, sql.NullString{String: scopeAlsoInCatalog, Valid: true})
 
-		form := url.Values{}
-		form.Set("grant_type", "refresh_token")
-		form.Set("refresh_token", token.RefreshToken)
-		form.Set("client_id", app.ID.String())
-		form.Set("client_secret", app.ClientSecret)
-		status, body := postTokenRequest(ctx, t, client, form)
+		status, body := postTokenRequest(ctx, t, client, refreshForm(app, token.RefreshToken))
 		refreshed := requireTokenResponse(t, status, body)
 
 		require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceSsh},
@@ -417,6 +478,15 @@ func tokenExchangeForm(app appWithSecret, code, verifier string) url.Values {
 	return form
 }
 
+func refreshForm(app appWithSecret, refreshToken string) url.Values {
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", refreshToken)
+	form.Set("client_id", app.ID.String())
+	form.Set("client_secret", app.ClientSecret)
+	return form
+}
+
 func exchangeCode(ctx context.Context, t *testing.T, client *codersdk.Client, app appWithSecret, code, verifier string) codersdk.OAuth2TokenResponse {
 	t.Helper()
 
@@ -464,7 +534,7 @@ func requireTokenScopeError(t *testing.T, status int, body string) string {
 	return oauthErr.ErrorDescription
 }
 
-func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
+func tokenRow(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.OAuth2ProviderAppToken {
 	t.Helper()
 
 	parsed, err := oauth2provider.ParseFormattedSecret(refreshToken)
@@ -472,7 +542,13 @@ func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refre
 
 	dbToken, err := db.GetOAuth2ProviderAppTokenByPrefix(dbauthz.AsSystemRestricted(ctx), []byte(parsed.Prefix))
 	require.NoError(t, err)
-	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), dbToken.APIKeyID)
+	return dbToken
+}
+
+func mintedKeyScopes(ctx context.Context, t *testing.T, db database.Store, refreshToken string) database.APIKeyScopes {
+	t.Helper()
+
+	key, err := db.GetAPIKeyByID(dbauthz.AsSystemRestricted(ctx), tokenRow(ctx, t, db, refreshToken).APIKeyID)
 	require.NoError(t, err)
 	return key.Scopes
 }

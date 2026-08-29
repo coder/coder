@@ -255,6 +255,7 @@ var (
 	ReasonNoGrantableScope = errNoGrantableScope.Error()
 	ReasonScopeNotAllowed  = errScopeNotAllowed.Error()
 	ReasonStaleScope       = errStaleScope.Error()
+	ReasonScopeNotGranted  = errScopeNotGranted.Error()
 )
 
 func TestNoScopeAllowlist(t *testing.T) {

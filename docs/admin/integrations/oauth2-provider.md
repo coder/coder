@@ -262,7 +262,7 @@ https://coder.example.com/oauth2/authorize?
 
 An application registered through [Dynamic Client Registration](#dynamic-client-registration) can declare a `scope` field, which acts as an allowlist. The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing. Applications created through the web UI or the management API declare no allowlist, so any requested scope is honored and a request that names no scope is granted `coder:all`.
 
-The consent page states the scope being granted before the user approves it, and refreshing a token keeps the scope originally granted.
+The consent page states the scope being granted before the user approves it. Refreshing a token keeps the scope originally granted unless the refresh request names a narrower one.
 
 ## Discovery Endpoints
 
@@ -419,6 +419,16 @@ it by the scope originally granted, so narrowing an application's registered
 scopes takes effect at the next authorization rather than cutting short a
 session already in progress.
 
+A refresh may name a `scope` of its own to give up authority. The refreshed
+token carries that narrower scope, and later refreshes are bounded by it in
+turn. The request may name anything the original grant confers, including a
+single permission out of a composite scope, so a token granted
+`coder:workspaces.access` can refresh down to `workspace:read`. Asking for
+more is refused with `scope requests permissions beyond the scope originally
+granted`, and a scope this deployment does not define with `unknown or
+unsupported scope`. A refused refresh mints nothing and leaves the refresh
+token usable.
+
 ### "PKCE verification failed"
 
 Verify that the `code_verifier` used in the token request matches the one used to generate the `code_challenge`.
@@ -460,7 +470,6 @@ Public clients (`token_endpoint_auth_method: none`) additionally cannot register
 As an experimental feature, the current implementation has limitations:
 
 - A scope allowlist can only be declared at [Dynamic Client Registration](#dynamic-client-registration); applications created through the web UI or the management API cannot restrict which scopes a client may request
-- A client cannot narrow the token's scope on refresh; the `scope` parameter is ignored and the refreshed token always keeps the scope originally granted
 - No client credentials grant support
 - Implicit grant (`response_type=token`) is not supported; OAuth 2.1
   deprecated this flow due to token leakage risks, and requests return

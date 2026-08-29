@@ -177,6 +177,112 @@ func TestScopeStillCoveredByAllowlist(t *testing.T) {
 	}
 }
 
+func TestNarrowGrantedScope(t *testing.T) {
+	t.Parallel()
+
+	const (
+		inCatalog     = "coder:workspaces.access"
+		alsoInCatalog = "coder:templates.build"
+	)
+
+	tests := []struct {
+		name      string
+		granted   string
+		requested []string
+		want      string
+		wantErr   error
+	}{
+		{
+			name:      "OmittedRequestKeepsTheGrant",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: nil,
+			want:      inCatalog + " " + alsoInCatalog,
+		},
+		{
+			name:      "GenuineSubsetAccepted",
+			granted:   inCatalog + " " + alsoInCatalog,
+			requested: []string{inCatalog},
+			want:      inCatalog,
+		},
+		{
+			name:      "ConstituentOfCompositeAccepted",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			// coder:all is a member of no other set, so membership would leave
+			// an unrestricted grant unnarrowable.
+			name:      "UnrestrictedGrantNarrowed",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"workspace:read"},
+			want:      "workspace:read",
+		},
+		{
+			name:      "ExpansionRejected",
+			granted:   inCatalog,
+			requested: []string{alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "PartiallyCoveredRequestRejectedWhole",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", alsoInCatalog},
+			wantErr:   errScopeNotGranted,
+		},
+		{
+			name:      "UnknownRequestedScopeRejectedAsUnknown",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"not_a_real_scope"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			// RBAC expands debug_info:read; only the catalog keeps it internal.
+			name:      "InternalOnlyScopeRejected",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"debug_info:read"},
+			wantErr:   errUnknownScope,
+		},
+		{
+			name:      "LegacyAliasCanonicalized",
+			granted:   string(database.ApiKeyScopeCoderAll),
+			requested: []string{"all"},
+			want:      "coder:all",
+		},
+		{
+			name:      "DuplicateRequestedScopesDeduplicated",
+			granted:   inCatalog,
+			requested: []string{"workspace:ssh", "workspace:ssh"},
+			want:      "workspace:ssh",
+		},
+		{
+			name:      "GrantOutsideTheCatalogUndecidable",
+			granted:   "some_removed_scope",
+			requested: []string{"workspace:ssh"},
+			wantErr:   errCoverageUndecidable,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := database.OAuth2ProviderApp{ID: uuid.New()}
+			got, err := narrowGrantedScope(t.Context(), slogtest.Make(t, nil), app, test.granted, test.requested)
+			if test.wantErr != nil {
+				require.ErrorIs(t, err, test.wantErr)
+				assert.Empty(t, got, "a rejected refresh must not return a persistable scope")
+				assert.Equal(t, 1, strings.Count(err.Error(), test.wantErr.Error()),
+					"the rejection reason must appear once, not doubled by the wrap")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, test.want, got)
+			requirePersistableScope(t, got)
+		})
+	}
+}
+
 // TestExtractTokenParams_Scopes tests OAuth2 scope parameter parsing
 // to ensure RFC 6749 compliance where scopes are space-delimited
 func TestExtractTokenParams_Scopes(t *testing.T) {
