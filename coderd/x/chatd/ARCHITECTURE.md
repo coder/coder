@@ -1027,6 +1027,8 @@ Coder stores no hook-specific dispatch or decision state. Delivery is best-effor
 
 # Stream loop
 
+<!-- TODO(human) -->
+
 The stream loop powers the `GET /api/experimental/chats/{chat}/stream` endpoint. It is scoped to one chat and one client WebSocket. It's responsible for delivering a stream of chat updates to the client, including:
 
 - messages committed to the database; and
@@ -1294,6 +1296,8 @@ WHERE id = ANY($1::uuid[]);
 ```
 
 ## Relay mechanism
+
+<!-- TODO(human) -->
 
 We make use of a relay mechanism when there are multiple coderd replicas. If a client connects to the stream endpoint on replica A, but the chat worker that owns the chat is on replica B, the endpoint will connect to replica B and relay streaming message parts.
 

@@ -3290,21 +3290,6 @@ func (p *Server) Start() *Server {
 	return p
 }
 
-func subscribeWithInitialError(chatID uuid.UUID, message string) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	events := make(chan codersdk.ChatStreamEvent)
-	close(events)
-	return []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeError,
-		ChatID: chatID,
-		Error:  &codersdk.ChatError{Message: message},
-	}}, events, func() {}, true
-}
-
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
 func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.ChatWatchEventKind) {
 	for _, chat := range chats {
