@@ -4351,11 +4351,10 @@ func TestSubagentManagerAwait(t *testing.T) {
 			require.Equal(t, tc.wantDetail, result.LastErrorDetail)
 			require.Equal(t, tc.wantKind, result.LastErrorKind)
 			require.Equal(t, tc.wantRetryable, result.LastErrorRetryable)
+			require.NotNil(t, result.Report)
 			if tc.unrecognizedRaw {
-				require.NotNil(t, result.Report)
 				require.Empty(t, *result.Report)
 			} else {
-				require.NotNil(t, result.Report)
 				require.Equal(t, "partial progress", *result.Report)
 			}
 		})
