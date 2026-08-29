@@ -4054,6 +4054,8 @@ func (p *Server) resolveUserProviderAPIKeys(
 	return keys, nil
 }
 
+var errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
+
 func (p *Server) resolveModelConfigForOrganization(
 	ctx context.Context,
 	ownerID uuid.UUID,

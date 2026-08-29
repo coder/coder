@@ -211,7 +211,7 @@ func (p *Server) resolveQuickgenModel(
 		})
 		if err != nil {
 			return resolvedModelCall{}, xerrors.Errorf(
-				"resolve title generation model override for %s: create title generation model override: %w",
+				"resolve title generation model override for %s: %w",
 				purpose,
 				err,
 			)

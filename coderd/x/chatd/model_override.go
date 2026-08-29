@@ -22,10 +22,7 @@ const (
 	advisorOverrideContext         = "advisor"
 )
 
-var (
-	errInvalidModelOverrideMetadata   = xerrors.New("invalid model override metadata")
-	errModelConfigOutsideOrganization = xerrors.Errorf("%w: model config belongs to another organization", sql.ErrNoRows)
-)
+var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
 
 type modelOverrideFailureMode int
 
