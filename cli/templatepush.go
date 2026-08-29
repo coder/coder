@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
+	"github.com/mitchellh/mapstructure"
 )
 
 func (r *RootCmd) templatePush() *serpent.Command {
@@ -89,51 +90,33 @@ func (r *RootCmd) templatePush() *serpent.Command {
 			}
 
 			// If the user has not provided a display name and icon via flag, we will attempt to read it from the README.md front matter.
-			var frontMatter map[string]any
+			var tmplMeta templateFrontMatter
 			var description string
+
 			if !uploadFlags.stdin(inv) {
-				content, err := os.ReadFile(filepath.Join(uploadFlags.directory, "README.md"))
+				tmplMeta, err = parseREADMEFrontMatter(inv, uploadFlags.directory)
 				if err != nil {
-					if !errors.Is(err, os.ErrNotExist) {
-						cliui.Warn(inv.Stderr, "Failed to read README.md: "+err.Error())
+					return err
+				}
+
+				if displayName == "" && tmplMeta.DisplayName != "" {
+					displayName = tmplMeta.DisplayName
+					if !createTemplate && displayName != template.DisplayName {
+						cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
 					}
-				} else {
-					parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
-					if err != nil {
-						cliui.Warn(inv.Stderr, "Ignoring README.md front matter: "+err.Error())
-					} else {
-						frontMatter = parsed.FrontMatter
+				}
 
-						if displayName == "" {
-							displayName, err = frontMatterString(frontMatter, "display_name")
-							if err != nil {
-								return err
-							}
-							if !createTemplate && displayName != template.DisplayName {
-								cliui.Info(inv.Stderr, "updating the display name from README.md front matter to "+cliui.Code(displayName))
-							}
-						}
-
-						if icon == "" {
-							icon, err = frontMatterString(frontMatter, "icon")
-							if err != nil {
-								return err
-							}
-							if !createTemplate && icon != template.Icon {
-								cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
-							}
-						}
-
-						description, err = frontMatterString(frontMatter, "description")
-						if err != nil {
-							return err
-						}
+				if icon == "" && tmplMeta.Icon != "" {
+					icon = tmplMeta.Icon
+					if !createTemplate && icon != template.Icon {
+						cliui.Info(inv.Stderr, "updating the icon from README.md front matter to "+cliui.Code(icon))
 					}
+				}
 
-					if displayName != "" {
-						if err := codersdk.DisplayNameValid(displayName); err != nil {
-							return xerrors.Errorf("display name %q is invalid: %w", displayName, err)
-						}
+				if tmplMeta.Description != "" {
+					description = tmplMeta.Description
+					if !createTemplate && description != template.Description {
+						cliui.Info(inv.Stderr, "updating the description from README.md front matter to "+cliui.Code(description))
 					}
 				}
 			}
@@ -253,20 +236,26 @@ func (r *RootCmd) templatePush() *serpent.Command {
 						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
 							"Developers can provision a workspace with this template using:")+"\n")
 			} else {
-				meta := codersdk.UpdateTemplateMeta{
-					Name:        &name,
-					DisplayName: &displayName,
-					Description: &description,
-					Icon:        &icon,
-				}
-				if meta.DisplayName != nil || meta.Description != nil || meta.Icon != nil {
-					_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, meta)
-					if err != nil {
-						return xerrors.Errorf("update template metadata from README.md front matter: %w", err)
-					}
-				}
-
 				if activate {
+					meta := codersdk.UpdateTemplateMeta{}
+
+					if displayName != "" {
+						meta.DisplayName = &displayName
+					}
+					if description != "" {
+						meta.Description = &description
+					}
+					if icon != "" {
+						meta.Icon = &icon
+					}
+
+					if meta.DisplayName != nil || meta.Description != nil || meta.Icon != nil {
+						_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, meta)
+						if err != nil {
+							return xerrors.Errorf("update template metadata from README.md front matter: %w", err)
+						}
+					}
+
 					err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 						ID: job.ID,
 					})
@@ -766,16 +755,34 @@ func createVariableValidator(variable codersdk.TemplateVersionVariable) func(str
 	}
 }
 
-func frontMatterString(frontMatter map[string]any, key string) (string, error) {
-	value, ok := frontMatter[key]
-	if !ok {
-		return "", nil
+type templateFrontMatter struct {
+	DisplayName string `mapstructure:"display_name"`
+	Description string `mapstructure:"description"`
+	Icon        string `mapstructure:"icon"`
+}
+
+func parseREADMEFrontMatter(inv *serpent.Invocation, dir string) (templateFrontMatter, error) {
+	var tmplMeta templateFrontMatter
+
+	content, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		if !errors.Is(err, os.ErrNotExist) {
+			cliui.Warn(inv.Stderr, "Failed to read README.md: "+err.Error())
+		}
+		return tmplMeta, nil
 	}
 
-	text, ok := value.(string)
-	if !ok {
-		return "", xerrors.Errorf("README.md front matter %q must be a string", key)
+	parsed, err := pageparser.ParseFrontMatterAndContent(bytes.NewReader(content))
+	if err != nil {
+		cliui.Warn(inv.Stderr, "Ignoring README.md front matter: "+err.Error())
+		return tmplMeta, nil
 	}
 
-	return text, nil
+	// Use mapstructure to decode the map directly into the struct
+	if err := mapstructure.Decode(parsed.FrontMatter, &tmplMeta); err != nil {
+		cliui.Warn(inv.Stderr, "Failed to decode README.md front matter: "+err.Error())
+		return tmplMeta, nil
+	}
+
+	return tmplMeta, nil
 }
