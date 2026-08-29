@@ -27,37 +27,37 @@ func TestResolveModelOverride(t *testing.T) {
 		{
 			name: "Title",
 			spec: modelOverrideSpec{
-				context:           titleGenerationOverrideContext,
-				queryFailure:      modelOverrideFailureModeHard,
-				configFailure:     modelOverrideFailureModeHard,
-				credentialFailure: modelOverrideFailureModeHard,
+				context:         titleGenerationOverrideContext,
+				queryFailure:    modelOverrideFailureModeHard,
+				configFailure:   modelOverrideFailureModeHard,
+				providerFailure: modelOverrideFailureModeHard,
 			},
 		},
 		{
 			name: "Compaction",
 			spec: modelOverrideSpec{
-				context:           compactionOverrideContext,
-				queryFailure:      modelOverrideFailureModeHard,
-				configFailure:     modelOverrideFailureModeSoft,
-				credentialFailure: modelOverrideFailureModeSoft,
+				context:         compactionOverrideContext,
+				queryFailure:    modelOverrideFailureModeHard,
+				configFailure:   modelOverrideFailureModeSoft,
+				providerFailure: modelOverrideFailureModeSoft,
 			},
 		},
 		{
 			name: "Subagent",
 			spec: modelOverrideSpec{
-				context:           string(codersdk.ChatModelOverrideContextGeneral),
-				queryFailure:      modelOverrideFailureModeHard,
-				configFailure:     modelOverrideFailureModeSoft,
-				credentialFailure: modelOverrideFailureModeSoft,
+				context:         string(codersdk.ChatModelOverrideContextGeneral),
+				queryFailure:    modelOverrideFailureModeHard,
+				configFailure:   modelOverrideFailureModeSoft,
+				providerFailure: modelOverrideFailureModeSoft,
 			},
 		},
 		{
 			name: "Advisor",
 			spec: modelOverrideSpec{
-				context:           advisorOverrideContext,
-				queryFailure:      modelOverrideFailureModeSoft,
-				configFailure:     modelOverrideFailureModeSoft,
-				credentialFailure: modelOverrideFailureModeHard,
+				context:         advisorOverrideContext,
+				queryFailure:    modelOverrideFailureModeSoft,
+				configFailure:   modelOverrideFailureModeSoft,
+				providerFailure: modelOverrideFailureModeHard,
 			},
 		},
 	}
@@ -112,6 +112,16 @@ func TestResolveModelOverride(t *testing.T) {
 			wantSet: true,
 		},
 		{
+			name: "ProviderError",
+			setup: func(db *dbmock.MockStore, chat database.Chat, config database.ChatModelConfig, providerID uuid.UUID, spec modelOverrideSpec) {
+				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
+				db.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil)
+				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{}, sql.ErrConnDone)
+			},
+			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.providerFailure },
+			wantSet: true,
+		},
+		{
 			name: "MissingCredentials",
 			setup: func(db *dbmock.MockStore, chat database.Chat, config database.ChatModelConfig, providerID uuid.UUID, spec modelOverrideSpec) {
 				db.EXPECT().GetChatOrganizationModelOverride(gomock.Any(), modelOverrideParams(chat, spec.context)).Return(orgModelOverride(chat, spec.context, config.ID, "high"), nil)
@@ -119,7 +129,7 @@ func TestResolveModelOverride(t *testing.T) {
 				db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai), nil).AnyTimes()
 				db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
 			},
-			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.credentialFailure },
+			failure: func(spec modelOverrideSpec) modelOverrideFailureMode { return spec.providerFailure },
 			wantSet: true,
 		},
 		{
