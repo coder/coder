@@ -7,6 +7,7 @@ import {
 	ChevronRightIcon,
 	InfoIcon,
 	PencilIcon,
+	TargetIcon,
 } from "lucide-react";
 import { type FC, memo, type ReactNode, useState } from "react";
 
@@ -81,6 +82,13 @@ const TimelineNotice: FC<{ children?: ReactNode }> = ({ children }) => (
 			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
 			<div className="min-w-0 flex-1">{children}</div>
 		</div>
+	</div>
+);
+
+const SentAsGoalMarker: FC = () => (
+	<div className="flex h-6 items-center gap-1 px-1 text-xs font-medium text-content-secondary">
+		<TargetIcon className="size-3 shrink-0" aria-hidden />
+		<span>Sent as goal</span>
 	</div>
 );
 
@@ -186,6 +194,19 @@ const ChatMessageItem = memo<{
 						isAwaitingFirstStreamChunk,
 					})
 				: undefined;
+		const hasUserMessageJumpControls = Boolean(
+			isUser &&
+				onJumpToUserMessage &&
+				(prevUserMessageKey !== undefined || nextUserMessageKey !== undefined),
+		);
+		const hasMessageControls = Boolean(
+			displayState?.hasCopyableContent ||
+				(isUser && messageId !== undefined && onEditUserMessage) ||
+				hasUserMessageJumpControls,
+		);
+		const showsSentAsGoalMarker = isUser && message?.sent_as_goal === true;
+		const showsMessageActionRow =
+			!hideActions && (hasMessageControls || showsSentAsGoalMarker);
 		if (displayState?.shouldHide) {
 			return null;
 		}
@@ -282,103 +303,105 @@ const ChatMessageItem = memo<{
 						{notice}
 					</LifecycleHookNotice>
 				))}
-				{displayState &&
-					!hideActions &&
-					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
-						<div
-							className={cn(
-								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
-								isUser && "w-full justify-end",
-							)}
-							data-testid="message-actions"
-						>
-							{displayState.hasCopyableContent && parsed && (
-								<CopyButton
-									text={parsed.markdown}
-									label="Copy message"
-									className="size-6"
-									tooltipSide="bottom"
-								/>
-							)}
-							{isUser && messageId !== undefined && onEditUserMessage && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<Button
-											size="icon"
-											variant="subtle"
-											className="size-6"
-											aria-label="Edit message"
-											onClick={() => {
-												const { text, fileBlocks } =
-													getEditableUserMessagePayload(message);
-												onEditUserMessage(messageId, text, fileBlocks);
-											}}
-										>
-											<PencilIcon />
-											<span className="sr-only">Edit message</span>
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom">Edit message</TooltipContent>
-								</Tooltip>
-							)}
-							{isUser &&
-								onJumpToUserMessage &&
-								(prevUserMessageKey !== undefined ||
-									nextUserMessageKey !== undefined) && (
-									<>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to previous user message"
-													disabled={prevUserMessageKey === undefined}
-													onClick={() => {
-														if (prevUserMessageKey !== undefined) {
-															onJumpToUserMessage(prevUserMessageKey);
-														}
-													}}
-												>
-													<ChevronLeftIcon />
-													<span className="sr-only">
-														Jump to previous user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to previous user message
-											</TooltipContent>
-										</Tooltip>
-										<Tooltip>
-											<TooltipTrigger asChild>
-												<Button
-													size="icon"
-													variant="subtle"
-													className="size-6"
-													aria-label="Jump to next user message"
-													disabled={nextUserMessageKey === undefined}
-													onClick={() => {
-														if (nextUserMessageKey !== undefined) {
-															onJumpToUserMessage(nextUserMessageKey);
-														}
-													}}
-												>
-													<ChevronRightIcon />
-													<span className="sr-only">
-														Jump to next user message
-													</span>
-												</Button>
-											</TooltipTrigger>
-											<TooltipContent side="bottom">
-												Jump to next user message
-											</TooltipContent>
-										</Tooltip>
-									</>
+				{showsMessageActionRow && (
+					<div
+						className={cn(
+							"mt-0.5 flex items-center gap-1",
+							isUser && "w-full justify-end",
+						)}
+						data-testid="message-actions"
+					>
+						{hasMessageControls && (
+							<div className="flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100">
+								{displayState?.hasCopyableContent && parsed && (
+									<CopyButton
+										text={parsed.markdown}
+										label="Copy message"
+										className="size-6"
+										tooltipSide="bottom"
+									/>
 								)}
-						</div>
-					)}
+								{isUser && messageId !== undefined && onEditUserMessage && (
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Edit message"
+												onClick={() => {
+													const { text, fileBlocks } =
+														getEditableUserMessagePayload(message);
+													onEditUserMessage(messageId, text, fileBlocks);
+												}}
+											>
+												<PencilIcon />
+												<span className="sr-only">Edit message</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">Edit message</TooltipContent>
+									</Tooltip>
+								)}
+								{isUser &&
+									onJumpToUserMessage &&
+									(prevUserMessageKey !== undefined ||
+										nextUserMessageKey !== undefined) && (
+										<>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to previous user message"
+														disabled={prevUserMessageKey === undefined}
+														onClick={() => {
+															if (prevUserMessageKey !== undefined) {
+																onJumpToUserMessage(prevUserMessageKey);
+															}
+														}}
+													>
+														<ChevronLeftIcon />
+														<span className="sr-only">
+															Jump to previous user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to previous user message
+												</TooltipContent>
+											</Tooltip>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													<Button
+														size="icon"
+														variant="subtle"
+														className="size-6"
+														aria-label="Jump to next user message"
+														disabled={nextUserMessageKey === undefined}
+														onClick={() => {
+															if (nextUserMessageKey !== undefined) {
+																onJumpToUserMessage(nextUserMessageKey);
+															}
+														}}
+													>
+														<ChevronRightIcon />
+														<span className="sr-only">
+															Jump to next user message
+														</span>
+													</Button>
+												</TooltipTrigger>
+												<TooltipContent side="bottom">
+													Jump to next user message
+												</TooltipContent>
+											</Tooltip>
+										</>
+									)}
+							</div>
+						)}
+						{showsSentAsGoalMarker && <SentAsGoalMarker />}
+					</div>
+				)}
 				{displayState?.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
@@ -417,6 +440,10 @@ interface ConversationTimelineProps {
 		fileBlocks?: readonly TypesGen.ChatMessagePart[],
 	) => void;
 	editingMessageId?: number | null;
+	// The backend refuses edits that would rewrite or truncate away the
+	// current goal's source message, so the edit affordance is hidden
+	// for the source and everything before it.
+	goalSourceMessageId?: number;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
@@ -440,6 +467,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		subagentVariants,
 		onEditUserMessage,
 		editingMessageId,
+		goalSourceMessageId,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -599,7 +627,13 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								renderKey={row.key}
 								message={message}
 								parsed={parsed}
-								onEditUserMessage={isUser ? onEditUserMessage : undefined}
+								onEditUserMessage={
+									isUser &&
+									(goalSourceMessageId === undefined ||
+										message.id > goalSourceMessageId)
+										? onEditUserMessage
+										: undefined
+								}
 								editingMessageId={editingMessageId}
 								onImplementPlan={onImplementPlan}
 								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}

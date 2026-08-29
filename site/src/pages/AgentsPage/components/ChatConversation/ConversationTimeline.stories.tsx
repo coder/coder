@@ -251,17 +251,20 @@ const buildUserMessage = ({
 	text,
 	files = [],
 	createdAt = baseMessage.created_at,
+	sentAsGoal = false,
 }: {
 	id?: number;
 	text?: string;
 	files?: TypesGen.ChatFilePart[];
 	createdAt?: string;
+	sentAsGoal?: boolean;
 }): TypesGen.ChatMessage => ({
 	...baseMessage,
 	created_at: createdAt,
 	id,
 	role: "user",
 	content: [...(text ? [buildTextPart(text)] : []), ...files],
+	...(sentAsGoal ? { sent_as_goal: true } : {}),
 });
 
 const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
@@ -862,6 +865,44 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/**
+ * The goal's source message and everything before it must not offer
+ * editing, because such an edit would rewrite or truncate the source.
+ */
+export const GoalSourceMessageEditHidden: Story = {
+	args: {
+		...buildStoryArgs(
+			buildUserMessage({ id: 1, text: "Some earlier request" }),
+			buildUserMessage({ id: 3, text: "Ship the release", sentAsGoal: true }),
+			buildUserMessage({ id: 5, text: "Also update the changelog" }),
+		),
+		onEditUserMessage: fn(),
+		goalSourceMessageId: 3,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const expectNoEdit = async (text: RegExp) => {
+			const row = canvas.getByText(text).closest('[data-role="user"]')
+				?.parentElement as HTMLElement;
+			await userEvent.hover(row);
+			expect(
+				within(row).queryByRole("button", { name: "Edit message" }),
+			).toBeNull();
+		};
+		await expectNoEdit(/some earlier request/i);
+		await expectNoEdit(/ship the release/i);
+
+		const editableRow = canvas
+			.getByText(/update the changelog/i)
+			.closest('[data-role="user"]')?.parentElement as HTMLElement;
+		await userEvent.hover(editableRow);
+		expect(
+			await within(editableRow).findByRole("button", { name: "Edit message" }),
+		).toBeInTheDocument();
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -1457,6 +1498,29 @@ export const UserMessageTextOnly: Story = {
 		const images = canvas.queryAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(0);
 		expect(canvas.getByText("Just a plain text message")).toBeInTheDocument();
+	},
+};
+
+/** Goal-sent user messages show a durable transcript marker. */
+export const UserMessageSentAsGoalMarker: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "Use this screenshot as the goal",
+			files: [buildInlineAttachmentPart("image/png", TEST_PNG_B64)],
+			sentAsGoal: true,
+		}),
+		{
+			...baseMessage,
+			id: 2,
+			role: "assistant",
+			content: [{ type: "text", text: "I will pursue that goal." }],
+		},
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Sent as goal")).toBeVisible();
+		expect(canvas.getAllByText("Sent as goal")).toHaveLength(1);
 	},
 };
 

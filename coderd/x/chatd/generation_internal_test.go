@@ -1,18 +1,41 @@
 package chatd //nolint:testpackage // Exercises unexported generation helpers.
 
 import (
+	"context"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// The strict mock fails the test if the goalless path still scans
+// hidden rows via GetChatHiddenUserMessagesByChatID.
+func TestLoadDecisionMessagesSkipsHiddenScanWithoutGoalRows(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	want := []database.ChatMessage{{ID: 7, Role: database.ChatMessageRoleUser}}
+	store.EXPECT().
+		GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{ChatID: chatID}).
+		Return(want, nil)
+
+	messages, err := loadDecisionMessages(context.Background(), store, chatID, false)
+	require.NoError(t, err)
+	require.Equal(t, want, messages)
+}
 
 func TestExclusiveBatchRejected(t *testing.T) {
 	t.Parallel()

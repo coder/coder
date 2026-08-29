@@ -13,6 +13,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatListSources } from "#/api/typesGenerated";
 import { authorizationKey } from "./authCheck";
+import { currentChatGoal } from "./chatGoal";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -660,6 +661,12 @@ export const mergeWatchedChatIntoCaches = (
 			return mergeCachedChat(cachedChat);
 		},
 	);
+	if (options.eventKind === "goal_change") {
+		// goal_change events carry no goal payload (Postgres NOTIFY has a
+		// hard size cap), so read the DB-backed goal and patch it into
+		// the family's caches.
+		void refreshChatGoalFamily(queryClient, watchedChat.id);
+	}
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
@@ -1383,6 +1390,196 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			),
 		);
 		patchChatEntity(queryClient, chatId, () => previousChat);
+	},
+});
+
+type UpdateChatGoalVariables = {
+	chatId: string;
+	mutation: TypesGen.ChatGoalUpdateRequest;
+};
+
+const chatRootId = (chat: TypesGen.Chat): string =>
+	chat.root_chat_id ?? chat.parent_chat_id ?? chat.id;
+
+// Resolves a chat's family root by scanning the cached detail and list
+// queries. Used as a fallback when a goal update carries no goal payload
+// (for example a cleared goal) and so no root_chat_id.
+const cachedChatFamilyId = (
+	queryClient: QueryClient,
+	chatId: string,
+): string | undefined => {
+	const cachedChatFamilyIDs = new Map<string, string>();
+	const rememberChatFamily = (chat: TypesGen.Chat) => {
+		cachedChatFamilyIDs.set(chat.id, chatRootId(chat));
+		for (const child of chat.children ?? []) {
+			cachedChatFamilyIDs.set(child.id, chatRootId(child));
+		}
+	};
+
+	for (const [, chat] of queryClient.getQueriesData<TypesGen.Chat>({
+		queryKey: chatEntitiesFamilyKey,
+	})) {
+		if (chat) {
+			rememberChatFamily(chat);
+		}
+	}
+
+	for (const [, data] of queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatListFamilyKey,
+	})) {
+		for (const page of data?.pages ?? []) {
+			for (const chat of page) {
+				rememberChatFamily(chat);
+			}
+		}
+	}
+
+	return cachedChatFamilyIDs.get(chatId);
+};
+
+/**
+ * Cancels and refetches every cached entity in the chat's family plus
+ * the chat lists. Reconciles goal mutations after they settle and backs
+ * up refreshChatGoalFamily when its direct read fails.
+ */
+export const invalidateChatGoalFamily = async (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	const familyId = cachedChatFamilyId(queryClient, chatId) ?? chatId;
+	const entityIds = new Set<string>([chatId]);
+	for (const [, cachedChat] of queryClient.getQueriesData<TypesGen.Chat>({
+		queryKey: chatEntitiesFamilyKey,
+	})) {
+		if (cachedChat && chatRootId(cachedChat) === familyId) {
+			entityIds.add(cachedChat.id);
+		}
+	}
+	await Promise.all([
+		cancelChatListQueries(queryClient),
+		...[...entityIds].map((id) => cancelChatEntity(queryClient, id)),
+	]);
+	await Promise.all([
+		invalidateChatListQueries(queryClient),
+		...[...entityIds].map((id) => invalidateChatEntity(queryClient, id)),
+	]);
+};
+
+export const setCachedChatGoal = (
+	queryClient: QueryClient,
+	chatId: string,
+	goal: TypesGen.ChatGoal | undefined,
+) => {
+	const cachedGoal = currentChatGoal(goal);
+	const familyId =
+		goal?.root_chat_id ?? cachedChatFamilyId(queryClient, chatId) ?? chatId;
+	// Applied unconditionally: goal timestamps cannot order concurrent
+	// commits (serialized transactions can invert NOW()-based columns), and
+	// every goal commit publishes goal_change, so the refresh triggered by
+	// the newest event always reapplies DB truth last.
+	const applyGoal = (chat: TypesGen.Chat) =>
+		chatRootId(chat) === familyId && chat.goal !== cachedGoal
+			? { ...chat, goal: cachedGoal }
+			: chat;
+	const applyGoalToTree = (chat: TypesGen.Chat) => {
+		const nextChat = applyGoal(chat);
+		if (!chat.children?.length) {
+			return nextChat;
+		}
+
+		const nextChildren = chat.children.map(applyGoal);
+		return nextChildren.some((child, index) => child !== chat.children?.[index])
+			? { ...nextChat, children: nextChildren }
+			: nextChat;
+	};
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		const nextChats = chats.map(applyGoalToTree);
+		return nextChats.some((chat, index) => chat !== chats[index])
+			? nextChats
+			: chats;
+	});
+	for (const [, cachedChat] of queryClient.getQueriesData<TypesGen.Chat>({
+		queryKey: chatEntitiesFamilyKey,
+	})) {
+		if (!cachedChat) {
+			continue;
+		}
+		const nextChat = applyGoalToTree(cachedChat);
+		if (nextChat !== cachedChat) {
+			patchChatEntity(queryClient, cachedChat.id, () => nextChat);
+		}
+	}
+};
+
+// Tracks in-flight goal_change reads per query client so event bursts
+// coalesce into at most one follow-up read.
+const pendingGoalRefreshes = new WeakMap<
+	QueryClient,
+	Map<string, { dirty: boolean }>
+>();
+
+/**
+ * Reads the DB-backed goal for a goal_change event's chat and patches it
+ * into the family's caches. Watch-event handlers cancel in-flight entity
+ * refetches to protect their merge writes, and a server-side pause lands
+ * in the same event burst as the turn's final status and summary events,
+ * so a query-machinery refetch would be cancelled and never rerun (an
+ * idle chat stops polling). This read bypasses the query cache so those
+ * cancellations cannot touch it; goal_change events arriving mid-read
+ * coalesce into one follow-up read, so the applied goal always reflects
+ * a read started after the latest event.
+ */
+const refreshChatGoalFamily = async (
+	queryClient: QueryClient,
+	chatId: string,
+): Promise<void> => {
+	let pending = pendingGoalRefreshes.get(queryClient);
+	if (!pending) {
+		pending = new Map();
+		pendingGoalRefreshes.set(queryClient, pending);
+	}
+	const inFlight = pending.get(chatId);
+	if (inFlight) {
+		inFlight.dirty = true;
+		return;
+	}
+	const state = { dirty: false };
+	pending.set(chatId, state);
+	try {
+		do {
+			state.dirty = false;
+			const chat = await API.experimental.getChat(chatId);
+			setCachedChatGoal(queryClient, chatId, chat.goal);
+		} while (state.dirty);
+	} catch {
+		// Leave the family marked stale so a later focus or remount
+		// refetch repairs the caches.
+		await invalidateChatGoalFamily(queryClient, chatId);
+	} finally {
+		pending.delete(chatId);
+	}
+};
+
+export const updateChatGoal = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, mutation }: UpdateChatGoalVariables) =>
+		API.experimental.updateChatGoal(chatId, mutation),
+	onMutate: async ({ chatId }: UpdateChatGoalVariables) => {
+		await cancelChatListQueries(queryClient);
+		await cancelChatEntity(queryClient, chatId);
+	},
+	onSuccess: (
+		response: TypesGen.ChatGoalResponse,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		setCachedChatGoal(queryClient, chatId, response.goal);
+	},
+	onSettled: async (
+		_response: TypesGen.ChatGoalResponse | undefined,
+		_error: unknown,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		await invalidateChatGoalFamily(queryClient, chatId);
 	},
 });
 

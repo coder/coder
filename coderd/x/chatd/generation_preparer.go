@@ -440,6 +440,32 @@ func (server *Server) prepareGeneration(
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 
+	var currentGoal *database.ChatGoal
+	chatGoalsEnabled := server.experiments.Enabled(codersdk.ExperimentChatGoals)
+	if chatGoalsEnabled {
+		currentGoal, err = currentChatGoal(ctx, server.db, chatRootID(chat))
+		if err != nil {
+			cleanup()
+			return generationPrepared{}, err
+		}
+	}
+	activeGoal := currentGoal
+	if activeGoal != nil && activeGoal.Status != database.ChatGoalStatusActive {
+		activeGoal = nil
+	}
+	goalBehaviorTurn := chatGoalsEnabled && isRootChat && !isPlanModeTurn && !isExploreSubagent
+	canCompleteGoal := goalBehaviorTurn && activeGoal != nil
+	// complete_goal stays recognized as a stop marker after it commits
+	// the transition mid-turn: the next pass sees a complete goal and no
+	// longer offers the tool, but its persisted successful result must
+	// still finish the turn instead of buying another model call.
+	goalStopAfterRecognized := canCompleteGoal ||
+		(goalBehaviorTurn && currentGoal != nil && currentGoal.Status == database.ChatGoalStatusComplete)
+	var goalReminder *generationGoalReminder
+	if canCompleteGoal {
+		goalReminder = &generationGoalReminder{GoalID: activeGoal.ID}
+	}
+
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -447,10 +473,12 @@ func (server *Server) prepareGeneration(
 		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
+			planMode:                  currentPlanMode,
+			chatMode:                  chat.Mode,
+			planModeInstructions:      planModeInstructions,
+			activeGoal:                activeGoal,
+			isRootChat:                isRootChat,
+			completeGoalToolAvailable: canCompleteGoal,
 		},
 	)
 	if advisorRuntime != nil {
@@ -483,6 +511,33 @@ func (server *Server) prepareGeneration(
 		chattool.ProcessOutput(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
+	}
+	if chatGoalsEnabled {
+		rootChatID := chatRootID(chat)
+		tools = append(tools, chattool.GetGoal(server.db, chattool.GoalToolOptions{
+			ChatID:     chat.ID,
+			RootChatID: rootChatID,
+			IsRootChat: isRootChat,
+		}))
+		if canCompleteGoal {
+			var fence *chattool.GoalToolFence
+			if chat.WorkerID.Valid && chat.RunnerID.Valid {
+				fence = &chattool.GoalToolFence{
+					WorkerID:       chat.WorkerID.UUID,
+					RunnerID:       chat.RunnerID.UUID,
+					HistoryVersion: chat.HistoryVersion,
+				}
+			}
+			tools = append(tools, chattool.CompleteGoal(server.db, chattool.GoalToolOptions{
+				ChatID:     chat.ID,
+				RootChatID: rootChatID,
+				IsRootChat: true,
+				Fence:      fence,
+				OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, _ database.ChatGoal) {
+					server.publishChatGoalChange(updatedChat)
+				},
+			}))
+		}
 	}
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
@@ -544,10 +599,7 @@ func (server *Server) prepareGeneration(
 		}))
 	}
 
-	var exclusiveToolNames map[string]bool
-	if advisorRuntime != nil {
-		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
-	}
+	exclusiveToolNames := exclusiveGenerationToolNames(advisorRuntime != nil, canCompleteGoal)
 
 	builtinToolNames := make(map[string]bool, len(tools))
 	for _, t := range tools {
@@ -573,7 +625,11 @@ func (server *Server) prepareGeneration(
 	}
 	tools = filterToolsForTurn(tools, currentPlanMode, chat.ParentChatID, approvedPlanMCPConfigIDs)
 
-	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
+	var reservedGoalToolNames map[string]bool
+	if goalStopAfterRecognized {
+		reservedGoalToolNames = map[string]bool{chattool.CompleteGoalToolName: true}
+	}
+	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode, reservedGoalToolNames)
 	if err != nil {
 		cleanup()
 		return generationPrepared{}, err
@@ -742,11 +798,17 @@ func (server *Server) prepareGeneration(
 		CallTemplate:         resolved.newCall(),
 		ContextLimitFallback: modelConfig.ContextLimit,
 		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
+		// Key stop-after on the offered built-in tool, not the turn
+		// mode: without an active goal a colliding user-defined dynamic
+		// tool would otherwise stop the turn after its result.
+		StopAfterTools: stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID, stopAfterBehaviorToolOptions{
+			stopAfterCompleteGoal: goalStopAfterRecognized,
+		}),
+		GoalReminder:       goalReminder,
+		ExclusiveToolNames: exclusiveToolNames,
+		BuiltinToolNames:   builtinToolNames,
+		ToolNameToConfigID: toolNameToConfigID,
+		MaxSteps:           maxChatSteps,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
 			ChatModelConfig: modelConfig,
@@ -778,6 +840,25 @@ func shouldCompactPromptUsage(usage fantasy.Usage, contextLimit int64, threshold
 	}
 	usagePercent := (float64(contextTokens) / float64(contextLimit)) * 100
 	return usagePercent >= float64(thresholdPercent)
+}
+
+// exclusiveGenerationToolNames lists tools that must be a batch's only
+// call. complete_goal is exclusive so a mixed batch cannot commit the
+// goal and then park the chat in requires_action for a stale action.
+//
+//nolint:revive // hasAdvisor and canCompleteGoal are domain capabilities of the turn, not control coupling.
+func exclusiveGenerationToolNames(hasAdvisor bool, canCompleteGoal bool) map[string]bool {
+	names := map[string]bool{}
+	if hasAdvisor {
+		names[chatadvisor.ToolName] = true
+	}
+	if canCompleteGoal {
+		names[chattool.CompleteGoalToolName] = true
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	return names
 }
 
 func contextTokensFromUsage(usage fantasy.Usage) int64 {

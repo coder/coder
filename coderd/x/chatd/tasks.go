@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
@@ -708,11 +709,25 @@ func committedPendingLocalToolCancellationMessages(
 	var intervals []chatloop.BilledInterval
 	result := make([]chatstate.Message, 0, len(localCalls))
 	for i, call := range localCalls {
-		payload, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
-		if err != nil {
-			return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+		isError := true
+		var payload json.RawMessage
+		// A built-in complete_goal call whose goal durably completed
+		// before the interrupt replays its successful result so accepted
+		// history matches the committed goal state.
+		if call.ToolName == chattool.CompleteGoalToolName {
+			if replay, ok := chattool.AgentCompletedGoalReplayPayload(ctx, store, chatRootID(chat), call.Input); ok {
+				payload = replay
+				isError = false
+			}
 		}
-		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, true, false)
+		if payload == nil {
+			marshaled, err := json.Marshal(map[string]string{"error": interruptedToolResultErrorMessage})
+			if err != nil {
+				return nil, xerrors.Errorf("marshal interrupted tool result: %w", err)
+			}
+			payload = marshaled
+		}
+		part := codersdk.ChatMessageToolResult(call.ToolCallID, call.ToolName, payload, isError, false)
 		if !interruptedAt.IsZero() {
 			part.CreatedAt = &interruptedAt
 		}

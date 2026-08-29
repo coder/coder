@@ -409,9 +409,23 @@ func TestCurrentTurnStepCount_IgnoresHookModelContext(t *testing.T) {
 	messages := []database.ChatMessage{
 		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("prompt")),
 		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
-		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage(`{}`), false, false)),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, codersdk.ChatMessageToolResult("call", "tool", json.RawMessage("{}"), false, false)),
 		hookContext,
 		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 2, got)
+}
+
+func TestCurrentTurnStepCount_IgnoresGoalCompletionReminderBoundary(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("new")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		goalReminderDBMessage(t, 3, goalID, false),
+		dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
 	}
 	got := currentTurnStepCount(messages)
 	require.Equal(t, 2, got)
@@ -846,6 +860,73 @@ func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	require.False(t, complete)
 }
 
+func TestDecisionRequestsGoalCompletionReminder(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages: []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
+		},
+		goalReminder: &generationGoalReminder{GoalID: goalID},
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionInsertGoalReminder, decision.kind)
+}
+
+func TestDecisionSkipsGoalCompletionReminderAtTurnStepLimit(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages: []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step one")),
+			dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
+		},
+		goalReminder: &generationGoalReminder{GoalID: goalID},
+		maxSteps:     2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionFinishTurn, decision.kind)
+	require.Equal(t, generationFinishReasonMaxSteps, decision.finishReason)
+}
+
+func TestDecisionStopsAfterGoalCompletionReminderLimit(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	reminder := goalReminderDBMessage(t, 3, goalID, false)
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages: []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
+			reminder,
+			dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("still done")),
+		},
+		goalReminder: &generationGoalReminder{GoalID: goalID},
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionFinishTurn, decision.kind)
+	require.Equal(t, generationFinishReasonGoalReminder, decision.finishReason)
+}
+
+func TestGoalCompletionReminderCountResetsOnNewUserTurn(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	count, err := goalCompletionReminderCountForTurn([]database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first")),
+		goalReminderDBMessage(t, 2, goalID, true),
+		dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("first done")),
+		dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("second")),
+		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("second done")),
+	}, goalID)
+	require.NoError(t, err)
+	require.Zero(t, count)
+}
+
 func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *testing.T) {
 	t.Parallel()
 
@@ -1075,6 +1156,15 @@ func dbMessage(t *testing.T, id int64, role database.ChatMessageRole, compressed
 		Visibility:     database.ChatMessageVisibilityBoth,
 		Compressed:     compressed,
 	}
+}
+
+func goalReminderDBMessage(t *testing.T, id int64, goalID uuid.UUID, compressed bool) database.ChatMessage {
+	t.Helper()
+	text, err := goalCompletionReminderText(goalID)
+	require.NoError(t, err)
+	msg := dbMessage(t, id, database.ChatMessageRoleUser, compressed, codersdk.ChatMessageText(text))
+	msg.Visibility = database.ChatMessageVisibilityModel
+	return msg
 }
 
 func withUsage(msg database.ChatMessage, inputTokens int64, contextLimit int64) database.ChatMessage {

@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -1720,4 +1721,101 @@ func newTestTaskStarterWithClock(t *testing.T, f *taskTestFixture, recorder *tas
 	require.NoError(t, err)
 	starter.afterInterruptionOutcome = recorder.afterInterruptionOutcome
 	return starter
+}
+
+func TestCommittedPendingGoalToolCancellationMessages(t *testing.T) {
+	t.Parallel()
+
+	seed := func(t *testing.T) (database.Store, database.Chat, database.ChatGoal, context.Context) {
+		t.Helper()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := chatdTestContext(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+		})
+		goal, err := db.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+			RootChatID:      chat.ID,
+			Objective:       "finish the work",
+			CreatedByUserID: user.ID,
+		})
+		require.NoError(t, err)
+		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageToolCall(
+				"call-goal",
+				chattool.CompleteGoalToolName,
+				json.RawMessage(`{"goal_id":"`+goal.ID.String()+`","summary":"done"}`),
+			),
+		})
+		require.NoError(t, err)
+		_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			ModelConfigID:       []uuid.UUID{model.ID},
+			ReasoningEffort:     []string{""},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			CreatedBy:           []uuid.UUID{uuid.Nil},
+			Content:             []string{string(content.RawMessage)},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			RuntimeMs:           []int64{0},
+		})
+		require.NoError(t, err)
+		return db, chat, goal, ctx
+	}
+
+	firstToolResult := func(t *testing.T, messages []chatstate.Message) codersdk.ChatMessagePart {
+		t.Helper()
+		require.NotEmpty(t, messages)
+		parts, err := chatprompt.ParseContent(database.ChatMessage{
+			Content:        messages[0].Content,
+			ContentVersion: messages[0].ContentVersion,
+			Role:           messages[0].Role,
+		})
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+		require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parts[0].Type)
+		require.Equal(t, chattool.CompleteGoalToolName, parts[0].ToolName)
+		return parts[0]
+	}
+
+	t.Run("ReplaysAgentCompletedGoal", func(t *testing.T) {
+		t.Parallel()
+		db, chat, goal, ctx := seed(t)
+		_, err := db.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID:        chat.ID,
+			ID:                goal.ID,
+			CompletionSummary: sql.NullString{String: "done", Valid: true},
+			CompletedByAgent:  true,
+		})
+		require.NoError(t, err)
+
+		messages, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, messages)
+		require.False(t, part.IsError, "a durably completed goal must replay its successful result")
+		require.Contains(t, string(part.Result), `"completed":true`)
+	})
+
+	t.Run("CancelsWhenGoalNotCompleted", func(t *testing.T) {
+		t.Parallel()
+		db, chat, _, ctx := seed(t)
+
+		messages, err := committedPendingLocalToolCancellationMessages(ctx, db, chat, time.Now(), nil)
+		require.NoError(t, err)
+		part := firstToolResult(t, messages)
+		require.True(t, part.IsError)
+		require.Contains(t, string(part.Result), interruptedToolResultErrorMessage)
+	})
 }

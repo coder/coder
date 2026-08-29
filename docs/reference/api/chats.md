@@ -1395,7 +1395,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/watch \
     ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
-  "kind": "status_change",
+  "kind": "created",
   "tool_calls": [
     {
       "args": "string",

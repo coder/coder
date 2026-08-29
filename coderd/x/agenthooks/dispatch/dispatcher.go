@@ -628,15 +628,16 @@ func validateUserPromptSubmitOverride(input json.RawMessage) error {
 		return xerrors.Errorf("user_prompt_submit input_override: %w", err)
 	}
 	var override struct {
-		Prompt *string `json:"prompt"`
+		Prompt        *string `json:"prompt"`
+		GoalObjective *string `json:"goal_objective"`
 	}
 	decoder := json.NewDecoder(bytes.NewReader(input))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&override); err != nil {
-		return xerrors.Errorf("user_prompt_submit input_override must be {\"prompt\": string}: %w", err)
+		return xerrors.Errorf("user_prompt_submit input_override must be {\"prompt\": string, \"goal_objective\": string} with at least one field: %w", err)
 	}
-	if override.Prompt == nil {
-		return xerrors.New("user_prompt_submit input_override must be {\"prompt\": string}")
+	if override.Prompt == nil && override.GoalObjective == nil {
+		return xerrors.New("user_prompt_submit input_override must be {\"prompt\": string, \"goal_objective\": string} with at least one field")
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		return xerrors.New("user_prompt_submit input_override must contain one JSON object")

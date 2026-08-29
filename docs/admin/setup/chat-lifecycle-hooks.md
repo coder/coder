@@ -63,7 +63,7 @@ Handle the events your policy needs, using the data Coder sends with each one:
 | Event                | When Coder sends it                                                 | Decision-relevant data                                                 |
 |----------------------|---------------------------------------------------------------------|------------------------------------------------------------------------|
 | `session_start`      | A chat session starts, resumes, or clears                           | `source` (`startup`, `resume`, or `clear`)                             |
-| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt` and `parts`                                                   |
+| `user_prompt_submit` | A user submits a prompt, or `spawn_agent` submits a subagent prompt | `prompt`, `parts`, and `goal_objective`                                |
 | `pre_tool_use`       | Before a non-provider-executed tool runs                            | `tool_use_id`, `tool_name`, and `tool_input`                           |
 | `post_tool_use`      | After a non-provider-executed tool returns                          | `tool_use_id`, `tool_name`, and either `tool_response` or `tool_error` |
 | `pre_compact`        | Before Coder compacts chat context                                  | No event-specific fields                                               |
@@ -82,6 +82,8 @@ The chat `edit_files` tool reads `old_text` and `new_text` and, for rollout comp
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.
 A consumer that gates prompt content must inspect `parts`.
+When the submission also sets a chat goal, `goal_objective` carries the goal objective text.
+The objective feeds every subsequent generation's instructions, so a policy must inspect it even when it differs from the message text.
 
 ### Verify each request
 
@@ -121,10 +123,11 @@ Any other value causes the dispatch to fail closed.
 
 Permission rules depend on the event:
 
-- For `user_prompt_submit`, `allow` requires `input_override` in the exact form `{"prompt":"replacement text"}`.
-  Coder stores and sends the replacement prompt instead of the original prompt.
-  The override replaces only submitted text, matching the concatenated `prompt` field the consumer receives.
+- For `user_prompt_submit`, `allow` requires `input_override` as an object with at least one of `prompt` and `goal_objective`, for example `{"prompt":"replacement text"}` or `{"goal_objective":"replacement objective"}`.
+  Coder stores and sends the replacement prompt instead of the original prompt, and persists the replacement goal objective instead of the submitted one.
+  The `prompt` override replaces only submitted text, matching the concatenated `prompt` field the consumer receives.
   Attachments and file references remain in `parts`, so consumers that must block them should inspect `parts` and return `deny`.
+  A `goal_objective` override is rejected when the submission sets no goal.
 - For `pre_tool_use`, `allow` requires `input_override` containing the replacement tool input.
   Coder persists the replacement with the tool call and executes the tool with it.
   An override for a built-in tool must not repeat a key or vary the capitalization of a schema property; an ambiguous override fails the dispatch closed because the model can't correct it.

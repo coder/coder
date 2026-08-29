@@ -1779,6 +1779,14 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+func (q *querier) authorizeChatGoalRoot(ctx context.Context, action policy.Action, rootChatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, chat)
+}
+
 func (q *querier) AcquireExternalAuthLinkRefreshLease(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 	fetch := func(ctx context.Context, arg database.AcquireExternalAuthLinkRefreshLeaseParams) (database.ExternalAuthLink, error) {
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
@@ -1944,6 +1952,17 @@ func (q *querier) CalculateAIBridgeInterceptionsTelemetrySummary(ctx context.Con
 	return q.db.CalculateAIBridgeInterceptionsTelemetrySummary(ctx, arg)
 }
 
+func (q *querier) ChatGoalExistsByRootChatID(ctx context.Context, rootChatID uuid.UUID) (bool, error) {
+	chat, err := q.db.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return false, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return false, err
+	}
+	return q.db.ChatGoalExistsByRootChatID(ctx, rootChatID)
+}
+
 func (q *querier) ClaimPrebuiltWorkspace(ctx context.Context, arg database.ClaimPrebuiltWorkspaceParams) (database.ClaimPrebuiltWorkspaceRow, error) {
 	empty := database.ClaimPrebuiltWorkspaceRow{}
 
@@ -1995,6 +2014,20 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 		return err
 	}
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
+}
+
+func (q *querier) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.ClearChatGoalByID(ctx, arg)
+}
+
+func (q *querier) CompleteChatGoalByID(ctx context.Context, arg database.CompleteChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.CompleteChatGoalByID(ctx, arg)
 }
 
 func (q *querier) CountAIBridgeSessions(ctx context.Context, arg database.CountAIBridgeSessionsParams) (int64, error) {
@@ -3429,12 +3462,29 @@ func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChat
 	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
 }
 
+func (q *querier) GetChatGoalMessageIDsByChatAndMessageIDs(ctx context.Context, arg database.GetChatGoalMessageIDsByChatAndMessageIDsParams) ([]int64, error) {
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatGoalMessageIDsByChatAndMessageIDs(ctx, arg)
+}
+
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
 		return database.ChatHeartbeat{}, err
 	}
 	return q.db.GetChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) GetChatHiddenUserMessagesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatMessage, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatHiddenUserMessagesByChatID(ctx, chatID)
 }
 
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
@@ -3815,6 +3865,37 @@ func (q *querier) GetCryptoKeysByFeature(ctx context.Context, feature database.C
 		return nil, err
 	}
 	return q.db.GetCryptoKeysByFeature(ctx, feature)
+}
+
+func (q *querier) GetCurrentChatGoalsByRootChatIDs(ctx context.Context, rootChatIDs []uuid.UUID) ([]database.ChatGoal, error) {
+	// Chat-list hydration passes a whole page of root IDs, so fetch the
+	// chats in one batch instead of a point query per root.
+	if len(rootChatIDs) == 0 {
+		return q.db.GetCurrentChatGoalsByRootChatIDs(ctx, rootChatIDs)
+	}
+	chats, err := q.db.GetChatsByIDsForRunnerSync(ctx, rootChatIDs)
+	if err != nil {
+		return nil, err
+	}
+	chatsByID := make(map[uuid.UUID]database.Chat, len(chats))
+	for _, chat := range chats {
+		chatsByID[chat.ID] = chat
+	}
+	// A root can be deleted between the caller's page query and this
+	// re-fetch; skip vanished roots instead of failing the whole batch
+	// and hydrate goals only for chats that still authorize.
+	authorized := make([]uuid.UUID, 0, len(rootChatIDs))
+	for _, rootChatID := range rootChatIDs {
+		chat, ok := chatsByID[rootChatID]
+		if !ok {
+			continue
+		}
+		if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+			return nil, err
+		}
+		authorized = append(authorized, rootChatID)
+	}
+	return q.db.GetCurrentChatGoalsByRootChatIDs(ctx, authorized)
 }
 
 func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
@@ -6138,6 +6219,13 @@ func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyPar
 		q.db.InsertAPIKey)(ctx, arg)
 }
 
+func (q *querier) InsertActiveChatGoal(ctx context.Context, arg database.InsertActiveChatGoalParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.InsertActiveChatGoal(ctx, arg)
+}
+
 func (q *querier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg database.InsertAgentContextResourcesIntoChatParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7132,6 +7220,13 @@ func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database
 	return q.db.MarkChatsContextDirtyByAgent(ctx, arg)
 }
 
+func (q *querier) MarkCurrentChatGoalReplacedByRootChatID(ctx context.Context, rootChatID uuid.UUID) error {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, rootChatID); err != nil {
+		return err
+	}
+	return q.db.MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID)
+}
+
 func (q *querier) MarkMCPServerUserTokenRefreshFailure(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 	fetch := func(ctx context.Context, arg database.MarkMCPServerUserTokenRefreshFailureParams) (database.MCPServerUserToken, error) {
 		return q.db.GetMCPServerUserTokenByID(ctx, arg.ID)
@@ -7172,6 +7267,13 @@ func (q *querier) PaginatedOrganizationMembers(ctx context.Context, arg database
 		return nil, err
 	}
 	return q.db.PaginatedOrganizationMembers(ctx, arg)
+}
+
+func (q *querier) PauseChatGoalByID(ctx context.Context, arg database.PauseChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.PauseChatGoalByID(ctx, arg)
 }
 
 func (q *querier) PinChatByID(ctx context.Context, id uuid.UUID) error {
@@ -7259,6 +7361,13 @@ func (q *querier) ReorderChatQueuedMessageToHead(ctx context.Context, arg databa
 	}
 	_ = chat
 	return q.db.ReorderChatQueuedMessageToHead(ctx, arg)
+}
+
+func (q *querier) ResumeChatGoalByID(ctx context.Context, arg database.ResumeChatGoalByIDParams) (database.ChatGoal, error) {
+	if err := q.authorizeChatGoalRoot(ctx, policy.ActionUpdate, arg.RootChatID); err != nil {
+		return database.ChatGoal{}, err
+	}
+	return q.db.ResumeChatGoalByID(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

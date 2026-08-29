@@ -4214,3 +4214,79 @@ export const SendRejectedByHookDispatchFailure: Story = {
 		expect(canvas.queryByText("Request failed")).not.toBeInTheDocument();
 	},
 };
+
+/** Goals are root-chat only: a child chat's composer must not offer the
+ *  Pursue goal toggle even with the experiment enabled. */
+export const ChildChatHidesGoalControls: Story = {
+	parameters: {
+		experiments: ["chat-goals"],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				parent_chat_id: "parent-chat-1",
+				title: "Child chat",
+				status: "waiting",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "More options" }),
+		);
+		const body = within(document.body);
+		expect(
+			await body.findByRole("menuitemcheckbox", { name: "Plan first" }),
+		).toBeInTheDocument();
+		expect(
+			body.queryByRole("menuitemcheckbox", { name: "Pursue goal" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Enabling goal mode requests a plan-mode disable; when that PATCH
+ *  fails, the optimistic plan mode rolls back on and goal mode must
+ *  clear with it instead of presenting both modes together. */
+export const GoalModeClearsWhenPlanModeDisableFails: Story = {
+	parameters: {
+		experiments: ["chat-goals"],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Plan rollback",
+				status: "waiting",
+				plan_mode: "plan",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "updateChat").mockRejectedValue({
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Failed to update chat plan mode." },
+			},
+		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "More options" }),
+		);
+		const body = within(document.body);
+		await userEvent.click(
+			await body.findByRole("menuitemcheckbox", { name: "Pursue goal" }),
+		);
+		// The failed PATCH restores plan mode; goal mode clears with it.
+		await waitFor(() =>
+			expect(canvas.getByTestId("planning-badge")).toBeInTheDocument(),
+		);
+		await waitFor(() =>
+			expect(canvas.queryByText("Pursuing goal")).not.toBeInTheDocument(),
+		);
+	},
+};
