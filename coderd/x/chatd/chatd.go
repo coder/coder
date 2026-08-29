@@ -455,6 +455,7 @@ func (p *Server) pinnedWorkspaceMCPTools(
 	return chattool.NewWorkspaceMCPTools(infos, getConn, nil), nil
 }
 
+// AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
 
 var (

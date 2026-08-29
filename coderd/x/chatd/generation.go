@@ -423,7 +423,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (turnEnvironment, error) {
-			return s.server.buildTurnEnvironment(ctx, prepareInput)
+			return buildTurnEnvironment(ctx, s.server, prepareInput)
 		})
 		if err != nil {
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
@@ -763,7 +763,7 @@ func (s *taskStarter) admitStepToolCalls(
 	// committed, so its find_tools calls would otherwise never reach
 	// the executeLocalTools counter; count them at each error exit.
 	countBatch := func() {
-		if !prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
+		if !prepared.Toolset().IsBuiltin(chattool.FindToolsName) {
 			return
 		}
 		for _, toolCall := range toolCalls {
@@ -778,13 +778,13 @@ func (s *taskStarter) admitStepToolCalls(
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
+	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared.Toolset(), toolCalls)
 	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Turn().chat, input.hookTurnID()), unambiguous)
 	if err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
-	if err := validateOverriddenToolInputs(prepared, preflight); err != nil {
+	if err := validateOverriddenToolInputs(prepared.Toolset(), preflight); err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
@@ -792,7 +792,7 @@ func (s *taskStarter) admitStepToolCalls(
 	// Calls denied at admission persist synthetic results with the
 	// assistant step, so they never surface as unresolved calls where
 	// executeLocalTools counts find_tools invocations; count them here.
-	if prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
+	if prepared.Toolset().IsBuiltin(chattool.FindToolsName) {
 		for _, result := range preflight.Denied {
 			if result.ToolName == chattool.FindToolsName {
 				s.server.metrics.FindToolsCallsTotal.Inc()
@@ -836,13 +836,13 @@ func (s *taskStarter) executeLocalTools(
 	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
 	if !exclusiveRejected {
-		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared, decision.localToolCalls)
+		allowed, allowedIndexes, denied = partitionAmbiguousToolCalls(prepared.Toolset(), decision.localToolCalls)
 	}
 	// find_tools calls are counted here, at the single point every
 	// model-emitted call passes through, because rejections upstream of
 	// the tool (partition denials, hook denials, exclusive-policy
 	// batches) never reach its handler or OnCall.
-	if prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
+	if prepared.Toolset().IsBuiltin(chattool.FindToolsName) {
 		for _, toolCall := range decision.localToolCalls {
 			if toolCall.ToolName == chattool.FindToolsName {
 				s.server.metrics.FindToolsCallsTotal.Inc()

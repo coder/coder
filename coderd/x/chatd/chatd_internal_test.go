@@ -1899,7 +1899,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 			},
 		)
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		got := (turnEnvironmentBuilder{server: server}).fetchPersonalSkillMetadata(context.Background(), userID, logger)
 		require.Equal(t, []skillspkg.Skill{{
 			Name:        "personal-review",
 			Description: "Personal review process",
@@ -1919,7 +1919,7 @@ func TestFetchPersonalSkillMetadata(t *testing.T) {
 
 		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, xerrors.New("boom"))
 
-		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		got := (turnEnvironmentBuilder{server: server}).fetchPersonalSkillMetadata(context.Background(), userID, logger)
 		require.Empty(t, got)
 		warns := sink.Entries(func(e slog.SinkEntry) bool {
 			return e.Level == slog.LevelWarn && strings.Contains(e.Message, "personal skill metadata")
@@ -1955,7 +1955,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		got, err := (turnEnvironmentBuilder{server: server}).loadPersonalSkillBody(context.Background(), userID, "personal-review")
 		require.NoError(t, err)
 		require.Equal(t, "personal-review", got.Name)
 		require.Equal(t, "Personal review process", got.Description)
@@ -1983,7 +1983,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		_, err := (turnEnvironmentBuilder{server: server}).loadPersonalSkillBody(context.Background(), userID, "missing-skill")
 		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
 	})
 
@@ -2009,7 +2009,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+		_, err := (turnEnvironmentBuilder{server: server}).loadPersonalSkillBody(context.Background(), userID, "error-skill")
 
 		require.ErrorContains(t, err, "load personal skill body")
 		require.ErrorIs(t, err, dbErr)
@@ -2045,7 +2045,7 @@ func TestLoadPersonalSkillBody(t *testing.T) {
 			},
 		)
 
-		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+		_, err := (turnEnvironmentBuilder{server: server}).loadPersonalSkillBody(context.Background(), userID, "broken-skill")
 
 		require.ErrorContains(t, err, "parse personal skill body")
 		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)

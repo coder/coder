@@ -154,7 +154,7 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
@@ -259,7 +259,7 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
@@ -344,7 +344,7 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
@@ -768,4 +768,41 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, configs)
 	})
+}
+
+func TestTurnToolsetMetadata(t *testing.T) {
+	t.Parallel()
+
+	configID := uuid.New()
+	toolset := turnToolset{
+		exclusiveToolNames: map[string]bool{"exclusive": true},
+		dynamicToolNames:   map[string]bool{"dynamic": true},
+		builtinToolNames:   map[string]bool{"builtin": true},
+		allowInactiveTools: map[string]bool{"inactive": true},
+		stopAfterTools:     map[string]struct{}{"stop": {}},
+		toolNameToConfigID: map[string]uuid.UUID{"configured": configID},
+	}
+
+	tests := []struct {
+		name string
+		got  bool
+	}{
+		{name: "exclusive", got: toolset.IsExclusive("exclusive")},
+		{name: "dynamic", got: toolset.IsDynamic("dynamic")},
+		{name: "builtin", got: toolset.IsBuiltin("builtin")},
+		{name: "inactive", got: toolset.AllowsInactive("inactive")},
+		{name: "stop", got: toolset.StopsAfter("stop")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.True(t, tt.got)
+		})
+	}
+
+	gotConfigID, ok := toolset.ConfigID("configured")
+	require.True(t, ok)
+	require.Equal(t, configID, gotConfigID)
+	_, ok = toolset.ConfigID("missing")
+	require.False(t, ok)
 }

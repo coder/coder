@@ -36,11 +36,11 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := turnEnvironmentState{
-			Tools:            []fantasy.AgentTool{fetch},
-			BuiltinToolNames: map[string]bool{"fetch": true},
+		prepared := turnToolset{
+			tools:            []fantasy.AgentTool{fetch},
+			builtinToolNames: map[string]bool{"fetch": true},
 		}
-		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(&prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Len(t, rejected, 1)
 		require.Equal(t, "call_ambiguous", rejected[0].ToolCallID)
 		require.Len(t, allowed, 1)
@@ -51,8 +51,8 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("non-builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := turnEnvironmentState{Tools: []fantasy.AgentTool{fetch}}
-		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
+		prepared := turnToolset{tools: []fantasy.AgentTool{fetch}}
+		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(&prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Empty(t, rejected)
 		require.Len(t, allowed, 2)
 		require.Equal(t, []int{0, 1}, allowedIndexes)
@@ -83,11 +83,11 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Input:      `{"chat_id":"a","CHAT_ID":"b"}`,
 		}
 
-		prepared := turnEnvironmentState{
-			Tools:            []fantasy.AgentTool{tool},
-			BuiltinToolNames: map[string]bool{canonical: true},
+		prepared := turnToolset{
+			tools:            []fantasy.AgentTool{tool},
+			builtinToolNames: map[string]bool{canonical: true},
 		}
-		_, _, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{aliased})
+		_, _, rejected := partitionAmbiguousToolCalls(&prepared, []fantasy.ToolCallContent{aliased})
 		require.Len(t, rejected, 1)
 	})
 }
@@ -95,9 +95,9 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 func TestValidateOverriddenToolInputs(t *testing.T) {
 	t.Parallel()
 
-	prepared := turnEnvironmentState{
-		Tools:            []fantasy.AgentTool{fetchToolStub()},
-		BuiltinToolNames: map[string]bool{"fetch": true},
+	prepared := turnToolset{
+		tools:            []fantasy.AgentTool{fetchToolStub()},
+		builtinToolNames: map[string]bool{"fetch": true},
 	}
 	overridden := chathooks.PreToolUseExecutionResult{
 		Allowed: []fantasy.ToolCallContent{{
@@ -109,13 +109,13 @@ func TestValidateOverriddenToolInputs(t *testing.T) {
 			"call_overridden": json.RawMessage(`{"URL":"https://other.test"}`),
 		},
 	}
-	require.ErrorContains(t, validateOverriddenToolInputs(prepared, overridden),
+	require.ErrorContains(t, validateOverriddenToolInputs(&prepared, overridden),
 		`hook input override for tool fetch: input key "URL" differs from schema property "url" only by case`)
 
 	// The same input is left alone when no consumer replaced it, because
 	// the model-authored batch is checked before the dispatch instead.
 	untouched := chathooks.PreToolUseExecutionResult{Allowed: overridden.Allowed}
-	require.NoError(t, validateOverriddenToolInputs(prepared, untouched))
+	require.NoError(t, validateOverriddenToolInputs(&prepared, untouched))
 }
 
 // TestBuiltinToolSchemasDescribeTheirInputs guards the validator's reach: it
@@ -165,7 +165,7 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
+	prepared, err := buildTurnEnvironment(ctx, server, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})

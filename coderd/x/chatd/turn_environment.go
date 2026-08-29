@@ -36,15 +36,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
-// effectiveMCPServerConfigs loads the chat's stored selection plus
-// owner-readable Force On configs at generation time, so stored lists
-// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
-// Explore chats keep their immutable spawn-time snapshot instead.
 type turnEnvironment interface {
-	Turn() turnState
-	ModelConfig() turnModelConfig
+	Turn() *turnState
+	ModelConfig() *turnModelConfig
 	Prompt() []fantasy.Message
-	Toolset() turnToolset
+	Toolset() *turnToolset
 	CompactionConfig() *generationCompaction
 	Close()
 }
@@ -58,7 +54,6 @@ type turnState struct {
 
 type turnModelConfig struct {
 	model                chatprovider.Model
-	route                aiGatewayModelRoute
 	buildOptions         modelBuildOptions
 	resolvedProvider     string
 	configID             uuid.UUID
@@ -78,61 +73,40 @@ type turnToolset struct {
 	toolNameToConfigID map[string]uuid.UUID
 }
 
+func (t turnToolset) IsExclusive(name string) bool    { return t.exclusiveToolNames[name] }
+func (t turnToolset) IsDynamic(name string) bool      { return t.dynamicToolNames[name] }
+func (t turnToolset) IsBuiltin(name string) bool      { return t.builtinToolNames[name] }
+func (t turnToolset) AllowsInactive(name string) bool { return t.allowInactiveTools[name] }
+func (t turnToolset) StopsAfter(name string) bool     { _, ok := t.stopAfterTools[name]; return ok }
+func (t turnToolset) ConfigID(name string) (uuid.UUID, bool) {
+	id, ok := t.toolNameToConfigID[name]
+	return id, ok
+}
+
 type turnEnvironmentState struct {
-	Chat     database.Chat
-	Messages []database.ChatMessage
-
-	Model                chatprovider.Model
-	PromptMessages       []fantasy.Message
-	Tools                []fantasy.AgentTool
-	ActiveTools          []string
-	AllowInactiveTools   map[string]bool
-	ProviderTools        []chatloop.ProviderTool
-	ModelRoute           aiGatewayModelRoute
-	ModelBuildOptions    modelBuildOptions
-	ResolvedProvider     string
-	ModelConfigID        uuid.UUID
-	CallTemplate         fantasy.Call
-	ContextLimitFallback int64
-
-	DynamicToolNames   map[string]bool
-	StopAfterTools     map[string]struct{}
-	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
-
-	MaxSteps   int
-	Compaction *generationCompaction
-	Cleanup    func()
-	Debug      *generationDebug
+	turn       turnState
+	model      turnModelConfig
+	prompt     []fantasy.Message
+	toolset    turnToolset
+	compaction *generationCompaction
+	cleanup    func()
 }
 
-func (e turnEnvironmentState) Turn() turnState {
-	return turnState{chat: e.Chat, messages: e.Messages, maxSteps: e.MaxSteps, debug: e.Debug}
-}
-
-func (e turnEnvironmentState) ModelConfig() turnModelConfig {
-	return turnModelConfig{
-		model: e.Model, route: e.ModelRoute, buildOptions: e.ModelBuildOptions,
-		resolvedProvider: e.ResolvedProvider, configID: e.ModelConfigID,
-		callTemplate: e.CallTemplate, contextLimitFallback: e.ContextLimitFallback,
+func (e *turnEnvironmentState) Turn() *turnState                        { return &e.turn }
+func (e *turnEnvironmentState) ModelConfig() *turnModelConfig           { return &e.model }
+func (e *turnEnvironmentState) Prompt() []fantasy.Message               { return e.prompt }
+func (e *turnEnvironmentState) Toolset() *turnToolset                   { return &e.toolset }
+func (e *turnEnvironmentState) CompactionConfig() *generationCompaction { return e.compaction }
+func (e *turnEnvironmentState) Close() {
+	if e.cleanup != nil {
+		e.cleanup()
 	}
 }
 
-func (e turnEnvironmentState) Prompt() []fantasy.Message { return e.PromptMessages }
-
-func (e turnEnvironmentState) Toolset() turnToolset {
-	return turnToolset{
-		tools: e.Tools, activeTools: e.ActiveTools, allowInactiveTools: e.AllowInactiveTools,
-		providerTools: e.ProviderTools, dynamicToolNames: e.DynamicToolNames,
-		stopAfterTools: e.StopAfterTools, exclusiveToolNames: e.ExclusiveToolNames,
-		builtinToolNames: e.BuiltinToolNames, toolNameToConfigID: e.ToolNameToConfigID,
-	}
-}
-
-func (e turnEnvironmentState) CompactionConfig() *generationCompaction { return e.Compaction }
-func (e turnEnvironmentState) Close()                                  { e.Cleanup() }
-
+// effectiveMCPServerConfigs loads the chat's stored selection plus
+// owner-readable Force On configs at generation time, so stored lists
+// predating enforcement cannot dodge the policy (Cure53 CDM-02-010).
+// Explore chats keep their immutable spawn-time snapshot instead.
 func (server *Server) effectiveMCPServerConfigs(
 	ctx context.Context,
 	logger slog.Logger,
@@ -171,10 +145,12 @@ func (server *Server) effectiveMCPServerConfigs(
 	return configs, nil
 }
 
-func (server *Server) buildTurnEnvironment(
+func buildTurnEnvironment(
 	ctx context.Context,
+	server *Server,
 	input generationPrepareInput,
 ) (turnEnvironment, error) {
+	builder := turnEnvironmentBuilder{server: server}
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -286,7 +262,7 @@ func (server *Server) buildTurnEnvironment(
 		approvedPlanMCPConfigIDs = map[uuid.UUID]struct{}{}
 	}
 
-	planModeInstructions := server.loadPlanModeInstructions(ctx, currentPlanMode, logger)
+	planModeInstructions := builder.loadPlanModeInstructions(ctx, currentPlanMode, logger)
 	advisorCfg := server.loadAdvisorConfig(ctx, logger)
 	// Force Enabled from the experiment; the stored DB value is ignored.
 	advisorCfg.Enabled = server.experiments.Enabled(codersdk.ExperimentChatAdvisor)
@@ -459,7 +435,7 @@ func (server *Server) buildTurnEnvironment(
 		return nil
 	})
 	g2.Go(func() error {
-		personalSkills = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
+		personalSkills = builder.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
 		return nil
 	})
 	g2.Go(func() error {
@@ -593,7 +569,7 @@ func (server *Server) buildTurnEnvironment(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools = builder.appendRootChatTools(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,
@@ -611,7 +587,7 @@ func (server *Server) buildTurnEnvironment(
 		},
 		ResolveAlias: resolveSkillAlias,
 		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-			return server.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+			return builder.loadPersonalSkillBody(ctx, chat.OwnerID, name)
 		},
 	}
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
@@ -831,35 +807,31 @@ func (server *Server) buildTurnEnvironment(
 		refreshedChat = chat
 	}
 
-	return turnEnvironmentState{
-		Chat:                 refreshedChat,
-		Messages:             input.Messages,
-		Model:                model,
-		PromptMessages:       prompt,
-		Tools:                tools,
-		ActiveTools:          activeToolNames,
-		AllowInactiveTools:   allowInactiveTools,
-		ProviderTools:        providerTools,
-		ModelRoute:           modelRoute,
-		ModelBuildOptions:    modelOpts,
-		ResolvedProvider:     resolved.resolvedProvider,
-		ModelConfigID:        modelConfig.ID,
-		CallTemplate:         resolved.newCall(),
-		ContextLimitFallback: modelConfig.ContextLimit,
-		DynamicToolNames:     dynamicToolNames,
-		StopAfterTools:       stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
-		ExclusiveToolNames:   exclusiveToolNames,
-		BuiltinToolNames:     builtinToolNames,
-		ToolNameToConfigID:   toolNameToConfigID,
-		MaxSteps:             maxChatSteps,
-		Compaction: &generationCompaction{
-			Override:        compactionOverride,
-			ChatModelConfig: modelConfig,
-			Required:        compactionNeeded,
-			Options:         compactionOptions,
+	return &turnEnvironmentState{
+		turn: turnState{
+			chat: refreshedChat, messages: input.Messages,
+			maxSteps: maxChatSteps, debug: debug,
 		},
-		Cleanup: cleanup,
-		Debug:   debug,
+		model: turnModelConfig{
+			model: model, buildOptions: modelOpts,
+			resolvedProvider: resolved.resolvedProvider,
+			configID:         modelConfig.ID, callTemplate: resolved.newCall(),
+			contextLimitFallback: modelConfig.ContextLimit,
+		},
+		prompt: prompt,
+		toolset: turnToolset{
+			tools: tools, activeTools: activeToolNames,
+			allowInactiveTools: allowInactiveTools, providerTools: providerTools,
+			dynamicToolNames:   dynamicToolNames,
+			stopAfterTools:     stopAfterBehaviorTools(currentPlanMode, chat.Mode, chat.ParentChatID),
+			exclusiveToolNames: exclusiveToolNames, builtinToolNames: builtinToolNames,
+			toolNameToConfigID: toolNameToConfigID,
+		},
+		compaction: &generationCompaction{
+			Override: compactionOverride, ChatModelConfig: modelConfig,
+			Required: compactionNeeded, Options: compactionOptions,
+		},
+		cleanup: cleanup,
 	}, nil
 }
 
@@ -1655,8 +1627,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 	return nil, xerrors.New("chat workspace changed while connecting")
 }
 
-// AgentConnFunc provides access to workspace agent connections.
-
 func allToolNames(allTools []fantasy.AgentTool) []string {
 	toolNames := make([]string, 0, len(allTools))
 	for _, tool := range allTools {
@@ -1958,6 +1928,10 @@ func isSkillIndexMessage(message fantasy.Message) bool {
 	return strings.HasPrefix(text, chattool.AvailableSkillsOpenTag+"\n") && strings.HasSuffix(text, chattool.AvailableSkillsCloseTag)
 }
 
+type turnEnvironmentBuilder struct {
+	server *Server
+}
+
 type rootChatToolsOptions struct {
 	chat            database.Chat
 	modelConfigID   uuid.UUID
@@ -1968,7 +1942,7 @@ type rootChatToolsOptions struct {
 	isPlanModeTurn  bool
 }
 
-func (server *Server) loadPlanModeInstructions(
+func (builder turnEnvironmentBuilder) loadPlanModeInstructions(
 	ctx context.Context,
 	mode database.NullChatPlanMode,
 	logger slog.Logger,
@@ -1981,7 +1955,7 @@ func (server *Server) loadPlanModeInstructions(
 	// not carry a deployment-config actor during background execution.
 	//nolint:gocritic // Required to read deployment config during background chat processing.
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	fetched, err := server.db.GetChatPlanModeInstructions(systemCtx)
+	fetched, err := builder.server.db.GetChatPlanModeInstructions(systemCtx)
 	if err != nil {
 		logger.Warn(ctx,
 			"failed to fetch plan mode instructions",
@@ -2011,12 +1985,12 @@ func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
 	return dbauthz.As(ctx, actor)
 }
 
-func (server *Server) fetchPersonalSkillMetadata(
+func (builder turnEnvironmentBuilder) fetchPersonalSkillMetadata(
 	ctx context.Context,
 	userID uuid.UUID,
 	logger slog.Logger,
 ) []skillspkg.Skill {
-	rows, err := server.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
+	rows, err := builder.server.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
 	// See package coderd/x/skills (doc.go) for why metadata fetch failures
 	// intentionally degrade to an empty personal-skill list instead of
 	// failing the chat turn.
@@ -2039,12 +2013,12 @@ func (server *Server) fetchPersonalSkillMetadata(
 	return personalSkills
 }
 
-func (server *Server) loadPersonalSkillBody(
+func (builder turnEnvironmentBuilder) loadPersonalSkillBody(
 	ctx context.Context,
 	userID uuid.UUID,
 	name string,
 ) (skillspkg.ParsedSkill, error) {
-	row, err := server.db.GetUserSkillByUserIDAndName(
+	row, err := builder.server.db.GetUserSkillByUserIDAndName(
 		userSkillContext(ctx, userID),
 		database.GetUserSkillByUserIDAndNameParams{
 			UserID: userID,
@@ -2055,7 +2029,7 @@ func (server *Server) loadPersonalSkillBody(
 		if errors.Is(err, sql.ErrNoRows) {
 			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
 		}
-		server.logger.Error(ctx, "load personal skill body failed",
+		builder.server.logger.Error(ctx, "load personal skill body failed",
 			slog.F("user_id", userID),
 			slog.F("name", name),
 			slog.Error(err),
@@ -2065,7 +2039,7 @@ func (server *Server) loadPersonalSkillBody(
 
 	parsed, err := skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
 	if err != nil {
-		server.logger.Error(ctx, "parse personal skill body failed",
+		builder.server.logger.Error(ctx, "parse personal skill body failed",
 			slog.F("user_id", userID),
 			slog.F("name", name),
 			slog.Error(err),
@@ -2075,7 +2049,7 @@ func (server *Server) loadPersonalSkillBody(
 	return parsed, nil
 }
 
-func (server *Server) appendRootChatTools(
+func (builder turnEnvironmentBuilder) appendRootChatTools(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
@@ -2084,41 +2058,41 @@ func (server *Server) appendRootChatTools(
 		opts.workspaceCtx.selectWorkspace(updatedChat)
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
-		server.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
+		builder.server.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 	}
 
 	tools = append(tools,
-		chattool.ListTemplates(server.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
+		chattool.ListTemplates(builder.server.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID: opts.chat.OwnerID,
-			Logger:  server.logger,
-			Clock:   server.clock,
+			Logger:  builder.server.logger,
+			Clock:   builder.server.clock,
 		}),
-		chattool.ReadTemplate(server.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
+		chattool.ReadTemplate(builder.server.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID: opts.chat.OwnerID,
 		}),
-		chattool.CreateWorkspace(server.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
+		chattool.CreateWorkspace(builder.server.db, opts.chat.OrganizationID, opts.chat.ID, chattool.CreateWorkspaceOptions{
 			OwnerID:                        opts.chat.OwnerID,
-			CreateFn:                       server.createWorkspaceFn,
-			AgentConnFn:                    chattool.AgentConnFunc(server.agentConnFn),
-			AgentInactiveDisconnectTimeout: server.agentInactiveDisconnectTimeout,
+			CreateFn:                       builder.server.createWorkspaceFn,
+			AgentConnFn:                    chattool.AgentConnFunc(builder.server.agentConnFn),
+			AgentInactiveDisconnectTimeout: builder.server.agentInactiveDisconnectTimeout,
 			WorkspaceMu:                    opts.workspaceMu,
 			OnChatUpdated:                  onChatUpdated,
-			Logger:                         server.logger,
+			Logger:                         builder.server.logger,
 		}),
-		chattool.StartWorkspace(server.db, opts.chat.ID, chattool.StartWorkspaceOptions{
+		chattool.StartWorkspace(builder.server.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StartFn:       server.startWorkspaceFn,
-			AgentConnFn:   chattool.AgentConnFunc(server.agentConnFn),
+			StartFn:       builder.server.startWorkspaceFn,
+			AgentConnFn:   chattool.AgentConnFunc(builder.server.agentConnFn),
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
-			Logger:        server.logger,
+			Logger:        builder.server.logger,
 		}),
-		chattool.StopWorkspace(server.db, opts.chat.ID, chattool.StopWorkspaceOptions{
+		chattool.StopWorkspace(builder.server.db, opts.chat.ID, chattool.StopWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,
-			StopFn:        server.stopWorkspaceFn,
+			StopFn:        builder.server.stopWorkspaceFn,
 			WorkspaceMu:   opts.workspaceMu,
 			OnChatUpdated: onChatUpdated,
-			Logger:        server.logger,
+			Logger:        builder.server.logger,
 		}),
 	)
 	if opts.isPlanModeTurn {
@@ -2130,7 +2104,7 @@ func (server *Server) appendRootChatTools(
 		}))
 	}
 
-	return append(tools, server.subagentTools(ctx, func() database.Chat {
+	return append(tools, builder.server.subagentTools(ctx, func() database.Chat {
 		return opts.chat
 	}, opts.modelConfigID)...)
 }

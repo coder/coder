@@ -855,6 +855,8 @@ Retriable conditions include, but are not limited to:
 
 #### Generation goroutine
 
+TODO(human): Document `turn_environment.go` as the preparation boundary for prompts, models, workspace connections, and tool policy.
+
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
