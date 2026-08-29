@@ -206,16 +206,37 @@ func (m *SubagentManager) Send(ctx context.Context, args messageAgentArgs) (data
 		return database.Chat{}, false, err
 	}
 	targetChatInfo := m.targetChatInfo(ctx, targetChatID, "message")
+	message := strings.TrimSpace(args.Message)
+	if message == "" {
+		return database.Chat{}, false, subagentToolError(xerrors.New("message is required"), targetChatInfo)
+	}
+	parent := m.currentChat()
+	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parent.ID, targetChatID)
+	if err != nil {
+		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
+	}
+	if !isDescendant {
+		return database.Chat{}, false, subagentToolError(ErrSubagentNotDescendant, targetChatInfo)
+	}
+	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
+	if err != nil {
+		return database.Chat{}, false, subagentToolError(xerrors.Errorf("get target chat: %w", err), targetChatInfo)
+	}
 	busyBehavior := SendMessageBusyBehaviorQueue
 	if args.Interrupt {
 		busyBehavior = SendMessageBusyBehaviorInterrupt
 	}
-	chat, err := m.sendSubagentMessage(ctx, m.currentChat().ID, targetChatID, args.Message, busyBehavior)
+	sendResult, err := m.server.SendMessage(ctx, SendMessageOptions{
+		ChatID:       targetChatID,
+		CreatedBy:    targetChat.OwnerID,
+		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		BusyBehavior: busyBehavior,
+	})
 	if err != nil {
 		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
 	}
 	interrupted := args.Interrupt && targetChatInfo != nil && targetChatInfo.Status == database.ChatStatusRunning
-	return chat, interrupted, nil
+	return sendResult.Chat, interrupted, nil
 }
 
 // Interrupt stops a child run.
@@ -228,11 +249,26 @@ func (m *SubagentManager) Interrupt(ctx context.Context, args interruptAgentArgs
 		return database.Chat{}, false, err
 	}
 	targetChatInfo := m.targetChatInfo(ctx, targetChatID, "interrupt")
-	chat, interrupted, err := m.interruptSubagent(ctx, m.currentChat().ID, targetChatID)
+	parent := m.currentChat()
+	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parent.ID, targetChatID)
 	if err != nil {
 		return database.Chat{}, false, subagentToolError(err, targetChatInfo)
 	}
-	return chat, interrupted, nil
+	if !isDescendant {
+		return database.Chat{}, false, subagentToolError(ErrSubagentNotDescendant, targetChatInfo)
+	}
+	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
+	if err != nil {
+		return database.Chat{}, false, subagentToolError(xerrors.Errorf("get target chat: %w", err), targetChatInfo)
+	}
+	if targetChat.Status == database.ChatStatusWaiting {
+		return targetChat, false, nil
+	}
+	updatedChat, err := m.server.InterruptChat(ctx, targetChat)
+	if err != nil {
+		return database.Chat{}, false, subagentToolError(xerrors.Errorf("interrupt subagent chat: %w", err), targetChatInfo)
+	}
+	return updatedChat, true, nil
 }
 
 // List returns the parent chat children.
@@ -573,45 +609,6 @@ func (m *SubagentManager) createChildSubagentChatWithOptions(
 	return child, nil
 }
 
-func (m *SubagentManager) sendSubagentMessage(
-	ctx context.Context,
-	parentChatID uuid.UUID,
-	targetChatID uuid.UUID,
-	message string,
-	busyBehavior SendMessageBusyBehavior,
-) (database.Chat, error) {
-	message = strings.TrimSpace(message)
-	if message == "" {
-		return database.Chat{}, xerrors.New("message is required")
-	}
-
-	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parentChatID, targetChatID)
-	if err != nil {
-		return database.Chat{}, err
-	}
-	if !isDescendant {
-		return database.Chat{}, ErrSubagentNotDescendant
-	}
-
-	// Look up the target chat to get the owner for CreatedBy.
-	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
-	}
-
-	sendResult, err := m.server.SendMessage(ctx, SendMessageOptions{
-		ChatID:       targetChatID,
-		CreatedBy:    targetChat.OwnerID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
-	})
-	if err != nil {
-		return database.Chat{}, err
-	}
-
-	return sendResult.Chat, nil
-}
-
 func (m *SubagentManager) awaitSubagentCompletion(
 	ctx context.Context,
 	parentChatID uuid.UUID,
@@ -771,43 +768,6 @@ func (m *SubagentManager) waitAgentSuccessResult(
 		Title:           targetChat.Title,
 		Type:            subagentTypeFromChat(targetChat),
 	}
-}
-
-func (m *SubagentManager) interruptSubagent(
-	ctx context.Context,
-	parentChatID uuid.UUID,
-	targetChatID uuid.UUID,
-) (database.Chat, bool, error) {
-	isDescendant, err := isSubagentDescendant(ctx, m.server.db, parentChatID, targetChatID)
-	if err != nil {
-		return database.Chat{}, false, err
-	}
-	if !isDescendant {
-		return database.Chat{}, false, ErrSubagentNotDescendant
-	}
-
-	targetChat, err := m.server.db.GetChatByID(ctx, targetChatID)
-	if err != nil {
-		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
-	}
-
-	if targetChat.Status == database.ChatStatusWaiting {
-		return targetChat, false, nil
-	}
-
-	updatedChat, err := m.server.InterruptChat(ctx, targetChat)
-	if err != nil {
-		// Idle / archived chats no longer satisfy the
-		// chatstate.Interrupt precondition. Surface the error
-		// so the caller can decide whether the parent expected
-		// the subagent to already be waiting.
-		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
-	}
-	// chatstate.Interrupt lands active runs in `interrupting`
-	// and requires-action chats in `running`. Workers finalize
-	// the transition; accept either non-active status as long as
-	// the transition committed.
-	return updatedChat, true, nil
 }
 
 func (m *SubagentManager) checkSubagentCompletion(
