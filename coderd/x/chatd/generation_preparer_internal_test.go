@@ -154,26 +154,26 @@ func TestPrepareGenerationClampsRequestedReasoningEffortToMax(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
-	providerOptions, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	providerOptions, ok := prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name])
 	require.NotNil(t, providerOptions.ReasoningEffort)
 	require.Equal(t, fantasyopenai.ReasoningEffortMedium, *providerOptions.ReasoningEffort)
 
 	require.NotNil(t, providerOptions.User)
 	require.Equal(t, "turn-options-sentinel", *providerOptions.User)
-	require.NotNil(t, prepared.CallTemplate.MaxOutputTokens)
-	require.Equal(t, defaultChatMaxOutputTokens, *prepared.CallTemplate.MaxOutputTokens)
+	require.NotNil(t, prepared.ModelConfig().callTemplate.MaxOutputTokens)
+	require.Equal(t, defaultChatMaxOutputTokens, *prepared.ModelConfig().callTemplate.MaxOutputTokens)
 
-	require.NotNil(t, prepared.Compaction)
-	summaryCall := prepared.Compaction.Options.SummaryCall
-	require.Equal(t, prepared.CallTemplate.ProviderOptions, summaryCall.ProviderOptions)
+	require.NotNil(t, prepared.CompactionConfig())
+	summaryCall := prepared.CompactionConfig().Options.SummaryCall
+	require.Equal(t, prepared.ModelConfig().callTemplate.ProviderOptions, summaryCall.ProviderOptions)
 	require.NotNil(t, summaryCall.ToolChoice)
 	require.Equal(t, fantasy.ToolChoiceNone, *summaryCall.ToolChoice)
 	// Non-streaming summaries must not inherit the default output cap the
@@ -259,24 +259,24 @@ func TestPrepareGenerationComputerUseIgnoresChatTransportOverride(t *testing.T) 
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	// The computer-use model is Responses-selected by the SDK and its client
 	// ignores the config's forced Chat Completions, so the options must be the
 	// Responses type or the SDK discards them.
-	_, ok := prepared.CallTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok, "%T", prepared.CallTemplate.ProviderOptions[fantasyopenai.Name])
+	_, ok := prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok, "%T", prepared.ModelConfig().callTemplate.ProviderOptions[fantasyopenai.Name])
 
 	// File classification must also key on the substituted model: the
 	// Responses transport drops native text file parts, so the attachment
 	// must be inlined as text rather than kept as a FilePart.
 	var sawInlinedText bool
-	for _, message := range prepared.Prompt {
+	for _, message := range prepared.Prompt() {
 		for _, part := range message.Content {
 			if filePart, isFile := part.(fantasy.FilePart); isFile {
 				t.Fatalf("text attachment survived as FilePart %q", filePart.Filename)
@@ -344,19 +344,19 @@ func TestPrepareGenerationSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	gatewayKey, err := db.GetChatGatewayAPIKey(ctx, database.GetChatGatewayAPIKeyParams{
 		UserID:    user.ID,
 		TokenName: GatewayTokenName(user.ID),
 	})
 	require.NoError(t, err)
-	require.Equal(t, gatewayKey.ID, prepared.ModelBuildOptions.ActiveAPIKeyID)
+	require.Equal(t, gatewayKey.ID, prepared.ModelConfig().buildOptions.ActiveAPIKeyID)
 }
 
 // TestDeriveFinalTurnRunResult exercises the re-derivation path that replaces

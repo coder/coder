@@ -18,7 +18,7 @@ import (
 // of a dispatch failure. allowedIndexes maps allowed calls back to the input
 // order without relying on duplicate-prone IDs.
 func partitionAmbiguousToolCalls(
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	toolCalls []fantasy.ToolCallContent,
 ) (allowed []fantasy.ToolCallContent, allowedIndexes []int, rejected []fantasy.ToolResultContent) {
 	for i, toolCall := range toolCalls {
@@ -39,7 +39,7 @@ func partitionAmbiguousToolCalls(
 // validateOverriddenToolInputs rechecks the inputs a pre_tool_use consumer
 // replaced. The model cannot fix an ambiguous override, so the turn fails
 // closed instead of executing it.
-func validateOverriddenToolInputs(prepared generationPrepared, preflight chathooks.PreToolUseExecutionResult) error {
+func validateOverriddenToolInputs(prepared turnEnvironment, preflight chathooks.PreToolUseExecutionResult) error {
 	for _, toolCall := range preflight.Allowed {
 		if _, overridden := preflight.Overrides[toolCall.ToolCallID]; !overridden {
 			continue
@@ -54,16 +54,16 @@ func validateOverriddenToolInputs(prepared generationPrepared, preflight chathoo
 // validateBuiltinToolInput only guards builtin tools, whose input coderd
 // decodes itself. Dynamic calls are executed by the client and MCP calls by
 // their own server, and a dynamic tool cannot shadow a builtin name.
-func validateBuiltinToolInput(prepared generationPrepared, toolName string, input []byte) error {
+func validateBuiltinToolInput(prepared turnEnvironment, toolName string, input []byte) error {
 	// Execution resolves a deprecated alias to its canonical tool, so
 	// skipping that here would let the old name bypass validation.
 	if canonical, aliased := subagentToolNameAliases[toolName]; aliased {
 		toolName = canonical
 	}
-	if !prepared.BuiltinToolNames[toolName] {
+	if !prepared.Toolset().builtinToolNames[toolName] {
 		return nil
 	}
-	for _, tool := range prepared.Tools {
+	for _, tool := range prepared.Toolset().tools {
 		info := tool.Info()
 		if info.Name != toolName {
 			continue

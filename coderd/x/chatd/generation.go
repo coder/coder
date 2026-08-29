@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chathooks"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -48,42 +47,6 @@ type generationPrepareInput struct {
 		debug *generationDebug,
 		summaries []mcpclient.ConnectSummary,
 	)
-}
-
-// generationPrepared contains the side-effect inputs for a generation task.
-type generationPrepared struct {
-	Chat     database.Chat
-	Messages []database.ChatMessage
-
-	Model              chatprovider.Model
-	Prompt             []fantasy.Message
-	Tools              []fantasy.AgentTool
-	ActiveTools        []string
-	AllowInactiveTools map[string]bool
-	ProviderTools      []chatloop.ProviderTool
-	ModelRoute         aiGatewayModelRoute
-	ModelBuildOptions  modelBuildOptions
-
-	// ResolvedProvider is the configured provider identity used to label
-	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
-	ResolvedProvider string
-
-	ModelConfigID        uuid.UUID
-	CallTemplate         fantasy.Call
-	ContextLimitFallback int64
-
-	DynamicToolNames   map[string]bool
-	StopAfterTools     map[string]struct{}
-	ExclusiveToolNames map[string]bool
-	BuiltinToolNames   map[string]bool
-	ToolNameToConfigID map[string]uuid.UUID
-
-	MaxSteps   int
-	Compaction *generationCompaction
-	// Cleanup is always non-nil when prepareGeneration succeeds.
-	Cleanup func()
-
-	Debug *generationDebug
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -459,8 +422,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			Messages:                  messages,
 			RecordMCPConnectSummaries: input.DebugTurn.RecordMCPConnectSummaries,
 		}
-		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
-			return s.server.prepareGeneration(ctx, prepareInput)
+		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (turnEnvironment, error) {
+			return s.server.buildTurnEnvironment(ctx, prepareInput)
 		})
 		if err != nil {
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
@@ -468,23 +431,23 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			}
 			return s.finishGenerationError(ctx, machine, input, err, generationAttemptNotRequired)
 		}
-		cleanup := prepared.Cleanup
+		cleanup := prepared.Close
 		var decision generationDecision
-		if input.StopNudges.consume(stopNudgeKey(prepared.Messages)) {
+		if input.StopNudges.consume(stopNudgeKey(prepared.Turn().messages)) {
 			decision = generationDecision{kind: generationActionGenerateAssistant}
 		} else {
 			decision, err = retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
 				return decideGenerationAction(generationDecisionInput{
-					chat:                       prepared.Chat,
-					messages:                   prepared.Messages,
-					dynamicToolNames:           prepared.DynamicToolNames,
-					exclusiveToolNames:         prepared.ExclusiveToolNames,
-					stopAfterTools:             prepared.StopAfterTools,
-					maxSteps:                   prepared.MaxSteps,
-					compactionEnabled:          prepared.Compaction != nil,
-					compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
-					compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
-					compactionContextLimit:     generationCompactionContextLimit(prepared.Compaction),
+					chat:                       prepared.Turn().chat,
+					messages:                   prepared.Turn().messages,
+					dynamicToolNames:           prepared.Toolset().dynamicToolNames,
+					exclusiveToolNames:         prepared.Toolset().exclusiveToolNames,
+					stopAfterTools:             prepared.Toolset().stopAfterTools,
+					maxSteps:                   prepared.Turn().maxSteps,
+					compactionEnabled:          prepared.CompactionConfig() != nil,
+					compactionNeeded:           prepared.CompactionConfig() != nil && prepared.CompactionConfig().Required,
+					compactionThresholdPercent: generationCompactionThreshold(prepared.CompactionConfig()),
+					compactionContextLimit:     generationCompactionContextLimit(prepared.CompactionConfig()),
 				})
 			})
 		}
@@ -493,8 +456,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
 				return xerrors.Errorf("decide generation: %w", err)
 			}
-			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
-				metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
+			if errors.Is(err, errCompactionStillOverLimit) && prepared.CompactionConfig() != nil {
+				metricProvider, metricModel := compactionMetricIdentity(prepared.CompactionConfig())
 				s.server.metrics.RecordCompaction(
 					metricProvider,
 					metricModel,
@@ -731,23 +694,23 @@ func (s *taskStarter) generateAssistant(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return xerrors.Errorf("begin generation attempt: %w", err)
 	}
 	defer attempt.closeEpisode()
-	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
+	runCtx := input.DebugTurn.Ensure(ctx, prepared.Turn().chat, prepared.Turn().debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
-		Model:                prepared.Model.LanguageModel(),
-		ErrorProvider:        prepared.ResolvedProvider,
-		Messages:             prepared.Prompt,
-		Tools:                prepared.Tools,
-		ActiveTools:          prepared.ActiveTools,
-		ProviderTools:        prepared.ProviderTools,
-		ContextLimitFallback: prepared.ContextLimitFallback,
-		CallTemplate:         prepared.CallTemplate,
+		Model:                prepared.ModelConfig().model.LanguageModel(),
+		ErrorProvider:        prepared.ModelConfig().resolvedProvider,
+		Messages:             prepared.Prompt(),
+		Tools:                prepared.Toolset().tools,
+		ActiveTools:          prepared.Toolset().activeTools,
+		ProviderTools:        prepared.Toolset().providerTools,
+		ContextLimitFallback: prepared.ModelConfig().contextLimitFallback,
+		CallTemplate:         prepared.ModelConfig().callTemplate,
 		PublishMessagePart:   attempt.publish,
 		OnModelStreamStart:   attempt.startModelInvocation,
 		Logger:               s.opts.Logger,
@@ -766,9 +729,9 @@ func (s *taskStarter) generateAssistant(
 	}
 	outcome.Step.Content = chathooks.ApplyAdmittedToolCalls(outcome.Step.Content, preflight)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:          prepared.ModelConfigID,
+		modelConfigID:          prepared.ModelConfig().configID,
 		step:                   stepDataFromPersisted(outcome.Step),
-		toolNameToConfigID:     prepared.ToolNameToConfigID,
+		toolNameToConfigID:     prepared.Toolset().toolNameToConfigID,
 		logger:                 s.opts.Logger,
 		contentVersion:         chatprompt.CurrentContentVersion,
 		hookRewrittenToolCalls: preflight.Overrides,
@@ -776,7 +739,7 @@ func (s *taskStarter) generateAssistant(
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, err = appendHookResultMessages(messages, preflight.Results, prepared.ModelConfigID)
+	messages, err = appendHookResultMessages(messages, preflight.Results, prepared.ModelConfig().configID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
@@ -786,21 +749,21 @@ func (s *taskStarter) generateAssistant(
 func (s *taskStarter) admitStepToolCalls(
 	ctx context.Context,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	content []fantasy.Content,
 ) (chathooks.PreToolUseExecutionResult, error) {
 	if !s.server.hooks.Enabled() {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
 	toolCalls := chathooks.PendingToolCalls(content)
-	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.ExclusiveToolNames) {
+	if len(toolCalls) == 0 || exclusiveBatchRejected(toolCalls, prepared.Toolset().exclusiveToolNames) {
 		return chathooks.PreToolUseExecutionResult{}, nil
 	}
 	// An admission error discards the whole batch before it can be
 	// committed, so its find_tools calls would otherwise never reach
 	// the executeLocalTools counter; count them at each error exit.
 	countBatch := func() {
-		if !prepared.BuiltinToolNames[chattool.FindToolsName] {
+		if !prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
 			return
 		}
 		for _, toolCall := range toolCalls {
@@ -816,7 +779,7 @@ func (s *taskStarter) admitStepToolCalls(
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	unambiguous, _, ambiguous := partitionAmbiguousToolCalls(prepared, toolCalls)
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), unambiguous)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Turn().chat, input.hookTurnID()), unambiguous)
 	if err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
@@ -829,7 +792,7 @@ func (s *taskStarter) admitStepToolCalls(
 	// Calls denied at admission persist synthetic results with the
 	// assistant step, so they never surface as unresolved calls where
 	// executeLocalTools counts find_tools invocations; count them here.
-	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+	if prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
 		for _, result := range preflight.Denied {
 			if result.ToolName == chattool.FindToolsName {
 				s.server.metrics.FindToolsCallsTotal.Inc()
@@ -865,10 +828,10 @@ func (s *taskStarter) executeLocalTools(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	decision generationDecision,
 ) error {
-	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.ExclusiveToolNames)
+	exclusiveRejected := exclusiveBatchRejected(decision.localToolCalls, prepared.Toolset().exclusiveToolNames)
 	allowed := decision.localToolCalls
 	var allowedIndexes []int
 	var denied []fantasy.ToolResultContent
@@ -879,7 +842,7 @@ func (s *taskStarter) executeLocalTools(
 	// model-emitted call passes through, because rejections upstream of
 	// the tool (partition denials, hook denials, exclusive-policy
 	// batches) never reach its handler or OnCall.
-	if prepared.BuiltinToolNames[chattool.FindToolsName] {
+	if prepared.Toolset().builtinToolNames[chattool.FindToolsName] {
 		for _, toolCall := range decision.localToolCalls {
 			if toolCall.ToolName == chattool.FindToolsName {
 				s.server.metrics.FindToolsCallsTotal.Inc()
@@ -893,9 +856,9 @@ func (s *taskStarter) executeLocalTools(
 	defer attempt.closeEpisode()
 	provider := ""
 	modelName := ""
-	if prepared.Model.Valid() {
-		provider = prepared.Model.Provider()
-		modelName = prepared.Model.ModelID()
+	if prepared.ModelConfig().model.Valid() {
+		provider = prepared.ModelConfig().model.Provider()
+		modelName = prepared.ModelConfig().model.ModelID()
 	}
 	var outcome chatloop.PersistedStep
 	var spawnDispatchErr error
@@ -909,17 +872,17 @@ func (s *taskStarter) executeLocalTools(
 			}
 		}
 		outcome, err = chatloop.ExecuteLocalTools(ctx, chatloop.ExecuteLocalToolsOptions{
-			Tools:              prepared.Tools,
-			ActiveTools:        prepared.ActiveTools,
-			AllowInactiveTools: prepared.AllowInactiveTools,
-			ProviderTools:      prepared.ProviderTools,
+			Tools:              prepared.Toolset().tools,
+			ActiveTools:        prepared.Toolset().activeTools,
+			AllowInactiveTools: prepared.Toolset().allowInactiveTools,
+			ProviderTools:      prepared.Toolset().providerTools,
 			ToolCalls:          allowed,
 			ObservedToolCalls:  decision.localToolCalls,
-			ExclusiveToolNames: prepared.ExclusiveToolNames,
-			BuiltinToolNames:   prepared.BuiltinToolNames,
+			ExclusiveToolNames: prepared.Toolset().exclusiveToolNames,
+			BuiltinToolNames:   prepared.Toolset().builtinToolNames,
 			ModelProvider:      provider,
 			ModelName:          modelName,
-			ContextLimit:       prepared.ContextLimitFallback,
+			ContextLimit:       prepared.ModelConfig().contextLimitFallback,
 			ToolNameAliases:    subagentToolNameAliases,
 			UnbilledToolNames:  unbilledSubagentToolNames,
 			BillingRecorder:    billingRecorder,
@@ -939,23 +902,23 @@ func (s *taskStarter) executeLocalTools(
 			spawnDispatchErr = chathooks.GenerationDispatchError(agenthooks.EventUserPromptSubmit, hookErr)
 		}
 	}
-	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), outcome.Content)
+	postResults, postDispatchErr := s.server.hooks.PostToolUseResults(ctx, chathooks.ChatFor(prepared.Turn().chat, input.hookTurnID()), outcome.Content)
 	for _, result := range denied {
 		outcome.Content = append(outcome.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
-		modelConfigID:      prepared.ModelConfigID,
+		modelConfigID:      prepared.ModelConfig().configID,
 		step:               step,
-		toolNameToConfigID: prepared.ToolNameToConfigID,
+		toolNameToConfigID: prepared.Toolset().toolNameToConfigID,
 		logger:             s.opts.Logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
-	messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfigID)
+	messages, err = appendHookResultMessages(messages, postResults, prepared.ModelConfig().configID)
 	if err != nil {
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
@@ -994,7 +957,7 @@ func (s *taskStarter) generateCompaction(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	prepared generationPrepared,
+	prepared turnEnvironment,
 	source chatloop.CompactionSource,
 ) error {
 	attempt, err := s.beginGenerationAttempt(ctx, machine, input)
@@ -1002,27 +965,27 @@ func (s *taskStarter) generateCompaction(
 		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer attempt.closeEpisode()
-	if prepared.Compaction == nil {
+	if prepared.CompactionConfig() == nil {
 		return s.finishGenerationError(ctx, machine, input, xerrors.New("compaction action missing options"), requireGenerationAttempt(attempt.number))
 	}
-	compactionOpts := prepared.Compaction.Options
-	metricProvider, metricModel := compactionMetricIdentity(prepared.Compaction)
-	if override := prepared.Compaction.Override; override != nil {
+	compactionOpts := prepared.CompactionConfig().Options
+	metricProvider, metricModel := compactionMetricIdentity(prepared.CompactionConfig())
+	if override := prepared.CompactionConfig().Override; override != nil {
 		// A usable override that fails to build is a hard generation failure.
 		overrideModel, err := s.server.resolveModelCall(ctx, modelCallSpec{
 			purpose:          "compaction",
-			chat:             prepared.Chat,
+			chat:             prepared.Turn().chat,
 			explicitConfig:   &override.Config,
 			requestedEffort:  override.ReasoningEffort,
 			chatdScopedRoute: true,
-			buildOptions:     prepared.ModelBuildOptions,
+			buildOptions:     prepared.ModelConfig().buildOptions,
 		})
 		if err != nil {
 			return xerrors.Errorf("build compaction model override: %w", err)
 		}
 		logger := s.server.logger.With(
-			slog.F("chat_id", prepared.Chat.ID),
-			slog.F("owner_id", prepared.Chat.OwnerID),
+			slog.F("chat_id", prepared.Turn().chat.ID),
+			slog.F("owner_id", prepared.Turn().chat.OwnerID),
 		)
 		compactionOpts.Model = overrideModel.model.LanguageModel()
 		compactionOpts.ResolvedProvider = overrideModel.resolvedProvider
@@ -1034,11 +997,11 @@ func (s *taskStarter) generateCompaction(
 			logger,
 			compactionOpts.Messages,
 			overrideModel.model,
-			prepared.Compaction.ChatModelConfig,
+			prepared.CompactionConfig().ChatModelConfig,
 			overrideModel.dbConfig,
 		)
 	}
-	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
+	preResult, err := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Turn().chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPreCompact, dispatch.CapacityClassGeneration)
 	if err != nil {
 		return chathooks.GenerationDispatchError(agenthooks.EventPreCompact, err)
 	}
@@ -1051,7 +1014,7 @@ func (s *taskStarter) generateCompaction(
 	// Attach the turn debug run so the compaction call records a child
 	// debug run; without it startCompactionDebugRun finds no parent and
 	// skips debug instrumentation entirely.
-	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
+	runCtx := input.DebugTurn.Ensure(ctx, prepared.Turn().chat, prepared.Turn().debug)
 	outcome, err := chatloop.GenerateCompaction(runCtx, compactionOpts)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
@@ -1063,7 +1026,7 @@ func (s *taskStarter) generateCompaction(
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
-		modelConfigID:  prepared.ModelConfigID,
+		modelConfigID:  prepared.ModelConfig().configID,
 		toolCallID:     compactionOpts.ToolCallID,
 		toolName:       compactionOpts.ToolName,
 		compaction:     compactionOutcome(outcome),
@@ -1079,7 +1042,7 @@ func (s *taskStarter) generateCompaction(
 		Messages:                 messages.Messages,
 		VisibleIndexes:           visibleMessageIndexes(messages.Messages),
 		ConsumeCompactionRequest: true,
-	}, []*chathooks.Result{persistedPreResult}, prepared.ModelConfigID)
+	}, []*chathooks.Result{persistedPreResult}, prepared.ModelConfig().configID)
 	if err != nil {
 		s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 		return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))
@@ -1087,12 +1050,12 @@ func (s *taskStarter) generateCompaction(
 	// Hook effects and fail-closed errors must commit atomically with
 	// compaction; a separate commit races the runner and can be dropped
 	// on crash.
-	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact, dispatch.CapacityClassGeneration)
+	postResult, postDispatchErr := s.server.hooks.Trigger(ctx, chathooks.ChatFor(prepared.Turn().chat, input.hookTurnID()), chathooks.Message{}, agenthooks.EventPostCompact, dispatch.CapacityClassGeneration)
 	var postCommitErr error
 	if postDispatchErr != nil {
 		postCommitErr = chathooks.GenerationDispatchError(agenthooks.EventPostCompact, postDispatchErr)
 	} else {
-		commitMessages, err = appendHookResultMessages(commitMessages, []*chathooks.Result{postResult}, prepared.ModelConfigID)
+		commitMessages, err = appendHookResultMessages(commitMessages, []*chathooks.Result{postResult}, prepared.ModelConfig().configID)
 		if err != nil {
 			s.server.metrics.RecordCompaction(metricProvider, metricModel, false, err)
 			return s.finishGenerationError(ctx, machine, input, err, requireGenerationAttempt(attempt.number))

@@ -36,7 +36,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := generationPrepared{
+		prepared := turnEnvironmentState{
 			Tools:            []fantasy.AgentTool{fetch},
 			BuiltinToolNames: map[string]bool{"fetch": true},
 		}
@@ -51,7 +51,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 	t.Run("non-builtin", func(t *testing.T) {
 		t.Parallel()
 
-		prepared := generationPrepared{Tools: []fantasy.AgentTool{fetch}}
+		prepared := turnEnvironmentState{Tools: []fantasy.AgentTool{fetch}}
 		allowed, allowedIndexes, rejected := partitionAmbiguousToolCalls(prepared, []fantasy.ToolCallContent{ambiguous, clean})
 		require.Empty(t, rejected)
 		require.Len(t, allowed, 2)
@@ -83,7 +83,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 			Input:      `{"chat_id":"a","CHAT_ID":"b"}`,
 		}
 
-		prepared := generationPrepared{
+		prepared := turnEnvironmentState{
 			Tools:            []fantasy.AgentTool{tool},
 			BuiltinToolNames: map[string]bool{canonical: true},
 		}
@@ -95,7 +95,7 @@ func TestPartitionAmbiguousToolCallsGatesOnBuiltins(t *testing.T) {
 func TestValidateOverriddenToolInputs(t *testing.T) {
 	t.Parallel()
 
-	prepared := generationPrepared{
+	prepared := turnEnvironmentState{
 		Tools:            []fantasy.AgentTool{fetchToolStub()},
 		BuiltinToolNames: map[string]bool{"fetch": true},
 	}
@@ -165,12 +165,12 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		chatprovider.ProviderAPIKeys{},
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
-	prepared, err := server.prepareGeneration(ctx, generationPrepareInput{
+	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
 		Chat:     created.Chat,
 		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
-	t.Cleanup(prepared.Cleanup)
+	t.Cleanup(prepared.Close)
 
 	// These take an empty struct, so they carry no keys to validate.
 	noInput := map[string]bool{
@@ -179,10 +179,10 @@ func TestBuiltinToolSchemasDescribeTheirInputs(t *testing.T) {
 		"list_subagent_models": true,
 	}
 	var unvalidated []string
-	require.NotEmpty(t, prepared.BuiltinToolNames)
-	for _, tool := range prepared.Tools {
+	require.NotEmpty(t, prepared.Toolset().builtinToolNames)
+	for _, tool := range prepared.Toolset().tools {
 		info := tool.Info()
-		if !prepared.BuiltinToolNames[info.Name] || len(info.Parameters) > 0 || noInput[info.Name] {
+		if !prepared.Toolset().builtinToolNames[info.Name] || len(info.Parameters) > 0 || noInput[info.Name] {
 			continue
 		}
 		unvalidated = append(unvalidated, info.Name)
