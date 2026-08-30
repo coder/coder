@@ -101,7 +101,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 				},
 				"model_config_id": map[string]any{
 					"type":        "string",
-					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Defaults to the organization's default model.",
+					"description": "Optional chat model config UUID from coder_list_chat_model_configs. Must belong to the chat's organization. Defaults to the organization's default model.",
 				},
 				"labels": map[string]any{
 					"type":                 "object",
@@ -126,7 +126,7 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 			}
 		} else {
 			var err error
-			orgID, err = defaultCreateChatOrganization(ctx, deps)
+			orgID, err = defaultChatOrganization(ctx, deps)
 			if err != nil {
 				return ChatToolStatus{}, err
 			}
@@ -155,7 +155,10 @@ The chat runs asynchronously. Poll coder_get_chat for status and read the transc
 	},
 }
 
-func defaultCreateChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
+// defaultChatOrganization resolves the organization used by chat tools when
+// organization_id is omitted, keeping coder_create_chat and
+// coder_list_chat_model_configs consistent for multi-organization users.
+func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) {
 	me, err := deps.coderClient.User(ctx, codersdk.Me)
 	if err != nil {
 		return uuid.Nil, err
@@ -898,7 +901,8 @@ type ListChatModelConfigsArgs struct {
 }
 
 type ListChatModelConfigsResponse struct {
-	ModelConfigs []ChatModelConfigSummary `json:"model_configs"`
+	OrganizationID string                   `json:"organization_id"`
+	ModelConfigs   []ChatModelConfigSummary `json:"model_configs"`
 }
 
 var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsResponse]{
@@ -906,12 +910,14 @@ var ListChatModelConfigs = Tool[ListChatModelConfigsArgs, ListChatModelConfigsRe
 		Name: ToolNameListChatModelConfigs,
 		Description: `List the enabled chat models available for Coder Agents chats. Use a model config ID with coder_create_chat to pick a model.
 
+Model configs are organization-scoped. The response includes the organization_id the models belong to; pass it as coder_create_chat's organization_id together with the chosen model config ID.
+
 Per-user provider credentials are validated when creating a chat, so coder_create_chat can still reject a listed model with an explanatory error.`,
 		Schema: aisdk.Schema{
 			Properties: map[string]any{
 				"organization_id": map[string]any{
 					"type":        "string",
-					"description": "Optional organization UUID. Defaults to the authenticated user's first organization.",
+					"description": "Optional organization UUID. Defaults to the organization of the authenticated user's most recently updated chat. If the user has never created a chat, defaults only when they belong to one organization.",
 				},
 			},
 			Required: []string{},
@@ -927,14 +933,11 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				return ListChatModelConfigsResponse{}, xerrors.New("organization_id must be a valid UUID")
 			}
 		} else {
-			me, err := deps.coderClient.User(ctx, codersdk.Me)
+			var err error
+			organizationID, err = defaultChatOrganization(ctx, deps)
 			if err != nil {
-				return ListChatModelConfigsResponse{}, xerrors.Errorf("get authenticated user: %w", err)
+				return ListChatModelConfigsResponse{}, err
 			}
-			if len(me.OrganizationIDs) == 0 {
-				return ListChatModelConfigsResponse{}, xerrors.New("authenticated user belongs to no organization; pass organization_id explicitly")
-			}
-			organizationID = me.OrganizationIDs[0]
 		}
 
 		response, err := codersdk.NewExperimentalClient(deps.coderClient).ChatModels(ctx, organizationID)
@@ -957,6 +960,9 @@ Per-user provider credentials are validated when creating a chat, so coder_creat
 				IsDefault:   config.IsDefault,
 			})
 		}
-		return ListChatModelConfigsResponse{ModelConfigs: summaries}, nil
+		return ListChatModelConfigsResponse{
+			OrganizationID: organizationID.String(),
+			ModelConfigs:   summaries,
+		}, nil
 	},
 }
