@@ -1509,6 +1509,7 @@ type ChatGoalStatus string
 const (
 	ChatGoalStatusActive   ChatGoalStatus = "active"
 	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusBlocked  ChatGoalStatus = "blocked"
 	ChatGoalStatusComplete ChatGoalStatus = "complete"
 	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
 	ChatGoalStatusReplaced ChatGoalStatus = "replaced"
@@ -1553,6 +1554,7 @@ func (e ChatGoalStatus) Valid() bool {
 	switch e {
 	case ChatGoalStatusActive,
 		ChatGoalStatusPaused,
+		ChatGoalStatusBlocked,
 		ChatGoalStatusComplete,
 		ChatGoalStatusCleared,
 		ChatGoalStatusReplaced:
@@ -1565,6 +1567,7 @@ func AllChatGoalStatusValues() []ChatGoalStatus {
 	return []ChatGoalStatus{
 		ChatGoalStatusActive,
 		ChatGoalStatusPaused,
+		ChatGoalStatusBlocked,
 		ChatGoalStatusComplete,
 		ChatGoalStatusCleared,
 		ChatGoalStatusReplaced,
@@ -5351,6 +5354,9 @@ type ChatGoal struct {
 	CompletedAt          sql.NullTime   `db:"completed_at" json:"completed_at"`
 	ClearedAt            sql.NullTime   `db:"cleared_at" json:"cleared_at"`
 	ReplacedAt           sql.NullTime   `db:"replaced_at" json:"replaced_at"`
+	PausedReason         sql.NullString `db:"paused_reason" json:"paused_reason"`
+	BlockedReason        sql.NullString `db:"blocked_reason" json:"blocked_reason"`
+	ContinuationCount    int64          `db:"continuation_count" json:"continuation_count"`
 }
 
 // Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.

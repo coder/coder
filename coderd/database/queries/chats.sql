@@ -2189,18 +2189,20 @@ FROM
     chat_goals
 JOIN latest_goal_ids ON latest_goal_ids.id = chat_goals.id
 WHERE
-    chat_goals.status IN ('active', 'paused', 'complete');
+    chat_goals.status IN ('active', 'paused', 'blocked', 'complete');
 
 -- name: MarkCurrentChatGoalReplacedByRootChatID :exec
 UPDATE
     chat_goals
 SET
     status = 'replaced',
+    paused_reason = NULL,
+    blocked_reason = NULL,
     updated_at = NOW(),
     replaced_at = NOW()
 WHERE
     root_chat_id = @root_chat_id::uuid
-    AND status IN ('active', 'paused');
+    AND status IN ('active', 'paused', 'blocked');
 
 -- name: InsertActiveChatGoal :one
 INSERT INTO chat_goals (
@@ -2223,6 +2225,20 @@ UPDATE
     chat_goals
 SET
     status = 'paused',
+    paused_reason = @paused_reason::text,
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
+RETURNING *;
+
+-- name: BlockChatGoalByID :one
+UPDATE
+    chat_goals
+SET
+    status = 'blocked',
+    blocked_reason = @blocked_reason::text,
     updated_at = NOW()
 WHERE
     root_chat_id = @root_chat_id::uuid
@@ -2231,15 +2247,32 @@ WHERE
 RETURNING *;
 
 -- name: ResumeChatGoalByID :one
+-- Resume reactivates a paused or blocked goal and resets the
+-- continuation budget so the loop starts fresh.
 UPDATE
     chat_goals
 SET
     status = 'active',
+    paused_reason = NULL,
+    blocked_reason = NULL,
+    continuation_count = 0,
     updated_at = NOW()
 WHERE
     root_chat_id = @root_chat_id::uuid
     AND id = @id::uuid
-    AND status = 'paused'
+    AND status IN ('paused', 'blocked')
+RETURNING *;
+
+-- name: IncrementChatGoalContinuationCount :one
+UPDATE
+    chat_goals
+SET
+    continuation_count = continuation_count + 1,
+    updated_at = NOW()
+WHERE
+    root_chat_id = @root_chat_id::uuid
+    AND id = @id::uuid
+    AND status = 'active'
 RETURNING *;
 
 -- name: ClearChatGoalByID :one
@@ -2251,12 +2284,14 @@ SET
     completed_by_user_id = NULL,
     completed_by_agent = FALSE,
     completed_at = NULL,
+    paused_reason = NULL,
+    blocked_reason = NULL,
     updated_at = NOW(),
     cleared_at = NOW()
 WHERE
     root_chat_id = @root_chat_id::uuid
     AND id = @id::uuid
-    AND status IN ('active', 'paused', 'complete')
+    AND status IN ('active', 'paused', 'blocked', 'complete')
 RETURNING *;
 
 -- name: CompleteChatGoalByID :one

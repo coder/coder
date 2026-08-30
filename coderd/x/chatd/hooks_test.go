@@ -1207,6 +1207,21 @@ func TestEditMessageGoalSourceRejected(t *testing.T) {
 		ID:         goal.ID,
 	})
 	require.NoError(t, err)
+	_, err = db.BlockChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.BlockChatGoalByIDParams{
+		RootChatID:    chat.ID,
+		ID:            goal.ID,
+		BlockedReason: "waiting on user",
+	})
+	require.NoError(t, err)
+	_, err = edit(sourceID)
+	require.ErrorIs(t, err, chatd.ErrChatGoalSourceMessageEdit,
+		"a blocked goal can resume, so its source stays locked")
+
+	_, err = db.ResumeChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.ResumeChatGoalByIDParams{
+		RootChatID: chat.ID,
+		ID:         goal.ID,
+	})
+	require.NoError(t, err)
 	_, err = db.CompleteChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.CompleteChatGoalByIDParams{
 		RootChatID:       chat.ID,
 		ID:               goal.ID,

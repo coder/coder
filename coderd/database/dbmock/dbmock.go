@@ -306,6 +306,21 @@ func (mr *MockStoreMockRecorder) BatchUpsertConnectionLogs(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpsertConnectionLogs", reflect.TypeOf((*MockStore)(nil).BatchUpsertConnectionLogs), ctx, arg)
 }
 
+// BlockChatGoalByID mocks base method.
+func (m *MockStore) BlockChatGoalByID(ctx context.Context, arg database.BlockChatGoalByIDParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BlockChatGoalByID", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BlockChatGoalByID indicates an expected call of BlockChatGoalByID.
+func (mr *MockStoreMockRecorder) BlockChatGoalByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BlockChatGoalByID", reflect.TypeOf((*MockStore)(nil).BlockChatGoalByID), ctx, arg)
+}
+
 // BulkMarkNotificationMessagesFailed mocks base method.
 func (m *MockStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -7721,6 +7736,21 @@ func (m *MockStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.
 func (mr *MockStoreMockRecorder) IncrementChatGenerationAttempt(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementChatGenerationAttempt", reflect.TypeOf((*MockStore)(nil).IncrementChatGenerationAttempt), ctx, id)
+}
+
+// IncrementChatGoalContinuationCount mocks base method.
+func (m *MockStore) IncrementChatGoalContinuationCount(ctx context.Context, arg database.IncrementChatGoalContinuationCountParams) (database.ChatGoal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementChatGoalContinuationCount", ctx, arg)
+	ret0, _ := ret[0].(database.ChatGoal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IncrementChatGoalContinuationCount indicates an expected call of IncrementChatGoalContinuationCount.
+func (mr *MockStoreMockRecorder) IncrementChatGoalContinuationCount(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementChatGoalContinuationCount", reflect.TypeOf((*MockStore)(nil).IncrementChatGoalContinuationCount), ctx, arg)
 }
 
 // IncrementUserAIDailySpend mocks base method.

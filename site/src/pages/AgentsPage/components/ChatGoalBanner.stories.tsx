@@ -15,6 +15,7 @@ const goal = (
 	root_chat_id: "chat-1",
 	objective: longGoalObjective,
 	status: "active",
+	continuation_count: 0,
 	created_by_user_id: "user-1",
 	completed_by_agent: false,
 	created_at: storyNow,
@@ -66,14 +67,27 @@ export const ActiveIdle: Story = {
 	},
 };
 
+export const ActiveAutoContinuing: Story = {
+	args: {
+		goal: goal({ continuation_count: 3 }),
+		isChatWorking: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Pursuing goal")).toBeVisible();
+		expect(canvas.getByText("Auto-continue 3/10")).toBeVisible();
+	},
+};
+
 export const Paused: Story = {
 	args: {
-		goal: goal({ status: "paused" }),
+		goal: goal({ status: "paused", paused_reason: "user" }),
 		onAction: fn(),
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Goal paused")).toBeVisible();
+		expect(canvas.getByText("Paused by you")).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("button", { name: /Resume/i }));
 		await userEvent.click(canvas.getByRole("button", { name: /Clear/i }));
@@ -83,9 +97,45 @@ export const Paused: Story = {
 	},
 };
 
+export const PausedAtTurnLimit: Story = {
+	args: {
+		goal: goal({
+			status: "paused",
+			paused_reason: "turn_limit",
+			continuation_count: 10,
+		}),
+		onAction: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Goal paused")).toBeVisible();
+		expect(canvas.getByText("Turn limit reached")).toBeVisible();
+		expect(canvas.getByRole("button", { name: /Resume/i })).toBeEnabled();
+	},
+};
+
+export const Blocked: Story = {
+	args: {
+		goal: goal({
+			status: "blocked",
+			blocked_reason:
+				"The migration requires a decision on whether to keep the legacy theme package. Reply with the direction and resume the goal.",
+		}),
+		onAction: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Goal blocked")).toBeVisible();
+		expect(canvas.getByText(/Blocked: The migration requires/)).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("button", { name: /Resume/i }));
+		expect(args.onAction).toHaveBeenCalledWith("resume");
+	},
+};
+
 export const PausedResumeUnavailable: Story = {
 	args: {
-		goal: goal({ status: "paused" }),
+		goal: goal({ status: "paused", paused_reason: "user" }),
 		isChatWorking: true,
 		actionUnavailableReasons: {
 			resume: "The chat is busy. Resume becomes available when it is idle.",

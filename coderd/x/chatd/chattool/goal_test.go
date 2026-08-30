@@ -343,7 +343,8 @@ func TestCompleteGoalReplaysAgentCompletedGoal(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(replayResp.Content), &payload))
 	require.True(t, payload.Completed)
 	require.Equal(t, "done", payload.Summary)
-	require.Equal(t, 1, publishes, "a replay must not publish another goal update")
+	require.Equal(t, 2, publishes,
+		"a replay must re-publish the goal change because the original run may have crashed before publishing")
 }
 
 // A goal completed by the user is not proof the agent's call succeeded,
@@ -385,6 +386,112 @@ func TestCompleteGoalUserCompletedGoalDoesNotReplay(t *testing.T) {
 		ID:    "call-1",
 		Name:  chattool.CompleteGoalToolName,
 		Input: `{"goal_id":"` + goal.ID.String() + `","summary":"done"}`,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "not active")
+}
+
+// A crash, takeover, or interrupt between the goal transition and its
+// tool-result commit re-executes block_goal; the replay must succeed
+// from the durable row instead of erroring for work that already landed.
+func TestBlockGoalReplaysAgentBlockedGoal(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "goal-block-replay",
+	})
+	goal, err := db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: user.ID,
+	})
+	require.NoError(t, err)
+
+	var publishes int
+	blockTool := chattool.BlockGoal(db, chattool.GoalToolOptions{
+		ChatID:     chat.ID,
+		RootChatID: chat.ID,
+		IsRootChat: true,
+		OnGoalUpdated: func(context.Context, database.Chat, database.ChatGoal) {
+			publishes++
+		},
+	})
+	input := `{"goal_id":"` + goal.ID.String() + `","reason":"waiting on user"}`
+	firstResp, err := blockTool.Run(dbauthz.AsSystemRestricted(ctx), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  chattool.BlockGoalToolName,
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, firstResp.IsError)
+	require.Equal(t, 1, publishes)
+
+	replayResp, err := blockTool.Run(dbauthz.AsSystemRestricted(ctx), fantasy.ToolCall{
+		ID:    "call-2",
+		Name:  chattool.BlockGoalToolName,
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.False(t, replayResp.IsError, "re-executing a durably blocked goal must replay success")
+	var payload struct {
+		Blocked bool   `json:"blocked"`
+		Reason  string `json:"reason"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(replayResp.Content), &payload))
+	require.True(t, payload.Blocked)
+	require.Equal(t, "waiting on user", payload.Reason)
+	require.Equal(t, 2, publishes,
+		"a replay must re-publish the goal change because the original run may have crashed before publishing")
+}
+
+// A blocked goal whose durable reason differs from the call's reason is
+// not proof this call succeeded, so the tool must keep reporting an
+// error instead of replaying success.
+func TestBlockGoalDifferentReasonDoesNotReplay(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "goal-block-reason-mismatch",
+	})
+	goal, err := db.InsertActiveChatGoal(dbauthz.AsSystemRestricted(ctx), database.InsertActiveChatGoalParams{
+		RootChatID:      chat.ID,
+		Objective:       "finish the work",
+		CreatedByUserID: user.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.BlockChatGoalByID(dbauthz.AsSystemRestricted(ctx), database.BlockChatGoalByIDParams{
+		RootChatID:    chat.ID,
+		ID:            goal.ID,
+		BlockedReason: "different obstacle",
+	})
+	require.NoError(t, err)
+
+	blockTool := chattool.BlockGoal(db, chattool.GoalToolOptions{
+		ChatID:     chat.ID,
+		RootChatID: chat.ID,
+		IsRootChat: true,
+	})
+	resp, err := blockTool.Run(dbauthz.AsSystemRestricted(ctx), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  chattool.BlockGoalToolName,
+		Input: `{"goal_id":"` + goal.ID.String() + `","reason":"waiting on user"}`,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.IsError)

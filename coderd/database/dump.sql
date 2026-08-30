@@ -348,6 +348,7 @@ CREATE TYPE chat_client_type AS ENUM (
 CREATE TYPE chat_goal_status AS ENUM (
     'active',
     'paused',
+    'blocked',
     'complete',
     'cleared',
     'replaced'
@@ -2051,12 +2052,17 @@ CREATE TABLE chat_goals (
     completed_at timestamp with time zone,
     cleared_at timestamp with time zone,
     replaced_at timestamp with time zone,
+    paused_reason text,
+    blocked_reason text,
+    continuation_count bigint DEFAULT 0 NOT NULL,
+    CONSTRAINT chat_goals_blocked_reason_status_check CHECK (((status = 'blocked'::chat_goal_status) = (blocked_reason IS NOT NULL))),
     CONSTRAINT chat_goals_cleared_at_status_check CHECK (((status = 'cleared'::chat_goal_status) = (cleared_at IS NOT NULL))),
     CONSTRAINT chat_goals_completed_at_status_check CHECK (((status = 'complete'::chat_goal_status) = (completed_at IS NOT NULL))),
     CONSTRAINT chat_goals_completed_by_agent_status_check CHECK (((completed_by_agent = false) OR (status = 'complete'::chat_goal_status))),
     CONSTRAINT chat_goals_completed_by_user_status_check CHECK (((completed_by_user_id IS NULL) OR (status = 'complete'::chat_goal_status))),
     CONSTRAINT chat_goals_completion_summary_status_check CHECK (((completion_summary IS NULL) OR (status = 'complete'::chat_goal_status))),
     CONSTRAINT chat_goals_objective_not_empty CHECK ((length(btrim(objective)) > 0)),
+    CONSTRAINT chat_goals_paused_reason_status_check CHECK (((paused_reason IS NULL) OR (status = 'paused'::chat_goal_status))),
     CONSTRAINT chat_goals_replaced_at_status_check CHECK (((status = 'replaced'::chat_goal_status) = (replaced_at IS NOT NULL)))
 );
 
@@ -4960,7 +4966,7 @@ CREATE INDEX idx_chat_files_owner ON chat_files USING btree (owner_id);
 
 CREATE INDEX idx_chat_goals_created_from_message_id ON chat_goals USING btree (created_from_message_id) WHERE (created_from_message_id IS NOT NULL);
 
-CREATE UNIQUE INDEX idx_chat_goals_current ON chat_goals USING btree (root_chat_id) WHERE (status = ANY (ARRAY['active'::chat_goal_status, 'paused'::chat_goal_status]));
+CREATE UNIQUE INDEX idx_chat_goals_current ON chat_goals USING btree (root_chat_id) WHERE (status = ANY (ARRAY['active'::chat_goal_status, 'paused'::chat_goal_status, 'blocked'::chat_goal_status]));
 
 CREATE INDEX idx_chat_goals_root_goal_order ON chat_goals USING btree (root_chat_id, goal_order DESC);
 

@@ -431,6 +431,38 @@ func TestCurrentTurnStepCount_IgnoresGoalCompletionReminderBoundary(t *testing.T
 	require.Equal(t, 2, got)
 }
 
+func TestCurrentTurnStepCount_GoalContinuationStartsNewTurn(t *testing.T) {
+	t.Parallel()
+
+	// A continuation message opens a fresh turn, so it resets the
+	// per-turn step budget (unlike the legacy mid-turn reminder).
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("new")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		goalContinuationDBMessage(t, 3, goalID),
+		dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 1, got)
+}
+
+// A resume kick starts a turn like a continuation kick, so a resumed
+// goal does not inherit the previous run's step count.
+func TestCurrentTurnStepCount_GoalResumeKickStartsNewTurn(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("new")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("one")),
+		goalResumeKickDBMessage(t, 3, goalID),
+		dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("two")),
+	}
+	got := currentTurnStepCount(messages)
+	require.Equal(t, 1, got)
+}
+
 func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
 	t.Parallel()
 
@@ -860,71 +892,24 @@ func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	require.False(t, complete)
 }
 
-func TestDecisionRequestsGoalCompletionReminder(t *testing.T) {
+func TestDecisionFinishesTurnWithLegacyReminderInHistory(t *testing.T) {
 	t.Parallel()
 
+	// Within-turn goal reminders are gone: a complete history finishes
+	// the turn normally and the goal continuation hook decides what
+	// happens next at the turn boundary.
 	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
 	decision, err := decideGenerationAction(generationDecisionInput{
 		messages: []database.ChatMessage{
 			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
 			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
-		},
-		goalReminder: &generationGoalReminder{GoalID: goalID},
-	})
-	require.NoError(t, err)
-	require.Equal(t, generationActionInsertGoalReminder, decision.kind)
-}
-
-func TestDecisionSkipsGoalCompletionReminderAtTurnStepLimit(t *testing.T) {
-	t.Parallel()
-
-	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
-	decision, err := decideGenerationAction(generationDecisionInput{
-		messages: []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("step one")),
-			dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
-		},
-		goalReminder: &generationGoalReminder{GoalID: goalID},
-		maxSteps:     2,
-	})
-	require.NoError(t, err)
-	require.Equal(t, generationActionFinishTurn, decision.kind)
-	require.Equal(t, generationFinishReasonMaxSteps, decision.finishReason)
-}
-
-func TestDecisionStopsAfterGoalCompletionReminderLimit(t *testing.T) {
-	t.Parallel()
-
-	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
-	reminder := goalReminderDBMessage(t, 3, goalID, false)
-	decision, err := decideGenerationAction(generationDecisionInput{
-		messages: []database.ChatMessage{
-			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("ship it")),
-			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("done")),
-			reminder,
+			goalReminderDBMessage(t, 3, goalID, false),
 			dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("still done")),
 		},
-		goalReminder: &generationGoalReminder{GoalID: goalID},
 	})
 	require.NoError(t, err)
 	require.Equal(t, generationActionFinishTurn, decision.kind)
-	require.Equal(t, generationFinishReasonGoalReminder, decision.finishReason)
-}
-
-func TestGoalCompletionReminderCountResetsOnNewUserTurn(t *testing.T) {
-	t.Parallel()
-
-	goalID := uuid.MustParse("01234567-89ab-4def-8123-456789abcdef")
-	count, err := goalCompletionReminderCountForTurn([]database.ChatMessage{
-		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("first")),
-		goalReminderDBMessage(t, 2, goalID, true),
-		dbMessage(t, 3, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("first done")),
-		dbMessage(t, 4, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("second")),
-		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("second done")),
-	}, goalID)
-	require.NoError(t, err)
-	require.Zero(t, count)
+	require.Equal(t, generationFinishReasonComplete, decision.finishReason)
 }
 
 func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *testing.T) {
@@ -1158,11 +1143,33 @@ func dbMessage(t *testing.T, id int64, role database.ChatMessageRole, compressed
 	}
 }
 
+// goalReminderDBMessage reconstructs a legacy goal completion reminder
+// row. The production builder is gone, but historical rows still exist
+// and must keep their mid-turn (non-boundary) role.
 func goalReminderDBMessage(t *testing.T, id int64, goalID uuid.UUID, compressed bool) database.ChatMessage {
 	t.Helper()
-	text, err := goalCompletionReminderText(goalID)
+	tagged, err := goalTaggedPayload(goalID, goalCompletionReminderOpenTag, goalCompletionReminderCloseTag)
 	require.NoError(t, err)
+	text := tagged + "\n\nYour previous response ended while this chat goal is still active."
 	msg := dbMessage(t, id, database.ChatMessageRoleUser, compressed, codersdk.ChatMessageText(text))
+	msg.Visibility = database.ChatMessageVisibilityModel
+	return msg
+}
+
+func goalContinuationDBMessage(t *testing.T, id int64, goalID uuid.UUID) database.ChatMessage {
+	t.Helper()
+	text, err := goalContinuationText(goalID)
+	require.NoError(t, err)
+	msg := dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))
+	msg.Visibility = database.ChatMessageVisibilityModel
+	return msg
+}
+
+func goalResumeKickDBMessage(t *testing.T, id int64, goalID uuid.UUID) database.ChatMessage {
+	t.Helper()
+	text, err := goalResumeKickText(goalID)
+	require.NoError(t, err)
+	msg := dbMessage(t, id, database.ChatMessageRoleUser, false, codersdk.ChatMessageText(text))
 	msg.Visibility = database.ChatMessageVisibilityModel
 	return msg
 }

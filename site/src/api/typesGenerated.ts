@@ -2649,6 +2649,9 @@ export interface ChatGoal {
 	 */
 	readonly created_from_message_id?: number;
 	readonly completion_summary?: string;
+	readonly paused_reason?: ChatGoalPausedReason;
+	readonly blocked_reason?: string;
+	readonly continuation_count: number;
 	readonly created_by_user_id: string;
 	readonly completed_by_user_id?: string;
 	readonly completed_by_agent: boolean;
@@ -2657,6 +2660,14 @@ export interface ChatGoal {
 	readonly completed_at?: string;
 	readonly cleared_at?: string;
 }
+
+// From codersdk/chats.go
+/**
+ * ChatGoalMaxContinuationTurns bounds the automatic continuation
+ * turns an active goal may consume between activations. Resume
+ * resets the counter.
+ */
+export const ChatGoalMaxContinuationTurns = 10;
 
 // From codersdk/chats.go
 /**
@@ -2686,6 +2697,22 @@ export const ChatGoalMutationActions: ChatGoalMutationAction[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatGoalPausedReason =
+	| "error"
+	| "interrupt"
+	| "turn_limit"
+	| "usage_limit"
+	| "user";
+
+export const ChatGoalPausedReasons: ChatGoalPausedReason[] = [
+	"error",
+	"interrupt",
+	"turn_limit",
+	"usage_limit",
+	"user",
+];
+
+// From codersdk/chats.go
 /**
  * ChatGoalResponse is returned by chat goal lifecycle endpoints.
  * @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
@@ -2711,10 +2738,16 @@ export interface ChatGoalSetRequest {
 }
 
 // From codersdk/chats.go
-export type ChatGoalStatus = "active" | "cleared" | "complete" | "paused";
+export type ChatGoalStatus =
+	| "active"
+	| "blocked"
+	| "cleared"
+	| "complete"
+	| "paused";
 
 export const ChatGoalStatuses: ChatGoalStatus[] = [
 	"active",
+	"blocked",
 	"cleared",
 	"complete",
 	"paused",
@@ -6323,6 +6356,12 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/chats.go
+/**
+ * MaxChatGoalBlockedReasonBytes limits blocked reasons accepted by the block_goal tool.
+ */
+export const MaxChatGoalBlockedReasonBytes = 4096;
 
 // From codersdk/chats.go
 /**

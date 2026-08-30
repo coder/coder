@@ -235,6 +235,7 @@ describe("runGoalAction", () => {
 		root_chat_id: "chat-1",
 		objective: "Fix the release blocker",
 		status,
+		continuation_count: 0,
 		created_by_user_id: "user-1",
 		completed_by_agent: false,
 		created_at: "2026-05-22T00:00:00Z",
@@ -245,6 +246,8 @@ describe("runGoalAction", () => {
 		{ status: "active", action: "clear", completionSummary: undefined },
 		{ status: "paused", action: "clear", completionSummary: undefined },
 		{ status: "paused", action: "resume", completionSummary: undefined },
+		{ status: "blocked", action: "resume", completionSummary: undefined },
+		{ status: "blocked", action: "clear", completionSummary: undefined },
 		{ status: "complete", action: "clear", completionSummary: undefined },
 		{
 			status: "active",
@@ -1042,28 +1045,6 @@ describe("useConversationEditingState", () => {
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
-		unmount();
-	});
-
-	it("forwards goal mutation options for a new message", async () => {
-		const { result, onSend, unmount } = renderEditing();
-		const mockInput = createMockChatInputHandle("ship it");
-		result.current.chatInputRef.current = mockInput.handle;
-		const options = {
-			goalMutation: { action: "set" as const, objective: "ship it" },
-		};
-
-		await act(async () => {
-			await result.current.handleSendFromInput("ship it", undefined, options);
-		});
-
-		expect(onSend).toHaveBeenCalledWith(
-			"ship it",
-			undefined,
-			undefined,
-			options,
-		);
-		expect(mockInput.clear).toHaveBeenCalled();
 		unmount();
 	});
 

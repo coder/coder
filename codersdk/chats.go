@@ -107,6 +107,12 @@ const (
 	MaxChatGoalObjectiveBytes = 4096
 	// MaxChatGoalCompletionSummaryBytes limits goal completion summaries accepted by chat goal mutations.
 	MaxChatGoalCompletionSummaryBytes = 4096
+	// MaxChatGoalBlockedReasonBytes limits blocked reasons accepted by the block_goal tool.
+	MaxChatGoalBlockedReasonBytes = 4096
+	// ChatGoalMaxContinuationTurns bounds the automatic continuation
+	// turns an active goal may consume between activations. Resume
+	// resets the counter.
+	ChatGoalMaxContinuationTurns = 10
 )
 
 // ChatGoalStatus represents the lifecycle state of a chat goal.
@@ -116,8 +122,29 @@ type ChatGoalStatus string
 const (
 	ChatGoalStatusActive   ChatGoalStatus = "active"
 	ChatGoalStatusPaused   ChatGoalStatus = "paused"
+	ChatGoalStatusBlocked  ChatGoalStatus = "blocked"
 	ChatGoalStatusComplete ChatGoalStatus = "complete"
 	ChatGoalStatusCleared  ChatGoalStatus = "cleared"
+)
+
+// ChatGoalPausedReason identifies why a goal is paused.
+// @Description x-apidocgen:skip experiment-gated (chat-goals) schema.
+type ChatGoalPausedReason string
+
+const (
+	// ChatGoalPausedReasonUser: the user paused the goal directly.
+	ChatGoalPausedReasonUser ChatGoalPausedReason = "user"
+	// ChatGoalPausedReasonInterrupt: the user stopped the chat while the
+	// goal was active.
+	ChatGoalPausedReasonInterrupt ChatGoalPausedReason = "interrupt"
+	// ChatGoalPausedReasonTurnLimit: the goal exhausted its
+	// auto-continuation turn budget.
+	ChatGoalPausedReasonTurnLimit ChatGoalPausedReason = "turn_limit"
+	// ChatGoalPausedReasonUsageLimit: the owner's chat usage limit was
+	// exceeded when a continuation turn would have started.
+	ChatGoalPausedReasonUsageLimit ChatGoalPausedReason = "usage_limit"
+	// ChatGoalPausedReasonError: the goal's turn finished in an error.
+	ChatGoalPausedReasonError ChatGoalPausedReason = "error"
 )
 
 // ChatGoal is a durable objective associated with a root chat.
@@ -129,15 +156,18 @@ type ChatGoal struct {
 	Status     ChatGoalStatus `json:"status"`
 	// CreatedFromMessageID identifies the user message whose send set
 	// this goal, when the goal was set alongside a message.
-	CreatedFromMessageID *int64     `json:"created_from_message_id,omitempty"`
-	CompletionSummary    *string    `json:"completion_summary,omitempty"`
-	CreatedByUserID      uuid.UUID  `json:"created_by_user_id" format:"uuid"`
-	CompletedByUserID    *uuid.UUID `json:"completed_by_user_id,omitempty" format:"uuid"`
-	CompletedByAgent     bool       `json:"completed_by_agent"`
-	CreatedAt            time.Time  `json:"created_at" format:"date-time"`
-	UpdatedAt            time.Time  `json:"updated_at" format:"date-time"`
-	CompletedAt          *time.Time `json:"completed_at,omitempty" format:"date-time"`
-	ClearedAt            *time.Time `json:"cleared_at,omitempty" format:"date-time"`
+	CreatedFromMessageID *int64                `json:"created_from_message_id,omitempty"`
+	CompletionSummary    *string               `json:"completion_summary,omitempty"`
+	PausedReason         *ChatGoalPausedReason `json:"paused_reason,omitempty"`
+	BlockedReason        *string               `json:"blocked_reason,omitempty"`
+	ContinuationCount    int64                 `json:"continuation_count"`
+	CreatedByUserID      uuid.UUID             `json:"created_by_user_id" format:"uuid"`
+	CompletedByUserID    *uuid.UUID            `json:"completed_by_user_id,omitempty" format:"uuid"`
+	CompletedByAgent     bool                  `json:"completed_by_agent"`
+	CreatedAt            time.Time             `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time             `json:"updated_at" format:"date-time"`
+	CompletedAt          *time.Time            `json:"completed_at,omitempty" format:"date-time"`
+	ClearedAt            *time.Time            `json:"cleared_at,omitempty" format:"date-time"`
 }
 
 // ChatGoalMutationAction identifies a goal lifecycle mutation.

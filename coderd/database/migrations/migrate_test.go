@@ -3593,3 +3593,145 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 }
+
+// TestMigration000590LegacyGoalRows verifies the continuation migration
+// makes pre-existing goals resumable: rows paused before the upgrade
+// keep an absent pause reason instead of a fabricated one, and active
+// goals on idle or errored chats are paused because no future turn
+// finish continues them. Chats with a live turn keep their active
+// goals so the settling turn drives the continuation itself.
+func TestMigration000590LegacyGoalRows(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 590
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	providerID := uuid.New()
+	modelConfigID := uuid.New()
+	activeChatID := uuid.New()
+	pausedChatID := uuid.New()
+	runningChatID := uuid.New()
+	errorChatID := uuid.New()
+	activeGoalID := uuid.New()
+	pausedGoalID := uuid.New()
+	runningGoalID := uuid.New()
+	errorGoalID := uuid.New()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	fixtures := []struct {
+		query string
+		args  []any
+	}{
+		{
+			`INSERT INTO ai_providers (id, type, name, enabled, base_url, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			[]any{providerID, "openai", "openai-590", true, "https://api.openai.com/v1", now, now},
+		},
+		{
+			`INSERT INTO chat_model_configs (id, model, display_name, enabled, context_limit, compression_threshold, ai_provider_id, organization_id, created_at, updated_at)
+			SELECT $1, $2, $3, $4, $5, $6, $7, o.id, $8, $8 FROM organizations o ORDER BY o.created_at, o.id LIMIT 1`,
+			[]any{modelConfigID, "gpt-5.2", "Model 590", true, 200000, 70, providerID, now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, organization_id, title, status, created_at, updated_at)
+			SELECT $1, u.id, $2, o.id, $3, $4::chat_status, $5, $5
+			FROM users u, organizations o
+			ORDER BY u.created_at, u.id, o.created_at, o.id LIMIT 1`,
+			[]any{activeChatID, modelConfigID, "Active goal 590", "waiting", now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, organization_id, title, status, created_at, updated_at)
+			SELECT $1, u.id, $2, o.id, $3, $4::chat_status, $5, $5
+			FROM users u, organizations o
+			ORDER BY u.created_at, u.id, o.created_at, o.id LIMIT 1`,
+			[]any{pausedChatID, modelConfigID, "Paused goal 590", "waiting", now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, organization_id, title, status, created_at, updated_at)
+			SELECT $1, u.id, $2, o.id, $3, $4::chat_status, $5, $5
+			FROM users u, organizations o
+			ORDER BY u.created_at, u.id, o.created_at, o.id LIMIT 1`,
+			[]any{runningChatID, modelConfigID, "Running goal 590", "running", now},
+		},
+		{
+			`INSERT INTO chats (id, owner_id, last_model_config_id, organization_id, title, status, created_at, updated_at)
+			SELECT $1, u.id, $2, o.id, $3, $4::chat_status, $5, $5
+			FROM users u, organizations o
+			ORDER BY u.created_at, u.id, o.created_at, o.id LIMIT 1`,
+			[]any{errorChatID, modelConfigID, "Errored goal 590", "error", now},
+		},
+		{
+			`INSERT INTO chat_goals (id, root_chat_id, objective, status, created_by_user_id, created_at, updated_at)
+			SELECT $1, $2, $3, $4::chat_goal_status, u.id, $5, $5
+			FROM users u ORDER BY u.created_at, u.id LIMIT 1`,
+			[]any{activeGoalID, activeChatID, "still active", "active", now},
+		},
+		{
+			`INSERT INTO chat_goals (id, root_chat_id, objective, status, created_by_user_id, created_at, updated_at)
+			SELECT $1, $2, $3, $4::chat_goal_status, u.id, $5, $5
+			FROM users u ORDER BY u.created_at, u.id LIMIT 1`,
+			[]any{pausedGoalID, pausedChatID, "already paused", "paused", now},
+		},
+		{
+			`INSERT INTO chat_goals (id, root_chat_id, objective, status, created_by_user_id, created_at, updated_at)
+			SELECT $1, $2, $3, $4::chat_goal_status, u.id, $5, $5
+			FROM users u ORDER BY u.created_at, u.id LIMIT 1`,
+			[]any{runningGoalID, runningChatID, "active on running chat", "active", now},
+		},
+		{
+			`INSERT INTO chat_goals (id, root_chat_id, objective, status, created_by_user_id, created_at, updated_at)
+			SELECT $1, $2, $3, $4::chat_goal_status, u.id, $5, $5
+			FROM users u ORDER BY u.created_at, u.id LIMIT 1`,
+			[]any{errorGoalID, errorChatID, "active on errored chat", "active", now},
+		},
+	}
+	for i, f := range fixtures {
+		_, err := sqlDB.ExecContext(ctx, f.query, f.args...)
+		require.NoError(t, err, "fixture %d", i)
+	}
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	goalState := func(goalID uuid.UUID) (string, sql.NullString) {
+		var status string
+		var pausedReason sql.NullString
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT status, paused_reason FROM chat_goals WHERE id = $1`, goalID,
+		).Scan(&status, &pausedReason)
+		require.NoError(t, err)
+		return status, pausedReason
+	}
+	assertResumable := func(goalID uuid.UUID) {
+		status, pausedReason := goalState(goalID)
+		require.Equal(t, "paused", status)
+		require.False(t, pausedReason.Valid, "legacy rows carry no fabricated pause reason")
+	}
+	assertResumable(activeGoalID)
+	assertResumable(pausedGoalID)
+	assertResumable(errorGoalID)
+
+	// The running chat's turn settles through the new binary, which
+	// continues or pauses the goal itself, so the backfill leaves it
+	// active.
+	status, pausedReason := goalState(runningGoalID)
+	require.Equal(t, "active", status)
+	require.False(t, pausedReason.Valid)
+}
