@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -232,6 +233,110 @@ func TestGenerateCompactionSummary_PanicFinalizesAsError(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("FinalizeRun never reached UpdateChatDebugRun on panic")
 	}
+}
+
+func TestGenerateCompactionSummaryPreservesCallOptions(t *testing.T) {
+	t.Parallel()
+
+	temperature := 0.2
+	topP := 0.8
+	topK := int64(40)
+	presencePenalty := 0.1
+	frequencyPenalty := 0.3
+	reasoningEffort := fantasyopenai.ReasoningEffortMedium
+	providerOptions := fantasy.ProviderOptions{
+		fantasyopenai.Name: &fantasyopenai.ResponsesProviderOptions{
+			ReasoningEffort: &reasoningEffort,
+		},
+	}
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{Name: "read_file", InputSchema: map[string]any{"type": "object"}},
+		fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"},
+	}
+	messages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleSystem, "system prefix"),
+		textMessage(fantasy.MessageRoleUser, "hello"),
+	}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			got = call
+			return &fantasy.Response{Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}}}, nil
+		},
+	}
+
+	toolChoice := fantasy.ToolChoiceNone
+	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt: "summarize",
+		SummaryCall: fantasy.Call{
+			Temperature:      &temperature,
+			TopP:             &topP,
+			TopK:             &topK,
+			PresencePenalty:  &presencePenalty,
+			FrequencyPenalty: &frequencyPenalty,
+			ProviderOptions:  providerOptions,
+			ToolChoice:       &toolChoice,
+		},
+		ToolDefinitions: toolDefinitions,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Equal(t, &temperature, got.Temperature)
+	require.Equal(t, &topP, got.TopP)
+	require.Equal(t, &topK, got.TopK)
+	require.Equal(t, &presencePenalty, got.PresencePenalty)
+	require.Equal(t, &frequencyPenalty, got.FrequencyPenalty)
+	require.Equal(t, providerOptions, got.ProviderOptions)
+	require.Equal(t, toolDefinitions, got.Tools)
+	require.NotNil(t, got.ToolChoice)
+	require.Equal(t, fantasy.ToolChoiceNone, *got.ToolChoice)
+	require.Nil(t, got.MaxOutputTokens)
+	require.Len(t, got.Prompt, 3)
+	require.Equal(t, originalMessages, []fantasy.Message(got.Prompt[:2]))
+	require.Equal(t, fantasy.MessageRoleUser, got.Prompt[2].Role)
+	require.Equal(t, []fantasy.MessagePart{fantasy.TextPart{Text: "summarize"}}, got.Prompt[2].Content)
+	require.Equal(t, originalMessages, messages)
+}
+
+func TestGenerateCompactionSummaryUsesToolDefinitions(t *testing.T) {
+	t.Parallel()
+
+	toolDefinitions := []fantasy.Tool{
+		fantasy.FunctionTool{
+			Name:        "read_file",
+			Description: "Read a file.",
+			InputSchema: map[string]any{"type": "object"},
+		},
+		fantasy.ProviderDefinedTool{ID: "web_search", Name: "web_search"},
+	}
+	messages := []fantasy.Message{textMessage(fantasy.MessageRoleUser, "hello")}
+	originalMessages := append([]fantasy.Message(nil), messages...)
+	var got fantasy.Call
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		ModelName:    "fake-model",
+		GenerateFn: func(_ context.Context, call fantasy.Call) (*fantasy.Response, error) {
+			got = call
+			return &fantasy.Response{Content: []fantasy.Content{fantasy.TextContent{Text: "summary"}}}, nil
+		},
+	}
+
+	toolChoice := fantasy.ToolChoiceNone
+	summary, err := generateCompactionSummary(context.Background(), model, messages, CompactionOptions{
+		SummaryPrompt:   "summarize",
+		SummaryCall:     fantasy.Call{ToolChoice: &toolChoice},
+		ToolDefinitions: toolDefinitions,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "summary", summary)
+	require.Equal(t, toolDefinitions, got.Tools)
+	require.NotNil(t, got.ToolChoice)
+	require.Equal(t, toolChoice, *got.ToolChoice)
+	require.Len(t, got.Prompt, 2)
+	require.Equal(t, originalMessages, messages)
 }
 
 func TestGenerateCompactionSummary_UsesCallerContext(t *testing.T) {
