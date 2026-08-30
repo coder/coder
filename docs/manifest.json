@@ -1567,8 +1567,7 @@
 						{
 							"title": "Chats",
 							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
-							"path": "./reference/api/chats.md",
-							"state": ["early access"]
+							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",
