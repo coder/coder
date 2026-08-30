@@ -181,13 +181,36 @@ func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) 
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
 	}
+	if len(chats) == 0 {
+		// The chat list excludes archived chats by default. A user whose
+		// chats are all archived still has a most recently updated
+		// organization, so fall back to archived chats before erroring.
+		chats, err = expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+			Query:  "archived:true",
+			Source: codersdk.ChatListSourceCreatedByMe,
+			Pagination: codersdk.Pagination{
+				Limit: 100,
+			},
+		})
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("list archived chats to determine organization: %w", err)
+		}
+	}
 	// Pinned chats sort before recently updated chats. If the user has 100
 	// pinned chats, this batch may not contain their latest chat, which is an
-	// acceptable tradeoff for keeping organization selection to one request.
+	// acceptable tradeoff for keeping organization selection to one page.
 	var latest *codersdk.Chat
+	consider := func(chat *codersdk.Chat) {
+		if latest == nil || chat.UpdatedAt.After(latest.UpdatedAt) {
+			latest = chat
+		}
+	}
 	for i := range chats {
-		if latest == nil || chats[i].UpdatedAt.After(latest.UpdatedAt) {
-			latest = &chats[i]
+		consider(&chats[i])
+		// Subagent activity bumps only the child row's UpdatedAt, so roots
+		// alone can misreport the most recently updated organization.
+		for j := range chats[i].Children {
+			consider(&chats[i].Children[j])
 		}
 	}
 	if latest != nil {

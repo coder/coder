@@ -908,6 +908,68 @@ func TestChatTools(t *testing.T) {
 		require.ErrorContains(t, err, "organization_id is required")
 	})
 
+	t.Run("DefaultOrganizationFallsBackToArchivedChats", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		chat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		memberExpClient := codersdk.NewExperimentalClient(memberClient)
+		err := memberExpClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Archived: new(true),
+		})
+		require.NoError(t, err)
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
+	})
+
+	t.Run("DefaultOrganizationConsidersChildChats", func(t *testing.T) {
+		organization := dbgen.Organization(t, api.Database, database.Organization{})
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		dbgen.OrganizationMember(t, api.Database, database.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         member.ID,
+		})
+		childOrgRoot := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		rootOrgChat := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+		})
+		child := dbgen.Chat(t, api.Database, database.Chat{
+			OrganizationID:    organization.ID,
+			OwnerID:           member.ID,
+			LastModelConfigID: defaultModelConfig.ID,
+			ParentChatID:      uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: childOrgRoot.ID, Valid: true},
+		})
+		// The child must be the newest chat while its root stays older than
+		// the other organization's root, or the scenario is not exercised.
+		require.True(t, child.UpdatedAt.After(rootOrgChat.UpdatedAt))
+		require.True(t, rootOrgChat.UpdatedAt.After(childOrgRoot.UpdatedAt))
+
+		memberDeps, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListChatModelConfigs, memberDeps, toolsdk.ListChatModelConfigsArgs{})
+		require.NoError(t, err)
+		require.Equal(t, organization.ID.String(), result.OrganizationID)
+	})
+
 	t.Run("CreateChatZeroOrgUser", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
