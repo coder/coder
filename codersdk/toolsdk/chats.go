@@ -181,21 +181,20 @@ func defaultChatOrganization(ctx context.Context, deps Deps) (uuid.UUID, error) 
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("list chats to determine organization: %w", err)
 	}
-	if len(chats) == 0 {
-		// The chat list excludes archived chats by default. A user whose
-		// chats are all archived still has a most recently updated
-		// organization, so fall back to archived chats before erroring.
-		chats, err = expClient.ListChats(ctx, &codersdk.ListChatsOptions{
-			Query:  "archived:true",
-			Source: codersdk.ChatListSourceCreatedByMe,
-			Pagination: codersdk.Pagination{
-				Limit: 100,
-			},
-		})
-		if err != nil {
-			return uuid.Nil, xerrors.Errorf("list archived chats to determine organization: %w", err)
-		}
+	// The chat list excludes archived chats by default and archiving bumps
+	// updated_at, so the most recently updated chat can be archived even
+	// when active chats exist. Fetch both states and scan the union.
+	archivedChats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{
+		Query:  "archived:true",
+		Source: codersdk.ChatListSourceCreatedByMe,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("list archived chats to determine organization: %w", err)
 	}
+	chats = append(chats, archivedChats...)
 	// Pinned chats sort before recently updated chats. If the user has 100
 	// pinned chats, this batch may not contain their latest chat, which is an
 	// acceptable tradeoff for keeping organization selection to one page.
