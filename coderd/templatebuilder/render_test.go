@@ -121,7 +121,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 			},
 		}
 		ctx := templatebuilder.ModuleRenderContext{
-			RegistryBase:      "https://registry.coder.com",
+			RegistryBase:      "registry.coder.com",
 			PinnedVersion:     "1.5.0",
 			AgentResourceName: "main",
 			Variables:         map[string]string{"port": "8080"},
@@ -129,7 +129,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 		out, err := templatebuilder.RenderModuleTemplate(fsys, "test.tf.tmpl", ctx)
 		require.NoError(t, err)
 		rendered := string(out)
-		require.Contains(t, rendered, `"https://registry.coder.com/coder/test/coder"`)
+		require.Contains(t, rendered, `"registry.coder.com/coder/test/coder"`)
 		require.Contains(t, rendered, `"1.5.0"`)
 		require.Contains(t, rendered, `coder_agent.main.id`)
 		require.Contains(t, rendered, `port = 8080`)
@@ -146,10 +146,10 @@ func TestRenderModuleTemplate(t *testing.T) {
 			},
 		}
 		out, err := templatebuilder.RenderModuleTemplate(fsys, "test.tf.tmpl", templatebuilder.ModuleRenderContext{
-			RegistryBase: "https://registry.coder.com",
+			RegistryBase: "registry.coder.com",
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(out), "https://registry.coder.com")
+		require.Contains(t, string(out), "registry.coder.com")
 	})
 
 	t.Run("MissingKeyErrors", func(t *testing.T) {
@@ -202,7 +202,7 @@ func TestRenderModuleTemplate(t *testing.T) {
 		}
 
 		ctx := templatebuilder.ModuleRenderContext{
-			RegistryBase:      "https://registry.coder.com",
+			RegistryBase:      "registry.coder.com",
 			PinnedVersion:     csMod.PinnedVersion,
 			AgentResourceName: "main",
 			Variables:         vars,
