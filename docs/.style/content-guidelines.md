@@ -320,7 +320,6 @@ These items have been agreed in principle but the mechanics are still under inve
 Update this section as they land.
 
 - **In-docs troubleshooting migration.**
-  Tracked in [DOCS-363](https://linear.app/codercom/issue/DOCS-363) (Urgent, cycle 4).
   Audits the existing `## Troubleshooting` sections and dedicated troubleshooting pages under `docs/`, rewrites them for KB voice, and uploads them via the Pylon API.
   Until that work lands, link out to the relevant Pylon article from the page body; if no Pylon article exists yet, leave the existing inline troubleshooting in place rather than removing it.
 - **Pylon KB widget implementation.**
