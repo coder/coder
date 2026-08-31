@@ -43,14 +43,14 @@ export const TagInput: FC<TagInputProps> = ({
 							}}
 							aria-label={`Remove ${value}`}
 						>
-							<XIcon className="size-3" />
+							<XIcon className="size-icon-xs! pr-0!" />
 						</Button>
 					</Badge>
 				))}
 				<input
 					id={id}
 					aria-label={label}
-					className="flex-grow text-inherit p-0 border-none bg-transparent focus:outline-none"
+					className="grow text-inherit p-0 border-none bg-transparent focus:outline-hidden"
 					onKeyDown={(event) => {
 						if (event.key === ",") {
 							event.preventDefault();

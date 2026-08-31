@@ -89,7 +89,7 @@ export const ComboboxButton = ({
 			{...props}
 		>
 			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+			<span className="text-left block overflow-hidden text-ellipsis grow">
 				{selectedOption?.label ?? placeholder}
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
@@ -165,7 +165,7 @@ export const ComboboxItem = ({
 			{children}
 			<CheckIcon
 				className={cn(
-					"ml-2 size-4 min-w-0 flex-shrink-0",
+					"ml-2 size-4 min-w-0 shrink-0",
 					isSelected ? "opacity-100" : "opacity-0",
 				)}
 			/>
