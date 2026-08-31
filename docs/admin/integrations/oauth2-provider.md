@@ -143,7 +143,7 @@ Switching between `client_secret_basic` and `client_secret_post` is allowed, bec
 To change type, register a new client.
 
 Clients registered with `token_endpoint_auth_method: none` before Coder honored it are stored as confidential and still require their `client_secret`.
-Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears itself the next time the client updates its registration.
+Coder reports `client_secret_basic` for those clients so that what it reports matches what it enforces, and the mismatch clears the next time the client updates its registration using the value Coder reported.
 
 If client authentication fails, the token endpoint returns **HTTP 401** with an OAuth2 `invalid_client` error and a `WWW-Authenticate: Basic realm="coder"` response header.
 
