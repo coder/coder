@@ -81,10 +81,16 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		}, nil
 	}
 
-	agentName, err := ExtractAgentResourceName(mainTF)
+	agents, err := ExtractAgentResourceNames(mainTF)
 	if err != nil {
-		return nil, xerrors.Errorf("extract agent name: %w", err)
+		return nil, xerrors.Errorf("extract agents: %w", err)
 	}
+	if len(agents) == 0 {
+		return nil, xerrors.New("no coder_agent resource found in rendered template")
+	}
+	// Wire modules to the base's first agent. Multiple agents are supported
+	// here without erroring; per-module agent selection is a follow-up.
+	agentName := agents[0].Reference
 
 	catalog, err := loadCatalogMap()
 	if err != nil {
