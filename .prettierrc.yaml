@@ -7,11 +7,12 @@ trailingComma: all
 useTabs: true
 tabWidth: 2
 overrides:
+  # Markdown under docs/ follows the one sentence per line convention, so
+  # prose must not be reflowed to a fixed column width. See
+  # docs/.style/style-guide/formatting.md.
   - files:
       - README.md
-      - docs/reference/api/**/*.md
-      - docs/reference/cli/**/*.md
-      - docs/changelogs/*.md
+      - docs/**/*.md
       - .github/**/*.{yaml,yml,toml}
       - scripts/**/*.{yaml,yml,toml}
     options:
