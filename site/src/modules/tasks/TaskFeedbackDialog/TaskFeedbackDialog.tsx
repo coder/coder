@@ -135,7 +135,7 @@ const RateOption: FC<RateOptionProps> = ({ children, ...inputProps }) => {
 		<label
 			className={`
 			cursor-pointer border border-border border-solid hover:bg-surface-secondary
-			px-4 py-3 rounded text-sm has-[:checked]:bg-surface-quaternary
+			px-4 py-3 rounded text-sm has-checked:bg-surface-quaternary
 			flex items-center gap-3 [&_svg]:size-4
 		`}
 		>

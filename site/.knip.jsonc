@@ -12,7 +12,10 @@
 	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
+		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
+		"tailwindcss",
+		"tailwindcss-animate",
 		"ts-proto"
 	]
 }

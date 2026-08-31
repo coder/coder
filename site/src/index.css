@@ -3,9 +3,196 @@
 	Related issue: https://github.com/shadcn-ui/ui/issues/805#issuecomment-1616021820
 */
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
+
+/* Preserve Tailwind CSS v3's default ring color and width. */
+@theme {
+	--default-ring-color: rgb(59 130 246 / 0.5);
+	--default-ring-width: 3px;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+/* Preserve Tailwind CSS v3 hover behavior on all pointer types. */
+@custom-variant hover (&:hover);
+
+@source "../node_modules/streamdown";
+
+@theme inline {
+	--font-sans: "Geist Variable", system-ui, sans-serif;
+	/* `monospace, monospace` resets the font-size to 16px with the fallback. */
+	--font-mono: "Geist Mono Variable", monospace, monospace;
+
+	--size-icon-lg: 1.5rem;
+	--size-icon-sm: 1.125rem;
+	--size-icon-xs: 0.875rem;
+
+	--text-2xs: 0.625rem;
+	--text-2xs--line-height: 0.875rem;
+	--text-xs: 0.75rem;
+	--text-xs--line-height: 1rem;
+	--text-xs--font-weight: 500;
+	--text-sm: 0.875rem;
+	--text-sm--line-height: 1.5rem;
+	--text-sm--font-weight: 500;
+	--text-base: 1rem;
+	--text-base--line-height: 1.5rem;
+	--text-base--font-weight: 400;
+	--text-3xl: 2rem;
+	--text-3xl--line-height: 2.5rem;
+
+	--radius-lg: var(--radius);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-xs: calc(var(--radius) - 6px);
+
+	--color-content-primary: hsl(var(--content-primary));
+	--color-content-secondary: hsl(var(--content-secondary));
+	--color-content-disabled: hsl(var(--content-disabled));
+	--color-content-invert: hsl(var(--content-invert));
+	--color-content-success: hsl(var(--content-success));
+	--color-content-link: hsl(var(--content-link));
+	--color-content-destructive: hsl(var(--content-destructive));
+	--color-content-warning: hsl(var(--content-warning));
+
+	--color-surface-primary: hsl(var(--surface-primary));
+	--color-surface-secondary: hsl(var(--surface-secondary));
+	--color-surface-tertiary: hsl(var(--surface-tertiary));
+	--color-surface-quaternary: hsl(var(--surface-quaternary));
+	--color-surface-invert-primary: hsl(var(--surface-invert-primary));
+	--color-surface-invert-secondary: hsl(var(--surface-invert-secondary));
+	--color-surface-destructive: hsl(var(--surface-destructive));
+	--color-surface-green: hsl(var(--surface-green));
+	--color-surface-grey: hsl(var(--surface-grey));
+	--color-surface-orange: hsl(var(--surface-orange));
+	--color-surface-sky: hsl(var(--surface-sky));
+	--color-surface-red: hsl(var(--surface-red));
+	--color-surface-purple: hsl(var(--surface-purple));
+	--color-surface-magenta: hsl(var(--surface-magenta));
+	--color-surface-git-added: hsl(var(--surface-git-added));
+	--color-surface-git-deleted: hsl(var(--surface-git-deleted));
+	--color-surface-git-merged: hsl(var(--surface-git-merged));
+
+	--color-border: hsl(var(--border-default));
+	--color-border-warning: hsl(var(--border-warning));
+	--color-border-green: hsl(var(--border-green));
+	--color-border-pending: hsl(var(--border-sky));
+	--color-border-destructive: hsl(var(--border-destructive));
+	--color-border-success: hsl(var(--border-success));
+	--color-border-secondary: hsl(var(--border-secondary));
+	--color-border-purple: hsl(var(--border-purple));
+	--color-border-magenta: hsl(var(--border-magenta));
+
+	--color-overlay: hsla(var(--overlay-default));
+	--color-input: hsl(var(--input));
+	--color-ring: hsl(var(--ring));
+
+	--color-highlight-purple: hsl(var(--highlight-purple));
+	--color-highlight-green: hsl(var(--highlight-green));
+	--color-highlight-orange: hsl(var(--highlight-orange));
+	--color-highlight-grey: hsl(var(--highlight-grey));
+	--color-highlight-sky: hsl(var(--highlight-sky));
+	--color-highlight-red: hsl(var(--highlight-red));
+	--color-highlight-magenta: hsl(var(--highlight-magenta));
+
+	--color-syntax-key: hsl(var(--syntax-key));
+	--color-syntax-string: hsl(var(--syntax-string));
+	--color-syntax-number: hsl(var(--syntax-number));
+	--color-syntax-boolean: hsl(var(--syntax-boolean));
+
+	--color-git-added: hsl(var(--git-added));
+	--color-git-deleted: hsl(var(--git-deleted));
+	--color-git-modified: hsl(var(--git-modified));
+	--color-git-merged: hsl(var(--git-merged));
+	--color-git-added-bright: hsl(var(--git-added-bright));
+	--color-git-deleted-bright: hsl(var(--git-deleted-bright));
+	--color-git-merged-bright: hsl(var(--git-merged-bright));
+
+	@keyframes loading {
+		0% {
+			opacity: 0.85;
+		}
+		25% {
+			opacity: 0.7;
+		}
+		50% {
+			opacity: 0.4;
+		}
+		75% {
+			opacity: 0.3;
+		}
+		100% {
+			opacity: 0.2;
+		}
+	}
+
+	@keyframes caret-scan {
+		0% {
+			left: 0%;
+		}
+		100% {
+			left: 100%;
+		}
+	}
+
+	@keyframes zip-right {
+		0% {
+			left: 0%;
+			width: 0%;
+		}
+		30% {
+			left: 0%;
+			width: 40%;
+		}
+		100% {
+			left: 100%;
+			width: 0%;
+		}
+	}
+
+	/* Matches MUI LinearProgress bar1/bar2 indeterminate keyframes; two
+		staggered bars are required so one is visible while the other resets. */
+	@keyframes bar-indeterminate {
+		0% {
+			left: -35%;
+			right: 100%;
+		}
+		60% {
+			left: 100%;
+			right: -90%;
+		}
+		100% {
+			left: 100%;
+			right: -90%;
+		}
+	}
+
+	@keyframes bar-indeterminate-2 {
+		0% {
+			left: -200%;
+			right: 100%;
+		}
+		60% {
+			left: 107%;
+			right: -8%;
+		}
+		100% {
+			left: 107%;
+			right: -8%;
+		}
+	}
+
+	--animate-loading: loading 2s ease-in-out infinite alternate;
+	--animate-caret-scan: caret-scan 3s ease-in-out infinite;
+	--animate-spin-once: spin 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-zip-right: zip-right 1s cubic-bezier(0.4, 0, 0.2, 1);
+	--animate-bar-indeterminate: bar-indeterminate 2.1s
+		cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+	--animate-bar-indeterminate-2: bar-indeterminate-2 2.1s
+		cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite;
+}
 
 @font-face {
 	font-family: "seti";
@@ -15,7 +202,137 @@
 	font-display: swap;
 }
 
-@layer components {
+/*
+  Tailwind CSS v4 emits zero-specificity logical-end spacing. Preserve the v3
+  sibling selectors so existing margins, hidden children, and direction match.
+*/
+@utility space-x-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-x-reverse: 0;
+		margin-right: calc(--spacing(--value(number)) * var(--tw-space-x-reverse));
+		margin-left: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-x-reverse))
+		);
+	}
+}
+
+@utility space-y-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-space-y-reverse: 0;
+		margin-top: calc(
+			--spacing(--value(number)) *
+			calc(1 - var(--tw-space-y-reverse))
+		);
+		margin-bottom: calc(--spacing(--value(number)) * var(--tw-space-y-reverse));
+	}
+}
+
+@utility divide-y {
+	& > :not([hidden]) ~ :not([hidden]) {
+		--tw-divide-y-reverse: 0;
+		border-top-width: calc(1px * calc(1 - var(--tw-divide-y-reverse)));
+		border-bottom-width: calc(1px * var(--tw-divide-y-reverse));
+	}
+}
+
+@utility divide-solid {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-style: solid;
+	}
+}
+
+@utility divide-* {
+	& > :not([hidden]) ~ :not([hidden]) {
+		border-color: --value(--color-*);
+	}
+}
+
+/*
+  Preserve the Tailwind CSS v3 Preflight defaults that the existing interface
+  relies on.
+*/
+@layer base {
+	*,
+	::after,
+	::before,
+	::backdrop,
+	::file-selector-button {
+		border-color: var(--color-gray-200, currentcolor);
+	}
+
+	button:not(:disabled),
+	[role="button"]:not(:disabled) {
+		cursor: pointer;
+	}
+
+	button,
+	select {
+		text-transform: none;
+	}
+
+	input,
+	select,
+	textarea {
+		background-color: revert-layer;
+	}
+
+	button,
+	input:where([type="button"], [type="reset"], [type="submit"]) {
+		background-color: transparent;
+		background-image: none;
+	}
+
+	input::placeholder,
+	textarea::placeholder {
+		color: #9ca3af;
+	}
+
+	th,
+	td {
+		padding: revert-layer;
+	}
+
+	dialog {
+		margin: revert-layer;
+	}
+
+	[type="search"] {
+		-webkit-appearance: textfield;
+		outline-offset: -2px;
+	}
+
+	::-webkit-date-and-time-value {
+		min-height: revert-layer;
+		text-align: revert-layer;
+	}
+
+	::-webkit-datetime-edit {
+		display: revert-layer;
+	}
+
+	::-webkit-datetime-edit-fields-wrapper {
+		padding: revert-layer;
+	}
+
+	::-webkit-datetime-edit,
+	::-webkit-datetime-edit-year-field,
+	::-webkit-datetime-edit-month-field,
+	::-webkit-datetime-edit-day-field,
+	::-webkit-datetime-edit-hour-field,
+	::-webkit-datetime-edit-minute-field,
+	::-webkit-datetime-edit-second-field,
+	::-webkit-datetime-edit-millisecond-field,
+	::-webkit-datetime-edit-meridiem-field {
+		padding-block: revert-layer;
+	}
+
+	::-webkit-calendar-picker-indicator {
+		line-height: revert-layer;
+	}
+}
+
+@utility mobile-full-width-dropdown {
 	@media (max-width: 767px) {
 		/*
 			Full-width mobile dropdowns. We set custom properties on
@@ -42,7 +359,7 @@
 			  height the `-above-composer` variant can grow to without
 			  extending past the visible viewport top.
 		*/
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
+		[data-radix-popper-content-wrapper]:has(> &) {
 			position: fixed !important;
 			left: var(--mobile-dropdown-left, 1rem) !important;
 			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
@@ -51,19 +368,33 @@
 			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
 			top: auto !important;
 		}
-		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown-top) {
+		width: 100% !important;
+		min-width: 0 !important;
+		max-width: none !important;
+	}
+}
+
+@utility mobile-full-width-dropdown-top {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
 			bottom: auto !important;
 			top: var(--mobile-dropdown-top, 3.5rem) !important;
 		}
-		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-top-below-header
-			) {
+	}
+}
+
+@utility mobile-full-width-dropdown-top-below-header {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
 			bottom: auto !important;
 			top: 5rem !important;
 		}
-		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-above-composer
-			) {
+	}
+}
+
+@utility mobile-full-width-dropdown-above-composer {
+	@media (max-width: 767px) {
+		[data-radix-popper-content-wrapper]:has(> &) {
 			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
 			top: auto !important;
 			max-height: var(
@@ -72,37 +403,46 @@
 			) !important;
 			overflow: hidden !important;
 		}
-		.mobile-full-width-dropdown {
-			width: 100% !important;
-			min-width: 0 !important;
-			max-width: none !important;
-		}
-		.mobile-full-width-dropdown-above-composer {
-			max-height: var(
-				--mobile-dropdown-above-composer-max-height,
-				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
-			) !important;
-			overflow: hidden !important;
-			display: flex !important;
-			flex-direction: column !important;
-		}
+		max-height: var(
+			--mobile-dropdown-above-composer-max-height,
+			calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+		) !important;
+		overflow: hidden !important;
+		display: flex !important;
+		flex-direction: column !important;
 		/* min-height: 0 on both flex children lets the list shrink below its
 			content and scroll inside the capped column instead of overflowing. */
-		.mobile-full-width-dropdown-above-composer > [cmdk-root],
-		.mobile-full-width-dropdown-above-composer > [cmdk-root] > [cmdk-list] {
+		& > [cmdk-root] {
 			flex: 1 1 0% !important;
 			min-height: 0 !important;
 		}
-		.mobile-full-width-dropdown-above-composer > [cmdk-root] > [cmdk-list] {
+		& > [cmdk-root] > [cmdk-list] {
+			flex: 1 1 0% !important;
+			min-height: 0 !important;
+		}
+		& > [cmdk-root] > [cmdk-list] {
 			max-height: none !important;
 		}
-		.mobile-full-width-dropdown-above-composer
-			.mobile-full-width-dropdown-scroll-area {
+		& .mobile-full-width-dropdown-scroll-area {
 			overflow-y: auto !important;
 			overscroll-behavior: contain;
 			-webkit-overflow-scrolling: touch;
 		}
 	}
+}
+
+@utility mobile-full-width-dropdown-scroll-area {
+	@media (max-width: 767px) {
+		.mobile-full-width-dropdown-above-composer & {
+			overflow-y: auto !important;
+			overscroll-behavior: contain;
+			-webkit-overflow-scrolling: touch;
+		}
+	}
+}
+
+@utility text-xs-mono {
+	@apply text-xs font-mono font-medium;
 }
 
 @layer base {
@@ -364,8 +704,7 @@
 
 	html,
 	body,
-	#root,
-	#storybook-root {
+	:is(#root, #storybook-root) {
 		@apply h-full;
 	}
 
@@ -442,12 +781,6 @@
 	}
 }
 
-@layer utilities {
-	.text-xs-mono {
-		@apply text-xs font-mono font-medium;
-	}
-}
-
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,
@@ -456,5 +789,52 @@
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+/* Remove Tailwind CSS v4's competing zero-specificity spacing declarations. */
+@layer utilities {
+	:where(.space-y-0 > :not(:last-child)),
+	:where(.space-y-0\.5 > :not(:last-child)),
+	:where(.space-y-1 > :not(:last-child)),
+	:where(.space-y-1\.5 > :not(:last-child)),
+	:where(.space-y-2 > :not(:last-child)),
+	:where(.space-y-3 > :not(:last-child)),
+	:where(.space-y-4 > :not(:last-child)),
+	:where(.space-y-5 > :not(:last-child)),
+	:where(.space-y-6 > :not(:last-child)) {
+		margin-block-start: revert-layer;
+		margin-block-end: revert-layer;
+	}
+
+	:where(.space-x-2 > :not(:last-child)),
+	:where(.space-x-4 > :not(:last-child)) {
+		margin-inline-start: revert-layer;
+		margin-inline-end: revert-layer;
+	}
+
+	:where(.divide-y > :not(:last-child)) {
+		border-top-width: revert-layer;
+		border-bottom-width: revert-layer;
+		border-top-style: revert-layer;
+		border-bottom-style: revert-layer;
+	}
+
+	:where(.divide-solid > :not(:last-child)) {
+		--tw-border-style: revert-layer;
+		border-style: revert-layer;
+	}
+
+	:where(.divide-border > :not(:last-child)),
+	:where(.hover\:divide-surface-tertiary:hover > :not(:last-child)) {
+		border-color: revert-layer;
+	}
+
+	@media (width >= 40rem) {
+		:where(.sm\:space-x-0 > :not(:last-child)),
+		:where(.sm\:space-x-2 > :not(:last-child)) {
+			margin-inline-start: revert-layer;
+			margin-inline-end: revert-layer;
+		}
 	}
 }

@@ -15,11 +15,21 @@ type ImageOption struct {
 	Value string
 }
 
+// DefaultRegistryBase is the module registry host used in rendered module source
+// paths when a ComposeRequest does not carry the deployment's configured
+// registry (CODER_TEMPLATE_BUILDER_REGISTRY_URL). It mirrors the default of the
+// codersdk template-builder registry option.
+const DefaultRegistryBase = "registry.coder.com"
+
 // BaseRenderContext is the data passed to base template .tf.tmpl files.
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	Variables      map[string]string
+	// RegistryBase is the module registry host used in rendered module source
+	// paths, mirroring ModuleRenderContext.RegistryBase so a base-embedded
+	// module honors CODER_TEMPLATE_BUILDER_REGISTRY_URL like a wizard module.
+	RegistryBase string
+	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.

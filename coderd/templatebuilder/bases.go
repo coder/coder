@@ -232,6 +232,7 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		RegistryBase:   DefaultRegistryBase,
 		Variables:      vars,
 	}
 }

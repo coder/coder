@@ -62,7 +62,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 			direction="right"
 		>
 			<DrawerContent
-				className="!w-[min(800px,100%)] !max-w-full"
+				className="w-[min(800px,100%)]! max-w-full!"
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
 				<div className="flex h-full flex-col">

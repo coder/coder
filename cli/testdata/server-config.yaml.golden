@@ -1,3 +1,10 @@
+mcp:
+  # MCP server destinations in private or reserved IP ranges are blocked by default
+  # for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and
+  # revocation exchanges, and runtime MCP connections from coderd. This option
+  # exempts specific CIDRs.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
 networking:
   # The URL that users will use to access the Coder deployment.
   # (default: <unset>, type: url)
@@ -1193,7 +1200,9 @@ templateBuilder:
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.
   # (default: <unset>, type: bool)
   disabled: false
-  # The base URL of the module registry used by the template builder for module
-  # source paths.
+  # The module registry host the template builder uses for module source paths (for
+  # example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme
+  # and trailing slash are stripped; a path, query, fragment, or credentials is
+  # rejected.
   # (default: registry.coder.com, type: string)
   registryURL: registry.coder.com

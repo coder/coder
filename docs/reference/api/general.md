@@ -388,6 +388,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       ],
       "stackdriver": "string"
     },
+    "mcp_allowed_private_cidrs": [
+      "string"
+    ],
     "metrics_cache_refresh_interval": 0,
     "notifications": {
       "dispatch_timeout": 0,

@@ -114,6 +114,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
 	"github.com/coder/quartz"
+	"github.com/coder/safedial"
 	"github.com/coder/serpent"
 )
 
@@ -262,13 +263,9 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// MCPOAuth2DiscoveryAllowedIPRanges exempts IP ranges from the
-	// SSRF guard applied to MCP OAuth2 metadata discovery and dynamic
-	// client registration, which refuse private/internal destinations
-	// by default. This is a seam for tests, which serve their mock MCP
-	// servers on loopback; there is intentionally no user-facing
-	// configuration for it.
-	MCPOAuth2DiscoveryAllowedIPRanges []netip.Prefix
+	// MCPAllowedPrivateCIDRs exempts IP ranges from the SSRF guard for
+	// MCP server, OAuth2 discovery, token, and revocation traffic.
+	MCPAllowedPrivateCIDRs []netip.Prefix
 	// ChatStreamPartsDialer dials remote chat stream parts.
 	// Set by enterprise for HA deployments. Nil uses chatd's local
 	// in-process channel dialer.
@@ -711,13 +708,18 @@ func New(options *Options) *API {
 			options.Pubsub,
 		)
 	}
+	mcpHTTPClient := mcpclient.NewHTTPClient(
+		options.HTTPClient,
+		safedial.WithAllowedPrefixes(options.MCPAllowedPrivateCIDRs...),
+	)
 	api := &API{
-		ctx:          ctx,
-		cancel:       cancel,
-		DeploymentID: depID,
-		ID:           uuid.New(),
-		Options:      options,
-		RootHandler:  r,
+		ctx:           ctx,
+		cancel:        cancel,
+		DeploymentID:  depID,
+		ID:            uuid.New(),
+		Options:       options,
+		mcpHTTPClient: mcpHTTPClient,
+		RootHandler:   r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -957,6 +959,7 @@ func New(options *Options) *API {
 				PrometheusRegistry:             options.PrometheusRegistry,
 				AgentCapacityUnlock:            options.ChatAgentCapacityUnlock,
 				OIDCTokenSource:                oidcMCPSrc,
+				MCPHTTPClient:                  api.mcpHTTPClient,
 				NotificationsEnqueuer:          options.NotificationsEnqueuer,
 				Auditor:                        &api.Auditor,
 			})
@@ -2228,6 +2231,7 @@ type API struct {
 	DeploymentID string
 
 	*Options
+	mcpHTTPClient *http.Client
 	// ID is a uniquely generated ID on initialization.
 	// This is used to associate objects with a specific
 	// Coder API instance, like workspace agents to a

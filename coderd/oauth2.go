@@ -120,11 +120,11 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ShowAuthorizePage(api.AccessURL)
+	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
@@ -135,11 +135,11 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ProcessAuthorize(api.Database)
+	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
 }
 
 // @Summary OAuth2 token exchange.
@@ -147,8 +147,9 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Produce json
 // @Tags Enterprise
 // @Param client_id formData string false "Client ID, required if grant_type=authorization_code"
-// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code"
+// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param code formData string false "Authorization code, required if grant_type=authorization_code"
+// @Param code_verifier formData string false "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636."
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
