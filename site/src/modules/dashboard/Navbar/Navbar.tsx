@@ -22,6 +22,10 @@ export const Navbar: React.FC = () => {
 	const canViewHealth = permissions.viewDebugInfo;
 	const canViewAuditLog =
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
+	// The AI activity timeline is sponsor-scoped: everyone may view their own,
+	// but the menu follows the audit permission so the entry sits alongside
+	// the other cross-user audit surfaces. It is not entitlement-gated.
+	const canViewAIActivity = permissions.viewAnyAuditLog;
 	const canViewConnectionLog =
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
@@ -49,6 +53,7 @@ export const Navbar: React.FC = () => {
 				canViewOrganizations,
 				canViewAISettings,
 				canViewAuditLog,
+				canViewAIActivity,
 				canViewConnectionLog,
 				canViewAIBridge,
 				canViewHealth,

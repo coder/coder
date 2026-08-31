@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { TasksFilter } from "#/api/typesGenerated";
 import {
 	MockBuildInfo,
@@ -35,6 +35,7 @@ const meta: Meta<typeof NavbarView> = {
 			canViewOrganizations: true,
 			canViewAISettings: true,
 			canViewAuditLog: true,
+			canViewAIActivity: true,
 			canViewConnectionLog: true,
 			canViewAIBridge: true,
 			canViewHealth: true,
@@ -55,6 +56,12 @@ export const ForAdmin: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Admin settings" }),
 		);
+		// The menu renders in a portal outside the canvas element.
+		const body = within(canvasElement.ownerDocument.body);
+		const aiActivity = await body.findByRole("menuitem", {
+			name: "AI activity",
+		});
+		expect(aiActivity).toHaveAttribute("href", "/ai-activity");
 	},
 };
 
@@ -64,6 +71,7 @@ export const ForAuditor: Story = {
 		user: MockUserMember,
 		adminPermissions: {
 			canViewAuditLog: true,
+			canViewAIActivity: true,
 		},
 	},
 	play: async ({ canvasElement }) => {
@@ -71,6 +79,11 @@ export const ForAuditor: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Admin settings" }),
 		);
+		const body = within(canvasElement.ownerDocument.body);
+		const aiActivity = await body.findByRole("menuitem", {
+			name: "AI activity",
+		});
+		expect(aiActivity).toHaveAttribute("href", "/ai-activity");
 	},
 };
 
