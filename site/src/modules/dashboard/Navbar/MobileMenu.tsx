@@ -43,7 +43,6 @@ const itemStyles = {
 
 type MobileMenuProps = {
 	proxyContextValue?: ProxyContextValue;
-	canViewModels: boolean;
 	adminPermissions: AdminSettingsPermissions;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
@@ -53,7 +52,6 @@ type MobileMenuProps = {
 
 export const MobileMenu: FC<MobileMenuProps> = ({
 	adminPermissions,
-	canViewModels,
 	proxyContextValue,
 	user,
 	supportLinks,
@@ -89,11 +87,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				<DropdownMenuItem asChild className={itemStyles.default}>
 					<Link to="/agents">Agents</Link>
 				</DropdownMenuItem>
-				{canViewModels && (
-					<DropdownMenuItem asChild className={itemStyles.default}>
-						<Link to="/ai/settings/models">Models</Link>
-					</DropdownMenuItem>
-				)}
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
 

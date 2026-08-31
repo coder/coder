@@ -120,11 +120,11 @@ func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 200 "Returns HTML authorization page"
 // @Router /oauth2/authorize [get]
 func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ShowAuthorizePage(api.AccessURL)
+	return oauth2provider.ShowAuthorizePage(api.AccessURL, api.Logger)
 }
 
 // @Summary OAuth2 authorization request (POST - process authorization).
@@ -135,11 +135,11 @@ func (api *API) getOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Param state query string true "A random unguessable string"
 // @Param response_type query codersdk.OAuth2ProviderResponseType true "Response type"
 // @Param redirect_uri query string false "Redirect here after authorization"
-// @Param scope query string false "Token scopes (currently ignored)"
+// @Param scope query string false "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist"
 // @Success 302 "Returns redirect with authorization code"
 // @Router /oauth2/authorize [post]
 func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
-	return oauth2provider.ProcessAuthorize(api.Database)
+	return oauth2provider.ProcessAuthorize(api.Database, api.Logger)
 }
 
 // @Summary OAuth2 token exchange.
