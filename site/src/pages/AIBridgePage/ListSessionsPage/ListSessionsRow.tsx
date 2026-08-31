@@ -54,7 +54,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 							fallback={session.initiator.username}
 							src={session.initiator.avatar_url}
 							size="lg"
-							className="flex-shrink-0"
+							className="shrink-0"
 						/>
 						<div className="font-normal truncate min-w-0 flex-1 overflow-hidden">
 							{session.initiator.name ?? session.initiator.username}
@@ -70,7 +70,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 						</Badge>
 					) : session.providers.length === 1 ? (
 						<Badge className="gap-1.5 max-w-full">
-							<div className="flex-shrink-0 flex items-center">
+							<div className="shrink-0 flex items-center">
 								<AIBridgeProviderIcon
 									provider={session.providers[0]}
 									className="size-icon-xs"
@@ -86,7 +86,7 @@ export const ListSessionsRow: FC<ListSessionsRowProps> = ({
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
 					<Badge className="gap-1.5 max-w-full">
-						<div className="flex-shrink-0 flex items-center">
+						<div className="shrink-0 flex items-center">
 							<AIBridgeClientIcon
 								client={session.client}
 								className="size-icon-xs"

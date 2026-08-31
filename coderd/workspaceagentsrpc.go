@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -192,6 +191,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
 		ContextDirtyMarker:   contextDirtyMarker,
+		ContextSyncDisabled:  api.DeploymentValues.DisableWorkspaceAgentContextSync.Value(),
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{
@@ -341,7 +341,7 @@ func (m *agentConnectionMonitor) sendPings(ctx context.Context) {
 		if err != nil {
 			return
 		}
-		m.lastPing.Store(ptr.Ref(time.Now()))
+		m.lastPing.Store(new(time.Now()))
 	}
 }
 
@@ -386,7 +386,7 @@ func (m *agentConnectionMonitor) init() {
 		Valid: true,
 	}
 	m.disconnectedAt = m.workspaceAgent.DisconnectedAt
-	m.lastPing.Store(ptr.Ref(time.Now())) // Since the agent initiated the request, assume it's alive.
+	m.lastPing.Store(new(time.Now())) // Since the agent initiated the request, assume it's alive.
 }
 
 func (m *agentConnectionMonitor) start(ctx context.Context) {

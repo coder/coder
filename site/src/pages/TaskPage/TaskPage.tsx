@@ -18,7 +18,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { Link as RouterLink, useParams } from "react-router";
-import type { FixedSizeList } from "react-window";
+import type { VariableSizeList } from "react-window";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage, isApiError } from "#/api/errors";
@@ -353,7 +353,7 @@ const TaskPage = () => {
 				<PanelResizeHandle>
 					<div className="w-1 bg-border h-full hover:bg-border-secondary transition-all relative" />
 				</PanelResizeHandle>
-				<Panel className="[&>*]:h-full">
+				<Panel className="*:h-full">
 					<TaskApps task={task} workspace={workspace} />
 				</Panel>
 			</PanelGroup>
@@ -493,7 +493,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 	}, []);
 
 	return (
-		<div className="w-full max-w-screen-lg mx-auto px-16">
+		<div className="w-full max-w-(--breakpoint-lg) mx-auto px-16">
 			<div className="border border-solid border-border rounded-lg overflow-hidden">
 				<div className="flex items-center justify-between px-4 py-2 border-0 border-b border-solid border-border bg-surface-secondary text-sm text-content-secondary">
 					<span className="flex items-center gap-1.5">
@@ -512,7 +512,7 @@ const TaskLogPreview: FC<TaskLogPreviewProps> = ({
 						<ScrollArea className="h-96">
 							<div
 								ref={scrollToBottom}
-								className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap break-words"
+								className="p-4 font-mono text-xs text-content-secondary leading-relaxed whitespace-pre-wrap wrap-break-word"
 							>
 								{logs.map((entry, index) => {
 									const prev = index === 0 ? undefined : logs[index - 1];
@@ -793,7 +793,7 @@ const BuildingWorkspace: FC<BuildingWorkspaceProps> = ({
 						</p>
 					</header>
 
-					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+					<div className="w-full max-w-(--breakpoint-lg) flex flex-col gap-4 overflow-hidden">
 						<WorkspaceBuildProgress
 							workspace={workspace}
 							transitionStats={transitionStats}
@@ -830,7 +830,7 @@ type TaskStartingAgentProps = {
 
 const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 	const logs = useAgentLogs({ agentId: agent.id });
-	const listRef = useRef<FixedSizeList>(null);
+	const listRef = useRef<VariableSizeList>(null);
 	const queryClient = useQueryClient();
 	const pauseMutation = useMutation({
 		...pauseTask(task, queryClient),
@@ -874,7 +874,7 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 						</Button>
 					</header>
 
-					<div className="w-full max-w-screen-lg flex flex-col gap-4 overflow-hidden">
+					<div className="w-full max-w-(--breakpoint-lg) flex flex-col gap-4 overflow-hidden">
 						<div className="h-96 border border-solid border-border rounded-lg">
 							<AgentLogs
 								ref={listRef}

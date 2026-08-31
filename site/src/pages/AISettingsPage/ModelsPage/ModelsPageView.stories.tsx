@@ -1,8 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import type { ChatModelConfig } from "#/api/typesGenerated";
+import type { ChatModel } from "#/api/typesGenerated";
+import {
+	MockDefaultOrganization,
+	MockOrganizationPermissions,
+} from "#/testHelpers/entities";
 import ModelsPageView from "./ModelsPageView";
+import { OrganizationModelsContext } from "./organizationModels";
 import {
 	MockAnthropicProviderState,
 	MockBedrockProviderState,
@@ -19,9 +24,24 @@ import {
 const meta: Meta<typeof ModelsPageView> = {
 	title: "pages/AISettingsPage/ModelsPage/ModelsPageView",
 	component: ModelsPageView,
+	decorators: [
+		(Story) => (
+			<OrganizationModelsContext.Provider
+				value={{
+					organization: MockDefaultOrganization,
+					accessibleOrganizations: [MockDefaultOrganization],
+					permissions: MockOrganizationPermissions,
+					requestedOrganizationDenied: false,
+				}}
+			>
+				<Story />
+			</OrganizationModelsContext.Provider>
+		),
+	],
 	args: {
 		isLoading: false,
-		error: null,
+		loadError: null,
+		refetchError: null,
 		models: [mockGPT5, mockClaude, mockDisabledModel, mockBedrockClaude],
 		providerStates: [
 			MockOpenAIProviderState,
@@ -33,6 +53,7 @@ const meta: Meta<typeof ModelsPageView> = {
 			["prov-anthropic", "anthropic"],
 			["prov-bedrock", "bedrock"],
 		]),
+		canCreateModel: true,
 	},
 	parameters: {
 		// TODO: Stories in this file fail when pixel runs their play functions. Fix them and remove the exclude.
@@ -73,9 +94,10 @@ export const Default: Story = {
 		await expect(canvas.getByText("AWS Bedrock")).toBeInTheDocument();
 		// The provider icon is decorative (alt=""), so its name comes from the
 		// visible label asserted above rather than the image alt text.
-		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
+		expect(canvas.queryByText("Enabled")).not.toBeInTheDocument();
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
-		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+		const disabledRow = canvas.getByRole("button", { name: /GPT-4o mini/i });
+		await expect(within(disabledRow).getByText("Disabled")).toBeInTheDocument();
 
 		// The Add model menu lists each provider by exact accessible name; a
 		// regressed icon would turn a name into "Anthropic Anthropic".
@@ -83,6 +105,28 @@ export const Default: Story = {
 		const menu = await within(document.body).findByRole("menu");
 		await within(menu).findByRole("menuitem", { name: "Anthropic" });
 		await userEvent.keyboard("{Escape}");
+	},
+};
+
+export const CreateOnlyUserCanAdd: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /add model/i }));
+		const menu = await within(document.body).findByRole("menu");
+		await expect(
+			within(menu).getByRole("menuitem", { name: "OpenAI" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const ReadOnlyUserCannotAdd: Story = {
+	args: { canCreateModel: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("GPT-5")).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: /add model/i }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -141,11 +185,12 @@ export const DisabledProviderModelsStillListed: Story = {
 		// so the row is queried by its clickable role.
 		const row = canvas.getByRole("button", { name: /GPT-4o Secondary/i });
 		await expect(within(row).getByText("OpenAI Secondary")).toBeInTheDocument();
-		// A model under a disabled provider is not usable, so the status
-		// column must show "Disabled" even though the stored enabled flag is
-		// true. Scope to the target row so a fixture change cannot pass this
-		// assertion via an unrelated "Disabled" cell.
-		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
+		// A model under a disabled provider is not usable regardless of its
+		// stored enabled flag; scope to the row so an unrelated cell cannot pass.
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
+		expect(within(row).queryByText("Disabled")).not.toBeInTheDocument();
 	},
 };
 
@@ -154,8 +199,8 @@ export const DisabledProviderModelsStillListed: Story = {
 // models entirely, so the row reaches "Unset" via a map-miss and the
 // `?? false` fallback at ModelsPageView.tsx wiring. Reproduce that shape
 // here: the model appears in `models` but is not present in any
-// providerState.modelConfigs, so a `?? true` regression would flip this
-// story to "Enabled" and be caught.
+// providerState.models, so a `?? true` regression would hide the
+// unavailable notice and be caught.
 export const OrphanedModelShowsUnset: Story = {
 	args: {
 		models: [mockGPT5, mockOrphanedModel],
@@ -166,7 +211,9 @@ export const OrphanedModelShowsUnset: Story = {
 		const canvas = within(canvasElement);
 		const row = canvas.getByRole("button", { name: /Orphaned Model/i });
 		await expect(within(row).getByText("Unset")).toBeInTheDocument();
-		await expect(within(row).getByText("Disabled")).toBeInTheDocument();
+		await expect(
+			within(row).getByRole("button", { name: "Unavailable" }),
+		).toBeInTheDocument();
 	},
 };
 
@@ -192,12 +239,32 @@ export const Empty: Story = {
 
 export const LoadError: Story = {
 	args: {
-		error: new Error("Failed to load models"),
+		loadError: new Error("Failed to load models"),
 		models: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Failed to load models")).toBeVisible();
+		await expect(
+			canvas.queryByText("No models configured"),
+		).not.toBeInTheDocument();
 	},
 };
 
-const manyModels: ChatModelConfig[] = Array.from({ length: 23 }, (_, i) => ({
+export const RefetchError: Story = {
+	args: {
+		refetchError: new Error("Failed to refresh models"),
+		models: [mockGPT5, mockClaude],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Failed to refresh models")).toBeVisible();
+		await expect(canvas.getByText("GPT-5")).toBeVisible();
+		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeVisible();
+	},
+};
+
+const manyModels: ChatModel[] = Array.from({ length: 23 }, (_, i) => ({
 	...mockClaude,
 	id: `model-${i}`,
 	model: `model-${i}`,

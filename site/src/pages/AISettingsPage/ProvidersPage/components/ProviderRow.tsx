@@ -7,7 +7,13 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ProviderIcon";
 import { getProviderDisplayType } from "./providerFormApiMap";
 
@@ -24,16 +30,41 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 		onClick: () => onClick?.(),
 	});
 	const displayName = provider.display_name || provider.name;
+	const disabled = !provider.enabled;
+
+	// Stop activation from bubbling to a parent `useClickableTableRow`
+	// row, which navigates on click, Enter (onKeyDown), and Space
+	// (onKeyUp). Radix composes its own click handler, so the tooltip
+	// still opens.
+	const stopPropagation = (event: React.SyntheticEvent) => {
+		event.stopPropagation();
+	};
 
 	return (
 		<TableRow key={provider.name} {...clickableProps}>
 			<TableCell className="min-w-0 px-4 py-3">
 				<AvatarData
-					title={displayName}
+					title={
+						<span className="flex items-center gap-2">
+							<span
+								className={cn("truncate", disabled && "text-content-secondary")}
+							>
+								{displayName}
+							</span>
+							{disabled && (
+								<Badge asChild size="sm" variant="default">
+									<span>Disabled</span>
+								</Badge>
+							)}
+						</span>
+					}
 					avatar={
 						<Avatar
 							size="lg"
-							className="flex shrink-0 items-center justify-center"
+							className={cn(
+								"flex shrink-0 items-center justify-center",
+								disabled && "opacity-50 grayscale",
+							)}
 						>
 							<ProviderIcon
 								provider={getProviderDisplayType(provider)}
@@ -45,7 +76,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			</TableCell>
 			<TableCell className="min-w-0">
 				<span
-					className="block truncate text-content-secondary"
+					className={cn(
+						"block truncate",
+						disabled ? "text-content-disabled" : "text-content-secondary",
+					)}
 					title={provider.base_url}
 				>
 					{provider.base_url}
@@ -53,14 +87,51 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			</TableCell>
 			<TableCell>
 				<div className="flex flex-wrap items-center gap-1">
-					{provider.enabled && <Badge variant="default">Enabled</Badge>}
 					{AgentsUnsupportedProviderTypes.some((t) => t === provider.type) && (
-						<Badge
-							variant="info"
-							title="This provider works with the AI Gateway proxy but Coder Agents can't use it."
-						>
-							Not supported in Agents
-						</Badge>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									asChild
+									variant="info"
+									onClick={stopPropagation}
+									onKeyDown={stopPropagation}
+									onKeyUp={stopPropagation}
+								>
+									<button type="button">Not supported in Agents</button>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								This provider works with the AI Gateway Proxy but Coder Agents
+								can't use it.
+							</TooltipContent>
+						</Tooltip>
+					)}
+					{provider.status?.warnings && provider.status.warnings.length > 0 && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Badge
+									asChild
+									variant="warning"
+									onClick={stopPropagation}
+									onKeyDown={stopPropagation}
+									onKeyUp={stopPropagation}
+								>
+									<button
+										type="button"
+										aria-label={`Warning: ${provider.status.warnings.join("; ")}`}
+									>
+										Warning
+									</button>
+								</Badge>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								{provider.status.warnings.map((warning) => (
+									<p key={warning} className="break-words">
+										{warning}
+									</p>
+								))}
+							</TooltipContent>
+						</Tooltip>
 					)}
 				</div>
 			</TableCell>
@@ -68,7 +139,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-md text-content-primary flex-shrink-0"
+						className="size-icon-sm text-content-secondary shrink-0"
 					/>
 				</div>
 			</TableCell>

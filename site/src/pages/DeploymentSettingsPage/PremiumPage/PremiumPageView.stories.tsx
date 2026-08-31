@@ -26,7 +26,7 @@ export const NoLicense: Story = {
 		// The hero tracks the panel, so the trial pitch only appears here.
 		await expect(
 			canvas.getByRole("heading", {
-				name: "Start a 30-day trial of Coder Premium",
+				name: "Start an unlimited 30-day Coder trial",
 				level: 2,
 			}),
 		).toBeInTheDocument();

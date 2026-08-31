@@ -70,19 +70,15 @@ const IdpOrgSyncPage: FC = () => {
 
 			<div>
 				<SettingsHeader
-					actions={
-						<div className="flex flex-row gap-2 items-center">
-							<SettingsHeaderDocsLink
-								href={docs("/admin/users/idp-sync#organization-sync")}
-							/>
-							<ExportPolicyButton syncSettings={settingsQuery.data} />
-						</div>
-					}
+					actions={<ExportPolicyButton syncSettings={settingsQuery.data} />}
 				>
 					<SettingsHeaderTitle>Organization IdP Sync</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Automatically assign users to an organization based on their IdP
-						claims.
+						claims.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/users/idp-sync#organization-sync")}
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 				{!isIdpSyncEnabled ? (
