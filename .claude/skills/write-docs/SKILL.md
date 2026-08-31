@@ -43,7 +43,9 @@ style.
    - **Read the real source.** Open the actual template, config, code path,
      or CLI definition. Copy exact identifiers, defaults, file paths, option
      names, RBAC role names, thresholds, and API paths from the source, not
-     from memory.
+     from memory. These copies are verification inputs; whether each value
+     appears on the page is governed by
+     [Evidence versus claim](#evidence-versus-claim).
    - **Run the real thing.** Execute the commands in the same environment and
      image the reader will use. Capture real output and real error strings.
      Do not paraphrase an error you did not see. If you can only
@@ -111,6 +113,13 @@ style.
   Previous/Next where the engine supports it); never ship a page that
   dead-ends.
 
+## Evidence versus claim
+
+The canonical rule is
+[Evidence justifies a claim; it does not belong in the claim](../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim)
+in the content guidelines; they govern. Read it there rather than from a
+summary here.
+
 ## What not to write
 
 Do not put non-docs content in `docs/`. The canonical catalog of what to
@@ -155,6 +164,9 @@ the whole series as a single review.
 - Telling the reader their tool is wrong when it merely needs configuration.
 - Brittle references that rot: hard-coded line numbers, or a screenshot
   standing in for text the reader could copy.
+- Publishing verification evidence as content: identifiers on a page whose
+  reader never types or receives them (see
+  [Evidence versus claim](#evidence-versus-claim)).
 - Duplicating large content silently instead of flagging the maintenance
   cost to the reviewer.
 - Treating the style guide as optional recall instead of a checklist you open
@@ -182,6 +194,10 @@ the whole series as a single review.
       series).
 - [ ] PR title and description follow the PR description style guide (including
       draft vs. ready-for-review).
+- [ ] Identifiers on the page pass the
+      [Evidence versus claim](#evidence-versus-claim) test for this page's
+      task, and anything stripped under that rule is disclosed as the rule
+      requires.
 - [ ] Maintenance tradeoffs (duplication, unverified claims) are disclosed to
       the reviewer, not hidden.
 
