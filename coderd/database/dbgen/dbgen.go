@@ -178,6 +178,19 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		}
 		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
 	}
+	organizationID := seed.OrganizationID
+	if organizationID == uuid.Nil {
+		defaultOrg, err := db.GetDefaultOrganization(genCtx)
+		require.NoError(t, err, "get default organization")
+		organizationID = defaultOrg.ID
+	}
+	groupACL := seed.GroupACL
+	if groupACL == nil {
+		groupACL = database.ChatACL{
+			organizationID.String(): {Permissions: []policy.Action{policy.ActionRead}},
+		}
+	}
+	userACL := seed.UserACL
 	params := database.InsertChatModelConfigParams{
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
@@ -189,6 +202,9 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
 		AIProviderID:         aiProviderID,
+		OrganizationID:       organizationID,
+		GroupACL:             groupACL,
+		UserACL:              userACL,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -580,6 +596,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		UseClassicParameterFlow:      takeFirst(seed.UseClassicParameterFlow, false),
 		CorsBehavior:                 takeFirst(seed.CorsBehavior, database.CorsBehaviorSimple),
 		AgentsAllowed:                seed.AgentsAllowed,
+		AllowWorkspaceRenames:        seed.AllowWorkspaceRenames,
 	})
 	require.NoError(t, err, "insert template")
 

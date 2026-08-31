@@ -14,7 +14,7 @@ describe("getTimeGroup", () => {
 	});
 
 	it("exports the expected group labels in order", () => {
-		expect(TIME_GROUPS).toEqual(["Today", "Yesterday", "This Week", "Older"]);
+		expect(TIME_GROUPS).toEqual(["Today", "Yesterday", "Past 7 days", "Older"]);
 	});
 
 	it('returns "Today" for a date later today', () => {
@@ -37,19 +37,19 @@ describe("getTimeGroup", () => {
 		expect(getTimeGroup("2025-07-14T00:00:00.000Z")).toBe("Yesterday");
 	});
 
-	it('returns "This Week" for a date 2 days ago', () => {
-		expect(getTimeGroup("2025-07-13T12:00:00.000Z")).toBe("This Week");
+	it('returns "Past 7 days" for a date 2 days ago', () => {
+		expect(getTimeGroup("2025-07-13T12:00:00.000Z")).toBe("Past 7 days");
 	});
 
-	it('returns "This Week" for a date 6 days ago', () => {
-		expect(getTimeGroup("2025-07-09T12:00:00.000Z")).toBe("This Week");
+	it('returns "Past 7 days" for a date 6 days ago', () => {
+		expect(getTimeGroup("2025-07-09T12:00:00.000Z")).toBe("Past 7 days");
 	});
 
-	it('returns "This Week" for exactly 7 days ago at midnight', () => {
+	it('returns "Past 7 days" for exactly 7 days ago at midnight', () => {
 		// weekAgo = today - 7 days = 2025-07-08T00:00:00 local.
-		// A date at exactly that boundary should be "This Week"
+		// A date at exactly that boundary should be "Past 7 days"
 		// because the comparison is date >= weekAgo.
-		expect(getTimeGroup("2025-07-08T00:00:00.000Z")).toBe("This Week");
+		expect(getTimeGroup("2025-07-08T00:00:00.000Z")).toBe("Past 7 days");
 	});
 
 	it('returns "Older" for a date 8 days ago', () => {

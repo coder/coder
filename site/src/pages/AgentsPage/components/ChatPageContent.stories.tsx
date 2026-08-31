@@ -15,6 +15,7 @@ const StoryChatPageTimeline: FC<{
 }> = ({ store }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
+			organizationId="organization-id"
 			store={store}
 			persistedError={undefined}
 			hasMoreMessages={false}
@@ -285,6 +286,7 @@ export const InterruptingShowsBusyComposer: Story = {
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<div className="flex h-full flex-col">
 					<ChatPageTimeline
+						organizationId="organization-id"
 						store={store}
 						persistedError={undefined}
 						hasMoreMessages={false}

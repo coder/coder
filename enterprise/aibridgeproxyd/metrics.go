@@ -76,7 +76,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 
 		ProviderInfo: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "provider_info",
-			Help: "One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.",
+			Help: "One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error, proxy_excluded) carries the alertable signal.",
 		}, []string{"provider_name", "provider_type", "status"}),
 
 		ProvidersLastReloadTimestampSeconds: factory.NewGauge(prometheus.GaugeOpts{
