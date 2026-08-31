@@ -11,9 +11,9 @@ Nothing under this directory is published to [coder.com/docs](https://coder.com/
 | `style-guide/`          | Canonical prose style guide for `docs/`                             |
 | `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-See [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
+Refer to [`content-guidelines.md`](content-guidelines.md) for the canonical rules on what content belongs in `docs/` and what should be routed elsewhere (blog, changelog, Support KB, etc.).
 
-See [`style-guide/`](style-guide/README.md) for the prose style guide.
+Visit [`style-guide/`](style-guide/README.md) for the prose style guide.
 The `styles/Coder/` directory holds the custom Vale rules that enforce parts of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at `docs/.style/styles/`.
 
 ## Why a hidden directory
@@ -83,8 +83,7 @@ Severity is a deliberate per-rule choice:
 
 - `error` blocks merge.
   Use for hard policy where any violation is wrong: brand-name casing, first-person pronouns we ban outright, em-dash bans.
-- `warning` surfaces an annotation without failing CI.
-  Use for strong guidance with legitimate human-judgment exceptions: terms that need context (`disabled` as a technical state vs. ableist usage), judgment-bound style preferences.
+- `warning` surfaces an annotation without failing CI. Use for strong guidance with legitimate human-judgment exceptions: terms that need context (`disabled` as a technical state vs. ableist usage), judgment-bound style preferences.
 - `suggestion` surfaces a `notice` annotation.
   Use for soft guidance where the right fix is contextual: noun-as-adjective patterns like `desired state`, wordiness, optional sentence reshaping.
 

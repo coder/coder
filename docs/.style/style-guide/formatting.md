@@ -155,17 +155,14 @@ Use the most specific language tag available:
   `ps1` is Shiki's PowerShell alias.
   It's also GitHub's `.ps1` file extension, which GitHub's Markdown renderer falls back to when a fence label isn't a recognized language name.
   `ps` isn't registered either way and won't highlight on GitHub today.
-- `tf` for Terraform and HCL.
-  `terraform` and `hcl` are not the canonical tag.
+- `tf` for Terraform and HCL. `terraform` and `hcl` are not the canonical tag.
   Use `tf`.
   Shiki ships `terraform` and `hcl` as two distinct grammars.
   `tf` aliases the more specific `terraform` grammar (not `hcl`) and matches what nearly every Coder docs code block contains.
-- `yaml` for YAML.
-  `yml` is not the canonical tag.
+- `yaml` for YAML. `yml` is not the canonical tag.
   Use `yaml`.
 - `go` for Go.
-- `json` for JSON.
-  `jsonc` is a distinct Shiki grammar for JSON that permits comments.
+- `json` for JSON. `jsonc` is a distinct Shiki grammar for JSON that permits comments.
   Use it only for blocks that contain comments.
   Otherwise use `json`.
 - `dotenv` for `.env`-style `KEY=VALUE` blocks.
@@ -351,7 +348,8 @@ The provisioner supports:
 The first **Don't** mixes punctuation styles and uses non-imperative leads.
 The second mixes punctuation inside one list and uses periods on single-word labels.
 
-For a "Learn more" list of links, treat each item as a label: no terminal period, and no leading "And" or "Or." When such a list needs a lead-in, end the lead-in with a colon on a clause that stands on its own, rather than dangling the colon off a sentence the bullets then finish.
+For a "Learn more" list of links, treat each item as a label: no terminal period, and no leading "And" or "Or."
+When such a list needs a lead-in, end the lead-in with a colon on a clause that stands on its own, rather than dangling the colon off a sentence the bullets then finish.
 
 **Do**:
 

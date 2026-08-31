@@ -11,7 +11,8 @@ They must guess which sentences are for them, and trust the writer not to have h
 The single canonical Coder example is **install Coder**.
 An end user wants to connect their local editor to a Coder workspace and start coding.
 A platform engineer wants to deploy the Coder control plane to their company's Kubernetes cluster.
-Both groups search for "install Coder." A page that tries to cover both forces the end user to read past Helm chart values and forces the platform engineer to read past Visual Studio Code download links.
+Both groups search for "install Coder."
+A page that tries to cover both forces the end user to read past Helm chart values and forces the platform engineer to read past Visual Studio Code download links.
 Two pages, one per audience and one per outcome, serve both groups better than one page that combines them.
 
 ## Pick one audience per page
@@ -203,7 +204,8 @@ A page written for a known audience gives that reader what they need to reach th
 
 Knowing the audience means knowing what that audience can already do.
 When the page assumes a reader who runs their own Coder deployment, that reader is their own administrator.
-Don't hedge a step with "ask your administrator" or "if you have permission." Those caveats are written for a reader this page doesn't target, and they make the real reader doubt whether the step is meant for them.
+Don't hedge a step with "ask your administrator" or "if you have permission."
+Those caveats are written for a reader this page doesn't target, and they make the real reader doubt whether the step is meant for them.
 
 Before you add a caveat, a permission note, or an "if you don't have access" aside, check it against the audience and the full context of the page:
 
@@ -283,8 +285,7 @@ Their success metric is uptime, so they trust proven, well-documented configurat
 
 #### Steven the Sponsor
 
-Steven is the CTO.
-They approve the Coder purchase and stay close enough to the architecture to ask sharp questions, but they no longer write code.
+Steven is the CTO. They approve the Coder purchase and stay close enough to the architecture to ask sharp questions, but they no longer write code.
 They need overview pages that explain what Coder is, how it fits the existing stack, what it costs, and what its security and compliance posture looks like.
 
 *Coder surface:* architecture overviews, why-Coder framing, pricing and licensing, security and compliance summaries, release notes, success-metric dashboards.
@@ -335,8 +336,7 @@ They are skeptical of new tools by default and want documented, auditable behavi
 
 #### Tara the Team Leader
 
-Tara is an engineering manager or senior tech lead assigned the Group Admin role in Coder RBAC.
-They need docs for team-scope administration: group memberships, group-owned secrets, group-scoped templates, and the audit log entries that explain who changed what.
+Tara is an engineering manager or senior tech lead assigned the Group Admin role in Coder RBAC. They need docs for team-scope administration: group memberships, group-owned secrets, group-scoped templates, and the audit log entries that explain who changed what.
 They aren't the platform owner.
 They run their team inside the guardrails Perry or Ada set up.
 

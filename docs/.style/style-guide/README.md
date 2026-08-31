@@ -81,10 +81,8 @@ Each enabled rule lands via a dedicated PR that:
 
 Severity is a deliberate per-rule choice among 3 tiers:
 
-- `error` blocks merge in CI.
-  Use for hard policy where any violation is wrong.
-- `warning` surfaces an annotation without failing CI.
-  Use for strong guidance with legitimate human-judgment exceptions.
+- `error` blocks merge in CI. Use for hard policy where any violation is wrong.
+- `warning` surfaces an annotation without failing CI. Use for strong guidance with legitimate human-judgment exceptions.
 - `suggestion` surfaces a `notice` annotation.
   Use for soft guidance where the right fix is contextual.
 

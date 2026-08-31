@@ -253,7 +253,8 @@ Replace them with the literal meaning.
 > Coder ships with a default template out of the box.
 
 The rule covers developer idiom too.
-"Spin up a workspace" becomes "create a workspace," "tear down the deployment" becomes "delete the deployment," and "stand up a cluster" becomes "deploy a cluster." The figurative forms are so common in developer conversation that they no longer register as figurative, but they translate as badly as any other idiom.
+"Spin up a workspace" becomes "create a workspace," "tear down the deployment" becomes "delete the deployment," and "stand up a cluster" becomes "deploy a cluster."
+The figurative forms are so common in developer conversation that they no longer register as figurative, but they translate as badly as any other idiom.
 
 *Documentation-only.
 Planned Vale rule `Coder.Idioms`.*
@@ -272,7 +273,8 @@ The English equivalent is also fine.
 | `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                         |
 | `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.     |
 
-**Prefer parentheses around `e.g.` and `i.e.` clauses.** The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
+**Prefer parentheses around `e.g.` and `i.e.` clauses.**
+The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
 
 **Do**:
 
@@ -288,7 +290,8 @@ The English equivalent is also fine.
 
 The **Don't** versions are grammatical, but the comma cascade makes the sentence structure harder to follow.
 
-**One period when `etc.` ends a sentence.** The period in `etc.` doubles as the sentence-ending period.
+**One period when `etc.` ends a sentence.**
+The period in `etc.` doubles as the sentence-ending period.
 
 **Do**:
 
@@ -307,7 +310,8 @@ The abbreviation's period closes `etc.`, the closing parenthesis follows, and th
 
 The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, though that placement is unusual.
 
-**Citation form for `et al.`** In an author-date citation, place a comma between the author phrase and the year, and keep the abbreviation's period.
+**Citation form for `et al.`**
+In an author-date citation, place a comma between the author phrase and the year, and keep the abbreviation's period.
 
 **Do**:
 
@@ -315,7 +319,8 @@ The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, th
 >
 > The protocol is described by Smith et al. (2020).
 
-**Less common Latin abbreviations aren't allowed.** Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to non-specialist readers and invite misuse.
+**Less common Latin abbreviations aren't allowed.**
+Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to non-specialist readers and invite misuse.
 Replace them with plain English.
 
 **Don't**:
@@ -330,7 +335,8 @@ Replace them with plain English.
 Major plain-language guides such as the [Google developer documentation style guide](https://developers.google.com/style/abbreviations), the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/), the [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/), and the [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) recommend English equivalents for all Latin abbreviations.
 The argument is that the abbreviations are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
 
-The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.` These five are near-universal in industry technical writing.
+The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.`
+These five are near-universal in industry technical writing.
 Restricting them burdens writers without a matching gain for readers familiar with the conventions of the genre.
 
 </details>
@@ -354,7 +360,8 @@ Breadcrumb depth already supplies one layer of context.
 The sidebar title can drop redundancy that the parent breadcrumbs already imply.
 
 Worked example.
-A page reachable through **Administration** > **Authentication** > **Google** has parent breadcrumbs that already say "Administration" and "Authentication." The sidebar title can be `Google` alone, and the H1 can be `Configure Google authentication with Coder`.
+A page reachable through **Administration** > **Authentication** > **Google** has parent breadcrumbs that already say "Administration" and "Authentication."
+The sidebar title can be `Google` alone, and the H1 can be `Configure Google authentication with Coder`.
 Both labels stand alone in their own context.
 
 When the H1 and the sidebar title coincide (common for short-titled pages), that's fine.

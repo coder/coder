@@ -212,7 +212,8 @@ Expand a contraction only when one of the following exceptions applies.
 >
 > If you are using PostgreSQL, set the connection string before starting `coder server`.
 
-**Auxiliary contractions need a complement.** `you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
+**Auxiliary contractions need a complement.**
+`you'd`, `there's`, `it's`, `we'd`, and `they're` carry an unspoken verb form, participle, or adjective.
 They can't end a sentence because the elided word goes missing with them.
 Negation contractions like `don't`, `won't`, and `can't` end sentences fine because the elided `not` is itself the complement.
 
@@ -228,7 +229,8 @@ Negation contractions like `don't`, `won't`, and `can't` end sentences fine beca
 >
 > The agent reattaches whenever there's.
 
-**One contraction joins exactly two words.** Triple-word contractions like `you'd've`, `wouldn't've`, and `shouldn't've` compress three words into one apostrophe-laden form.
+**One contraction joins exactly two words.**
+Triple-word contractions like `you'd've`, `wouldn't've`, and `shouldn't've` compress three words into one apostrophe-laden form.
 Expand one of the two contractions, keeping whichever reads more naturally in context.
 
 **Do**:
@@ -241,7 +243,8 @@ Expand one of the two contractions, keeping whichever reads more naturally in co
 
 > If you'd've finished the upgrade earlier, the migration wouldn't've failed.
 
-**Spell out for emphasis and high-stakes operations.** Data loss, security warnings, and irreversible operations like deletions deserve the full visual weight of `do not`, `cannot`, and `will not`.
+**Spell out for emphasis and high-stakes operations.**
+Data loss, security warnings, and irreversible operations like deletions deserve the full visual weight of `do not`, `cannot`, and `will not`.
 The contracted forms read fast and let a busy reader skip past the warning.
 
 **Do**:
@@ -258,7 +261,8 @@ The contracted forms read fast and let a busy reader skip past the warning.
 >
 > You can't undo `coder delete`.
 
-**The default trades against the international audience.** Plain-language guidance for non-native readers, including [ASD-STE100](https://www.asd-ste100.org/), bans contractions because the expanded forms are simpler to parse and to machine-translate.
+**The default trades against the international audience.**
+Plain-language guidance for non-native readers, including [ASD-STE100](https://www.asd-ste100.org/), bans contractions because the expanded forms are simpler to parse and to machine-translate.
 The Coder docs keep contractions because the genre reads conversationally and the [reading-level target](./accessibility-and-inclusion.md#reading-level) already bounds sentence complexity.
 The high-stakes exception earlier in this section applies the STE logic exactly where a misreading costs the most.
 
