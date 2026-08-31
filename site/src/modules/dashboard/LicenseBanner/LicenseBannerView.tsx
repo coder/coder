@@ -56,7 +56,7 @@ interface LicenseBannerViewProps {
 	messages: readonly LicenseBannerMessage[];
 }
 
-const messageLinkClass = "text-xs font-medium text-content-link!";
+const messageLinkClass = "text-xs font-medium text-content-link";
 const listClass =
 	"m-0 list-disc space-y-1 pl-4 text-xs leading-[18px] text-content-primary";
 

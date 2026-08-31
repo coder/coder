@@ -204,7 +204,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const display = (
 		<ScheduleSettingsLink
 			data-testid="schedule-controls-autostop"
-			className={cn(danger && "text-content-destructive!")}
+			className={cn(danger && "text-content-destructive")}
 		>
 			{message}
 		</ScheduleSettingsLink>

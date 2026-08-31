@@ -543,7 +543,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												"[&_.logs-header]:border-0 [&_.logs-header]:px-4 [&_.logs-header]:py-2 [&_.logs-header]:font-mono",
 												"[&_.logs-header:first-of-type]:pt-4 [&_.logs-header:last-child]:pb-4",
 												"[&_.logs-line]:pl-4",
-												"[&_.logs-container]:border-0!",
+												"[&_.logs-container]:border-0",
 											)}
 											hideTimestamps
 											logs={buildLogs}

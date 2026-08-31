@@ -52,7 +52,7 @@ export const Latency: FC<LatencyProps> = ({
 				<TooltipTrigger asChild>
 					<CircleHelpIcon
 						aria-label="Latency not available"
-						className={cn("size-icon-sm!", latencyColor, className)}
+						className={cn("size-icon-sm", latencyColor, className)}
 					/>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Latency not available</TooltipContent>

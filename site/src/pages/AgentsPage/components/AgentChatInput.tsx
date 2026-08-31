@@ -239,7 +239,7 @@ const BadgeDismissButton: FC<{
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
-			<XIcon className="size-2.5!" />
+			<XIcon className="size-2.5" />
 		</span>
 	</button>
 );

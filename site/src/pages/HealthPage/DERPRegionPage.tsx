@@ -192,7 +192,7 @@ const DERPRegionPage: FC = () => {
 							</header>
 
 							<Table>
-								<TableBody className="[&>tr>td:first-of-type]:border-l-0 [&>tr>td:last-child]:border-r-0 [&>tr:last-child>td]:border-b-0 [&>tr>td]:rounded-none!">
+								<TableBody className="[&>tr>td:first-of-type]:border-l-0 [&>tr>td:last-child]:border-r-0 [&>tr:last-child>td]:border-b-0 [&>tr>td]:rounded-none">
 									{checks.map((check) => (
 										<TableRow key={check.label}>
 											<TableCell className="w-8">

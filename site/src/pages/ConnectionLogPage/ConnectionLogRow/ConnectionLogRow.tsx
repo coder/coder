@@ -36,7 +36,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 			data-testid={`connection-log-row-${connectionLog.id}`}
 			clickable={false}
 		>
-			<TableCell className="p-0! border-0">
+			<TableCell className="p-0 border-0">
 				<div className="flex flex-row items-center gap-4 py-4 px-8">
 					<div className="flex flex-row items-center gap-4 flex-1">
 						{/* Non-web logs don't have an associated user, so we
