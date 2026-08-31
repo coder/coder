@@ -95,22 +95,25 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 // the empty string, so it is never empty alongside a nil error, and its names
 // are canonical api_key_scope spellings carrying no duplicates.
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
+	// Canonicalized before the catalog check so that check, the coverage
+	// comparison, and the persisted value all read one vocabulary. Rewriting
+	// ahead of validation loses nothing: CanonicalScopeName only touches the
+	// `all` and `application_connect` aliases, and the catalog holds both
+	// spellings of each.
+	granted := canonicalScopes(requested)
+
 	// The catalog is a curation, not a validity check: RBAC can expand
 	// internal-only names such as debug_info:read, and the api_key_scope enum
 	// would store them. Only catalog names are client-requestable, whether or
 	// not the app has an allowlist to check them against.
-	for _, s := range requested {
+	for _, s := range granted {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
 			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
 		}
 	}
 
-	// Canonicalized after the catalog check, so a rejection names the scope
-	// as the client spelled it rather than as the server stores it.
-	granted := canonicalScopes(requested)
-
 	if noScopeAllowlist(app.Scope) {
-		if len(requested) == 0 {
+		if len(granted) == 0 {
 			// Unrestricted, the same grant this app got before scope
 			// enforcement existed, stated explicitly because an empty string
 			// would violate the column's CHECK.
@@ -142,7 +145,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	// and not the `all` alias that IsExternalScope accepts.
 	filtered = canonicalScopes(filtered)
 
-	if len(requested) == 0 {
+	if len(granted) == 0 {
 		return strings.Join(filtered, " "), nil // RFC 6749 §3.3 default
 	}
 
