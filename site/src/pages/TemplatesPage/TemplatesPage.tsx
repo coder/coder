@@ -1,13 +1,11 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { deploymentConfig } from "#/api/queries/deployment";
 import { workspacePermissionsByOrganization } from "#/api/queries/organizations";
-import {
-	templateExamples,
-	templates,
-	templateUpdatePermissionsByOrganization,
-} from "#/api/queries/templates";
+import { templateExamples, templates } from "#/api/queries/templates";
+import type { AuthorizationRequest } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { pageTitle } from "#/utils/page";
@@ -25,11 +23,20 @@ const TemplatesPage: FC = () => {
 	});
 
 	const templatesQuery = useQuery(templates({ q: filterState.filter.query }));
-	const templateUpdatePermissionsQuery = useQuery(
-		templateUpdatePermissionsByOrganization(
-			organizations.map((organization) => organization.id),
-		),
-	);
+	const templateUpdateChecks: AuthorizationRequest["checks"] = {};
+	for (const organization of organizations) {
+		templateUpdateChecks[organization.id] = {
+			object: {
+				resource_type: "template",
+				organization_id: organization.id,
+			},
+			action: "update",
+		};
+	}
+	const templateUpdatePermissionsQuery = useQuery({
+		...checkAuthorization({ checks: templateUpdateChecks }),
+		enabled: organizations.length > 0,
+	});
 	const examplesQuery = useQuery({
 		...templateExamples(),
 		enabled: permissions.createTemplates,

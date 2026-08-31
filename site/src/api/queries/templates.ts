@@ -10,7 +10,6 @@ import {
 	type GetTemplatesQuery,
 } from "#/api/api";
 import type {
-	AuthorizationRequest,
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
 	ProvisionerJob,
@@ -23,7 +22,6 @@ import type {
 } from "#/api/typesGenerated";
 import { delay } from "#/utils/delay";
 import { getTemplateVersionFiles } from "#/utils/templateVersion";
-import { checkAuthorization } from "./authCheck";
 
 const templateKey = (templateId: string) => ["template", templateId];
 const templateListsKey = ["templates", "list"] as const;
@@ -58,27 +56,6 @@ export const templates = (
 	return {
 		queryKey: getTemplatesQueryKey(options),
 		queryFn: () => API.getTemplates(options),
-	};
-};
-
-export const templateUpdatePermissionsByOrganization = (
-	organizationIds: readonly string[],
-) => {
-	const uniqueOrganizationIds = [...new Set(organizationIds)].sort();
-	const checks: AuthorizationRequest["checks"] = {};
-	for (const organizationId of uniqueOrganizationIds) {
-		checks[organizationId] = {
-			object: {
-				resource_type: "template",
-				organization_id: organizationId,
-			},
-			action: "update",
-		};
-	}
-
-	return {
-		...checkAuthorization({ checks }),
-		enabled: uniqueOrganizationIds.length > 0,
 	};
 };
 
