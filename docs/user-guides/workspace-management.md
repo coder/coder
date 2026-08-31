@@ -1,8 +1,8 @@
 # Workspaces
 
-A workspace is the environment that a developer works in. Developers in a team
-each work from their own workspace and can use
-[multiple IDEs](./workspace-access/index.md).
+A workspace is the environment where a developer or a coding agent works.
+Developers and agents in a team each work from their own workspace and can
+use [multiple IDEs](./workspace-access/index.md).
 
 A developer creates a workspace from a
 [shared template](../admin/templates/index.md). This lets an entire team work in
