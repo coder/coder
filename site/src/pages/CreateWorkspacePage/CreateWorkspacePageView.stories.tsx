@@ -519,18 +519,11 @@ export const ClassicParameterFlowTemplate: Story = {
 		expect(
 			within(alert).getByText("This template uses the classic parameter flow"),
 		).toBeVisible();
+		expect(alert).toHaveTextContent("Please contact your template admin.");
 		expect(
-			within(alert).getByRole("link", {
-				name: /read the dynamic parameters docs/i,
+			within(alert).queryByRole("link", {
+				name: /dynamic parameters docs|template settings/i,
 			}),
-		).toHaveAttribute(
-			"href",
-			expect.stringContaining(
-				"/admin/templates/extending-templates/dynamic-parameters",
-			),
-		);
-		expect(
-			within(alert).queryByRole("link", { name: /template settings/i }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -543,6 +536,16 @@ export const ClassicParameterFlowTemplateWithUpdatePermission: Story = {
 	play: async ({ canvasElement }) => {
 		const alert = within(canvasElement).getByRole("alert");
 
+		expect(
+			within(alert).getByRole("link", {
+				name: /read the dynamic parameters docs/i,
+			}),
+		).toHaveAttribute(
+			"href",
+			expect.stringContaining(
+				"/admin/templates/extending-templates/dynamic-parameters",
+			),
+		);
 		expect(
 			within(alert).getByRole("link", { name: /open template settings/i }),
 		).toHaveAttribute(

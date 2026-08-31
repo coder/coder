@@ -479,21 +479,25 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							<AlertDescription>
 								Real-time validation, conditional parameters, and richer input
 								types are unavailable on this form.{" "}
-								<Link
-									href={docs(
-										"/admin/templates/extending-templates/dynamic-parameters",
-									)}
-								>
-									Read the dynamic parameters docs
-								</Link>
-								{canUpdateTemplate && (
-									<Link asChild showExternalIcon={false} className="ml-1">
-										<RouterLink
-											to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+								{canUpdateTemplate ? (
+									<>
+										<Link
+											href={docs(
+												"/admin/templates/extending-templates/dynamic-parameters",
+											)}
 										>
-											or open template settings
-										</RouterLink>
-									</Link>
+											Read the dynamic parameters docs
+										</Link>{" "}
+										<Link asChild showExternalIcon={false}>
+											<RouterLink
+												to={`/templates/${template.organization_name}/${template.name}/settings/parameters`}
+											>
+												or open template settings
+											</RouterLink>
+										</Link>
+									</>
+								) : (
+									"Please contact your template admin."
 								)}
 							</AlertDescription>
 						</Alert>
