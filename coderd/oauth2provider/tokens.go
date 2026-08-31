@@ -46,9 +46,9 @@ var (
 	// errStaleScope means the app's registered scopes narrowed after the code
 	// was issued and no longer cover the code's scope.
 	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes")
-	// errScopeNotGranted means a refresh asked for a scope the original grant
-	// does not confer. Distinct from errScopeNotAllowed, whose ceiling is the
-	// app's current allowlist: a refresh is bounded by what was granted.
+	// errScopeNotGranted means a refresh asked for more than the original
+	// grant. Unlike errScopeNotAllowed, the ceiling is the grant itself rather
+	// than the app's current allowlist.
 	errScopeNotGranted = xerrors.New("scope requests permissions beyond the scope originally granted")
 )
 
@@ -82,20 +82,19 @@ func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app d
 }
 
 // narrowGrantedScope decides the scope a refreshed token carries. RFC 6749 §6
-// bounds a refresh by the scope originally granted, so the request may only
-// give authority up; an omitted request keeps the grant as it stands.
+// bounds a refresh by the scope originally granted, so a request may only give
+// authority up; an omitted request keeps the grant as it stands.
 //
-// The comparison is coverage rather than membership, as in negotiateScope: a
-// grant of `coder:workspaces.access` confers `workspace:read`, and an
-// unrestricted `coder:all` grant confers every scope, which membership could
-// never narrow.
+// Coverage, not membership, as in negotiateScope: a grant of
+// `coder:workspaces.access` confers `workspace:read`, and `coder:all` confers
+// every scope.
 func narrowGrantedScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string, requested []string) (string, error) {
 	if len(requested) == 0 {
 		return granted, nil
 	}
 
-	// Checked before the comparison so a typo reads as an unknown scope rather
-	// than as a coverage RBAC could not expand.
+	// Checked first so a typo reads as an unknown scope rather than as a
+	// coverage check RBAC could not decide.
 	for _, s := range requested {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
 			return "", xerrors.Errorf("'%s': %w", s, errUnknownScope)
@@ -103,7 +102,7 @@ func narrowGrantedScope(ctx context.Context, logger slog.Logger, app database.OA
 	}
 
 	narrowed := canonicalScopes(requested)
-	// Canonicalized rather than assumed, as in scopeStillCoveredByAllowlist.
+	// Canonicalized for the same reason as in scopeStillCoveredByAllowlist.
 	outside, err := firstScopeNotCovered(ctx, logger, app, canonicalScopes(strings.Fields(granted)), narrowed)
 	if err != nil {
 		return "", err
@@ -316,9 +315,8 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime, logger slog.L
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, codersdk.OAuth2ErrorCodeInvalidGrant, "The refresh token is invalid or expired")
 			return
 		}
-		// The grant is well-formed and either its stored scope cannot be honored
-		// or the request asked beyond it, so a defined OAuth2 failure beats a
-		// 500.
+		// The grant is well-formed but its scope cannot be honored, which is an
+		// invalid_scope rather than a 500.
 		if errors.Is(err, errUnmintableScope) || errors.Is(err, errStaleScope) ||
 			errors.Is(err, errNoGrantableScope) || errors.Is(err, errCoverageUndecidable) ||
 			errors.Is(err, errUnknownScope) || errors.Is(err, errScopeNotGranted) {

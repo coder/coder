@@ -36,10 +36,8 @@ var (
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
 	// The scope expands to permissions the allowlist does not cover.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
-	// A comparison that failed outright. The underlying error names RBAC
-	// internals, so it is logged rather than rendered. It names no ceiling
-	// because the comparison runs against the app's allowlist at authorization
-	// and against the token's own grant at refresh.
+	// The coverage check itself failed. The underlying error names RBAC
+	// internals, so it is logged rather than rendered.
 	errCoverageUndecidable = xerrors.New("scope coverage could not be determined")
 )
 
@@ -78,12 +76,11 @@ func grantableScopes(appScope string) []string {
 	return canonicalScopes(filtered)
 }
 
-// firstScopeNotCovered returns the first scope in requested that the ceiling
-// does not confer, or "" when it confers all of them. The check is coverage
-// rather than membership: a ceiling of `coder:workspaces.access` covers
-// `workspace:read`. Both arguments must already be canonical, and an
-// undecidable comparison refuses rather than grants. The ceiling is the app's
-// allowlist at authorization and the token's own grant at refresh.
+// firstScopeNotCovered returns the first requested scope the ceiling does not
+// confer, or "" when it confers all of them. The check is coverage, not
+// membership: a ceiling of `coder:workspaces.access` covers `workspace:read`.
+// Both arguments must already be canonical. The ceiling is the app's allowlist
+// at authorization and the token's own grant at refresh.
 func firstScopeNotCovered(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, ceiling, requested []string) (string, error) {
 	allowedNames := make([]rbac.ScopeName, 0, len(ceiling))
 	for _, a := range ceiling {
