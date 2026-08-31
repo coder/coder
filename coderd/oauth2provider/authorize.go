@@ -27,10 +27,7 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from negotiateScope. These are rendered into
-// error_description, and each is wrapped as `%q: %w` with the offending value
-// ahead of it: xerrors only avoids repeating the sentinel's own text when %w
-// is the final verb.
+// Rejection reasons from negotiateScope.
 var (
 	// errUnknownScope covers a requested name outside the external scope
 	// catalog, whether unrecognized entirely or recognized but internal-only.
