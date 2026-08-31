@@ -178,9 +178,9 @@
 		"vitest": "4.1.10"
 	},
 	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
+		"chrome 111",
+		"firefox 128",
+		"safari 16.4"
 	],
 	"resolutions": {
 		"optionator": "0.9.3",
