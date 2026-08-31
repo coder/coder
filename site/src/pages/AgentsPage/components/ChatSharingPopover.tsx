@@ -1,4 +1,4 @@
-import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, Share2Icon, UserPlusIcon } from "lucide-react";
 import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
@@ -18,7 +18,12 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { PopoverContent } from "#/components/Popover/Popover";
+import { TopbarButton } from "#/components/FullPageLayout/Topbar";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -35,9 +40,12 @@ import {
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
 
-type ChatSharingPopoverContentProps = {
+type ChatShareButtonProps = {
 	chatId: string;
 	organizationId: string;
+};
+
+type ChatSharingPopoverContentProps = ChatShareButtonProps & {
 	open: boolean;
 };
 
@@ -392,5 +400,38 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 				) : null}
 			</div>
 		</PopoverContent>
+	);
+};
+
+export const ChatShareButton: FC<ChatShareButtonProps> = ({
+	chatId,
+	organizationId,
+}) => {
+	const [open, setOpen] = useState(false);
+	const [contentGeneration, setContentGeneration] = useState(0);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			setContentGeneration((generation) => generation + 1);
+		}
+
+		setOpen(nextOpen);
+	};
+
+	return (
+		<Popover open={open} onOpenChange={handleOpenChange}>
+			<PopoverTrigger asChild>
+				<TopbarButton data-testid="chat-share-button">
+					<Share2Icon />
+					Share
+				</TopbarButton>
+			</PopoverTrigger>
+			<ChatSharingPopoverContent
+				key={contentGeneration}
+				chatId={chatId}
+				organizationId={organizationId}
+				open={open}
+			/>
+		</Popover>
 	);
 };
