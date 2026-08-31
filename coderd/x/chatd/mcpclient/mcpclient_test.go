@@ -135,7 +135,7 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool(), greetTool())
 
 	cfg := makeConfig("myserver", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	// Two tools should be discovered, namespaced with the server slug.
@@ -152,6 +152,22 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 	assert.Equal(t, "Echoes the input", echoInfo.Description)
 }
 
+func TestConnectAll_SSRFProtection(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	server := newTestMCPServer(t, echoTool())
+	cfg := makeConfig("ssrf", server.URL)
+
+	blockedTools, _, blockedCleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, nil)
+	t.Cleanup(blockedCleanup)
+	require.Empty(t, blockedTools)
+
+	allowedTools, _, allowedCleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(allowedCleanup)
+	require.Len(t, allowedTools, 1)
+}
+
 func TestConnectAll_SanitizesDottedSlug(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -162,7 +178,7 @@ func TestConnectAll_SanitizesDottedSlug(t *testing.T) {
 	// Use a dotted slug like awslabs.* MCP servers ship with.
 	// Dots violate Bedrock's tool name pattern ^[a-zA-Z0-9_-]{1,128}$.
 	cfg := makeConfig("awslabs.aws-documentation-mcp-server", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -204,7 +220,7 @@ func TestConnectAll_TruncationCollisionWarning(t *testing.T) {
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger,
 		[]database.MCPServerConfig{cfg1, cfg2},
-		nil, uuid.Nil, nil, nil,
+		nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -223,7 +239,7 @@ func TestConnectAll_CallTool(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -249,7 +265,7 @@ func TestConnectAll_ToolAllowList(t *testing.T) {
 	// Only allow the "echo" tool.
 	cfg.ToolAllowList = []string{"echo"}
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -267,7 +283,7 @@ func TestConnectAll_ToolDenyList(t *testing.T) {
 	// Deny the "greet" tool, so only "echo" remains.
 	cfg.ToolDenyList = []string{"greet"}
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -281,7 +297,7 @@ func TestConnectAll_ConnectionFailure(t *testing.T) {
 
 	cfg := makeConfig("bad", "http://127.0.0.1:0/does-not-exist")
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	assert.Empty(t, tools, "no tools should be returned for an unreachable server")
@@ -303,7 +319,7 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 		[]database.MCPServerConfig{cfg1, cfg2},
 		nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -330,7 +346,7 @@ func TestConnectAll_NoToolsAfterFiltering(t *testing.T) {
 		[]database.MCPServerConfig{cfg},
 		nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 
 	require.Empty(t, tools)
@@ -359,7 +375,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 			},
 			nil,
 			uuid.Nil, nil,
-			nil,
+			nil, testMCPHTTPClient(nil),
 		)
 		t.Cleanup(cleanup)
 
@@ -389,7 +405,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 			},
 			nil,
 			uuid.Nil, nil,
-			nil,
+			nil, testMCPHTTPClient(nil),
 		)
 		t.Cleanup(cleanup)
 
@@ -423,7 +439,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 			[]database.MCPServerConfig{cfg1, cfg2},
 			nil,
 			uuid.Nil, nil,
-			nil,
+			nil, testMCPHTTPClient(nil),
 		)
 		t.Cleanup(cleanup)
 
@@ -485,7 +501,7 @@ func TestConnectAll_AuthHeaders(t *testing.T) {
 		[]database.MCPServerConfig{cfg},
 		[]database.MCPServerUserToken{token},
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -540,7 +556,7 @@ func TestConnectAll_DisabledServer(t *testing.T) {
 	cfg := makeConfig("disabled", ts.URL)
 	cfg.Enabled = false
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	assert.Empty(t, tools)
 }
@@ -555,7 +571,7 @@ func TestConnectAll_CallToolInvalidInput(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -580,7 +596,7 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 	ts := newTestMCPServer(t, echoTool())
 
 	cfg := makeConfig("srv", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -631,7 +647,7 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 
 	ts := newTestMCPServer(t, noRequiredTool)
 	cfg := makeConfig("srv", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -681,7 +697,7 @@ func TestConnectAll_APIKeyAuth(t *testing.T) {
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -736,7 +752,7 @@ func TestConnectAll_CustomHeadersAuth(t *testing.T) {
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -774,7 +790,7 @@ func TestConnectAll_CustomHeadersInvalidJSON(t *testing.T) {
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -830,7 +846,7 @@ func TestConnectAll_UserOIDCAuth(t *testing.T) {
 
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
-		userID, src, nil,
+		userID, src, nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -886,7 +902,7 @@ func TestConnectAll_UserOIDCAuth_NoLink(t *testing.T) {
 
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
-		uuid.New(), src, nil,
+		uuid.New(), src, nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -922,7 +938,7 @@ func TestConnectAll_UserOIDCAuth_NilSource(t *testing.T) {
 
 	tools, _, cleanup := mcpclient.ConnectAll(
 		ctx, logger, []database.MCPServerConfig{cfg}, nil,
-		uuid.New(), nil, nil,
+		uuid.New(), nil, nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -951,7 +967,7 @@ func TestConnectAll_ParallelConnections(t *testing.T) {
 		[]database.MCPServerConfig{cfg1, cfg2, cfg3},
 		nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -1043,7 +1059,7 @@ func TestConnectAll_ExpiredToken(t *testing.T) {
 		Expiry:            sql.NullTime{Time: time.Now().Add(-1 * time.Hour), Valid: true},
 	}
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token}, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token}, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	// The server accepts any auth, so the tool is still discovered
@@ -1076,7 +1092,7 @@ func TestConnectAll_EmptyAccessToken(t *testing.T) {
 		TokenType:         "Bearer",
 	}
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token}, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, []database.MCPServerUserToken{token}, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	// Tool is still discovered (server doesn't require auth), but
@@ -1106,7 +1122,7 @@ func TestConnectAll_MCPToolIdentifier(t *testing.T) {
 		Enabled:     true,
 	}
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 
 	require.Len(t, tools, 1)
@@ -1153,7 +1169,7 @@ func TestConnectAll_MCPToolIdentifier_MultipleServers(t *testing.T) {
 		[]database.MCPServerConfig{cfg1, cfg2},
 		nil,
 		uuid.Nil, nil,
-		nil,
+		nil, testMCPHTTPClient(nil),
 	)
 	t.Cleanup(cleanup)
 
@@ -1203,7 +1219,7 @@ func TestConnectAll_EmbeddedResourceText(t *testing.T) {
 	})
 
 	cfg := makeConfig("embed-txt", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1266,7 +1282,7 @@ func TestConnectAll_EmbeddedResourceBlob(t *testing.T) {
 			})
 
 			cfg := makeConfig("embed-blob", ts.URL)
-			tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+			tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
 
@@ -1341,7 +1357,7 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 			})
 
 			cfg := makeConfig("res-link", ts.URL)
-			tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+			tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 			t.Cleanup(cleanup)
 			require.Len(t, tools, 1)
 
@@ -1383,7 +1399,7 @@ func TestConnectAll_CallToolError(t *testing.T) {
 	})
 
 	cfg := makeConfig("err-srv", ts.URL)
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1407,7 +1423,7 @@ func TestModelIntent_Info_WrapsSchema(t *testing.T) {
 	cfg := makeConfig("intent-srv", ts.URL)
 	cfg.ModelIntent = true
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1443,7 +1459,7 @@ func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
 	cfg := makeConfig("no-intent", ts.URL)
 	cfg.ModelIntent = false
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1466,7 +1482,7 @@ func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
 	cfg := makeConfig("unwrap-srv", ts.URL)
 	cfg.ModelIntent = true
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1491,7 +1507,7 @@ func TestModelIntent_Run_UnwrapsFlat(t *testing.T) {
 	cfg := makeConfig("flat-srv", ts.URL)
 	cfg.ModelIntent = true
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1516,7 +1532,7 @@ func TestModelIntent_Run_PassthroughWhenDisabled(t *testing.T) {
 	cfg := makeConfig("pass-srv", ts.URL)
 	cfg.ModelIntent = false
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 
@@ -1541,7 +1557,7 @@ func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	cfg := makeConfig("bad-srv", ts.URL)
 	cfg.ModelIntent = true
 
-	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
 	t.Cleanup(cleanup)
 	require.Len(t, tools, 1)
 

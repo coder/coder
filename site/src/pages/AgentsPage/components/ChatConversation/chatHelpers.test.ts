@@ -117,6 +117,19 @@ describe("getLatestContextUsage", () => {
 		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
+	it("returns null when a context clear is newer than usage", () => {
+		const messages = [
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{
+				...MockChatMessage,
+				id: 2,
+				role: "tool" as const,
+				content: [{ type: "tool-result" as const, tool_name: "chat_cleared" }],
+			},
+		];
+		expect(getLatestContextUsage(messages)).toBeNull();
+	});
+
 	it("returns null when no messages have usage data", () => {
 		const messages = [MockChatMessage, { ...MockChatMessage, id: 2 }];
 		expect(getLatestContextUsage(messages)).toBeNull();

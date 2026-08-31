@@ -1,4 +1,6 @@
-# Customize your template
+---
+title: Customize your template
+---
 
 In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the Coder server, and built a workspace from the Quickstart template.
 That template is a good starting point, but it has gaps:

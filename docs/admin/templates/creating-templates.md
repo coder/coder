@@ -1,4 +1,6 @@
-# Creating Templates
+---
+title: Creating Templates
+---
 
 Users with the `Template Administrator` role or above can create templates
 within Coder.

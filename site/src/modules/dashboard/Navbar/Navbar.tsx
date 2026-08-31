@@ -43,6 +43,7 @@ export const Navbar: React.FC = () => {
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
+		permissions.updateAnyTemplate ||
 		canAccessAnyModel;
 	const organizationMCPSharing = useCanShareOrganizationMCPServers(
 		organizations,
@@ -77,6 +78,7 @@ export const Navbar: React.FC = () => {
 			}}
 			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

@@ -1,0 +1,39 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.2",
+    "notification_name": "Missing AI Model Prices",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [],
+    "labels": {},
+    "data": {
+      "models": [
+        {
+          "model": "claude-opus-4-8",
+          "provider": "anthropic"
+        },
+        {
+          "model": "gpt-5.7",
+          "provider": "openai"
+        },
+        {
+          "model": "z-ai/glm-5.4",
+          "provider": "openrouter"
+        }
+      ],
+      "report_frequency": "week",
+      "total_count": 15,
+      "truncated": true
+    },
+    "targets": null
+  },
+  "title": "Missing AI Model Prices",
+  "title_markdown": "Missing AI Model Prices",
+  "body": "These models were used in the last week, but they have no price, so their usage is missing from AI spend and does not count toward any AI budget. Reported spend is lower than actual, and a user who calls only these models has no effective limit.\n\nanthropic/claude-opus-4-8\nopenai/gpt-5.7\nopenrouter/z-ai/glm-5.4\n\n3 of 15 models with no price are shown, ordered by usage.\n\nEvery Coder release ships with prices for most models, so only the models above need one: see how spend is calculated (https://coder.com/docs/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated) and how to configure prices (https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-model-prices). Prices are not retroactive, so usage recorded before you set a price stays unpriced.",
+  "body_markdown": "These models were used in the last week, but they have no price, so their usage is missing from AI spend and does not count toward any AI budget. Reported spend is lower than actual, and a user who calls only these models has no effective limit.\n\n\n* anthropic/claude-opus-4-8\n* openai/gpt-5.7\n* openrouter/z-ai/glm-5.4\n\n3 of 15 models with no price are shown, ordered by usage.\n\nEvery Coder release ships with prices for most models, so only the models above need one: see [how spend is calculated](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#how-spend-is-calculated) and [how to configure prices](https://coder.com/docs/ai-coder/ai-gateway/cost-controls#configure-model-prices). Prices are not retroactive, so usage recorded before you set a price stays unpriced."
+}

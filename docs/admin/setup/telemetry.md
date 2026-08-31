@@ -1,4 +1,6 @@
-# Telemetry
+---
+title: Telemetry
+---
 
 > [!NOTE]
 > TL;DR: disable telemetry by setting <code>CODER_TELEMETRY_ENABLE=false</code>.

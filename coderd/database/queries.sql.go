@@ -3410,6 +3410,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	return items, nil
 }
 
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserAIBudgetOverride = `-- name: GetUserAIBudgetOverride :one
 SELECT user_id, group_id, spend_limit_micros, created_at, updated_at
 FROM user_ai_budget_overrides
@@ -29468,6 +29533,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	var total_runtime_ms int64
 	err := row.Scan(&total_runtime_ms)
 	return total_runtime_ms, err
+}
+
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
 }
 
 const insertUsageEvent = `-- name: InsertUsageEvent :exec
