@@ -34,7 +34,7 @@ const PaywallSmall = ({
 			)}
 			{...props}
 		>
-			<PaywallSupergraphic className="bg-[length:auto_140%] bg-[position:50%_50%]" />
+			<PaywallSupergraphic className="bg-size-[auto_140%] bg-position-[50%_50%]" />
 			<PaywallContent className="ml-8 items-start text-left">
 				<PaywallHeading className={cn(compact && "justify-start mb-[18px]")}>
 					<PaywallTitle className={cn(compact && "text-lg leading-none")}>

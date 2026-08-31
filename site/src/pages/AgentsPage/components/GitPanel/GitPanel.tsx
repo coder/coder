@@ -273,7 +273,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 						<PrStateIcon
 							state={prState}
 							draft={prDraft}
-							className="!size-3.5 shrink-0"
+							className="size-3.5! shrink-0"
 						/>
 					),
 				}
@@ -285,7 +285,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 					itemPrimary: "Branch",
 					itemSecondary: remoteHeadBranch || undefined,
 					stateClasses: "text-content-secondary",
-					icon: <GitBranchIcon className="!size-3.5 shrink-0" />,
+					icon: <GitBranchIcon className="size-3.5! shrink-0" />,
 				}
 		: null;
 
@@ -298,7 +298,7 @@ export const GitPanel: FC<GitPanelProps> = ({
 		itemPrimary: "Working",
 		itemSecondary: repoLabel(repoRoot),
 		stateClasses: "text-content-secondary",
-		icon: <CircleDotIcon className="!size-3.5 shrink-0 text-content-warning" />,
+		icon: <CircleDotIcon className="size-3.5! shrink-0 text-content-warning" />,
 	}));
 
 	const items: ViewItem[] = [
@@ -478,7 +478,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 				className="inline-flex h-6 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 text-xs text-content-secondary"
 				data-testid="git-panel-view-switcher"
 			>
-				<GitBranchIcon className="!size-3.5 shrink-0" />
+				<GitBranchIcon className="size-3.5! shrink-0" />
 				<span>No changes</span>
 			</div>
 		);
@@ -533,7 +533,7 @@ const GitViewSwitcher: FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[240px] p-1"
+				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;

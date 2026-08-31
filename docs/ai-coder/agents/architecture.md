@@ -1,4 +1,6 @@
-# Architecture
+---
+title: Architecture
+---
 
 Coder's AI agent interacts with workspaces over the same
 connection path as a developer's IDE, web terminal, and SSH session already
@@ -70,8 +72,8 @@ Coder Agents does not change your workspace network requirements.
 When a user submits a prompt, the control plane processes it as a background
 job:
 
-1. The prompt is saved to the database and the chat is marked `pending`.
-1. The control plane picks up the chat and marks it `running`.
+1. The prompt is saved to the database and the chat is marked `running`.
+1. A chat worker in the control plane claims the chat and starts a turn.
 1. The control plane streams the conversation to the configured LLM provider.
 1. The model responds with text, reasoning, or tool calls.
 1. If the response includes tool calls, the control plane executes them
@@ -96,6 +98,11 @@ You can also trigger a compaction on demand by sending `/compact` while the
 agent is idle or in an error state, which clears the error. Manual compaction
 runs the same summarization regardless of current token usage and is labeled
 as manual in the conversation.
+
+To start over without a summary, send `/clear` while the agent is idle or in
+an error state. The transcript stays visible, but the next message runs with
+a fresh context, as if the conversation were new. A "Context cleared" marker
+shows where the reset happened.
 
 ### Message queuing
 
@@ -141,7 +148,7 @@ They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 |------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `read_file`      | Reads file contents with line-number pagination.                                                                                                                                                                                                                                   |
 | `write_file`     | Writes content to a file.                                                                                                                                                                                                                                                          |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                                                                                                                                                                                                                 |
+| `edit_files`     | Performs atomic, per-file edits across one or more files, replacing `old_text` with `new_text`.                                                                                                                                                                                    |
 | `execute`        | Runs a shell command, waiting for completion up to a timeout.                                                                                                                                                                                                                      |
 | `process_output` | Retrieves output from a tracked process.                                                                                                                                                                                                                                           |
 | `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |

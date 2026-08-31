@@ -14,6 +14,7 @@ interface AISettingsSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
 	canAccessOrganizationModels?: boolean;
+	canShareOrganizationMCPServers?: boolean;
 }
 
 const SubNavItem: FC<{ href: string; children?: ReactNode }> = ({
@@ -59,6 +60,7 @@ const ModelsSidebarNavItem: FC = () => {
 const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 	permissions,
 	canAccessOrganizationModels = false,
+	canShareOrganizationMCPServers = false,
 }) => {
 	return (
 		<BaseSidebar>
@@ -88,7 +90,7 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{permissions.editDeploymentConfig && (
 					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
 						<SubNavItem href="/ai/settings/mcp-servers">MCP servers</SubNavItem>
-						{permissions.updateTemplates && (
+						{permissions.updateAnyTemplate && (
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
 						<SubNavItem href="/ai/settings/instructions">
@@ -101,13 +103,15 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					(permissions.viewAnyMCPServerConfigs ||
 						permissions.createAnyMCPServerConfig ||
 						permissions.updateAnyMCPServerConfig ||
-						permissions.deleteAnyMCPServerConfig) && (
+						permissions.deleteAnyMCPServerConfig ||
+						canShareOrganizationMCPServers) && (
 						<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
 							<SubNavItem
 								href={
 									permissions.viewAnyMCPServerConfigs ||
 									permissions.updateAnyMCPServerConfig ||
-									permissions.deleteAnyMCPServerConfig
+									permissions.deleteAnyMCPServerConfig ||
+									canShareOrganizationMCPServers
 										? "/ai/settings/mcp-servers"
 										: "/ai/settings/mcp-servers/add"
 								}
@@ -116,6 +120,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 							</SubNavItem>
 						</div>
 					)}
+				{!permissions.editDeploymentConfig && permissions.updateAnyTemplate && (
+					<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+						<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
+					</div>
+				)}
 			</div>
 		</BaseSidebar>
 	);

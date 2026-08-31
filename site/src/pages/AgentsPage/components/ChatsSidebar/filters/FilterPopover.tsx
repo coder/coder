@@ -316,7 +316,7 @@ export const FilterPopover: FC<FilterPopoverProps> = ({
 						/>
 						<ScrollArea
 							type="always"
-							className="mt-5 h-[240px] [&_[data-radix-scroll-area-viewport]>div]:!block"
+							className="mt-5 h-[240px] [&_[data-radix-scroll-area-viewport]>div]:block!"
 							scrollBarClassName="w-1.5"
 							viewportClassName="pr-3"
 						>

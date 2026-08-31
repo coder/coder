@@ -15,11 +15,21 @@ type ImageOption struct {
 	Value string
 }
 
+// DefaultRegistryBase is the module registry host used in rendered module source
+// paths when a ComposeRequest does not carry the deployment's configured
+// registry (CODER_TEMPLATE_BUILDER_REGISTRY_URL). It mirrors the default of the
+// codersdk template-builder registry option.
+const DefaultRegistryBase = "registry.coder.com"
+
 // BaseRenderContext is the data passed to base template .tf.tmpl files.
 type BaseRenderContext struct {
 	ContainerImage string
 	ImageOptions   []ImageOption
-	Variables      map[string]string
+	// RegistryBase is the module registry host used in rendered module source
+	// paths, mirroring ModuleRenderContext.RegistryBase so a base-embedded
+	// module honors CODER_TEMPLATE_BUILDER_REGISTRY_URL like a wizard module.
+	RegistryBase string
+	Variables    map[string]string
 }
 
 // ModuleRenderContext is the data passed to module .tf.tmpl files.
@@ -135,4 +145,22 @@ func ExtractAgentResourceName(hcl []byte) (string, error) {
 		return "", xerrors.Errorf("expected exactly one coder_agent resource, found %d: %v",
 			len(matches), names)
 	}
+}
+
+// moduleBlockPattern matches a `module "<name>"` block declaration anchored to
+// the start of a line in HCL.
+var moduleBlockPattern = regexp.MustCompile(`(?m)^[ \t]*module[ \t]+"([^"]+)"`)
+
+// ExtractModuleNames returns the labels of every module block declared in
+// rendered HCL, in declaration order. Matching is anchored to the start of a
+// line so commented-out references or string literals are ignored. The input
+// is expected to be rendered output from our own curated base templates, not
+// arbitrary user HCL.
+func ExtractModuleNames(hcl []byte) []string {
+	matches := moduleBlockPattern.FindAllSubmatch(hcl, -1)
+	names := make([]string, 0, len(matches))
+	for _, m := range matches {
+		names = append(names, string(m[1]))
+	}
+	return names
 }

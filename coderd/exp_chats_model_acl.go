@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	slog "cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -21,20 +22,19 @@ import (
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Get an AI model ACL
-// @ID get-ai-model-acl
+// @ID get-an-ai-model-acl
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param organization path string true "Organization name or ID"
 // @Param model path string true "Model ID" format(uuid)
 // @Success 200 {object} codersdk.ChatModelACL
-// @Router /api/experimental/organizations/{organization}/chats/models/{model}/acl [get]
+// @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [get]
 // @x-apidocgen {"skip": true}
 func (api *API) chatModelConfigACLHandler(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -44,7 +44,120 @@ func (api *API) chatModelConfigACLHandler(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, chatModelConfigACL(config))
+	users, ok := api.chatModelACLUsers(ctx, rw, config, config.UserACL)
+	if !ok {
+		return
+	}
+	groups, ok := api.chatModelACLGroups(ctx, rw, config, config.GroupACL)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatModelACL{
+		Users:  users,
+		Groups: groups,
+	})
+}
+
+// @Summary Get available AI model ACL users and groups
+// @ID get-available-ai-model-acl-users-and-groups
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization name or ID"
+// @Param model path string true "Model ID" format(uuid)
+// @Param q query string false "User search query; free-text search also applies to groups"
+// @Param after_id query string false "User after ID" format(uuid)
+// @Param limit query int false "Page limit for users and groups, if 0 returns all candidates"
+// @Param offset query int false "User page offset"
+// @Success 200 {object} codersdk.ACLAvailable
+// @Router /api/v2/organizations/{organization}/chats/models/{model}/acl/available [get]
+// @x-apidocgen {"skip": true}
+func (api *API) chatModelConfigACLAvailable(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config := httpmw.ChatModelConfigParam(r)
+	if !api.Authorize(r, policy.ActionShare, chatModelConfigRBACObject(config)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	userFilter, validations := searchquery.Users(r.URL.Query().Get("q"))
+	if len(validations) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: validations,
+		})
+		return
+	}
+	pagination, ok := ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
+	//nolint:gocritic // The model share permission authorizes this bounded
+	// organization-scoped lookup even when the caller cannot browse the
+	// ordinary directories.
+	restrictedCtx := dbauthz.AsSystemRestricted(ctx)
+	memberRows, err := api.Database.PaginatedOrganizationMembers(restrictedCtx, database.PaginatedOrganizationMembersParams{
+		AfterID:          pagination.AfterID,
+		OrganizationID:   config.OrganizationID,
+		Search:           userFilter.Search,
+		Name:             userFilter.Name,
+		ExactUsername:    userFilter.ExactUsername,
+		ExactEmail:       userFilter.ExactEmail,
+		Status:           userFilter.Status,
+		IsServiceAccount: userFilter.IsServiceAccount,
+		RbacRole:         userFilter.RbacRole,
+		LastSeenBefore:   userFilter.LastSeenBefore,
+		LastSeenAfter:    userFilter.LastSeenAfter,
+		CreatedAfter:     userFilter.CreatedAfter,
+		CreatedBefore:    userFilter.CreatedBefore,
+		GithubComUserID:  userFilter.GithubComUserID,
+		LoginType:        userFilter.LoginType,
+		IncludeSystem:    false,
+		// #nosec G115 - Pagination offsets are small and fit in int32.
+		OffsetOpt: int32(pagination.Offset),
+		// #nosec G115 - Pagination limits are small and fit in int32.
+		LimitOpt: int32(pagination.Limit),
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, xerrors.Errorf("list chat model ACL users: %w", err))
+		return
+	}
+
+	groups, err := api.Database.GetGroups(restrictedCtx, database.GetGroupsParams{
+		OrganizationID: config.OrganizationID,
+		Search:         userFilter.Search,
+		// #nosec G115 - Pagination limits are small and fit in int32.
+		LimitOpt: int32(pagination.Limit),
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("list chat model ACL groups: %w", err))
+		return
+	}
+
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, group := range groups {
+		groupIDs[i] = group.Group.ID
+	}
+	countByGroup, ok := api.chatModelACLGroupMemberCounts(restrictedCtx, rw, groupIDs)
+	if !ok {
+		return
+	}
+
+	sdkUsers := make([]codersdk.ReducedUser, 0, len(memberRows))
+	for _, member := range memberRows {
+		sdkUsers = append(sdkUsers, reducedUserFromPaginatedOrganizationMember(member))
+	}
+	sdkGroups := make([]codersdk.Group, 0, len(groups))
+	for _, group := range groups {
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])))
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
+		Users:  sdkUsers,
+		Groups: sdkGroups,
+	})
 }
 
 type chatModelACLValidationError struct {
@@ -55,10 +168,8 @@ func (*chatModelACLValidationError) Error() string {
 	return "invalid chat model ACL"
 }
 
-// EXPERIMENTAL: this endpoint is experimental and is subject to change.
-//
 // @Summary Update an AI model ACL
-// @ID update-ai-model-acl
+// @ID update-an-ai-model-acl
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
@@ -66,7 +177,7 @@ func (*chatModelACLValidationError) Error() string {
 // @Param model path string true "Model ID" format(uuid)
 // @Param request body codersdk.UpdateChatModelACLRequest true "Sparse model ACL update"
 // @Success 204
-// @Router /api/experimental/organizations/{organization}/chats/models/{model}/acl [patch]
+// @Router /api/v2/organizations/{organization}/chats/models/{model}/acl [patch]
 // @x-apidocgen {"skip": true}
 func (api *API) updateChatModelConfigACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -170,19 +281,124 @@ func (api *API) updateChatModelConfigACL(rw http.ResponseWriter, r *http.Request
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func chatModelConfigACL(config database.ChatModelConfig) codersdk.ChatModelACL {
-	return codersdk.ChatModelACL{
-		UserRoles:  chatModelACLRoles(config.UserACL),
-		GroupRoles: chatModelACLRoles(config.GroupACL),
+func (api *API) chatModelACLUsers(ctx context.Context, rw http.ResponseWriter, config database.ChatModelConfig, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
+	userIDs := make([]uuid.UUID, 0, len(entries))
+	entriesByID := make(map[uuid.UUID]database.ChatACLEntry, len(entries))
+	for rawUserID, entry := range entries {
+		userID, err := uuid.Parse(rawUserID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid user uuid in chat model acl", slog.Error(err), slog.F("model_id", config.ID), slog.F("user_id", rawUserID))
+			continue
+		}
+		userIDs = append(userIDs, userID)
+		entriesByID[userID] = entry
 	}
+	if len(userIDs) == 0 {
+		return []codersdk.ChatUser{}, true
+	}
+
+	//nolint:gocritic // The model share permission authorizes identity hydration
+	// for ACL entries even when the caller cannot browse the ordinary user
+	// directory.
+	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("hydrate chat model ACL users: %w", err))
+		return nil, false
+	}
+
+	users := make([]codersdk.ChatUser, 0, len(dbUsers))
+	for _, user := range dbUsers {
+		users = append(users, codersdk.ChatUser{
+			MinimalUser: db2sdk.MinimalUser(user),
+			Role:        convertToChatRole(entriesByID[user.ID].Permissions),
+		})
+	}
+	return users, true
 }
 
-func chatModelACLRoles(entries database.ChatACL) map[string]codersdk.ChatRole {
-	roles := make(map[string]codersdk.ChatRole, len(entries))
-	for id, entry := range entries {
-		roles[id] = convertToChatRole(entry.Permissions)
+func (api *API) chatModelACLGroups(ctx context.Context, rw http.ResponseWriter, config database.ChatModelConfig, entries database.ChatACL) ([]codersdk.ChatGroup, bool) {
+	groupIDs := make([]uuid.UUID, 0, len(entries))
+	entriesByID := make(map[uuid.UUID]database.ChatACLEntry, len(entries))
+	for rawGroupID, entry := range entries {
+		groupID, err := uuid.Parse(rawGroupID)
+		if err != nil {
+			api.Logger.Warn(ctx, "found invalid group uuid in chat model acl", slog.Error(err), slog.F("model_id", config.ID), slog.F("group_id", rawGroupID))
+			continue
+		}
+		groupIDs = append(groupIDs, groupID)
+		entriesByID[groupID] = entry
 	}
-	return roles
+	if len(groupIDs) == 0 {
+		return []codersdk.ChatGroup{}, true
+	}
+
+	//nolint:gocritic // The model share permission authorizes identity hydration
+	// for ACL entries even when the caller cannot browse the ordinary group
+	// directory.
+	restrictedCtx := dbauthz.AsSystemRestricted(ctx)
+	dbGroups, err := api.Database.GetGroups(restrictedCtx, database.GetGroupsParams{
+		OrganizationID: config.OrganizationID,
+		GroupIds:       groupIDs,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("hydrate chat model ACL groups: %w", err))
+		return nil, false
+	}
+	hydratedGroupIDs := make([]uuid.UUID, len(dbGroups))
+	for i, group := range dbGroups {
+		hydratedGroupIDs[i] = group.Group.ID
+	}
+	countByGroup, ok := api.chatModelACLGroupMemberCounts(restrictedCtx, rw, hydratedGroupIDs)
+	if !ok {
+		return nil, false
+	}
+
+	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
+	for _, group := range dbGroups {
+		groups = append(groups, codersdk.ChatGroup{
+			Group: db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])),
+			Role:  convertToChatRole(entriesByID[group.Group.ID].Permissions),
+		})
+	}
+	return groups, true
+}
+
+func (api *API) chatModelACLGroupMemberCounts(ctx context.Context, rw http.ResponseWriter, groupIDs []uuid.UUID) (map[uuid.UUID]int64, bool) {
+	countByGroup := make(map[uuid.UUID]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return countByGroup, true
+	}
+
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(ctx, database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, xerrors.Errorf("count chat model ACL group members: %w", err))
+		return nil, false
+	}
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+	return countByGroup, true
+}
+
+func reducedUserFromPaginatedOrganizationMember(member database.PaginatedOrganizationMembersRow) codersdk.ReducedUser {
+	return codersdk.ReducedUser{
+		MinimalUser: codersdk.MinimalUser{
+			ID:        member.OrganizationMember.UserID,
+			Username:  member.Username,
+			Name:      member.Name,
+			AvatarURL: member.AvatarURL,
+		},
+		Email:            member.Email,
+		CreatedAt:        member.UserCreatedAt,
+		UpdatedAt:        member.UserUpdatedAt,
+		LastSeenAt:       member.LastSeenAt,
+		Status:           codersdk.UserStatus(member.Status),
+		LoginType:        codersdk.LoginType(member.LoginType),
+		IsServiceAccount: member.IsServiceAccount,
+	}
 }
 
 func applyChatModelACLRoles(entries database.ChatACL, roles map[string]codersdk.ChatRole) {
