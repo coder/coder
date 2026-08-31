@@ -10,6 +10,7 @@ import {
 	type GetTemplatesQuery,
 } from "#/api/api";
 import type {
+	AuthorizationCheck,
 	CreateTemplateRequest,
 	CreateTemplateVersionRequest,
 	ProvisionerJob,
@@ -65,16 +66,18 @@ export const templateUpdatePermissionsByOrganization = (
 ) => {
 	const uniqueOrganizationIds = [...new Set(organizationIds)].sort();
 	const checks = Object.fromEntries(
-		uniqueOrganizationIds.map((organizationId) => [
-			organizationId,
-			{
-				object: {
-					resource_type: "template" as const,
-					organization_id: organizationId,
+		uniqueOrganizationIds.map(
+			(organizationId): [string, AuthorizationCheck] => [
+				organizationId,
+				{
+					object: {
+						resource_type: "template",
+						organization_id: organizationId,
+					},
+					action: "update",
 				},
-				action: "update" as const,
-			},
-		]),
+			],
+		),
 	);
 
 	return {

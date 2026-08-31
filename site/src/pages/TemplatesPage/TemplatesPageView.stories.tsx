@@ -298,6 +298,7 @@ export const SingleClassicParameterFlowWarning: Story = {
 		canCreateTemplates: true,
 		templates: [
 			classicParameterFlowTemplates[0],
+			// The dynamic-flow template ensures only the classic template is counted.
 			classicParameterFlowTemplates[3],
 		],
 		templateUpdatePermissions: {
