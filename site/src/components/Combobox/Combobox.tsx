@@ -129,7 +129,17 @@ export const ComboboxInput = CommandInput;
 export const ComboboxList: React.FC<
 	React.ComponentPropsWithRef<typeof CommandList>
 > = ({ className, ...props }) => {
-	return <CommandList className={cn("p-2", className)} {...props} />;
+	// ComboboxContent (PopoverContent) already caps its height to the
+	// available viewport space and scrolls via overflow-y-auto. Letting this
+	// list keep CommandList's default max-h-96/overflow-y-auto creates a
+	// second, independently-scrolling container, which shows up as a double
+	// scrollbar once the viewport shrinks below that fixed height.
+	return (
+		<CommandList
+			className={cn("max-h-none overflow-visible p-2", className)}
+			{...props}
+		/>
+	);
 };
 
 export const ComboboxItem = ({
