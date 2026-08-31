@@ -32,8 +32,8 @@
 		"test:ci": "vitest run --project=unit",
 		"test:watch": "vitest --project=unit",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "node scripts/update-emojis.mjs",
-		"check-emojis": "node scripts/update-emojis.mjs --check"
+		"emojis": "node scripts/update-emojis.mjs",
+		"emojis:check": "node scripts/update-emojis.mjs --check"
 	},
 	"imports": {
 		"#/*": "./src/*"

@@ -332,21 +332,21 @@ export function check() {
 	};
 	report(
 		[...source.keys()].filter((name) => !committed.has(name)),
-		"missing from static/emojis, run `pnpm update-emojis`",
+		"missing from static/emojis, run `pnpm emojis`",
 	);
 	report(
 		[...source.keys()].filter(
 			(name) => committed.has(name) && committed.get(name) !== source.get(name),
 		),
-		"differ from the datasource, run `pnpm update-emojis`",
+		"differ from the datasource, run `pnpm emojis`",
 	);
 	report(
 		[...committed.keys()].filter((name) => !source.has(name)),
-		"absent from the datasource; `pnpm update-emojis` will not delete them, so review and remove them by hand",
+		"absent from the datasource; `pnpm emojis` will not delete them, so review and remove them by hand",
 	);
 
 	if (readFileSync(MANIFEST_PATH, "utf8") !== renderManifest(buildManifest())) {
-		problems.push(`${MANIFEST_RELATIVE} is stale, run \`pnpm update-emojis\``);
+		problems.push(`${MANIFEST_RELATIVE} is stale, run \`pnpm emojis\``);
 	}
 
 	if (problems.length > 0) {
