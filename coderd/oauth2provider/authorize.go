@@ -475,8 +475,8 @@ func ProcessAuthorize(db database.Store, logger slog.Logger) http.HandlerFunc {
 				StateHash:           hashOAuth2State(params.state),
 				RedirectUri:         sql.NullString{String: params.redirectURL.String(), Valid: params.redirectURIProvided},
 				// The negotiated scope, not the requested one. The exchange
-				// copies it onto the token row and onto the API key it mints,
-				// so this is what the issued token will be bounded by.
+				// copies it onto the token row and the API key it mints, so
+				// this bounds the issued token.
 				Scope: grantedScope,
 			})
 			if err != nil {

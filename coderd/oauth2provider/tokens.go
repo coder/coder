@@ -40,15 +40,15 @@ var (
 	// errConflictingClientAuth means the client provided credentials in both the
 	// request body and HTTP Basic, but they did not match.
 	errConflictingClientAuth = xerrors.New("conflicting client authentication")
-	// errUnmintableScope means the scope persisted against a grant names
-	// something no API key can be minted from.
+	// errUnmintableScope means the scope stored on a grant names something no
+	// API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
 )
 
-// scopeStringToAPIKeyScopes converts the scope persisted on an authorization
-// code or refresh token into the scope list an API key is minted with. Names
-// are checked here, not in apikey.Generate, whose error would surface as a 500;
-// an empty list is rejected rather than read as unrestricted.
+// scopeStringToAPIKeyScopes converts a grant's stored scope into the scope list
+// an API key is minted with. Names are checked here, not in apikey.Generate,
+// whose error would surface as a 500. An empty list is an error rather than an
+// unrestricted key.
 func scopeStringToAPIKeyScopes(scope string) (database.APIKeyScopes, error) {
 	names := strings.Fields(scope)
 	if len(names) == 0 {
@@ -415,10 +415,9 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		return codersdk.OAuth2TokenResponse{}, err
 	}
 
-	// Grab the user roles so we can perform the exchange as the user.
-	//
-	// This actor is the writer, not the grant: narrowing it to the granted scope
-	// would deny api_key:create. api_keys.scopes bounds the issued token.
+	// Grab the user roles so we can perform the exchange as the user. ScopeAll
+	// because this actor writes the key: narrowing it to the granted scope would
+	// deny api_key:create. The issued token is bounded by api_keys.scopes.
 	actor, _, err := httpmw.UserRBACSubject(ctx, db, dbCode.UserID, rbac.ScopeAll)
 	if err != nil {
 		return codersdk.OAuth2TokenResponse{}, xerrors.Errorf("fetch user actor: %w", err)
