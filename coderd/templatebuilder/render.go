@@ -194,7 +194,7 @@ func ExtractAgentResourceName(rendered []byte) (string, error) {
 // rendered HCL, in declaration order. Because it walks parsed blocks,
 // commented-out references and module strings inside heredocs are naturally
 // ignored. The input is expected to be rendered output from our own curated
-// base templates, not arbitrary user HCL; unparseable input yields no names.
+// base templates, not arbitrary user HCL; unparsable input yields no names.
 func ExtractModuleNames(rendered []byte) []string {
 	body, err := parseRenderedHCL(rendered)
 	if err != nil {
