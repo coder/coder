@@ -30,7 +30,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 		className={cn(
 			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
 			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm
-			ring-offset-background text-content-secondary placeholder:text-content-secondary
+			ring-offset-background text-content-primary data-[placeholder]:text-content-secondary
 			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
 			focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link group`,
 			className,
@@ -39,7 +39,7 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	>
 		{children}
 		<SelectPrimitive.Icon asChild>
-			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary transition-colors hover:text-content-primary group-hover:text-content-primary" />
+			<ChevronDownIcon className="size-icon-sm cursor-pointer transition-colors" />
 		</SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );
