@@ -56,8 +56,11 @@ Both **Don't** versions make the source harder to scan and cause spurious diffs 
 `markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
 Configure editors that auto-wrap on save to leave the source alone.
 
-*Documentation-only.
-No Vale rule.*
+`Coder.OneSentencePerLine` flags a sentence boundary followed by more text on the same source line.
+The rule is enabled per directory in `.vale.ini` rather than repo-wide, because the convention postdates most of the corpus.
+A directory joins the allowlist once its pages are converted.
+
+*Vale rule: `Coder.OneSentencePerLine` (warning).*
 
 ## Text formatting
 
