@@ -28,9 +28,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 					<div className="flex flex-col gap-2 items-center justify-center">
 						<span className="text-base">Agent Workspace Builds Disabled</span>
 						<span className="text-content-secondary text-center max-w-[464px] mt-2">
-							Agent Workspace Builds are not included in your current license.
-							Contact <Link href="mailto:sales@coder.com">sales</Link> to
-							upgrade your license and unlock this feature.
+							Agent Workspace Builds were recorded by the legacy Coder Tasks
+							feature, which has been removed. Your current license does not
+							include this historical metric, and no new usage can accrue.
 						</span>
 					</div>
 				</div>
@@ -92,10 +92,9 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
             `}
 					>
 						<p>
-							Agent Workspace Builds are measured when you start an ephemeral
-							workspace, purely for running an agentic workload. Workspaces used
-							by developers for day-to-day development do not count, even if AI
-							tooling is involved.
+							Agent Workspace Builds were recorded by the legacy Coder Tasks
+							feature, which has been removed. The numbers shown here are
+							historical, and no new usage accrues.
 						</p>
 						<p>
 							<Link
@@ -105,15 +104,15 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							>
 								Coder Agents
 							</Link>{" "}
-							workspaces count towards your Agent Workspace Builds limit.
-							Additional protocols and APIs may be supported as standards
-							emerge.
+							is the only way to create agentic workspaces, but additional
+							protocols and APIs may be supported as standards emerge. Learn
+							more in{" "}
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								View docs
+								the Coder documentation
 							</Link>
 						</p>
 						<ul>
