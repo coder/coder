@@ -43,18 +43,18 @@ var (
 	// errUnmintableScope means the scope stored on a grant names something no
 	// API key can be minted from.
 	errUnmintableScope = xerrors.New("scope is not a valid API key scope")
-	// errStaleScope means the app's registered scopes narrowed after its
-	// authorization code was issued and no longer cover the code's scope.
+	// errStaleScope means the app's registered scopes narrowed after the code
+	// was issued and no longer cover the code's scope.
 	errStaleScope = xerrors.New("scope is no longer allowed by this app's registered scopes")
 )
 
-// scopeStillCoveredByAllowlist re-checks the scope a grant was issued with
-// against the app's registered scopes as they stand now, since an admin can
-// narrow them inside an authorization code's ten minute life.
+// scopeStillCoveredByAllowlist rechecks a grant's scope against the app's
+// registered scopes as they stand now, since an admin can narrow them inside an
+// authorization code's ten minute life.
 //
 // Refresh deliberately does not call this: RFC 6749 §6 bounds a refresh by the
-// scope originally granted, so a narrowing takes effect at the next
-// authorization rather than dropping capability from a live session.
+// scope originally granted, so a narrowing applies at the next authorization
+// instead of dropping capability from a live session.
 func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, granted string) error {
 	if noScopeAllowlist(app.Scope) {
 		return nil
@@ -62,12 +62,11 @@ func scopeStillCoveredByAllowlist(ctx context.Context, logger slog.Logger, app d
 
 	allowlist := grantableScopes(app.Scope.String)
 	if len(allowlist) == 0 {
-		// Named verbatim for the same reason as in negotiateScope.
+		// Echoes the stored value, as in negotiateScope.
 		return xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 
-	// Canonicalized rather than assumed: the row may have been written by
-	// another version of this server.
+	// Canonicalized because the row may have been written by an older server.
 	outside, err := firstScopeOutsideAllowlist(ctx, logger, app, allowlist, canonicalScopes(strings.Fields(granted)))
 	if err != nil {
 		return err

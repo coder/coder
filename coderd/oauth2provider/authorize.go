@@ -60,10 +60,9 @@ func noScopeAllowlist(appScope sql.NullString) bool {
 	return !appScope.Valid || appScope.String == ""
 }
 
-// grantableScopes narrows an app's registered allowlist to the catalog names
-// this deployment offers, which only ever narrows what can be granted. An empty
-// result is returned rather than rejected: negotiation and redemption report it
-// differently.
+// grantableScopes drops allowlist entries this deployment does not offer. An
+// empty result is returned rather than rejected: negotiation and redemption
+// report it differently.
 func grantableScopes(appScope string) []string {
 	allowed := strings.Fields(appScope)
 	filtered := make([]string, 0, len(allowed))
@@ -72,8 +71,8 @@ func grantableScopes(appScope string) []string {
 			filtered = append(filtered, a)
 		}
 	}
-	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
-	// and not the `all` alias that IsExternalScope accepts.
+	// rbac.ExpandScope knows `coder:all` but not the `all` alias that
+	// IsExternalScope accepts, so both sides must be canonical to expand.
 	return canonicalScopes(filtered)
 }
 
