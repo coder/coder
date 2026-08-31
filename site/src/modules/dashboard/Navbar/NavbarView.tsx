@@ -72,11 +72,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<ProductLogo className="h-7" />
 			</NavLink>
 
-			<NavItems
-				className="ml-4 hidden md:flex"
-				user={user}
-				canCreateChat={canCreateChat}
-			/>
+			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
 
 			{prerelease && buildInfo?.version && (
 				<a
@@ -154,11 +150,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 interface NavItemsProps {
 	className?: string;
-	user: TypesGen.User;
 	canCreateChat: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
+const NavItems: FC<NavItemsProps> = ({ className, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
