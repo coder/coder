@@ -114,12 +114,14 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto border-border-default overflow-y-auto text-sm",
+				"flex w-auto flex-col overflow-y-hidden border-border-default text-sm",
 				className,
 			)}
 			{...props}
 		>
-			<Command shouldFilter={shouldFilter}>{children}</Command>
+			<Command shouldFilter={shouldFilter} className="min-h-0 flex-1">
+				{children}
+			</Command>
 		</PopoverContent>
 	);
 };
@@ -131,7 +133,7 @@ export const ComboboxList: React.FC<
 > = ({ className, ...props }) => {
 	return (
 		<CommandList
-			className={cn("max-h-none overflow-visible p-2", className)}
+			className={cn("max-h-none min-h-0 flex-1 p-2", className)}
 			{...props}
 		/>
 	);
