@@ -378,6 +378,9 @@ importers:
       dpdm:
         specifier: 3.15.1
         version: 3.15.1
+      emoji-datasource-apple:
+        specifier: 15.1.2
+        version: 15.1.2
       express:
         specifier: 4.22.2
         version: 4.22.2
@@ -3695,6 +3698,9 @@ packages:
 
   electron-to-chromium@1.5.399:
     resolution: {integrity: sha512-lEcqhErbHjXRvd41rnWLpzbyU/IXfIYo7QwaFWmxGeLiLyY2TBCdHnWY88vB+p3ubnihRypDm66panXl7TylLA==, tarball: https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.399.tgz}
+
+  emoji-datasource-apple@15.1.2:
+    resolution: {integrity: sha512-32UZTK36x4DlvgD1smkmBlKmmJH7qUr5Qut4U/on2uQLGqNXGbZiheq6/LEA8xRQEUrmNrGEy25wpEI6wvYmTg==, tarball: https://registry.npmjs.org/emoji-datasource-apple/-/emoji-datasource-apple-15.1.2.tgz}
 
   emoji-mart@5.6.0:
     resolution: {integrity: sha512-eJp3QRe79pjwa+duv+n7+5YsNhRcMl812EcFVwrnRvYKoNPoQb5qxU8DG6Bgwji0akHdp6D4Ln6tYLG58MFSow==, tarball: https://registry.npmjs.org/emoji-mart/-/emoji-mart-5.6.0.tgz}
@@ -9620,6 +9626,8 @@ snapshots:
   ee-first@1.1.1: {}
 
   electron-to-chromium@1.5.399: {}
+
+  emoji-datasource-apple@15.1.2: {}
 
   emoji-mart@5.6.0: {}
 

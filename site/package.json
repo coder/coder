@@ -32,7 +32,8 @@
 		"test:ci": "vitest run --project=unit",
 		"test:watch": "vitest --project=unit",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
+		"update-emojis": "node scripts/update-emojis.mjs",
+		"check-emojis": "node scripts/update-emojis.mjs --check"
 	},
 	"imports": {
 		"#/*": "./src/*"
@@ -155,6 +156,7 @@
 		"@vitest/browser-playwright": "4.1.10",
 		"babel-plugin-react-compiler": "1.0.0",
 		"dpdm": "3.15.1",
+		"emoji-datasource-apple": "15.1.2",
 		"express": "4.22.2",
 		"jest-canvas-mock": "2.5.2",
 		"jest-websocket-mock": "2.5.0",

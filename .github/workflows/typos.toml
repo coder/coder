@@ -56,6 +56,8 @@ extend-exclude = [
 	"**/*_test.go",
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
+	# Generated emoji identifiers include ISO region codes and Unicode filenames.
+	"site/src/components/IconField/emojiDataGenerated.json",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
