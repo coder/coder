@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import type { TasksFilter } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { AISettingsIndexRedirect } from "#/pages/AISettingsPage/AISettingsIndexRedirect";
@@ -10,6 +11,7 @@ import {
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockNoPermissions,
+	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -19,6 +21,14 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { NavbarView } from "./NavbarView";
+
+const tasksFilter: TasksFilter = {
+	owner: MockUserOwner.username,
+};
+
+const memberTasksFilter: TasksFilter = {
+	owner: MockUserMember.username,
+};
 
 const AISettingsIndexRedirectWithProviders = () => (
 	<AuthProvider>
@@ -43,6 +53,12 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		pixel: { matrix: pixelWithTablet },
 		layout: "fullscreen",
+		queries: [
+			{
+				key: ["tasks", tasksFilter],
+				data: [],
+			},
+		],
 	},
 	component: NavbarView,
 	args: {
@@ -113,6 +129,7 @@ export const ForTemplateUpdateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -158,6 +175,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -203,6 +221,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -246,6 +265,7 @@ export const ForMCPCreateOnlyAdmin: Story = {
 	decorators: [withAuthProvider],
 	parameters: {
 		pixel: { matrix: pixelWithDesktop },
+		queries: [{ key: ["tasks", memberTasksFilter], data: [] }],
 		user: MockUserMember,
 		permissions: {
 			...MockNoPermissions,
@@ -313,6 +333,17 @@ export const ForMember: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
+	},
+};
+
+export const IdleTasks: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["tasks", tasksFilter],
+				data: MockTasks,
+			},
+		],
 	},
 };
 

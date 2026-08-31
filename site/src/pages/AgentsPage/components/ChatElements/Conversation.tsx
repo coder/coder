@@ -1,6 +1,22 @@
 import type { ComponentPropsWithRef } from "react";
 import { cn } from "#/utils/cn";
 
+type ConversationProps = ComponentPropsWithRef<"div">;
+
+export const Conversation = ({
+	className,
+	ref,
+	...props
+}: ConversationProps) => {
+	return (
+		<div
+			ref={ref}
+			className={cn("flex flex-col gap-5", className)}
+			{...props}
+		/>
+	);
+};
+
 type ConversationItemProps = Omit<ComponentPropsWithRef<"div">, "role"> & {
 	role: "user" | "assistant";
 };
