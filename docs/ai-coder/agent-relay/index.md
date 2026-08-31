@@ -33,8 +33,7 @@ Agent Relay is not:
   workflow infrastructure that runs its native agent loop inside the Coder
   control plane and calls out to your configured LLM provider for inference.
 - A proxy or observability layer for a provider's AI inference.
-  Coder doesn't see model selection or token usage for sessions that run
-  through Agent Relay.
+  Coder has no access to model selection or token usage for sessions that run through Agent Relay.
 - A self-hosted deployment of a cloud provider's control plane.
   The provider's orchestration stays cloud-hosted.
 
