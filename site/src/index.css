@@ -4,8 +4,8 @@
 */
 
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@plugin "tailwindcss-animate";
 @plugin "@tailwindcss/typography";
 
 /* Preserve Tailwind CSS v3's default ring color and width. */
