@@ -68,10 +68,7 @@ const TemplatesPage: FC = () => {
 				templateBuilderEnabled={templateBuilderEnabled}
 				examples={examplesQuery.data}
 				templates={templatesQuery.data}
-				templateUpdatePermissions={
-					templateUpdatePermissionsQuery.data ??
-					(organizations.length === 0 ? {} : undefined)
-				}
+				templateUpdatePermissions={templateUpdatePermissionsQuery.data ?? {}}
 				workspacePermissions={workspacePermissionsQuery.data}
 			/>
 		</>

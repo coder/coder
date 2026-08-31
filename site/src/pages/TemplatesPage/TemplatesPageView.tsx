@@ -243,7 +243,7 @@ interface TemplatesPageViewProps {
 	templateBuilderEnabled: boolean;
 	examples: TemplateExample[] | undefined;
 	templates: Template[] | undefined;
-	templateUpdatePermissions: AuthorizationResponse | undefined;
+	templateUpdatePermissions: AuthorizationResponse;
 	workspacePermissions: Record<string, WorkspacePermissions> | undefined;
 }
 
@@ -258,13 +258,13 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	templateUpdatePermissions,
 	workspacePermissions,
 }) => {
-	const isLoading = !templates || !templateUpdatePermissions;
+	const isLoading = !templates;
 	const isEmpty = !isLoading && templates.length === 0;
 	const classicParameterFlowTemplateCount =
 		templates?.filter(
 			(template) =>
 				template.use_classic_parameter_flow &&
-				templateUpdatePermissions?.[template.organization_id],
+				templateUpdatePermissions[template.organization_id],
 		).length ?? 0;
 	const showClassicParameterFlow = classicParameterFlowTemplateCount > 0;
 
