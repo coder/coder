@@ -37,7 +37,7 @@ const DebugCodeBlock: FC<DebugCodeBlockProps> = ({ code, className }) => {
 	return (
 		<pre
 			className={cn(
-				"w-full max-w-full max-h-[28rem] overflow-auto rounded-lg bg-surface-tertiary/60 px-3 py-2.5 font-mono text-[12px] leading-5 text-content-primary shadow-inner",
+				"w-full max-w-full max-h-112 overflow-auto rounded-lg bg-surface-tertiary/60 px-3 py-2.5 font-mono text-[12px] leading-5 text-content-primary shadow-inner",
 				className,
 			)}
 		>
@@ -165,7 +165,7 @@ export const KeyValueGrid: FC<KeyValueGridProps> = ({
 			{Object.entries(entries).map(([key, value]) => (
 				<div key={key} className="contents">
 					<dt className="text-content-tertiary">{key}</dt>
-					<dd className="break-words font-medium text-content-primary">
+					<dd className="wrap-break-word font-medium text-content-primary">
 						{fmt(value)}
 					</dd>
 				</div>

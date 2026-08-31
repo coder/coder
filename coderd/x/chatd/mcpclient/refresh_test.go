@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,9 +88,41 @@ func TestRefreshOAuth2TokenInvalidGrant(t *testing.T) {
 		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
 	}
 
-	_, err := mcpclient.RefreshOAuth2Token(context.Background(), cfg, tok)
+	_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(nil), cfg, tok)
 	require.Error(t, err)
 	require.True(t, mcpclient.IsPermanentRefreshError(err))
+}
+
+func TestRefreshOAuth2TokenRejectsCrossOriginRedirect(t *testing.T) {
+	t.Parallel()
+
+	var targetHits atomic.Int64
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		targetHits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"stolen","token_type":"Bearer"}`))
+	}))
+	defer target.Close()
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
+	}))
+	defer tokenSrv.Close()
+
+	cfg := database.MCPServerConfig{
+		OAuth2ClientID:     "cid",
+		OAuth2ClientSecret: "secret",
+		OAuth2TokenURL:     tokenSrv.URL,
+	}
+	tok := database.MCPServerUserToken{
+		AccessToken:  "expired",
+		RefreshToken: "refresh",
+		TokenType:    "Bearer",
+		Expiry:       sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	}
+
+	_, err := mcpclient.RefreshOAuth2Token(context.Background(), testMCPHTTPClient(tokenSrv.Client()), cfg, tok)
+	require.Error(t, err)
+	require.Zero(t, targetHits.Load())
 }
 
 func TestBuildAuthHeadersSkipsFailedToken(t *testing.T) {

@@ -51,6 +51,9 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 
@@ -146,6 +149,9 @@ func TestSuccessfulChildChatOutcomeStoresReportSummaryWithoutPush(t *testing.T) 
 		ContextLimit:         128000,
 		CompressionThreshold: 80,
 		Options:              json.RawMessage(`{}`),
+		OrganizationID:       org.ID,
+		GroupACL:             database.ChatACL{},
+		UserACL:              database.ChatACL{},
 	})
 	require.NoError(t, err)
 

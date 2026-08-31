@@ -1,4 +1,6 @@
-# Client Configuration
+---
+title: Client Configuration
+---
 
 > [!NOTE]
 > AI Gateway is part of [AI Governance](../../ai-governance.md), which is
@@ -38,7 +40,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 
 | Client                            | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
 |-----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Mux](./mux.md)                   | ✅      | ✅         | -    |                                                                                                                                                        |
+| [Xum](./xum.md)                   | ✅      | ✅         | -    |                                                                                                                                                        |
 | [Claude Code](./claude-code.md)   | -      | ✅         | ✅    |                                                                                                                                                        |
 | [Codex CLI](./codex.md)           | ✅      | -         | ✅    |                                                                                                                                                        |
 | [OpenCode](./opencode.md)         | ✅      | ✅         | ✅    |                                                                                                                                                        |

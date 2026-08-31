@@ -123,7 +123,7 @@ export const TotalAgentHoursCard: FC<TotalAgentHoursCardProps> = ({
 	// 100% usage. The mask needs the -webkit- prefix for Safari.
 	const unlimitedBarClassName = cn(
 		"bg-highlight-green",
-		"[mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
+		"mask-[linear-gradient(to_right,black_50%,transparent_100%)]",
 		"[-webkit-mask-image:linear-gradient(to_right,black_50%,transparent_100%)]",
 	);
 

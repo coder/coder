@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
+import type { ResourceType } from "#/api/typesGenerated";
 import {
 	getDefaultFilterProps,
 	MockMenu,
@@ -102,7 +103,7 @@ export const NotVisible: Story = {
 		const cta = canvas.getByRole("link", { name: "Start trial for free" });
 		await expect(cta).toHaveAttribute("href", "/deployment/premium");
 		await expect(
-			canvas.getByRole("link", { name: /Read the docs/ }),
+			canvas.getByRole("link", { name: /View docs/ }),
 		).toHaveAttribute("href", docs("/admin/security/audit-logs"));
 	},
 };
@@ -126,9 +127,12 @@ export const NotVisibleWithoutLicenseAccess: Story = {
 
 const onResourceTypeChange = fn();
 
-// Uses the real resource-type menu so the generated resource type and its
-// friendly label are verified together.
-export const FilterByChatInstructionSettings: Story = {
+// Uses the real resource-type menu so generated resource types and their
+// friendly labels are verified together.
+const resourceTypeFilterStory = (
+	label: string,
+	value: ResourceType,
+): Story => ({
 	args: {
 		auditsQuery: mockSuccessResult,
 	},
@@ -157,19 +161,24 @@ export const FilterByChatInstructionSettings: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: "Select a resource type" }),
 		);
-		const option = await screen.findByRole("option", {
-			name: "Chat Instruction Settings",
-		});
+		const option = await screen.findByRole("option", { name: label });
 		await userEvent.click(option);
 
 		await expect(onResourceTypeChange).toHaveBeenCalledWith(
-			expect.objectContaining({
-				value: "chat_instruction_settings",
-				label: "Chat Instruction Settings",
-			}),
+			expect.objectContaining({ value, label }),
 		);
 	},
-};
+});
+
+export const FilterByChatInstructionSettings = resourceTypeFilterStory(
+	"Chat Instruction Settings",
+	"chat_instruction_settings",
+);
+
+export const ChatOperationalSettingsFilter = resourceTypeFilterStory(
+	"Chat Operational Settings",
+	"chat_operational_settings",
+);
 
 export const MultiOrg: Story = {
 	parameters: { pixel: { matrix: pixelWithTablet } },
