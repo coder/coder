@@ -103,7 +103,7 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 								target="_blank"
 								rel="noreferrer"
 							>
-								Coder Agents (via UI or API)
+								Coder Agents
 							</Link>{" "}
 							workspaces count towards your Agent Workspace Builds limit.
 							Additional protocols and APIs may be supported as standards
