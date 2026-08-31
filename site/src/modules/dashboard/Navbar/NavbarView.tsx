@@ -65,7 +65,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
 						"[&:before]:right-0 [&:before]:h-1 [&:before]:top-0",
-						"[&:before]:bg-[repeating-linear-gradient(-45deg,_transparent,_transparent_4px,_hsl(var(--stripe-color)_/_0.5)_4px,_hsl(var(--stripe-color)_/_0.5)_8px)]",
+						"[&:before]:bg-[repeating-linear-gradient(-45deg,transparent,transparent_4px,hsl(var(--stripe-color)/0.5)_4px,hsl(var(--stripe-color)/0.5)_8px)]",
 					),
 			)}
 			style={{

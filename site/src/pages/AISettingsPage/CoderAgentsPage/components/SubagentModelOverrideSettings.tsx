@@ -137,7 +137,7 @@ export const SubagentModelOverrideSettings: FC<
 				isSaveError ? <p className="m-0">{saveErrorMessage}</p> : undefined
 			}
 		>
-			<div className="flex w-[22rem] max-w-full flex-col gap-2">
+			<div className="flex w-88 max-w-full flex-col gap-2">
 				<ModelSelector
 					options={enabledModelOptions}
 					value={form.values.model_config_id}

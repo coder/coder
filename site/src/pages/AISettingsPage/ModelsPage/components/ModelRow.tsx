@@ -144,7 +144,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
-						className="size-icon-sm text-content-secondary flex-shrink-0"
+						className="size-icon-sm text-content-secondary shrink-0"
 					/>
 				</div>
 			</TableCell>

@@ -40,7 +40,7 @@ export const NetworkCallsTable: FC<NetworkCallsTableProps> = ({
 			</CollapsibleTrigger>
 			{summary.blocked > 0 && (
 				<Badge svgSize="xs" className="gap-1 text-content-warning">
-					<BanIcon className="flex-shrink-0" />
+					<BanIcon className="shrink-0" />
 					<span className="sr-only">Blocked network calls: </span>
 					{summary.blocked.toLocaleString("en-US")}
 				</Badge>
@@ -96,9 +96,9 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 						type="button"
 						className="group flex items-center gap-3 w-full px-2 py-2 text-left bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
 					>
-						<ChevronRightIcon className="size-3.5 flex-shrink-0 text-content-secondary transition-transform group-data-[state=open]:rotate-90" />
+						<ChevronRightIcon className="size-3.5 shrink-0 text-content-secondary transition-transform group-data-[state=open]:rotate-90" />
 						{call.method && (
-							<Badge size="sm" className="flex-shrink-0 font-mono">
+							<Badge size="sm" className="shrink-0 font-mono">
 								{call.method}
 							</Badge>
 						)}
@@ -109,7 +109,7 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 						>
 							{call.detail || "N/A"}
 						</span>
-						<span className="hidden md:flex items-center gap-2 flex-shrink-0 text-sm font-normal text-content-secondary">
+						<span className="hidden md:flex items-center gap-2 shrink-0 text-sm font-normal text-content-secondary">
 							Timestamp
 							<span className="font-mono text-xs text-content-primary">
 								{timestamp}
@@ -158,17 +158,17 @@ const NetworkCallRow: FC<NetworkCallRowProps> = ({ call }) => {
 
 const NetworkCallStatusBadge: FC<{ allowed: boolean }> = ({ allowed }) =>
 	allowed ? (
-		<Badge size="sm" svgSize="xs" className="flex-shrink-0 gap-1">
-			<CheckIcon className="flex-shrink-0" />
+		<Badge size="sm" svgSize="xs" className="shrink-0 gap-1">
+			<CheckIcon className="shrink-0" />
 			Allowed
 		</Badge>
 	) : (
 		<Badge
 			size="sm"
 			svgSize="xs"
-			className="flex-shrink-0 gap-1 text-content-warning"
+			className="shrink-0 gap-1 text-content-warning"
 		>
-			<BanIcon className="flex-shrink-0" />
+			<BanIcon className="shrink-0" />
 			Blocked
 		</Badge>
 	);
