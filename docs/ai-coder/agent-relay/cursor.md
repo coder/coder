@@ -6,8 +6,7 @@ title: Agent Relay for Cursor
 > Agent Relay for Cursor is in [early access](../../install/releases/feature-stages.md#early-access-features)
 > and is currently in closed preview with select customers.
 
-[Agent Relay](./index.md) connects Cursor Cloud Agents to self-hosted Coder
-workspaces.
+[Agent Relay](./index.md) connects [Cursor Cloud Agents](https://cursor.com/cloud) to self-hosted Coder workspaces.
 Cursor also refers to this self-hosted worker model as
 [bring-your-own-machine (BYOM)](https://cursor.com/docs/cloud-agent/bring-your-own-machine).
 Developers keep using the Cursor client and cloud agent workflow they
