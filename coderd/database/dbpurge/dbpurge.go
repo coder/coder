@@ -89,6 +89,16 @@ func WithChatSearchBackfillLimits(batchSize int32, maxBatches int) Option {
 	}
 }
 
+// WithIdentifiedModuleCacheWindow overrides the ingest window for the one-off
+// module cache cleanup. For tests, so they assert on the boundary behavior
+// rather than on the incident timestamps, which may be revised.
+func WithIdentifiedModuleCacheWindow(start, end time.Time) Option {
+	return func(i *instance) {
+		i.identifiedModuleCacheStart = start
+		i.identifiedModuleCacheEnd = end
+	}
+}
+
 // New creates a new periodically purging database instance.
 // Callers must Close the returned instance.
 func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, opts ...Option) io.Closer {
@@ -134,6 +144,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		chatSearchRowsBackfilled:     chatSearchRowsBackfilled,
 		chatSearchBackfillBatchSize:  chatSearchBackfillBatchSize,
 		chatSearchBackfillMaxBatches: chatSearchBackfillMaxBatches,
+		identifiedModuleCacheStart:   identifiedModuleCacheStart,
+		identifiedModuleCacheEnd:     identifiedModuleCacheEnd,
 	}
 	for _, opt := range opts {
 		opt(inst)
@@ -403,8 +415,8 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		var purgedIdentifiedModuleFiles int64
 		if !i.identifiedModuleCachePurged {
 			purgedIdentifiedModuleFiles, err = tx.DeleteCachedModuleFilesCreatedBetween(ctx, database.DeleteCachedModuleFilesCreatedBetweenParams{
-				CreatedAtAfter:  identifiedModuleCacheStart,
-				CreatedAtBefore: identifiedModuleCacheEnd,
+				CreatedAtAfter:  i.identifiedModuleCacheStart,
+				CreatedAtBefore: i.identifiedModuleCacheEnd,
 			})
 			if err != nil {
 				return xerrors.Errorf("failed to delete identified module cache files: %w", err)
@@ -493,6 +505,12 @@ type instance struct {
 	// pass of the one-off module cache cleanup. The window is fixed in the
 	// past, so a completed pass leaves nothing to match on later ticks.
 	identifiedModuleCachePurged bool
+
+	// identifiedModuleCacheStart and identifiedModuleCacheEnd bound the ingest
+	// window for that cleanup. Defaults come from the package variables and are
+	// only overridden by tests.
+	identifiedModuleCacheStart time.Time
+	identifiedModuleCacheEnd   time.Time
 }
 
 func (i *instance) Close() error {
