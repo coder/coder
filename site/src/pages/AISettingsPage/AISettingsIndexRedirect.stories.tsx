@@ -32,6 +32,11 @@ const meta: Meta<typeof AISettingsIndexRedirect> = {
 					element: <h1>Organization MCP servers</h1>,
 				},
 				{ path: "/ai/settings/providers", element: <h1>AI providers</h1> },
+				{
+					path: "/ai/settings/mcp-servers/add",
+					element: <h1>Add MCP server</h1>,
+				},
+				{ path: "/ai/settings/templates", element: <h1>Templates</h1> },
 			],
 		}),
 	},
@@ -110,5 +115,61 @@ export const MCPSharingPermissionLookupFailureShowsError: Story = {
 		expect(
 			screen.queryByRole("heading", { name: "AI providers" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const TemplateUpdateOnlyAdminRedirectsToTemplates: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyTemplate: true,
+		},
+	},
+	play: async () => {
+		await expect(
+			await screen.findByRole("heading", { name: "Templates" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const MCPUpdateOnlyAdminRedirectsToMCPServers: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			updateAnyMCPServerConfig: true,
+		},
+	},
+	play: async () => {
+		await expect(
+			await screen.findByRole("heading", { name: "Organization MCP servers" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const MCPDeleteOnlyAdminRedirectsToMCPServers: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			deleteAnyMCPServerConfig: true,
+		},
+	},
+	play: async () => {
+		await expect(
+			await screen.findByRole("heading", { name: "Organization MCP servers" }),
+		).toBeInTheDocument();
+	},
+};
+
+export const MCPCreateOnlyAdminRedirectsToAddMCPServer: Story = {
+	parameters: {
+		permissions: {
+			...MockNoPermissions,
+			createAnyMCPServerConfig: true,
+		},
+	},
+	play: async () => {
+		await expect(
+			await screen.findByRole("heading", { name: "Add MCP server" }),
+		).toBeInTheDocument();
 	},
 };

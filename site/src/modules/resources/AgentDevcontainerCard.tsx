@@ -34,7 +34,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
 import { portForwardURL } from "#/utils/portForward";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
@@ -42,6 +41,7 @@ import { AgentButton } from "./AgentButton";
 import { AgentDevcontainerMoreActions } from "./AgentDevcontainerMoreActions";
 import { AgentLatency } from "./AgentLatency";
 import { DevcontainerStatus } from "./AgentStatus";
+import { AppStatuses } from "./AppStatuses";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { SubAgentOutdatedTooltip } from "./SubAgentOutdatedTooltip";

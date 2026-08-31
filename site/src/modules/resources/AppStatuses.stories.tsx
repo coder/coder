@@ -14,7 +14,7 @@ import { withProxyProvider } from "#/testHelpers/storybook";
 import { AppStatuses } from "./AppStatuses";
 
 const meta: Meta<typeof AppStatuses> = {
-	title: "pages/WorkspacePage/AppStatuses",
+	title: "modules/resources/AppStatuses",
 	component: AppStatuses,
 	args: {
 		referenceDate: new Date("2024-03-26T15:15:00Z"),

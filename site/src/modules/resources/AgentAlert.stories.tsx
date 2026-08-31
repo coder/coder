@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { AgentAlert } from "./AgentAlert";
 
 const meta: Meta<typeof AgentAlert> = {
-	title: "pages/WorkspacePage/AgentAlert",
+	title: "modules/resources/AgentAlert",
 	component: AgentAlert,
 	args: {
 		title: "Something went wrong",

@@ -42,6 +42,7 @@ import { Switch } from "#/components/Switch/Switch";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
+import type { CreateWorkspaceMode } from "#/modules/workspaces/createWorkspaceMode";
 import {
 	Diagnostics,
 	DynamicParameter,
@@ -52,7 +53,6 @@ import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceNam
 import { docs } from "#/utils/docs";
 import { nameValidator } from "#/utils/formUtils";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
-import type { CreateWorkspaceMode } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWorkspacePermissions } from "./permissions";
 

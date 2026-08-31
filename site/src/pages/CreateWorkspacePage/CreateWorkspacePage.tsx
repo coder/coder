@@ -30,6 +30,10 @@ import { Margins } from "#/components/Margins/Margins";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useExternalAuth } from "#/hooks/useExternalAuth";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import {
+	type CreateWorkspaceMode,
+	createWorkspaceModes,
+} from "#/modules/workspaces/createWorkspaceMode";
 import { generateWorkspaceName } from "#/modules/workspaces/generateWorkspaceName";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
@@ -39,9 +43,6 @@ import {
 	type CreateWorkspacePermissions,
 	createWorkspaceChecks,
 } from "./permissions";
-
-const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
-export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
 const CreateWorkspacePage: FC = () => {
 	const { organization: organizationName = "default", template: templateName } =

@@ -1,9 +1,9 @@
 import type { FC } from "react";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAccessibleModelOrganizations } from "#/modules/aiModels/organizationModels";
+import { useCanShareOrganizationMCPServers } from "#/modules/aiSettings/organizationSharing";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import AISettingsSidebarView from "#/modules/management/AISettingsSidebarView";
-import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
-import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 
 /**
  * A sidebar for AI settings.

@@ -2,14 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { TasksFilter } from "#/api/typesGenerated";
-import { AuthProvider } from "#/contexts/auth/AuthProvider";
-import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { AISettingsIndexRedirect } from "#/pages/AISettingsPage/AISettingsIndexRedirect";
 import {
-	MockAppearanceConfig,
 	MockBuildInfo,
-	MockDefaultOrganization,
-	MockEntitlements,
 	MockNoPermissions,
 	MockTasks,
 	MockUserMember,
@@ -29,24 +23,6 @@ const tasksFilter: TasksFilter = {
 const memberTasksFilter: TasksFilter = {
 	owner: MockUserMember.username,
 };
-
-const AISettingsIndexRedirectWithProviders = () => (
-	<AuthProvider>
-		<DashboardContext.Provider
-			value={{
-				entitlements: MockEntitlements,
-				experiments: [],
-				appearance: MockAppearanceConfig,
-				buildInfo: MockBuildInfo,
-				organizations: [MockDefaultOrganization],
-				showOrganizations: false,
-				canViewOrganizationSettings: false,
-			}}
-		>
-			<AISettingsIndexRedirect />
-		</DashboardContext.Provider>
-	</AuthProvider>
-);
 
 const meta: Meta<typeof NavbarView> = {
 	title: "modules/dashboard/NavbarView",
@@ -141,11 +117,7 @@ export const ForTemplateUpdateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: <AISettingsIndexRedirectWithProviders />,
-				},
-				{
-					path: "/ai/settings/templates",
-					element: <h1>Templates</h1>,
+					element: <h1>AI settings</h1>,
 				},
 			],
 		}),
@@ -166,7 +138,7 @@ export const ForTemplateUpdateOnlyAdmin: Story = {
 		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
 		await userEvent.click(aiSettingsLink);
 		await expect(
-			await canvas.findByRole("heading", { name: "Templates" }),
+			await canvas.findByRole("heading", { name: "AI settings" }),
 		).toBeInTheDocument();
 	},
 };
@@ -187,11 +159,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: <AISettingsIndexRedirectWithProviders />,
-				},
-				{
-					path: "/ai/settings/mcp-servers",
-					element: <h1>MCP servers</h1>,
+					element: <h1>AI settings</h1>,
 				},
 			],
 		}),
@@ -212,7 +180,7 @@ export const ForMCPUpdateOnlyAdmin: Story = {
 		await expect(aiSettingsLink).toHaveAttribute("href", "/ai/settings");
 		await userEvent.click(aiSettingsLink);
 		await expect(
-			await canvas.findByRole("heading", { name: "MCP servers" }),
+			await canvas.findByRole("heading", { name: "AI settings" }),
 		).toBeInTheDocument();
 	},
 };
@@ -233,11 +201,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: <AISettingsIndexRedirectWithProviders />,
-				},
-				{
-					path: "/ai/settings/mcp-servers",
-					element: <h1>MCP servers</h1>,
+					element: <h1>AI settings</h1>,
 				},
 			],
 		}),
@@ -256,7 +220,7 @@ export const ForMCPDeleteOnlyAdmin: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
 		await expect(
-			await canvas.findByRole("heading", { name: "MCP servers" }),
+			await canvas.findByRole("heading", { name: "AI settings" }),
 		).toBeInTheDocument();
 	},
 };
@@ -277,11 +241,7 @@ export const ForMCPCreateOnlyAdmin: Story = {
 				{ path: "/", useStoryElement: true },
 				{
 					path: "/ai/settings",
-					element: <AISettingsIndexRedirectWithProviders />,
-				},
-				{
-					path: "/ai/settings/mcp-servers/add",
-					element: <h1>Add MCP server</h1>,
+					element: <h1>AI settings</h1>,
 				},
 			],
 		}),
@@ -300,7 +260,7 @@ export const ForMCPCreateOnlyAdmin: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(body.getByRole("menuitem", { name: "AI" }));
 		await expect(
-			await canvas.findByRole("heading", { name: "Add MCP server" }),
+			await canvas.findByRole("heading", { name: "AI settings" }),
 		).toBeInTheDocument();
 	},
 };

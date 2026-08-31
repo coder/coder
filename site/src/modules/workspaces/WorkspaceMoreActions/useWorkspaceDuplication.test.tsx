@@ -1,6 +1,5 @@
 import { act, waitFor } from "@testing-library/react";
 import type { Workspace } from "#/api/typesGenerated";
-import CreateWorkspacePage from "#/pages/CreateWorkspacePage/CreateWorkspacePage";
 import * as M from "#/testHelpers/entities";
 import {
 	type GetLocationSnapshot,
@@ -17,11 +16,11 @@ function render(workspace?: Workspace) {
 				extraRoutes: [
 					{
 						path: "/templates/:organization/:template/workspace",
-						element: <CreateWorkspacePage />,
+						element: <div />,
 					},
 					{
 						path: "/templates/:template/workspace",
-						element: <CreateWorkspacePage />,
+						element: <div />,
 					},
 				],
 			},

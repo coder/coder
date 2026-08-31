@@ -13,12 +13,12 @@ import {
 	BreadcrumbSeparator,
 } from "#/components/Breadcrumb/Breadcrumb";
 import { Loader } from "#/components/Loader/Loader";
+import { NotFound } from "#/components/NotFound/NotFound";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	canViewOrganization,
 	type OrganizationPermissions,
 } from "#/modules/permissions/organizations";
-import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -79,7 +79,7 @@ const OrganizationSettingsLayout: FC = () => {
 	const organizationPermissions =
 		organization && orgPermissionsQuery.data?.[organization.id];
 	if (organization && !canViewOrganization(organizationPermissions)) {
-		return <NotFoundPage />;
+		return <NotFound />;
 	}
 
 	return (

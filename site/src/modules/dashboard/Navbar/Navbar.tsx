@@ -4,12 +4,12 @@ import type { LinkConfig } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useCanShareOrganizationMCPServers } from "#/modules/aiSettings/organizationSharing";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import {
 	canAccessAnyChatModelConfig,
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
-import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 

@@ -1,8 +1,8 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { NotFound } from "#/components/NotFound/NotFound";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
-import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import { pageTitle } from "#/utils/page";
 import { ModelForm } from "../components/ModelForm";
 import { ModelFormBackLink } from "../components/ModelFormHeader";
@@ -44,7 +44,7 @@ const UpdateModelPageView: FC<UpdateModelPageViewProps> = (props) => {
 	}
 
 	if (props.state === "notFound") {
-		return <NotFoundPage />;
+		return <NotFound />;
 	}
 
 	const {

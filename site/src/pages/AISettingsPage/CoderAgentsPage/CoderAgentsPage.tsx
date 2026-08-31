@@ -12,12 +12,12 @@ import {
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAccessibleModelOrganizations } from "#/modules/aiModels/organizationModels";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import {
 	modelOrganizationSearchParam,
 	selectModelOrganization,
-	useAccessibleModelOrganizations,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
 import { CoderAgentsPageView } from "./CoderAgentsPageView";

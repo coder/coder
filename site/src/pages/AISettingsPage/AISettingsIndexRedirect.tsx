@@ -2,10 +2,10 @@ import { Navigate } from "react-router";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useAccessibleModelOrganizations } from "#/modules/aiModels/organizationModels";
+import { useCanShareOrganizationMCPServers } from "#/modules/aiSettings/organizationSharing";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canAccessAnyChatModelConfig } from "#/modules/permissions";
-import { useCanShareOrganizationMCPServers } from "./MCPServersPage/organizationSharing";
-import { useAccessibleModelOrganizations } from "./ModelsPage/organizationModels";
 
 export const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();

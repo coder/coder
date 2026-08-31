@@ -4,13 +4,13 @@ import { Outlet, useSearchParams } from "react-router";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import { NotFound } from "#/components/NotFound/NotFound";
+import { useAccessibleModelOrganizations } from "#/modules/aiModels/organizationModels";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import NotFoundPage from "#/pages/NotFoundPage/NotFoundPage";
 import {
 	modelOrganizationSearchParam,
 	OrganizationModelsContext,
 	selectModelOrganization,
-	useAccessibleModelOrganizations,
 } from "./organizationModels";
 
 const OrganizationModelsLayout: FC = () => {
@@ -43,7 +43,7 @@ const OrganizationModelsLayout: FC = () => {
 	}
 
 	if (!activeOrganization) {
-		return <NotFoundPage />;
+		return <NotFound />;
 	}
 
 	if (permissionsQuery.data === undefined && permissionsQuery.error) {
@@ -55,7 +55,7 @@ const OrganizationModelsLayout: FC = () => {
 	}
 
 	if (!activePermissions) {
-		return <NotFoundPage />;
+		return <NotFound />;
 	}
 
 	return (

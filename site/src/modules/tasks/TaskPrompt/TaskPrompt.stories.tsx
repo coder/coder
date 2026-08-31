@@ -17,7 +17,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { withAuthProvider, withToaster } from "#/testHelpers/storybook";
-import type TasksPage from "../../../pages/TasksPage/TasksPage";
 import { TaskPrompt } from "./TaskPrompt";
 
 const MockNewTaskData: Task = {
@@ -28,7 +27,7 @@ const MockNewTaskData: Task = {
 	},
 };
 
-const meta: Meta<typeof TasksPage> = {
+const meta: Meta<typeof TaskPrompt> = {
 	title: "modules/tasks/TaskPrompt",
 	component: TaskPrompt,
 	decorators: [withAuthProvider],
@@ -54,7 +53,7 @@ const meta: Meta<typeof TasksPage> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof TasksPage>;
+type Story = StoryObj<typeof TaskPrompt>;
 
 export const LoadingTemplates: Story = {
 	args: {

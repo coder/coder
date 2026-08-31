@@ -259,6 +259,22 @@
 					}
 				]
 			}
+		},
+		{
+			"files": ["src/modules/**/*.ts", "src/modules/**/*.tsx"],
+			"rules": {
+				"no-restricted-imports": [
+					"error",
+					{
+						"patterns": [
+							{
+								"group": ["**/pages", "**/pages/**"],
+								"message": "modules/ must not import from pages/. Move shared code down into modules/."
+							}
+						]
+					}
+				]
+			}
 		}
 	]
 }

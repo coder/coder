@@ -67,9 +67,8 @@ import {
 	getAgentConnectivityIssues,
 	getAgentScriptIssues,
 } from "#/modules/workspaces/health";
-import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
-import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
+import { AgentAlert } from "./AgentAlert";
 import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
 import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
 import { AgentExternal } from "./AgentExternal";
@@ -79,6 +78,7 @@ import { AgentLogs } from "./AgentLogs/AgentLogs";
 import { AgentMetadata } from "./AgentMetadata";
 import { AgentStatus } from "./AgentStatus";
 import { AgentVersion } from "./AgentVersion";
+import { AppStatuses } from "./AppStatuses";
 import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
 import { PortForwardButton } from "./PortForwardButton";
 import { AgentSSHButton } from "./SSHButton/SSHButton";
