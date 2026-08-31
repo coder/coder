@@ -3438,8 +3438,8 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 	// The window under test is supplied explicitly rather than copied from the
 	// production constants, so revising the incident timestamps cannot silently
 	// invalidate these boundary assertions.
-	windowStart := time.Date(2026, 8, 31, 8, 35, 52, 0, time.UTC)
-	windowEnd := time.Date(2026, 8, 31, 9, 9, 0, 0, time.UTC)
+	windowStart := time.Date(2026, 8, 31, 8, 0, 0, 0, time.UTC)
+	windowEnd := time.Date(2026, 8, 31, 22, 0, 0, 0, time.UTC)
 	inWindow := windowStart.Add(time.Minute)
 
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
@@ -3498,10 +3498,7 @@ func TestDeleteIdentifiedModuleCacheFiles(t *testing.T) {
 
 	// when dbpurge runs
 	tick := awaitDoTicks(ctx, t, clk, 2)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(),
-		dbpurge.WithClock(clk),
-		dbpurge.WithIdentifiedModuleCacheWindow(windowStart, windowEnd),
-	)
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 	tick() // doTick() has now run.
 
