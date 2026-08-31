@@ -19,7 +19,7 @@ that workspace.
 Agent Relay manages the workspace for the life of the session and tears it
 down when the session ends.
 
-<img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" class="border-0!">
+<img src="../../images/guides/ai-agents/agent-relay-stack.png" alt="Agent Relay architecture diagram" style="border: none;">
 
 ## What Agent Relay is and isn't
 
