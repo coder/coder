@@ -103,7 +103,13 @@ main() {
 	echo
 	echo "Starting SSH tunnel, run test via \"pnpm run playwright:test\"..."
 	# shellcheck disable=SC2029 # This is intended to expand client-side.
-	ssh -t "${port_args[@]}" coder."${workspace}" "export CODER_E2E_PORT='${port}'; export CODER_E2E_WS_ENDPOINT='${ws_endpoint}'; export CODER_E2E_GITAUTH_DEVICE_PORT='${gitauth_device_port}'; export CODER_E2E_GITAUTH_WEB_PORT='${gitauth_web_port}'; [[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site'; exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
+	ssh -t "${port_args[@]}" coder."${workspace}" \
+		"export CODER_E2E_PORT='${port}';" \
+		"export CODER_E2E_WS_ENDPOINT='${ws_endpoint}';" \
+		"export CODER_E2E_GITAUTH_DEVICE_PORT='${gitauth_device_port}';" \
+		"export CODER_E2E_GITAUTH_WEB_PORT='${gitauth_web_port}';" \
+		"[[ -d '${coder_repo}/site' ]] && cd '${coder_repo}/site';" \
+		"exec \"\$(grep \"\${USER}\": /etc/passwd | cut -d: -f7)\" -i -l"
 }
 
 main
