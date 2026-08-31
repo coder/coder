@@ -130,7 +130,7 @@ const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
 
 const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed === null) {
-		return "text-content-secondary/60";
+		return "text-content-secondary";
 	}
 	if (percentUsed >= 95) {
 		return "text-content-destructive";
@@ -138,7 +138,7 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed >= 85) {
 		return "text-content-warning";
 	}
-	return "text-content-secondary/60";
+	return "text-content-secondary";
 };
 
 // A set of context resources that share a parent directory. Lists are grouped
@@ -169,8 +169,31 @@ const groupByDirectory = <T extends { readonly dir: string }>(
 	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
 };
 
-const RING_SIZE = 18;
-const RING_STROKE = 2.5;
+const RING_SIZE = 20;
+const RING_STROKE = 1.5;
+
+const GLYPH_HEIGHT = 11;
+const GLYPH_PATH_WIDTH = 1.79427;
+const GLYPH_PATH_HEIGHT = 14;
+const GLYPH_SCALE = GLYPH_HEIGHT / GLYPH_PATH_HEIGHT;
+const GLYPH_TX = (RING_SIZE - GLYPH_PATH_WIDTH * GLYPH_SCALE) / 2;
+const GLYPH_TY = (RING_SIZE - GLYPH_HEIGHT) / 2;
+
+const ExclamationGlyph: FC = () => (
+	<svg
+		width={RING_SIZE}
+		height={RING_SIZE}
+		viewBox={`0 0 ${RING_SIZE} ${RING_SIZE}`}
+		fill="none"
+		aria-hidden="true"
+	>
+		<path
+			transform={`translate(${GLYPH_TX} ${GLYPH_TY}) scale(${GLYPH_SCALE})`}
+			d="M0.90625 12.2214C1.39667 12.2216 1.7938 12.619 1.79427 13.1094C1.79427 13.6001 1.39696 13.9998 0.90625 14H0.888021C0.397101 14 0 13.6003 0 13.1094C0.000470166 12.6189 0.397391 12.2214 0.888021 12.2214H0.90625ZM0 9.40909V0.888021C0 0.397101 0.397101 0 0.888021 0C1.37894 0 1.77604 0.397101 1.77604 0.888021V9.40909C1.77557 9.89961 1.37865 10.2971 0.888021 10.2971C0.39739 10.2971 0.000468792 9.89961 0 9.40909Z"
+			fill="currentColor"
+		/>
+	</svg>
+);
 
 // Delay before the popover closes after the mouse leaves, giving
 // the user time to move into the popover content.
@@ -244,8 +267,7 @@ export const ContextUsageIndicator: FC<{
 		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
 	const clampedPercent = hasPercent
 		? Math.min(Math.max(percentUsed, 0), 100)
-		: 100;
-	const toneClassName = getIndicatorToneClassName(percentUsed);
+		: 0;
 
 	const context = usage?.context;
 	const isDirty = context?.dirty ?? false;
@@ -324,6 +346,14 @@ export const ContextUsageIndicator: FC<{
 		skillItems.length > 0 ||
 		hasMcp ||
 		issueItems.length > 0;
+
+	const hasResourceIssues = issueItems.length > 0;
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const toneClassName = hasContextError
+		? "text-content-destructive"
+		: isDirty || hasResourceIssues
+			? "text-content-warning"
+			: getIndicatorToneClassName(percentUsed);
 	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
 		"instruction_file",
 	]);
@@ -338,10 +368,16 @@ export const ContextUsageIndicator: FC<{
 	const fileGroups = groupByDirectory(fileItems);
 	const skillGroups = groupByDirectory(skillItems);
 
+	const statusNotes = [
+		hasContextError ? "Context error." : "",
+		isDirty ? "Context changed." : "",
+		hasResourceIssues ? "Some context resources failed to load." : "",
+	].filter((note) => note !== "");
+	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
 	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
-		: isDirty
-			? "Context usage. Context changed."
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`
+		: statusNote !== ""
+			? `Context usage.${statusNote}`
 			: "Context usage";
 
 	const panelContent = (
@@ -550,11 +586,11 @@ export const ContextUsageIndicator: FC<{
 					{onRefreshContext && (
 						<div className="flex flex-wrap gap-2">
 							<Button
-								size="sm"
+								size="xs"
 								disabled={isRefreshingContext}
 								onClick={() => onRefreshContext()}
 							>
-								<Spinner loading={isRefreshingContext} />
+								<Spinner size="sm" loading={isRefreshingContext} />
 								Refresh context
 							</Button>
 						</div>
@@ -568,26 +604,26 @@ export const ContextUsageIndicator: FC<{
 		<button
 			type="button"
 			aria-label={ariaLabel}
-			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-none transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
+			className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full border-none bg-transparent p-0 outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link/40"
 		>
 			<SvgRingProgress
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				trackClassName="stroke-content-secondary/25"
+				trackClassName="stroke-border"
 				progressClassName="stroke-current"
-				className={cn("size-icon-sm", toneClassName)}
+				className={toneClassName}
 			/>
-			{(isDirty || hasContextError) && (
-				<TriangleAlertIcon
-					aria-hidden
+			{needsAttention && (
+				<span
+					aria-hidden="true"
 					className={cn(
-						"absolute -right-0.5 -top-0.5 size-3",
-						hasContextError
-							? "text-content-destructive"
-							: "text-content-warning",
+						"absolute inset-0 flex items-center justify-center",
+						toneClassName,
 					)}
-				/>
+				>
+					<ExclamationGlyph />
+				</span>
 			)}
 		</button>
 	);
@@ -612,7 +648,11 @@ export const ContextUsageIndicator: FC<{
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<div onMouseEnter={handleMouseEnter} onMouseLeave={scheduleClose}>
+				<div
+					className="flex"
+					onMouseEnter={handleMouseEnter}
+					onMouseLeave={scheduleClose}
+				>
 					{triggerButton}
 				</div>
 			</PopoverTrigger>

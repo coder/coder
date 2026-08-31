@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -8,7 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -85,8 +86,13 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	sort.Slice(bases, func(i, j int) bool {
-		return bases[i].Name < bases[j].Name
+	// Order bases by display name, tiebreaking on ID so the order is total and
+	// deterministic even if two bases ever share a display name.
+	slices.SortFunc(bases, func(a, b codersdk.TemplateBuilderBase) int {
+		return cmp.Or(
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.ID, b.ID),
+		)
 	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
@@ -139,8 +145,11 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Resolve OS filter from the base query param.
-	var filterOS templatebuilder.BaseOS
+	// Resolve OS filter and base-included modules from the base query param.
+	var (
+		filterOS    templatebuilder.BaseOS
+		baseModules map[string]bool
+	)
 	if base := r.URL.Query().Get("base"); base != "" {
 		filterOS = templatebuilder.BaseTemplateOS(base)
 		if filterOS == "" {
@@ -150,11 +159,20 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 			})
 			return
 		}
+		included := templatebuilder.BaseIncludedModules(base)
+		baseModules = make(map[string]bool, len(included))
+		for _, id := range included {
+			baseModules[id] = true
+		}
 	}
 
 	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
 	for _, m := range manifests {
 		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		// Skip modules the base already includes (see BaseIncludedModules).
+		if baseModules[m.ID] {
 			continue
 		}
 		modules = append(modules, m.ToSDK())

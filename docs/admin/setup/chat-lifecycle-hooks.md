@@ -77,7 +77,7 @@ Coder's built-in tools decode that JSON with Go, which matches property names ca
 Coder rejects a built-in tool call whose input repeats a key or spells a schema property with different capitalization, before dispatching `pre_tool_use`.
 This check doesn't cover dynamic and MCP tools, because the client and the workspace agent execute those calls rather than coderd.
 A policy that gates them must validate their input itself.
-`edit_files` also reads the deprecated `search` and `replace` aliases when `old_text` and `new_text` are absent, so a policy that gates edit content must inspect both spellings.
+The chat `edit_files` tool reads `old_text` and `new_text` and, for rollout compatibility, also accepts the deprecated `search` and `replace` keys when the new fields are empty. A policy that gates edit content should inspect `old_text` and `new_text`, and `search`/`replace` while the compatibility window lasts.
 
 For `user_prompt_submit`, `prompt` concatenates the original submitted text parts, and `parts` carries the original structured message, including non-text parts such as file references.
 These values are captured before the consumer's override or injected context changes the stored prompt.

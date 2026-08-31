@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/oauth2provider/oauth2providertest"
 	"github.com/coder/coder/v2/coderd/userpassword"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -375,37 +374,37 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:        "NoCodeScheme",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("1234_4321"),
+			defaultCode: new("1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodeScheme",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("notcoder_1234_4321"),
+			defaultCode: new("notcoder_1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodeSecret",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_1234"),
+			defaultCode: new("coder_1234"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCodePrefix",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder__1234"),
+			defaultCode: new("coder__1234"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "InvalidCodePrefix",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_1234_4321"),
+			defaultCode: new("coder_1234_4321"),
 			tokenError:  "The authorization code is invalid or expired",
 		},
 		{
 			name:        "MissingCode",
 			app:         apps.Default,
-			defaultCode: ptr.Ref(""),
+			defaultCode: new(""),
 			tokenError:  "invalid_request",
 		},
 		{
@@ -427,7 +426,7 @@ func TestOAuth2ProviderTokenExchange(t *testing.T) {
 		{
 			name:        "ExpiredCode",
 			app:         apps.Default,
-			defaultCode: ptr.Ref("coder_prefix_code"),
+			defaultCode: new("coder_prefix_code"),
 			tokenError:  "The authorization code is invalid or expired",
 			setup: func(ctx context.Context, client *codersdk.Client, user codersdk.User) error {
 				// Insert an expired code.
@@ -719,31 +718,31 @@ func TestOAuth2ProviderTokenRefresh(t *testing.T) {
 		{
 			name:         "NoTokenScheme",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("1234_4321"),
+			defaultToken: new("1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenScheme",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("notcoder_1234_4321"),
+			defaultToken: new("notcoder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenSecret",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder_1234"),
+			defaultToken: new("coder_1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "MissingTokenPrefix",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder__1234"),
+			defaultToken: new("coder__1234"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
 			name:         "InvalidTokenPrefix",
 			app:          apps.Default,
-			defaultToken: ptr.Ref("coder_1234_4321"),
+			defaultToken: new("coder_1234_4321"),
 			error:        "The refresh token is invalid or expired",
 		},
 		{
@@ -1856,7 +1855,7 @@ func TestOAuth2DynamicClientRegistrationDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = client.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(false),
+		DynamicClientRegistrationEnabled: new(false),
 	})
 	require.NoError(t, err)
 

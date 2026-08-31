@@ -439,7 +439,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 							</ComboboxTrigger>
 							<ComboboxContent
 								align="start"
-								className="w-[var(--radix-popover-trigger-width)]"
+								className="w-(--radix-popover-trigger-width)"
 							>
 								<ComboboxInput placeholder="Search..." />
 								<ComboboxList>

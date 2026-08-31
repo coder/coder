@@ -130,9 +130,13 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		// Start the enterprise usage publisher routine. This won't do anything
 		// unless the deployment is licensed and one of the licenses has usage
 		// publishing enabled.
-		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys,
+		publisherOptions := []usage.TallymanPublisherOption{
 			usage.PublisherWithHTTPClient(api.HTTPClient),
-		)
+		}
+		if options.DeploymentValues.Prometheus.Enable {
+			publisherOptions = append(publisherOptions, usage.PublisherWithPrometheusRegisterer(options.PrometheusRegistry))
+		}
+		publisher := usage.NewTallymanPublisher(ctx, options.Logger, options.Database, o.LicenseKeys, publisherOptions...)
 		err = publisher.Start()
 		if err != nil {
 			_ = closers.Close()

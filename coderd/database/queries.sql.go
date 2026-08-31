@@ -3049,26 +3049,30 @@ effective AS (
 	LEFT JOIN user_highest_group ON user_highest_group.user_id = filtered_users.user_id
 	LEFT JOIN user_fallback_group ON user_fallback_group.user_id = filtered_users.user_id
 ),
-applied_budget AS (
-	-- The limit and source only for users whose effective budget source is the
-	-- queried group.
-	SELECT user_id, spend_limit_micros, limit_source
+visible_effective AS (
+	-- The effective group and budget only when the group belongs to the queried
+	-- group's organization.
+	SELECT
+		effective.user_id,
+		effective.raw_effective_group_id AS group_id,
+		effective.spend_limit_micros,
+		effective.limit_source
 	FROM effective
-	WHERE raw_effective_group_id = $1
+	JOIN groups ON groups.id = effective.raw_effective_group_id
+	CROSS JOIN queried_group
+	WHERE groups.organization_id = queried_group.organization_id
 )
 SELECT
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id AS effective_group_id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source,
+	visible_effective.group_id AS effective_group_id,
+	visible_effective.spend_limit_micros AS effective_spend_limit_micros,
+	visible_effective.limit_source AS effective_limit_source,
 	COALESCE(SUM(spend.spend_micros), 0)::BIGINT AS group_spend_micros
 FROM effective
 CROSS JOIN queried_group
-LEFT JOIN groups effective_group
-	ON effective_group.id = effective.raw_effective_group_id
-	AND effective_group.organization_id = queried_group.organization_id
-LEFT JOIN applied_budget ON applied_budget.user_id = effective.user_id
+LEFT JOIN visible_effective
+	ON visible_effective.user_id = effective.user_id
 LEFT JOIN ai_user_daily_spend spend
 	ON spend.user_id = effective.user_id
 	AND spend.effective_group_id = $1
@@ -3076,9 +3080,9 @@ LEFT JOIN ai_user_daily_spend spend
 GROUP BY
 	effective.user_id,
 	queried_group.organization_id,
-	effective_group.id,
-	applied_budget.spend_limit_micros,
-	applied_budget.limit_source
+	visible_effective.group_id,
+	visible_effective.spend_limit_micros,
+	visible_effective.limit_source
 ORDER BY effective.user_id
 `
 
@@ -3089,25 +3093,24 @@ type GetGroupMembersAISpendParams struct {
 }
 
 type GetGroupMembersAISpendRow struct {
-	UserID           uuid.UUID      `db:"user_id" json:"user_id"`
-	OrganizationID   uuid.UUID      `db:"organization_id" json:"organization_id"`
-	EffectiveGroupID uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
-	SpendLimitMicros sql.NullInt64  `db:"spend_limit_micros" json:"spend_limit_micros"`
-	LimitSource      sql.NullString `db:"limit_source" json:"limit_source"`
-	GroupSpendMicros int64          `db:"group_spend_micros" json:"group_spend_micros"`
+	UserID                    uuid.UUID      `db:"user_id" json:"user_id"`
+	OrganizationID            uuid.UUID      `db:"organization_id" json:"organization_id"`
+	EffectiveGroupID          uuid.NullUUID  `db:"effective_group_id" json:"effective_group_id"`
+	EffectiveSpendLimitMicros sql.NullInt64  `db:"effective_spend_limit_micros" json:"effective_spend_limit_micros"`
+	EffectiveLimitSource      sql.NullString `db:"effective_limit_source" json:"effective_limit_source"`
+	GroupSpendMicros          int64          `db:"group_spend_micros" json:"group_spend_micros"`
 }
 
 // Returns each user's AI spend attributed to the queried group, on or after
 // period_start until NOW. Only current members of the queried group are
-// returned. spend_limit_micros and limit_source are populated only when the
-// queried group is the user's effective budget source. The effective group
-// falls back to the Everyone group, and effective_group_id is null only when
-// that group belongs to a different organization than the queried group.
+// returned. effective_spend_limit_micros and effective_limit_source describe
+// the user's effective budget when its group belongs to the queried group's
+// organization. The effective group falls back to the Everyone group, and
+// effective_group_id is null only when that group belongs to a different
+// organization than the queried group.
 // The period_start parameter is normalized to its UTC calendar day.
 // TODO(AIGOV-527): unify effective group resolution in a single place.
 // Spend is aggregated for the queried group, not the user's effective group.
-// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-// whose effective budget source is not the queried group.
 func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroupMembersAISpend, arg.GroupID, arg.PeriodStart, pq.Array(arg.UserIds))
 	if err != nil {
@@ -3121,8 +3124,8 @@ func (q *sqlQuerier) GetGroupMembersAISpend(ctx context.Context, arg GetGroupMem
 			&i.UserID,
 			&i.OrganizationID,
 			&i.EffectiveGroupID,
-			&i.SpendLimitMicros,
-			&i.LimitSource,
+			&i.EffectiveSpendLimitMicros,
+			&i.EffectiveLimitSource,
 			&i.GroupSpendMicros,
 		); err != nil {
 			return nil, err
@@ -3394,6 +3397,71 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 	for rows.Next() {
 		var i GetOverBudgetUsersPerGroupRow
 		if err := rows.Scan(&i.GroupID, &i.OverBudgetUsers); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUnpricedAIModelsSince = `-- name: GetUnpricedAIModelsSince :many
+SELECT
+	providers.type::text AS provider_type,
+	interceptions.model AS model,
+	SUM(
+		token_usages.input_tokens
+		+ token_usages.output_tokens
+		+ token_usages.cache_read_input_tokens
+		+ token_usages.cache_write_input_tokens
+	)::bigint AS token_count
+FROM aibridge_interceptions AS interceptions
+JOIN aibridge_token_usages AS token_usages
+	ON token_usages.interception_id = interceptions.id
+JOIN ai_providers AS providers
+	ON providers.name = interceptions.provider_name
+	AND providers.deleted = false
+WHERE interceptions.started_at >= $1::timestamptz
+	AND token_usages.cost_micros IS NULL
+	AND providers.type::text = ANY($2::text[])
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_prices AS prices
+		WHERE prices.provider = providers.type::text
+			AND prices.model = interceptions.model
+	)
+GROUP BY providers.type, interceptions.model
+ORDER BY token_count DESC, provider_type ASC, model ASC
+`
+
+type GetUnpricedAIModelsSinceParams struct {
+	Since              time.Time `db:"since" json:"since"`
+	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
+}
+
+type GetUnpricedAIModelsSinceRow struct {
+	ProviderType string `db:"provider_type" json:"provider_type"`
+	Model        string `db:"model" json:"model"`
+	TokenCount   int64  `db:"token_count" json:"token_count"`
+}
+
+// Returns the models used since the given time that hold no price, most used
+// first. openai-compat providers cannot be priced, so their models are excluded.
+func (q *sqlQuerier) GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModelsSince, arg.Since, pq.Array(arg.PriceableProviders))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUnpricedAIModelsSinceRow
+	for rows.Next() {
+		var i GetUnpricedAIModelsSinceRow
+		if err := rows.Scan(&i.ProviderType, &i.Model, &i.TokenCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -29465,6 +29533,38 @@ func (q *sqlQuerier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetT
 	var total_runtime_ms int64
 	err := row.Scan(&total_runtime_ms)
 	return total_runtime_ms, err
+}
+
+const getUsageEventsStats = `-- name: GetUsageEventsStats :one
+SELECT
+    (COUNT(*) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'))::bigint AS pending_count,
+    COALESCE(MIN(created_at) FILTER (WHERE created_at > ($1::timestamptz) - INTERVAL '30 days'), '0001-01-01 00:00:00+00'::timestamptz)::timestamptz AS oldest_pending_created_at,
+    (COUNT(*) FILTER (WHERE created_at <= ($1::timestamptz) - INTERVAL '30 days'))::bigint AS expired_count
+FROM
+    usage_events
+WHERE
+    published_at IS NULL
+    AND created_at > ($1::timestamptz) - INTERVAL '60 days'
+`
+
+type GetUsageEventsStatsRow struct {
+	PendingCount           int64     `db:"pending_count" json:"pending_count"`
+	OldestPendingCreatedAt time.Time `db:"oldest_pending_created_at" json:"oldest_pending_created_at"`
+	ExpiredCount           int64     `db:"expired_count" json:"expired_count"`
+}
+
+// Counts unpublished usage events in the last 60 days:
+//
+//	pending: created within the last 30 days (still eligible to publish)
+//	expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+//
+// Events older than 60 days are ignored so this query stays bounded and the
+// expired gauge can recover to zero.
+func (q *sqlQuerier) GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUsageEventsStats, now)
+	var i GetUsageEventsStatsRow
+	err := row.Scan(&i.PendingCount, &i.OldestPendingCreatedAt, &i.ExpiredCount)
+	return i, err
 }
 
 const insertUsageEvent = `-- name: InsertUsageEvent :exec

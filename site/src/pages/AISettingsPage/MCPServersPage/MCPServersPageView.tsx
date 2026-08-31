@@ -1,9 +1,14 @@
-import { PlusIcon } from "lucide-react";
-import type { FC } from "react";
+import { PlusIcon, SearchIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import {
+	InputGroup,
+	InputGroupAddon,
+	InputGroupInput,
+} from "#/components/InputGroup/InputGroup";
 import { getOrganizationLabel } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import {
 	SettingsHeader,
@@ -47,6 +52,17 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 	onSelectOrganization,
 }) => {
 	const navigate = useNavigate();
+	const [searchQuery, setSearchQuery] = useState("");
+	const normalizedQuery = searchQuery.trim().toLowerCase();
+	const filteredServers =
+		normalizedQuery.length === 0
+			? servers
+			: servers.filter((server) =>
+					[server.display_name, server.slug, server.url]
+						.join(" ")
+						.toLowerCase()
+						.includes(normalizedQuery),
+				);
 	// Disambiguate against every organization sharing the page context:
 	// other creation targets and the currently selected organization.
 	const addButtonLabel =
@@ -85,13 +101,30 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 					Agents.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			<OrganizationPicker
-				id="mcp-servers-organization"
-				className="mb-4"
-				organizations={organizations}
-				organization={organization}
-				onChange={onSelectOrganization}
-			/>
+			<div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center">
+				<div className="flex-1">
+					<InputGroup>
+						<InputGroupAddon>
+							<SearchIcon />
+						</InputGroupAddon>
+						<InputGroupInput
+							type="search"
+							placeholder="Search servers..."
+							aria-label="Search servers"
+							value={searchQuery}
+							onChange={(event) => setSearchQuery(event.target.value)}
+						/>
+					</InputGroup>
+				</div>
+				<OrganizationPicker
+					id="mcp-servers-organization"
+					className="w-full sm:w-60"
+					organizations={organizations}
+					organization={organization}
+					onChange={onSelectOrganization}
+					showLabel={false}
+				/>
+			</div>
 			{Boolean(error) && (
 				<div className="mb-4">
 					<ErrorAlert error={error} />
@@ -103,7 +136,6 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 						<TableHead className="w-1/2">Name</TableHead>
 						<TableHead className="w-1/5">Auth Method</TableHead>
 						<TableHead className="w-1/5">Availability</TableHead>
-						<TableHead className="w-32">Status</TableHead>
 						<TableHead className="w-12">
 							<span className="sr-only">Open server</span>
 						</TableHead>
@@ -130,8 +162,13 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 								) : undefined
 							}
 						/>
+					) : servers.length > 0 && filteredServers.length === 0 ? (
+						<TableEmpty
+							message="No servers match your search"
+							description="Try a different search term."
+						/>
 					) : (
-						servers.map((server) => (
+						filteredServers.map((server) => (
 							<MCPServerRow
 								key={server.id}
 								server={server}

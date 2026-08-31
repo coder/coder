@@ -76,6 +76,15 @@ func (server *Server) prepareGeneration(
 		slog.F("owner_id", chat.OwnerID),
 	)
 
+	prepStart := server.clock.Now()
+	defer func() {
+		if prepDuration := server.clock.Since(prepStart); prepDuration >= slowPrepareThreshold {
+			logger.Warn(ctx, "slow generation preparation",
+				slog.F("duration", prepDuration),
+			)
+		}
+	}()
+
 	var (
 		promptRows []database.ChatMessage
 		mcpConfigs []database.MCPServerConfig
@@ -263,6 +272,7 @@ func (server *Server) prepareGeneration(
 		prompt             []fantasy.Message
 		instruction        string
 		mcpTools           []fantasy.AgentTool
+		mcpSummaries       []mcpclient.ConnectSummary
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
@@ -304,6 +314,29 @@ func (server *Server) prepareGeneration(
 		}
 	}
 
+	// Build the debug context before the connect phase so its
+	// outcomes can be recorded with run-creation context even when a
+	// later preparation step fails.
+	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
+	debugSvc := server.existingDebugService()
+	var debug *generationDebug
+	if resolved.debugEnabled {
+		if debugSvc == nil {
+			cleanup()
+			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
+		}
+		debug = &generationDebug{
+			Enabled:             true,
+			Service:             debugSvc,
+			Provider:            resolved.resolvedProvider,
+			Model:               resolved.resolvedModel,
+			TriggerMessageID:    triggerMessageID,
+			HistoryTipMessageID: historyTipMessageID,
+			TriggerLabel:        triggerLabel,
+			ModelConfig:         modelConfig,
+		}
+	}
+
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
@@ -336,7 +369,7 @@ func (server *Server) prepareGeneration(
 				logger.Warn(ctx, "failed to load MCP user tokens", slog.Error(tokenErr))
 			}
 			mcpTokens = server.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
-			mcpTools, mcpCleanup = mcpclient.ConnectAll(
+			mcpTools, mcpSummaries, mcpCleanup = mcpclient.ConnectAll(
 				ctx,
 				logger,
 				mcpConnectConfigs,
@@ -344,6 +377,7 @@ func (server *Server) prepareGeneration(
 				chat.OwnerID,
 				server.oidcTokenSource,
 				chatprovider.CoderHeaders(chat),
+				server.mcpHTTPClient,
 			)
 			return nil
 		})
@@ -365,9 +399,16 @@ func (server *Server) prepareGeneration(
 			return nil
 		})
 	}
-	if err := g2.Wait(); err != nil {
+	g2Err := g2.Wait()
+	// Record connect outcomes before acting on any preparation error:
+	// ConnectAll has already run, so a failure below (or in g2 itself)
+	// would otherwise discard this attempt's outcomes.
+	if debug != nil && input.RecordMCPConnectSummaries != nil && len(mcpSummaries) > 0 {
+		input.RecordMCPConnectSummaries(ctx, chat, debug, mcpSummaries)
+	}
+	if g2Err != nil {
 		cleanup()
-		return generationPrepared{}, err
+		return generationPrepared{}, g2Err
 	}
 
 	if mcpCleanup != nil {
@@ -632,26 +673,6 @@ func (server *Server) prepareGeneration(
 	for _, t := range tools {
 		if mcpTool, ok := t.(mcpclient.MCPToolIdentifier); ok {
 			toolNameToConfigID[t.Info().Name] = mcpTool.MCPServerConfigID()
-		}
-	}
-
-	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
-	debugSvc := server.existingDebugService()
-	var debug *generationDebug
-	if resolved.debugEnabled {
-		if debugSvc == nil {
-			cleanup()
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
-		}
-		debug = &generationDebug{
-			Enabled:             true,
-			Service:             debugSvc,
-			Provider:            resolved.resolvedProvider,
-			Model:               resolved.resolvedModel,
-			TriggerMessageID:    triggerMessageID,
-			HistoryTipMessageID: historyTipMessageID,
-			TriggerLabel:        triggerLabel,
-			ModelConfig:         modelConfig,
 		}
 	}
 

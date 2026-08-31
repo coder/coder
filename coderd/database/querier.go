@@ -610,15 +610,14 @@ type sqlcQuerier interface {
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	// Returns each user's AI spend attributed to the queried group, on or after
 	// period_start until NOW. Only current members of the queried group are
-	// returned. spend_limit_micros and limit_source are populated only when the
-	// queried group is the user's effective budget source. The effective group
-	// falls back to the Everyone group, and effective_group_id is null only when
-	// that group belongs to a different organization than the queried group.
+	// returned. effective_spend_limit_micros and effective_limit_source describe
+	// the user's effective budget when its group belongs to the queried group's
+	// organization. The effective group falls back to the Everyone group, and
+	// effective_group_id is null only when that group belongs to a different
+	// organization than the queried group.
 	// The period_start parameter is normalized to its UTC calendar day.
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	// Spend is aggregated for the queried group, not the user's effective group.
-	// A LEFT JOIN leaves spend_limit_micros and limit_source null for users
-	// whose effective budget source is not the queried group.
 	GetGroupMembersAISpend(ctx context.Context, arg GetGroupMembersAISpendParams) ([]GetGroupMembersAISpendRow, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
@@ -911,6 +910,15 @@ type sqlcQuerier interface {
 	// rollup and accept day-granularity bounds.
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
+	// Returns the models used since the given time that hold no price, most used
+	// first. openai-compat providers cannot be priced, so their models are excluded.
+	GetUnpricedAIModelsSince(ctx context.Context, arg GetUnpricedAIModelsSinceParams) ([]GetUnpricedAIModelsSinceRow, error)
+	// Counts unpublished usage events in the last 60 days:
+	//   pending: created within the last 30 days (still eligible to publish)
+	//   expired: created 30-60 days ago (too old to publish; Tallyman would reject)
+	// Events older than 60 days are ignored so this query stays bounded and the
+	// expired gauge can recover to zero.
+	GetUsageEventsStats(ctx context.Context, now time.Time) (GetUsageEventsStatsRow, error)
 	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (UserAIBudgetOverride, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAIProviderKey, error)
 	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use

@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -68,7 +67,7 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},
-							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 							Status:                  codersdk.TaskStatusActive,
 						})
 						return
@@ -102,7 +101,7 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},
-							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 							Status:                  codersdk.TaskStatusPending,
 						})
 						return
@@ -120,7 +119,7 @@ func Test_TaskStatus(t *testing.T) {
 								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 									Healthy: true,
 								},
-								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 								Status:                  codersdk.TaskStatusInitializing,
 							})
 							return
@@ -132,7 +131,7 @@ func Test_TaskStatus(t *testing.T) {
 								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 									Healthy: true,
 								},
-								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 								UpdatedAt:               now.Add(-4 * time.Second),
 								Status:                  codersdk.TaskStatusActive,
 							})
@@ -146,7 +145,7 @@ func Test_TaskStatus(t *testing.T) {
 								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 									Healthy: true,
 								},
-								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 								CurrentState: &codersdk.TaskStateEntry{
 									State:     codersdk.TaskStateWorking,
 									Timestamp: now.Add(-3 * time.Second),
@@ -164,7 +163,7 @@ func Test_TaskStatus(t *testing.T) {
 								WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 									Healthy: true,
 								},
-								WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+								WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 								CurrentState: &codersdk.TaskStateEntry{
 									State:     codersdk.TaskStateComplete,
 									Timestamp: now.Add(-2 * time.Second),
@@ -231,7 +230,7 @@ func Test_TaskStatus(t *testing.T) {
 							WorkspaceAgentHealth: &codersdk.WorkspaceAgentHealth{
 								Healthy: true,
 							},
-							WorkspaceAgentLifecycle: ptr.Ref(codersdk.WorkspaceAgentLifecycleReady),
+							WorkspaceAgentLifecycle: new(codersdk.WorkspaceAgentLifecycleReady),
 							WorkspaceStatus:         codersdk.WorkspaceStatusRunning,
 							CreatedAt:               ts,
 							UpdatedAt:               ts,

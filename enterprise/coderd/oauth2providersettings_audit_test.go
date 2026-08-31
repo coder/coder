@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -59,13 +58,13 @@ func TestOAuth2ProviderSettingsAuditDiff(t *testing.T) {
 
 	//nolint:gocritic // Updating OAuth2 provider settings is owner-only.
 	_, err := ownerClient.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(true),
+		DynamicClientRegistrationEnabled: new(true),
 	})
 	require.NoError(t, err)
 
 	//nolint:gocritic // Updating OAuth2 provider settings is owner-only.
 	_, err = ownerClient.PutOAuth2ProviderSettings(ctx, codersdk.OAuth2ProviderSettings{
-		DynamicClientRegistrationEnabled: ptr.Ref(false),
+		DynamicClientRegistrationEnabled: new(false),
 	})
 	require.NoError(t, err)
 

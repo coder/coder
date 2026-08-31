@@ -15,6 +15,7 @@ import { getSeverity, type UsageSeverity } from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { UserDropdownPremiumTrialCTA } from "./UserDropdownPremiumTrialCTA";
 
 // Elevated states show a corner badge with a distinct icon per state.
 const severityIndicators: Partial<
@@ -37,6 +38,7 @@ interface UserDropdownProps {
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	canViewLicenses: boolean;
 }
 
 export const UserDropdown: FC<UserDropdownProps> = ({
@@ -44,6 +46,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	user,
 	supportLinks,
 	onSignOut,
+	canViewLicenses,
 }) => {
 	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
 	const { data, isError } = useQuery({
@@ -95,7 +98,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="min-w-auto w-[260px]">
+			<DropdownMenuContent align="end" className="w-[260px]">
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}
@@ -109,6 +112,9 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
+					trialCta={
+						<UserDropdownPremiumTrialCTA canViewLicenses={canViewLicenses} />
+					}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>

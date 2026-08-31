@@ -1,4 +1,6 @@
-# Secrets
+---
+title: Secrets
+---
 
 Coder is open-minded about how you get your secrets into your workspaces. For
 more information about how to use secrets and other security tips, visit our

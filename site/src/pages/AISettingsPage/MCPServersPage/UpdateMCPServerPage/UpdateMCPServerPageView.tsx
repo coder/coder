@@ -12,6 +12,7 @@ interface UpdateMCPServerPageViewProps {
 	isSaving: boolean;
 	isDeleting: boolean;
 	canSelectUserOIDC: boolean;
+	canShareServer?: boolean;
 	onUpdateServer?: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
@@ -29,6 +30,7 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	isSaving,
 	isDeleting,
 	canSelectUserOIDC,
+	canShareServer,
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
@@ -37,13 +39,6 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 	return (
 		<>
 			<title>{pageTitle(server.display_name, "AI Settings")}</title>
-			<OrganizationPicker
-				id="mcp-update-organization"
-				className="mb-6"
-				organizations={organizations}
-				organization={organization}
-				showSingleOrganization
-			/>
 			<MCPServerForm
 				key={server.id}
 				server={server}
@@ -51,6 +46,16 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				isSaving={isSaving}
 				isDeleting={isDeleting}
 				canSelectUserOIDC={canSelectUserOIDC}
+				canShareServer={canShareServer}
+				organizationPicker={
+					<OrganizationPicker
+						id="mcp-update-organization"
+						className="w-full"
+						organizations={organizations}
+						organization={organization}
+						showSingleOrganization
+					/>
+				}
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
 				onToggleEnabled={onToggleEnabled}
