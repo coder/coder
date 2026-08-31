@@ -1,4 +1,6 @@
-# Configure chat lifecycle hooks
+---
+title: Configure chat lifecycle hooks
+---
 
 > [!NOTE]
 > Chat lifecycle hooks are an experimental feature.

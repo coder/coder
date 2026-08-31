@@ -1,4 +1,6 @@
-# Using Coder with an external database
+---
+title: Use Coder with an external database
+---
 
 ## Recommendation
 

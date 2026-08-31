@@ -1,4 +1,6 @@
-# GitHub
+---
+title: GitHub
+---
 
 By default, new Coder deployments use a Coder-managed GitHub app to authenticate
 users.

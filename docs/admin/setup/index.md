@@ -1,4 +1,6 @@
-# Configure Control Plane Access
+---
+title: Configure control plane access
+---
 
 Coder server's primary configuration is done via environment variables. For a
 full list of the options, run `coder server --help` or see our

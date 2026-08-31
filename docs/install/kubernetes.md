@@ -1,4 +1,6 @@
-# Install Coder on Kubernetes
+---
+title: Install Coder on Kubernetes
+---
 
 You can install Coder on Kubernetes (K8s) using Helm. We run on most Kubernetes
 distributions, including [OpenShift](./openshift.md).

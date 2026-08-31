@@ -1,4 +1,6 @@
-# Pre-install JetBrains IDEs in your template
+---
+title: Pre-install JetBrains IDEs in your template
+---
 
 For a faster first time connection with JetBrains IDEs, pre-install the IDEs backend in your template.
 

@@ -1,4 +1,6 @@
-# Cloud Platforms
+---
+title: Cloud platforms
+---
 
 We provide install guides and example templates for deploying Coder to your
 cloud of choice.

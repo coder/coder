@@ -1,4 +1,6 @@
-# Upgrade
+---
+title: Upgrade
+---
 
 This article describes how to upgrade your Coder server.
 

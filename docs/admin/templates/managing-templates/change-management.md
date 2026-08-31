@@ -1,4 +1,6 @@
-# Template Change Management
+---
+title: Template change management
+---
 
 We recommend source-controlling your templates as you would other any code, and
 automating the creation of new versions in CI/CD pipelines.

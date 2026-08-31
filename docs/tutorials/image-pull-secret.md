@@ -1,4 +1,6 @@
-# Defining ImagePullSecrets for Coder workspaces
+---
+title: Define ImagePullSecrets for Coder workspaces
+---
 
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">

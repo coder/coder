@@ -1,4 +1,6 @@
-# Working with templates
+---
+title: Work with templates
+---
 
 You create and edit Coder templates as
 [Terraform](https://developer.hashicorp.com/terraform/intro) configuration files

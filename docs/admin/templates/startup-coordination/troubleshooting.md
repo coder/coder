@@ -1,4 +1,6 @@
-# Workspace Startup Coordination Troubleshooting
+---
+title: Workspace startup coordination troubleshooting
+---
 
 > [!NOTE]
 > This feature is experimental and may change without notice in future releases.

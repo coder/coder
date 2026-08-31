@@ -1,4 +1,6 @@
-# nsjail Jail Type
+---
+title: nsjail jail type
+---
 
 > [!NOTE]
 > Agent Firewall is part of [AI Governance](../../ai-governance.md), which is

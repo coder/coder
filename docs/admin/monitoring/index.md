@@ -1,4 +1,6 @@
-# Monitoring Coder
+---
+title: Monitor Coder
+---
 
 Learn about our the tools, techniques, and best practices to monitor your Coder
 deployment.

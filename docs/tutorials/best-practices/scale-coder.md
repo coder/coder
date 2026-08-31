@@ -1,4 +1,6 @@
-# Scale Coder
+---
+title: Scale Coder
+---
 
 This best practice guide helps you prepare a Coder deployment that you can
 scale up to a high-scale deployment as use grows, and keep it operating smoothly with a

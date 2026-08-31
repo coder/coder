@@ -1,4 +1,6 @@
-# How to use Apache as a reverse-proxy with LetsEncrypt
+---
+title: How to use Apache as a reverse-proxy with LetsEncrypt
+---
 
 ## Requirements
 

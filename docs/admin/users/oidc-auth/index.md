@@ -1,4 +1,6 @@
-# OpenID Connect
+---
+title: OpenID Connect
+---
 
 The following steps through how to integrate any OpenID Connect provider (Okta,
 Active Directory, etc.) to Coder.

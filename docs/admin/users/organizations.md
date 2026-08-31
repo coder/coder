@@ -1,4 +1,6 @@
-# Organizations (Premium)
+---
+title: Organizations (Premium)
+---
 
 > [!NOTE]
 > Organizations requires a
