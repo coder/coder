@@ -672,15 +672,15 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 	tests := []struct {
 		name       string
 		clientType string
-		// A row predating the column reads back empty whether NULL or "".
+		// An old row reads back empty whether it is NULL or an empty string.
 		stored sql.NullString
-		// Sent on PUT. Must match stored or agree with the stored client type,
-		// or the type-change guard rejects the update first.
+		// Sent on the PUT. Must either match the stored method or agree with
+		// the client type, or the type-change guard rejects the update first.
 		resend codersdk.OAuth2TokenEndpointAuthMethod
 		want   codersdk.OAuth2TokenEndpointAuthMethod
 	}{
 		{
-			// A client echoing back the raw stored method, not the reported one.
+			// A client that sends back the stored method, not the reported one.
 			name:       "ConfidentialStoringNoneResendingStored",
 			clientType: database.OAuth2ProviderAppClientTypeConfidential,
 			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
@@ -688,7 +688,7 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		},
 		{
-			// A GET-driven client, whose write leaves the two columns agreeing.
+			// A client that sends back what GET reported, which fixes the row.
 			name:       "ConfidentialStoringNoneResendingReported",
 			clientType: database.OAuth2ProviderAppClientTypeConfidential,
 			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodNone), Valid: true},
@@ -710,8 +710,7 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 			want:       codersdk.OAuth2TokenEndpointAuthMethodNone,
 		},
 		{
-			// RFC 7591 §2 defaults an unspecified method to client_secret_basic,
-			// which is also what ApplyDefaults substitutes on update.
+			// RFC 7591 §2 defaults an unset method to client_secret_basic.
 			name:       "ConfidentialStoringNothing",
 			clientType: database.OAuth2ProviderAppClientTypeConfidential,
 			stored:     sql.NullString{String: "", Valid: true},
@@ -719,8 +718,8 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 			want:       codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic,
 		},
 		{
-			// The only agreeing pair whose reported method differs from the type
-			// default, separating stored-method reporting from a type switch.
+			// The stored method agrees with the type but is not the type
+			// default, so this case fails if the default is returned instead.
 			name:       "ConfidentialStoringClientSecretPost",
 			clientType: database.OAuth2ProviderAppClientTypeConfidential,
 			stored:     sql.NullString{String: string(codersdk.OAuth2TokenEndpointAuthMethodClientSecretPost), Valid: true},
@@ -736,8 +735,8 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 
-			// Seeded directly: registration now derives client_type from the
-			// method, so it can no longer produce a disagreeing row.
+			// Seeded directly, since registration derives the type from the
+			// method and can no longer create a disagreeing row.
 			app := dbgen.OAuth2ProviderApp(t, db, database.OAuth2ProviderApp{
 				CallbackURL:             "https://example.com/callback",
 				RedirectUris:            []string{"https://example.com/callback"},
@@ -784,7 +783,7 @@ func TestClientConfiguration_ReportedAuthMethod(t *testing.T) {
 			require.Equal(t, tt.want, updated.TokenEndpointAuthMethod)
 
 			// The row keeps what the client sent, so the response can still
-			// disagree with it. That is what lets the divergence heal.
+			// disagree with it.
 			stored, err := db.GetOAuth2ProviderAppByClientID(ctx, app.ID)
 			require.NoError(t, err)
 			require.Equal(t, string(tt.resend), stored.TokenEndpointAuthMethod.String)

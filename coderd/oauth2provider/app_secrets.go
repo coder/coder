@@ -54,11 +54,9 @@ func CreateAppSecret(db database.Store, auditor *audit.Auditor, logger slog.Logg
 		)
 		defer commitAudit()
 
-		// The token endpoint never validates a public client's secret, so
-		// minting one is inert. Deleting it also looks like a kill switch: a
-		// confidential app's tokens cascade away with the secret, but a public
-		// client's tokens carry a NULL app_secret_id, so deletion revokes
-		// nothing.
+		// A secret here would do nothing. The token endpoint does not check
+		// it, and deleting it revokes no tokens, because a public client's
+		// tokens have a NULL app_secret_id.
 		if app.IsPublic() {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot create a client secret for a public OAuth2 app.",

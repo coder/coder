@@ -571,16 +571,12 @@ func RequireRegistrationAccessToken(db database.Store) func(http.Handler) http.H
 // Helper functions for RFC 7591 Dynamic Client Registration
 
 // reportedAuthMethod returns the token_endpoint_auth_method to report for an
-// app, which is the stored value unless it contradicts the client type.
+// app: the stored value, unless it disagrees with the client type.
 //
-// The token endpoint enforces on client_type, so reporting a stored method that
-// disagrees with it would tell a client to authenticate in a way the server
-// will not accept. Clients registered before the type was derived from the
-// method can disagree, because the method was persisted verbatim while the type
-// was always "confidential": such an app is stored confidential with a method of
-// "none", and reporting "none" tells it to drop a secret its exchange still
-// requires. Reporting the enforced behavior instead also lets a client that
-// echoes the reported method back on its next PUT heal the row.
+// Clients registered before Coder derived the type from the method can be
+// stored as confidential with a method of "none". Reporting "none" would tell
+// such a client to stop sending the secret its token exchange still requires.
+// A client that sends the reported value back on its next update fixes the row.
 func reportedAuthMethod(app database.OAuth2ProviderApp) codersdk.OAuth2TokenEndpointAuthMethod {
 	stored := codersdk.OAuth2TokenEndpointAuthMethod(app.TokenEndpointAuthMethod.String)
 	if stored.Valid() && (stored == codersdk.OAuth2TokenEndpointAuthMethodNone) == app.IsPublic() {
@@ -589,7 +585,7 @@ func reportedAuthMethod(app database.OAuth2ProviderApp) codersdk.OAuth2TokenEndp
 	if app.IsPublic() {
 		return codersdk.OAuth2TokenEndpointAuthMethodNone
 	}
-	// RFC 7591 §2 default for a client that authenticates with a secret.
+	// RFC 7591 §2 default for a client with a secret.
 	return codersdk.OAuth2TokenEndpointAuthMethodClientSecretBasic
 }
 

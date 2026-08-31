@@ -162,8 +162,8 @@ func TestOAuth2ProviderAppSecrets(t *testing.T) {
 
 		//nolint:gocritic // OAuth2 app management requires owner permission.
 		_, err = client.PostOAuth2ProviderAppSecret(ctx, appID)
-		// Pinned, since a bare require.Error would also pass for a routing
-		// failure that never reaches the guard.
+		// Check the status and message, since a bare require.Error would also
+		// pass for a request that never reached the guard.
 		var sdkError *codersdk.Error
 		require.ErrorAsf(t, err, &sdkError, "error should be of type *codersdk.Error")
 		require.Equal(t, http.StatusBadRequest, sdkError.StatusCode())
