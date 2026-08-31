@@ -1,4 +1,6 @@
-# Reference
+---
+title: Reference
+---
 
 ## Automation
 

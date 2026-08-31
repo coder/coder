@@ -57,7 +57,7 @@ const SingleTile: FC<SingleTileProps> = ({
 			className={cn(
 				"flex cursor-pointer flex-col gap-3 rounded-md border border-solid border-border p-4",
 				selected && "ring-2 ring-content-link",
-				"has-[input:focus-visible]:outline has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-content-link",
+				"has-[input:focus-visible]:outline-solid has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-content-link",
 			)}
 		>
 			<input

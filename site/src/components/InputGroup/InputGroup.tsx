@@ -12,7 +12,7 @@ export const InputGroup: React.FC<React.ComponentProps<"div">> = ({
 			role="group"
 			className={cn(
 				// Base styles
-				"group/input-group relative flex h-10 w-full min-w-0 items-center rounded-md border border-solid border-border bg-transparent transition-colors outline-none",
+				"group/input-group relative flex h-10 w-full min-w-0 items-center rounded-md border border-solid border-border bg-transparent transition-colors outline-hidden",
 				// Focus-visible ring when input inside is focused
 				"has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-content-link",
 				// Invalid state
@@ -71,8 +71,8 @@ export const InputGroupInput: React.FC<
 				// Reset Input's default styles that conflict with group
 				"flex-1 rounded-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0 disabled:bg-transparent aria-invalid:ring-0",
 				// Adjust padding based on addon position
-				"group-has-[[data-align=inline-start]]/input-group:pl-0",
-				"group-has-[[data-align=inline-end]]/input-group:pr-0",
+				"group-has-data-[align=inline-start]/input-group:pl-0",
+				"group-has-data-[align=inline-end]/input-group:pr-0",
 				className,
 			)}
 			{...props}

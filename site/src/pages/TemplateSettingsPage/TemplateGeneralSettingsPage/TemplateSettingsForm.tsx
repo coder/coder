@@ -19,6 +19,7 @@ import {
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import {
 	Select,
 	SelectContent,
@@ -33,6 +34,7 @@ import {
 } from "#/components/StackLabel/StackLabel";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { cn } from "#/utils/cn";
+import { docs } from "#/utils/docs";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -53,6 +55,7 @@ export const validationSchema = Yup.object({
 	),
 	allow_user_cancel_workspace_jobs: Yup.boolean(),
 	agents_allowed: Yup.boolean(),
+	allow_workspace_renames: Yup.boolean(),
 	icon: iconValidator,
 	require_active_version: Yup.boolean(),
 	disable_module_cache: Yup.boolean(),
@@ -102,6 +105,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 			max_port_share_level: template.max_port_share_level,
 			cors_behavior: template.cors_behavior,
 			disable_module_cache: template.disable_module_cache,
+			allow_workspace_renames: template.allow_workspace_renames,
 		},
 		validationSchema,
 		onSubmit,
@@ -303,6 +307,38 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 										Warning: This makes workspace builds less predictable and is
 										not recommended for production templates.
 									</strong>
+								</StackLabelHelperText>
+							</StackLabel>
+						</Label>
+					</div>
+
+					<div className="flex items-start">
+						<Checkbox
+							id="allow_workspace_renames"
+							name="allow_workspace_renames"
+							checked={form.values.allow_workspace_renames}
+							onCheckedChange={(checked) => {
+								form.setFieldValue("allow_workspace_renames", checked === true);
+							}}
+							disabled={isSubmitting}
+						/>
+						<Label htmlFor="allow_workspace_renames">
+							<StackLabel>
+								Allow users to rename their workspaces.
+								<StackLabelHelperText>
+									<div>
+										Only enable this if your template does not use the workspace
+										name in such a way that changing it may destroy/recreate a
+										resource.
+									</div>
+									<Link
+										className="text-xs"
+										href={docs(
+											"/admin/templates/extending-templates/resource-persistence",
+										)}
+									>
+										Learn more
+									</Link>
 								</StackLabelHelperText>
 							</StackLabel>
 						</Label>

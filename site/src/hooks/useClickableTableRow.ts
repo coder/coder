@@ -56,7 +56,7 @@ export const useClickableTableRow = <
 	return {
 		...clickableProps,
 		className: cn([
-			"cursor-pointer hover:outline focus-visible:outline outline-1 -outline-offset-1 outline-border-secondary",
+			"cursor-pointer outline-none hover:outline-solid hover:outline-1 focus-visible:outline-solid focus-visible:outline-1 -outline-offset-1 outline-border-secondary",
 			"first:rounded-t-md last:rounded-b-md",
 		]),
 		hover: true,

@@ -310,7 +310,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">
 				<TooltipProvider delayDuration={300}>
-					<div className="max-h-64 overflow-y-auto py-1 [scrollbar-width:thin]">
+					<div className="max-h-64 overflow-y-auto py-1 scrollbar-thin">
 						{enabledServers.map((server) => {
 							const isForceOn = server.availability === "force_on";
 							const isSelected =

@@ -1044,6 +1044,11 @@
 									"path": "./ai-coder/agents/platform-controls/template-optimization.md"
 								},
 								{
+									"title": "Organization scope",
+									"description": "Learn which Coder Agents settings belong to an organization, what an upgrade migrates, and who can change them.",
+									"path": "./ai-coder/agents/platform-controls/organizations.md"
+								},
+								{
 									"title": "MCP Servers",
 									"description": "Configure external MCP servers that provide additional tools for agent chat sessions",
 									"path": "./ai-coder/agents/platform-controls/mcp-servers.md"
@@ -1089,8 +1094,7 @@
 								{
 									"title": "Chat debug logging",
 									"description": "Record detailed traces of each Coder Agents chat turn to troubleshoot agent behavior.",
-									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md",
-									"state": ["early access"]
+									"path": "./ai-coder/agents/platform-controls/chat-debug-logging.md"
 								}
 							]
 						},
@@ -1226,9 +1230,9 @@
 											"state": ["premium"]
 										},
 										{
-											"title": "Mux",
-											"description": "Configure Mux, the parallel coding agent tool, to route requests through AI Gateway.",
-											"path": "./ai-coder/ai-gateway/clients/mux.md",
+											"title": "Xum",
+											"description": "Configure Xum, the parallel coding agent tool, to route requests through AI Gateway.",
+											"path": "./ai-coder/ai-gateway/clients/xum.md",
 											"state": ["premium"]
 										},
 										{
@@ -1562,8 +1566,7 @@
 						{
 							"title": "Chats",
 							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
-							"path": "./reference/api/chats.md",
-							"state": ["early access"]
+							"path": "./reference/api/chats.md"
 						},
 						{
 							"title": "Debug",
@@ -1885,6 +1888,11 @@
 							"title": "organizations delete",
 							"description": "Delete an organization",
 							"path": "reference/cli/organizations_delete.md"
+						},
+						{
+							"title": "organizations edit",
+							"description": "Edit an organization.",
+							"path": "reference/cli/organizations_edit.md"
 						},
 						{
 							"title": "organizations list",

@@ -33,9 +33,9 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatMessagesForInfiniteScroll,
-	chatModelConfigs,
 	chatModels,
 	chatQueueConvergence,
+	clearChat,
 	compactChat,
 	createChatMessage,
 	deleteChatQueuedMessage,
@@ -51,7 +51,6 @@ import {
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
-	userChatProviderConfigs,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
@@ -67,12 +66,12 @@ import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useAIGatewayEnabled } from "#/hooks/useEmbeddedMetadata";
-import { useIsBelowLgViewport } from "#/hooks/useIsBelowLgViewport";
+import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { isMobileViewport } from "#/utils/mobile";
+import { belowLgViewportMediaQuery, isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -119,13 +118,17 @@ import {
 	countConfiguredProviderConfigs,
 	getModelSelectorPlaceholder,
 	getUnsupportedProviderNames,
+	getUsableDefaultModelIDForOrganization,
 	hasUserFixableProviders,
+	isUnavailableHistoricalModelID,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
 import { pickReasoningEffort } from "./utils/reasoningEffort";
 import {
+	CHAT_SLASH_COMMANDS,
+	CLEAR_SLASH_COMMAND,
 	COMPACT_SLASH_COMMAND,
 	chatSlashCommandTriggerText,
 	resolveChatSlashCommandAvailability,
@@ -134,34 +137,11 @@ import {
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
-/**
- * Below the `lg` breakpoint, chat and the right panel are mutually
- * exclusive, so a panel left open on a wide window would hide chat as
- * soon as the window narrows. This suppresses the panel while narrow
- * without touching the persisted preference: widening restores the
- * panel, and an explicit user action (clearSuppression) overrides it.
- */
-export function useRightPanelNarrowSuppression(): {
-	suppressed: boolean;
-	clearSuppression: () => void;
-} {
-	const isBelowLg = useIsBelowLgViewport();
-	const [suppressed, setSuppressed] = useState(isBelowLg);
-	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
-	// Render-time state adjustment on breakpoint crossings; see
-	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
-	if (isBelowLg !== prevIsBelowLg) {
-		setPrevIsBelowLg(isBelowLg);
-		setSuppressed(isBelowLg);
-	}
-	return { suppressed, clearSuppression: () => setSuppressed(false) };
-}
-
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
-class CompactCommandPendingError extends Error {}
+class BuiltInCommandPendingError extends Error {}
 
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
@@ -686,7 +666,7 @@ export function useConversationEditingState(deps: {
 		try {
 			await sendPromise;
 		} catch (error) {
-			if (error instanceof CompactCommandPendingError) {
+			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
 			rollback?.();
@@ -778,15 +758,15 @@ const getPersistedDetailError = ({
  * preferring the user's override when set.
  */
 function resolveCompactionThreshold(
-	modelConfigID: string | undefined,
+	modelID: string | undefined,
 	userThresholds: readonly TypesGen.UserChatCompactionThreshold[] | undefined,
-	modelConfigs: readonly TypesGen.ChatModelConfig[] | null | undefined,
+	models: readonly TypesGen.ChatModel[] | null | undefined,
 ): number | undefined {
-	if (!modelConfigID || !Array.isArray(modelConfigs)) return undefined;
-	const config = modelConfigs.find((c) => c.id === modelConfigID);
+	if (!modelID || !Array.isArray(models)) return undefined;
+	const config = models.find((c) => c.id === modelID);
 	if (!config) return undefined;
 	const userOverride = userThresholds?.find(
-		(threshold) => threshold.model_config_id === modelConfigID,
+		(threshold) => threshold.model_config_id === modelID,
 	);
 	if (userOverride) {
 		return userOverride.threshold_percent;
@@ -886,15 +866,28 @@ const AgentChatPage: FC = () => {
 	const [sidebarPanelPreference, setSidebarPanelPreference] = useState(() => {
 		return localStorage.getItem(RIGHT_PANEL_OPEN_KEY) === "true";
 	});
-	const { suppressed: panelSuppressedOnNarrow, clearSuppression } =
-		useRightPanelNarrowSuppression();
+	// Below the lg breakpoint, chat and the right panel are mutually
+	// exclusive, so a panel left open on a wide window would hide chat
+	// as soon as the window narrows. Suppression hides the panel while
+	// narrow without touching the persisted preference: widening
+	// restores the panel, and an explicit toggle overrides it.
+	const isBelowLg = useMediaQuery(belowLgViewportMediaQuery);
+	const [panelSuppressedOnNarrow, setPanelSuppressedOnNarrow] =
+		useState(isBelowLg);
+	const [prevIsBelowLg, setPrevIsBelowLg] = useState(isBelowLg);
+	// Render-time state adjustment on breakpoint crossings; see
+	// https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+	if (isBelowLg !== prevIsBelowLg) {
+		setPrevIsBelowLg(isBelowLg);
+		setPanelSuppressedOnNarrow(isBelowLg);
+	}
 	// Canonical panel visibility: the persisted preference gated by the
 	// narrow-viewport suppression. Only this derived value may be
 	// rendered or handed to children; the raw preference stays local.
 	const showSidebarPanel = sidebarPanelPreference && !panelSuppressedOnNarrow;
 
 	const handleSetShowSidebarPanel = (next: boolean) => {
-		clearSuppression();
+		setPanelSuppressedOnNarrow(false);
 		setSidebarPanelPreference(next);
 		localStorage.setItem(RIGHT_PANEL_OPEN_KEY, String(next));
 	};
@@ -942,13 +935,12 @@ const AgentChatPage: FC = () => {
 	});
 	const workspace = workspaceQuery.data;
 
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const modelsQuery = useQuery(chatModels(chatOrganizationId));
+	const models = modelsQuery.data?.models ?? [];
 	const chatProviderConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const userProviderConfigsQuery = useQuery(userChatProviderConfigs());
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
 	const preferencesQuery = useQuery(preferenceSettings());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
@@ -992,27 +984,20 @@ const AgentChatPage: FC = () => {
 		isModelCatalogLoading,
 		modelCatalog,
 		hasConfiguredModels,
-	} = resolveModelSelector(
-		chatModelConfigsQuery,
-		chatModelsQuery,
-		userProviderConfigsQuery,
-	);
-	const modelConfigs = chatModelConfigsQuery.data ?? [];
+	} = resolveModelSelector(chatOrganizationId, modelsQuery);
+	const isModelDataPending = chatOrganizationId === "" || isModelCatalogLoading;
 	const providerCount =
 		permissions.editDeploymentConfig &&
-		chatProviderConfigsQuery.isSuccess &&
-		chatModelsQuery.isSuccess
+		chatProviderConfigsQuery.data &&
+		modelsQuery.data
 			? countConfiguredProviderConfigs(
 					chatProviderConfigsQuery.data,
-					chatModelsQuery.data,
+					modelsQuery.data,
 				)
 			: undefined;
-	const modelCount =
-		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
-			? modelOptions.length
-			: undefined;
+	const modelCount = modelsQuery.data ? modelOptions.length : undefined;
 	const unsupportedProviderNames = getUnsupportedProviderNames(
-		chatModelsQuery.data,
+		modelsQuery.data,
 	);
 
 	const agentBindingRefetchKeyRef = useRef<string | undefined>(undefined);
@@ -1200,18 +1185,13 @@ const AgentChatPage: FC = () => {
 	const { isPending: isCompactPending, mutateAsync: compact } = useMutation(
 		compactChat(queryClient, agentId ?? ""),
 	);
-	// A skill named "compact" takes precedence over built-in /compact. Until
-	// both skill sources resolve, exact submissions wait to avoid shadowing it.
+	const { isPending: isClearPending, mutateAsync: clearChatContext } =
+		useMutation(clearChat(queryClient, agentId ?? ""));
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
 	});
 	const chatWorkspaceSkills = workspaceSkillsFromChat(chatQuery.data);
-	const compactCommandResolution = resolveChatSlashCommandAvailability(
-		COMPACT_SLASH_COMMAND,
-		personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
-		chatWorkspaceSkills,
-	);
 	const { mutateAsync: deleteQueuedMessage } = useMutation(
 		deleteChatQueuedMessage(queryClient, agentId ?? ""),
 	);
@@ -1261,8 +1241,7 @@ const AgentChatPage: FC = () => {
 		syncPromise: Promise<unknown>,
 		syncRef: { current: Promise<unknown> | null },
 	) => {
-		let trackedSync: Promise<unknown>;
-		trackedSync = syncPromise.finally(() => {
+		const trackedSync: Promise<unknown> = syncPromise.finally(() => {
 			if (syncRef.current === trackedSync) {
 				syncRef.current = null;
 			}
@@ -1335,9 +1314,8 @@ const AgentChatPage: FC = () => {
 	);
 	const prNumber =
 		chatQuery.data?.diff_status?.pr_number ?? (parsedPrNumber || undefined);
-	// Compute an effective selected model by validating the user's
-	// explicit choice against the current model options, falling
-	// back to the chat's last model or the first available option.
+	// Validate explicit and historical choices against organization options.
+	// Prefer the usable organization default before another organization model.
 	const effectiveSelectedModel = (() => {
 		const resolvedSelectedModel = resolveModelOptionId(
 			selectedModel,
@@ -1355,8 +1333,36 @@ const AgentChatPage: FC = () => {
 			return resolvedChatModel;
 		}
 
-		return modelOptions[0]?.id ?? "";
+		return (
+			getUsableDefaultModelIDForOrganization(
+				models,
+				modelOptions,
+				chatOrganizationId,
+			) ||
+			modelOptions[0]?.id ||
+			""
+		);
 	})();
+	const hasModelOptions = modelOptions.length > 0;
+	const hasResolvedModelData =
+		!isModelDataPending &&
+		modelsQuery.data !== undefined &&
+		modelsQuery.error == null;
+	const hasUnavailableHistoricalModel =
+		hasResolvedModelData &&
+		isUnavailableHistoricalModelID(chatLastModelConfigID, modelOptions);
+	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
+	const unavailableModelNotice = hasUnavailableHistoricalModel
+		? hasModelOptions
+			? "The model used by this chat is not available. A usable model is selected for new messages."
+			: hasUserFixableModelProviders
+				? "The model used by this chat is not available. Add your API key in provider settings to enable models."
+				: "The model used by this chat is not available. Generation is disabled because no usable model is available."
+		: hasResolvedModelData && !hasModelOptions
+			? hasUserFixableModelProviders
+				? "No usable chat model is available. Add your API key in provider settings to enable models."
+				: "No usable chat model is currently available. Generation is disabled."
+			: undefined;
 
 	const effectiveModelOption = modelOptions.find(
 		(option) => option.id === effectiveSelectedModel,
@@ -1372,24 +1378,26 @@ const AgentChatPage: FC = () => {
 	const compressionThreshold = resolveCompactionThreshold(
 		chatLastModelConfigID,
 		userThresholdsQuery.data?.thresholds,
-		modelConfigs,
+		models,
 	);
-	const hasModelOptions = modelOptions.length > 0;
-	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
 	const modelSelectorPlaceholder = getModelSelectorPlaceholder(
 		modelOptions,
-		isModelCatalogLoading,
+		isModelDataPending,
 		hasConfiguredModels,
 		modelCatalog,
 	);
 	const modelSelectorHelp = getModelSelectorHelp({
-		isModelCatalogLoading,
+		isModelCatalogLoading: isModelDataPending,
 		hasModelOptions,
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
 	const isSubmissionPending =
-		isSendPending || isEditPending || isInterruptPending || isCompactPending;
+		isSendPending ||
+		isEditPending ||
+		isInterruptPending ||
+		isCompactPending ||
+		isClearPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
@@ -1667,42 +1675,59 @@ const AgentChatPage: FC = () => {
 			pendingWorkspaceSyncRef.current,
 		]);
 
-		// "/compact" on its own (no attachments or file references)
-		// requests a manual context compaction instead of sending a
-		// message. Only new sends are intercepted; history edits keep their
-		// original meaning, and a personal or workspace
-		// skill named "compact" takes precedence so the command cannot shadow it.
-		const isExactCompactSubmission =
+		// Built-ins only intercept new, text-only sends. A personal or workspace
+		// skill with the same name takes precedence.
+		const builtInCommand =
 			editedMessageID === undefined &&
 			content.length === 1 &&
-			content[0].type === "text" &&
-			content[0].text?.trim() ===
-				chatSlashCommandTriggerText(COMPACT_SLASH_COMMAND);
-		if (isExactCompactSubmission && compactCommandResolution === "pending") {
+			content[0].type === "text"
+				? CHAT_SLASH_COMMANDS.find(
+						(command) =>
+							content[0].text?.trim() === chatSlashCommandTriggerText(command),
+					)
+				: undefined;
+		const builtInCommandResolution = builtInCommand
+			? resolveChatSlashCommandAvailability(
+					builtInCommand,
+					personalSkillsQuery.isSuccess ? personalSkillsQuery.data : undefined,
+					chatWorkspaceSkills,
+				)
+			: undefined;
+		if (builtInCommandResolution === "pending" && builtInCommand) {
+			const triggerText = chatSlashCommandTriggerText(builtInCommand);
 			toast.info(
-				"Checking whether /compact is available. Try again in a moment.",
+				`Checking whether ${triggerText} is available. Try again in a moment.`,
 			);
-			throw new CompactCommandPendingError();
+			throw new BuiltInCommandPendingError();
 		}
-
-		if (isExactCompactSubmission && compactCommandResolution === "available") {
-			// Optimistically show the running state before awaiting so
-			// a fast compaction cannot race this write: the worker's
-			// authoritative waiting status may arrive over the stream
-			// before the POST resolves and must not be overwritten.
-			const previousSnapshot = store.getSnapshot();
-			clearChatErrorReason(agentId);
-			clearStreamError();
-			store.clearStreamState();
-			store.setChatStatus("running");
-			try {
-				await compact();
-			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
-				toast.error(getErrorMessage(error, "Failed to compact chat."));
-				throw error;
+		if (builtInCommandResolution === "available" && builtInCommand) {
+			switch (builtInCommand.name) {
+				case COMPACT_SLASH_COMMAND.name: {
+					// Set running before awaiting so the worker's streamed waiting status cannot
+					// be overwritten if it arrives before the POST resolves.
+					const previousSnapshot = store.getSnapshot();
+					clearChatErrorReason(agentId);
+					clearStreamError();
+					store.clearStreamState();
+					store.setChatStatus("running");
+					try {
+						await compact();
+					} catch (error) {
+						restoreOptimisticRequestSnapshot(store, previousSnapshot);
+						toast.error(getErrorMessage(error, "Failed to compact chat."));
+						throw error;
+					}
+					return;
+				}
+				case CLEAR_SLASH_COMMAND.name:
+					try {
+						await clearChatContext();
+					} catch (error) {
+						toast.error(getErrorMessage(error, "Failed to clear chat."));
+						throw error;
+					}
+					return;
 			}
-			return;
 		}
 
 		if (editedMessageID !== undefined) {
@@ -1713,15 +1738,19 @@ const AgentChatPage: FC = () => {
 			const pickerModelConfigID = effectiveSelectedModel || undefined;
 			const originalIsSelectable =
 				originalModelConfigID !== undefined &&
-				modelOptions.some((opt) => opt.id === originalModelConfigID);
-			// Only override the original model when the user has switched to
-			// a different selectable option. If the original is no longer
-			// selectable, the picker is showing a fallback we should not
-			// silently use; let the backend preserve the original.
+				modelOptions.some((option) => option.id === originalModelConfigID);
+			const originalIsUnavailable = isUnavailableHistoricalModelID(
+				originalModelConfigID,
+				modelOptions,
+			);
+			// Use the picker fallback for an unavailable historical model.
+			// Override a selectable model only after the user changes it.
+			// Omit blank and nil references so the backend preserves the original.
 			const editSelectedModelConfigID =
 				pickerModelConfigID &&
-				originalIsSelectable &&
-				pickerModelConfigID !== originalModelConfigID
+				(originalIsUnavailable ||
+					(originalIsSelectable &&
+						pickerModelConfigID !== originalModelConfigID))
 					? pickerModelConfigID
 					: undefined;
 			// Omit so the backend preserves the original effort.
@@ -1731,6 +1760,7 @@ const AgentChatPage: FC = () => {
 				reasoning_effort: isEditReasoningEffortDirtyRef.current
 					? effectiveReasoningEffort
 					: undefined,
+				mcp_server_ids: [...effectiveMCPServerIds],
 			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
@@ -1930,7 +1960,7 @@ const AgentChatPage: FC = () => {
 				modelOptions={modelOptions}
 				modelSelectorPlaceholder={modelSelectorPlaceholder}
 				hasModelOptions={hasModelOptions}
-				isModelCatalogLoading={isModelCatalogLoading}
+				isModelCatalogLoading={isModelDataPending}
 				planModeEnabled={planModeEnabled}
 				onPlanModeToggle={handlePlanModeToggle}
 				isSidebarCollapsed={isSidebarCollapsed}
@@ -2009,6 +2039,8 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
+			modelCatalogError={modelsQuery.error}
+			unavailableModelNotice={unavailableModelNotice}
 			reasoningEffort={effectiveReasoningEffort}
 			onReasoningEffortChange={(value) => {
 				setSelectedReasoningEffort(value);
@@ -2022,7 +2054,7 @@ const AgentChatPage: FC = () => {
 			unsupportedProviderNames={unsupportedProviderNames}
 			aiGatewayDisabled={aiGatewayDisabled}
 			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
+			isModelCatalogLoading={isModelDataPending}
 			planModeEnabled={planModeEnabled}
 			onPlanModeToggle={handlePlanModeToggle}
 			compressionThreshold={compressionThreshold}

@@ -10,7 +10,7 @@ import type React from "react";
 import { useState } from "react";
 import { useQuery } from "react-query";
 import { Link, useLocation } from "react-router";
-import { chatModelConfigs } from "#/api/queries/chats";
+import { chatModel } from "#/api/queries/chats";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
@@ -158,6 +158,7 @@ const SubagentStatusIcon: React.FC<{
  * "View Agent" link navigates to the sub-agent chat.
  */
 export const SubagentTool: React.FC<{
+	organizationId: string;
 	descriptor: SubagentDescriptor;
 	title: string;
 	chatId: string;
@@ -175,6 +176,7 @@ export const SubagentTool: React.FC<{
 	/** File ID for the JPEG thumbnail of a completed recording. */
 	thumbnailFileId?: string;
 }> = ({
+	organizationId,
 	descriptor,
 	title,
 	chatId,
@@ -193,15 +195,15 @@ export const SubagentTool: React.FC<{
 	const [expanded, setExpanded] = useState(false);
 	const { desktopChatId, onOpenDesktop } = useDesktopPanel();
 	const wantsModelDisplay =
-		descriptor.action === "spawn" && Boolean(descriptor.modelConfigId);
-	const modelConfigsQuery = useQuery({
-		...chatModelConfigs(),
-		enabled: wantsModelDisplay,
+		descriptor.action === "spawn" && Boolean(descriptor.modelId);
+	const modelQuery = useQuery({
+		...chatModel(organizationId, descriptor.modelId ?? ""),
+		enabled: wantsModelDisplay && organizationId !== "",
 	});
 	const modelDisplay: SpawnModelDisplay = wantsModelDisplay
 		? resolveSpawnModelDisplay({
-				configs: modelConfigsQuery.data,
-				modelConfigId: descriptor.modelConfigId,
+				models: modelQuery.data ? [modelQuery.data] : undefined,
+				modelId: descriptor.modelId,
 				reasoningEffort: descriptor.reasoningEffort,
 			})
 		: {};

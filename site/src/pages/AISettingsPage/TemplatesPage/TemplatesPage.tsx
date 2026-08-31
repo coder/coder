@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import { organizationsPermissions } from "#/api/queries/organizations";
 import { templates, updateTemplateMeta } from "#/api/queries/templates";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { useTemplatesFilter } from "#/pages/TemplatesPage/TemplatesFilter";
 import { pageTitle } from "#/utils/page";
@@ -13,9 +15,23 @@ import { TemplatesPageView } from "./TemplatesPageView";
 
 const TemplatesPage: FC = () => {
 	const { permissions } = useAuthenticated();
+	const { organizations } = useDashboard();
 	const queryClient = useQueryClient();
-	const canManageTemplates =
-		permissions.editDeploymentConfig && permissions.updateTemplates;
+	const canManageTemplates = permissions.updateAnyTemplate;
+	const organizationPermissionsQuery = useQuery({
+		...organizationsPermissions(
+			organizations.map((organization) => organization.id),
+		),
+		enabled: canManageTemplates,
+	});
+	const authorizedOrganizationIDs = new Set(
+		organizations
+			.filter(
+				(organization) =>
+					organizationPermissionsQuery.data?.[organization.id]?.updateTemplates,
+			)
+			.map((organization) => organization.id),
+	);
 	const [searchParams, setSearchParams] = useSearchParams();
 	const filterState = useTemplatesFilter({
 		searchParams,
@@ -24,8 +40,15 @@ const TemplatesPage: FC = () => {
 	});
 	const templatesQuery = useQuery({
 		...templates({ q: filterState.filter.query }),
-		enabled: canManageTemplates,
+		enabled: canManageTemplates && organizationPermissionsQuery.isSuccess,
 	});
+	const authorizedTemplates = templatesQuery.data?.filter((template) =>
+		authorizedOrganizationIDs.has(template.organization_id),
+	);
+	const refetch = organizationPermissionsQuery.error
+		? organizationPermissionsQuery.refetch
+		: templatesQuery.refetch;
+	const error = organizationPermissionsQuery.error ?? templatesQuery.error;
 	const updateTemplateMutation = useMutation(updateTemplateMeta(queryClient));
 	const [pendingTemplateIDs, setPendingTemplateIDs] = useState<
 		ReadonlySet<string>
@@ -64,10 +87,12 @@ const TemplatesPage: FC = () => {
 
 			<TemplatesPageView
 				filterState={filterState}
-				templates={templatesQuery.data}
-				isLoading={templatesQuery.isLoading}
-				error={templatesQuery.error}
-				onRetry={() => void templatesQuery.refetch()}
+				templates={authorizedTemplates}
+				isLoading={
+					organizationPermissionsQuery.isLoading || templatesQuery.isLoading
+				}
+				error={error}
+				onRetry={() => void refetch()}
 				onToggleAgentsAllowed={toggleAgentsAllowed}
 				pendingTemplateIDs={pendingTemplateIDs}
 			/>
