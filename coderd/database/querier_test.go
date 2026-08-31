@@ -11065,6 +11065,50 @@ func TestUsageEventsTrigger(t *testing.T) {
 	})
 }
 
+func TestGetUsageEventsStats(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+
+	now := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+	insert := func(id string, createdAt time.Time) {
+		t.Helper()
+		err := db.InsertUsageEvent(ctx, database.InsertUsageEventParams{
+			ID:        id,
+			EventType: "dc_managed_agents_v1",
+			EventData: []byte(`{"count": 1}`),
+			CreatedAt: createdAt,
+		})
+		require.NoError(t, err)
+	}
+
+	pendingNew := now.Add(-time.Hour)
+	pendingOld := now.Add(-29 * 24 * time.Hour)
+	insert("pending-new", pendingNew)
+	insert("pending-old", pendingOld)
+	// Exactly 30 days is no longer eligible to publish.
+	insert("at-30d", now.Add(-30*24*time.Hour))
+	insert("expired-old", now.Add(-59*24*time.Hour))
+	// Exactly 60 days and older are outside the stats window.
+	insert("at-60d", now.Add(-60*24*time.Hour))
+	insert("too-old", now.Add(-61*24*time.Hour))
+	insert("published", now.Add(-2*24*time.Hour))
+	err := db.UpdateUsageEventsPostPublish(ctx, database.UpdateUsageEventsPostPublishParams{
+		Now:             now,
+		IDs:             []string{"published"},
+		FailureMessages: []string{""},
+		SetPublishedAts: []bool{true},
+	})
+	require.NoError(t, err)
+
+	stats, err := db.GetUsageEventsStats(ctx, now)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, stats.PendingCount)
+	require.EqualValues(t, 2, stats.ExpiredCount)
+	require.WithinDuration(t, pendingOld, stats.OldestPendingCreatedAt, time.Second)
+}
+
 func TestGetTotalUsageHBAgentRuntimeV1(t *testing.T) {
 	t.Parallel()
 
@@ -19313,6 +19357,80 @@ func TestOAuth2ProviderScopeNotEmpty(t *testing.T) {
 		require.True(t, database.IsCheckViolation(err, database.CheckOauth2ProviderAppTokensScopeNotEmpty),
 			"empty scope must be rejected, got %v", err)
 	})
+}
+
+func TestGetUnpricedAIModelsSince(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	initiator := dbgen.User(t, db, database.User{})
+	anthropic := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "anthropic",
+		Type: database.AIProviderTypeAnthropic,
+	})
+	openai := dbgen.AIProvider(t, db, database.AIProvider{
+		Name: "openai",
+		Type: database.AIProviderTypeOpenai,
+	})
+
+	seedUsage := func(provider database.AIProvider, model string, startedAt time.Time, inputTokens, outputTokens int64, cost sql.NullInt64) {
+		interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:  initiator.ID,
+			Provider:     string(provider.Type),
+			ProviderName: provider.Name,
+			Model:        model,
+			StartedAt:    startedAt,
+		}, nil)
+		dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
+			InterceptionID: interception.ID,
+			InputTokens:    inputTokens,
+			OutputTokens:   outputTokens,
+			CostMicros:     cost,
+			CreatedAt:      startedAt,
+		})
+	}
+
+	// Included and aggregated into one result with 500 total tokens.
+	seedUsage(anthropic, "model-a", now, 200, 100, sql.NullInt64{})
+	seedUsage(anthropic, "model-a", now, 100, 100, sql.NullInt64{})
+	// Included after model-a because it has only 200 total tokens.
+	seedUsage(anthropic, "model-b", now, 100, 100, sql.NullInt64{})
+	// Excluded because its recorded cost is not NULL.
+	seedUsage(anthropic, "costed-model", now, 100, 100, sql.NullInt64{Int64: 1, Valid: true})
+	// Excluded because its interception started before the requested window.
+	seedUsage(anthropic, "old-model", now.Add(-2*time.Hour), 100, 100, sql.NullInt64{})
+	// Excluded because OpenAI is not in the supplied priceable provider list.
+	seedUsage(openai, "excluded-provider-model", now, 100, 100, sql.NullInt64{})
+
+	// Excluded because an interception without token usage does not represent
+	// model usage.
+	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+		InitiatorID:  initiator.ID,
+		Provider:     string(anthropic.Type),
+		ProviderName: anthropic.Name,
+		Model:        "model-without-usage",
+		StartedAt:    now,
+	}, nil)
+
+	// Excluded because a current price exists for this provider and model.
+	const pricedSeed = `[{"provider":"anthropic","model":"priced-model","input_price":1,"output_price":2,"cache_read_price":null,"cache_write_price":null}]`
+	require.NoError(t, db.UpsertAIModelPrices(ctx, database.UpsertAIModelPricesParams{
+		Seed:   []byte(pricedSeed),
+		Source: database.AIModelPriceSourceCustom,
+	}))
+	seedUsage(anthropic, "priced-model", now, 100, 100, sql.NullInt64{})
+
+	got, err := db.GetUnpricedAIModelsSince(ctx, database.GetUnpricedAIModelsSinceParams{
+		Since:              now.Add(-time.Hour),
+		PriceableProviders: []string{string(database.AIProviderTypeAnthropic)},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []database.GetUnpricedAIModelsSinceRow{
+		{ProviderType: "anthropic", Model: "model-a", TokenCount: 500},
+		{ProviderType: "anthropic", Model: "model-b", TokenCount: 200},
+	}, got)
 }
 
 func TestGetAIModelPriceByProviderModel(t *testing.T) {

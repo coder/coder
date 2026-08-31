@@ -398,16 +398,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	const isCreatingForSelf = owner.id === defaultOwner.id;
 
 	return (
-		<>
-			<div className="sticky top-5 ml-10">
-				<button
-					onClick={onCancel}
-					type="button"
-					className="flex items-center gap-2 bg-transparent border-none text-content-secondary hover:text-content-primary translate-y-[68px]"
-				>
-					<ArrowLeftIcon size={20} />
-					Go back
-				</button>
+		<section className="px-4 sm:px-6 lg:px-10 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,800px)_1fr] gap-x-4 gap-y-6">
+			<div>
+				<Button variant="subtle" onClick={onCancel} className="-ml-3">
+					<ArrowLeftIcon />
+					<span>Go back</span>
+				</Button>
 			</div>
 			<div className="flex flex-col gap-6 w-full max-w-(--breakpoint-md) mx-auto pb-96">
 				<header className="flex flex-col items-start gap-3 mt-10">
@@ -777,6 +773,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					</div>
 				</form>
 			</div>
-		</>
+		</section>
 	);
 };

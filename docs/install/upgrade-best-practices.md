@@ -1,4 +1,6 @@
-# Upgrading Best Practices
+---
+title: Upgrading Best Practices
+---
 
 This guide provides best practices for upgrading Coder, along with
 troubleshooting steps for common issues encountered during upgrades,

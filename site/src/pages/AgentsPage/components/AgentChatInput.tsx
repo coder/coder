@@ -210,6 +210,12 @@ export interface AttachedWorkspaceInfo {
 	statusIcon: React.ReactNode;
 	statusLabel: string;
 }
+// Shared pill sizing: flex-basis sets a ~8ch floor (shrink-0 enforces
+// it), grow expands into free row space, and max-w-max caps at the
+// label's natural width. Below the floor the +N overflow takes over.
+const pillSizingClasses =
+	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
@@ -245,6 +251,8 @@ const ToolBadge: FC<{
 	onRemovePlanning?: () => void;
 	isDisabled?: boolean;
 	className?: string;
+	// The overflow popover auto-focuses badges; suppress the tooltip there.
+	disableTooltip?: boolean;
 }> = ({
 	badge,
 	onRemoveWorkspace,
@@ -252,6 +260,7 @@ const ToolBadge: FC<{
 	onRemovePlanning,
 	isDisabled,
 	className,
+	disableTooltip,
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
@@ -301,7 +310,12 @@ const ToolBadge: FC<{
 						)}
 					</span>
 				</TooltipTrigger>
-				<TooltipContent>{badge.statusLabel}</TooltipContent>
+				{/* Hidden below md: touch focus would stick the tooltip open. */}
+				{!disableTooltip && (
+					<TooltipContent className="hidden md:block">
+						{badge.statusLabel}
+					</TooltipContent>
+				)}
 			</Tooltip>
 		);
 	}
@@ -585,9 +599,6 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const shouldOverflowPlanningBadge =
 		planModeEnabled && contextUsage !== undefined;
 
-	// When workspace data is available the badge renders as the
-	// interactive WorkspacePill; its overflow-popover fallback uses the
-	// richer attachedWorkspace data when present.
 	let workspacePillBadge: ToolBadgeData | undefined;
 	if (workspace && workspaceAgent && chatId) {
 		workspacePillBadge = attachedWorkspace
@@ -1197,7 +1208,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					/>
 				)}
 				<div className="flex items-center justify-between gap-2 px-2.5 pb-1.5">
-					<div className="flex min-w-0 items-center gap-1">
+					{/* flex-1 routes free row space to the growing pills. */}
+					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
 						<Popover
 							modal={false}
@@ -1426,7 +1438,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className="md:h-auto md:w-auto md:shrink"
+								className={cn(pillSizingClasses, "md:h-auto")}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1450,12 +1462,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								)}
 							</span>
 						)}
-						{/* Badge row; all badges and the pill always
-						 * render so the DOM structure never changes.
-						 * Overflow badges use invisible + order-1 to
-						 * hide and reorder via CSS. The pill is invisible
-						 * when there's no overflow but still occupies
-						 * layout space, preventing measurement flicker. */}
+						{/* Badges and the +N pill stay mounted for measurement:
+						 * overflowed badges are display:none, the pill merely
+						 * invisible so its width stays readable. */}
 						<div
 							ref={badgeContainerRef}
 							className="flex min-w-0 items-center gap-1 overflow-hidden"
@@ -1472,8 +1481,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										<span
 											key="workspace-pill"
 											className={cn(
-												"flex min-w-[calc(8ch_+_3.125rem)] text-xs",
-												isOverflow && "invisible order-1",
+												"flex min-w-0 text-xs",
+												pillSizingClasses,
+												isOverflow && "hidden",
 											)}
 										>
 											<WorkspacePill
@@ -1497,14 +1507,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											onPlanModeToggle ? handleDisablePlanMode : undefined
 										}
 										isDisabled={isDisabled}
-										className={isOverflow ? "invisible order-1" : undefined}
+										className={isOverflow ? "hidden" : undefined}
 									/>
 								);
 							})}
-							{/* Pill; always in the DOM so it permanently
-							 * reserves layout space. Invisible when nothing
-							 * overflows. CSS order keeps it before order-1
-							 * (overflow) badges. */}
 							<Popover
 								open={overflowPopoverOpen && overflowCount > 0}
 								onOpenChange={setOverflowPopoverOpen}
@@ -1522,27 +1528,72 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										+{overflowCount}
 									</button>
 								</PopoverTrigger>
+								{/* Anchored above the +N pill; hugs the toolbar row. */}
 								<PopoverContent
 									side="top"
 									align="start"
-									className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									className="flex w-auto max-w-64 flex-wrap gap-1 p-2"
+									onInteractOutside={(event) => {
+										// The workspace pill portals its menu outside
+										// this popover; dismissing would unmount the
+										// open menu. Ignore focus shifts and pointer
+										// presses inside the menu.
+										if (event.detail.originalEvent.type !== "pointerdown") {
+											event.preventDefault();
+											return;
+										}
+										if (
+											event.target instanceof Element &&
+											event.target.closest('[role="menu"]')
+										) {
+											event.preventDefault();
+										}
+									}}
 								>
-									{overflowBadges.map((badge) => (
-										<ToolBadge
-											key={
-												badge.kind === "mcp"
-													? badge.server.id
-													: `${badge.kind}-overflow`
-											}
-											badge={badge}
-											onRemoveWorkspace={removeWorkspaceHandler}
-											onRemoveMcp={handleRemoveMcp}
-											onRemovePlanning={
-												onPlanModeToggle ? handleDisablePlanMode : undefined
-											}
-											isDisabled={isDisabled}
-										/>
-									))}
+									{overflowBadges.map((badge, i) => {
+										if (
+											badge === workspacePillBadge &&
+											workspace &&
+											workspaceAgent &&
+											chatId
+										) {
+											return (
+												<span
+													key="workspace-pill-overflow"
+													className="flex min-w-0 text-xs"
+												>
+													<WorkspacePill
+														workspace={workspace}
+														agent={workspaceAgent}
+														chatId={chatId}
+														sshCommand={sshCommand}
+														folder={folder}
+														onRemoveWorkspace={removeWorkspaceHandler}
+														inOverflowPopover
+													/>
+												</span>
+											);
+										}
+										return (
+											<ToolBadge
+												// Non-MCP badges can share a kind, so keys
+												// are position-qualified.
+												key={
+													badge.kind === "mcp"
+														? badge.server.id
+														: `${badge.kind}-overflow-${visibleCount + i}`
+												}
+												badge={badge}
+												onRemoveWorkspace={removeWorkspaceHandler}
+												onRemoveMcp={handleRemoveMcp}
+												onRemovePlanning={
+													onPlanModeToggle ? handleDisablePlanMode : undefined
+												}
+												isDisabled={isDisabled}
+												disableTooltip
+											/>
+										);
+									})}
 								</PopoverContent>
 							</Popover>
 						</div>
@@ -1565,7 +1616,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 										speech.isRecording ? "Cancel voice input" : "Voice input"
 									}
 								>
-									{speech.isRecording ? <XIcon /> : <MicIcon />}
+									{speech.isRecording ? (
+										<XIcon />
+									) : (
+										<MicIcon strokeWidth={1.5} />
+									)}
 								</Button>
 								{speech.error && !speech.isRecording && (
 									<span
@@ -1580,11 +1635,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{contextUsage !== undefined && (
-							<ContextUsageIndicator
-								usage={contextUsage}
-								onRefreshContext={onRefreshContext}
-								isRefreshingContext={isRefreshingContext}
-							/>
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported &&
+										!isStreaming &&
+										!speech.error &&
+										"-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+								/>
+							</div>
 						)}
 						{isStreaming && onInterrupt && (
 							<Tooltip>

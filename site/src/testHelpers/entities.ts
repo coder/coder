@@ -3310,12 +3310,25 @@ export const MockEveryoneGroup: TypesGen.Group = {
 	total_member_count: 0,
 };
 
+export const MockChatModelACL: TypesGen.ChatModelACL = {
+	users: [{ ...MockUserMember, role: "read" }],
+	groups: [
+		{ ...MockGroup, role: "read" },
+		{ ...MockEveryoneGroup, role: "read" },
+	],
+};
+
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {
 	users: [{ ...MockUserMember, role: "read" }],
 	groups: [
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatModelACLAvailable: TypesGen.ACLAvailable = {
+	users: [MockUserOwner, MockUserMember],
+	groups: [MockGroup, MockGroup2, MockEveryoneGroup],
 };
 
 export const MockMCPServerConfigACLAvailable: TypesGen.ACLAvailable = {
@@ -3364,6 +3377,7 @@ export const MockPermissions: Permissions = {
 	createWorkspace: true,
 	deleteTemplates: true,
 	updateTemplates: true,
+	updateAnyTemplate: true,
 	viewAllUsers: true,
 	updateUsers: true,
 	viewAnyAuditLog: true,
@@ -3410,6 +3424,7 @@ export const MockNoPermissions: Permissions = {
 	createWorkspace: false,
 	deleteTemplates: false,
 	updateTemplates: false,
+	updateAnyTemplate: false,
 	viewAllUsers: false,
 	updateUsers: false,
 	viewAnyAuditLog: false,
@@ -3466,6 +3481,7 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: true,
 	viewIdpSyncSettings: true,
 	editIdpSyncSettings: true,
+	updateTemplates: true,
 	viewMCPServerConfigs: true,
 	createMCPServerConfig: true,
 	updateMCPServerConfig: true,
@@ -3494,6 +3510,7 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	viewProvisionerJobs: false,
 	viewIdpSyncSettings: false,
 	editIdpSyncSettings: false,
+	updateTemplates: false,
 	viewMCPServerConfigs: false,
 	createMCPServerConfig: false,
 	updateMCPServerConfig: false,
@@ -4351,7 +4368,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 			OSHasIPv6: true,
 			ICMPv4: false,
 			MappingVariesByDestIP: false,
-			HairPinning: null,
 			UPnP: false,
 			PMP: false,
 			PCP: false,

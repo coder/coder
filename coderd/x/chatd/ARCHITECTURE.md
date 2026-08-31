@@ -119,6 +119,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
+- `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
 
 ### Transitions used by the chat worker
 
@@ -151,12 +152,14 @@ stateDiagram-v2
     W --> R0: SendMessage
     W --> R0: EditMessage
     W --> R0: RequestCompaction
+    W --> W: ClearContext
     W --> E0: FinishError
     W --> XW: SetArchived(true)
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
+    E0 --> W: ClearContext
     E0 --> XE0: SetArchived(true)
 
     E1 --> R1: SendMessage
@@ -569,6 +572,15 @@ This endpoint uses `RequestCompaction`:
 - `E1 -> RequestCompaction -> R1`
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
+
+### `POST /api/experimental/chats/{chat}/clear`
+
+This endpoint uses `ClearContext`:
+
+- `W -> ClearContext -> W`
+- `E0 -> ClearContext -> W`
+
+No other input states are supported: generating chats and chats with queued messages get a conflict error, and archived chats are rejected. Unlike `/compact`, there is no worker round-trip and no model call: the endpoint builds the boundary triplet itself and commits it synchronously inside the API transaction. The transcript is preserved; only future prompts stop seeing pre-clear history. Clearing from an error state clears `last_error`, so a context-overflowed chat gets an instant recovery path that discards the oversized history instead of summarizing it. The prompt-assembly query needs no changes because the clear boundary reuses the compressed model-only anchor shape produced by compaction. Boundary detection (`latestContextBoundaryIndex`) recognizes both `chat_summarized` and `chat_cleared` boundaries, so clear and compaction never reach across each other's boundary. If no active model-visible non-system message follows the latest boundary, the transaction rolls back with a "nothing to clear" conflict, so an empty or already-cleared chat never gains a duplicate boundary. The endpoint is owner-only for symmetry with `/compact`. The web UI surfaces it as the `/clear` slash command.
 
 ## Pubsub
 

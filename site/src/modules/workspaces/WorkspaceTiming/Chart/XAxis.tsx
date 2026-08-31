@@ -161,7 +161,7 @@ const XGrid: FC<XGridProps> = ({ columns, ...htmlProps }) => {
 				htmlProps.className,
 			)}
 		>
-			{[...Array(columns).keys()].map((key) => (
+			{Array.from({ length: columns }, (_, key) => (
 				<div
 					key={key}
 					className="shrink-0 bg-repeat-y bg-right"

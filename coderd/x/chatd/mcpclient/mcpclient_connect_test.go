@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,6 +18,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/safedial"
 )
 
 // blackHoleListener accepts TCP connections and never responds,
@@ -70,6 +72,15 @@ func (b *blackHoleListener) url() string {
 // still be discovered. Without external budget enforcement the SDK
 // blocks several times past the context deadline (observed: 12s
 // for a 2s deadline) because its transport detaches the context.
+// loopbackHTTPClient returns a guarded MCP client that allows
+// loopback, where every test server in this file listens.
+func loopbackHTTPClient() *http.Client {
+	return mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(
+		netip.MustParsePrefix("127.0.0.0/8"),
+		netip.MustParsePrefix("::1/128"),
+	))
+}
+
 func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -82,7 +93,7 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	timeout := 1 * time.Second
 
 	start := time.Now()
-	tools, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
+	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
 		[]database.MCPServerConfig{
 			makeConfig("blackhole", bh.url()),
 			makeConfig("healthy", healthy.URL),
@@ -98,6 +109,17 @@ func TestConnectAll_BlackHoledServerBudget(t *testing.T) {
 	require.Less(t, elapsed, 4*timeout,
 		"ConnectAll took %s, budget was %s", elapsed, timeout)
 	require.Equal(t, []string{"healthy__echo"}, toolNames(tools))
+
+	// Per-server outcomes are summarized for logs and debug runs,
+	// sorted by slug.
+	require.Len(t, summaries, 2)
+	require.Equal(t, "blackhole", summaries[0].Slug)
+	require.Equal(t, mcpclient.ConnectOutcomeTimeout, summaries[0].Outcome)
+	require.NotEmpty(t, summaries[0].Error)
+	require.GreaterOrEqual(t, summaries[0].DurationMS, timeout.Milliseconds())
+	require.Equal(t, "healthy", summaries[1].Slug)
+	require.Equal(t, mcpclient.ConnectOutcomeConnected, summaries[1].Outcome)
+	require.Equal(t, 1, summaries[1].ToolCount)
 
 	// Terminating the black-holed connections unblocks the
 	// abandoned connect goroutine; the reaper must then drain its
@@ -131,7 +153,7 @@ func TestConnectAll_SlowServerStillConnects(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	cfg := makeConfig("slow", ts.URL)
-	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	t.Cleanup(cleanup)
 
 	require.Equal(t, []string{"slow__echo"}, toolNames(tools))
@@ -163,7 +185,7 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 	timeout := 500 * time.Millisecond
 
 	start := time.Now()
-	tools, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
+	tools, summaries, cleanup := mcpclient.ConnectAllForTest(ctx, logger,
 		[]database.MCPServerConfig{makeConfig("late", ts.URL)},
 		timeout,
 		func() { reaperDone <- struct{}{} },
@@ -174,6 +196,8 @@ func TestConnectAll_LateServerReaped(t *testing.T) {
 	require.Less(t, elapsed, 4*timeout,
 		"ConnectAll took %s, budget was %s", elapsed, timeout)
 	require.Empty(t, tools)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeTimeout, summaries[0].Outcome)
 
 	select {
 	case <-reaperDone:
@@ -223,7 +247,7 @@ func TestConnectAll_CleanupPromptWhenServerWedges(t *testing.T) {
 	t.Cleanup(release)
 
 	cfg := makeConfig("wedge", ts.URL)
-	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	require.Equal(t, []string{"wedge__echo"}, toolNames(tools))
 
 	start := time.Now()
@@ -277,11 +301,13 @@ func TestConnectAll_NoToolsWedgedCloseWithinBudget(t *testing.T) {
 
 	cfg := makeConfig("notools", ts.URL)
 	start := time.Now()
-	tools, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil)
+	tools, summaries, cleanup := mcpclient.ConnectAll(ctx, logger, []database.MCPServerConfig{cfg}, nil, uuid.Nil, nil, nil, loopbackHTTPClient())
 	elapsed := time.Since(start)
 	t.Cleanup(cleanup)
 
 	require.Empty(t, tools)
+	require.Len(t, summaries, 1)
+	require.Equal(t, mcpclient.ConnectOutcomeNoTools, summaries[0].Outcome)
 	require.Less(t, elapsed, 5*time.Second,
 		"ConnectAll took %s with a wedged no-tools teardown", elapsed)
 

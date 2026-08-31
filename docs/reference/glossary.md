@@ -1,4 +1,6 @@
-# Glossary
+---
+title: Glossary
+---
 
 This glossary defines the Coder-specific terms and product names you encounter across the documentation.
 Each entry gives a short definition and, where it helps, links to the page that covers the term in depth.

@@ -8,6 +8,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
 
@@ -135,7 +136,9 @@ export const CoderAgentsProductCard: FC<CoderAgentsProductCardProps> = ({
 					)}
 				</div>
 				<Button asChild className="mt-4 w-full">
-					<a href="mailto:sales@coder.com">Upgrade</a>
+					<a href={CONTACT_SALES_LINK} target="_blank" rel="noreferrer">
+						Upgrade
+					</a>
 				</Button>
 			</CardContainer>
 		);

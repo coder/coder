@@ -447,6 +447,13 @@ INTROSPECTION / PPROF OPTIONS:
       --pprof-enable bool, $CODER_PPROF_ENABLE
           Serve pprof metrics on the address defined by pprof address.
 
+MCP OPTIONS: 
+      --mcp-allowed-private-cidrs string-array, $CODER_MCP_ALLOWED_PRIVATE_CIDRS
+          MCP server destinations in private or reserved IP ranges are blocked
+          by default for SSRF protection. This applies to OAuth2 discovery,
+          OAuth2 token and revocation exchanges, and runtime MCP connections
+          from coderd. This option exempts specific CIDRs.
+
 NETWORKING OPTIONS: 
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
