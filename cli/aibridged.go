@@ -216,7 +216,7 @@ func protoToProviderSpec(pp *proto.AIProvider) aiProviderSpec {
 		bedrock.RoleARN = b.GetRoleArn()
 		bedrock.ExternalID = b.GetExternalId()
 		bedrock.Protocol = codersdk.AIProviderBedrockProtocol(b.GetProtocol())
-		spec.Bedrock = ptr.Ref(bedrock)
+		spec.Bedrock = new(bedrock)
 	}
 	return spec
 }

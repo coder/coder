@@ -54,7 +54,7 @@ export const JobRow: FC<JobRowProps> = ({ job, defaultIsOpen = false }) => {
 					</Button>
 				</TableCell>
 				<TableCell>
-					<Badge size="sm">{job.type}</Badge>
+					<Badge>{job.type}</Badge>
 				</TableCell>
 				<TableCell>
 					{job.metadata.template_name !== "" ? (

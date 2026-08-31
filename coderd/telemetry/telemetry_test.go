@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -892,20 +891,20 @@ func TestTasksTelemetry(t *testing.T) {
 		{
 			name:          "running workspace - no pause/resume events",
 			createdOffset: -45 * time.Minute,
-			buildOffset:   ptr.Ref(-30 * time.Minute),
+			buildOffset:   new(-30 * time.Minute),
 			expectEvent:   true,
 		},
 		{
 			name:          "with app status - no lifecycle events",
 			createdOffset: -90 * time.Minute,
-			buildOffset:   ptr.Ref(-45 * time.Minute),
+			buildOffset:   new(-45 * time.Minute),
 			appStatuses: []statusSpec{
 				{database.WorkspaceAppStatusStateWorking, "Task started", -40 * time.Minute},
 			},
 			expectEvent: true,
 			// ResumeToStatusMS is nil because initial start (BuildReasonInitiator)
 			// doesn't count - only task_resume starts are considered.
-			activeDurationMS: ptr.Ref(int64(40 * time.Minute / time.Millisecond)),
+			activeDurationMS: new(int64(40 * time.Minute / time.Millisecond)),
 		},
 		{
 			name:          "auto paused - LastPausedAt and PauseReason=auto",
@@ -914,9 +913,9 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -20 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-20 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			pausedDurationMS: ptr.Ref(20 * time.Minute.Milliseconds()), // Ongoing pause.
+			lastPausedOffset: new(-20 * time.Minute),
+			pauseReason:      new("auto"),
+			pausedDurationMS: new(20 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
 			name:          "manual paused - LastPausedAt and PauseReason=manual",
@@ -925,9 +924,9 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -15 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-15 * time.Minute),
-			pauseReason:      ptr.Ref("manual"),
-			pausedDurationMS: ptr.Ref(15 * time.Minute.Milliseconds()), // Ongoing pause.
+			lastPausedOffset: new(-15 * time.Minute),
+			pauseReason:      new("manual"),
+			pausedDurationMS: new(15 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
 			name:          "paused with idle time - IdleDurationMS calculated",
@@ -940,11 +939,11 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-25 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			idleDurationMS:   ptr.Ref(15 * time.Minute.Milliseconds()), // Last working (-40) to stop (-25).
-			activeDurationMS: ptr.Ref(5 * time.Minute.Milliseconds()),  // -40 min (working) to -35 min (idle).
-			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause: now - (-25min).
+			lastPausedOffset: new(-25 * time.Minute),
+			pauseReason:      new("auto"),
+			idleDurationMS:   new(15 * time.Minute.Milliseconds()), // Last working (-40) to stop (-25).
+			activeDurationMS: new(5 * time.Minute.Milliseconds()),  // -40 min (working) to -35 min (idle).
+			pausedDurationMS: new(25 * time.Minute.Milliseconds()), // Ongoing pause: now - (-25min).
 		},
 		{
 			name:          "paused with working status after pause - IdleDurationMS nil",
@@ -956,9 +955,9 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-25 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause.
+			lastPausedOffset: new(-25 * time.Minute),
+			pauseReason:      new("auto"),
+			pausedDurationMS: new(25 * time.Minute.Milliseconds()), // Ongoing pause.
 			// IdleDurationMS is nil because "last working" is after pause.
 			// ActiveDurationMS is nil because working→stop interval is negative.
 		},
@@ -970,11 +969,11 @@ func TestTasksTelemetry(t *testing.T) {
 				{3, -10 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonTaskResume, nil},
 			},
 			expectEvent:       true,
-			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
-			lastResumedOffset: ptr.Ref(-10 * time.Minute),
-			pauseReason:       ptr.Ref("auto"),
-			resumeReason:      ptr.Ref("manual"),
-			pausedDurationMS:  ptr.Ref(40 * time.Minute.Milliseconds()),
+			lastPausedOffset:  new(-50 * time.Minute),
+			lastResumedOffset: new(-10 * time.Minute),
+			pauseReason:       new("auto"),
+			resumeReason:      new("manual"),
+			pausedDurationMS:  new(40 * time.Minute.Milliseconds()),
 		},
 		{
 			// This test verifies that we do not double-report task events outside of the window.
@@ -995,9 +994,9 @@ func TestTasksTelemetry(t *testing.T) {
 				{4, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-30 * time.Minute),
-			pauseReason:      ptr.Ref("manual"),
-			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()), // Ongoing pause: now - (-30min).
+			lastPausedOffset: new(-30 * time.Minute),
+			pauseReason:      new("manual"),
+			pausedDurationMS: new(30 * time.Minute.Milliseconds()), // Ongoing pause: now - (-30min).
 		},
 		{
 			name:          "currently paused after recent resume - reports ongoing pause",
@@ -1008,9 +1007,9 @@ func TestTasksTelemetry(t *testing.T) {
 				{4, -10 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskManualPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-10 * time.Minute),
-			pauseReason:      ptr.Ref("manual"),
-			pausedDurationMS: ptr.Ref(10 * time.Minute.Milliseconds()), // Ongoing pause: now - pause time.
+			lastPausedOffset: new(-10 * time.Minute),
+			pauseReason:      new("manual"),
+			pausedDurationMS: new(10 * time.Minute.Milliseconds()), // Ongoing pause: now - pause time.
 		},
 		{
 			name:          "multiple cycles with recent resume - pairs with preceding pause",
@@ -1025,12 +1024,12 @@ func TestTasksTelemetry(t *testing.T) {
 				}},
 			},
 			expectEvent:       true,
-			lastPausedOffset:  ptr.Ref(-50 * time.Minute),
-			lastResumedOffset: ptr.Ref(-30 * time.Minute),
-			pauseReason:       ptr.Ref("auto"),
-			resumeReason:      ptr.Ref("manual"),
-			pausedDurationMS:  ptr.Ref(20 * time.Minute.Milliseconds()),
-			resumeToStatusMS:  ptr.Ref((5 * time.Minute).Milliseconds()),
+			lastPausedOffset:  new(-50 * time.Minute),
+			lastResumedOffset: new(-30 * time.Minute),
+			pauseReason:       new("auto"),
+			resumeReason:      new("manual"),
+			pausedDurationMS:  new(20 * time.Minute.Milliseconds()),
+			resumeToStatusMS:  new((5 * time.Minute).Milliseconds()),
 			// Build 1 ("started work") -> Build 2 (stop) (5h10m) + Build 3 ("resumed work") -> now (25m)
 			// TODO(cian): We define IdleDurationMS as "the time from the last working status to pause".
 			//     We know that the task has reported working since T-6h and got auto-paused at T-50m.
@@ -1038,8 +1037,8 @@ func TestTasksTelemetry(t *testing.T) {
 			//     its next report at T-25m. This is covered by ResumeToStatusMS.
 			//     But do we consider the time since its last report (T-6h) to its being auto-paused
 			//     as truly "idle"?
-			idleDurationMS:   ptr.Ref(310 * time.Minute.Milliseconds()),
-			activeDurationMS: ptr.Ref((5*time.Hour + 10*time.Minute + 25*time.Minute).Milliseconds()),
+			idleDurationMS:   new(310 * time.Minute.Milliseconds()),
+			activeDurationMS: new((5*time.Hour + 10*time.Minute + 25*time.Minute).Milliseconds()),
 		},
 		{
 			name:          "all fields populated - full lifecycle",
@@ -1056,15 +1055,15 @@ func TestTasksTelemetry(t *testing.T) {
 				}},
 			},
 			expectEvent:       true,
-			lastPausedOffset:  ptr.Ref(-35 * time.Minute),
-			lastResumedOffset: ptr.Ref(-5 * time.Minute),
-			pauseReason:       ptr.Ref("auto"),
-			resumeReason:      ptr.Ref("manual"),
-			idleDurationMS:    ptr.Ref(10 * time.Minute.Milliseconds()),
-			pausedDurationMS:  ptr.Ref(30 * time.Minute.Milliseconds()),
-			resumeToStatusMS:  ptr.Ref((2 * time.Minute).Milliseconds()),
+			lastPausedOffset:  new(-35 * time.Minute),
+			lastResumedOffset: new(-5 * time.Minute),
+			pauseReason:       new("auto"),
+			resumeReason:      new("manual"),
+			idleDurationMS:    new(10 * time.Minute.Milliseconds()),
+			pausedDurationMS:  new(30 * time.Minute.Milliseconds()),
+			resumeToStatusMS:  new((2 * time.Minute).Milliseconds()),
 			// Active duration: (-390 to -35) + (-3 to -2) = 355 + 1 = 356 min.
-			activeDurationMS: ptr.Ref(356 * time.Minute.Milliseconds()),
+			activeDurationMS: new(356 * time.Minute.Milliseconds()),
 		},
 		{
 			name:          "non-task_resume builds are tracked as other",
@@ -1074,14 +1073,14 @@ func TestTasksTelemetry(t *testing.T) {
 				{3, -30 * time.Minute, database.WorkspaceTransitionStart, database.BuildReasonInitiator, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-60 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			resumeReason:     ptr.Ref("other"),
+			lastPausedOffset: new(-60 * time.Minute),
+			pauseReason:      new("auto"),
+			resumeReason:     new("other"),
 			// LastResumedAt is set because isResumed is true (build_number > 1)
 			// even though the start reason isn't task_resume.
-			lastResumedOffset: ptr.Ref(-30 * time.Minute),
+			lastResumedOffset: new(-30 * time.Minute),
 			// PausedDurationMS reports ongoing pause: now - (-60min) = 60min.
-			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
+			pausedDurationMS: new(30 * time.Minute.Milliseconds()),
 		},
 		{
 			name:          "simple ongoing pause reports duration",
@@ -1090,15 +1089,15 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -45 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-45 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
+			lastPausedOffset: new(-45 * time.Minute),
+			pauseReason:      new("auto"),
 			// No resume, so ongoing pause: now - (-45min) = 45min.
-			pausedDurationMS: ptr.Ref(45 * time.Minute.Milliseconds()),
+			pausedDurationMS: new(45 * time.Minute.Milliseconds()),
 		},
 		{
 			name:          "active duration with paused task",
 			createdOffset: -2 * time.Hour,
-			buildOffset:   ptr.Ref(-2 * time.Hour),
+			buildOffset:   new(-2 * time.Hour),
 			appStatuses: []statusSpec{
 				{database.WorkspaceAppStatusStateWorking, "Started", -90 * time.Minute},
 				{database.WorkspaceAppStatusStateIdle, "Thinking", -60 * time.Minute}, // 30min working
@@ -1109,11 +1108,11 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -25 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-25 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			idleDurationMS:   ptr.Ref(20 * time.Minute.Milliseconds()), // Last working (-45) to stop (-25).
-			activeDurationMS: ptr.Ref(45 * time.Minute.Milliseconds()), // 30 + 15 = 45min of "working".
-			pausedDurationMS: ptr.Ref(25 * time.Minute.Milliseconds()), // Ongoing pause.
+			lastPausedOffset: new(-25 * time.Minute),
+			pauseReason:      new("auto"),
+			idleDurationMS:   new(20 * time.Minute.Milliseconds()), // Last working (-45) to stop (-25).
+			activeDurationMS: new(45 * time.Minute.Milliseconds()), // 30 + 15 = 45min of "working".
+			pausedDurationMS: new(25 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 		{
 			// When a workspace_app_status and a workspace_build share
@@ -1123,7 +1122,7 @@ func TestTasksTelemetry(t *testing.T) {
 			// lateral join produce deterministic results.
 			name:          "status and build at same timestamp - deterministic ordering",
 			createdOffset: -3 * time.Hour,
-			buildOffset:   ptr.Ref(-2 * time.Hour),
+			buildOffset:   new(-2 * time.Hour),
 			appStatuses: []statusSpec{
 				{database.WorkspaceAppStatusStateWorking, "Started work", -90 * time.Minute},
 				// This status has the exact same timestamp as the
@@ -1134,13 +1133,13 @@ func TestTasksTelemetry(t *testing.T) {
 				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-30 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
+			lastPausedOffset: new(-30 * time.Minute),
+			pauseReason:      new("auto"),
 			// IdleDurationMS is nil: the Go code requires
 			// stop.After(lastWorking), which is false when equal.
 			// Active: -90m (working) → -30m (boundary/stop) = 60 min.
-			activeDurationMS: ptr.Ref(60 * time.Minute.Milliseconds()),
-			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()),
+			activeDurationMS: new(60 * time.Minute.Milliseconds()),
+			pausedDurationMS: new(30 * time.Minute.Milliseconds()),
 		},
 		{
 			// SQL filter: EXISTS (workspace_builds.created_at > createdAfter).
@@ -1148,7 +1147,7 @@ func TestTasksTelemetry(t *testing.T) {
 			// the 1-hour createdAfter filter and should not return an event.
 			name:          "old task with no recent builds - not returned",
 			createdOffset: -7 * 24 * time.Hour,
-			buildOffset:   ptr.Ref(-7 * 24 * time.Hour),
+			buildOffset:   new(-7 * 24 * time.Hour),
 			expectEvent:   false,
 		},
 		{
@@ -1157,14 +1156,14 @@ func TestTasksTelemetry(t *testing.T) {
 			// so it should match the filter and return an event.
 			name:          "old task with recent build - returned",
 			createdOffset: -7 * 24 * time.Hour,
-			buildOffset:   ptr.Ref(-7 * 24 * time.Hour),
+			buildOffset:   new(-7 * 24 * time.Hour),
 			extraBuilds: []buildSpec{
 				{2, -30 * time.Minute, database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil},
 			},
 			expectEvent:      true,
-			lastPausedOffset: ptr.Ref(-30 * time.Minute),
-			pauseReason:      ptr.Ref("auto"),
-			pausedDurationMS: ptr.Ref(30 * time.Minute.Milliseconds()), // Ongoing pause.
+			lastPausedOffset: new(-30 * time.Minute),
+			pauseReason:      new("auto"),
+			pausedDurationMS: new(30 * time.Minute.Milliseconds()), // Ongoing pause.
 		},
 	}
 
@@ -1277,10 +1276,10 @@ func TestTasksTelemetry(t *testing.T) {
 					OrganizationID:       updated.OrganizationID.String(),
 					OwnerID:              updated.OwnerID.String(),
 					Name:                 updated.Name,
-					WorkspaceID:          ptr.Ref(updated.WorkspaceID.UUID.String()),
-					WorkspaceBuildNumber: ptr.Ref(int64(updated.WorkspaceBuildNumber.Int32)),
-					WorkspaceAgentID:     ptr.Ref(updated.WorkspaceAgentID.UUID.String()),
-					WorkspaceAppID:       ptr.Ref(updated.WorkspaceAppID.UUID.String()),
+					WorkspaceID:          new(updated.WorkspaceID.UUID.String()),
+					WorkspaceBuildNumber: new(int64(updated.WorkspaceBuildNumber.Int32)),
+					WorkspaceAgentID:     new(updated.WorkspaceAgentID.UUID.String()),
+					WorkspaceAppID:       new(updated.WorkspaceAppID.UUID.String()),
 					TemplateVersionID:    updated.TemplateVersionID.String(),
 					PromptHash:           telemetry.HashContent(updated.Prompt),
 					Status:               string(updated.Status),
@@ -1648,21 +1647,22 @@ func TestChatsTelemetry(t *testing.T) {
 		ContextLimit: 200000,
 	})
 
-	// Create a second model config to test full dump.
+	org2 := dbgen.Organization(t, db, database.Organization{})
 	modelCfg2 := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		AIProviderID: uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
-		Model:        "gpt-4o",
-		DisplayName:  "GPT-4o",
+		AIProviderID:   uuid.NullUUID{UUID: openaiProvider.ID, Valid: true},
+		OrganizationID: org2.ID,
+		Model:          "gpt-4o",
+		DisplayName:    "GPT-4o",
 	})
 
-	// Create a soft-deleted model config — should NOT appear in telemetry.
+	// Soft-deleted model configurations must not appear in telemetry.
 	deletedCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		AIProviderID: uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
 		Model:        "claude-deleted",
 		DisplayName:  "Deleted Model",
 		ContextLimit: 100000,
 	})
-	err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
+	_, err := db.DeleteChatModelConfigByID(ctx, deletedCfg.ID)
 	require.NoError(t, err)
 
 	// Create a root chat with a workspace.
@@ -1814,9 +1814,7 @@ func TestChatsTelemetry(t *testing.T) {
 		ProviderResponseID: sql.NullString{String: "resp-3", Valid: true},
 	})
 
-	// Insert a soft-deleted message on root chat with large token values.
-	// This acts as "poison" — if the deleted filter is missing, totals
-	// will be inflated and assertions below will fail.
+	// Large token values expose a missing soft-delete filter in the totals.
 	poisonMsg := dbgen.ChatMessage(t, db, database.ChatMessage{
 		ChatID:              rootChat.ID,
 		ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
@@ -1854,6 +1852,7 @@ func TestChatsTelemetry(t *testing.T) {
 	// Root chat assertions.
 	assert.Equal(t, rootChat.ID, foundRoot.ID)
 	assert.Equal(t, user.ID, foundRoot.OwnerID)
+	assert.Equal(t, org.ID, foundRoot.OrganizationID)
 	assert.Equal(t, "running", foundRoot.Status)
 	assert.False(t, foundRoot.HasParent)
 	assert.Nil(t, foundRoot.RootChatID)
@@ -1935,6 +1934,7 @@ func TestChatsTelemetry(t *testing.T) {
 
 	cfg1, ok := configMap[modelCfg.ID]
 	require.True(t, ok)
+	assert.Equal(t, org.ID, cfg1.OrganizationID)
 	assert.Equal(t, "anthropic", cfg1.Provider)
 	assert.Equal(t, "claude-sonnet-4-20250514", cfg1.Model)
 	assert.Equal(t, int64(200000), cfg1.ContextLimit)
@@ -1943,6 +1943,7 @@ func TestChatsTelemetry(t *testing.T) {
 
 	cfg2, ok := configMap[modelCfg2.ID]
 	require.True(t, ok)
+	assert.Equal(t, org2.ID, cfg2.OrganizationID)
 	assert.Equal(t, "openai", cfg2.Provider)
 	assert.Equal(t, "gpt-4o", cfg2.Model)
 	assert.Equal(t, int64(128000), cfg2.ContextLimit)
@@ -2380,162 +2381,105 @@ func TestCollectAgentsAdvisor(t *testing.T) {
 		require.NoError(t, err)
 		return string(raw)
 	}
+	expectOverrides := func(db *dbmock.MockStore, rows ...database.GetChatOrganizationModelOverridesByContextRow) {
+		db.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), string(codersdk.ChatModelOverrideContextAdvisor)).Return(rows, nil)
+	}
 
-	t.Run("ReuseChatModel", func(t *testing.T) {
+	t.Run("Defaults", func(t *testing.T) {
 		t.Parallel()
-
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
+		expectOverrides(db)
 
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.False(t, payload.Enabled)
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
+		require.Empty(t, payload.Overrides)
 	})
 
-	t.Run("ModelOverride", func(t *testing.T) {
+	t.Run("ModelOverrides", func(t *testing.T) {
 		t.Parallel()
-
-		modelID := uuid.New()
-		providerID := uuid.New()
+		org := database.Organization{ID: uuid.New()}
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{
-			Enabled:         true,
-			MaxUsesPerRun:   7,
-			MaxOutputTokens: 2048,
-			ModelConfigID:   modelID,
-		}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
-			Model:        "gpt-6-preview",
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}, nil)
-		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
-			Type: database.AIProviderTypeOpenai,
-		}, nil)
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(marshalConfig(t, codersdk.AdvisorConfig{MaxUsesPerRun: 7, MaxOutputTokens: 2048}), nil)
+		expectOverrides(db, database.GetChatOrganizationModelOverridesByContextRow{
+			OrganizationID: org.ID,
+			ModelAvailable: true,
+			Model:          "gpt-6-preview",
+			ProviderType:   string(database.AIProviderTypeOpenai),
+		})
 
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		// Stored enabled is ignored; the chat-advisor experiment gates it.
-		require.False(t, payload.Enabled)
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t), Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor}})
+		require.True(t, payload.Enabled)
 		require.Equal(t, 7, payload.MaxUsesPerRun)
 		require.Equal(t, int64(2048), payload.MaxOutputTokens)
-		require.Equal(t, string(database.AIProviderTypeOpenai), payload.Provider)
-		require.Equal(t, "gpt-6-preview", payload.Model)
+		require.Equal(t, []telemetry.AgentsAdvisorOverrideTelemetry{{
+			OrganizationID: org.ID.String(), Provider: string(database.AIProviderTypeOpenai), Model: "gpt-6-preview",
+		}}, payload.Overrides)
 	})
 
-	t.Run("ExperimentEnabled", func(t *testing.T) {
+	t.Run("InactiveModel", func(t *testing.T) {
 		t.Parallel()
-
+		org := database.Organization{ID: uuid.New()}
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{}), nil)
-
-		payload := collect(t, telemetry.Options{
-			Database:    db,
-			Logger:      testutil.Logger(t),
-			Experiments: codersdk.Experiments{codersdk.ExperimentChatAdvisor},
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
+		expectOverrides(db, database.GetChatOrganizationModelOverridesByContextRow{
+			OrganizationID: org.ID,
+			ModelAvailable: false,
 		})
-		require.True(t, payload.Enabled)
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Equal(t, []telemetry.AgentsAdvisorOverrideTelemetry{{
+			OrganizationID: org.ID.String(),
+			Provider:       telemetry.AgentsExperimentAdvisorReuseChatModel,
+			Model:          telemetry.AgentsExperimentAdvisorReuseChatModel,
+		}}, payload.Overrides)
 	})
 
-	t.Run("MalformedJSON", func(t *testing.T) {
+	t.Run("NoOverride", func(t *testing.T) {
 		t.Parallel()
+		db := dbmock.NewMockStore(gomock.NewController(t))
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
+		expectOverrides(db)
+		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
+		require.Empty(t, payload.Overrides)
+	})
 
+	t.Run("MalformedConfig", func(t *testing.T) {
+		t.Parallel()
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("not-json", nil)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
-	})
-
-	t.Run("PartialParse", func(t *testing.T) {
-		t.Parallel()
-
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(`{"max_uses_per_run": 42, "model_config_id": "not-a-uuid"}`, nil)
-
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
 	})
 
 	t.Run("ClampsNegativeLimits", func(t *testing.T) {
 		t.Parallel()
-
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(`{"max_uses_per_run": -3, "max_output_tokens": -99}`, nil)
-
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return(`{"max_uses_per_run":-3,"max_output_tokens":-99}`, nil)
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
 		require.Zero(t, payload.MaxUsesPerRun)
 		require.Zero(t, payload.MaxOutputTokens)
 	})
 
-	t.Run("InactiveModelConfig", func(t *testing.T) {
-		t.Parallel()
-
-		modelID := uuid.New()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
-			Return(database.ChatModelConfig{}, sql.ErrNoRows)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentAdvisorReuseChatModel, payload.Model)
-	})
-
 	t.Run("ConfigFetchError", func(t *testing.T) {
 		t.Parallel()
-
 		db := dbmock.NewMockStore(gomock.NewController(t))
 		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("", sql.ErrConnDone)
-
+		expectOverrides(db)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
+		require.Empty(t, payload.Overrides)
 	})
 
-	t.Run("ModelResolveError", func(t *testing.T) {
+	t.Run("OverridesFetchError", func(t *testing.T) {
 		t.Parallel()
-
-		modelID := uuid.New()
 		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).
-			Return(database.ChatModelConfig{}, sql.ErrConnDone)
-
+		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).Return("{}", nil)
+		db.EXPECT().GetChatOrganizationModelOverridesByContext(gomock.Any(), gomock.Any()).Return(nil, sql.ErrConnDone)
 		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Model)
-	})
-
-	t.Run("ProviderResolveError", func(t *testing.T) {
-		t.Parallel()
-
-		modelID := uuid.New()
-		providerID := uuid.New()
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().GetChatAdvisorConfig(gomock.Any()).
-			Return(marshalConfig(t, codersdk.AdvisorConfig{ModelConfigID: modelID}), nil)
-		db.EXPECT().GetEnabledChatModelConfigByID(gomock.Any(), modelID).Return(database.ChatModelConfig{
-			Model:        "gpt-6-preview",
-			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
-		}, nil)
-		db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).
-			Return(database.AIProvider{}, sql.ErrConnDone)
-
-		payload := collect(t, telemetry.Options{Database: db, Logger: testutil.Logger(t)})
-		// The provider is unknown, but the already-resolved model still ships.
-		require.Equal(t, telemetry.AgentsExperimentUnknown, payload.Provider)
-		require.Equal(t, "gpt-6-preview", payload.Model)
+		require.Empty(t, payload.Overrides)
 	})
 }

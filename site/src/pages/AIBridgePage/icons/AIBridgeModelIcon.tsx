@@ -43,7 +43,7 @@ export const AIBridgeModelIcon = ({
 }: {
 	model: string;
 } & React.ComponentProps<"svg">) => {
-	const iconClassName = "flex-shrink-0";
+	const iconClassName = "shrink-0";
 	const family = inferModelFamily(model);
 	switch (family) {
 		case "claude":

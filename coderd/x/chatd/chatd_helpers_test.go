@@ -64,9 +64,10 @@ func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL stri
 	})
 	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Model:        "claude-sonnet-4-20250514",
-		IsDefault:    true,
-		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Model:          "claude-sonnet-4-20250514",
+		IsDefault:      true,
+		AIProviderID:   uuid.NullUUID{UUID: provider.ID, Valid: true},
+		OrganizationID: org.ID,
 	})
 	return user, org, model
 }

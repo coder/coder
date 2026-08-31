@@ -34,89 +34,31 @@ export const ManyOrgs: Story = {
 	},
 };
 
-const collidingDisplayNameOrganizations = [
-	{ ...MockOrganization, name: "org-a", display_name: "Dev" },
-	{ ...MockOrganization2, name: "org-b", display_name: "Dev" },
-	{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
-];
-
-export const CollidingDisplayNames: Story = {
+export const ActiveSortsFirstThenAlphabetical: Story = {
 	args: {
-		value: collidingDisplayNameOrganizations[0],
-		options: collidingDisplayNameOrganizations,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Dev \(org-a\)/ }),
-		).toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button"));
-		await waitFor(() => {
-			expect(
-				screen.getByRole("option", { name: "Dev (org-a)" }),
-			).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: "Dev (org-b)" }),
-			).toBeInTheDocument();
-			expect(screen.getByRole("option", { name: "Ops" })).toBeInTheDocument();
-		});
-	},
-};
-
-// Collides with an option but is not itself selectable, mirroring a
-// deep link to a list-only organization.
-const listOnlyOrganization = {
-	...MockOrganization,
-	id: "org-t",
-	name: "org-t",
-	display_name: "Dev",
-};
-
-export const NonOptionValueDisambiguatesOptions: Story = {
-	args: {
-		value: listOnlyOrganization,
-		options: collidingDisplayNameOrganizations.slice(0, 1),
-		labelOrganizations: [
-			...collidingDisplayNameOrganizations.slice(0, 1),
-			listOnlyOrganization,
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /Dev \(org-t\)/ }),
-		).toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button"));
-		await waitFor(() => {
-			expect(
-				screen.getByRole("option", { name: "Dev (org-a)" }),
-			).toBeInTheDocument();
-			expect(
-				screen.queryByRole("option", { name: /org-t/ }),
-			).not.toBeInTheDocument();
-		});
-	},
-};
-
-export const FallbackNameCollision: Story = {
-	args: {
-		value: null,
-		options: [
-			{ ...MockOrganization, name: "dev", display_name: "" },
-			{ ...MockOrganization2, name: "org-b", display_name: "dev" },
-			{ ...MockOrganization, id: "org-c", name: "org-c", display_name: "Ops" },
-		],
+		value: MockOrganization2,
+		options: [MockOrganization, MockOrganization2],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button"));
-		await waitFor(() => {
-			expect(screen.getByRole("option", { name: /^dev$/ })).toBeInTheDocument();
-			expect(
-				screen.getByRole("option", { name: "dev (org-b)" }),
-			).toBeInTheDocument();
-			expect(screen.getByRole("option", { name: "Ops" })).toBeInTheDocument();
-		});
+		const options = await screen.findAllByRole("option");
+		expect(options[0]).toHaveTextContent(MockOrganization2.display_name);
+		expect(options[1]).toHaveTextContent(MockOrganization.display_name);
+	},
+};
+
+export const TabbableOptions: Story = {
+	args: {
+		value: MockOrganization,
+		optionsTabbable: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button"));
+		const options = await screen.findAllByRole("option");
+		await userEvent.tab();
+		expect(options[0]).toHaveFocus();
 	},
 };
 
