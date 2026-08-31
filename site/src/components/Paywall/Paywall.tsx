@@ -157,7 +157,7 @@ export const PaywallFeature: FC<React.ComponentProps<"li">> = ({
 }) => {
 	return (
 		<li className={cn("flex items-center gap-2 p-[3px]", className)} {...props}>
-			<FeatureIcon className="flex-shrink-0" />
+			<FeatureIcon className="shrink-0" />
 			<span className="flex-1">{children}</span>
 		</li>
 	);

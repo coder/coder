@@ -65,7 +65,7 @@ export const ChartContent: FC<HTMLProps<HTMLDivElement>> = (props) => {
 			{props.children}
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 z-[1] h-[100px] transition-opacity duration-200 [bottom:calc(-1*var(--scroll-top,0px))] [opacity:var(--scroll-mask-opacity)] [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+				className="pointer-events-none absolute inset-x-0 z-1 h-[100px] transition-opacity duration-200 bottom-[calc(-1*var(--scroll-top,0px))] opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
 			/>
 		</div>
 	);
@@ -97,7 +97,7 @@ export const ChartBreadcrumbs: FC<ChartBreadcrumbsProps> = ({
 	breadcrumbs,
 }) => {
 	return (
-		<ul className="m-0 flex w-[var(--y-axis-width)] shrink-0 list-none items-center gap-1 p-[var(--section-padding)] leading-none">
+		<ul className="m-0 flex w-(--y-axis-width) shrink-0 list-none items-center gap-1 p-(--section-padding) leading-none">
 			{breadcrumbs.map((b, i) => {
 				const isLast = i === breadcrumbs.length - 1;
 				return (
@@ -147,7 +147,7 @@ type ChartLegendsProps = {
 
 export const ChartLegends: FC<ChartLegendsProps> = ({ legends }) => {
 	return (
-		<ul className="m-0 flex list-none items-center gap-6 pr-[var(--section-padding)] p-0">
+		<ul className="m-0 flex list-none items-center gap-6 pr-(--section-padding) p-0">
 			{legends.map((l) => (
 				<li
 					key={l.label}

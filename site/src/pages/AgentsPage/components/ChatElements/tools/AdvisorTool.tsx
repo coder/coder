@@ -72,7 +72,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					scrollBarClassName="w-1.5"
 				>
 					<div className="space-y-2 px-3 py-2">
-						<p className="m-0 whitespace-pre-wrap break-words text-[13px] italic leading-5 text-content-secondary [overflow-wrap:anywhere]">
+						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
 						<div className="border-0 border-t border-solid border-border-default pt-2">
@@ -81,7 +81,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									<p className="m-0 font-medium text-content-primary">
 										Advisor request failed.
 									</p>
-									<p className="m-0 text-content-secondary [overflow-wrap:anywhere]">
+									<p className="m-0 text-content-secondary wrap-anywhere">
 										{effectiveErrorMessage}
 									</p>
 								</div>

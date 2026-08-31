@@ -748,7 +748,7 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 				}}
 				label="Open Terminal"
 			>
-				<SquareTerminalIcon className="!size-7" />
+				<SquareTerminalIcon className="size-7!" />
 			</BaseIconLink>,
 		);
 	}

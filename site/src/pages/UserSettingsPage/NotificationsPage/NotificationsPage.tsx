@@ -180,7 +180,7 @@ const NotificationsPage: FC = () => {
 
 										return (
 											<Fragment key={tmpl.id}>
-												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 [&:not(:last-child)]:border-b border-solid">
+												<div className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid">
 													<div className="flex items-center gap-2">
 														<Switch
 															id={tmpl.id}

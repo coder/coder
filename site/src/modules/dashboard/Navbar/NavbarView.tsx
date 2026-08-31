@@ -26,7 +26,6 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
-	canViewModels: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
@@ -44,7 +43,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
-	canViewModels,
 	canViewLicenses,
 	proxyContextValue,
 }) => {
@@ -58,7 +56,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",
 						"[&:before]:right-0 [&:before]:h-1 [&:before]:top-0",
-						"[&:before]:bg-[repeating-linear-gradient(-45deg,_transparent,_transparent_4px,_hsl(var(--stripe-color)_/_0.5)_4px,_hsl(var(--stripe-color)_/_0.5)_8px)]",
+						"[&:before]:bg-[repeating-linear-gradient(-45deg,transparent,transparent_4px,hsl(var(--stripe-color)/0.5)_4px,hsl(var(--stripe-color)/0.5)_8px)]",
 					),
 			)}
 			style={{
@@ -76,7 +74,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 			<NavItems
 				className="ml-4 hidden md:flex"
-				canViewModels={canViewModels}
+				user={user}
 				canCreateChat={canCreateChat}
 			/>
 
@@ -143,7 +141,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="md:hidden">
 					<MobileMenu
 						proxyContextValue={proxyContextValue}
-						canViewModels={canViewModels}
 						adminPermissions={adminPermissions}
 						user={user}
 						supportLinks={supportLinks}
@@ -157,15 +154,11 @@ export const NavbarView: FC<NavbarViewProps> = ({
 
 interface NavItemsProps {
 	className?: string;
-	canViewModels: boolean;
+	user: TypesGen.User;
 	canCreateChat: boolean;
 }
 
-const NavItems: FC<NavItemsProps> = ({
-	className,
-	canCreateChat,
-	canViewModels,
-}) => {
+const NavItems: FC<NavItemsProps> = ({ className, user, canCreateChat }) => {
 	const location = useLocation();
 
 	return (
@@ -189,16 +182,6 @@ const NavItems: FC<NavItemsProps> = ({
 			>
 				Templates
 			</NavLink>
-			{canViewModels && (
-				<NavLink
-					className={({ isActive }) =>
-						cn(linkStyles.default, { [linkStyles.active]: isActive })
-					}
-					to="/ai/settings/models"
-				>
-					Models
-				</NavLink>
-			)}
 			{canCreateChat && (
 				<NavLink
 					className={({ isActive }) => {

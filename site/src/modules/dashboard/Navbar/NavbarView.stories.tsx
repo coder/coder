@@ -56,7 +56,6 @@ const meta: Meta<typeof NavbarView> = {
 			canViewAIBridge: true,
 			canViewHealth: true,
 		},
-		canViewModels: false,
 		canCreateChat: true,
 		canViewLicenses: false,
 		supportLinks: [],
@@ -306,39 +305,6 @@ export const ForUserWithoutOrganization: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: false,
-	},
-};
-
-export const ForMemberWithModelAccess: Story = {
-	parameters: {
-		pixel: { matrix: pixelWithDesktop },
-		reactRouter: reactRouterParameters({
-			location: { path: "/" },
-			routing: [
-				{ path: "/", useStoryElement: true },
-				{
-					path: "/ai/settings/models",
-					element: <h1>Organization models</h1>,
-				},
-			],
-		}),
-	},
-	args: {
-		user: MockUserMember,
-		adminPermissions: {},
-		canViewModels: true,
-		canCreateChat: false,
-	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		await expect(
-			canvas.queryByRole("button", { name: "Admin settings" }),
-		).not.toBeInTheDocument();
-		await user.click(canvas.getByRole("link", { name: "Models" }));
-		await expect(
-			await canvas.findByRole("heading", { name: "Organization models" }),
-		).toBeInTheDocument();
 	},
 };
 
