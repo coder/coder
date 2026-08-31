@@ -93,12 +93,11 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 					>
 						<p>
 							Agent Workspace Builds are measured when you start an ephemeral
-							workspace, purely for running an agentic workload. These are not
-							to be confused with workspaces used for day-to-day development,
-							even if AI tooling is involved.
+							workspace, purely for running an agentic workload. Workspaces used
+							by developers for day-to-day development do not count, even if AI
+							tooling is involved.
 						</p>
 						<p>
-							Today,{" "}
 							<Link
 								href={docs("/ai-coder/agents")}
 								target="_blank"
@@ -106,15 +105,15 @@ export const ManagedAgentsConsumption: FC<ManagedAgentsConsumptionProps> = ({
 							>
 								Coder Agents (via UI or API)
 							</Link>{" "}
-							is the only way to create agentic workspaces, but additional
-							protocols and APIs may be supported as standards emerge. Learn
-							more in{" "}
+							workspaces count towards your Agent Workspace Builds limit.
+							Additional protocols and APIs may be supported as standards
+							emerge.
 							<Link
 								href={docs("/ai-coder/ai-governance")}
 								target="_blank"
 								rel="noreferrer"
 							>
-								the Coder documentation
+								View docs
 							</Link>
 						</p>
 						<ul>

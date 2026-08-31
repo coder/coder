@@ -198,13 +198,9 @@ const ActionCheckboxes: FC<ActionCheckboxesProps> = ({
 	const [checkedActions, setCheckActions] = useState(permissions);
 	const [showAllResources, setShowAllResources] = useState(allResources);
 
-	const allActions = showAllResources
+	const resourceActions = showAllResources
 		? RBACResourceActions
 		: filteredRBACResourceActions;
-	// Keep the generated task resource hidden until the backend removes it.
-	const resourceActions = Object.fromEntries(
-		Object.entries(allActions).filter(([resource]) => resource !== "task"),
-	);
 
 	const handleActionCheckChange = async (name: string, checked: boolean) => {
 		const [resource_type, action] = name.split(":");

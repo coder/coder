@@ -68,8 +68,6 @@ export const Default: Story = {
 			// Custom notification template
 			canvas.findByRole("switch", { name: "Custom Events" }),
 		]);
-
-		expect(canvas.queryByRole("switch", { name: "Task Events" })).toBeNull();
 	},
 };
 
