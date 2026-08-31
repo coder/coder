@@ -31,7 +31,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 	if (hasLicense) {
 		return (
 			<div className="relative isolate overflow-hidden rounded-lg py-12 mb-8 border border-solid bg-surface-secondary flex items-center justify-center">
-				<Supergraphic className="bg-[position:20%_20%]" />
+				<Supergraphic className="bg-position-[20%_20%]" />
 				{isTrial ? (
 					<TrialActivePanel daysRemaining={trialDaysRemaining} />
 				) : (
@@ -45,7 +45,7 @@ export const PremiumPageView: FC<PremiumPageViewProps> = ({
 		<div className="rounded-lg border border-solid border-border-default bg-surface-primary overflow-hidden">
 			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
-					<Supergraphic className="bg-[position:20%_20%] bg-[length:110%_125%] -scale-x-100" />
+					<Supergraphic className="bg-position-[20%_20%] bg-size-[110%_125%] -scale-x-100" />
 					<div className="self-center pt-24 max-w-sm">
 						<h2 className="m-0 text-3xl font-semibold text-content-primary text-balance">
 							Start an unlimited 30-day Coder trial
