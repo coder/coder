@@ -16525,7 +16525,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
                     }
@@ -16581,7 +16581,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Token scopes (currently ignored)",
+                        "description": "Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist",
                         "name": "scope",
                         "in": "query"
                     }
