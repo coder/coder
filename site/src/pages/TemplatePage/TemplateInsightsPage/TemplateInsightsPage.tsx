@@ -1,4 +1,3 @@
-import chroma from "chroma-js";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
@@ -425,19 +424,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-	const style = getComputedStyle(document.documentElement);
-	const successHsl = style
-		.getPropertyValue("--content-success")
-		.trim()
-		.replace(/ /g, ", ");
-	const warningHsl = style
-		.getPropertyValue("--content-warning")
-		.trim()
-		.replace(/ /g, ", ");
-	const usageColors = chroma
-		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
-		.mode("lch")
-		.colors(validUsage?.length ?? 0);
+	const usageCount = validUsage?.length ?? 0;
 
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
@@ -449,6 +436,8 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 					<div className="flex flex-col gap-6">
 						{(validUsage || []).map((usage, i) => {
 							const percentage = (usage.seconds / totalInSeconds) * 100;
+							const colorStop =
+								usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
 							return (
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
@@ -470,7 +459,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 													className="absolute inset-y-0 left-0 rounded-full"
 													style={{
 														width: `${percentage}%`,
-														backgroundColor: usageColors[i],
+														backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
 													}}
 												/>
 											</div>
