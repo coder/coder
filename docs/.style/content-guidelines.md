@@ -12,7 +12,8 @@ When you have a candidate change for the docs, apply these rules in order:
 1. Walk the [quick decision checklist](#quick-decision-checklist) to triage the content.
 2. If the checklist routes the content away from the docs, find the correct home in the [routing table](#routing-table).
 3. If the content does belong in the docs, follow the [guiding principles](#guiding-principles), the [what belongs](#what-belongs-in-the-docs) catalog, and the [structural rules](#structural-rules).
-4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR. Don't guess.
+4. If you're still unsure, file a question in the DOCS project in Linear or tag `@vigilante` on a draft PR.
+   Don't guess.
 
 ## Quick decision checklist
 
@@ -149,7 +150,8 @@ Each entry includes the reason it belongs in the docs.
 - **Configuration surfaces.**
   New environment variables, server flags, and settings must be documented when they ship.
 
-  *Why:* Configuration is product surface area just like the UI and CLI. If a setting changes behavior, users need an authoritative description of it.
+  *Why:* Configuration is product surface area just like the UI and CLI.
+  If a setting changes behavior, users need an authoritative description of it.
 
 - **Coder's own API endpoints.**
   New or changed endpoints must be documented with full, correct paths.
@@ -319,7 +321,8 @@ Update this section as they land.
 
 - **In-docs troubleshooting migration.**
   Tracked in [DOCS-363](https://linear.app/codercom/issue/DOCS-363) (Urgent, cycle 4).
-  Audits the existing `## Troubleshooting` sections and dedicated troubleshooting pages under `docs/`, rewrites them for KB voice, and uploads them via the Pylon API. Until that work lands, link out to the relevant Pylon article from the page body; if no Pylon article exists yet, leave the existing inline troubleshooting in place rather than removing it.
+  Audits the existing `## Troubleshooting` sections and dedicated troubleshooting pages under `docs/`, rewrites them for KB voice, and uploads them via the Pylon API.
+  Until that work lands, link out to the relevant Pylon article from the page body; if no Pylon article exists yet, leave the existing inline troubleshooting in place rather than removing it.
 - **Pylon KB widget implementation.**
   The direction is decided (embedded widget surfacing relevant KB articles per page or section); the mechanics are still under investigation.
 - **Automated screenshot generation.**

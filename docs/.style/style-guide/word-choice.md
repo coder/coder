@@ -49,7 +49,8 @@ The planned `Coder.ProductTerms` rule and the glossary should draw on one shared
 Use the canonical casing for third-party brand and product names.
 The Coder docs team keeps a substitution list.
 
-When the prose refers to a third-party command-line tool, wrap the tool name in backticks the same way as for the Coder CLI. The product name (`Terraform`) stays capitalized in prose.
+When the prose refers to a third-party command-line tool, wrap the tool name in backticks the same way as for the Coder CLI.
+The product name (`Terraform`) stays capitalized in prose.
 The CLI tool (`terraform`) lives in backticks.
 
 | Do                                  | Don't                                 |

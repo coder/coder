@@ -285,7 +285,8 @@ Their success metric is uptime, so they trust proven, well-documented configurat
 
 #### Steven the Sponsor
 
-Steven is the CTO. They approve the Coder purchase and stay close enough to the architecture to ask sharp questions, but they no longer write code.
+Steven is the CTO.
+They approve the Coder purchase and stay close enough to the architecture to ask sharp questions, but they no longer write code.
 They need overview pages that explain what Coder is, how it fits the existing stack, what it costs, and what its security and compliance posture looks like.
 
 *Coder surface:* architecture overviews, why-Coder framing, pricing and licensing, security and compliance summaries, release notes, success-metric dashboards.
@@ -336,7 +337,8 @@ They are skeptical of new tools by default and want documented, auditable behavi
 
 #### Tara the Team Leader
 
-Tara is an engineering manager or senior tech lead assigned the Group Admin role in Coder RBAC. They need docs for team-scope administration: group memberships, group-owned secrets, group-scoped templates, and the audit log entries that explain who changed what.
+Tara is an engineering manager or senior tech lead assigned the Group Admin role in Coder RBAC.
+They need docs for team-scope administration: group memberships, group-owned secrets, group-scoped templates, and the audit log entries that explain who changed what.
 They aren't the platform owner.
 They run their team inside the guardrails Perry or Ada set up.
 
