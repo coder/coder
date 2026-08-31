@@ -44,15 +44,18 @@ export default defineConfig({
 	worker: {
 		format: "es",
 	},
-	publicDir: path.resolve(__dirname, "./static"),
+	publicDir: path.resolve(import.meta.dirname, "./static"),
 	build: {
-		outDir: path.resolve(__dirname, "./out"),
+		outDir: path.resolve(import.meta.dirname, "./out"),
 		emptyOutDir: false, // We need to keep the /bin folder and GITKEEP files
 		sourcemap: isProfilingBuild ? true : "hidden",
 		rolldownOptions: {
 			input: {
-				index: path.resolve(__dirname, "./index.html"),
-				serviceWorker: path.resolve(__dirname, "./src/serviceWorker.ts"),
+				index: path.resolve(import.meta.dirname, "./index.html"),
+				serviceWorker: path.resolve(
+					import.meta.dirname,
+					"./src/serviceWorker.ts",
+				),
 			},
 			output: {
 				entryFileNames: (chunkInfo) => {
@@ -203,7 +206,7 @@ export default defineConfig({
 				extends: true,
 				plugins: [
 					storybookTest({
-						configDir: path.join(__dirname, ".storybook"),
+						configDir: path.join(import.meta.dirname, ".storybook"),
 					}),
 					{
 						name: "storybook-test-setup",

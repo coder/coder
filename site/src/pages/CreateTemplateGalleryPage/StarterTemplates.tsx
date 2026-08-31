@@ -71,7 +71,7 @@ export const StarterTemplates: FC<StarterTemplatesProps> = ({
 					<h2 className="m-0 text-base font-normal text-content-primary">
 						Choose a starter template
 					</h2>
-					<span className="text-xs font-semibold uppercase tracking-[0.1em] text-content-secondary">
+					<span className="text-xs font-semibold uppercase tracking-widest text-content-secondary">
 						Filter
 					</span>
 					{tags.map((tag) => (

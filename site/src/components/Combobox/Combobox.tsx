@@ -89,7 +89,7 @@ export const ComboboxButton = ({
 			{...props}
 		>
 			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis flex-grow">
+			<span className="text-left block overflow-hidden text-ellipsis grow">
 				{selectedOption?.label ?? placeholder}
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
@@ -114,21 +114,23 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"w-auto bg-surface-secondary border-surface-quaternary overflow-y-auto text-sm",
+				"w-auto border-border-default overflow-y-auto text-sm",
 				className,
 			)}
 			{...props}
 		>
-			<Command className="bg-surface-secondary" shouldFilter={shouldFilter}>
-				{children}
-			</Command>
+			<Command shouldFilter={shouldFilter}>{children}</Command>
 		</PopoverContent>
 	);
 };
 
 export const ComboboxInput = CommandInput;
 
-export const ComboboxList = CommandList;
+export const ComboboxList: React.FC<
+	React.ComponentPropsWithRef<typeof CommandList>
+> = ({ className, ...props }) => {
+	return <CommandList className={cn("p-2", className)} {...props} />;
+};
 
 export const ComboboxItem = ({
 	children,
@@ -143,7 +145,7 @@ export const ComboboxItem = ({
 	return (
 		<CommandItem
 			value={value}
-			className={cn(className, "rounded-none")}
+			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);
 				// Toggle behavior: selecting the same value deselects it.
@@ -156,7 +158,7 @@ export const ComboboxItem = ({
 			{children}
 			<CheckIcon
 				className={cn(
-					"ml-2 size-4 min-w-0 flex-shrink-0",
+					"ml-2 size-4 min-w-0 shrink-0",
 					isSelected ? "opacity-100" : "opacity-0",
 				)}
 			/>

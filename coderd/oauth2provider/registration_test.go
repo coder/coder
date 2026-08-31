@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/oauth2provider"
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -49,12 +48,12 @@ func TestCreateDynamicClientRegistration_DCREnabled(t *testing.T) {
 	}{
 		{
 			name:         "EnabledAllowsRegistration",
-			configureDCR: ptr.Ref(true),
+			configureDCR: new(true),
 			wantStatus:   http.StatusCreated,
 		},
 		{
 			name:         "DisabledRejectsRegistration",
-			configureDCR: ptr.Ref(false),
+			configureDCR: new(false),
 			wantStatus:   http.StatusForbidden,
 		},
 		{

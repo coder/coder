@@ -21,11 +21,15 @@ import OptionsTable from "../OptionsTable";
 
 type SecuritySettingsPageViewProps = {
 	options: SerpentOption[];
+	/** True when the license covers browser-only connections. */
+	isBrowserOnlyEntitled: boolean;
+	/** True when the deployment has browser-only connections turned on. */
 	featureBrowserOnlyEnabled: boolean;
 };
 
 export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 	options,
+	isBrowserOnlyEntitled,
 	featureBrowserOnlyEnabled,
 }) => {
 	const tlsOptions = options.filter((o) =>
@@ -38,7 +42,11 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 				<SettingsHeader>
 					<SettingsHeaderTitle>Security</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Ensure your Coder deployment is secure.
+						Ensure your Coder deployment is secure.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/security")}
+							context="about security"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
@@ -53,14 +61,12 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 			</div>
 
 			<div>
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink
-							href={docs("/admin/networking#browser-only-connections")}
-						/>
-					}
-				>
-					<SettingsHeaderTitle level="h2" hierarchy="secondary">
+				<SettingsHeader>
+					<SettingsHeaderTitle
+						level="h2"
+						hierarchy="secondary"
+						className="items-center"
+					>
 						Browser-Only Connections{" "}
 						<Badges>
 							{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
@@ -68,14 +74,15 @@ export const SecuritySettingsPageView: FC<SecuritySettingsPageViewProps> = ({
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Block all workspace access via SSH, port forward, and other
-						non-browser connections.
+						non-browser connections.{" "}
+						<SettingsHeaderDocsLink
+							href={docs("/admin/networking#browser-only-connections")}
+							context="about browser-only connections"
+						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>
-					{featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-				</Badges>
-				{!featureBrowserOnlyEnabled ? (
+				{!isBrowserOnlyEntitled ? (
 					<PremiumPaywallSmall
 						source="browser_only"
 						message="Browser-Only Connections"

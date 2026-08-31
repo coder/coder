@@ -3232,6 +3232,22 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUnpricedAIModelsSince(ctx context.Context, since database.GetUnpricedAIModelsSinceParams) ([]database.GetUnpricedAIModelsSinceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUnpricedAIModelsSince(ctx, since)
+	m.queryLatencies.WithLabelValues("GetUnpricedAIModelsSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUnpricedAIModelsSince").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUsageEventsStats(ctx context.Context, now time.Time) (database.GetUsageEventsStatsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUsageEventsStats(ctx, now)
+	m.queryLatencies.WithLabelValues("GetUsageEventsStats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUsageEventsStats").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIBudgetOverride(ctx, userID)
@@ -5029,6 +5045,14 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	r0, r1 := m.s.RegisterWorkspaceProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("RegisterWorkspaceProxy").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RegisterWorkspaceProxy").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ReindexStaleChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.ReindexStaleChatMessagesSearchTsv(ctx, batchSize)
+	m.queryLatencies.WithLabelValues("ReindexStaleChatMessagesSearchTsv").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReindexStaleChatMessagesSearchTsv").Inc()
 	return r0, r1
 }
 

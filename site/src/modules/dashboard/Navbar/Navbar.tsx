@@ -9,7 +9,7 @@ import {
 	canAccessAnyChatModelConfig,
 	canViewDeploymentSettings,
 } from "#/modules/permissions";
-import { useAccessibleModelOrganizations } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
+import { useCanShareOrganizationMCPServers } from "#/pages/AISettingsPage/MCPServersPage/organizationSharing";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
 
@@ -21,8 +21,6 @@ export const Navbar: React.FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
-	const accessibleModelOrgsQuery =
-		useAccessibleModelOrganizations(organizations);
 	const canAccessAnyModel = canAccessAnyChatModelConfig(permissions);
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
@@ -34,7 +32,7 @@ export const Navbar: React.FC = () => {
 		featureVisibility.connection_log && permissions.viewAnyConnectionLog;
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
-	const canViewAISettings =
+	const canViewSiteWideAISettings =
 		permissions.viewAnyAIProvider ||
 		permissions.viewAIGatewayKeys ||
 		permissions.editDeploymentConfig ||
@@ -42,9 +40,14 @@ export const Navbar: React.FC = () => {
 		permissions.createAnyMCPServerConfig ||
 		permissions.updateAnyMCPServerConfig ||
 		permissions.deleteAnyMCPServerConfig ||
+		permissions.updateAnyTemplate ||
 		canAccessAnyModel;
-	const canViewModels =
-		!canViewAISettings && accessibleModelOrgsQuery.organizations.length > 0;
+	const organizationMCPSharing = useCanShareOrganizationMCPServers(
+		organizations,
+		{ enabled: !canViewSiteWideAISettings },
+	);
+	const canViewAISettings =
+		canViewSiteWideAISettings || organizationMCPSharing.canShare;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
@@ -68,8 +71,8 @@ export const Navbar: React.FC = () => {
 				canViewAIBridge,
 				canViewHealth,
 			}}
-			canViewModels={canViewModels}
 			canCreateChat={canCreateChat}
+			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

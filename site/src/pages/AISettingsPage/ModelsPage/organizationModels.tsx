@@ -29,7 +29,7 @@ export const useAccessibleModelOrganizations = (
 	);
 	const accessibleOrganizations = organizations.filter(
 		(organization, index) =>
-			(queries[index]?.data?.models.length ?? 0) > 0 ||
+			(queries[index]?.data?.models?.length ?? 0) > 0 ||
 			canAccessOrganizationChatModelConfig(
 				permissionsQuery.data?.[organization.id],
 			),
@@ -42,6 +42,7 @@ export const useAccessibleModelOrganizations = (
 
 	return {
 		organizations: accessibleOrganizations,
+		permissionsByOrganization: permissionsQuery.data,
 		isLoading:
 			queries.some((query) => query.isLoading) || permissionsQuery.isLoading,
 		error: hasData ? null : (requestError ?? null),
@@ -96,7 +97,11 @@ export const splitModelQueryErrors = (
 
 type OrganizationModelsContextValue = {
 	organization: Organization;
+	accessibleOrganizations: readonly Organization[];
 	permissions: OrganizationPermissions | undefined;
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>;
 	requestedOrganizationDenied: boolean;
 };
 
@@ -112,6 +117,27 @@ export const useOrganizationModels = (): OrganizationModelsContextValue => {
 	}
 	return context;
 };
+
+export const selectModelOrganizationPath = (
+	pathname: string,
+	organization: Organization,
+	searchParams?: URLSearchParams,
+): string => {
+	const next = new URLSearchParams(searchParams);
+	next.set(modelOrganizationSearchParam, organization.name);
+	return `${pathname}?${next.toString()}`;
+};
+
+export const creatableModelOrganizations = (
+	organizations: readonly Organization[],
+	permissionsByOrganization?: Readonly<
+		Record<string, OrganizationPermissions | undefined>
+	>,
+): readonly Organization[] =>
+	organizations.filter(
+		(organization) =>
+			permissionsByOrganization?.[organization.id]?.createChatModelConfigs,
+	);
 
 const organizationModelSettingsPath = (
 	organization: Organization,

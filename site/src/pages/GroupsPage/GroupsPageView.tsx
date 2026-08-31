@@ -284,7 +284,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							<Skeleton
 								key={key}
 								variant="circular"
-								className="size-[--avatar-default]"
+								className="size-(--avatar-default)"
 							/>
 						))}
 					</div>
@@ -298,7 +298,7 @@ const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 							/>
 						))}
 						{remainingAvatars > 0 && (
-							<Badge className="h-[--avatar-default]">
+							<Badge className="h-(--avatar-default)">
 								+{remainingAvatars}
 							</Badge>
 						)}

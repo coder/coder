@@ -1079,6 +1079,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().BackfillChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
 		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
 	}))
+	s.Run("ReindexStaleChatMessagesSearchTsv", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ReindexStaleChatMessagesSearchTsv(gomock.Any(), int32(100)).Return(int64(0), nil).AnyTimes()
+		check.Args(int32(100)).Asserts(rbac.ResourceChat, policy.ActionUpdate)
+	}))
 	s.Run("GetChatRetentionDays", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(30), nil).AnyTimes()
 		check.Args().Asserts()
@@ -6786,6 +6790,12 @@ func (s *MethodTestSuite) TestUsageEvents() {
 		check.Args(params).Asserts(rbac.ResourceUsageEvent, policy.ActionUpdate)
 	}))
 
+	s.Run("GetUsageEventsStats", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		now := dbtime.Now()
+		db.EXPECT().GetUsageEventsStats(gomock.Any(), now).Return(database.GetUsageEventsStatsRow{}, nil)
+		check.Args(now).Asserts(rbac.ResourceUsageEvent, policy.ActionRead)
+	}))
+
 	s.Run("GetTotalUsageDCManagedAgentsV1", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetTotalUsageDCManagedAgentsV1(gomock.Any(), gomock.Any()).Return(int64(1), nil)
 		check.Args(database.GetTotalUsageDCManagedAgentsV1Params{
@@ -7127,6 +7137,11 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPrices(gomock.Any(), gomock.Any()).Return([]database.AIModelPrice{}, nil).AnyTimes()
 		check.Args(database.GetAIModelPricesParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
+	}))
+
+	s.Run("GetUnpricedAIModelsSince", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		db.EXPECT().GetUnpricedAIModelsSince(gomock.Any(), gomock.Any()).Return([]database.GetUnpricedAIModelsSinceRow{}, nil).AnyTimes()
+		check.Args(database.GetUnpricedAIModelsSinceParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
 	s.Run("GetOrganizationGroupsAISpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

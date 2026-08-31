@@ -1216,6 +1216,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -2358,6 +2362,10 @@ User IDs that are not members of the group, or that the caller has no read acces
 {
   "members": [
     {
+      "effective_budget": {
+        "limit_source": "user_override",
+        "spend_limit_micros": 0
+      },
       "effective_group_id": "85e2b926-ddfb-4c66-b68e-b66e5acec6c0",
       "group_budget": {
         "limit_source": "user_override",
@@ -4877,13 +4885,13 @@ curl -X GET http://coder-server:8080/oauth2/authorize?client_id=string&state=str
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 
@@ -4913,13 +4921,13 @@ curl -X POST http://coder-server:8080/oauth2/authorize?client_id=string&state=st
 
 ### Parameters
 
-| Name            | In    | Type   | Required | Description                       |
-|-----------------|-------|--------|----------|-----------------------------------|
-| `client_id`     | query | string | true     | Client ID                         |
-| `state`         | query | string | true     | A random unguessable string       |
-| `response_type` | query | string | true     | Response type                     |
-| `redirect_uri`  | query | string | false    | Redirect here after authorization |
-| `scope`         | query | string | false    | Token scopes (currently ignored)  |
+| Name            | In    | Type   | Required | Description                                                                                                                                                                                                                                                        |
+|-----------------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_id`     | query | string | true     | Client ID                                                                                                                                                                                                                                                          |
+| `state`         | query | string | true     | A random unguessable string                                                                                                                                                                                                                                        |
+| `response_type` | query | string | true     | Response type                                                                                                                                                                                                                                                      |
+| `redirect_uri`  | query | string | false    | Redirect here after authorization                                                                                                                                                                                                                                  |
+| `scope`         | query | string | false    | Space-separated scopes to request. Each must be supported by this deployment, and the app's allowlist, when it has one, must cover the permissions requested rather than name each scope. Defaults to that allowlist, or to coder:all for an app with no allowlist |
 
 #### Enumerated Values
 

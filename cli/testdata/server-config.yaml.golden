@@ -1,3 +1,10 @@
+mcp:
+  # MCP server destinations in private or reserved IP ranges are blocked by default
+  # for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and
+  # revocation exchanges, and runtime MCP connections from coderd. This option
+  # exempts specific CIDRs.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
 networking:
   # The URL that users will use to access the Coder deployment.
   # (default: <unset>, type: url)
@@ -635,10 +642,10 @@ userQuietHoursSchedule:
   # change their quiet hours schedule and the site default is always used.
   # (default: true, type: bool)
   allowCustomQuietHours: true
-# Allow users to rename their workspaces. WARNING: Renaming a workspace can cause
-# Terraform resources that depend on the workspace name to be destroyed and
-# recreated, potentially causing data loss. Only enable this if your templates do
-# not use workspace names in resource identifiers, or if you understand the risks.
+# Deprecated: use the per-template "Allow workspace renames" setting instead.
+# While set, it force-enables renames for every template in the deployment.
+# WARNING: Renaming a workspace can cause Terraform resources that depend on the
+# workspace name to be destroyed and recreated, potentially causing data loss.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
 # Configure how emails are sent.
@@ -1193,7 +1200,9 @@ templateBuilder:
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.
   # (default: <unset>, type: bool)
   disabled: false
-  # The base URL of the module registry used by the template builder for module
-  # source paths.
+  # The module registry host the template builder uses for module source paths (for
+  # example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme
+  # and trailing slash are stripped; a path, query, fragment, or credentials is
+  # rejected.
   # (default: registry.coder.com, type: string)
   registryURL: registry.coder.com
