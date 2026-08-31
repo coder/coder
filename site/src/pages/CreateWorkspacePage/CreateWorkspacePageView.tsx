@@ -17,6 +17,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -38,7 +39,6 @@ import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { WorkspaceUserAutocomplete } from "#/components/Autocomplete/WorkspaceUserAutocomplete";
 import { useDebouncedFunction } from "#/hooks/debounce";
 import type { ExternalAuthPollingState } from "#/hooks/useExternalAuth";
 import { useSyncFormParameters } from "#/modules/hooks/useSyncFormParameters";
