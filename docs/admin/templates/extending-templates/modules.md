@@ -52,6 +52,33 @@ across templates. Some of the modules we publish are,
 For a full list of available modules please check
 [Coder module registry](https://registry.coder.com/modules).
 
+## Module caching
+
+Module caching is enabled by default for all templates. When you publish a
+new template version, Coder runs `terraform init` to resolve every module the
+template references, then archives the resulting `.terraform/modules`
+directory and stores it alongside that template version. On every subsequent
+workspace build, Coder provisioners reuse this cached archive instead of
+re-fetching modules from their original sources (a git repository, the Coder
+registry, or another Terraform registry). This avoids redundant network and
+disk I/O on each build and prevents build failures caused by a module source
+being slow or temporarily unavailable.
+
+Coder limits cached module archives to 20MB per template version. If your
+modules exceed this limit, some are skipped and unavailable for [Dynamic
+Parameters](./dynamic-parameters.md#module-not-loaded-errors-when-using-dynamic-parameters)
+evaluation, though builds still fetch the skipped modules directly.
+
+To force Coder to re-download modules on every workspace build instead of
+using the cached archive, select **Disable Terraform module caching** in a
+template's **Settings** > **General** page, or set `disable_module_cache` to
+`true` with the [templates API](../../../reference/api/templates.md#update-template-settings-by-id).
+
+> [!WARNING]
+> Disabling module caching makes workspace builds slower and less
+> predictable, since Terraform re-resolves and downloads every module on each
+> build. This isn't recommended for production templates.
+
 ## Offline installations
 
 In offline and restricted deployments, there are three ways to fetch modules.

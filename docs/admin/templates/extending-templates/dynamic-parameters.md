@@ -851,3 +851,7 @@ You may see warnings in the provisioner logs:
 ```
 
 If encountered, reduce the size of the module by removing unnecessary files.
+
+This archive is the same one Coder reuses across workspace builds to avoid
+re-downloading modules. See [module caching](./modules.md#module-caching) for
+how to disable that behavior for a template.
