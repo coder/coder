@@ -315,8 +315,7 @@ jobs:
 +           Use the gh CLI to read
 +           ${{ github.event.issue.html_url }},
 +           fix the issue, and create a PR.
-+         github-user-id: ${{ github.event.sender.id }}
-+         github-issue-url: ${{ github.event.issue.html_url }}
++         github-url: ${{ github.event.issue.html_url }}
 +         github-token: ${{ github.token }}
 +         comment-on-issue: true
 ```
@@ -329,9 +328,7 @@ Key differences from the Tasks GHA:
 - The prompt input is renamed from `coder-task-prompt` to `chat-prompt`.
 - LLM credentials are no longer passed through the template. They are
   configured in the Coder control plane.
-- Identify the user with `github-user-id` (the action resolves it to a
-  Coder user via the GitHub OAuth link) or with `coder-username`
-  directly.
+- No user mapping: the Tasks GHA's `github-user-id` input has no equivalent, because the chat is always owned by the user the `coder-token` belongs to and the Chats API has no owner override.
 
 See the
 [action README](https://github.com/coder/create-agent-chat-action#inputs)
@@ -692,11 +689,11 @@ Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-The Tasks CLI (`coder task`) remains separate from the Coder Agents Chats API.
-Coder no longer ships an interactive Coder Agents TUI. Use the web UI for
-interactive chat and direct API calls for automation.
+The Tasks CLI (`coder task`) was removed, and Coder does not ship an interactive Coder Agents TUI.
+Use the web UI for interactive chat and direct API calls for automation.
+The table below maps the removed commands to their Chats API equivalents.
 
-| Tasks CLI           | Chats equivalent                       |
+| Removed Tasks CLI   | Chats equivalent                       |
 |---------------------|----------------------------------------|
 | `coder task create` | Web UI or `POST /chats`                |
 | `coder task list`   | Web UI or `GET /chats`                 |
