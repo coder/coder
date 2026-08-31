@@ -33,12 +33,11 @@ var (
 	// catalog, whether unrecognized entirely or recognized but internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
 	// errNoGrantableScope covers an allowlist whose every entry falls outside
-	// the catalog. The remedy is left unprescribed: an admin edits the app, a
-	// dynamically registered client updates itself through RFC 7592.
+	// the catalog.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
-// errScopeNotAllowed checks whether the scope's expanded permissions are
-// covered by the allowlist. For example, "coder:workspaces.create" expands
-// to several workspace permissions.
+	// errScopeNotAllowed checks whether the scope's expanded permissions are
+	// covered by the allowlist. For example, "coder:workspaces.create" expands
+	// to several workspace permissions.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// errCoverageUndecidable covers a comparison that failed outright. The
 	// underlying error names RBAC internals, so it is logged rather than
