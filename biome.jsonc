@@ -32,6 +32,9 @@
 					}
 				}
 			},
+			"security": {
+				"noBlankTarget": "off"
+			},
 			"style": {
 				"noNonNullAssertion": "off",
 				"noParameterAssign": "off",
