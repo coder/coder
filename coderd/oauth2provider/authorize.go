@@ -28,18 +28,16 @@ import (
 	"github.com/coder/coder/v2/site"
 )
 
-// Rejection reasons from scope negotiation, rendered into error_description.
-// Each is wrapped as `%q: %w` with the offending value: xerrors repeats the
-// sentinel's own text unless %w is the final verb.
+// Rejection reasons from scope negotiation.
 var (
 	// A requested name outside the external scope catalog: unrecognized, or
 	// recognized but internal-only.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
-	// An allowlist whose every entry falls outside the catalog. The remedy is
-	// left unprescribed: an admin edit, or an RFC 7592 self-update.
+	// An allowlist whose every entry falls outside the catalog.
 	errNoGrantableScope = xerrors.New("none of the scopes registered for this app are supported by this deployment; change the app's registered scopes to supported ones")
-	// Phrased as coverage rather than list membership: an unnamed scope is
-	// still granted when a listed composite already confers it.
+	// Checks whether the scope's expanded permissions are covered by the
+	// allowlist. For example, "coder:workspaces.create" expands to several
+	// workspace permissions.
 	errScopeNotAllowed = xerrors.New("scope requests permissions beyond this app's allowed scopes")
 	// A comparison that failed outright. The underlying error names RBAC
 	// internals, so it is logged rather than rendered.
@@ -127,21 +125,24 @@ func firstScopeOutsideAllowlist(ctx context.Context, logger slog.Logger, app dat
 // The result is canonical, deduplicated, and never empty alongside a nil error,
 // as it is written to a NOT NULL column whose CHECK also rejects "".
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
+	// Canonicalized before the catalog check so that check, the coverage
+	// comparison, and the persisted value all read one vocabulary. Rewriting
+	// ahead of validation loses nothing: CanonicalScopeName only touches the
+	// `all` and `application_connect` aliases, and the catalog holds both
+	// spellings of each.
+	granted := canonicalScopes(requested)
+
 	// The catalog is a curation, not a validity check: RBAC expands
 	// internal-only names such as debug_info:read and the enum would store
 	// them, but only catalog names are client-requestable.
-	for _, s := range requested {
+	for _, s := range granted {
 		if !rbac.IsExternalScope(rbac.ScopeName(s)) {
 			return "", xerrors.Errorf("%q: %w", s, errUnknownScope)
 		}
 	}
 
-	// After the catalog check, so a rejection names the scope as the client
-	// spelled it rather than as the server stores it.
-	granted := canonicalScopes(requested)
-
 	if noScopeAllowlist(app.Scope) {
-		if len(requested) == 0 {
+		if len(granted) == 0 {
 			// Spelled out because "" would violate the column's CHECK.
 			return string(database.ApiKeyScopeCoderAll), nil
 		}
@@ -156,7 +157,7 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
 
-	if len(requested) == 0 {
+	if len(granted) == 0 {
 		return strings.Join(allowlist, " "), nil // RFC 6749 §3.3 default
 	}
 

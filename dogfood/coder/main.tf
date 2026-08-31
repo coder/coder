@@ -359,7 +359,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.6.1"
+  version                 = "1.6.2"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -405,7 +405,7 @@ module "cursor" {
 module "windsurf" {
   count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
-  version  = "1.3.1"
+  version  = "1.3.2"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }

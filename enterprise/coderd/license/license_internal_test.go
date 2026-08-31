@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -187,7 +186,7 @@ func TestAgentRuntimeMsToHours(t *testing.T) {
 func TestAppendAgentRuntimeHoursWarning(t *testing.T) {
 	t.Parallel()
 
-	softLimit := ptr.Ref[int64](80)
+	softLimit := new(int64(80))
 	softWarning := func(actual int64) []string {
 		return []string{fmt.Sprintf(codersdk.LicenseAgentRuntimeHoursSoftLimitWarningText, actual, 100, 80)}
 	}

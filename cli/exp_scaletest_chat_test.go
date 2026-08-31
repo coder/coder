@@ -76,19 +76,20 @@ func TestScaleTestChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mockURL, provider.BaseURL)
 
-	expClient := codersdk.NewExperimentalClient(client)
-	configs, err := expClient.ListChatModelConfigs(ctx)
+	defaultOrg, err := client.OrganizationByName(ctx, codersdk.DefaultOrganization)
 	require.NoError(t, err)
-	matchingConfigs := scaletestModelConfigsForProvider(configs, provider.ID)
+	configs, err := client.ChatModels(ctx, defaultOrg.ID)
+	require.NoError(t, err)
+	matchingConfigs := scaletestModelConfigsForProvider(configs.Models, provider.ID)
 	require.Len(t, matchingConfigs, 1)
 	require.True(t, matchingConfigs[0].Enabled)
 
-	chats, err := expClient.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true"})
+	chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true"})
 	require.NoError(t, err)
 
 	var scaletestMessages []codersdk.ChatMessage
 	for _, chat := range chats {
-		resp, err := expClient.GetChatMessages(ctx, chat.ID, nil)
+		resp, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		if userText, ok := chatMessageText(resp.Messages, codersdk.ChatMessageRoleUser); ok &&
 			strings.Contains(userText, scaletestChatPrompt) {
@@ -125,8 +126,8 @@ func chatMessageText(messages []codersdk.ChatMessage, role codersdk.ChatMessageR
 	return b.String(), found
 }
 
-func scaletestModelConfigsForProvider(configs []codersdk.ChatModelConfig, providerID uuid.UUID) []codersdk.ChatModelConfig {
-	matches := make([]codersdk.ChatModelConfig, 0, 1)
+func scaletestModelConfigsForProvider(configs []codersdk.ChatModel, providerID uuid.UUID) []codersdk.ChatModel {
+	matches := make([]codersdk.ChatModel, 0, 1)
 	for _, config := range configs {
 		if config.AIProviderID != providerID {
 			continue

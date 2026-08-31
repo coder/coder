@@ -1,15 +1,9 @@
-import { ArrowLeftIcon, EllipsisVerticalIcon, TrashIcon } from "lucide-react";
+import { ArrowLeftIcon, Share2Icon } from "lucide-react";
 import { type FC, useId } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
 import {
@@ -39,6 +33,7 @@ interface MCPServerFormHeaderProps {
 	isEditing: boolean;
 	isDisabled: boolean;
 	onRequestDelete?: () => void;
+	onShareServer?: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
 
@@ -50,60 +45,65 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	isEditing,
 	isDisabled,
 	onRequestDelete,
+	onShareServer,
 	onToggleEnabled,
 }) => {
 	const disabledReasonId = useId();
-	const lacksUpdatePermission = !onToggleEnabled;
+	const lacksUpdatePermission = isEditing && server && !onToggleEnabled;
 
 	return (
 		<>
 			<div className="flex items-center justify-between">
 				{listPath && <MCPServerFormBackLink to={listPath} />}
-				{isEditing && server && onRequestDelete && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
+				{isEditing && server && (onShareServer || onRequestDelete) && (
+					<div className="flex items-center gap-2">
+						{onShareServer && (
 							<Button
-								variant="subtle"
-								size="icon"
 								type="button"
+								variant="outline"
 								disabled={isDisabled}
-								aria-label="Server actions"
+								onClick={onShareServer}
 							>
-								<EllipsisVerticalIcon />
+								<Share2Icon />
+								<span>Manage permissions</span>
 							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
+						)}
+						{onRequestDelete && (
+							<Button
+								type="button"
+								variant="destructive"
+								disabled={isDisabled}
 								onClick={onRequestDelete}
 							>
-								<TrashIcon />
-								Remove
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+								<span>Delete</span>
+							</Button>
+						)}
+					</div>
 				)}
 			</div>
-			<div className="flex items-center justify-between gap-4">
-				<div className="flex min-w-0 items-center gap-4">
-					{isEditing && (
-						<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
-					)}
-					<SettingsHeaderTitle>
-						<span
-							className={cn(
-								"block min-w-0 truncate",
-								server?.enabled === false && "text-content-secondary",
-							)}
-						>
-							{title}
-						</span>
-					</SettingsHeaderTitle>
-					{isEditing && server && !server.enabled && (
-						<Badge variant="default">Disabled</Badge>
-					)}
-				</div>
-				{isEditing && server && (
+			<div className="flex items-center gap-4 pt-6 min-w-0">
+				{isEditing && (
+					<MCPServerIcon iconUrl={iconUrl} name={title} className="size-12" />
+				)}
+				<SettingsHeaderTitle>
+					<span
+						className={cn(
+							"block min-w-0 truncate",
+							server?.enabled === false && "text-content-secondary",
+						)}
+					>
+						{title}
+					</span>
+				</SettingsHeaderTitle>
+				{isEditing && server && !server.enabled && (
+					<Badge variant="default">Disabled</Badge>
+				)}
+			</div>
+			{isEditing && server && (
+				<div className="flex items-center justify-between w-full pt-6">
+					<p className="text-sm text-content-secondary m-0">
+						Disabled servers are hidden from agents.
+					</p>
 					<div className="flex shrink-0 items-center gap-2">
 						<Tooltip>
 							<TooltipTrigger asChild>
@@ -111,16 +111,14 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 									<Switch
 										checked={server.enabled}
 										onCheckedChange={(checked) => {
-											if (onToggleEnabled) {
-												onToggleEnabled(checked);
-											}
+											onToggleEnabled?.(checked);
 										}}
 										disabled={isDisabled}
 										aria-disabled={lacksUpdatePermission}
+										aria-label="Server enabled"
 										aria-describedby={
 											lacksUpdatePermission ? disabledReasonId : undefined
 										}
-										aria-label="Server enabled"
 										className="aria-disabled:cursor-not-allowed aria-disabled:data-[state=checked]:bg-surface-tertiary aria-disabled:data-[state=unchecked]:bg-surface-tertiary"
 									/>
 								</span>
@@ -140,8 +138,8 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 						)}
 						<span className="text-sm">Enable</span>
 					</div>
-				)}
-			</div>
+				</div>
+			)}
 		</>
 	);
 };

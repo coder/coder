@@ -347,20 +347,14 @@ describe("wizardReducer", () => {
 					field: "description",
 					value: "A test template",
 				},
-				{
-					type: "SET_CUSTOMIZATION",
-					field: "organizationId",
-					value: "org-123",
-				},
 			]);
 			expect(state.displayName).toBe("My Template");
 			expect(state.description).toBe("A test template");
-			expect(state.organizationId).toBe("org-123");
 		});
 	});
 
 	describe("RESET_CUSTOMIZATIONS", () => {
-		it("clears org and provisioner state but keeps base-derived fields", () => {
+		it("clears provisioner state but keeps base-derived fields", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
@@ -373,15 +367,9 @@ describe("wizardReducer", () => {
 						hasPrerequisites: false,
 					},
 				},
-				{
-					type: "SET_CUSTOMIZATION",
-					field: "organizationId",
-					value: "org-123",
-				},
 				{ type: "SET_HAS_PROVISIONERS", value: true },
 				{ type: "RESET_CUSTOMIZATIONS" },
 			]);
-			expect(state.organizationId).toBeUndefined();
 			expect(state.hasProvisioners).toBeUndefined();
 			// Base-derived fields survive so re-entering the step stays filled.
 			expect(state.name).toBe("docker");
@@ -524,14 +512,19 @@ describe("toCreateTemplateRequest", () => {
 		const state: TemplateBuilderWizardState = {
 			...initialWizardState,
 			baseTemplateId: "docker",
-			organizationId: "org-123",
 			name: "my-template",
 			displayName: "My Template",
 			description: "A test template",
 			icon: "/icon/docker.svg",
 			modules: [{ id: "code-server" }],
 		};
-		const request = toCreateTemplateRequest(state);
+		const request = toCreateTemplateRequest(state, {
+			organization_id: "org-123",
+			name: "my-template",
+			display_name: "My Template",
+			description: "A test template",
+			icon: "/icon/docker.svg",
+		});
 		expect(request.base_template_id).toBe("docker");
 		expect(request.organization_id).toBe("org-123");
 		expect(request.name).toBe("my-template");
@@ -547,7 +540,13 @@ describe("toCreateTemplateRequest", () => {
 			baseTemplateId: "docker",
 			name: "my-template",
 		};
-		const request = toCreateTemplateRequest(state);
+		const request = toCreateTemplateRequest(state, {
+			organization_id: "",
+			name: "my-template",
+			display_name: "",
+			description: "",
+			icon: "",
+		});
 		expect(request.display_name).toBeUndefined();
 		expect(request.description).toBeUndefined();
 		expect(request.icon).toBeUndefined();

@@ -1,5 +1,5 @@
 import type { Group, GroupSource, User } from "#/api/typesGenerated";
-import { MockUsers } from "./users";
+import { MockUsers } from "#/testHelpers/users";
 
 function findMockedUserById(id: string): User | undefined {
 	const user = MockUsers.find((user) => user.id === id);

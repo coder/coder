@@ -1,4 +1,6 @@
-# Contributing
+---
+title: Contributing
+---
 
 ## Requirements
 
@@ -21,9 +23,9 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
    nix-shell
 
    ...
-   copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://   cache.nixos.org'...
-   copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://   cache.nixos.org'...
-   copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.   nixos.org'...
+   copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
+   copying path '/nix/store/dxg5aijpyy36clz05wjsyk90gqcdzbam-iana-etc-20220520' from 'https://cache.nixos.org'...
+   copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from 'https://cache.nixos.org'...
    ...
    ```
 
@@ -101,8 +103,8 @@ the Makefile trigger the full targets as before.
 
    This will start two processes:
 
-   - http://localhost:3000 — the backend API server. Primarily used for backend development and also serves the *static* frontend build.
-   - http://localhost:8080 — the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
+   - http://localhost:3000: the backend API server. Primarily used for backend development and also serves the *static* frontend build.
+   - http://localhost:8080: the Node.js frontend development server. Supports *hot reloading* and is useful if you're working on the frontend as well.
 
    Additionally, it starts a local PostgreSQL instance, creates both an admin and a member user account, and installs a default Docker-based template.
 
@@ -112,7 +114,7 @@ the Makefile trigger the full targets as before.
 
    ```sh
    ./scripts/coder-dev.sh list
-      ```
+   ```
 
    This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
@@ -156,10 +158,6 @@ this:
 > PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
 
-Once the deployment is finished, a unique link and credentials will be posted in
-the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack
-channel.
-
 ## Styling
 
 - [Documentation style guide](./documentation.md)
@@ -198,10 +196,8 @@ The following information has been borrowed from [Go's review philosophy](https:
 
 Coder values thorough reviews. For each review comment that you receive, please
 "close" it by implementing the suggestion or providing an explanation on why the
-suggestion isn't the best option. Be sure to do this for each comment; you can
-click **Done** to indicate that you've implemented the suggestion, or you can
-add a comment explaining why you aren't implementing the suggestion (or what you
-chose to implement instead).
+suggestion isn't the best option.
+Be sure to do this for each comment; you can select **Done** to indicate that you've implemented the suggestion, or you can add a comment explaining why you aren't implementing the suggestion (or what you chose to implement instead).
 
 It is perfectly normal for changes to go through several rounds of reviews, with
 one or more reviewers making new comments every time, then waiting for an
@@ -243,7 +239,7 @@ main:  --*--*--*--*--*--*--*--*--*--
 ```
 
 1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
-   click "Run workflow", select `main` (or a release branch) from the "Use
+   select "Run workflow", select `main` (or a release branch) from the "Use
    workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
    (defaults to HEAD). The workflow calculates the next RC version
    automatically.
@@ -315,7 +311,7 @@ PR reuses the original title (e.g.
 meaningful in release notes.
 
 If the cherry-pick encounters conflicts, the backport PR is still created
-with instructions for manual resolution — no conflict markers are committed.
+with instructions for manual resolution; no conflict markers are committed.
 
 ### Breaking changes
 

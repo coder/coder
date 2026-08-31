@@ -10,7 +10,6 @@ import {
 } from "storybook/test";
 import { API } from "#/api/api";
 import { getTemplatesQueryKey } from "#/api/queries/templates";
-import { MockUsers } from "#/pages/UsersPage/storybookData/users";
 import {
 	MockDisplayNameTasks,
 	MockInitializingTasks,
@@ -27,6 +26,7 @@ import {
 	withDashboardProvider,
 	withProxyProvider,
 } from "#/testHelpers/storybook";
+import { MockUsers } from "#/testHelpers/users";
 import TasksPage from "./TasksPage";
 
 const meta: Meta<typeof TasksPage> = {

@@ -34,7 +34,7 @@ export const JobStatusIndicator: FC<JobStatusIndicatorProps> = ({
 			<StatusIndicatorDot />
 			<span className="[&:first-letter]:uppercase">{status}</span>
 			{status === "failed" && (
-				<TriangleAlertIcon className="size-icon-xs p-[1px]" />
+				<TriangleAlertIcon className="size-icon-xs p-px" />
 			)}
 			{status === "pending" && queue && `(${queue.position}/${queue.size})`}
 		</StatusIndicator>

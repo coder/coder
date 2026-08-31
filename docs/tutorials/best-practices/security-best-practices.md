@@ -1,4 +1,6 @@
-# Security - best practices
+---
+title: Security - best practices
+---
 
 December 16, 2024
 

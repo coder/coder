@@ -196,7 +196,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								type="button"
 								onClick={() => handlePreset(preset)}
 								className={cn(
-									"cursor-pointer rounded-md border-none outline-none bg-transparent px-3 py-1.5 text-left text-sm",
+									"cursor-pointer rounded-md border-none outline-hidden bg-transparent px-3 py-1.5 text-left text-sm",
 									"text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
 									"focus-visible:ring-2 focus-visible:ring-content-link",
 									"transition-colors whitespace-nowrap",
