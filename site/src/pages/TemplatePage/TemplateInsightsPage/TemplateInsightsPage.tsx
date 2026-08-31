@@ -661,7 +661,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
+type PanelProps = HTMLAttributes<HTMLDivElement>;
 
 const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (

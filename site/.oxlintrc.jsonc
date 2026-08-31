@@ -38,6 +38,7 @@
 		"no-sequences": "error",
 		"no-unsafe-function-type": "error",
 		"no-wrapper-object-types": "error",
+		"no-empty-object-type": "error",
 		"no-extra-boolean-cast": "error",
 		"no-useless-catch": "error",
 		"no-useless-constructor": "error",
@@ -179,7 +180,6 @@
 		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
 		"no-redeclare": "off", // suspicious/noRedeclare (medium: TS declaration merging)
-		"no-empty-object-type": "off", // complexity/noBannedTypes (medium)
 		"role-has-required-aria-props": "off", // a11y/useAriaPropsForRole (medium)
 		"no-irregular-whitespace": "off", // suspicious/noIrregularWhitespace (medium)
 		"no-unused-vars": "off", // correctness/noUnusedVariables + noUnusedImports (small: dead-store "used" semantics differ)
