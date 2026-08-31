@@ -115,8 +115,8 @@ export const Alert: FC<AlertProps> = ({
 			{dismissible && (
 				<Button
 					variant="subtle"
-					size="icon"
-					className="size-8 min-w-0! p-0! absolute top-3 right-3"
+					size="icon-lg"
+					className="size-8 min-w-0 p-0 absolute top-3 right-3"
 					onClick={() => {
 						setOpen(false);
 						onDismiss?.();
@@ -124,7 +124,7 @@ export const Alert: FC<AlertProps> = ({
 					data-testid="dismiss-banner-btn"
 					aria-label="Dismiss"
 				>
-					<XIcon className="p-0! size-icon-lg" />
+					<XIcon />
 				</Button>
 			)}
 		</div>
