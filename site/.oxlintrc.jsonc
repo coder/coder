@@ -157,6 +157,10 @@
 		"no-export": "error",
 		"new-for-builtins": "error",
 		"no-explicit-any": "error",
+		"no-use-before-define": [
+			"error",
+			{ "functions": false, "classes": false, "variables": false }
+		],
 
 		// ==========================================================
 		// Migration backlog (temporary; shrinks as we go).
@@ -171,7 +175,6 @@
 		// Effort = approximate work before enabling:
 		// small < medium < large < xl.
 		// ==========================================================
-		"no-use-before-define": "off", // correctness/noInvalidUseBeforeDeclaration (xl: oxlint is lexical, Biome is control-flow-aware)
 		"no-autofocus": "off", // a11y/noAutofocus (large)
 		"jsx-no-useless-fragment": "off", // complexity/noUselessFragments (large)
 		"no-invalid-void-type": "off", // suspicious/noConfusingVoidType (large)
