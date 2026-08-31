@@ -3593,3 +3593,623 @@ func TestMigration000583ChatModelOverrideOrgScope(t *testing.T) {
 	_, err = db.ExecContext(ctx, string(upSQL))
 	require.NoError(t, err)
 }
+
+func TestMigration000589RemoveTasks(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 589
+
+	// Step to the highest version below the target (588).
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+	prevVersion := uint(0)
+	for _, entry := range entries {
+		var version uint
+		if _, err := fmt.Sscanf(entry.Name(), "%d_", &version); err != nil {
+			continue
+		}
+		if version > prevVersion && version < migrationVersion {
+			prevVersion = version
+		}
+	}
+	require.NotZero(t, prevVersion)
+
+	sqlDB := testSQLDB(t)
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == prevVersion {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	userID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	jobID := uuid.New()
+	workspaceID := uuid.New()
+	buildJobID := uuid.New()
+	buildID := uuid.New()
+	manualBuildJobID := uuid.New()
+	manualBuildID := uuid.New()
+	resumeBuildJobID := uuid.New()
+	resumeBuildID := uuid.New()
+	taskID := uuid.New()
+	agentID := uuid.New()
+	appID := uuid.New()
+	customRoleID := uuid.New()
+	oauthAppID := uuid.New()
+	oauthAppTaskOnlyScopeID := uuid.New()
+	oauthAppMixedScopeID := uuid.New()
+	oauthCodeTaskOnlyID := uuid.New()
+	oauthCodeMixedID := uuid.New()
+	oauthTokenTaskOnlyID := uuid.New()
+	oauthTokenMixedID := uuid.New()
+	auditTaskLogID := uuid.New()
+	auditWorkspaceLogID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// 1. User and Org
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+		userID, "task-user", "task-user@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+		orgID, "task-org", "Task Org", "", "", now, now, false, pq.StringArray{},
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO organization_members (organization_id, user_id, created_at, updated_at, roles) VALUES ($1, $2, $3, $4, $5)",
+		orgID, userID, now, now, pq.StringArray{},
+	)
+	require.NoError(t, err)
+
+	// 2. Template and TemplateVersion with has_ai_task = true
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, initiator_id, organization_id, type, storage_method, file_id, provisioner, tags, input) VALUES ($1, $2, $3, $2, $2, $4, $5, 'template_version_import', 'file', $1, 'echo', '{}', '{}')",
+		jobID, now, now, userID, orgID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO templates (id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, created_by) VALUES ($1, $2, $3, $4, false, 'task-template', 'echo', $5, $6)",
+		templateID, now, now, orgID, templateVersionID, userID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO template_versions (id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, has_ai_task) VALUES ($1, $2, $3, $4, $5, 'v1', '', $6, $7, '[]', '', false, true)",
+		templateVersionID, templateID, orgID, now, now, jobID, userID,
+	)
+	require.NoError(t, err)
+
+	// 3. Workspace and WorkspaceBuild with has_ai_task = true, reason = 'task_auto_pause'
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at, user_acl, group_acl) VALUES ($1, $2, $3, $4, $5, $6, false, 'task-ws', '', 0, $2, NULL, NULL, 'never', false, $2, '{}', '{}')",
+		workspaceID, now, now, userID, orgID, templateID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, initiator_id, organization_id, type, storage_method, file_id, provisioner, tags, input) VALUES ($1, $2, $3, $2, $2, $4, $5, 'workspace_build', 'file', $1, 'echo', '{}', '{}')",
+		buildJobID, now, now, userID, orgID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, has_ai_task) VALUES ($1, $2, $3, $4, $5, 1, 'start', $6, $7, $2, 'task_auto_pause', 0, $2, true)",
+		buildID, now, now, workspaceID, templateVersionID, userID, buildJobID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, initiator_id, organization_id, type, storage_method, file_id, provisioner, tags, input) VALUES ($1, $2, $3, $2, $2, $4, $5, 'workspace_build', 'file', $1, 'echo', '{}', '{}')",
+		manualBuildJobID, now, now, userID, orgID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, has_ai_task) VALUES ($1, $2, $3, $4, $5, 2, 'stop', $6, $7, $2, 'task_manual_pause', 0, $2, true)",
+		manualBuildID, now, now, workspaceID, templateVersionID, userID, manualBuildJobID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO provisioner_jobs (id, created_at, updated_at, started_at, completed_at, initiator_id, organization_id, type, storage_method, file_id, provisioner, tags, input) VALUES ($1, $2, $3, $2, $2, $4, $5, 'workspace_build', 'file', $1, 'echo', '{}', '{}')",
+		resumeBuildJobID, now, now, userID, orgID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, deadline, reason, daily_cost, max_deadline, has_ai_task) VALUES ($1, $2, $3, $4, $5, 3, 'start', $6, $7, $2, 'task_resume', 0, $2, true)",
+		resumeBuildID, now, now, workspaceID, templateVersionID, userID, resumeBuildJobID,
+	)
+	require.NoError(t, err)
+
+	// 4. Tasks, task_workspace_apps, task_snapshots
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO tasks (id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, display_name) VALUES ($1, $2, $3, 'test-task', $4, $5, '{}', 'solve issue', $6, 'Test Task')",
+		taskID, orgID, userID, workspaceID, templateVersionID, now,
+	)
+	require.NoError(t, err)
+
+	resourceID := uuid.New()
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_resources (id, created_at, job_id, transition, type, name) VALUES ($1, $2, $3, 'start', 'docker_container', 'main')",
+		resourceID, now, buildJobID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_agents (id, created_at, updated_at, resource_id, name, auth_token, auth_instance_id, architecture, operating_system) VALUES ($1, $2, $3, $4, 'main', $5, 'instance-1', 'amd64', 'linux')",
+		agentID, now, now, resourceID, uuid.New(),
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO workspace_apps (id, created_at, agent_id, slug, display_name, icon, command, url, subdomain, sharing_level, health) VALUES ($1, $3, $2, 'app', 'App', '', '', '', false, 'owner', 'healthy')",
+		appID, agentID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO task_workspace_apps (task_id, workspace_agent_id, workspace_app_id, workspace_build_number) VALUES ($1, $2, $3, 1)",
+		taskID, agentID, appID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO task_snapshots (task_id, log_snapshot, log_snapshot_created_at) VALUES ($1, '{"history": []}'::jsonb, $2)`,
+		taskID, now,
+	)
+	require.NoError(t, err)
+
+	// 5. Notification preferences for task template
+	taskTemplateID := uuid.MustParse("bd4b7168-d05e-4e19-ad0f-3593b77aa90f")
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO notification_preferences (user_id, notification_template_id, disabled, created_at, updated_at) VALUES ($1, $2, true, $3, $3)",
+		userID, taskTemplateID, now,
+	)
+	require.NoError(t, err)
+
+	inboxNotificationID := uuid.New()
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO inbox_notifications (id, user_id, template_id, title, content, icon, actions, created_at) VALUES ($1, $2, $3, 'Task Working', 'The task is working.', '', '[]'::jsonb, $4)",
+		inboxNotificationID, userID, taskTemplateID, now,
+	)
+	require.NoError(t, err)
+
+	// 6. User config for task notification alert dismissed
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO user_configs (user_id, key, value) VALUES ($1, 'preference_task_notification_alert_dismissed', 'true')",
+		userID,
+	)
+	require.NoError(t, err)
+
+	// 7. Custom role with task permissions
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions) VALUES ($1, 'task-custom-role', 'Task Role', $2, '[{"negate": false, "resource_type": "task", "action": "read"}, {"negate": false, "resource_type": "workspace", "action": "read"}]'::jsonb, '[{"negate": false, "resource_type": "task", "action": "create"}]'::jsonb, '[]'::jsonb, '[]'::jsonb)`,
+		customRoleID, orgID,
+	)
+	require.NoError(t, err)
+
+	// 8. API keys and OAuth2 grants carrying task scopes
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', '{workspace:read,task:read}', '{*:*}', 'task-mixed-key')",
+		"task-mixed-key", []byte("mixed-secret"), userID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', '{task:read,task:*}', '{*:*}', 'task-only-key')",
+		"task-only-key", []byte("only-secret"), userID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', '{workspace:read}', $5, 'allow-mixed-key')",
+		"allow-mixed-key", []byte("allow-mixed-secret"), userID, now,
+		fmt.Sprintf("{task:%s,workspace:*}", taskID),
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'token', '{workspace:read}', '{task:*}', 'allow-task-only-key')",
+		"allow-task-only-key", []byte("allow-only-secret"), userID, now,
+	)
+	require.NoError(t, err)
+
+	// Each OAuth2 token owns a dedicated API key: deleting a token deletes
+	// its key via trigger, and deleting a key cascades to its token.
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{workspace:read,task:read}', '{*:*}', 'oauth-mixed-key')",
+		"oauth-mixed-key", []byte("oauth-mixed-secret"), userID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO api_keys (id, hashed_secret, user_id, last_used, expires_at, created_at, updated_at, login_type, scopes, allow_list, token_name) VALUES ($1, $2, $3, $4, $4, $4, $4, 'oauth2_provider_app', '{task:read}', '{*:*}', 'oauth-only-key')",
+		"oauth-only-key", []byte("oauth-only-secret"), userID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url) VALUES ($1, $2, $2, 'task-oauth-app', '', 'http://localhost/callback')",
+		oauthAppID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $2, $2, 'task-only-scope-app', '', 'http://localhost/callback', 'task:create task:read')",
+		oauthAppTaskOnlyScopeID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_apps (id, created_at, updated_at, name, icon, callback_url, scope) VALUES ($1, $2, $2, 'task-mixed-scope-app', '', 'http://localhost/callback', 'workspace:read task:create')",
+		oauthAppMixedScopeID, now,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, 'task:create')",
+		oauthCodeTaskOnlyID, now, []byte("code-only"), userID, oauthAppID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_app_codes (id, created_at, expires_at, secret_prefix, hashed_secret, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, 'workspace:read task:create')",
+		oauthCodeMixedID, now, []byte("code-mixed"), userID, oauthAppID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, 'task:read')",
+		oauthTokenTaskOnlyID, now, []byte("token-only"), "oauth-only-key", userID, oauthAppID,
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO oauth2_provider_app_tokens (id, created_at, expires_at, hash_prefix, refresh_hash, api_key_id, user_id, app_id, scope) VALUES ($1, $2, $2, $3, $3, $4, $5, $6, 'workspace:read task:read')",
+		oauthTokenMixedID, now, []byte("token-mixed"), "oauth-mixed-key", userID, oauthAppID,
+	)
+	require.NoError(t, err)
+
+	// 9. Audit log entries for a task and a workspace
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO audit_logs (id, time, user_id, organization_id, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon) VALUES ($1, $2, $3, $4, 'task', $5, 'task-target', 'create', '{}', 201, '{}', $6, '')",
+		auditTaskLogID, now, userID, orgID, taskID, uuid.New(),
+	)
+	require.NoError(t, err)
+
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO audit_logs (id, time, user_id, organization_id, resource_type, resource_id, resource_target, action, diff, status_code, additional_fields, request_id, resource_icon) VALUES ($1, $2, $3, $4, 'workspace', $5, 'workspace-target', 'create', '{}', 201, '{}', $6, '')",
+		auditWorkspaceLogID, now, userID, orgID, workspaceID, uuid.New(),
+	)
+	require.NoError(t, err)
+
+	// 10. AI seat consumed by a task
+	_, err = tx.ExecContext(ctx,
+		"INSERT INTO ai_seat_state (user_id, first_used_at, last_used_at, last_event_type, last_event_description, updated_at) VALUES ($1, $2, $2, 'task', 'task usage', $2)",
+		userID, now,
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, tx.Commit())
+
+	// Step UP to 589
+	version, _, err := next()
+	require.NoError(t, err)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Verify tables are dropped
+	var tableCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.tables WHERE table_name IN ('tasks', 'task_workspace_apps', 'task_snapshots') AND table_schema = 'public'",
+	).Scan(&tableCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, tableCount, "task tables should be dropped")
+
+	// Verify view is dropped
+	var viewCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.views WHERE table_name = 'tasks_with_status' AND table_schema = 'public'",
+	).Scan(&viewCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, viewCount, "tasks_with_status view should be dropped")
+
+	// Verify task_status type is dropped
+	var typeCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_type WHERE typname = 'task_status'",
+	).Scan(&typeCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, typeCount, "task_status enum should be dropped")
+
+	// Verify has_ai_task columns are dropped
+	var columnCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.columns WHERE column_name = 'has_ai_task' AND table_name IN ('template_versions', 'workspace_builds')",
+	).Scan(&columnCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, columnCount, "has_ai_task columns should be dropped")
+
+	// Verify automatic pauses stay system-attributed while manual pauses and
+	// resumes keep user attribution.
+	var reason string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT reason FROM workspace_builds WHERE id = $1", buildID,
+	).Scan(&reason)
+	require.NoError(t, err)
+	require.Equal(t, "autostop", reason, "task_auto_pause should be remapped to autostop")
+
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT reason FROM workspace_builds WHERE id = $1", manualBuildID,
+	).Scan(&reason)
+	require.NoError(t, err)
+	require.Equal(t, "initiator", reason, "task_manual_pause should be remapped to initiator")
+
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT reason FROM workspace_builds WHERE id = $1", resumeBuildID,
+	).Scan(&reason)
+	require.NoError(t, err)
+	require.Equal(t, "initiator", reason, "task_resume should be remapped to initiator")
+
+	// Verify notification templates deleted
+	var notifCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM notification_templates WHERE id = $1", taskTemplateID,
+	).Scan(&notifCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, notifCount, "task notification template should be deleted")
+
+	var inboxCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM inbox_notifications WHERE id = $1", inboxNotificationID,
+	).Scan(&inboxCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, inboxCount, "task inbox notifications should be cascade-deleted")
+
+	// Verify user_configs task preference deleted
+	var configCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM user_configs WHERE key = 'preference_task_notification_alert_dismissed'",
+	).Scan(&configCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, configCount, "task notification alert dismissed config should be deleted")
+
+	// Verify custom role task permissions removed while preserving other permissions
+	var sitePermsRaw, orgPermsRaw []byte
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT site_permissions, org_permissions FROM custom_roles WHERE id = $1", customRoleID,
+	).Scan(&sitePermsRaw, &orgPermsRaw)
+	require.NoError(t, err)
+	require.NotContains(t, string(sitePermsRaw), "task")
+	require.Contains(t, string(sitePermsRaw), "workspace")
+	require.Equal(t, "[]", string(orgPermsRaw))
+
+	// Verify task scopes stripped from API keys and OAuth2 grants
+	var mixedKeyScopes string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scopes::text FROM api_keys WHERE id = 'task-mixed-key'",
+	).Scan(&mixedKeyScopes)
+	require.NoError(t, err)
+	require.Equal(t, "{workspace:read}", mixedKeyScopes)
+
+	var taskOnlyKeyCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM api_keys WHERE id = 'task-only-key'",
+	).Scan(&taskOnlyKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, taskOnlyKeyCount, "task-only api key should be revoked")
+
+	var oauthOnlyKeyCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM api_keys WHERE id = 'oauth-only-key'",
+	).Scan(&oauthOnlyKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, oauthOnlyKeyCount, "task-only oauth2 api key should be revoked")
+
+	// Verify task entries stripped from API key allow lists
+	var mixedKeyAllowList string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT allow_list::text FROM api_keys WHERE id = 'allow-mixed-key'",
+	).Scan(&mixedKeyAllowList)
+	require.NoError(t, err)
+	require.Equal(t, "{workspace:*}", mixedKeyAllowList)
+
+	var allowTaskOnlyKeyCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM api_keys WHERE id = 'allow-task-only-key'",
+	).Scan(&allowTaskOnlyKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, allowTaskOnlyKeyCount, "api key with a task-only allow list should be revoked")
+
+	var taskOnlyCodeCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM oauth2_provider_app_codes WHERE id = $1", oauthCodeTaskOnlyID,
+	).Scan(&taskOnlyCodeCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, taskOnlyCodeCount, "task-only oauth2 code should be revoked")
+
+	var mixedCodeScope string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scope FROM oauth2_provider_app_codes WHERE id = $1", oauthCodeMixedID,
+	).Scan(&mixedCodeScope)
+	require.NoError(t, err)
+	require.Equal(t, "workspace:read", mixedCodeScope)
+
+	var taskOnlyTokenCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM oauth2_provider_app_tokens WHERE id = $1", oauthTokenTaskOnlyID,
+	).Scan(&taskOnlyTokenCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, taskOnlyTokenCount, "task-only oauth2 token should be revoked")
+
+	var mixedTokenScope string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scope FROM oauth2_provider_app_tokens WHERE id = $1", oauthTokenMixedID,
+	).Scan(&mixedTokenScope)
+	require.NoError(t, err)
+	require.Equal(t, "workspace:read", mixedTokenScope)
+
+	// Verify task scopes removed from app allow lists without producing the
+	// empty string, which negotiateScope reads as no allowlist at all.
+	var taskOnlyAppScope string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scope FROM oauth2_provider_apps WHERE id = $1", oauthAppTaskOnlyScopeID,
+	).Scan(&taskOnlyAppScope)
+	require.NoError(t, err)
+	require.Equal(t, " ", taskOnlyAppScope, "task-only app allowlist should become the grants-nothing whitespace state")
+
+	var mixedAppScope string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scope FROM oauth2_provider_apps WHERE id = $1", oauthAppMixedScopeID,
+	).Scan(&mixedAppScope)
+	require.NoError(t, err)
+	require.Equal(t, "workspace:read", mixedAppScope)
+
+	var noAllowlistAppScope string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT scope FROM oauth2_provider_apps WHERE id = $1", oauthAppID,
+	).Scan(&noAllowlistAppScope)
+	require.NoError(t, err)
+	require.Equal(t, "", noAllowlistAppScope, "an app without an allowlist keeps the empty no-allowlist default")
+
+	// Verify task scopes removed from the api_key_scope enum
+	var taskScopeEnumCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'api_key_scope' AND e.enumlabel LIKE 'task:%'",
+	).Scan(&taskScopeEnumCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, taskScopeEnumCount, "task scopes should be removed from api_key_scope enum")
+
+	// Verify task audit history is retained
+	var auditTaskCount, auditWorkspaceCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM audit_logs WHERE id = $1", auditTaskLogID,
+	).Scan(&auditTaskCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, auditTaskCount, "task audit log should be retained")
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM audit_logs WHERE id = $1", auditWorkspaceLogID,
+	).Scan(&auditWorkspaceCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, auditWorkspaceCount, "workspace audit log should remain")
+
+	// Verify the task resource type is retained for audit history
+	var taskResourceTypeCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'resource_type' AND e.enumlabel = 'task'",
+	).Scan(&taskResourceTypeCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, taskResourceTypeCount, "task should remain in the resource_type enum")
+
+	// Verify task seat usage remapped to aibridge and the reason removed
+	var seatEventType string
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT last_event_type::text FROM ai_seat_state WHERE user_id = $1", userID,
+	).Scan(&seatEventType)
+	require.NoError(t, err)
+	require.Equal(t, "aibridge", seatEventType, "task seat usage should be remapped to aibridge")
+
+	var taskSeatReasonCount int
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'ai_seat_usage_reason' AND e.enumlabel = 'task'",
+	).Scan(&taskSeatReasonCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, taskSeatReasonCount, "task should be removed from ai_seat_usage_reason enum")
+
+	// Verify views can be queried cleanly
+	var wsCount, tvCount, wbCount int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspaces_expanded").Scan(&wsCount))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM template_version_with_user").Scan(&tvCount))
+	require.NoError(t, sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspace_build_with_user").Scan(&wbCount))
+	require.Equal(t, 1, wsCount)
+	require.Equal(t, 1, tvCount)
+	require.Equal(t, 3, wbCount)
+
+	// Test down and re-up execution
+	downSQL, err := os.ReadFile("000589_remove_tasks.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	// Verify tables are restored
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.tables WHERE table_name IN ('tasks', 'task_workspace_apps', 'task_snapshots') AND table_schema = 'public'",
+	).Scan(&tableCount)
+	require.NoError(t, err)
+	require.Equal(t, 3, tableCount, "task tables should be restored")
+
+	// Verify view is restored
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.views WHERE table_name = 'tasks_with_status' AND table_schema = 'public'",
+	).Scan(&viewCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, viewCount, "tasks_with_status view should be restored")
+
+	// Verify task_status type is restored
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_type WHERE typname = 'task_status'",
+	).Scan(&typeCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, typeCount, "task_status enum should be restored")
+
+	// Verify has_ai_task columns are restored
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM information_schema.columns WHERE column_name = 'has_ai_task' AND table_name IN ('template_versions', 'workspace_builds')",
+	).Scan(&columnCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, columnCount, "has_ai_task columns should be restored")
+
+	// Verify notification templates restored
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM notification_templates WHERE id = $1", taskTemplateID,
+	).Scan(&notifCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, notifCount, "task notification template should be restored")
+
+	// Verify task scopes restored in the api_key_scope enum
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'api_key_scope' AND e.enumlabel LIKE 'task:%'",
+	).Scan(&taskScopeEnumCount)
+	require.NoError(t, err)
+	require.Equal(t, 5, taskScopeEnumCount, "task scopes should be restored in api_key_scope enum")
+
+	// Verify task still present in the resource_type enum (never removed)
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'resource_type' AND e.enumlabel = 'task'",
+	).Scan(&taskResourceTypeCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, taskResourceTypeCount, "task should remain in resource_type enum")
+
+	// Verify task restored in the ai_seat_usage_reason enum
+	err = sqlDB.QueryRowContext(ctx,
+		"SELECT count(*) FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid WHERE t.typname = 'ai_seat_usage_reason' AND e.enumlabel = 'task'",
+	).Scan(&taskSeatReasonCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, taskSeatReasonCount, "task should be restored in ai_seat_usage_reason enum")
+
+	// Re-run upSQL to ensure it transitions cleanly again
+	upSQL, err := os.ReadFile("000589_remove_tasks.up.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+}

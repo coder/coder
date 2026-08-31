@@ -2038,9 +2038,6 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		}
 		err = db.UpdateTemplateVersionFlagsByJobID(ctx, database.UpdateTemplateVersionFlagsByJobIDParams{
 			JobID: jobID,
-			// Tasks are removed; the has_ai_task column is dropped in a
-			// follow-up migration.
-			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  jobType.TemplateImport.HasExternalAgents,
 				Valid: true,
@@ -2320,9 +2317,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err := db.UpdateWorkspaceBuildFlagsByID(ctx, database.UpdateWorkspaceBuildFlagsByIDParams{
 			ID: workspaceBuild.ID,
-			// Tasks are removed; the has_ai_task column is dropped in a
-			// follow-up migration.
-			HasAITask: sql.NullBool{Bool: false, Valid: true},
 			HasExternalAgent: sql.NullBool{
 				Bool:  hasExternalAgent,
 				Valid: true,

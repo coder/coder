@@ -171,47 +171,6 @@ func (w ConnectionLog) RBACObject() rbac.Object {
 	return obj
 }
 
-// TaskTable converts a Task to it's reduced version.
-// A more generalized solution is to use json marshaling to
-// consistently keep these two structs in sync.
-// That would be a lot of overhead, and a more costly unit test is
-// written to make sure these match up.
-func (t Task) TaskTable() TaskTable {
-	return TaskTable{
-		ID:                 t.ID,
-		OrganizationID:     t.OrganizationID,
-		OwnerID:            t.OwnerID,
-		Name:               t.Name,
-		DisplayName:        t.DisplayName,
-		WorkspaceID:        t.WorkspaceID,
-		TemplateVersionID:  t.TemplateVersionID,
-		TemplateParameters: t.TemplateParameters,
-		Prompt:             t.Prompt,
-		CreatedAt:          t.CreatedAt,
-		DeletedAt:          t.DeletedAt,
-	}
-}
-
-func (t Task) RBACObject() rbac.Object {
-	obj := rbac.ResourceTask.
-		WithID(t.ID).
-		WithOwner(t.OwnerID.String()).
-		InOrg(t.OrganizationID)
-
-	if rbac.WorkspaceACLDisabled() {
-		return obj
-	}
-
-	if t.WorkspaceGroupACL != nil {
-		obj = obj.WithGroupACL(t.WorkspaceGroupACL.RBACACL())
-	}
-	if t.WorkspaceUserACL != nil {
-		obj = obj.WithACLUserList(t.WorkspaceUserACL.RBACACL())
-	}
-
-	return obj
-}
-
 func (c Chat) RBACObject() rbac.Object {
 	obj := rbac.ResourceChat.
 		WithID(c.ID).
@@ -817,7 +776,6 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) ([]Workspace, error) {
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
 			NextStartAt:             r.NextStartAt,
-			TaskID:                  r.TaskID,
 		}
 
 		var err error

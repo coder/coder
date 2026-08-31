@@ -936,7 +936,6 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 
 	buildID := takeFirst(orig.ID, uuid.New())
 	jobID := takeFirst(orig.JobID, uuid.New())
-	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	var build database.WorkspaceBuild
 	err := db.InTx(func(db database.Store) error {
@@ -971,10 +970,9 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			require.NoError(t, err)
 		}
 
-		if hasAITask.Valid || hasExternalAgent.Valid {
+		if hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateWorkspaceBuildFlagsByID(genCtx, database.UpdateWorkspaceBuildFlagsByIDParams{
 				ID:               buildID,
-				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))
@@ -1592,7 +1590,6 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 
 func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVersion) database.TemplateVersion {
 	var version database.TemplateVersion
-	hasAITask := takeFirst(orig.HasAITask, sql.NullBool{})
 	hasExternalAgent := takeFirst(orig.HasExternalAgent, sql.NullBool{})
 	jobID := takeFirst(orig.JobID, uuid.New())
 	err := db.InTx(func(db database.Store) error {
@@ -1614,10 +1611,9 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 			return err
 		}
 
-		if hasAITask.Valid || hasExternalAgent.Valid {
+		if hasExternalAgent.Valid {
 			require.NoError(t, db.UpdateTemplateVersionFlagsByJobID(genCtx, database.UpdateTemplateVersionFlagsByJobIDParams{
 				JobID:            jobID,
-				HasAITask:        hasAITask,
 				HasExternalAgent: hasExternalAgent,
 				UpdatedAt:        dbtime.Now(),
 			}))
@@ -2150,50 +2146,6 @@ func AIBridgeModelThought(t testing.TB, db database.Store, seed database.InsertA
 	})
 	require.NoError(t, err, "insert aibridge model thought")
 	return thought
-}
-
-func Task(t testing.TB, db database.Store, orig database.TaskTable) database.Task {
-	t.Helper()
-
-	parameters := orig.TemplateParameters
-	if parameters == nil {
-		parameters = json.RawMessage([]byte("{}"))
-	}
-
-	task, err := db.InsertTask(genCtx, database.InsertTaskParams{
-		ID:                 takeFirst(orig.ID, uuid.New()),
-		OrganizationID:     orig.OrganizationID,
-		OwnerID:            orig.OwnerID,
-		Name:               takeFirst(orig.Name, testutil.GetRandomNameHyphenated(t)),
-		DisplayName:        takeFirst(orig.DisplayName, testutil.GetRandomNameHyphenated(t)),
-		WorkspaceID:        orig.WorkspaceID,
-		TemplateVersionID:  orig.TemplateVersionID,
-		TemplateParameters: parameters,
-		Prompt:             orig.Prompt,
-		CreatedAt:          takeFirst(orig.CreatedAt, dbtime.Now()),
-	})
-	require.NoError(t, err, "failed to insert task")
-
-	// Return the Task from the view instead of the TaskTable
-	fetched, err := db.GetTaskByID(genCtx, task.ID)
-	require.NoError(t, err, "failed to fetch task")
-	require.Equal(t, task.ID, fetched.ID)
-
-	return fetched
-}
-
-func TaskWorkspaceApp(t testing.TB, db database.Store, orig database.TaskWorkspaceApp) database.TaskWorkspaceApp {
-	t.Helper()
-
-	app, err := db.UpsertTaskWorkspaceApp(genCtx, database.UpsertTaskWorkspaceAppParams{
-		TaskID:               orig.TaskID,
-		WorkspaceBuildNumber: orig.WorkspaceBuildNumber,
-		WorkspaceAgentID:     orig.WorkspaceAgentID,
-		WorkspaceAppID:       orig.WorkspaceAppID,
-	})
-	require.NoError(t, err, "failed to upsert task workspace app")
-
-	return app
 }
 
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
