@@ -148,24 +148,6 @@ export const MultipleStatuses: Story = {
 	},
 };
 
-export const NoTaskWorkspace: Story = {
-	args: {
-		agent: mockAgent([
-			{
-				...MockWorkspaceAppStatus,
-				id: "status-9",
-				icon: "",
-				message: "status updated via curl",
-				created_at: createTimestamp(5, 15),
-				uri: "",
-				state: "complete" as const,
-			},
-			...MockWorkspaceAppStatuses,
-		]),
-		workspace: MockWorkspace,
-	},
-};
-
 function mockAgent(statuses: WorkspaceAppStatus[]) {
 	return {
 		...MockWorkspaceAgent,

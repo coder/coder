@@ -5137,56 +5137,6 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			enabled_by_default: true,
 		},
 		{
-			id: "8c5a4d12-9f7e-4b3a-a1c8-6e4f2d9b5a7c",
-			name: "Task Completed",
-			title_template: "Task '{{.Labels.workspace}}' completed",
-			body_template: "The task '{{.Labels.task}}' has completed successfully.",
-			actions:
-				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
-			group: "Task Events",
-			method: "",
-			kind: "system",
-			enabled_by_default: false,
-		},
-		{
-			id: "3b7e8f1a-4c2d-49a6-b5e9-7f3a1c8d6b4e",
-			name: "Task Failed",
-			title_template: "Task '{{.Labels.workspace}}' failed",
-			body_template:
-				"The task '{{.Labels.task}}' has failed. Check the logs for more details.",
-			actions:
-				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
-			group: "Task Events",
-			method: "",
-			kind: "system",
-			enabled_by_default: false,
-		},
-		{
-			id: "d4a6271c-cced-4ed0-84ad-afd02a9c7799",
-			name: "Task Idle",
-			title_template: "Task '{{.Labels.workspace}}' is idle",
-			body_template: "The task '{{.Labels.task}}' is idle and ready for input.",
-			actions:
-				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
-			group: "Task Events",
-			method: "",
-			kind: "system",
-			enabled_by_default: false,
-		},
-		{
-			id: "bd4b7168-d05e-4e19-ad0f-3593b77aa90f",
-			name: "Task Working",
-			title_template: "Task '{{.Labels.workspace}}' is working",
-			body_template:
-				"The task '{{.Labels.task}}' transitioned to a working state.",
-			actions:
-				'[{"url": "{{base_url}}/tasks/{{.UserUsername}}/{{.Labels.workspace}}", "label": "View task"}, {"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}", "label": "View workspace"}]',
-			group: "Task Events",
-			method: "",
-			kind: "system",
-			enabled_by_default: false,
-		},
-		{
 			id: "764031be-4863-4220-867b-6ce1a1b7a5f5",
 			name: "Chats Auto-Archived",
 			title_template:
