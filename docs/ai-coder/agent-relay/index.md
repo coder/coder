@@ -53,16 +53,14 @@ Agent Relay is not:
 Agent Relay is in [early access](../../install/releases/feature-stages.md#early-access-features)
 and is in closed preview with select customers.
 
-## Get started
-
-Talk to your [Coder account team](https://coder.com/contact) or email
-[sales@coder.com](mailto:sales@coder.com) to get access to Agent Relay.
-
 ## Supported providers
 
 [Cursor](./cursor.md) is the first provider Agent Relay supports.
-Coder built Agent Relay to support additional cloud-hosted agent providers
-as they add support for self-hosted execution.
+Coder built Agent Relay to support additional cloud-hosted agent providers as they add support for self-hosted execution.
+
+## Get started
+
+If you want access to Agent Relay or want updates on the support status for your cloud-hosted agent provider of choice, talk to your [Coder account team](https://coder.com/contact) or email [sales@coder.com](mailto:sales@coder.com).
 
 ## Learn more
 
