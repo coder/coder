@@ -125,13 +125,17 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 	// The allowlist was stored at registration time and may name a scope since
 	// removed from the catalog, or never in it. Filtering only ever narrows
 	// what is granted.
+	//
+	// Canonicalized in the same pass so both sides expand: rbac.ExpandScope
+	// knows `coder:all` and not the `all` alias that IsExternalScope accepts.
 	allowed := strings.Fields(app.Scope.String)
-	filtered := make([]string, 0, len(allowed))
+	filtered := make([]rbac.ScopeName, 0, len(allowed))
 	for _, a := range allowed {
-		if rbac.IsExternalScope(rbac.ScopeName(a)) {
-			filtered = append(filtered, a)
+		if name := rbac.ScopeName(a); rbac.IsExternalScope(name) {
+			filtered = append(filtered, rbac.CanonicalScopeName(name))
 		}
 	}
+	filtered = slice.Unique(filtered)
 	if len(filtered) == 0 {
 		// Falling through to the no-allowlist branch would grant strictly more
 		// than this allowlist ever permitted.
@@ -141,24 +145,21 @@ func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2
 		// as "" for the one configuration that most needs naming.
 		return "", xerrors.Errorf("%q: %w", app.Scope.String, errNoGrantableScope)
 	}
-	// Canonicalized so both sides expand: rbac.ExpandScope knows `coder:all`
-	// and not the `all` alias that IsExternalScope accepts.
-	filtered = canonicalScopes(filtered)
 
 	if len(granted) == 0 {
-		return strings.Join(filtered, " "), nil // RFC 6749 §3.3 default
+		names := make([]string, 0, len(filtered))
+		for _, name := range filtered {
+			names = append(names, string(name))
+		}
+		return strings.Join(names, " "), nil // RFC 6749 §3.3 default
 	}
 
 	// The allowlist is a ceiling on authority, not a menu of spellings, so the
 	// check is permission coverage rather than name membership: an app allowed
 	// `coder:workspaces.access` can approve a client asking only for
 	// `workspace:read`, which that composite already grants.
-	allowedNames := make([]rbac.ScopeName, 0, len(filtered))
-	for _, a := range filtered {
-		allowedNames = append(allowedNames, rbac.ScopeName(a))
-	}
 	for _, s := range granted {
-		covered, err := rbac.ScopesCover(allowedNames, rbac.ScopeName(s))
+		covered, err := rbac.ScopesCover(filtered, rbac.ScopeName(s))
 		if err != nil {
 			// Refuse rather than grant on an incomplete comparison. The
 			// underlying error names RBAC internals the client can do nothing
