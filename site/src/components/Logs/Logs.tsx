@@ -21,10 +21,10 @@ export const Logs: FC<LogsProps> = ({
 			className={cn(
 				"logs-container",
 				"min-h-40 py-2 rounded-lg overflow-x-auto bg-surface-primary",
-				"[&:not(:last-child)]:border-0",
-				"[&:not(:last-child)]:border-solid",
-				"[&:not(:last-child)]:border-b-border",
-				"[&:not(:last-child)]:rounded-none",
+				"not-last:border-0",
+				"not-last:border-solid",
+				"not-last:border-b-border",
+				"not-last:rounded-none",
 				className,
 			)}
 		>

@@ -54,7 +54,7 @@ export const TextPreviewDialog: FC<TextPreviewDialogProps> = ({
 						// rest of the conversation.
 						<Response className="max-w-3xl">{content}</Response>
 					) : (
-						<pre className="whitespace-pre-wrap break-words text-sm text-content-primary font-mono m-0">
+						<pre className="whitespace-pre-wrap wrap-break-word text-sm text-content-primary font-mono m-0">
 							{content}
 						</pre>
 					)}

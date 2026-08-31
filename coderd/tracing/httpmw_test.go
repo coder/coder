@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -99,7 +100,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		ctx := context.WithValue(context.Background(), chi.RouteCtxKey, chi.NewRouteContext())
 		r = r.WithContext(ctx)
 
-		tracing.Middleware(tp)(handler).ServeHTTP(rw, r)
+		tracing.Middleware(tp, tracing.DefaultRoutePatterns, "coderd")(handler).ServeHTTP(rw, r)
 
 		entries := sink.Entries(func(e slog.SinkEntry) bool {
 			return e.Message == "downstream handler invoked"
@@ -289,7 +290,7 @@ func Test_Middleware_SessionID(t *testing.T) {
 		ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
 		r = r.WithContext(ctx)
 
-		tracing.Middleware(provider)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		tracing.Middleware(provider, tracing.DefaultRoutePatterns, "coderd")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 
@@ -342,6 +343,165 @@ func (*startNameRecorder) OnEnd(sdktrace.ReadOnlySpan)      {}
 func (*startNameRecorder) Shutdown(context.Context) error   { return nil }
 func (*startNameRecorder) ForceFlush(context.Context) error { return nil }
 
+// Test_Middleware_Agent verifies the agent's reuse of Middleware: with a nil
+// tracer it emits no spans and only enriches the log context with
+// client_session_id, gated to the agent's /api patterns. This mirrors
+// agent/api.go.
+func Test_Middleware_Agent(t *testing.T) {
+	t.Parallel()
+
+	agentPatterns := []string{"/", "/api", "/api/**", "/debug/**"}
+
+	// accessLogFields runs a request through the agent middleware stack and
+	// returns the fields on loggermw's request completion log line.
+	accessLogFields := func(t *testing.T, path string) []slog.Field {
+		t.Helper()
+
+		sink := testutil.NewFakeSink(t)
+
+		// StatusWriterMiddleware is required by loggermw; Middleware runs before
+		// loggermw so the field is on the request context when the access log is
+		// emitted. A nil tracer means no spans, matching the agent. This mirrors
+		// agent/api.go.
+		handler := tracing.StatusWriterMiddleware(
+			tracing.Middleware(nil, agentPatterns, "agent")(
+				loggermw.Logger(sink.Logger(), nil)(
+					http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+						rw.WriteHeader(http.StatusNoContent)
+					}),
+				),
+			),
+		)
+
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.Header.Set("baggage", tracing.SessionIDBaggageKey+"="+testSessionID)
+		ctx := context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext())
+		handler.ServeHTTP(httptest.NewRecorder(), r.WithContext(ctx))
+
+		entries := sink.Entries()
+		require.Len(t, entries, 1)
+		return entries[0].Fields
+	}
+
+	sessionIDField := func(fields []slog.Field) (any, bool) {
+		for _, f := range fields {
+			if f.Name == "client_session_id" {
+				return f.Value, true
+			}
+		}
+		return nil, false
+	}
+
+	t.Run("APIRouteLogged", func(t *testing.T) {
+		t.Parallel()
+
+		val, ok := sessionIDField(accessLogFields(t, "/api/v0/foo"))
+		require.True(t, ok, "client_session_id should be on the agent access log")
+		require.Equal(t, testSessionID, val)
+	})
+
+	t.Run("DebugAndRootRoutesLogged", func(t *testing.T) {
+		t.Parallel()
+
+		// The agent also tracks its debug endpoints (for support-bundle
+		// correlation) and root handler.
+		for _, path := range []string{"/", "/debug/logs", "/debug/magicsock"} {
+			val, ok := sessionIDField(accessLogFields(t, path))
+			require.True(t, ok, "client_session_id should be logged on %q", path)
+			require.Equal(t, testSessionID, val)
+		}
+	})
+
+	t.Run("UnmatchedRouteGated", func(t *testing.T) {
+		t.Parallel()
+
+		// A path outside the tracked patterns still gets no client_session_id,
+		// even with valid baggage.
+		_, ok := sessionIDField(accessLogFields(t, "/foo"))
+		require.False(t, ok, "client_session_id must not be logged on an unmatched route")
+	})
+}
+
+// Test_Middleware_CustomRoutePatterns verifies the routePatterns argument gates
+// the middleware instead of the coderd defaults.
+func Test_Middleware_CustomRoutePatterns(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		path string
+		runs bool
+	}{
+		{"/api", true},
+		{"/api/v0/foo", true},
+		{"/debug/logs", false},
+		{"/", false},
+		// A coderd-only default pattern must not match under agent patterns.
+		{"/external-auth/hi/callback", false},
+	}
+
+	for _, c := range cases {
+		name := strings.ReplaceAll(strings.TrimPrefix(c.path, "/"), "/", "_")
+		if name == "" {
+			name = "root"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fake := &fakeTracer{}
+			rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+			r := httptest.NewRequest("GET", c.path, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+			ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
+			r = r.WithContext(ctx)
+
+			tracing.Middleware(fake, []string{"/api", "/api/**"}, "agent")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				rw.WriteHeader(http.StatusNoContent)
+			})).ServeHTTP(rw, r)
+
+			didRun := fake.startCalled.Load() == 1
+			require.Equal(t, c.runs, didRun, "expected middleware to run/not run")
+		})
+	}
+}
+
+// Test_Middleware_ServerName verifies the configured server name reaches the
+// emitted span via httpconv.ServerRequest.
+func Test_Middleware_ServerName(t *testing.T) {
+	t.Parallel()
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	rw := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
+	r := httptest.NewRequest(http.MethodGet, "/api/v2/workspaces", nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+	ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
+	r = r.WithContext(ctx)
+
+	const serverName = "custom-server-name"
+	tracing.Middleware(provider, tracing.DefaultRoutePatterns, serverName)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	})).ServeHTTP(rw, r)
+
+	require.NoError(t, provider.ForceFlush(ctx))
+	spans := recorder.Ended()
+	require.NotEmpty(t, spans)
+
+	var found bool
+	for _, span := range spans {
+		for _, attr := range span.Attributes() {
+			if attr.Value.Emit() == serverName {
+				found = true
+			}
+		}
+	}
+	require.True(t, found, "configured server name should appear in the span attributes")
+}
+
 func Test_Middleware(t *testing.T) {
 	t.Parallel()
 
@@ -389,7 +549,7 @@ func Test_Middleware(t *testing.T) {
 				ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
 				r = r.WithContext(ctx)
 
-				tracing.Middleware(fake)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				tracing.Middleware(fake, tracing.DefaultRoutePatterns, "coderd")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 					rw.WriteHeader(http.StatusNoContent)
 				})).ServeHTTP(rw, r)
 
@@ -422,7 +582,7 @@ func Test_Middleware(t *testing.T) {
 		ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
 		r = r.WithContext(ctx)
 
-		tracing.Middleware(provider)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		tracing.Middleware(provider, tracing.DefaultRoutePatterns, "coderd")(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			rw.WriteHeader(http.StatusOK)
 		})).ServeHTTP(rw, r)
 

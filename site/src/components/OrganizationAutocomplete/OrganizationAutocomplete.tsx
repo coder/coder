@@ -12,11 +12,13 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
+import { Label } from "#/components/Label/Label";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { cn } from "#/utils/cn";
 
 type OrganizationAutocompleteProps = {
 	value: Organization | null;
@@ -30,6 +32,12 @@ type OrganizationAutocompleteProps = {
 	ariaLabel?: string;
 	required?: boolean;
 	disabled?: boolean;
+	/**
+	 * Overrides the trigger button's width/layout classes when the default
+	 * full-width treatment does not fit (e.g. a fixed-width switcher).
+	 */
+	triggerClassName?: string;
+	optionsTabbable?: boolean;
 };
 
 export const getOrganizationLabel = (
@@ -58,9 +66,20 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 	ariaLabel,
 	required,
 	disabled,
+	triggerClassName,
+	optionsTabbable = false,
 }) => {
 	const [open, setOpen] = useState(false);
 	const labelContext = labelOrganizations ?? options;
+
+	// GetOrganizations has no ORDER BY, so the caller needs a stable order.
+	const sortedOptions = options.toSorted((a, b) => {
+		if (a.id === value?.id) return -1;
+		if (b.id === value?.id) return 1;
+		return a.display_name
+			.toLowerCase()
+			.localeCompare(b.display_name.toLowerCase());
+	});
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -73,7 +92,10 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 					aria-expanded={open}
 					aria-required={required}
 					data-testid="organization-autocomplete"
-					className="w-full justify-start gap-2 font-normal"
+					className={cn(
+						"group w-full justify-start gap-2 font-normal",
+						triggerClassName,
+					)}
 				>
 					{value ? (
 						<>
@@ -91,19 +113,19 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 							Select an organization{required ? "…" : " (optional)"}
 						</span>
 					)}
-					<ChevronDownIcon className="ml-auto !size-icon-sm shrink-0 text-content-secondary" />
+					<ChevronDownIcon className="ml-auto size-icon-sm! shrink-0 text-content-secondary" />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent
 				align="start"
-				className="w-[var(--radix-popover-trigger-width)] p-0"
+				className="w-(--radix-popover-trigger-width) p-0"
 			>
 				<Command loop>
 					<CommandInput placeholder="Find organization…" />
 					<CommandList>
 						<CommandEmpty>No organizations found.</CommandEmpty>
 						<CommandGroup>
-							{options.map((org) => (
+							{sortedOptions.map((org) => (
 								<CommandItem
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
@@ -111,6 +133,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 										onChange(org);
 										setOpen(false);
 									}}
+									tabIndex={optionsTabbable ? 0 : undefined}
 								>
 									<Avatar
 										size="sm"
@@ -130,5 +153,131 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 				</Command>
 			</PopoverContent>
 		</Popover>
+	);
+};
+
+type OrganizationValueProps = {
+	organization: Organization;
+	labelOrganizations?: readonly Organization[];
+	id?: string;
+	className?: string;
+};
+
+const OrganizationValue: FC<OrganizationValueProps> = ({
+	organization,
+	labelOrganizations,
+	id,
+	className,
+}) => {
+	const label = getOrganizationLabel(
+		organization,
+		labelOrganizations ?? [organization],
+	);
+	return (
+		<div
+			id={id}
+			role="group"
+			aria-label={`Organization ${label}`}
+			className={cn(
+				"flex h-10 items-center gap-2 rounded-md border border-solid border-border px-3 py-2 text-sm text-content-primary",
+				className,
+			)}
+		>
+			<Avatar
+				size="sm"
+				src={organization.icon}
+				fallback={organization.display_name}
+			/>
+			<span className="truncate">{label}</span>
+		</div>
+	);
+};
+
+type OrganizationFieldProps = {
+	id: string;
+	organization: Organization;
+	organizations: readonly Organization[];
+	labelOrganizations?: readonly Organization[];
+	onChange?: (organization: Organization) => void;
+	className?: string;
+	disabled?: boolean;
+	label?: string;
+	showLabel?: boolean;
+	showSingleOrganization?: boolean;
+	readOnly?: boolean;
+	triggerClassName?: string;
+	optionsTabbable?: boolean;
+	required?: boolean;
+};
+
+export const OrganizationField: FC<OrganizationFieldProps> = ({
+	id,
+	organization,
+	organizations,
+	labelOrganizations,
+	onChange,
+	className,
+	disabled,
+	label = "Organization",
+	showLabel = true,
+	showSingleOrganization = false,
+	readOnly = false,
+	triggerClassName,
+	optionsTabbable,
+	required = true,
+}) => {
+	const hasSingleSelectedOrganization =
+		organizations.length <= 1 &&
+		organizations.some((option) => option.id === organization.id);
+	if (hasSingleSelectedOrganization && !showSingleOrganization && !readOnly) {
+		return null;
+	}
+
+	const resolvedLabelOrganizations =
+		labelOrganizations ??
+		(organizations.some((option) => option.id === organization.id)
+			? organizations
+			: [...organizations, organization]);
+	const organizationLabel = getOrganizationLabel(
+		organization,
+		resolvedLabelOrganizations,
+	);
+	const isReadOnly = readOnly || !onChange || hasSingleSelectedOrganization;
+
+	return (
+		<div className={cn("flex w-72 flex-col gap-1.5", className)}>
+			{showLabel && (
+				<Label
+					htmlFor={id}
+					className="flex items-center gap-1 leading-6 text-content-primary"
+				>
+					{label}
+				</Label>
+			)}
+			{isReadOnly ? (
+				<OrganizationValue
+					id={id}
+					organization={organization}
+					labelOrganizations={resolvedLabelOrganizations}
+				/>
+			) : (
+				<OrganizationAutocomplete
+					id={id}
+					ariaLabel={`${label} ${organizationLabel}`}
+					value={organization}
+					onChange={(org) => {
+						if (org) {
+							onChange?.(org);
+						}
+					}}
+					options={organizations}
+					labelOrganizations={resolvedLabelOrganizations}
+					required={required}
+					disabled={disabled}
+					triggerClassName={triggerClassName}
+					optionsTabbable={optionsTabbable}
+				/>
+			)}
+		</div>
 	);
 };

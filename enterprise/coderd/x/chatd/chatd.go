@@ -123,7 +123,7 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	default:
 		return "", xerrors.Errorf("unsupported relay address scheme %q", u.Scheme)
 	}
-	u.Path = "/api/experimental/chats/" + chatID.String() + "/stream/parts"
+	u.Path = "/api/v2/chats/" + chatID.String() + "/stream/parts"
 	u.RawQuery = ""
 	return u.String(), nil
 }

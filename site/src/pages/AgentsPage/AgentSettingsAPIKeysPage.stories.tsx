@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import type {
-	ChatModelConfig,
-	UserChatProviderConfig,
-} from "#/api/typesGenerated";
-import { MockChatModelConfig } from "#/testHelpers/chatModels";
+import type { ChatModel, UserChatProviderConfig } from "#/api/typesGenerated";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsAPIKeysPageView,
 	type AgentSettingsAPIKeysPageViewProps,
@@ -25,10 +22,10 @@ const createProvider = (
 });
 
 const createModel = (
-	overrides: Partial<ChatModelConfig> &
-		Pick<ChatModelConfig, "id" | "ai_provider_id" | "model">,
-): ChatModelConfig => ({
-	...MockChatModelConfig,
+	overrides: Partial<ChatModel> &
+		Pick<ChatModel, "id" | "ai_provider_id" | "model">,
+): ChatModel => ({
+	...MockChatModel,
 	created_at: "2026-03-01T00:00:00.000Z",
 	updated_at: "2026-03-01T00:00:00.000Z",
 	...overrides,
@@ -204,6 +201,21 @@ export const ModelsUnavailable: Story = {
 	},
 };
 
+export const SomeModelsUnavailable: Story = {
+	args: {
+		areModelsUnavailable: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(
+				"Some enabled model badges are temporarily unavailable.",
+			),
+		).toBeVisible();
+		expect(canvas.getByText(baseModel.display_name)).toBeVisible();
+	},
+};
+
 export const SavingSingleProvider: Story = {
 	args: {
 		providerItems: [
@@ -353,7 +365,7 @@ export const ShowsProviderStatuses: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(await canvas.findByText("Key saved")).toBeVisible();
-		await expect(canvas.getByText("Using shared key")).toBeVisible();
+		await expect(canvas.getByText("Shared key")).toBeVisible();
 		await expect(canvas.getByText("No key")).toBeVisible();
 		await expect(
 			canvas.getByText(

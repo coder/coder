@@ -55,7 +55,7 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				<ComboboxButton
 					selectedOption={selectedOption}
 					placeholder={placeholder}
-					className="flex-shrink-0 grow"
+					className="shrink-0 grow"
 					style={{ flexBasis: width }}
 					aria-label={label}
 				/>
@@ -75,16 +75,11 @@ export const SelectFilter: FC<SelectFilterProps> = ({
 				shouldFilter={false}
 			>
 				{selectFilterSearch}
-				<ComboboxList
-					className={cn(
-						!selectFilterSearch && "border-t-0",
-						"border-surface-quaternary",
-					)}
-				>
+				<ComboboxList className={cn(!selectFilterSearch && "border-t-0")}>
 					{options !== undefined ? (
 						options.map((option) => (
 							<ComboboxItem
-								className="px-4 data-[selected=true]:bg-surface-tertiary font-normal gap-4"
+								className="px-4 font-normal gap-4"
 								key={option.value}
 								value={option.value}
 								keywords={[option.label]}

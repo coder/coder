@@ -24,8 +24,6 @@ import {
 	cancelChatListRefetches,
 	cancelLoadedChatEntityRefetch,
 	chatEntityKey,
-	chatModelConfigs,
-	chatModels,
 	infiniteChats,
 	invalidateChatCostTree,
 	invalidateChatDiffContents,
@@ -47,7 +45,6 @@ import {
 	updateChatTitle,
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
-	userChatProviderConfigs,
 } from "#/api/queries/chats";
 import {
 	invalidateWorkspaceMutationQueries,
@@ -58,9 +55,11 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
+	getDefaultOrganizationId,
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { canAccessCoderAgentsSettings } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -79,6 +78,7 @@ import {
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
@@ -88,10 +88,6 @@ import {
 	shouldNavigateAfterArchive,
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
-import {
-	getModelOptionsFromConfigs,
-	providerInfoByIDFromUserConfigs,
-} from "./utils/modelOptions";
 import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 
@@ -168,7 +164,14 @@ const AgentsPageLayout: FC = () => {
 	const { permissions, user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const organizationName = getDefaultOrganizationName(organizations);
+	const defaultOrganizationId = getDefaultOrganizationId(organizations);
+	// The personal-overrides feature flag is deployment-wide but read through
+	// an organization-scoped endpoint, so fall back to any accessible
+	// organization for users outside the default organization.
+	const personalOverridesOrganizationId =
+		defaultOrganizationId || (organizations[0]?.id ?? "");
 	const isAgentsAdmin = permissions.editDeploymentConfig;
+	const canManageAgentSettings = canAccessCoderAgentsSettings(permissions);
 
 	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
 		searchParams,
@@ -232,15 +235,11 @@ const AgentsPageLayout: FC = () => {
 			sources: sidebarFilters.sources,
 		}),
 	);
-	// Model queries are kept here for the sidebar, which displays
-	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently, and react-query
-	// deduplicates the requests.
-	const chatModelsQuery = useQuery(chatModels());
-	const chatModelConfigsQuery = useQuery(chatModelConfigs());
-	const chatProviderConfigsQuery = useQuery(userChatProviderConfigs());
+	const organizationModels = useOrganizationChatModels(
+		organizations.map((organization) => organization.id),
+	);
 	const personalModelOverridesQuery = useQuery(
-		userChatPersonalModelOverrides(),
+		userChatPersonalModelOverrides(personalOverridesOrganizationId),
 	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
@@ -388,11 +387,6 @@ const AgentsPageLayout: FC = () => {
 		},
 	});
 	const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-	const catalogModelOptions = getModelOptionsFromConfigs(
-		chatModelConfigsQuery.data,
-		chatModelsQuery.data,
-		providerInfoByIDFromUserConfigs(chatProviderConfigsQuery.data),
-	);
 	const chatList = chatsQuery.data?.pages.flat() ?? [];
 	const isArchiving =
 		archiveAgentMutation.isPending || archiveAndDeleteMutation.isPending;
@@ -760,7 +754,7 @@ const AgentsPageLayout: FC = () => {
 							? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 							: isSettingsDetail
 								? "hidden sm:block shrink-0"
-								: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
 						isSidebarCollapsed && "sm:hidden",
 					)}
 				>
@@ -768,8 +762,8 @@ const AgentsPageLayout: FC = () => {
 						chats={chatList}
 						currentUserId={user.id}
 						chatErrorReasons={sidebarChatErrorReasons}
-						modelOptions={catalogModelOptions}
-						modelConfigs={chatModelConfigsQuery.data ?? []}
+						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
 						onArchiveAgent={requestArchiveAgent}
 						onUnarchiveAgent={requestUnarchiveAgent}
 						onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
@@ -799,6 +793,7 @@ const AgentsPageLayout: FC = () => {
 							personalModelOverridesQuery.data?.enabled
 						}
 						isAdmin={isAgentsAdmin}
+						canManageAgentSettings={canManageAgentSettings}
 					/>
 				</ResizableChatsSidebarFrame>
 				<div

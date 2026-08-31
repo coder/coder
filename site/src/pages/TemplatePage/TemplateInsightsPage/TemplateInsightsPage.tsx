@@ -1,4 +1,3 @@
-import chroma from "chroma-js";
 import {
 	CircleCheckIcon,
 	CircleXIcon,
@@ -425,19 +424,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 		.sort((a, b) => b.seconds - a.seconds);
 	const totalInSeconds =
 		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
-	const style = getComputedStyle(document.documentElement);
-	const successHsl = style
-		.getPropertyValue("--content-success")
-		.trim()
-		.replace(/ /g, ", ");
-	const warningHsl = style
-		.getPropertyValue("--content-warning")
-		.trim()
-		.replace(/ /g, ", ");
-	const usageColors = chroma
-		.scale([`hsl(${successHsl})`, `hsl(${warningHsl})`])
-		.mode("lch")
-		.colors(validUsage?.length ?? 0);
+	const usageCount = validUsage?.length ?? 0;
 
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
@@ -449,6 +436,8 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 					<div className="flex flex-col gap-6">
 						{(validUsage || []).map((usage, i) => {
 							const percentage = (usage.seconds / totalInSeconds) * 100;
+							const colorStop =
+								usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
 							return (
 								<div key={usage.slug} className="flex items-center gap-6">
 									<div className="flex items-center gap-2">
@@ -470,7 +459,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 													className="absolute inset-y-0 left-0 rounded-full"
 													style={{
 														width: `${percentage}%`,
-														backgroundColor: usageColors[i],
+														backgroundColor: `color-mix(in lch, var(--color-content-success), var(--color-content-warning) ${colorStop}%)`,
 													}}
 												/>
 											</div>
@@ -480,7 +469,7 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 											<TooltipArrow className="fill-border" />
 										</TooltipContent>
 									</Tooltip>
-									<div className="flex flex-col text-sm font-normal shrink-0 leading-[1.5] text-content-secondary w-[120px]">
+									<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
 										{formatTime(usage.seconds)}
 										{usage.times_used > 0 && (
 											<span className="text-[12px] text-content-disabled">
@@ -531,7 +520,7 @@ const TemplateParametersUsagePanel: FC<TemplateParametersUsagePanelProps> = ({
 									{parameter.description}
 								</p>
 							</div>
-							<div className="flex-1 grow-2 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
+							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
 								<div className="font-medium text-sm text-content-secondary py-1">
 									Value
 								</div>
@@ -624,7 +613,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 					showExternalIcon={false}
 					// We're using a manual underline because `inline`
 					// removes it from the first line of the text when it wraps.
-					className="inline hover:underline after:hover:content-none"
+					className="inline hover:underline hover:after:content-none"
 				>
 					{usage.value}
 				</Link>
@@ -672,7 +661,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 	return <TextValue>{usage.value}</TextValue>;
 };
 
-interface PanelProps extends HTMLAttributes<HTMLDivElement> {}
+type PanelProps = HTMLAttributes<HTMLDivElement>;
 
 const Panel: FC<PanelProps> = ({ children, className, ...attrs }) => {
 	return (

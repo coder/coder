@@ -71,10 +71,14 @@ export type LoginOptions = {
 	password: string;
 };
 
+// The current user is stashed on the Playwright context under a symbol key so
+// helpers can read it back without reaching for `any`.
+type ContextWithUser = BrowserContext &
+	Record<symbol, LoginOptions | undefined>;
+
 export async function login(page: Page, options: LoginOptions = users.owner) {
 	const ctx = page.context();
-	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
-	(ctx as any)[Symbol.for("currentUser")] = undefined;
+	(ctx as ContextWithUser)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
 	await page.goto("/login", { waitUntil: "domcontentloaded" });
 	await page.getByLabel("Email").fill(options.email);
@@ -89,14 +93,12 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	// login. See https://github.com/coder/coder/pull/27107.
 	await page.waitForURL((url) => url.pathname === "/workspaces");
 	await expect(page).toHaveTitle("Workspaces - Coder");
-	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
-	(ctx as any)[Symbol.for("currentUser")] = options;
+	(ctx as ContextWithUser)[Symbol.for("currentUser")] = options;
 }
 
 function currentUser(page: Page): LoginOptions {
 	const ctx = page.context();
-	// biome-ignore lint/suspicious/noExplicitAny: get the current user
-	const user = (ctx as any)[Symbol.for("currentUser")];
+	const user = (ctx as ContextWithUser)[Symbol.for("currentUser")];
 
 	if (!user) {
 		throw new Error("page context does not have a user. did you call `login`?");
@@ -1407,7 +1409,7 @@ export async function createOrganization(page: Page): Promise<{
 	const description = `Org description ${name}`;
 	await page.getByLabel("Description").fill(description);
 	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: /save/i }).click();
+	await page.getByRole("button", { name: /create organization/i }).click();
 
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
 	await expect(page.getByText(/created successfully/)).toBeVisible();

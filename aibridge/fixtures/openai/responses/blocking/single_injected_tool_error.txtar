@@ -749,7 +749,8 @@ Coder MCP tools automatically injected, and errors invoking them are recorded.
   "usage": {
     "input_tokens": 6377,
     "input_tokens_details": {
-      "cached_tokens": 6144
+      "cached_tokens": 6144,
+      "cache_write_tokens": 5
     },
     "output_tokens": 119,
     "output_tokens_details": {
@@ -1509,7 +1510,8 @@ Coder MCP tools automatically injected, and errors invoking them are recorded.
   "usage": {
     "input_tokens": 6539,
     "input_tokens_details": {
-      "cached_tokens": 6144
+      "cached_tokens": 6144,
+      "cache_write_tokens": 9
     },
     "output_tokens": 144,
     "output_tokens_details": {
