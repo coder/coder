@@ -24,7 +24,11 @@ import {
 } from "#/components/Popover/Popover";
 import { cn } from "#/utils/cn";
 
-const EmojiPicker = lazy(() => import("./EmojiPicker"));
+const loadEmojiPicker = () => import("./EmojiPicker");
+const prefetchEmojiPicker = () => {
+	void loadEmojiPicker().catch(() => undefined);
+};
+const EmojiPicker = lazy(loadEmojiPicker);
 
 type IconFieldProps = Omit<ComponentPropsWithRef<"input">, "type"> & {
 	label?: ReactNode;
@@ -103,6 +107,8 @@ export const IconField: FC<IconFieldProps> = ({
 								size="sm"
 								className="group h-7 gap-1"
 								disabled={disabled}
+								onMouseEnter={prefetchEmojiPicker}
+								onFocus={prefetchEmojiPicker}
 								aria-label="Pick an emoji or icon"
 							>
 								Emoji
@@ -112,7 +118,7 @@ export const IconField: FC<IconFieldProps> = ({
 						<PopoverContent
 							side="bottom"
 							align="end"
-							className="w-min"
+							className="w-auto overflow-hidden p-0"
 							// The popover is portaled in the DOM but still a React child of
 							// InputGroupAddon, whose click handler focuses the text input.
 							// Stop clicks here so the emoji picker keeps focus.
@@ -120,12 +126,10 @@ export const IconField: FC<IconFieldProps> = ({
 						>
 							<Suspense fallback={<Loader />}>
 								<EmojiPicker
-									onEmojiSelect={(emoji) => {
-										const picked = emoji.src ?? `/emojis/${emoji.unified}.png`;
-										onPickEmoji(picked);
+									onSelect={(url) => {
+										onPickEmoji(url);
 										setOpen(false);
 									}}
-									autoFocus
 								/>
 							</Suspense>
 						</PopoverContent>
@@ -143,22 +147,6 @@ export const IconField: FC<IconFieldProps> = ({
 					{helperText}
 				</span>
 			) : null}
-
-			{/*
-      - This component takes a long time to load (easily several seconds), so we
-      don't want to wait until the user actually clicks the button to start loading.
-      Unfortunately, React doesn't provide an API to start warming a lazy component,
-      so we just have to sneak it into the DOM, which is kind of annoying, but means
-      that users shouldn't ever spend time waiting for it to load.
-      - Except we don't do it when running tests, because it would make them
-      slower anyway. */}
-			{process.env.NODE_ENV !== "test" && (
-				<div className="sr-only" aria-hidden="true">
-					<Suspense>
-						<EmojiPicker onEmojiSelect={() => {}} />
-					</Suspense>
-				</div>
-			)}
 		</div>
 	);
 };

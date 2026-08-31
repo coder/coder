@@ -1,13 +1,13 @@
 import { readdirSync } from "node:fs";
+import canonicalNames from "unicode-emoji-json/data-by-emoji.json";
 import { describe, expect, it } from "vitest";
 import manifest from "#/components/IconField/emojiDataGenerated.json";
 import {
 	IMAGES_DIR,
 	check,
+	emojiGlyph,
+	emojiMetadata,
 	normalizeEmojiData,
-	parsePngSize,
-	sheetGrid,
-	validateSpritesheet,
 } from "./update-emojis.mjs";
 
 const record = (overrides) => ({
@@ -34,6 +34,9 @@ const skin = (unified, overrides) => ({
 
 const normalize = (records) => normalizeEmojiData(records, "15.1.2").emojis;
 
+// 😀 U+1F600, the glyph every `record()` resolves to.
+const GRINNING = "\u{1f600}";
+
 describe("normalizeEmojiData", () => {
 	it("emits the runtime shape with lowercased codepoints", () => {
 		const { version, categories, emojis } = normalizeEmojiData(
@@ -45,11 +48,21 @@ describe("normalizeEmojiData", () => {
 		expect(emojis).toEqual([
 			{
 				id: "grinning",
-				name: "GRINNING FACE",
+				name: "grinning face",
 				category: "Smileys & Emotion",
 				subcategory: "face-smiling",
 				unified: "1f600",
 				image: "1f600.png",
+				keywords: [
+					"grinning_face",
+					"face",
+					"smile",
+					"happy",
+					"joy",
+					":D",
+					"grin",
+					"smiley",
+				],
 			},
 		]);
 	});
@@ -130,6 +143,106 @@ describe("normalizeEmojiData", () => {
 		expect(emoji).not.toHaveProperty("textAliases");
 		expect(emoji).not.toHaveProperty("skins");
 	});
+
+	it("replaces the legacy datasource name with the canonical one", () => {
+		const [emoji] = normalize([
+			record({
+				short_name: "heart",
+				name: "HEAVY BLACK HEART",
+				unified: "2764-FE0F",
+				image: "2764-fe0f.png",
+			}),
+		]);
+		expect(emoji.name).toBe("red heart");
+		expect(emoji.keywords).toContain("love");
+	});
+
+	it("does not emit the glyph join key", () => {
+		const [emoji] = normalize([record()]);
+		expect(emoji).not.toHaveProperty("glyph");
+		expect(emoji).not.toHaveProperty("canonicalName");
+	});
+});
+
+describe("emojiGlyph", () => {
+	it("renders a single codepoint", () => {
+		expect(emojiGlyph("1f600", "test")).toBe(GRINNING);
+	});
+
+	it("renders a joined sequence in order", () => {
+		expect(emojiGlyph("1f3f3-fe0f-200d-26a7-fe0f", "test")).toBe(
+			"\u{1f3f3}\ufe0f\u200d\u26a7\ufe0f",
+		);
+	});
+
+	it("rejects a non-hexadecimal codepoint", () => {
+		expect(() => emojiGlyph("1f600-zzz", "test")).toThrow(
+			'test has a non-hexadecimal codepoint "zzz"',
+		);
+	});
+
+	it("rejects a codepoint above the Unicode range", () => {
+		expect(() => emojiGlyph("110000", "test")).toThrow(
+			'test has an out-of-range codepoint "110000"',
+		);
+	});
+});
+
+describe("emojiMetadata", () => {
+	const names = { [GRINNING]: { name: "grinning face" } };
+	const keywords = { [GRINNING]: ["face", "smile", "face"] };
+
+	it("returns the canonical name and deduplicated keywords", () => {
+		expect(emojiMetadata(GRINNING, "test", names, keywords)).toEqual({
+			canonicalName: "grinning face",
+			keywords: ["face", "smile"],
+		});
+	});
+
+	it("reads the real packages by default", () => {
+		const { canonicalName, keywords: words } = emojiMetadata(GRINNING, "test");
+		expect(canonicalName).toBe("grinning face");
+		expect(words).toContain("happy");
+	});
+
+	it("rejects a glyph the name package does not know", () => {
+		expect(() => emojiMetadata(GRINNING, "test", {}, keywords)).toThrow(
+			"test has no canonical name",
+		);
+	});
+
+	it("rejects a malformed name entry", () => {
+		expect(() =>
+			emojiMetadata(GRINNING, "test", { [GRINNING]: "grinning" }, keywords),
+		).toThrow("test canonical metadata is not an object");
+	});
+
+	it("rejects an empty or non-string canonical name", () => {
+		expect(() =>
+			emojiMetadata(GRINNING, "test", { [GRINNING]: { name: "" } }, keywords),
+		).toThrow("test has an empty or non-string canonical name");
+		expect(() =>
+			emojiMetadata(GRINNING, "test", { [GRINNING]: { name: 7 } }, keywords),
+		).toThrow("test has an empty or non-string canonical name");
+	});
+
+	it("rejects a glyph the keyword package does not know", () => {
+		expect(() => emojiMetadata(GRINNING, "test", names, {})).toThrow(
+			"test has no keywords",
+		);
+	});
+
+	it("rejects keywords that are not an array of strings", () => {
+		expect(() =>
+			emojiMetadata(GRINNING, "test", names, { [GRINNING]: ["face", 7] }),
+		).toThrow("test keywords is not an array of strings");
+	});
+
+	it("rejects an empty keyword list", () => {
+		expect(() =>
+			emojiMetadata(GRINNING, "test", names, { [GRINNING]: [] }),
+		).toThrow("test has an empty keyword list");
+	});
 });
 
 describe("normalizeEmojiData validation", () => {
@@ -184,34 +297,16 @@ describe("normalizeEmojiData validation", () => {
 			]),
 		).toThrow('emoji "grinning" skin "1F3FB" is missing "image"');
 	});
-});
 
-describe("parsePngSize", () => {
-	it("rejects a buffer without the PNG signature", () => {
-		expect(() => parsePngSize(Buffer.alloc(24))).toThrow("not a PNG file");
-	});
-
-	it("rejects a PNG whose first chunk is not IHDR", () => {
-		const buffer = Buffer.alloc(24);
-		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buffer);
-		buffer.write("IDAT", 12, "ascii");
-		expect(() => parsePngSize(buffer)).toThrow(
-			"does not start with an IHDR chunk",
+	it("rejects a datasource emoji with no canonical metadata", () => {
+		expect(() => normalize([record({ unified: "0041" })])).toThrow(
+			'emoji "grinning" has no canonical name for "A"',
 		);
 	});
-});
 
-describe("sheetGrid", () => {
-	it("divides a sheet into padded cells", () => {
-		expect(sheetGrid({ width: 4026, height: 4026 })).toEqual({
-			cols: 61,
-			rows: 61,
-		});
-	});
-
-	it("rejects dimensions that are not a whole number of cells", () => {
-		expect(() => sheetGrid({ width: 4000, height: 4026 })).toThrow(
-			"not a multiple of the 66px cell stride",
+	it("rejects a datasource emoji with an unparsable codepoint", () => {
+		expect(() => normalize([record({ unified: "NOPE" })])).toThrow(
+			'emoji "grinning" has a non-hexadecimal codepoint "nope"',
 		);
 	});
 });
@@ -219,10 +314,6 @@ describe("sheetGrid", () => {
 describe("committed emoji artifacts", () => {
 	it("match the installed datasource", () => {
 		expect(check()).toBe(true);
-	});
-
-	it("keep the 61x61 spritesheet @emoji-mart/data expects", () => {
-		expect(validateSpritesheet()).toEqual({ cols: 61, rows: 61 });
 	});
 
 	it("reference images that exist on disk", () => {
@@ -235,5 +326,34 @@ describe("committed emoji artifacts", () => {
 		);
 		expect(referenced.size).toBeGreaterThan(0);
 		expect([...referenced].filter((image) => !committed.has(image))).toEqual([]);
+	});
+
+	it("carry the canonical name and keywords for every emoji", () => {
+		const stale = manifest.emojis.filter((emoji) => {
+			const entry = canonicalNames[emojiGlyph(emoji.unified, emoji.id)];
+			return (
+				entry?.name !== emoji.name ||
+				!Array.isArray(emoji.keywords) ||
+				emoji.keywords.length === 0
+			);
+		});
+		expect(stale.map((emoji) => emoji.id)).toEqual([]);
+	});
+
+	it("omit the glyph join key", () => {
+		const withGlyph = manifest.emojis.filter(
+			(emoji) => "glyph" in emoji || "canonicalName" in emoji,
+		);
+		expect(withGlyph.map((emoji) => emoji.id)).toEqual([]);
+	});
+
+	it("resolve searches that the legacy datasource names cannot", () => {
+		const find = (query) =>
+			manifest.emojis.filter((emoji) =>
+				[emoji.name, ...emoji.keywords].join(" ").toLowerCase().includes(query),
+			);
+		expect(find("red heart").map((emoji) => emoji.id)).toContain("heart");
+		expect(find("happy").length).toBeGreaterThan(10);
+		expect(find("sad").length).toBeGreaterThan(10);
 	});
 });

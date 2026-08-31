@@ -6,10 +6,18 @@
  * They are synchronized from the pinned `emoji-datasource-apple` devDependency
  * together with a normalized runtime manifest.
  *
- * `spritesheet.png` is deliberately not regenerated. Emoji Mart positions
- * sprites from the grid declared by `@emoji-mart/data`, which is still 61x61.
- * The pinned datasource ships a 62x62 sheet, so overwriting it would misalign
- * every emoji in the picker.
+ * `static/emojis/spritesheet.png` is legacy and unmanaged. Nothing in the app
+ * reads it now that the picker renders individual images, but
+ * `/emojis/spritesheet.png` is a public URL, so it stays committed and this
+ * script neither regenerates nor deletes it.
+ *
+ * The datasource carries legacy Unicode names ("HEAVY BLACK HEART") and no
+ * synonyms, which makes it a poor search corpus. Each record is therefore
+ * enriched from two pinned metadata packages keyed by emoji glyph:
+ * `unicode-emoji-json` supplies the canonical English `name` ("red heart")
+ * that replaces the legacy one, and `emojilib` supplies `keywords` ("love",
+ * "like", "valentines"). The glyph itself is only the join key between the
+ * datasource and those packages, so it is not emitted.
  *
  * Usage:
  *   node scripts/update-emojis.mjs           # sync images and manifest
@@ -31,31 +39,28 @@ const require = createRequire(scriptPath);
 const PACKAGE_DIR = dirname(require.resolve("emoji-datasource-apple"));
 const SOURCE_IMAGES_DIR = join(PACKAGE_DIR, "img/apple/64");
 export const IMAGES_DIR = join(siteDir, "static/emojis");
-const SPRITESHEET_PATH = join(IMAGES_DIR, "spritesheet.png");
+const LEGACY_SPRITESHEET = "spritesheet.png";
 const MANIFEST_NAME = "emojiDataGenerated.json";
 const MANIFEST_RELATIVE = `src/components/IconField/${MANIFEST_NAME}`;
 const MANIFEST_PATH = join(siteDir, MANIFEST_RELATIVE);
 
-/**
- * Emoji Mart data set backing the picker. Keep in sync with the `emojiVersion`
- * prop in src/components/IconField/EmojiPicker.tsx.
- */
-const EMOJI_MART_SET = "15";
-
-// Sheet cells are a 64px glyph with 1px of padding on every side.
-const CELL_STRIDE = 66;
-
 // Skin tone modifiers are not selectable emoji.
 const EXCLUDED_CATEGORY = "Component";
 
-const PNG_SIGNATURE = Buffer.from([
-	0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-]);
+// Metadata packages, both keyed by the rendered emoji glyph.
+const NAMES_PACKAGE = "unicode-emoji-json";
+const KEYWORDS_PACKAGE = "emojilib";
+const CANONICAL_NAMES = require("unicode-emoji-json/data-by-emoji.json");
+const SEARCH_KEYWORDS = require("emojilib");
 
-// The datasource ships untyped JSON, so assert the fields we depend on.
+// Codepoints are hyphen-separated hex, and Unicode tops out at U+10FFFF.
+const CODEPOINT_PATTERN = /^[0-9a-f]{1,6}$/i;
+const MAX_CODEPOINT = 0x10ffff;
+
+// The datasource ships untyped JSON, so assert the fields we depend on. The
+// datasource `name` is not among them: it is replaced by the canonical one.
 const RECORD_STRING_FIELDS = [
 	"short_name",
-	"name",
 	"unified",
 	"image",
 	"category",
@@ -64,27 +69,6 @@ const RECORD_STRING_FIELDS = [
 const RECORD_FIELDS = [...RECORD_STRING_FIELDS, "sort_order", "has_img_apple"];
 const SKIN_STRING_FIELDS = ["unified", "image"];
 const SKIN_FIELDS = [...SKIN_STRING_FIELDS, "has_img_apple"];
-
-/** Read width and height from a PNG's IHDR chunk. */
-export function parsePngSize(buffer) {
-	if (buffer.length < 24 || !buffer.subarray(0, 8).equals(PNG_SIGNATURE)) {
-		throw new Error("not a PNG file");
-	}
-	if (buffer.toString("ascii", 12, 16) !== "IHDR") {
-		throw new Error("PNG does not start with an IHDR chunk");
-	}
-	return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
-}
-
-/** Derive the sprite grid from a sheet's pixel dimensions. */
-export function sheetGrid({ width, height }) {
-	if (width % CELL_STRIDE !== 0 || height % CELL_STRIDE !== 0) {
-		throw new Error(
-			`spritesheet is ${width}x${height}, not a multiple of the ${CELL_STRIDE}px cell stride`,
-		);
-	}
-	return { cols: width / CELL_STRIDE, rows: height / CELL_STRIDE };
-}
 
 function requireObject(value, label) {
 	if (value === null || typeof value !== "object" || Array.isArray(value)) {
@@ -115,15 +99,75 @@ function requireStringArray(value, label) {
 	}
 }
 
+function recordLabel(record, index) {
+	return typeof record?.short_name === "string" && record.short_name
+		? `emoji "${record.short_name}"`
+		: `record ${index}`;
+}
+
+/**
+ * Render a hyphenated codepoint sequence as its emoji glyph. This is only the
+ * join key against the metadata packages, which are keyed by glyph; it is not
+ * part of the manifest.
+ */
+export function emojiGlyph(unified, label) {
+	const codepoints = unified.split("-").map((segment) => {
+		if (!CODEPOINT_PATTERN.test(segment)) {
+			throw new Error(`${label} has a non-hexadecimal codepoint "${segment}"`);
+		}
+		const codepoint = Number.parseInt(segment, 16);
+		if (codepoint > MAX_CODEPOINT) {
+			throw new Error(`${label} has an out-of-range codepoint "${segment}"`);
+		}
+		return codepoint;
+	});
+	return String.fromCodePoint(...codepoints);
+}
+
+/**
+ * Resolve the canonical English name and search keywords for a glyph. A glyph
+ * the metadata packages do not know about is a hard failure: silently shipping
+ * an emoji with a legacy name and no synonyms is the regression this pipeline
+ * exists to prevent. The sources are injectable so the failure modes stay
+ * testable without a fixture package.
+ */
+export function emojiMetadata(
+	glyph,
+	label,
+	names = CANONICAL_NAMES,
+	keywords = SEARCH_KEYWORDS,
+) {
+	if (!Object.hasOwn(names, glyph)) {
+		throw new Error(
+			`${label} has no canonical name for "${glyph}" in ${NAMES_PACKAGE}`,
+		);
+	}
+	const entry = names[glyph];
+	requireObject(entry, `${label} canonical metadata`);
+	if (typeof entry.name !== "string" || entry.name === "") {
+		throw new Error(`${label} has an empty or non-string canonical name`);
+	}
+
+	if (!Object.hasOwn(keywords, glyph)) {
+		throw new Error(
+			`${label} has no keywords for "${glyph}" in ${KEYWORDS_PACKAGE}`,
+		);
+	}
+	const words = keywords[glyph];
+	requireStringArray(words, `${label} keywords`);
+	if (words.length === 0) {
+		throw new Error(`${label} has an empty keyword list`);
+	}
+
+	return { canonicalName: entry.name, keywords: [...new Set(words)] };
+}
+
 function validateRecord(record, index) {
 	if (record === null || typeof record !== "object" || Array.isArray(record)) {
 		throw new Error(`record ${index} is not an object`);
 	}
 
-	const label =
-		typeof record.short_name === "string" && record.short_name
-			? `emoji "${record.short_name}"`
-			: `record ${index}`;
+	const label = recordLabel(record, index);
 	requireFields(record, RECORD_FIELDS, label);
 	requireStringFields(record, RECORD_STRING_FIELDS, label);
 	if (
@@ -163,7 +207,8 @@ function validateRecord(record, index) {
 /**
  * Convert `emoji-datasource-apple` records into the runtime manifest: Apple
  * images only, skin tone components dropped, ordered by upstream sort order,
- * with empty fields omitted to keep the payload small.
+ * the legacy Unicode name replaced by the canonical English one, search
+ * keywords attached, and empty fields omitted to keep the payload small.
  */
 export function normalizeEmojiData(records, version) {
 	if (!Array.isArray(records)) {
@@ -177,7 +222,12 @@ export function normalizeEmojiData(records, version) {
 				record.has_img_apple && record.category !== EXCLUDED_CATEGORY,
 		)
 		.sort((a, b) => a.sort_order - b.sort_order)
-		.map((record) => {
+		.map((record, index) => {
+			const label = recordLabel(record, index);
+			const unified = record.unified.toLowerCase();
+			// Join key into the metadata packages, not a manifest field.
+			const glyph = emojiGlyph(unified, label);
+			const { canonicalName, keywords } = emojiMetadata(glyph, label);
 			const aliases = (record.short_names ?? []).filter(
 				(alias) => alias !== record.short_name,
 			);
@@ -195,11 +245,12 @@ export function normalizeEmojiData(records, version) {
 
 			return {
 				id: record.short_name,
-				name: record.name,
+				name: canonicalName,
 				category: record.category,
 				subcategory: record.subcategory,
-				unified: record.unified.toLowerCase(),
+				unified,
 				image: record.image,
+				keywords,
 				...(aliases.length > 0 && { aliases }),
 				...(textAliases.length > 0 && { textAliases }),
 				...(skins.length > 0 && { skins }),
@@ -245,7 +296,7 @@ function errorMessage(error) {
 function hashDirectory(dir) {
 	const hashes = new Map();
 	for (const name of readdirSync(dir).sort()) {
-		if (name.endsWith(".png") && name !== "spritesheet.png") {
+		if (name.endsWith(".png") && name !== LEGACY_SPRITESHEET) {
 			hashes.set(
 				name,
 				createHash("sha256")
@@ -257,27 +308,8 @@ function hashDirectory(dir) {
 	return hashes;
 }
 
-/**
- * Assert the committed spritesheet still matches the grid Emoji Mart expects.
- * A datasource bump that lands a new sheet fails here instead of silently
- * shifting every sprite in the picker.
- */
-export function validateSpritesheet() {
-	const grid = sheetGrid(parsePngSize(readFileSync(SPRITESHEET_PATH)));
-	const { sheet } = require(
-		`@emoji-mart/data/sets/${EMOJI_MART_SET}/apple.json`,
-	);
-	if (grid.cols !== sheet.cols || grid.rows !== sheet.rows) {
-		throw new Error(
-			`spritesheet grid is ${grid.cols}x${grid.rows} but @emoji-mart/data set ${EMOJI_MART_SET} declares ${sheet.cols}x${sheet.rows}`,
-		);
-	}
-	return grid;
-}
-
 /** Sync images from the installed package and regenerate the manifest. */
 export function update() {
-	const grid = validateSpritesheet();
 	const source = hashDirectory(SOURCE_IMAGES_DIR);
 	const committed = hashDirectory(IMAGES_DIR);
 
@@ -305,20 +337,11 @@ export function update() {
 		`Synced ${source.size} images and wrote ${manifest.emojis.length} emoji to ` +
 			`${MANIFEST_RELATIVE} (emoji-datasource-apple@${manifest.version}).`,
 	);
-	console.log(
-		`Kept the committed ${grid.cols}x${grid.rows} spritesheet required by @emoji-mart/data set ${EMOJI_MART_SET}.`,
-	);
 }
 
 /** Verify the committed artifacts against the installed package. */
 export function check() {
 	const problems = [];
-
-	try {
-		validateSpritesheet();
-	} catch (error) {
-		problems.push(errorMessage(error));
-	}
 
 	const source = hashDirectory(SOURCE_IMAGES_DIR);
 	const committed = hashDirectory(IMAGES_DIR);
