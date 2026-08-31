@@ -155,3 +155,26 @@ func TestMergeModuleVariables(t *testing.T) {
 		require.Equal(t, "13337", merged["port"])
 	})
 }
+
+// TestRenderModulesAgentTargeting covers multi-agent routing directly: no
+// curated base has more than one agent, so Compose cannot exercise it.
+func TestRenderModulesAgentTargeting(t *testing.T) {
+	t.Parallel()
+
+	catalog, err := loadCatalogMap()
+	require.NoError(t, err)
+
+	agentRefByName := map[string]string{"main": "main", "gpu": "gpu[0]"}
+	modulesTF, err := renderModules(
+		[]ComposeModule{
+			{ID: "code-server", AgentName: "gpu"},
+			{ID: "git-commit-signing"},
+		},
+		catalog, "registry.coder.com", agentRefByName, "main",
+	)
+	require.NoError(t, err)
+
+	out := string(modulesTF)
+	require.Contains(t, out, "coder_agent.gpu[0].id")
+	require.Contains(t, out, "coder_agent.main.id")
+}
