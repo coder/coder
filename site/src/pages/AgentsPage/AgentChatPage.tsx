@@ -487,7 +487,7 @@ export const isChatAgentBindingUnresolved = (
 	workspace: TypesGen.Workspace | undefined,
 	chatAgentId: string | undefined,
 ): boolean => {
-	if (!workspace || workspace.latest_build.status !== "running") {
+	if (workspace?.latest_build.status !== "running") {
 		return false;
 	}
 	const agents = getWorkspaceAgents(workspace);

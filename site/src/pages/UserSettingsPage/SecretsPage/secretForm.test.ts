@@ -190,14 +190,12 @@ describe("secretsFileFormatFromFilename", () => {
 		expect(secretsFileFormatFromFilename(filename)).toBe(format);
 	});
 
-	it.each([
-		["foo.txt"],
-		["noextension"],
-		["archive.tar.gz"],
-		[""],
-	])("returns undefined for unsupported filename %s", (filename) => {
-		expect(secretsFileFormatFromFilename(filename)).toBeUndefined();
-	});
+	it.each([["foo.txt"], ["noextension"], ["archive.tar.gz"], [""]])(
+		"returns undefined for unsupported filename %s",
+		(filename) => {
+			expect(secretsFileFormatFromFilename(filename)).toBeUndefined();
+		},
+	);
 });
 
 describe("mapSecretApiErrorToFormErrors", () => {

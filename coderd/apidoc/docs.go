@@ -16782,7 +16782,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Client secret, required if grant_type=authorization_code",
+                        "description": "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret.",
                         "name": "client_secret",
                         "in": "formData"
                     },
@@ -16790,6 +16790,12 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Authorization code, required if grant_type=authorization_code",
                         "name": "code",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636.",
+                        "name": "code_verifier",
                         "in": "formData"
                     },
                     {
