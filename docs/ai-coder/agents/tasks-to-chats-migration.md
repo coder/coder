@@ -434,11 +434,9 @@ unused when the chat is driven by the Chats API:
   }
 ```
 
-> [!TIP]
-> You do not have to remove these resources immediately. Templates can
-> serve both Tasks and Chats simultaneously during a transition period.
-> The Tasks-specific resources are simply unused when work comes through
-> the Chats API.
+> [!IMPORTANT]
+> Remove the Tasks-specific Terraform when you upgrade.
+> Tasks and Chats can no longer run side by side: Coder no longer injects `CODER_TASK_ID` or `CODER_TASK_PROMPT`, so builds of a template that keeps the `coder_task` data source can no longer populate it.
 
 See
 [Template Optimization](./platform-controls/template-optimization.md)

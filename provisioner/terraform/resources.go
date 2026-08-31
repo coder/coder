@@ -165,8 +165,6 @@ type State struct {
 	Parameters            []*proto.RichParameter
 	Presets               []*proto.Preset
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
-	AITasks               []*proto.AITask
-	HasAITasks            bool
 	HasExternalAgents     bool
 }
 
@@ -209,7 +207,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 	// Extra array to preserve the order of rich parameters.
 	tfResourcesRichParameters := make([]*tfjson.StateResource, 0)
 	tfResourcesPresets := make([]*tfjson.StateResource, 0)
-	tfResourcesAITasks := make([]*tfjson.StateResource, 0)
 	var findTerraformResources func(mod *tfjson.StateModule)
 	findTerraformResources = func(mod *tfjson.StateModule) {
 		for _, module := range mod.ChildModules {
@@ -221,9 +218,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 			if resource.Type == "coder_workspace_preset" {
 				tfResourcesPresets = append(tfResourcesPresets, resource)
-			}
-			if resource.Type == "coder_ai_task" {
-				tfResourcesAITasks = append(tfResourcesAITasks, resource)
 			}
 
 			label := convertAddressToLabel(resource.Address)
@@ -996,29 +990,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		return nil, xerrors.Errorf("a maximum of 1 coder_workspace_preset can be marked as default, but %d are set", defaultPresets)
 	}
 
-	// This will only pick up resources which will actually be created.
-	aiTasks := make([]*proto.AITask, 0, len(tfResourcesAITasks))
-	for _, resource := range tfResourcesAITasks {
-		var task provider.AITask
-		err = mapstructure.Decode(resource.AttributeValues, &task)
-		if err != nil {
-			return nil, xerrors.Errorf("decode coder_ai_task attributes: %w", err)
-		}
-
-		appID := task.AppID
-		if appID == "" && len(task.SidebarApp) > 0 {
-			appID = task.SidebarApp[0].ID
-		}
-
-		aiTasks = append(aiTasks, &proto.AITask{
-			Id:    task.ID,
-			AppId: appID,
-			SidebarApp: &proto.AITaskSidebarApp{
-				Id: appID,
-			},
-		})
-	}
-
 	// A map is used to ensure we don't have duplicates!
 	externalAuthProvidersMap := map[string]*proto.ExternalAuthProviderResource{}
 	// Process the legacy coder_git_auth type first so that
@@ -1068,8 +1039,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		Parameters:            parameters,
 		Presets:               presets,
 		ExternalAuthProviders: externalAuthProviders,
-		HasAITasks:            len(aiTasks) > 0,
-		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
 	}, nil
 }
