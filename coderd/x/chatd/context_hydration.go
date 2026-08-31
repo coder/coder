@@ -29,24 +29,9 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 	}
 }
 
-// HydrateAndMarkChatsDirty implements agentapi.ContextDirtyMarker. It runs
-// inside the PushContextState transaction: it stamps the pushed snapshot hash
-// on chats for the agent that have not been hydrated yet, flips
-// already-pinned chats whose hash differs to dirty, and syncs the pinned
-// mcp_config/mcp_server rows of already-pinned chats to the agent's current
-// set. MCP resources are excluded from the drift hash (they are live runtime
-// capability, discovered asynchronously after agent startup), so without the
-// sync a chat pinned before the agent's MCP engine finished connecting would
-// never gain its MCP servers: the later push carries an unchanged hash and
-// neither hydrates nor dirties the chat. It returns a callback that publishes
-// a context watch event for every chat it touched; the caller invokes it only
-// after the transaction commits, and the callback is a no-op when no chat was
-// hydrated, dirtied, or synced. Hydrated chats start clean (no dirty marker),
-// but still need the event: watching clients cached their details without
-// pinned resources and refetch only on context events.
-//
-// The pinned hash on dirtied chats is intentionally left unchanged; the
-// refresh endpoint re-pins it.
+// HydrateAndMarkChatsDirty pins context for unpinned chats, marks drifted chats
+// dirty, and live-syncs MCP resources. Its post-commit callback publishes one
+// context event per affected chat without changing dirty chats' pinned hash.
 func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
@@ -70,18 +55,13 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
 	}
-	// MCP resources track the agent's live set rather than the drift
-	// hash, so already-pinned chats have their mcp rows synced on every
-	// push. Freshly hydrated chats just copied the full current set, so
-	// the sync never selects them.
+	// MCP resources bypass drift detection, so sync them on every agent push.
 	synced, err := tx.SyncAgentChatsContextMCPResources(ctx, agentID)
 	if err != nil {
 		return nil, xerrors.Errorf("sync agent chats mcp context resources: %w", err)
 	}
 
-	// Hydrated chats had a NULL hash and dirtied chats a non-NULL one, so
-	// those two sets never overlap; a dirtied chat can also be MCP-synced,
-	// so dedupe before publishing.
+	// A dirtied chat can also be MCP-synced, so publish it only once.
 	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(synced))
 	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(synced))
 	appendTouched := func(id uuid.UUID) {

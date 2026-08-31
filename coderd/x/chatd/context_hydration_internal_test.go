@@ -90,10 +90,8 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 	})
 }
 
-// TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied covers the
-// agent-push path: a chat hydrated by the push (first pin, no dirty marker)
-// and a chat flipped to dirty must both get a context watch event, because
-// watching clients refetch pinned resources only on those events.
+// TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied verifies one
+// event per hydrated, dirtied, or MCP-synced chat.
 func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -131,8 +129,7 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 		AggregateHash: hash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
-	// The MCP sync reports the dirtied chat too; the publish path must
-	// dedupe it so each touched chat gets exactly one event.
+	// Return the dirtied chat from the sync to verify event deduplication.
 	db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).
 		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)

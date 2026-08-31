@@ -277,15 +277,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
 }
 
-// TestChatContextMCPSyncFromAgentPush is an end-to-end regression for MCP
-// resources going stale on pinned chats. MCP resources are excluded from the
-// drift hash, so after a workspace restart a chat re-pinned before the
-// agent's MCP engine finished connecting used to keep zero MCP servers
-// forever: the later push carried the same hash and neither hydrated nor
-// dirtied the chat. Every same-hash push must now live-sync the pinned
-// mcp rows of all bound chats (add, update, and remove) without marking
-// them dirty, while prompt resources stay pinned until an explicit
-// refresh.
+// TestChatContextMCPSyncFromAgentPush verifies that agent pushes live-sync MCP
+// resources across bound chats without dirtying them, while prompt resources
+// remain pinned until refresh.
 func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	t.Parallel()
 
@@ -329,10 +323,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 		})
 	}
 	chat := newBoundChat()
-	// A second bound chat proves the sync fans out to every chat bound to
-	// the agent, not just one.
 	secondChat := newBoundChat()
-	// An agent-less chat guards the agent scoping of the sync query.
 	otherChat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
 		OwnerID:           user.UserID,
@@ -400,9 +391,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = aAPI.DRPCConn().Close() }()
 
-	// The agent's first push happens before its MCP engine finished
-	// connecting: instruction only, no MCP servers. This is the snapshot a
-	// restarted workspace's chat re-pins against.
+	// Model an initial push before the MCP engine connects.
 	hash := []byte{0x01, 0x02}
 	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       1,
@@ -416,10 +405,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	requireClean(chat.ID, "chat hydrates clean from the MCP-less snapshot")
 	require.Len(t, pinnedResources(chat.ID), 1, "no MCP rows before the engine connects")
 
-	// The MCP engine finishes connecting and the agent pushes again. The
-	// drift hash is unchanged (MCP is excluded from it), so this used to be
-	// a no-op for pinned chats; it must now sync the MCP rows onto every
-	// bound chat without dirtying them.
+	// A same-hash push must sync MCP rows without dirtying bound chats.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       2,
 		AggregateHash: hash,
@@ -440,8 +426,6 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	}
 	require.Empty(t, pinnedResources(otherChat.ID), "agent-less chat stays untouched")
 
-	// The single-chat GET reports the synced server with its (unprefixed)
-	// tools, so the UI inventory matches without a manual refresh.
 	var mcpRes *codersdk.ChatContextResource
 	for i, r := range got.Context.Resources {
 		if r.Kind == codersdk.ChatContextResourceKindMCPServer {
@@ -456,7 +440,6 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	}
 	require.ElementsMatch(t, []string{"query", "search"}, toolNames)
 
-	// A same-hash push with a changed tool list updates the synced row.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       3,
 		AggregateHash: hash,
@@ -470,7 +453,6 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 	requireClean(chat.ID, "tool-list change must not dirty the chat")
 	require.Equal(t, toolsV2Hash, pinnedResources(chat.ID)[mcpSource].ContentHash, "changed tool list syncs")
 
-	// A same-hash push without the server removes the stale row.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       4,
 		AggregateHash: hash,
@@ -485,9 +467,7 @@ func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
 		require.NotContains(t, pinned, mcpSource)
 	}
 
-	// A push whose drift hash differs marks the chat dirty as before, and
-	// still syncs the MCP rows: prompt content stays pinned until refresh,
-	// MCP capability tracks the agent.
+	// Drifted pushes still sync MCP rows while leaving prompt rows pinned.
 	driftedHash := []byte{0x03, 0x04}
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       5,

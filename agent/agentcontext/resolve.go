@@ -989,14 +989,9 @@ type Snapshot struct {
 	// placeholder (the first real resolve is version 1), which the push
 	// loop withholds.
 	Version uint64
-	// AggregateHash is sha256 over a canonical encoding of
-	// (ID, Kind, Source, ContentHash, Status) for every
-	// drift-relevant resource. MCP resources (KindMCPConfig and
-	// KindMCPServer) are excluded because they describe live,
-	// agent-global runtime capabilities that coderd live-syncs
-	// onto bound chats on each push, not pinned prompt content;
-	// see driftResources. Identical inputs always produce
-	// identical hashes; see ComputeAggregateHash.
+	// AggregateHash is SHA-256 over canonical (ID, Kind, Source, ContentHash,
+	// Status) tuples for drift-relevant resources. MCP resources are excluded
+	// because coderd live-syncs them onto bound chats; see driftResources.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -1009,16 +1004,9 @@ type Snapshot struct {
 	SnapshotError string
 }
 
-// driftResources returns the subset of resources that participate in
-// chat-context drift detection. MCP resources (the .mcp.json config and
-// connected MCP servers) are deliberately excluded: an agent connects to
-// its MCP servers asynchronously after startup, and hashing them would
-// dirty an already-hydrated chat the moment a server finished
-// connecting, even though nothing the user pinned changed. Instead,
-// coderd live-syncs the pinned MCP rows of every bound chat on each push
-// (SyncAgentChatsContextMCPResources), so MCP capability tracks the
-// agent without user-visible drift. Instruction files and skills, whose
-// content is pinned into the chat, stay drift-relevant.
+// driftResources excludes MCP resources because agents discover them
+// asynchronously and coderd live-syncs them onto bound chats. Instructions
+// and skills remain drift-relevant because their content is pinned.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {
