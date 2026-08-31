@@ -29,7 +29,7 @@ WHERE f.created_by = '00000000-0000-0000-0000-000000000000'
 
 UPDATE template_version_terraform_values
 SET cached_module_files = NULL
-WHERE cached_module_files IN (SELECT id FROM identified);
+WHERE cached_module_files IN (SELECT id FROM identified_module_files);
 
 DELETE FROM files
 	USING identified_module_files c
