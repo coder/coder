@@ -67,7 +67,7 @@ const ContextCompactionHeader: FC = () => (
 		<h3 className="m-0 text-sm font-semibold text-content-primary">
 			Context compaction
 		</h3>
-		<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+		<p className="mt-0.5! m-0 text-xs text-content-secondary">
 			Control when conversation context is automatically summarized for each
 			model. Setting 100% means the conversation will never auto-compact.
 		</p>

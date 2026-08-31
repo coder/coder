@@ -298,16 +298,16 @@ export function Autocomplete<TOption>({
 						onKeyDownCapture={handleInlineKeyDown}
 						className={cn(
 							`flex h-10 w-full items-center rounded-md border border-border border-solid
-							bg-transparent px-3 py-2 text-sm shadow-sm transition-colors
+							bg-transparent px-3 py-2 text-sm shadow-xs transition-colors
 							placeholder:text-content-secondary text-content-primary
-							focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 							disabled:cursor-not-allowed disabled:opacity-50`,
 							className,
 						)}
 					/>
 				</PopoverAnchor>
 				<PopoverContent
-					className="w-[var(--radix-popover-trigger-width)] p-0"
+					className="w-(--radix-popover-trigger-width) p-0"
 					align="start"
 					onKeyDownCapture={handleInlineKeyDown}
 					onOpenAutoFocus={(event) => event.preventDefault()}
@@ -379,9 +379,9 @@ export function Autocomplete<TOption>({
 					className={cn(
 						`flex h-10 w-full items-center justify-between gap-2
 						rounded-md border border-border border-solid bg-transparent px-3 py-2
-						text-sm shadow-sm transition-colors
+						text-sm shadow-xs transition-colors
 						placeholder:text-content-secondary
-						focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+						focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
 						disabled:cursor-not-allowed disabled:opacity-50`,
 						className,
 					)}
@@ -427,7 +427,7 @@ export function Autocomplete<TOption>({
 				</button>
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-[var(--radix-popover-trigger-width)] p-0"
+				className="w-(--radix-popover-trigger-width) p-0"
 				align="start"
 				onKeyDownCapture={handleKeyDown}
 			>

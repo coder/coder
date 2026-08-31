@@ -158,8 +158,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-4 md:p-8">
-					<div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-surface-primary to-transparent"></div>
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-position-[-2px_-2px] bg-size-[16px_16px] p-4 md:p-8">
+					<div className="absolute top-0 left-0 right-0 h-32 bg-linear-to-b from-surface-primary to-transparent"></div>
 
 					<div className="relative z-10">
 						{selectedResource && (
@@ -209,7 +209,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 							)}
 
 							{selectedResource && (
-								<section className="flex flex-col gap-6 flex-grow min-w-0">
+								<section className="flex flex-col gap-6 grow min-w-0">
 									{selectedResource.agents
 										// If an agent has a `parent_id`, that means it is
 										// child of another agent. We do not want these agents

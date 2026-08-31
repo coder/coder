@@ -153,7 +153,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex w-full flex-col max-h-[40svh] overflow-y-auto [scrollbar-gutter:stable] [scrollbar-width:thin] [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
+				"flex w-full flex-col max-h-[40svh] overflow-y-auto scrollbar-gutter-stable scrollbar-thin [scrollbar-color:hsl(var(--surface-quaternary))_transparent]",
 				className,
 			)}
 		>
@@ -172,7 +172,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							setHoveredID((current) => (current === item.id ? null : current))
 						}
 					>
-						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-sm">
+						<div className="flex items-center gap-2 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 							<span className="min-w-0 flex-1 truncate">
 								{item.displayText.split("\n")[0]}
 								{item.displayText.includes("\n") ? "…" : ""}

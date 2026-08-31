@@ -840,6 +840,16 @@ Serve pprof metrics on the address defined by pprof address.
 - CLI flag: [`--pprof-enable`](../../reference/cli/server.md#--pprof-enable)
 - YAML key: `introspection.pprof.enable`
 
+## MCP
+
+### Allowed private CIDRs
+
+MCP server destinations in private or reserved IP ranges are blocked by default for SSRF protection. This applies to OAuth2 discovery, OAuth2 token and revocation exchanges, and runtime MCP connections from coderd. This option exempts specific CIDRs.
+
+- Environment variable: `CODER_MCP_ALLOWED_PRIVATE_CIDRS`
+- CLI flag: [`--mcp-allowed-private-cidrs`](../../reference/cli/server.md#--mcp-allowed-private-cidrs)
+- YAML key: `mcp.allowed_private_cidrs`
+
 ## Networking
 
 ### Access URL
@@ -1797,7 +1807,7 @@ Disable the template builder feature for guided template creation. When disabled
 
 ### Registry URL
 
-The base URL of the module registry used by the template builder for module source paths.
+The module registry host the template builder uses for module source paths (for example, "registry.coder.com" or "mirror.internal:8443"). An http(s):// scheme and trailing slash are stripped; a path, query, fragment, or credentials is rejected.
 
 - Environment variable: `CODER_TEMPLATE_BUILDER_REGISTRY_URL`
 - CLI flag: [`--template-builder-registry-url`](../../reference/cli/server.md#--template-builder-registry-url)
