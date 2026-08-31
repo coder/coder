@@ -11,8 +11,7 @@ They must guess which sentences are for them, and trust the writer not to have h
 The single canonical Coder example is **install Coder**.
 An end user wants to connect their local editor to a Coder workspace and start coding.
 A platform engineer wants to deploy the Coder control plane to their company's Kubernetes cluster.
-Both groups search for "install Coder."
-A page that tries to cover both forces the end user to read past Helm chart values and forces the platform engineer to read past Visual Studio Code download links.
+Both groups search for "install Coder." A page that tries to cover both forces the end user to read past Helm chart values and forces the platform engineer to read past Visual Studio Code download links.
 Two pages, one per audience and one per outcome, serve both groups better than one page that combines them.
 
 ## Pick one audience per page
@@ -204,8 +203,7 @@ A page written for a known audience gives that reader what they need to reach th
 
 Knowing the audience means knowing what that audience can already do.
 When the page assumes a reader who runs their own Coder deployment, that reader is their own administrator.
-Don't hedge a step with "ask your administrator" or "if you have permission."
-Those caveats are written for a reader this page doesn't target, and they make the real reader doubt whether the step is meant for them.
+Don't hedge a step with "ask your administrator" or "if you have permission." Those caveats are written for a reader this page doesn't target, and they make the real reader doubt whether the step is meant for them.
 
 Before you add a caveat, a permission note, or an "if you don't have access" aside, check it against the audience and the full context of the page:
 
