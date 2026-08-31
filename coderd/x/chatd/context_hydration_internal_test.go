@@ -109,8 +109,9 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 
 	hydratedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 	dirtiedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: []byte{0x99}}
+	syncedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 
-	events := make(chan codersdk.ChatWatchEvent, 2)
+	events := make(chan codersdk.ChatWatchEvent, 3)
 	cancelSub, err := ps.SubscribeWithErr(
 		coderdpubsub.ChatWatchEventChannel(ownerID),
 		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
@@ -130,20 +131,25 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 		AggregateHash: hash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
+	// The MCP sync reports the dirtied chat too; the publish path must
+	// dedupe it so each touched chat gets exactly one event.
+	db.EXPECT().SyncAgentChatsContextMCPResources(gomock.Any(), agentID).
+		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)
+	db.EXPECT().GetChatByID(gomock.Any(), syncedChat.ID).Return(syncedChat, nil)
 
 	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
 	require.NoError(t, err)
 	publish()
 
-	gotChatIDs := make([]uuid.UUID, 0, 2)
-	for range 2 {
+	gotChatIDs := make([]uuid.UUID, 0, 3)
+	for range 3 {
 		event := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
 		gotChatIDs = append(gotChatIDs, event.Chat.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID}, gotChatIDs)
+	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, syncedChat.ID}, gotChatIDs)
 }
 
 // TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An

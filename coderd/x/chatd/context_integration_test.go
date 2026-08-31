@@ -277,6 +277,239 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
 }
 
+// TestChatContextMCPSyncFromAgentPush is an end-to-end regression for MCP
+// resources going stale on pinned chats. MCP resources are excluded from the
+// drift hash, so after a workspace restart a chat re-pinned before the
+// agent's MCP engine finished connecting used to keep zero MCP servers
+// forever: the later push carried the same hash and neither hydrated nor
+// dirtied the chat. Every same-hash push must now live-sync the pinned
+// mcp rows of all bound chats (add, update, and remove) without marking
+// them dirty, while prompt resources stay pinned until an explicit
+// refresh.
+func TestChatContextMCPSyncFromAgentPush(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues:         coderdtest.DeploymentValues(t),
+		IncludeProvisionerDaemon: true,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+
+	agentToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
+		ProvisionGraph: echo.ProvisionGraphWithAgent(agentToken),
+	})
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	ws, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Len(t, ws.LatestBuild.Resources, 1)
+	require.Len(t, ws.LatestBuild.Resources[0].Agents, 1)
+	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
+
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	newBoundChat := func() database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+			LastModelConfigID: model.ID,
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	chat := newBoundChat()
+	// A second bound chat proves the sync fans out to every chat bound to
+	// the agent, not just one.
+	secondChat := newBoundChat()
+	// An agent-less chat guards the agent scoping of the sync query.
+	otherChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
+	agentsSource := "/home/coder/workspace/AGENTS.md"
+	mcpSource := "grafana"
+	agentsHash := []byte{0x11}
+	toolsV1Hash := []byte{0x21}
+	toolsV2Hash := []byte{0x22}
+	instructionResource := func() *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      agentsSource,
+			ContentHash: agentsHash,
+			SizeBytes:   8,
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_InstructionFile{
+				InstructionFile: &agentproto.InstructionFileBody{Content: []byte("hello-v1")},
+			},
+		}
+	}
+	mcpServerResource := func(hash []byte, toolNames ...string) *agentproto.ContextResource {
+		tools := make([]*agentproto.MCPTool, 0, len(toolNames))
+		for _, name := range toolNames {
+			tools = append(tools, &agentproto.MCPTool{
+				// The agent reports tool names prefixed with "<server>__".
+				Name:        mcpSource + "__" + name,
+				Description: name + " tool",
+			})
+		}
+		return &agentproto.ContextResource{
+			Source:      mcpSource,
+			ContentHash: hash,
+			SizeBytes:   32,
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_McpServer{
+				McpServer: &agentproto.MCPServerBody{ServerName: mcpSource, Tools: tools},
+			},
+		}
+	}
+	pinnedResources := func(id uuid.UUID) map[string]database.ChatContextResource {
+		t.Helper()
+		//nolint:gocritic // Test reads the chat-owned rows as the chatd subject; ctx carries no per-user actor.
+		rows, lerr := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), id)
+		require.NoError(t, lerr)
+		out := make(map[string]database.ChatContextResource, len(rows))
+		for _, r := range rows {
+			out[r.Source] = r
+		}
+		return out
+	}
+	requireClean := func(id uuid.UUID, msg string) codersdk.Chat {
+		t.Helper()
+		got, gerr := expClient.GetChat(ctx, id)
+		require.NoError(t, gerr)
+		require.NotNil(t, got.Context, msg)
+		require.False(t, got.Context.Dirty, msg)
+		return got
+	}
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() { _ = aAPI.DRPCConn().Close() }()
+
+	// The agent's first push happens before its MCP engine finished
+	// connecting: instruction only, no MCP servers. This is the snapshot a
+	// restarted workspace's chat re-pins against.
+	hash := []byte{0x01, 0x02}
+	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: hash,
+		Resources:     []*agentproto.ContextResource{instructionResource()},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	requireClean(chat.ID, "chat hydrates clean from the MCP-less snapshot")
+	require.Len(t, pinnedResources(chat.ID), 1, "no MCP rows before the engine connects")
+
+	// The MCP engine finishes connecting and the agent pushes again. The
+	// drift hash is unchanged (MCP is excluded from it), so this used to be
+	// a no-op for pinned chats; it must now sync the MCP rows onto every
+	// bound chat without dirtying them.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       2,
+		AggregateHash: hash,
+		Resources: []*agentproto.ContextResource{
+			instructionResource(),
+			mcpServerResource(toolsV1Hash, "query", "search"),
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	got := requireClean(chat.ID, "same-hash MCP push must not dirty the chat")
+	for _, id := range []uuid.UUID{chat.ID, secondChat.ID} {
+		pinned := pinnedResources(id)
+		require.Len(t, pinned, 2, "MCP row synced onto chat %s", id)
+		require.Equal(t, toolsV1Hash, pinned[mcpSource].ContentHash)
+		require.Equal(t, database.WorkspaceAgentContextBodyKindMcpServer, pinned[mcpSource].BodyKind)
+	}
+	require.Empty(t, pinnedResources(otherChat.ID), "agent-less chat stays untouched")
+
+	// The single-chat GET reports the synced server with its (unprefixed)
+	// tools, so the UI inventory matches without a manual refresh.
+	var mcpRes *codersdk.ChatContextResource
+	for i, r := range got.Context.Resources {
+		if r.Kind == codersdk.ChatContextResourceKindMCPServer {
+			mcpRes = &got.Context.Resources[i]
+		}
+	}
+	require.NotNil(t, mcpRes, "GET reports the synced MCP server")
+	require.Equal(t, mcpSource, mcpRes.Source)
+	toolNames := make([]string, 0, len(mcpRes.Tools))
+	for _, tool := range mcpRes.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	require.ElementsMatch(t, []string{"query", "search"}, toolNames)
+
+	// A same-hash push with a changed tool list updates the synced row.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       3,
+		AggregateHash: hash,
+		Resources: []*agentproto.ContextResource{
+			instructionResource(),
+			mcpServerResource(toolsV2Hash, "query", "search", "annotate"),
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+	requireClean(chat.ID, "tool-list change must not dirty the chat")
+	require.Equal(t, toolsV2Hash, pinnedResources(chat.ID)[mcpSource].ContentHash, "changed tool list syncs")
+
+	// A same-hash push without the server removes the stale row.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       4,
+		AggregateHash: hash,
+		Resources:     []*agentproto.ContextResource{instructionResource()},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+	requireClean(chat.ID, "server removal must not dirty the chat")
+	for _, id := range []uuid.UUID{chat.ID, secondChat.ID} {
+		pinned := pinnedResources(id)
+		require.Len(t, pinned, 1, "removed server deleted from chat %s", id)
+		require.NotContains(t, pinned, mcpSource)
+	}
+
+	// A push whose drift hash differs marks the chat dirty as before, and
+	// still syncs the MCP rows: prompt content stays pinned until refresh,
+	// MCP capability tracks the agent.
+	driftedHash := []byte{0x03, 0x04}
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       5,
+		AggregateHash: driftedHash,
+		Resources: []*agentproto.ContextResource{
+			instructionResource(),
+			mcpServerResource(toolsV1Hash, "query"),
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Context)
+	require.True(t, got.Context.Dirty, "drift still marks the chat dirty")
+	pinned := pinnedResources(chat.ID)
+	require.Len(t, pinned, 2)
+	require.Equal(t, toolsV1Hash, pinned[mcpSource].ContentHash, "MCP row syncs even on a dirty chat")
+	require.Equal(t, agentsHash, pinned[agentsSource].ContentHash, "prompt rows stay pinned while dirty")
+}
+
 // TestChatContextRefreshFromAgentToken covers the in-workspace
 // `coder exp chat context refresh` (no chat argument) path, which authenticates
 // with the agent token instead of a user session. The agent endpoint re-pins

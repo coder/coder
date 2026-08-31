@@ -993,10 +993,10 @@ type Snapshot struct {
 	// (ID, Kind, Source, ContentHash, Status) for every
 	// drift-relevant resource. MCP resources (KindMCPConfig and
 	// KindMCPServer) are excluded because they describe live,
-	// agent-global runtime capabilities discovered at turn time,
-	// not pinned prompt content; see driftResources. Identical
-	// inputs always produce identical hashes; see
-	// ComputeAggregateHash.
+	// agent-global runtime capabilities that coderd live-syncs
+	// onto bound chats on each push, not pinned prompt content;
+	// see driftResources. Identical inputs always produce
+	// identical hashes; see ComputeAggregateHash.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -1012,12 +1012,13 @@ type Snapshot struct {
 // driftResources returns the subset of resources that participate in
 // chat-context drift detection. MCP resources (the .mcp.json config and
 // connected MCP servers) are deliberately excluded: an agent connects to
-// its MCP servers asynchronously after startup, and the chat model
-// discovers their tools live at turn time, not from pinned prompt
-// content. Hashing them would dirty an already-hydrated chat the moment
-// a server finished connecting, even though nothing the user pinned
-// changed. Instruction files and skills, whose content is pinned into
-// the chat, stay drift-relevant.
+// its MCP servers asynchronously after startup, and hashing them would
+// dirty an already-hydrated chat the moment a server finished
+// connecting, even though nothing the user pinned changed. Instead,
+// coderd live-syncs the pinned MCP rows of every bound chat on each push
+// (SyncAgentChatsContextMCPResources), so MCP capability tracks the
+// agent without user-visible drift. Instruction files and skills, whose
+// content is pinned into the chat, stay drift-relevant.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {

@@ -1405,6 +1405,20 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// MCP resources are excluded from the context drift hash: they describe
+	// live, agent-global runtime capability that an agent discovers
+	// asynchronously after startup, not pinned prompt content. A push that
+	// only changes MCP servers therefore never dirties a chat, so this
+	// statement keeps the pinned copies current instead: every hydrated,
+	// non-archived chat bound to the agent has its mcp_config/mcp_server
+	// rows replaced with the agent's current set. Chats whose MCP rows
+	// already match are left untouched. Runs inside the push transaction
+	// after the agent's own resource rows are rewritten. Changed chats are
+	// row-locked (in id order) before the rewrite so a concurrent rebind
+	// re-pin (clear-then-copy) serializes against it instead of
+	// interleaving. Returns the chat IDs whose rows changed so the caller
+	// can notify watchers.
+	SyncAgentChatsContextMCPResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has

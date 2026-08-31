@@ -444,10 +444,11 @@ func (p *Server) resolveWorkspaceMCPTools(
 // context snapshot (chat_context_resources). Each tool still proxies its calls
 // back through the workspace agent connection; the snapshot carries tool
 // definitions, not a way to execute them, so execution requires a reachable
-// agent. There is no per-chat cache to invalidate: a server removed or renamed
-// in the workspace surfaces as a dirty chat on the agent's next push, and the
-// user refreshes to re-pin, so a nil invalidate callback (a 404 no-op) is
-// correct here.
+// agent. There is no per-chat cache to invalidate: MCP resources are excluded
+// from the drift hash, so a server added, removed, or renamed in the workspace
+// is live-synced onto the pinned rows by the agent's next push
+// (SyncAgentChatsContextMCPResources), making a nil invalidate callback (a 404
+// no-op) correct here.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
