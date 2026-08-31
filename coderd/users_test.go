@@ -2465,74 +2465,6 @@ func TestUserThemeMode(t *testing.T) {
 	})
 }
 
-func TestUserTaskNotificationAlertDismissed(t *testing.T) {
-	t.Parallel()
-
-	// Single instance shared across all sub-tests. Each sub-test
-	// creates its own non-admin user for isolation.
-	adminClient := coderdtest.New(t, nil)
-	firstUser := coderdtest.CreateFirstUser(t, adminClient)
-
-	t.Run("defaults to false", func(t *testing.T) {
-		t.Parallel()
-
-		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		// When: getting user preference settings for a user
-		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
-		require.NoError(t, err)
-
-		// Then: the task notification alert dismissed should default to false
-		require.False(t, settings.TaskNotificationAlertDismissed)
-	})
-
-	t.Run("update to true", func(t *testing.T) {
-		t.Parallel()
-
-		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		// When: user dismisses the task notification alert
-		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: new(true),
-		})
-		require.NoError(t, err)
-
-		// Then: the setting is updated to true
-		require.True(t, updated.TaskNotificationAlertDismissed)
-	})
-
-	t.Run("update to false", func(t *testing.T) {
-		t.Parallel()
-
-		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
-		// Given: user has dismissed the task notification alert
-		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: new(true),
-		})
-		require.NoError(t, err)
-
-		// When: the task notification alert dismissal is cleared
-		// (e.g., when user enables a task notification in the UI settings)
-		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: new(false),
-		})
-		require.NoError(t, err)
-
-		// Then: the setting is updated to false
-		require.False(t, updated.TaskNotificationAlertDismissed)
-	})
-}
-
 func TestThinkingDisplayMode(t *testing.T) {
 	t.Parallel()
 
@@ -2602,9 +2534,7 @@ func TestThinkingDisplayMode(t *testing.T) {
 		require.NoError(t, err)
 
 		// Send an update that omits thinking_display_mode (zero value).
-		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: new(true),
-		})
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{})
 		require.NoError(t, err)
 		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
 	})

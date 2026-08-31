@@ -133,8 +133,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "Organization Group Sync"
 	case idpsync.RoleSyncSettings:
 		return "Organization Role Sync"
-	case database.TaskTable:
-		return typed.Name
 	case database.AISeatState:
 		return "AI Seat"
 	case database.AIProvider:
@@ -250,8 +248,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return noID // Org field on audit log has org id
 	case idpsync.RoleSyncSettings:
 		return noID // Org field on audit log has org id
-	case database.TaskTable:
-		return typed.ID
 	case database.AISeatState:
 		return typed.UserID
 	case database.AIProvider:
@@ -334,8 +330,6 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeIdpSyncSettingsRole
 	case idpsync.GroupSyncSettings:
 		return database.ResourceTypeIdpSyncSettingsGroup
-	case database.TaskTable:
-		return database.ResourceTypeTask
 	case database.AISeatState:
 		return database.ResourceTypeAISeat
 	case database.AIProvider:
@@ -420,8 +414,6 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case idpsync.GroupSyncSettings:
 		return true
 	case idpsync.RoleSyncSettings:
-		return true
-	case database.TaskTable:
 		return true
 	case database.AISeatState:
 		return false

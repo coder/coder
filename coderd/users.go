@@ -1305,17 +1305,6 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	taskAlertDismissed, err := api.Database.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user preference settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-
 	thinkingMode, err := api.Database.GetUserThinkingDisplayMode(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1353,11 +1342,10 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
-		TaskNotificationAlertDismissed: taskAlertDismissed,
-		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
-		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
-		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
+		ThinkingDisplayMode:   sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:  sanitizeShellToolDisplayMode(shellToolMode),
+		CodeDiffDisplayMode:   sanitizeAgentDisplayMode(codeDiffMode),
+		AgentChatSendShortcut: sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1424,22 +1412,6 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 	}
 	var settings codersdk.UserPreferenceSettings
 	err := api.Database.InTx(func(tx database.Store) error {
-		var err error
-		if params.TaskNotificationAlertDismissed != nil {
-			settings.TaskNotificationAlertDismissed, err = tx.UpdateUserTaskNotificationAlertDismissed(ctx, database.UpdateUserTaskNotificationAlertDismissedParams{
-				UserID:                         user.ID,
-				TaskNotificationAlertDismissed: *params.TaskNotificationAlertDismissed,
-			})
-			if err != nil {
-				return newUserPreferenceSettingsAPIError("Internal error updating user task notification alert dismissed.", err)
-			}
-		} else {
-			settings.TaskNotificationAlertDismissed, err = tx.GetUserTaskNotificationAlertDismissed(ctx, user.ID)
-			if err != nil && !errors.Is(err, sql.ErrNoRows) {
-				return newUserPreferenceSettingsAPIError("Error reading task notification alert dismissed.", err)
-			}
-		}
-
 		if params.ThinkingDisplayMode != "" {
 			updated, err := tx.UpdateUserThinkingDisplayMode(ctx, database.UpdateUserThinkingDisplayModeParams{
 				UserID:              user.ID,

@@ -143,7 +143,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Workspaces
-// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has-ai-task, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: owner, template, name, status, has-agent, dormant, last_used_after, last_used_before, has_external_agent, healthy, include_agent_metadata (expands each agent with the named metadata keys rather than filtering; repeat the key for multiple items)."
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
@@ -2966,7 +2966,6 @@ func convertWorkspace(
 		Favorite:         requesterFavorite,
 		NextStartAt:      nextStartAt,
 		IsPrebuild:       workspace.IsPrebuild(),
-		TaskID:           workspace.TaskID,
 		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
 	}, nil
 }

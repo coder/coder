@@ -10,7 +10,7 @@ import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import {
-	buildReasonLabels,
+	getBuildReasonLabel,
 	getDisplayWorkspaceBuildInitiatedBy,
 	systemBuildReasons,
 } from "#/utils/workspace";
@@ -43,7 +43,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 									<InfoIcon className="text-content-secondary size-icon-xs -mt-px" />
 								</TooltipTrigger>
 								<TooltipContent side="bottom">
-									{buildReasonLabels[build.reason]}
+									{getBuildReasonLabel(build.reason)}
 								</TooltipContent>
 							</Tooltip>
 						)}

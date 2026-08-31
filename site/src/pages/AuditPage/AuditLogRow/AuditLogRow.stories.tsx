@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import type { AuditLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import {
@@ -143,6 +144,48 @@ export const NoUserAgent: Story = {
 			is_deleted: false,
 			user: MockUserOwner,
 		},
+	},
+};
+
+export const WithLegacyTaskResumeReason: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			action: "start",
+			description: "{user} started build for workspace {target}",
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_resume",
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("Task Resume")).toBeInTheDocument();
+		await expect(
+			await canvas.findByText(MockUserOwner.username, { exact: false }),
+		).toBeInTheDocument();
+	},
+};
+
+export const WithLegacyTaskAutoPause: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLogWithWorkspaceBuild,
+			additional_fields: {
+				...MockAuditLogWithWorkspaceBuild.additional_fields,
+				build_reason: "task_auto_pause",
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			await canvas.findByText(/Coder automatically/),
+		).toBeInTheDocument();
+		// Legacy pauses were stop builds, and the audit UI renders reason
+		// labels only for start builds.
+		await expect(canvas.queryByText("Task Auto-Pause")).toBeNull();
 	},
 };
 

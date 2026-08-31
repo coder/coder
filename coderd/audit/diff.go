@@ -33,7 +33,6 @@ type Auditable interface {
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
-		database.TaskTable |
 		database.AISeatState |
 		database.AIProvider |
 		database.AIProviderKey |

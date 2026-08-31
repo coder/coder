@@ -769,22 +769,6 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		tasks, err := CollectTasks(ctx, r.options.Database)
-		if err != nil {
-			return xerrors.Errorf("collect tasks telemetry: %w", err)
-		}
-		snapshot.Tasks = tasks
-		return nil
-	})
-	eg.Go(func() error {
-		events, err := CollectTaskEvents(ctx, r.options.Database, createdAfter, now)
-		if err != nil {
-			return xerrors.Errorf("collect task events telemetry: %w", err)
-		}
-		snapshot.TaskEvents = events
-		return nil
-	})
-	eg.Go(func() error {
 		summaries, err := r.generateAIBridgeInterceptionsSummaries(ctx)
 		if err != nil {
 			return xerrors.Errorf("generate AI Gateway interceptions telemetry summaries: %w", err)
@@ -1035,123 +1019,6 @@ func (r *remoteReporter) collectUserSecretsSummary(ctx context.Context) (*UserSe
 	}, nil
 }
 
-func CollectTasks(ctx context.Context, db database.Store) ([]Task, error) {
-	dbTasks, err := db.ListTasks(ctx, database.ListTasksParams{
-		OwnerID:        uuid.Nil,
-		OrganizationID: uuid.Nil,
-		Status:         "",
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("list tasks: %w", err)
-	}
-	if len(dbTasks) == 0 {
-		return []Task{}, nil
-	}
-
-	tasks := make([]Task, 0, len(dbTasks))
-	for _, dbTask := range dbTasks {
-		tasks = append(tasks, ConvertTask(dbTask))
-	}
-	return tasks, nil
-}
-
-// buildTaskEvent constructs a TaskEvent from the combined query row.
-func buildTaskEvent(
-	row database.GetTelemetryTaskEventsRow,
-	createdAfter time.Time,
-	now time.Time,
-) TaskEvent {
-	event := TaskEvent{
-		TaskID: row.TaskID.String(),
-	}
-
-	var (
-		hasStartBuild    = row.StartBuildCreatedAt.Valid
-		isResumed        = hasStartBuild && row.StartBuildNumber.Valid && row.StartBuildNumber.Int32 > 1
-		hasStopBuild     = row.StopBuildCreatedAt.Valid
-		startedAfterStop = hasStartBuild && hasStopBuild && row.StartBuildCreatedAt.Time.After(row.StopBuildCreatedAt.Time)
-		currentlyPaused  = hasStopBuild && !startedAfterStop
-	)
-
-	// Pause-related fields (requires a stop build).
-	if hasStopBuild {
-		event.LastPausedAt = &row.StopBuildCreatedAt.Time
-		switch {
-		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskAutoPause:
-			event.PauseReason = ptr.Ref("auto")
-		case row.StopBuildReason.Valid && row.StopBuildReason.BuildReason == database.BuildReasonTaskManualPause:
-			event.PauseReason = ptr.Ref("manual")
-		default:
-			event.PauseReason = ptr.Ref("other")
-		}
-
-		// Idle duration: time between last working status and the pause.
-		if row.LastWorkingStatusAt.Valid &&
-			row.StopBuildCreatedAt.Time.After(row.LastWorkingStatusAt.Time) {
-			idle := row.StopBuildCreatedAt.Time.Sub(row.LastWorkingStatusAt.Time)
-			event.IdleDurationMS = ptr.Ref(idle.Milliseconds())
-		}
-	}
-
-	// Resume-related fields (requires task_resume start after stop).
-	if startedAfterStop {
-		// Paused duration: time between pause and resume.
-		if row.StartBuildCreatedAt.Time.After(createdAfter) {
-			paused := row.StartBuildCreatedAt.Time.Sub(row.StopBuildCreatedAt.Time)
-			event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
-		}
-
-		// Below only relevant for "resumed" tasks, not when initially created.
-		if isResumed {
-			event.LastResumedAt = &row.StartBuildCreatedAt.Time
-			switch row.StartBuildReason.BuildReason {
-			// TODO(Cian): will this exist? Future readers may know better than I.
-			// case row.StartBuildReason == database.BuildReasonTaskAutoResume:
-			//	event.ResumeReason = ptr.Ref("auto")
-			case database.BuildReasonTaskResume:
-				event.ResumeReason = ptr.Ref("manual")
-			default: // Task resumed by starting workspace?
-				event.ResumeReason = ptr.Ref("other")
-			}
-		}
-	}
-
-	// Unresolved pause: report current paused duration.
-	if currentlyPaused {
-		paused := now.Sub(row.StopBuildCreatedAt.Time)
-		event.PausedDurationMS = ptr.Ref(paused.Milliseconds())
-	}
-
-	// Resume-to-status duration.
-	if row.FirstStatusAfterResumeAt.Valid && isResumed {
-		delta := row.FirstStatusAfterResumeAt.Time.Sub(row.StartBuildCreatedAt.Time)
-		event.ResumeToStatusMS = ptr.Ref(delta.Milliseconds())
-	}
-
-	// Active duration: from SQL calculation.
-	if row.ActiveDurationMs > 0 {
-		event.ActiveDurationMS = ptr.Ref(row.ActiveDurationMs)
-	}
-
-	return event
-}
-
-// CollectTaskEvents collects lifecycle events for tasks with recent activity.
-func CollectTaskEvents(ctx context.Context, db database.Store, createdAfter, now time.Time) ([]TaskEvent, error) {
-	rows, err := db.GetTelemetryTaskEvents(ctx, database.GetTelemetryTaskEventsParams{
-		CreatedAfter: createdAfter,
-		Now:          now,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get telemetry task events: %w", err)
-	}
-	events := make([]TaskEvent, 0, len(rows))
-	for _, row := range rows {
-		events = append(events, buildTaskEvent(row, createdAfter, now))
-	}
-	return events, nil
-}
-
 // HashContent returns a SHA256 hash of the content as a hex string.
 // This is useful for hashing sensitive content like prompts for telemetry.
 func HashContent(content string) string {
@@ -1198,9 +1065,6 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		TemplateVersionID: build.TemplateVersionID,
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
-	}
-	if build.HasAITask.Valid {
-		wb.HasAITask = ptr.Ref(build.HasAITask.Bool)
 	}
 	return wb
 }
@@ -1532,9 +1396,6 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	if version.SourceExampleID.Valid {
 		snapVersion.SourceExampleID = &version.SourceExampleID.String
 	}
-	if version.HasAITask.Valid {
-		snapVersion.HasAITask = ptr.Ref(version.HasAITask.Bool)
-	}
 	return snapVersion
 }
 
@@ -1626,8 +1487,6 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
-	Tasks                                []Task                                `json:"tasks"`
-	TaskEvents                           []TaskEvent                           `json:"task_events"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -1820,7 +1679,6 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
-	HasAITask         *bool     `json:"has_ai_task"`
 }
 
 type Workspace struct {
@@ -1869,7 +1727,6 @@ type TemplateVersion struct {
 	OrganizationID  uuid.UUID  `json:"organization_id"`
 	JobID           uuid.UUID  `json:"job_id"`
 	SourceExampleID *string    `json:"source_example_id,omitempty"`
-	HasAITask       *bool      `json:"has_ai_task"`
 }
 
 type ProvisionerJob struct {
@@ -2206,63 +2063,6 @@ type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-type Task struct {
-	ID                   string    `json:"id"`
-	OrganizationID       string    `json:"organization_id"`
-	OwnerID              string    `json:"owner_id"`
-	Name                 string    `json:"name"`
-	WorkspaceID          *string   `json:"workspace_id"`
-	WorkspaceBuildNumber *int64    `json:"workspace_build_number"`
-	WorkspaceAgentID     *string   `json:"workspace_agent_id"`
-	WorkspaceAppID       *string   `json:"workspace_app_id"`
-	TemplateVersionID    string    `json:"template_version_id"`
-	PromptHash           string    `json:"prompt_hash"` // Prompt is hashed for privacy.
-	Status               string    `json:"status"`
-	CreatedAt            time.Time `json:"created_at"`
-}
-
-// TaskEvent represents lifecycle events for a task (pause/resume
-// cycles). The createdAfter parameter gates PausedDurationMS so
-// that only recent pause/resume pairs are reported.
-type TaskEvent struct {
-	TaskID           string     `json:"task_id"`
-	LastPausedAt     *time.Time `json:"last_paused_at"`
-	LastResumedAt    *time.Time `json:"last_resumed_at"`
-	PauseReason      *string    `json:"pause_reason"`
-	ResumeReason     *string    `json:"resume_reason"`
-	IdleDurationMS   *int64     `json:"idle_duration_ms"`
-	PausedDurationMS *int64     `json:"paused_duration_ms"`
-	ResumeToStatusMS *int64     `json:"resume_to_status_ms"`
-	ActiveDurationMS *int64     `json:"active_duration_ms"`
-}
-
-// ConvertTask converts a database Task to a telemetry Task.
-func ConvertTask(task database.Task) Task {
-	t := Task{
-		ID:                task.ID.String(),
-		OrganizationID:    task.OrganizationID.String(),
-		OwnerID:           task.OwnerID.String(),
-		Name:              task.Name,
-		TemplateVersionID: task.TemplateVersionID.String(),
-		PromptHash:        HashContent(task.Prompt),
-		Status:            string(task.Status),
-		CreatedAt:         task.CreatedAt,
-	}
-	if task.WorkspaceID.Valid {
-		t.WorkspaceID = ptr.Ref(task.WorkspaceID.UUID.String())
-	}
-	if task.WorkspaceBuildNumber.Valid {
-		t.WorkspaceBuildNumber = ptr.Ref(int64(task.WorkspaceBuildNumber.Int32))
-	}
-	if task.WorkspaceAgentID.Valid {
-		t.WorkspaceAgentID = ptr.Ref(task.WorkspaceAgentID.UUID.String())
-	}
-	if task.WorkspaceAppID.Valid {
-		t.WorkspaceAppID = ptr.Ref(task.WorkspaceAppID.UUID.String())
-	}
-	return t
 }
 
 // ConvertChat converts a database chat row to a telemetry Chat.

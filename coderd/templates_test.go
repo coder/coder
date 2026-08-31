@@ -2412,69 +2412,6 @@ func TestTemplateNotifications(t *testing.T) {
 	})
 }
 
-func TestTemplateFilterHasAITask(t *testing.T) {
-	t.Parallel()
-
-	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database:                 db,
-		Pubsub:                   pubsub,
-		IncludeProvisionerDaemon: true,
-	})
-	user := coderdtest.CreateFirstUser(t, client)
-
-	jobWithAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		OrganizationID: user.OrganizationID,
-		InitiatorID:    user.UserID,
-		Tags:           database.StringMap{},
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-	})
-	jobWithoutAITask := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		OrganizationID: user.OrganizationID,
-		InitiatorID:    user.UserID,
-		Tags:           database.StringMap{},
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-	})
-	versionWithAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-		HasAITask:      sql.NullBool{Bool: true, Valid: true},
-		JobID:          jobWithAITask.ID,
-	})
-	versionWithoutAITask := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: user.OrganizationID,
-		CreatedBy:      user.UserID,
-		HasAITask:      sql.NullBool{Bool: false, Valid: true},
-		JobID:          jobWithoutAITask.ID,
-	})
-	templateWithAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithAITask.ID)
-	templateWithoutAITask := coderdtest.CreateTemplate(t, client, user.OrganizationID, versionWithoutAITask.ID)
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	// Test filtering
-	templates, err := client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-ai-task:true",
-	})
-	require.NoError(t, err)
-	require.Len(t, templates, 1)
-	require.Equal(t, templateWithAITask.ID, templates[0].ID)
-
-	templates, err = client.Templates(ctx, codersdk.TemplateFilter{
-		SearchQuery: "has-ai-task:false",
-	})
-	require.NoError(t, err)
-	require.Len(t, templates, 1)
-	require.Equal(t, templateWithoutAITask.ID, templates[0].ID)
-
-	templates, err = client.Templates(ctx, codersdk.TemplateFilter{})
-	require.NoError(t, err)
-	require.Len(t, templates, 2)
-	require.Contains(t, templates, templateWithAITask)
-	require.Contains(t, templates, templateWithoutAITask)
-}
-
 func TestTemplateFilterHasExternalAgent(t *testing.T) {
 	t.Parallel()
 
