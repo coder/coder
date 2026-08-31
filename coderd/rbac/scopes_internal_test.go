@@ -167,15 +167,8 @@ func TestScopesCoverGuards(t *testing.T) {
 	}
 }
 
-// TestCoverageModelFields pins the shape of every type the coverage comparison
-// reads. checkCoverable refuses the authority coverage does not model, but it
-// can only refuse what it knows to look at: a field added to one of these types
-// would pass the guards unread, and ScopesCover would answer from a fraction of
-// what the scope grants without any test failing.
-//
-// Updating the list is the point rather than the chore. A failure here asks
-// whether the new field can carry authority, and if it can, checkCoverable or
-// permissionCovered has to account for it first.
+// TestCoverageModelFields fails when one of the types coverage reads grows a
+// field, so someone decides whether checkCoverable has to account for it.
 func TestCoverageModelFields(t *testing.T) {
 	t.Parallel()
 
