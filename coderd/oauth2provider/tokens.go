@@ -267,23 +267,17 @@ func Tokens(db database.Store, lifetimes codersdk.SessionLifetime) http.HandlerF
 	}
 }
 
-// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification
-// so it cannot be replayed with further code_verifier guesses (RFC 6749
-// §10.5). Deletion failure does not change the response returned to the
-// caller: surfacing it as a different error would let a caller distinguish
-// "delete succeeded" from "delete failed," defeating the point of revoking
-// the code in the first place. It is instead noted on the request's log line
-// so operators can see it happened.
+// revokeOAuth2CodeOnPKCEFailure deletes a code that failed PKCE verification so
+// it cannot be replayed with further code_verifier guesses (RFC 6749 §10.5).
 //
-// A code that is already gone satisfies the goal, so sql.ErrNoRows is not a
-// failure worth logging. It surfaces because the authorization check reads
-// the code before deleting it, and that read reports a missing row when a
-// concurrent attempt already revoked the code or it was reaped after expiry.
+// A failed delete is logged on the request's log line rather than returned: a
+// distinct error would tell a caller whether its code is still redeemable.
+// sql.ErrNoRows is not logged, since a code that is already gone satisfies the
+// goal.
 //
-// The delete runs on a context detached from the request. The request context
-// is canceled when the client disconnects, so a caller that fails PKCE and
-// then drops the connection would otherwise leave its own code redeemable for
-// the rest of its lifetime, which is the replay this function prevents.
+// The delete uses a context detached from the request, which is canceled when
+// the client disconnects. Otherwise a caller could fail PKCE, drop the
+// connection, and keep its code redeemable.
 func revokeOAuth2CodeOnPKCEFailure(ctx context.Context, db database.Store, codeID uuid.UUID) {
 	revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
@@ -362,20 +356,17 @@ func authorizationCodeGrant(ctx context.Context, db database.Store, app database
 		}
 	}
 
-	// PKCE is mandatory for all authorization code flows (OAuth 2.1). Verify
-	// the code verifier against the stored challenge. extractTokenRequest
-	// already rejected a malformed verifier as invalid_request, so
-	// req.CodeVerifier is guaranteed to meet RFC 7636 §4.1's bounds here; a
-	// mismatch below is a wrong-but-well-formed verifier, RFC 7636 §4.6's
-	// invalid_grant case.
+	// PKCE is mandatory for all authorization code flows (OAuth 2.1).
+	// extractTokenRequest already rejected a malformed verifier as
+	// invalid_request, so a mismatch here is a wrong but well-formed verifier,
+	// RFC 7636 §4.6's invalid_grant case.
 	//
-	// RFC 6749 §10.5 requires codes to be single-use. A code that survives a
-	// failed PKCE check would otherwise let a leaked code (the exact threat
-	// PKCE defends against) be replayed with different code_verifier guesses
-	// for the rest of its lifetime, unthrottled.
+	// The code is revoked on failure because RFC 6749 §10.5 requires codes to be
+	// single-use: one that survived would let a leaked code be replayed with
+	// unthrottled verifier guesses.
 	if !dbCode.CodeChallenge.Valid || dbCode.CodeChallenge.String == "" {
-		// Code was issued without a challenge, which should not happen
-		// with authorize endpoint enforcement, but defend in depth.
+		// The authorize endpoint requires a challenge, so this is defense in
+		// depth.
 		revokeOAuth2CodeOnPKCEFailure(ctx, db, dbCode.ID)
 		return codersdk.OAuth2TokenResponse{}, errInvalidPKCE
 	}
