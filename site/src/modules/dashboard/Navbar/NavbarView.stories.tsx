@@ -11,7 +11,6 @@ import {
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockNoPermissions,
-	MockTasks,
 	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
@@ -333,17 +332,6 @@ export const ForMember: Story = {
 		user: MockUserMember,
 		adminPermissions: {},
 		canCreateChat: true,
-	},
-};
-
-export const IdleTasks: Story = {
-	parameters: {
-		queries: [
-			{
-				key: ["tasks", tasksFilter],
-				data: MockTasks,
-			},
-		],
 	},
 };
 
