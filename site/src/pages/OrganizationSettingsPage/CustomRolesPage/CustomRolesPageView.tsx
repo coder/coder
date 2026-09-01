@@ -2,7 +2,7 @@ import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import type { AssignableRoles, Organization, Role } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import {
 	DropdownMenu,

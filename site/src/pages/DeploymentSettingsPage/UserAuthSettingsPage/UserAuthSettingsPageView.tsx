@@ -1,10 +1,10 @@
 import type { JSX } from "react";
 import type { SerpentOption } from "#/api/typesGenerated";
 import {
-	Badges,
+	BadgeGroup,
 	DisabledBadge,
 	EnabledBadge,
-} from "#/components/Badges/Badges";
+} from "#/components/Badge/PresetBadges";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -52,7 +52,9 @@ export const UserAuthSettingsPageView = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{oidcEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{oidcEnabled && (
 					<OptionsTable
@@ -77,7 +79,9 @@ export const UserAuthSettingsPageView = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<Badges>{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}</Badges>
+				<BadgeGroup>
+					{githubEnabled ? <EnabledBadge /> : <DisabledBadge />}
+				</BadgeGroup>
 
 				{githubEnabled && (
 					<OptionsTable

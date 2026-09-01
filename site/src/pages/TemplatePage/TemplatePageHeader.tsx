@@ -20,7 +20,7 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { DeprecatedBadge } from "#/components/Badges/Badges";
+import { DeprecatedBadge } from "#/components/Badge/PresetBadges";
 import { Button, Button as ShadcnButton } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";

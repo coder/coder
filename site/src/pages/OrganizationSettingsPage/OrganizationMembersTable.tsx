@@ -6,7 +6,7 @@ import type {
 } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,

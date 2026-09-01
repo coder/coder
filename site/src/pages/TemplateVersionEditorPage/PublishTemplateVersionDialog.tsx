@@ -1,7 +1,7 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
 import * as Yup from "yup";
-import { EnterpriseBadge } from "#/components/Badges/Badges";
+import { EnterpriseBadge } from "#/components/Badge/PresetBadges";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { FormFields } from "#/components/Form/Form";

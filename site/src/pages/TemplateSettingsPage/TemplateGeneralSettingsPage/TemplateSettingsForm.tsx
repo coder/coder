@@ -7,7 +7,7 @@ import {
 	type UpdateTemplateMeta,
 	WorkspaceAppSharingLevels,
 } from "#/api/typesGenerated";
-import { PremiumBadge } from "#/components/Badges/Badges";
+import { PremiumBadge } from "#/components/Badge/PresetBadges";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
