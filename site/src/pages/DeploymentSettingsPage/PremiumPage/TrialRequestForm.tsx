@@ -194,6 +194,7 @@ export const TrialRequestForm: FC<TrialRequestFormProps> = ({
 						target="_blank"
 						rel="noreferrer"
 						className="text-content-link hover:underline"
+						aria-label="Learn more about external PostgreSQL databases"
 					>
 						Learn more
 					</a>

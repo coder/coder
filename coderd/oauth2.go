@@ -148,8 +148,9 @@ func (api *API) postOAuth2ProviderAppAuthorize() http.HandlerFunc {
 // @Produce json
 // @Tags Enterprise
 // @Param client_id formData string false "Client ID, required if grant_type=authorization_code"
-// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code"
+// @Param client_secret formData string false "Client secret, required if grant_type=authorization_code and the client is confidential. Public clients (token_endpoint_auth_method=none) send no secret."
 // @Param code formData string false "Authorization code, required if grant_type=authorization_code"
+// @Param code_verifier formData string false "PKCE code verifier, required if grant_type=authorization_code. 43-128 characters per RFC 7636."
 // @Param refresh_token formData string false "Refresh token, required if grant_type=refresh_token"
 // @Param grant_type formData codersdk.OAuth2ProviderGrantType true "Grant type"
 // @Success 200 {object} oauth2.Token
