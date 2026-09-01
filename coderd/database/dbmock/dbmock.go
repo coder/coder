@@ -747,6 +747,21 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
+// DeleteCachedModuleFilesCreatedBetween mocks base method.
+func (m *MockStore) DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg database.DeleteCachedModuleFilesCreatedBetweenParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteCachedModuleFilesCreatedBetween", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteCachedModuleFilesCreatedBetween indicates an expected call of DeleteCachedModuleFilesCreatedBetween.
+func (mr *MockStoreMockRecorder) DeleteCachedModuleFilesCreatedBetween(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCachedModuleFilesCreatedBetween", reflect.TypeOf((*MockStore)(nil).DeleteCachedModuleFilesCreatedBetween), ctx, arg)
+}
+
 // DeleteChatDebugDataAfterMessageID mocks base method.
 func (m *MockStore) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -6899,6 +6914,21 @@ func (m *MockStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]dat
 func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
+}
+
+// HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
+func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasTemplateVersionsUsingCachedModuleFileInOrg", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasTemplateVersionsUsingCachedModuleFileInOrg indicates an expected call of HasTemplateVersionsUsingCachedModuleFileInOrg.
+func (mr *MockStoreMockRecorder) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTemplateVersionsUsingCachedModuleFileInOrg", reflect.TypeOf((*MockStore)(nil).HasTemplateVersionsUsingCachedModuleFileInOrg), ctx, arg)
 }
 
 // InTx mocks base method.

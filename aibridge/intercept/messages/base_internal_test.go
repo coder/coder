@@ -1096,6 +1096,13 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
 			expectedStatus: http.StatusBadGateway,
 		},
+		{
+			// Auth-failure exhaustion: 502, no Retry-After.
+			name:               "unauthorized_returns_502_without_retry_after",
+			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindUnauthorized, RetryAfter: 60 * time.Second},
+			expectedStatus:     http.StatusBadGateway,
+			expectedRetryAfter: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -1133,18 +1140,18 @@ func TestMarkKeyOnError(t *testing.T) {
 			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth failure: mark permanent.
-			name:           "401_marks_permanent",
+			// Auth failure: temporary cooldown so the key recovers.
+			name:           "401_marks_temporary",
 			err:            &anthropic.Error{StatusCode: http.StatusUnauthorized, Response: &http.Response{StatusCode: http.StatusUnauthorized}},
 			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedState:  keypool.KeyStateTemporary,
 		},
 		{
-			// Auth forbidden: mark permanent.
-			name:           "403_marks_permanent",
+			// Forbidden is per-request, not key-specific.
+			name:           "403_does_not_mark",
 			err:            &anthropic.Error{StatusCode: http.StatusForbidden, Response: &http.Response{StatusCode: http.StatusForbidden}},
-			expectedReturn: true,
-			expectedState:  keypool.KeyStatePermanent,
+			expectedReturn: false,
+			expectedState:  keypool.KeyStateValid,
 		},
 		{
 			// Server errors are not key-specific.

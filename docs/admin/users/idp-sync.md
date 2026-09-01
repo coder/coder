@@ -241,7 +241,7 @@ role sync at the organization level.
 1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
    logged in with a user who is an Owner or has an Organization Admin role.
 
-1. To fetch the current group sync settings for an organization, run the
+1. To fetch the current role sync settings for an organization, run the
    following:
 
    ```sh
@@ -388,7 +388,7 @@ settings, a user's memberships will update when they log out and log back in.
             "cbdcf774-4123-4118-8cd9-b3f502c84dfb"
          ],
          "sales": [
-            "d79144d9-b30a-555a-9af8-7dac83b2q4ec",
+            "d79144d9-b30a-555a-9af8-7dac83b2q4ec"
          ]
       },
       "organization_assign_default": true

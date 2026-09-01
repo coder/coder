@@ -4477,6 +4477,69 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		require.Equal(t, workspaceACL.Groups[0].Role, codersdk.WorkspaceRoleAdmin)
 	})
 
+	// A user who has merely been shared a workspace must not be able to
+	// enumerate the full roster and PII of groups on that workspace's ACL.
+	// The endpoint returns the group identity and total member count only.
+	t.Run("GroupMembersNotReturned", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient, adminUser := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				DeploymentValues:         dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		orgID := adminUser.OrganizationID
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		sharedClient, sharedUser := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		_, member := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		group := coderdtest.CreateGroup(t, adminClient, orgID, "bloob", member)
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		err := client.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				sharedUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				group.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		// The low-privilege shared user can read the ACL, but must not see
+		// the group's member roster (which would expose member emails and
+		// other PII). Only the total member count is returned.
+		workspaceACL, err := sharedClient.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, group.ID, workspaceACL.Groups[0].ID)
+		require.Equal(t, codersdk.WorkspaceRoleUse, workspaceACL.Groups[0].Role)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+
+		// The workspace owner sees the same count-only shape; the roster is
+		// omitted for all callers.
+		workspaceACL, err = client.WorkspaceACL(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspaceACL.Groups, 1)
+		require.Equal(t, 1, workspaceACL.Groups[0].TotalMemberCount)
+		require.Empty(t, workspaceACL.Groups[0].Members)
+	})
+
 	t.Run("UnknownIDs", func(t *testing.T) {
 		t.Parallel()
 

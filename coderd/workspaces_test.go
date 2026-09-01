@@ -5156,6 +5156,68 @@ func TestWorkspaceNotifications(t *testing.T) {
 			require.Contains(t, sent[0].Targets, workspace.ID)
 			require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 			require.Contains(t, sent[0].Targets, workspace.OwnerID)
+			require.Equal(t, "line with your template's auto-deletion policy", sent[0].Labels["timeTilDormant"])
+		})
+
+		t.Run("InitiatorNotOwnerWithAutoDelete", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &notificationstest.FakeEnqueuer{}
+				// 35 days keeps humanize.Time deterministically in its "1 month" bucket.
+				timeTilDormantAutoDelete = 35 * 24 * time.Hour
+				client                   = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+					// The AGPL store ignores TimeTilDormantAutoDelete, so the mock
+					// writes it to the template row for deleting_at computation.
+					TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+						SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+							template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)
+							return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+						},
+						GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+							return schedule.TemplateScheduleOptions{
+								UserAutostartEnabled:     false,
+								UserAutostopEnabled:      true,
+								DefaultTTL:               0,
+								AutostopRequirement:      schedule.TemplateAutostopRequirement{},
+								TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+							}, nil
+						},
+					},
+				})
+				user            = coderdtest.CreateFirstUser(t, client)
+				memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+				})
+				workspace = coderdtest.CreateWorkspace(t, client, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// When
+			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+
+			// Then
+			require.NoError(t, err, "mark workspace as dormant")
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant))
+			require.Len(t, sent, 1)
+			require.Contains(t, sent[0].Labels, "timeTilDormant")
+			require.Contains(t, sent[0].Labels["timeTilDormant"], "1 month",
+				"timeTilDormant must humanize the workspace's deleting_at, got %q",
+				sent[0].Labels["timeTilDormant"])
+			require.NotContains(t, sent[0].Labels["timeTilDormant"], "ago",
+				"timeTilDormant must be a future timestamp, got %q",
+				sent[0].Labels["timeTilDormant"])
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {

@@ -26,7 +26,7 @@ customization options, keyboard shortcuts, and troubleshooting guides.
 
 ## SSH
 
-### Through with the CLI
+### Through the CLI
 
 Coder will use the optimal path for an SSH connection (determined by your
 deployment's [networking configuration](../../admin/infrastructure/index.md))
@@ -176,7 +176,7 @@ services or preview environments.
 
 You can also [share ports](./port-forwarding.md#sharing-ports) with other users,
 or [port-forward](./port-forwarding.md#the-coder-port-forward-command) through
-the CLI with `coder port forward`. Read more in the
+the CLI with `coder port-forward`. Read more in the
 [docs on workspace ports](./port-forwarding.md).
 
 ![Open Ports window](../../images/networking/listeningports.png)

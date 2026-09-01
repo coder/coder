@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -382,8 +381,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							Old: wsOld.WorkspaceTable(),
 							New: wsNew,
 						}
-						// To keep the `ws` accurate without doing a sql fetch
+						// Keep `ws` accurate without a sql fetch. The UPDATE derives
+						// deleting_at from the template's time_til_dormant_autodelete.
 						ws.DormantAt = wsNew.DormantAt
+						ws.DeletingAt = wsNew.DeletingAt
 
 						shouldNotifyDormancy = true
 
@@ -467,7 +468,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
@@ -475,7 +475,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						map[string]string{
 							"name":           ws.Name,
 							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": humanize.Time(dormantTime),
+							"timeTilDormant": notifications.DormantDeletionText(ws.DeletingAt),
 						},
 						"lifecycle_executor",
 						ws.ID,

@@ -419,7 +419,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: 2 keys; key-0 returns 401, key-1 returns 200.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
+			// Then: 2 requests, 200 response, key-0 temporary, key-1 valid.
 			name: "failover_after_401",
 			keys: []string{"k0", "k1"},
 			responses: map[string]upstreamResponse{
@@ -429,23 +429,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusOK,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
-				keypool.KeyStateValid,
-			},
-		},
-		{
-			// Given: 2 keys; key-0 returns 403, key-1 returns 200.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
-			name: "failover_after_403",
-			keys: []string{"k0", "k1"},
-			responses: map[string]upstreamResponse{
-				"k0": {statusCode: http.StatusForbidden, body: authErrorBody},
-				"k1": {statusCode: http.StatusOK, body: successBody},
-			},
-			expectedRequestCount: 2,
-			expectedStatusCode:   http.StatusOK,
-			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
 		},
@@ -453,7 +437,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			// Given: 3 keys; all return 429 with cooldowns 5s, 3s, 10s.
 			// Then: 3 requests, 429 response with smallest Retry-After,
 			// all keys temporary.
-			name: "all_keys_rate_limited",
+			name: "all_keys_temporary_blocked",
 			keys: []string{"k0", "k1", "k2"},
 			responses: map[string]upstreamResponse{
 				"k0": {
@@ -483,7 +467,8 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: 2 keys; both return 401.
-			// Then: 2 requests, 502 response, both keys permanent.
+			// Then: 2 requests, 502 auth-failure response with no Retry-After,
+			// both keys temporary and recovering after the cooldown.
 			name: "all_keys_unauthorized",
 			keys: []string{"k0", "k1"},
 			responses: map[string]upstreamResponse{
@@ -493,8 +478,23 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusBadGateway,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
+				keypool.KeyStateTemporary,
+			},
+		},
+		{
+			// Given: 2 keys; key-0 returns 403.
+			// Then: 1 request, 403 surfaced as-is, both keys valid.
+			name: "forbidden_no_failover",
+			keys: []string{"k0", "k1"},
+			responses: map[string]upstreamResponse{
+				"k0": {statusCode: http.StatusForbidden, body: authErrorBody},
+			},
+			expectedRequestCount: 1,
+			expectedStatusCode:   http.StatusForbidden,
+			expectedKeyStates: []keypool.KeyState{
+				keypool.KeyStateValid,
+				keypool.KeyStateValid,
 			},
 		},
 		{
@@ -569,10 +569,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				}
 
 				p := prov.newProvider(upstream.URL, pool)
-				// IgnoreErrors: MarkKey logs at ERROR level when a
-				// key is marked permanent (401/403); slogtest would
-				// otherwise fail those scenarios.
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := slogtest.Make(t, nil)
 				handler := newPassthroughRouter(p, logger, nil, testTracer)
 
 				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)

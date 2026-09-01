@@ -120,7 +120,7 @@ WHERE
 	(
 		(
 			@allow_access_url :: bool = true AND
-			url SIMILAR TO '[^:]*://' || @hostname :: text || '([:/]?%)*'
+			url SIMILAR TO '[^:]*://' || @hostname :: text || '([:/]%)*'
 		) OR
 		(
 			@allow_wildcard_hostname :: bool = true AND

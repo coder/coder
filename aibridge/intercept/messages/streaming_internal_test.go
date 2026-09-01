@@ -111,7 +111,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 		{
 			// Given: 2 keys; key-0 returns 401 pre-stream, key-1
 			// streams successfully.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
+			// Then: 2 requests, 200 response, key-0 temporary, key-1 valid.
 			name: "failover_after_401",
 			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
@@ -125,31 +125,26 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusOK,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
 				keypool.KeyStateValid,
 			},
 			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},
 		{
-			// Given: 2 keys; key-0 returns 403 pre-stream, key-1 streams.
-			// Then: 2 requests, 200 response, key-0 permanent, key-1 valid.
-			name: "failover_after_403",
+			// Given: 2 keys; key-0 returns 403 pre-stream.
+			// Then: 1 request, 403 response, no failover, keys remain valid.
+			name: "forbidden_no_failover",
 			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
 				"k0-long-key": {statusCode: http.StatusForbidden, body: authErrorBody},
-				"k1-long-key": {
-					statusCode: http.StatusOK,
-					headers:    map[string]string{"Content-Type": "text/event-stream"},
-					body:       streamingSuccessBody,
-				},
 			},
-			expectedRequestCount: 2,
-			expectedStatusCode:   http.StatusOK,
+			expectedRequestCount: 1,
+			expectedStatusCode:   http.StatusForbidden,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
+				keypool.KeyStateValid,
 				keypool.KeyStateValid,
 			},
-			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
+			expectedCredentialHint: utils.MaskSecret("k0-long-key"),
 		},
 		{
 			// Given: 3 keys; all return 429 pre-stream with
@@ -187,7 +182,7 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 		},
 		{
 			// Given: 2 keys; both return 401 pre-stream.
-			// Then: 2 requests, 502 api_error response, both keys permanent.
+			// Then: 2 requests, 502 api_error response, both keys temporary.
 			name: "all_keys_unauthorized",
 			keys: []string{"k0-long-key", "k1-long-key"},
 			responses: map[string]upstreamResponse{
@@ -197,8 +192,8 @@ func TestStreamingInterception_KeyFailover(t *testing.T) {
 			expectedRequestCount: 2,
 			expectedStatusCode:   http.StatusBadGateway,
 			expectedKeyStates: []keypool.KeyState{
-				keypool.KeyStatePermanent,
-				keypool.KeyStatePermanent,
+				keypool.KeyStateTemporary,
+				keypool.KeyStateTemporary,
 			},
 			expectedCredentialHint: utils.MaskSecret("k1-long-key"),
 		},

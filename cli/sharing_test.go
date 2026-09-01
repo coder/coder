@@ -205,6 +205,48 @@ func TestSharingStatus(t *testing.T) {
 		}
 		assert.True(t, found, "expected to find username %s with role %s in the output: %s", toShareWithUser.Username, codersdk.WorkspaceRoleUse, out.String())
 	})
+
+	t.Run("ListSharedGroups", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			client, db                           = coderdtest.NewWithDatabase(t, nil)
+			orgOwner                             = coderdtest.CreateFirstUser(t, client)
+			workspaceOwnerClient, workspaceOwner = coderdtest.CreateAnotherUser(t, client, orgOwner.OrganizationID, rbac.ScopedRoleOrgAuditor(orgOwner.OrganizationID))
+			workspace                            = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OwnerID:        workspaceOwner.ID,
+				OrganizationID: orgOwner.OrganizationID,
+			}).Do().Workspace
+			ctx = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		// The Everyone group always exists for an organization and shares the
+		// organization's ID. The workspace ACL endpoint no longer returns the
+		// group's member roster, so the CLI must still list the group itself.
+		err := client.UpdateWorkspaceACL(ctx, workspace.ID, codersdk.UpdateWorkspaceACL{
+			GroupRoles: map[string]codersdk.WorkspaceRole{
+				orgOwner.OrganizationID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "sharing", "status", workspace.Name)
+		clitest.SetupConfig(t, workspaceOwnerClient, root)
+
+		out := new(bytes.Buffer)
+		inv.Stdout = out
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		found := false
+		for _, line := range strings.Split(out.String(), "\n") {
+			if strings.Contains(line, database.EveryoneGroup) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected to find group %s with role %s in the output: %s", database.EveryoneGroup, codersdk.WorkspaceRoleUse, out.String())
+	})
 }
 
 func TestSharingRemove(t *testing.T) {

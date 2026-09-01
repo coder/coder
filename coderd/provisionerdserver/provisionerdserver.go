@@ -1584,6 +1584,26 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		if file.CreatedBy != uuid.Nil || file.Mimetype != tarMimeType {
 			return fail(xerrors.Errorf("file %s is not a modules file", fid))
 		}
+		// Ensure the requested module file belongs to a template version in
+		// this provisioner daemon's organization. Without this, any
+		// authenticated provisioner could download cached module archives
+		// (Terraform source) belonging to other organizations (ANT-2026-22440).
+		ok, err := s.Database.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, database.HasTemplateVersionsUsingCachedModuleFileInOrgParams{
+			FileID:         fid,
+			OrganizationID: s.OrganizationID,
+		})
+		if err != nil {
+			return fail(xerrors.Errorf("authorize module file: %w", err))
+		}
+		if !ok {
+			s.Logger.Warn(ctx, "module file download rejected: file not referenced by any template version in daemon org",
+				slog.F("file_id", fid),
+				slog.F("organization_id", s.OrganizationID),
+			)
+			// Use the same error as the metadata check above so the handler
+			// does not confirm the existence of files in other organizations.
+			return fail(xerrors.Errorf("file %s is not a modules file", fid))
+		}
 	default:
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}

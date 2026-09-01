@@ -216,14 +216,17 @@ func TestSharingStatus(t *testing.T) {
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
+		// The ACL endpoint omits group member rosters to avoid leaking member
+		// PII, so the output lists the group itself rather than its members.
 		found := false
 		for _, line := range strings.Split(out.String(), "\n") {
-			if strings.Contains(line, orgMember.Username) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) && strings.Contains(line, group.Name) {
+			if strings.Contains(line, group.Name) && strings.Contains(line, string(codersdk.WorkspaceRoleUse)) {
 				found = true
 				break
 			}
 		}
-		assert.True(t, found, "expected to find username %s with role %s in the output: %s", orgMember.Username, codersdk.WorkspaceRoleUse, out.String())
+		assert.True(t, found, "expected to find group %s with role %s in the output: %s", group.Name, codersdk.WorkspaceRoleUse, out.String())
+		assert.NotContains(t, out.String(), orgMember.Username, "group member roster must not be exposed in sharing status output")
 	})
 }
 

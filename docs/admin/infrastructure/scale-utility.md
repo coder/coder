@@ -130,7 +130,7 @@ wish to clean up all workspaces, you can run the following command:
 ```shell
 coder exp scaletest cleanup \
     --cleanup-job-timeout 2h \
-    --cleanup-timeout 15min
+    --cleanup-timeout 15m
 ```
 
 This will delete all workspaces and users with the prefix `scaletest-`.

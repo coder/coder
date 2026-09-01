@@ -124,6 +124,12 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
+	// Deletes cached Terraform module archives ingested in the given time range and
+	// clears the template version references to them. created_by and mimetype
+	// identify a provisionerd-written module archive, matching the checks in
+	// provisionerdserver, so user-uploaded template tarballs are never removed.
+	// Only archives referenced by a template version are considered.
+	DeleteCachedModuleFilesCreatedBetween(ctx context.Context, arg DeleteCachedModuleFilesCreatedBetweenParams) (int64, error)
 	// Deletes debug runs (and their cascaded steps) whose message IDs
 	// exceed the cutoff. The started_before bound prevents retried
 	// cleanup from deleting runs created by a replacement turn that
@@ -918,6 +924,11 @@ type sqlcQuerier interface {
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	// Reports whether the given file is referenced as cached module files by any
+	// template version in the given organization. Used to authorize provisioner
+	// module-file downloads so a daemon cannot read another organization's cached
+	// Terraform module source.
+	HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
