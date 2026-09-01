@@ -94,9 +94,11 @@ export const OpenPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const dialog = await openPicker(canvasElement);
 		const list = grid(dialog);
-		await expect(
-			within(list).getByRole("option", { name: "Grinning face" }),
-		).toBeVisible();
+		const grinning = within(list).getByRole("option", {
+			name: "Grinning face",
+		});
+		await expect(grinning).toBeVisible();
+		await expect(within(grinning).getByTestId("emoji-sprite")).toBeVisible();
 		await expect(
 			within(list).queryByRole("option", { name: "fedora" }),
 		).not.toBeInTheDocument();
@@ -109,9 +111,13 @@ export const BrowseCategory: Story = {
 		await chooseCategory(dialog, "Coder icons");
 
 		const list = grid(dialog);
-		await expect(
-			within(list).getByRole("option", { name: "fedora" }),
-		).toBeVisible();
+		const fedora = within(list).getByRole("option", { name: "fedora" });
+		await expect(fedora).toBeVisible();
+		await expect(within(fedora).queryByTestId("emoji-sprite")).toBeNull();
+		await expect(within(fedora).getByAltText("")).toHaveAttribute(
+			"src",
+			"/icon/fedora.svg",
+		);
 		await expect(
 			within(list).queryByRole("option", { name: "Grinning face" }),
 		).not.toBeInTheDocument();
@@ -349,11 +355,15 @@ export const NavigateGridWithArrowKeys: Story = {
 export const SelectExactSkinToneVariant: Story = {
 	play: async ({ canvasElement, args }) => {
 		const dialog = await openPicker(canvasElement);
-		await chooseTone(dialog, "Dark");
 		await search(dialog, "waving hand");
-		await userEvent.click(
-			await within(dialog).findByRole("option", { name: "Waving hand" }),
-		);
+		const wavingHand = await within(dialog).findByRole("option", {
+			name: "Waving hand",
+		});
+		const sprite = within(wavingHand).getByTestId("emoji-sprite");
+		const defaultTonePosition = sprite.style.backgroundPosition;
+		await chooseTone(dialog, "Dark");
+		await expect(sprite.style.backgroundPosition).not.toBe(defaultTonePosition);
+		await userEvent.click(wavingHand);
 
 		await expect(args.onPickEmoji).toHaveBeenCalledWith(
 			"/emojis/1f44b-1f3ff.png",

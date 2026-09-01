@@ -1,4 +1,7 @@
-import emojiData, { type SkinVariation } from "virtual:emoji-manifest";
+import emojiData, {
+	type SheetPosition,
+	type SkinVariation,
+} from "virtual:emoji-manifest";
 import {
 	type CSSProperties,
 	type FC,
@@ -8,6 +11,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { preload } from "react-dom";
 import {
 	Command,
 	CommandInput,
@@ -27,6 +31,10 @@ import icons from "#/theme/icons.json";
 
 const ICON_CATEGORY = "Coder icons";
 const DEFAULT_TONE = "default";
+const SPRITESHEET_URL = `/emojis/${emojiData.sheet.file}?v=${emojiData.sheet.hash}`;
+const SPRITESHEET_SIZE = `${emojiData.sheet.columns * 100}% ${emojiData.sheet.rows * 100}%`;
+
+preload(SPRITESHEET_URL, { as: "image", fetchPriority: "low" });
 
 /**
  * The manifest holds nearly 2,000 emoji. Browsing is scoped to one category and
@@ -62,9 +70,39 @@ const SKIN_TONES = [
 	{ value: "1f3ff", label: "Dark" },
 ];
 
+const spriteStyle = ({ sheetX, sheetY }: SheetPosition): CSSProperties => ({
+	backgroundImage: `url("${SPRITESHEET_URL}")`,
+	backgroundPosition: `${(sheetX / (emojiData.sheet.columns - 1)) * 100}% ${(sheetY / (emojiData.sheet.rows - 1)) * 100}%`,
+	backgroundSize: SPRITESHEET_SIZE,
+});
+
+const Sprite: FC<{ position: SheetPosition; className: string }> = ({
+	position,
+	className,
+}) => (
+	<span
+		aria-hidden="true"
+		data-testid="emoji-sprite"
+		className={`shrink-0 bg-no-repeat ${className}`}
+		style={spriteStyle(position)}
+	/>
+);
+
 /** Waving hand ships every single tone, so it doubles as the tone swatch. */
-const toneSwatch = (tone: string) =>
-	tone === DEFAULT_TONE ? "/emojis/1f44b.png" : `/emojis/1f44b-${tone}.png`;
+const wavingHand = emojiData.emojis.find((emoji) => emoji.id === "wave");
+const toneSwatch = (tone: string): SheetPosition => {
+	if (!wavingHand) {
+		throw new Error("Waving hand is missing from the emoji manifest");
+	}
+	if (tone === DEFAULT_TONE) {
+		return wavingHand;
+	}
+	const variation = wavingHand.skins?.find((skin) => skin.tone === tone);
+	if (!variation) {
+		throw new Error(`Waving hand is missing the ${tone} skin variation`);
+	}
+	return variation;
+};
 
 /**
  * Manifest names are canonical and lowercase apart from acronyms and proper
@@ -102,6 +140,7 @@ type PickerOption = {
 	category: string;
 	/** Selection URL when no skin tone applies. */
 	src: string;
+	sheet?: SheetPosition;
 	skins?: SkinVariation[];
 	search: SearchIndex;
 };
@@ -127,6 +166,7 @@ const emojiOptions: PickerOption[] = emojiData.emojis.map((emoji) => ({
 	label: displayName(emoji.name),
 	category: emoji.category,
 	src: `/emojis/${emoji.image}`,
+	sheet: emoji,
 	...(emoji.skins && { skins: emoji.skins }),
 	search: buildSearchIndex(
 		normalize(emoji.id),
@@ -223,15 +263,28 @@ const searchOptions = (query: string): PickerOption[] => {
  * same-tone composite that multi-person emoji use instead. Mixed-tone
  * composites are not offered, so anything else keeps the toneless image.
  */
-const resolveSrc = (option: PickerOption, tone: string): string => {
+const resolveSkin = (
+	option: PickerOption,
+	tone: string,
+): SkinVariation | undefined => {
 	if (tone === DEFAULT_TONE || !option.skins) {
-		return option.src;
+		return undefined;
 	}
-	const variation =
+	return (
 		option.skins.find((skin) => skin.tone === tone) ??
-		option.skins.find((skin) => skin.tone === `${tone}-${tone}`);
+		option.skins.find((skin) => skin.tone === `${tone}-${tone}`)
+	);
+};
+
+const resolveSrc = (option: PickerOption, tone: string): string => {
+	const variation = resolveSkin(option, tone);
 	return variation ? `/emojis/${variation.image}` : option.src;
 };
+
+const resolveSheet = (
+	option: PickerOption,
+	tone: string,
+): SheetPosition | undefined => resolveSkin(option, tone) ?? option.sheet;
 
 type EmojiPickerProps = {
 	/**
@@ -381,6 +434,7 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 				>
 					{visible.map((option) => {
 						const src = resolveSrc(option, tone);
+						const sheet = resolveSheet(option, tone);
 						return (
 							<CommandItem
 								key={option.id}
@@ -396,12 +450,16 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 								onSelect={() => onSelect(src)}
 								className="aspect-square cursor-pointer justify-center p-1 data-[selected=true]:ring-2 data-[selected=true]:ring-content-link data-[selected=true]:ring-inset"
 							>
-								<ExternalImage
-									alt=""
-									src={src}
-									loading="lazy"
-									className="max-h-full max-w-full object-contain"
-								/>
+								{sheet ? (
+									<Sprite position={sheet} className="size-full" />
+								) : (
+									<ExternalImage
+										alt=""
+										src={src}
+										loading="lazy"
+										className="max-h-full max-w-full object-contain"
+									/>
+								)}
 							</CommandItem>
 						);
 					})}
@@ -442,9 +500,8 @@ const EmojiPicker: FC<EmojiPickerProps> = ({ onSelect }) => {
 						{SKIN_TONES.map((skinTone) => (
 							<SelectItem key={skinTone.value} value={skinTone.value}>
 								<span className="flex items-center gap-2">
-									<ExternalImage
-										alt=""
-										src={toneSwatch(skinTone.value)}
+									<Sprite
+										position={toneSwatch(skinTone.value)}
 										className="size-4"
 									/>
 									{skinTone.label}

@@ -1,10 +1,15 @@
-export type SkinVariation = {
+export type SheetPosition = {
+	sheetX: number;
+	sheetY: number;
+};
+
+export type SkinVariation = SheetPosition & {
 	tone: string;
 	unified: string;
 	image: string;
 };
 
-export type Emoji = {
+export type Emoji = SheetPosition & {
 	id: string;
 	name: string;
 	category: string;
@@ -17,8 +22,16 @@ export type Emoji = {
 	skins?: SkinVariation[];
 };
 
+export type EmojiSheet = {
+	file: string;
+	hash: string;
+	columns: number;
+	rows: number;
+};
+
 export type EmojiManifest = {
 	version: string;
+	sheet: EmojiSheet;
 	categories: string[];
 	emojis: Emoji[];
 };
@@ -37,7 +50,13 @@ export function emojiMetadata(
 export function normalizeEmojiData(
 	records: unknown,
 	version: string,
+	sheet: { columns: number; rows: number; hash: string },
 ): EmojiManifest;
+
+export function readSheetGeometry(path: string): {
+	columns: number;
+	rows: number;
+};
 
 export function buildManifest(): EmojiManifest;
 

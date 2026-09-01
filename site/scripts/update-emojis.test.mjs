@@ -1,4 +1,6 @@
-import { readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import canonicalNames from "unicode-emoji-json/data-by-emoji.json";
 import { describe, expect, it } from "vitest";
 import {
@@ -8,7 +10,10 @@ import {
 	emojiGlyph,
 	emojiMetadata,
 	normalizeEmojiData,
+	readSheetGeometry,
 } from "./update-emojis.mjs";
+
+const SHEET = { columns: 62, rows: 62, hash: "test-hash" };
 
 const record = (overrides) => ({
 	name: "GRINNING FACE",
@@ -21,6 +26,8 @@ const record = (overrides) => ({
 	category: "Smileys & Emotion",
 	subcategory: "face-smiling",
 	sort_order: 1,
+	sheet_x: 32,
+	sheet_y: 46,
 	has_img_apple: true,
 	...overrides,
 });
@@ -28,22 +35,29 @@ const record = (overrides) => ({
 const skin = (unified, overrides) => ({
 	unified,
 	image: `${unified.toLowerCase()}.png`,
+	sheet_x: 12,
+	sheet_y: 49,
 	has_img_apple: true,
 	...overrides,
 });
 
-const normalize = (records) => normalizeEmojiData(records, "15.1.2").emojis;
+const normalize = (records) =>
+	normalizeEmojiData(records, "15.1.2", SHEET).emojis;
 
 // 😀 U+1F600, the glyph every `record()` resolves to.
 const GRINNING = "\u{1f600}";
 
 describe("normalizeEmojiData", () => {
 	it("emits the runtime shape with lowercased codepoints", () => {
-		const { version, categories, emojis } = normalizeEmojiData(
-			[record()],
-			"15.1.2",
-		);
+		const { version, sheet: sheetMetadata, categories, emojis } =
+			normalizeEmojiData([record()], "15.1.2", SHEET);
 		expect(version).toBe("15.1.2");
+		expect(sheetMetadata).toEqual({
+			file: "spritesheet.png",
+			hash: "test-hash",
+			columns: 62,
+			rows: 62,
+		});
 		expect(categories).toEqual(["Smileys & Emotion"]);
 		expect(emojis).toEqual([
 			{
@@ -53,6 +67,8 @@ describe("normalizeEmojiData", () => {
 				subcategory: "face-smiling",
 				unified: "1f600",
 				image: "1f600.png",
+				sheetX: 32,
+				sheetY: 46,
 				keywords: [
 					"grinning_face",
 					"face",
@@ -75,6 +91,7 @@ describe("normalizeEmojiData", () => {
 				record({ short_name: "c", sort_order: 1, category: "Objects" }),
 			],
 			"15.1.2",
+			SHEET,
 		);
 		expect(emojis.map((emoji) => emoji.id)).toEqual(["c", "a", "b"]);
 		expect(categories).toEqual(["Objects", "Smileys & Emotion", "Flags"]);
@@ -113,8 +130,20 @@ describe("normalizeEmojiData", () => {
 			}),
 		]);
 		expect(emoji.skins).toEqual([
-			{ tone: "1f3fb", unified: "1f600-1f3fb", image: "1f600-1f3fb.png" },
-			{ tone: "1f3fc", unified: "1f600-1f3fc", image: "1f600-1f3fc.png" },
+			{
+				tone: "1f3fb",
+				unified: "1f600-1f3fb",
+				image: "1f600-1f3fb.png",
+				sheetX: 12,
+				sheetY: 49,
+			},
+			{
+				tone: "1f3fc",
+				unified: "1f600-1f3fc",
+				image: "1f600-1f3fc.png",
+				sheetX: 12,
+				sheetY: 49,
+			},
 		]);
 	});
 
@@ -245,11 +274,67 @@ describe("emojiMetadata", () => {
 	});
 });
 
+describe("readSheetGeometry", () => {
+	const writePngHeader = (width, height) => {
+		const dir = mkdtempSync(join(tmpdir(), "emoji-sheet-"));
+		const path = join(dir, "sheet.png");
+		const header = Buffer.alloc(24);
+		Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(header);
+		header.writeUInt32BE(13, 8);
+		header.write("IHDR", 12, "ascii");
+		header.writeUInt32BE(width, 16);
+		header.writeUInt32BE(height, 20);
+		writeFileSync(path, header);
+		return { dir, path };
+	};
+
+	it("derives the spritesheet grid from PNG dimensions", () => {
+		const { dir, path } = writePngHeader(4092, 4092);
+		try {
+			expect(readSheetGeometry(path)).toEqual({ columns: 62, rows: 62 });
+		} finally {
+			rmSync(dir, { recursive: true });
+		}
+	});
+
+	it("rejects dimensions that do not contain whole sprite cells", () => {
+		const { dir, path } = writePngHeader(4091, 4092);
+		try {
+			expect(() => readSheetGeometry(path)).toThrow(
+				"dimensions 4091x4092 are not multiples of 66",
+			);
+		} finally {
+			rmSync(dir, { recursive: true });
+		}
+	});
+
+	it("rejects a spritesheet without enough cells for percentage positioning", () => {
+		const { dir, path } = writePngHeader(66, 66);
+		try {
+			expect(() => readSheetGeometry(path)).toThrow(
+				"must contain at least 2 rows and columns",
+			);
+		} finally {
+			rmSync(dir, { recursive: true });
+		}
+	});
+});
+
 describe("normalizeEmojiData validation", () => {
 	it("rejects a datasource that is not an array", () => {
-		expect(() => normalizeEmojiData({}, "15.1.2")).toThrow(
+		expect(() => normalizeEmojiData({}, "15.1.2", SHEET)).toThrow(
 			"emoji datasource is not an array",
 		);
+	});
+
+	it("rejects spritesheet metadata without a content hash", () => {
+		expect(() =>
+			normalizeEmojiData([record()], "15.1.2", {
+				columns: 62,
+				rows: 62,
+				hash: "",
+			}),
+		).toThrow("emoji spritesheet has an invalid hash");
 	});
 
 	it("rejects a non-object record", () => {
@@ -298,6 +383,27 @@ describe("normalizeEmojiData validation", () => {
 		).toThrow('emoji "grinning" skin "1F3FB" is missing "image"');
 	});
 
+	it("rejects invalid spritesheet coordinates", () => {
+		expect(() => normalize([record({ sheet_x: 1.5 })])).toThrow(
+			'emoji "grinning" has a non-integer "sheet_x"',
+		);
+		expect(() => normalize([record({ sheet_y: 62 })])).toThrow(
+			'emoji "grinning" has an out-of-range "sheet_y"',
+		);
+	});
+
+	it("rejects invalid skin spritesheet coordinates", () => {
+		expect(() =>
+			normalize([
+				record({
+					skin_variations: {
+						"1F3FB": skin("1F600-1F3FB", { sheet_x: -1 }),
+					},
+				}),
+			]),
+		).toThrow('emoji "grinning" skin "1F3FB" has an out-of-range "sheet_x"');
+	});
+
 	it("rejects a datasource emoji with no canonical metadata", () => {
 		expect(() => normalize([record({ unified: "0041" })])).toThrow(
 			'emoji "grinning" has no canonical name for "A"',
@@ -328,6 +434,22 @@ describe("emoji artifacts", () => {
 		);
 		expect(referenced.size).toBeGreaterThan(0);
 		expect([...referenced].filter((image) => !committed.has(image))).toEqual([]);
+	});
+
+	it("reference valid spritesheet coordinates", () => {
+		const positions = manifest.emojis.flatMap((emoji) => [
+			emoji,
+			...(emoji.skins ?? []),
+		]);
+		expect(
+			positions.filter(
+				(position) =>
+					position.sheetX < 0 ||
+					position.sheetX >= manifest.sheet.columns ||
+					position.sheetY < 0 ||
+					position.sheetY >= manifest.sheet.rows,
+			),
+		).toEqual([]);
 	});
 
 	it("carry the canonical name and keywords for every emoji", () => {
