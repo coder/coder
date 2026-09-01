@@ -28,7 +28,6 @@ import type {
 	UserActivityInsightsResponse,
 	UserLatencyInsightsResponse,
 } from "#/api/typesGenerated";
-import { ActiveUserChart } from "#/components/ActiveUserChart/ActiveUserChart";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DateRangePicker as DailyPicker,
@@ -63,6 +62,7 @@ import {
 	subtractTime,
 } from "#/utils/time";
 import { getTemplatePageTitle } from "../utils";
+import { ActiveUserChart } from "./ActiveUserChart";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { lastWeeks } from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";

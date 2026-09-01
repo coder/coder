@@ -14,6 +14,7 @@ const chartConfig = {
 		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
+
 interface ActiveUserChartProps {
 	data: { date: string; amount: number }[];
 }
