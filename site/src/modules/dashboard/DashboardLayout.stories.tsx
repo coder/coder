@@ -25,6 +25,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
+	withToaster,
 } from "#/testHelpers/storybook";
 import { DashboardFullPage, DashboardLayout } from "./DashboardLayout";
 
@@ -53,7 +54,12 @@ const mcpServersRouter = reactRouterParameters({
 const meta: Meta<typeof DashboardLayout> = {
 	title: "modules/dashboard/DashboardLayout",
 	component: DashboardLayout,
-	decorators: [withAuthProvider, withDashboardProvider, withProxyProvider()],
+	decorators: [
+		withAuthProvider,
+		withDashboardProvider,
+		withProxyProvider(),
+		withToaster,
+	],
 	parameters: {
 		layout: "fullscreen",
 		pixel: { matrix: pixelWithTablet },
@@ -97,7 +103,7 @@ export const ForMember: Story = {
 			canvas.getByRole("heading", { name: "Workspaces" }),
 		).toBeVisible();
 		await expect(
-			screen.queryByTestId("update-check-notice"),
+			screen.queryByText(/is now available/),
 		).not.toBeInTheDocument();
 		await expect(
 			canvas.queryByRole("button", { name: "Admin settings" }),
@@ -156,11 +162,10 @@ export const UpdateAvailable: Story = {
 		localStorage.removeItem("dismissedVersion");
 	},
 	play: async () => {
-		const notice = await screen.findByTestId("update-check-notice");
-		await expect(notice).toBeVisible();
+		// The update notice now renders through the shared Toaster portal.
 		await expect(
-			screen.getByText(/Coder v0\.12\.9 is now available/),
-		).toBeVisible();
+			await screen.findByText(/Coder v0\.12\.9 is now available/),
+		).toBeInTheDocument();
 	},
 };
 

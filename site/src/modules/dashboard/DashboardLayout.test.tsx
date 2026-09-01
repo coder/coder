@@ -1,6 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
+import { Toaster } from "#/components/Toaster/Toaster";
 import {
 	MockEntitlements,
 	MockNoPermissions,
@@ -65,10 +66,16 @@ test("Show the new Coder version notification", async () => {
 			});
 		}),
 	);
-	renderWithAuth(<DashboardLayout />, {
-		children: [{ element: <h1>Test page</h1> }],
-	});
-	await screen.findByTestId("update-check-notice");
+	renderWithAuth(
+		<>
+			<DashboardLayout />
+			<Toaster />
+		</>,
+		{
+			children: [{ element: <h1>Test page</h1> }],
+		},
+	);
+	await screen.findByText(/Coder v0\.12\.9 is now available/);
 });
 
 test("hides AI Governance seat warnings for non-admin users", async () => {

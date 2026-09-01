@@ -39,7 +39,7 @@ export const Toaster = ({ ...props }: SonnerProps) => {
 						"[&_svg]:size-icon-xs [&_span]:text-xs text-content-primary",
 					),
 					closeButton:
-						"absolute top-4 right-3 bg-transparent border-none p-0 text-content-primary",
+						"absolute top-4 right-3 bg-transparent border-none p-0 text-content-secondary hover:text-content-primary",
 					// Loading styles require a bit more love, the icon doesn't render inline.
 					loader: "left-5! top-7! -translate-x-[none]!",
 					loading: "pl-[30px]!",

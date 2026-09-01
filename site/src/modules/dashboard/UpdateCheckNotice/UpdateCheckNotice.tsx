@@ -1,7 +1,7 @@
-import { InfoIcon, XIcon } from "lucide-react";
+import { SparkleIcon } from "lucide-react";
 import type { FC } from "react";
-import { Button } from "#/components/Button/Button";
-import { cn } from "#/utils/cn";
+import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { docs } from "#/utils/docs";
 
 type UpdateCheckNoticeProps = {
@@ -11,56 +11,62 @@ type UpdateCheckNoticeProps = {
 	aboveDeploymentBanner?: boolean;
 };
 
+// A stable id keeps repeated renders from stacking duplicate toasts; sonner
+// updates the existing toast instead of creating a new one.
+const UPDATE_CHECK_TOAST_ID = "update-check-notice";
+
+/**
+ * Surfaces an available Coder update through the shared Toaster. It renders no
+ * DOM itself; it drives a persistent toast that stays until the user closes it
+ * with the toast's close button, whose dismissal persists through `onDismiss`.
+ */
 export const UpdateCheckNotice: FC<UpdateCheckNoticeProps> = ({
 	version,
 	releaseNotesUrl,
 	onDismiss,
 	aboveDeploymentBanner = false,
 }) => {
-	return (
-		<div
-			data-testid="update-check-notice"
-			role="status"
-			className={cn(
-				"fixed right-6 z-50 flex max-w-[420px] items-start gap-4 rounded border border-solid border-highlight-sky bg-surface-primary p-4 text-sm text-content-primary shadow-sm",
-				// 60px keeps a 24px gap above the 36px deployment banner.
-				aboveDeploymentBanner ? "bottom-[60px]" : "bottom-6",
-			)}
-		>
-			<InfoIcon className="mt-0.5 size-icon-sm shrink-0 text-highlight-sky" />
-			<div className="flex flex-col gap-1">
-				<p className="m-0 font-semibold">Coder {version} is now available. </p>
-				<p className="m-0 flex-1 leading-5">
-					View the{" "}
+	// Keep the latest onDismiss without re-running the effect when its identity
+	// changes on each render of the parent.
+	const onDismissRef = useRef(onDismiss);
+	onDismissRef.current = onDismiss;
+
+	useEffect(() => {
+		toast(`Coder ${version} is now available`, {
+			id: UPDATE_CHECK_TOAST_ID,
+			duration: Number.POSITIVE_INFINITY,
+			// A sparkle nods at the new release instead of the generic info icon.
+			icon: <SparkleIcon className="text-content-primary" />,
+			// Clear the deployment banner so the toast doesn't overlap it.
+			className: aboveDeploymentBanner ? "mb-9" : undefined,
+			description: (
+				<span className="flex flex-col items-start">
 					<a
 						href={releaseNotesUrl}
 						target="_blank"
 						rel="noreferrer"
-						className="text-content-link underline hover:no-underline"
+						className="text-content-link"
 					>
-						release notes
-					</a>{" "}
-					and{" "}
+						Release notes
+					</a>
 					<a
 						href={docs("/install/upgrade")}
 						target="_blank"
 						rel="noreferrer"
-						className="text-content-link underline hover:no-underline"
+						className="text-content-link"
 					>
-						upgrade instructions
-					</a>{" "}
-					for more information.
-				</p>
-			</div>
-			<Button
-				aria-label="Dismiss"
-				size="icon"
-				variant="subtle"
-				onClick={onDismiss}
-				className="-m-2"
-			>
-				<XIcon />
-			</Button>
-		</div>
-	);
+						Upgrade instructions
+					</a>
+				</span>
+			),
+			// The close button dismisses the toast; persist so it stays gone.
+			onDismiss: () => onDismissRef.current(),
+		});
+
+		return () => {
+			toast.dismiss(UPDATE_CHECK_TOAST_ID);
+		};
+	}, [version, releaseNotesUrl, aboveDeploymentBanner]);
+
+	return null;
 };
